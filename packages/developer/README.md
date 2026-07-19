@@ -140,13 +140,13 @@ or the user may invoke one directly with `/skill:<name>`.
 | Skill | Helps decide |
 | --- | --- |
 | `specify` | Product meaning, scope, invariants, risks, and blocking unknowns |
-| `model` | Predicates, cases, rules, forbidden states, transitions, and objectives |
-| `sketch` | Data definitions, wished interfaces, representative cases, and checks |
-| `signal` | Repetition, difference, structural pressure, and model-code mismatch |
-| `naming-judgment` | Stable domain meaning and names that preserve change boundaries |
+| `model` | Logic for Programmers-style condition spaces, guarantees, and verification targets |
+| `sketch` | SICP-style abstraction barriers and HtDP-style data-directed design recipes |
+| `signal` | Flocking-style small structural movement and model-code mismatch |
+| `naming-judgment` | Elements of Clojure-style domain sense and change-preserving names |
 | `abstraction-review` | Whether a candidate should be kept, revised, split, rejected, or deferred |
-| `schedule` | Whether a structural change belongs now, after, or never |
-| `verify` | Whether current evidence actually supports an implementation claim |
+| `schedule` | Tidy First-style behavior/structure timing: now, after, or never |
+| `verify` | Verifier selection, evidence relevance, and pass-but-wrong risk |
 | `visualize` | The smallest visual surface that lowers judgment cost |
 | `adversarial-eval` | Finite, escalating attempts to falsify a skill or implementation claim |
 

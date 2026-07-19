@@ -1,6 +1,6 @@
 ---
 name: sketch
-description: "Shape an implementable design surface from a requirement, invariant, problem model, existing code, or representative cases using data definitions, templates, wishful top-level design, interfaces, checks, and a small implementation queue. Use when behavior is understood but ownership, boundaries, data flow, or implementation shape remains unresolved."
+description: "Shape an implementable design surface from a requirement, invariant, problem model, existing code, or representative cases using data definitions, templates, wishful top-level design, interfaces, checks, and a small implementation queue. Use when ownership, boundaries, data flow, or implementation shape remains unresolved, including requests to apply SICP-style wishful thinking or abstraction barriers and HtDP-style design recipes."
 ---
 
 # Sketch

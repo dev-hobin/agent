@@ -1,6 +1,6 @@
 ---
 name: signal
-description: "Inspect requirements, code, diffs, tests, UI states, names, or recent changes for observable structural movement and classify it as absent, horizontal, vertical, or ambiguous. Use when evidence suggests duplication, model-code mismatch, boundary pressure, or an emerging refactoring candidate."
+description: "Inspect requirements, code, diffs, tests, UI states, names, or recent changes for observable structural movement and classify it as absent, horizontal, vertical, or ambiguous. Use when evidence suggests duplication, model-code mismatch, boundary pressure, or an emerging refactoring candidate, including requests for flocking-style small behavior-preserving refactoring."
 ---
 
 # Signal

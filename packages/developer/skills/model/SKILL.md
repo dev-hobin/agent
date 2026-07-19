@@ -1,6 +1,6 @@
 ---
 name: model
-description: "Model the condition space behind a requirement, invariant, bug, policy, workflow, or code behavior using cases, predicates, rules, forbidden states, transitions, objectives, guarantee placement, and verification targets. Use when correctness depends on combinations, absence or default semantics, state, time, or policy interaction."
+description: "Model the condition space behind a requirement, invariant, bug, policy, workflow, or code behavior using cases, predicates, rules, forbidden states, transitions, objectives, guarantee placement, and verification targets. Use when correctness depends on combinations, absence or default semantics, state, time, or policy interaction, including requests to apply Logic for Programmers-style condition modeling."
 ---
 
 # Model
@@ -69,7 +69,7 @@ Keep provisional rules visibly provisional.
 Do not decide product scope, design the implementation surface, schedule
 structural work, mutate artifacts, or make the final evidence judgment.
 
-## References
+## Reference Routing
 
 Read [the problem-modeling reference](references/problem-modeling.md) for
 policy-heavy, stateful, optimization, safety-critical, or otherwise complex

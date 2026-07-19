@@ -1,6 +1,6 @@
 ---
 name: verify
-description: "Judge what claims are supported by code, tests, diffs, command results, UI states, implementation reports, invariants, or problem models. Use when completion, correctness, coverage, or pass-but-wrong risk depends on mapping current evidence to a concrete claim."
+description: "Judge what claims are supported by code, tests, diffs, command results, UI states, implementation reports, invariants, or problem models. Use when completion, correctness, verifier selection, coverage, source compatibility, structural degradation, or pass-but-wrong risk depends on mapping current evidence to a concrete claim."
 ---
 
 # Verify

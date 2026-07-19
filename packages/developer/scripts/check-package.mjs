@@ -79,6 +79,20 @@ const referenceRoutes = {
   verify: ["references/verifier-selection-and-pass-but-wrong.md"],
 };
 
+const descriptionTriggers = {
+  model: /Logic for Programmers/i,
+  "naming-judgment": /Elements of Clojure/i,
+  schedule: /Tidy First/i,
+  signal: /flocking/i,
+  sketch: /SICP.*HtDP/i,
+  verify: /verifier selection/i,
+};
+
+for (const [name, expected] of Object.entries(descriptionTriggers)) {
+  const description = loaded.skills.find((skill) => skill.name === name)?.description ?? "";
+  assert.match(description, expected, `Expected Pi discovery trigger in ${name} description`);
+}
+
 for (const [name, routes] of Object.entries(referenceRoutes)) {
   const source = await readFile(join(root, "skills", name, "SKILL.md"), "utf8");
   for (const route of routes) {
@@ -89,6 +103,19 @@ for (const [name, routes] of Object.entries(referenceRoutes)) {
 for (const path of requiredReferences) {
   const source = await readFile(join(root, path), "utf8");
   assert.ok(source.length > 0, "Expected non-empty reference: " + path);
+}
+
+const referenceAnchors = {
+  "skills/model/references/problem-modeling.md": /Logic for Programmers/,
+  "skills/naming-judgment/references/elements-of-clojure-naming.md": /Elements of Clojure/,
+  "skills/schedule/references/structural-change-timing.md": /Kent Beck/,
+  "skills/signal/references/flocking-and-structural-movement.md": /99 Bottles of OOP/,
+  "skills/sketch/references/design-recipe-and-abstraction-barriers.md": /SICP:[\s\S]*HtDP:/,
+  "skills/verify/references/verifier-selection-and-pass-but-wrong.md": /## Verifier Ladder/,
+};
+
+for (const [path, expected] of Object.entries(referenceAnchors)) {
+  assert.match(await readFile(join(root, path), "utf8"), expected, `Expected conceptual anchor in ${path}`);
 }
 
 const markdownDocuments = [
