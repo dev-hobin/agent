@@ -31,7 +31,7 @@ The selected payment method disappears after navigating back to checkout. Find t
 ```
 
 Most users should begin with `on`. Developer decides whether the next concrete
-question needs a specialist leaf or is already justified as direct action. You
+question would benefit from a focused skill or is already justified as direct action. You
 do not need to call its internal protocol tools yourself.
 
 For a risky refactor where Pi should justify mutation before using its built-in
@@ -84,8 +84,8 @@ unrelated active tools and does not force-enable read tools the user disabled.
 Developer adds two model-facing protocol tools:
 
 1. `developer_route_question` opens one route for one concrete question.
-2. The route owner is `direct` or one currently available Developer leaf.
-3. A leaf route returns the exact Pi-discovered `SKILL.md` method and canonical
+2. The route target is `direct` or one currently available Developer skill.
+3. A skill route returns the exact Pi-discovered `SKILL.md` instructions and canonical
    path; a direct route keeps implementation tools available for the justified
    action.
 4. `developer_record_judgment` closes the route with a status, result, evidence,
@@ -102,7 +102,7 @@ Each new route is chosen from the current question and evidence.
 
 Developer uses different Pi surfaces for different information:
 
-- The footer contains only global mode, protocol state, and current owner.
+- The footer contains only global mode, protocol state, and current route target.
 - A compact widget appears only while a route or unresolved question exists.
 - `/develop` uses a `SelectList` action menu.
 - `/develop status` opens a branch-grounded, read-only status panel.
@@ -132,12 +132,12 @@ These are routing states, not product-completion claims. In particular:
 Pending questions receive stable IDs. A later route revisits one by passing the
 exact ID; wording similarity is never used as identity.
 
-## Leaf methods
+## Skills
 
 Pi may match these skills automatically, Developer may route a question to one,
 or the user may invoke one directly with `/skill:<name>`.
 
-| Skill | Owns questions about |
+| Skill | Helps decide |
 | --- | --- |
 | `specify` | Product meaning, scope, invariants, risks, and blocking unknowns |
 | `model` | Predicates, cases, rules, forbidden states, transitions, and objectives |
@@ -151,7 +151,7 @@ or the user may invoke one directly with `/skill:<name>`.
 | `adversarial-eval` | Finite, escalating attempts to falsify a skill or implementation claim |
 
 Pi's loaded resource metadata is authoritative. If package configuration filters
-or disables a leaf, Developer cannot route to it even if its file exists in the
+or disables a skill, Developer cannot route to it even if its file exists in the
 npm package.
 
 ## State, branches, and compaction
@@ -165,8 +165,8 @@ The current event contract is `developer/v2`. Legacy `developer/v1` routing
 history can be replayed, but removed inferred fields are not revived.
 
 Developer uses Pi's normal compaction. Each new agent turn receives current
-protocol state, and route results place identity and recovery metadata before a
-potentially long leaf method. Tool output is checked against Pi's standard size
+protocol state, and route results place identity and recovery metadata before
+potentially long skill instructions. Tool output is checked against Pi's standard size
 limits before state changes are committed. At most twenty pending questions may
 remain in current state.
 
@@ -197,7 +197,7 @@ pinning, and security behavior.
 extensions/
 ├── developer.ts    # command, protocol tools, events, and Pi integration
 ├── state.ts        # replayable developer/v2 branch state
-├── skills.ts       # Pi-native leaf discovery and method loading
+├── skills.ts       # Pi-native skill discovery and instruction loading
 ├── tool-policy.ts  # strict-mode active-tool reconciliation
 └── tui.ts          # selectors, widget, status panel, and prompt preparation
 skills/             # ten independently loadable Pi skills

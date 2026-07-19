@@ -199,7 +199,7 @@ Map the layers this way:
 | Skill update surface | Review layer |
 | --- | --- |
 | trigger wording, user-facing command language | Language |
-| skill responsibility and owned question | Boundary |
+| skill responsibility and core question | Boundary |
 | recipe-grade invariant or stop condition | Law |
 | progressive disclosure and reference routing | Engine |
 | whether future agents actually read enough context | Run |

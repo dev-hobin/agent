@@ -7,7 +7,7 @@ description: "Review or create code names by separating stable domain meaning fr
 
 Choose names that preserve domain sense across implementation change.
 
-## Owned Question
+## Core Question
 
 What domain sense should this name expose, what detail should it hide, and what
 change boundary should it preserve?
@@ -34,7 +34,8 @@ Open questions: unresolved domain meaning or boundary pressure, or none
 Artifacts: rename map and affected scope
 ```
 
-Return only this leaf's owned judgment; leave subsequent routing to the caller.
+Return only this skill's judgment for the question at hand; leave subsequent
+routing to the caller.
 
 ## Completion
 

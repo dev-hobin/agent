@@ -7,7 +7,7 @@ description: "Choose and shape the smallest visual surface that materially lower
 
 Make a judgment easier to inspect without making weak evidence look certain.
 
-## Owned Question
+## Core Question
 
 What visual surface would materially lower judgment cost?
 
@@ -33,7 +33,8 @@ Open questions: missing facts or uncertain relationships, or none
 Artifacts: visual specification or completed visual
 ```
 
-Return only this leaf's owned judgment; leave subsequent routing to the caller.
+Return only this skill's judgment for the question at hand; leave subsequent
+routing to the caller.
 
 ## Completion
 

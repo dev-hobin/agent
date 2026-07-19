@@ -7,7 +7,7 @@ description: "Model the condition space behind a requirement, invariant, bug, po
 
 Expose the condition space a valid implementation must satisfy.
 
-## Owned Question
+## Core Question
 
 Which cases, rules, states, or transitions make the claim precise?
 
@@ -32,7 +32,8 @@ Open questions: unresolved policy or evidence gaps, or none
 Artifacts: case table, rules, transitions, or verification targets
 ```
 
-Return only this leaf's owned judgment; leave subsequent routing to the caller.
+Return only this skill's judgment for the question at hand; leave subsequent
+routing to the caller.
 
 ## Completion
 

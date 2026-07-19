@@ -7,7 +7,7 @@ description: "Decide whether a concrete structural change or reviewed abstractio
 
 Decide when a concrete structural move belongs.
 
-## Owned Question
+## Core Question
 
 When should this candidate be done: now, after, or never?
 
@@ -33,7 +33,8 @@ Open questions: missing timing evidence, or none
 Artifacts: timing decision and reopen condition
 ```
 
-Return only this leaf's owned judgment; leave subsequent routing to the caller.
+Return only this skill's judgment for the question at hand; leave subsequent
+routing to the caller.
 
 ## Completion
 

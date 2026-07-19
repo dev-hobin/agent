@@ -38,11 +38,11 @@ export function loadCandidateSkills(skillsRoot: string): Map<string, Skill> {
   const candidates = new Map<string, Skill>();
 
   for (const skill of loaded.skills) {
-    if (candidates.has(skill.name)) throw new Error(`Duplicate Developer leaf name: ${skill.name}`);
+    if (candidates.has(skill.name)) throw new Error(`Duplicate Developer skill name: ${skill.name}`);
     candidates.set(skill.name, skill);
   }
 
-  if (candidates.size === 0) throw new Error(`No Developer leaf skills found in ${skillsRoot}`);
+  if (candidates.size === 0) throw new Error(`No Developer skills found in ${skillsRoot}`);
   return candidates;
 }
 
@@ -73,7 +73,7 @@ export async function renderSkillMethod(skill: Skill): Promise<string> {
     bodyLines > DEFAULT_MAX_LINES - METHOD_OUTPUT_OVERHEAD_LINES
   ) {
     throw new Error(
-      `Developer leaf ${skill.name} is too large for safe forced loading. Move detail into relative references before routing it.`,
+      `Developer skill ${skill.name} is too large for safe forced loading. Move detail into relative references before routing it.`,
     );
   }
   const name = escapeAttribute(skill.name);

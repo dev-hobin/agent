@@ -45,14 +45,14 @@ function modeColor(mode: DeveloperMode): ThemeColor {
 
 export function renderDeveloperFooter(state: DeveloperState, theme: Theme): string {
   const currentProtocol = protocolState(state);
-  const owner = state.activeRoute?.owner ?? "none";
+  const target = state.activeRoute?.owner ?? "none";
   return (
     theme.fg("accent", "developer") +
     theme.fg("dim", " · ") +
     theme.fg(modeColor(state.mode), modeName(state.mode)) +
     theme.fg("dim", " · ") +
     theme.fg(protocolColor(currentProtocol), currentProtocol) +
-    theme.fg("dim", ` · ${owner}`)
+    theme.fg("dim", ` · ${target}`)
   );
 }
 
@@ -250,7 +250,7 @@ export class DeveloperWidget {
 export interface DeveloperStatusView {
   state: DeveloperState;
   activeTools: string[];
-  availableLeaves: string[];
+  availableSkills: string[];
 }
 
 export class DeveloperStatusPanel {
@@ -299,7 +299,7 @@ export class DeveloperStatusPanel {
           this.theme.fg("dim", " · ") +
           `protocol ${this.theme.fg(protocolColor(currentProtocol), currentProtocol)}` +
           this.theme.fg("dim", " · ") +
-          `owner ${this.theme.fg("muted", state.activeRoute?.owner ?? "none")}`,
+          `target ${this.theme.fg("muted", state.activeRoute?.owner ?? "none")}`,
       ),
     );
     rows.push(row());
@@ -309,7 +309,7 @@ export class DeveloperStatusPanel {
       addWrapped("id", state.activeRoute.routeId, "dim", 1);
       addWrapped("question", state.activeRoute.question, "text");
       addWrapped("reason", state.activeRoute.reason);
-      addWrapped("method", state.activeRoute.methodLocation ?? "direct action", "dim", 1);
+      addWrapped("skill", state.activeRoute.methodLocation ?? "direct action", "dim", 1);
       addWrapped("known evidence", String(state.activeRoute.knownEvidence.length), "muted", 1);
     } else {
       addWrapped("state", "No route is currently waiting for judgment.", "dim", 1);
@@ -357,7 +357,7 @@ export class DeveloperStatusPanel {
     rows.push(row());
     addWrapped(
       "resources",
-      `${this.view.availableLeaves.length} leaves · ${this.view.activeTools.length} active tools`,
+      `${this.view.availableSkills.length} skills · ${this.view.activeTools.length} active tools`,
       "dim",
       1,
     );

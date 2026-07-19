@@ -7,7 +7,7 @@ description: "Design and run finite adversarial evaluations for Pi skills, packa
 
 Design and run the smallest evaluation that can falsify the target claim.
 
-## Owned Question
+## Core Question
 
 What adversarial evidence would expose the target's real failure modes?
 
@@ -41,7 +41,8 @@ When reporting multiple claims or rounds, keep the local evidence auditable:
 Use only the failure classes defined below. This table records evaluation
 evidence; it does not choose another capability.
 
-Return only this leaf's owned judgment; leave subsequent routing to the caller.
+Return only this skill's judgment for the question at hand; leave subsequent
+routing to the caller.
 
 ## Completion
 

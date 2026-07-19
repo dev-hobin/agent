@@ -105,18 +105,18 @@ function compactLine(value: string, maxChars = 160): string {
 
 function summarizeState(state: DeveloperState): string {
   if (state.mode === "off") return "developer: off";
-  const owner = state.activeRoute ? state.activeRoute.owner : "none";
-  return `developer: ${state.mode} · owner: ${owner} · ${protocolState(state)}`;
+  const target = state.activeRoute ? state.activeRoute.owner : "none";
+  return `developer: ${state.mode} · target: ${target} · ${protocolState(state)}`;
 }
 
-function protocolPrompt(state: DeveloperState, availableLeafNames: string[]): string {
+function protocolPrompt(state: DeveloperState, availableSkillNames: string[]): string {
   const lines = [
     "",
     `Developer protocol (${state.mode}) is active.`,
     "- Treat the protocol as adaptive routing, never as a fixed sequence of skills.",
-    `- Call ${ROUTE_TOOL} only when one concrete development question needs a dedicated owner.`,
-    "- Use owner=direct when the next local action is already justified; otherwise choose the one available leaf method that owns the question.",
-    `- Follow the method returned by ${ROUTE_TOOL}, then close that route with ${JUDGMENT_TOOL}.`,
+    `- Call ${ROUTE_TOOL} only when one concrete development question needs focused judgment or direct action.`,
+    "- Use owner=direct when the next local action is already justified; otherwise set owner to the available skill whose scope best fits the question.",
+    `- Follow the skill instructions returned by ${ROUTE_TOOL}, then close that route with ${JUDGMENT_TOOL}.`,
     "- Keep a direct route open through implementation and evidence collection; record its judgment afterward.",
     "- Protocol state is routing bookkeeping. Idle never proves product completion, user acceptance, or current verification.",
     "- Product files are changed with Pi implementation tools. Developer protocol tools only route and record judgments.",
@@ -124,7 +124,7 @@ function protocolPrompt(state: DeveloperState, availableLeafNames: string[]): st
 
   if (state.mode === "strict") {
     lines.push(
-      "- Strict mode withholds active Pi built-in edit, write, and bash tools unless the active route owner is direct. It does not classify or sandbox other extensions' tools.",
+      "- Strict mode withholds active Pi built-in edit, write, and bash tools unless the active route target is direct. It does not classify or sandbox other extensions' tools.",
     );
   }
 
@@ -134,7 +134,7 @@ function protocolPrompt(state: DeveloperState, availableLeafNames: string[]): st
     );
     if (state.activeRoute.methodLocation) {
       lines.push(
-        `Active method location: ${state.activeRoute.methodLocation}. Read it again if compaction or a later turn no longer contains the full method.`,
+        `Active skill location: ${state.activeRoute.methodLocation}. Read it again if compaction or a later turn no longer contains the full instructions.`,
       );
     }
   }
@@ -148,7 +148,7 @@ function protocolPrompt(state: DeveloperState, availableLeafNames: string[]): st
     );
   }
   lines.push(
-    `Available Developer leaves: ${availableLeafNames.length > 0 ? availableLeafNames.join(", ") : "none; use direct only"}.`,
+    `Available Developer skills: ${availableSkillNames.length > 0 ? availableSkillNames.join(", ") : "none; use direct only"}.`,
   );
   return lines.join("\n");
 }
@@ -249,12 +249,12 @@ export default async function developer(pi: ExtensionAPI) {
     owner: Type.String({
       minLength: 1,
       maxLength: 64,
-      description: "direct, or an exact leaf name from the current Available Developer leaves list",
+      description: "direct, or an exact skill name from the current Available Developer skills list",
     }),
     reason: Type.String({
       minLength: 1,
       maxLength: MAX_QUESTION_CHARS,
-      description: "Why this owner fits the current evidence",
+      description: "Why this route target fits the current evidence",
     }),
     known_evidence: Type.Optional(
       Type.Array(Type.String({ maxLength: MAX_EVIDENCE_CHARS }), {
@@ -271,11 +271,11 @@ export default async function developer(pi: ExtensionAPI) {
     name: ROUTE_TOOL,
     label: "Developer Route Question",
     description:
-      "Route one concrete development question to direct action or one currently available @hobin/developer leaf method. This is adaptive routing, not a workflow sequence.",
-    promptSnippet: "Route one development judgment to its current owner",
+      "Route one concrete development question to direct action or one currently available @hobin/developer skill. This is adaptive routing, not a workflow sequence.",
+    promptSnippet: "Choose how to handle one development question",
     promptGuidelines: [
       `Call ${ROUTE_TOOL} only when there is no active Developer route.`,
-      `Use ${ROUTE_TOOL} with the narrowest owner supported by current evidence; use owner=direct for an already-justified local action.`,
+      `Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; use owner=direct for an already-justified local action.`,
     ],
     parameters: RouteParams,
     executionMode: "sequential",
@@ -300,13 +300,13 @@ export default async function developer(pi: ExtensionAPI) {
         const owner = params.owner;
         const skill = owner === "direct" ? undefined : availableSkills.get(owner);
         if (owner !== "direct" && !skill) {
-          fail(`Developer leaf ${owner} is unavailable or disabled in the current Pi resource configuration.`);
+          fail(`Developer skill ${owner} is unavailable or disabled in the current Pi resource configuration.`);
         }
 
         const method =
           owner === "direct"
             ? [
-                "# Direct owner",
+                "# Direct action",
                 "",
                 "The next local action is already justified. Keep this route open while using Pi implementation tools and collecting evidence.",
               ].join("\n")
@@ -326,8 +326,8 @@ export default async function developer(pi: ExtensionAPI) {
         const response = [
           `Route ID: ${event.routeId}`,
           `Question: ${event.question}`,
-          `Owner: ${event.owner}`,
-          skill ? `Method location: ${skill.filePath}` : "Method location: direct owner; no leaf file",
+          `Target: ${event.owner}`,
+          skill ? `Skill location: ${skill.filePath}` : "Skill location: direct action; no skill file",
           `Reason: ${event.reason}`,
           `Known evidence: ${event.knownEvidence.length > 0 ? event.knownEvidence.join(" | ") : "none"}`,
           targetQuestionId ? `Revisits pending question: ${targetQuestionId}` : "Revisits pending question: none",
@@ -380,7 +380,7 @@ export default async function developer(pi: ExtensionAPI) {
           text += `\n${theme.fg("dim", "evidence · none recorded before routing")}`;
         }
         text += `\n${theme.fg("dim", `revisits · ${event.targetQuestionId ?? "none"}`)}`;
-        text += `\n${theme.fg("dim", `method · ${event.methodLocation ?? "direct action"}`)}`;
+        text += `\n${theme.fg("dim", `skill · ${event.methodLocation ?? "direct action"}`)}`;
       }
       if (!expanded && event) text += ` · ${keyHint("app.tools.expand", "details")}`;
       return reusableText(text, context.lastComponent);
@@ -519,7 +519,7 @@ export default async function developer(pi: ExtensionAPI) {
               : theme.fg("muted", summary);
       if (expanded && event) {
         text += `\n${theme.fg("dim", `route · ${event.routeId}`)}`;
-        text += `\n${theme.fg("dim", `owner · ${event.owner}`)}`;
+        text += `\n${theme.fg("dim", `target · ${event.owner}`)}`;
         text += `\n${theme.fg("dim", `question · ${event.question}`)}`;
         text += `\n${theme.fg("dim", `result · ${event.result}`)}`;
         for (const basis of event.basis) text += `\n${theme.fg("dim", `basis · ${basis}`)}`;
@@ -570,7 +570,7 @@ export default async function developer(pi: ExtensionAPI) {
       `\nbasis: ${basis}` +
       `\nartifacts: ${artifacts}` +
       `\nactive tools: ${pi.getActiveTools().join(", ")}` +
-      `\navailable leaves: ${[...availableSkills.keys()].join(", ") || "none"}` +
+      `\navailable skills: ${[...availableSkills.keys()].join(", ") || "none"}` +
       `\npending: ${pending}` +
       "\nprotocol state is not a product-completion claim"
     );
@@ -643,7 +643,7 @@ export default async function developer(pi: ExtensionAPI) {
           await showDeveloperStatus(ctx, {
             state,
             activeTools: pi.getActiveTools(),
-            availableLeaves: [...availableSkills.keys()],
+            availableSkills: [...availableSkills.keys()],
           });
         } else {
           ctx.ui.notify(statusMessage(), "info");
@@ -680,7 +680,7 @@ export default async function developer(pi: ExtensionAPI) {
     if (state.activeRoute?.owner === "direct") return;
     return {
       block: true,
-      reason: `Developer strict mode requires an active ${ROUTE_TOOL} with owner=direct before Pi built-in edit, write, or bash.`,
+      reason: `Developer strict mode requires an active ${ROUTE_TOOL} targeting direct action (owner=direct) before Pi built-in edit, write, or bash.`,
     };
   });
 

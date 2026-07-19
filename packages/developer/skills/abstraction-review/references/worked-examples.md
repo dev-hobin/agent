@@ -60,7 +60,7 @@ Input artifact:
   SKILL.md procedure, reference list, and current reference files
 
 Derivation:
-  owned question -> public contract
+  core question -> public contract
   references -> conditional reference choices
   realistic invocation -> run evidence
 

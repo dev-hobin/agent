@@ -7,7 +7,7 @@ description: "Clarify product meaning, scope, invariants, constraints, counterex
 
 Clarify what must be true without deciding how to build it.
 
-## Owned Question
+## Core Question
 
 What must be true, in scope, and not guessed?
 
@@ -32,7 +32,8 @@ Open questions: unresolved product decisions, or none
 Artifacts: invariant, scope, constraints, and counterexamples
 ```
 
-Return only this leaf's owned judgment; leave subsequent routing to the caller.
+Return only this skill's judgment for the question at hand; leave subsequent
+routing to the caller.
 
 ## Completion
 

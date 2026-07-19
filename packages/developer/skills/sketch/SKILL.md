@@ -7,7 +7,7 @@ description: "Shape an implementable design surface from a requirement, invarian
 
 Turn accepted intent into an implementable design surface.
 
-## Owned Question
+## Core Question
 
 What design surface makes this intent implementable?
 
@@ -33,7 +33,8 @@ Open questions: unresolved design consequences, or none
 Artifacts: wished interfaces, checks, and implementation queue
 ```
 
-Return only this leaf's owned judgment; leave subsequent routing to the caller.
+Return only this skill's judgment for the question at hand; leave subsequent
+routing to the caller.
 
 ## Completion
 

@@ -51,11 +51,11 @@ npm artifacts.
 
 ## What to expect
 
-Both packages keep their leaf skills independent. Pi may load a skill from the
+Both packages keep their focused skills independent. Pi may load a skill from the
 current request, or the user may invoke it explicitly with `/skill:<name>`.
 Neither package requires a universal phase order.
 
-`@hobin/developer` additionally owns a small stateful protocol. It can route one
+`@hobin/developer` additionally provides a small stateful protocol. It can route one
 development question at a time, preserve unresolved questions by stable ID, and
 record evidence-backed judgments. Product files are still changed by Pi's normal
 implementation tools.

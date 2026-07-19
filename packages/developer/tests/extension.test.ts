@@ -353,7 +353,7 @@ test("a Pi-filtered leaf cannot be routed even though it exists in the package",
   );
 });
 
-test("the protocol prompt lists only leaves Pi made available", async () => {
+test("the protocol prompt lists only skills Pi made available", async () => {
   const specify = loadedLeaves.find((skill) => skill.name === "specify")!;
   const harness = createHarness();
   await developer(harness.api);
@@ -366,8 +366,8 @@ test("the protocol prompt lists only leaves Pi made available", async () => {
     systemPromptOptions: { cwd: packageRoot, skills: [specify] },
   });
 
-  assert.match(result.systemPrompt, /Available Developer leaves: specify\./);
-  assert.doesNotMatch(result.systemPrompt, /Available Developer leaves:.*model/);
+  assert.match(result.systemPrompt, /Available Developer skills: specify\./);
+  assert.doesNotMatch(result.systemPrompt, /Available Developer skills:.*model/);
 });
 
 test("a later turn can recover the active leaf method from its canonical location", async () => {
@@ -386,7 +386,7 @@ test("a later turn can recover the active leaf method from its canonical locatio
     systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
   });
 
-  assert.match(result.systemPrompt, /Active method location: .*specify\/SKILL\.md/);
+  assert.match(result.systemPrompt, /Active skill location: .*specify\/SKILL\.md/);
   assert.match(result.systemPrompt, /Read it again if compaction/);
 });
 
@@ -637,7 +637,7 @@ test("tool renderers are partial-safe and expose routing evidence when expanded"
     assert.match(expanded, /reason · The invariant is unclear/);
     assert.match(expanded, /evidence · The current behavior differs across callers/);
     assert.match(expanded, /revisits · question:earlier/);
-    assert.match(expanded, /method · \/skills\/specify\/SKILL\.md/);
+    assert.match(expanded, /skill · \/skills\/specify\/SKILL\.md/);
   });
 });
 

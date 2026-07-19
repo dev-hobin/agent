@@ -7,7 +7,7 @@ description: "Inspect requirements, code, diffs, tests, UI states, names, or rec
 
 Observe structural movement without promoting or scheduling it.
 
-## Owned Question
+## Core Question
 
 What structural movement is actually visible in the evidence?
 
@@ -35,7 +35,8 @@ Open questions: stabilizing or rejecting evidence still needed, or none
 Artifacts: horizontal movement or concrete review candidate
 ```
 
-Return only this leaf's owned judgment; leave subsequent routing to the caller.
+Return only this skill's judgment for the question at hand; leave subsequent
+routing to the caller.
 
 ## Completion
 

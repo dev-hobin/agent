@@ -7,7 +7,7 @@ description: "Judge what claims are supported by code, tests, diffs, command res
 
 Map evidence to claims without turning green checks into broader proof.
 
-## Owned Question
+## Core Question
 
 What claims does the available evidence support?
 
@@ -34,7 +34,8 @@ Open questions: unverified claims or human-owned acceptance, or none
 Artifacts: evidence map and residual risks
 ```
 
-Return only this leaf's owned judgment; leave subsequent routing to the caller.
+Return only this skill's judgment for the question at hand; leave subsequent
+routing to the caller.
 
 ## Completion
 

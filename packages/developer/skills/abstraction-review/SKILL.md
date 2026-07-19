@@ -7,7 +7,7 @@ description: "Judge whether a concrete wished interface, helper, API, workflow r
 
 Decide whether a concrete abstraction candidate is safe to rely on.
 
-## Owned Question
+## Core Question
 
 Is this candidate stable enough to keep, or should it be revised, split,
 rejected, or deferred?
@@ -35,7 +35,8 @@ Open questions: missing contract or evidence, or none
 Artifacts: boundary, invariant, table, graph, trace, or repair rule
 ```
 
-Return only this leaf's owned judgment; leave subsequent routing to the caller.
+Return only this skill's judgment for the question at hand; leave subsequent
+routing to the caller.
 
 ## Completion
 

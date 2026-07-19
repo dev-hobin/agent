@@ -138,7 +138,7 @@ test("status panel is bounded, branch-grounded, and keyboard dismissible", () =>
     {
       state: activeState(),
       activeTools: ["read", "developer_route_question", "developer_record_judgment"],
-      availableLeaves: ["verify", "specify"],
+      availableSkills: ["verify", "specify"],
     },
     theme,
     () => {
@@ -151,7 +151,7 @@ test("status panel is bounded, branch-grounded, and keyboard dismissible", () =>
   assert.match(output, /Does the rendered interface preserve the product invariant/);
   assert.match(output, /Open questions · 1/);
   assert.match(output, /A browser observation remains/);
-  assert.match(output, /2 leaves · 3 active tools/);
+  assert.match(output, /2 skills · 3 active tools/);
   assert.ok(lines.length <= 30);
   assert.ok(lines.every((line) => visibleWidth(line) <= 88));
   panel.handleInput("\r");
