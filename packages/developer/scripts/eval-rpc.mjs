@@ -15,7 +15,14 @@ const extension = join(packageUnderTest, "extensions", "developer.ts");
 const skills = join(packageUnderTest, "skills");
 const piBin = process.env.PI_BIN || "pi";
 const live = process.env.DEVELOPER_EVAL_LIVE === "1";
-const fixtures = JSON.parse(await readFile(join(root, "evals", "fixtures.json"), "utf8"));
+const allFixtures = JSON.parse(await readFile(join(root, "evals", "fixtures.json"), "utf8"));
+const fixtureFilter = process.env.DEVELOPER_EVAL_FIXTURE;
+const fixtures = fixtureFilter
+  ? allFixtures.filter((fixture) => fixture.id === fixtureFilter)
+  : allFixtures;
+if (fixtureFilter && fixtures.length !== 1) {
+  throw new Error("Unknown DEVELOPER_EVAL_FIXTURE: " + fixtureFilter);
+}
 const workspace = await createEvalWorkspace(root, live ? fixtures.map((fixture) => fixture.id) : ["smoke"]);
 
 if (live && !process.env.PI_CODING_AGENT_DIR) {
@@ -100,14 +107,20 @@ function send(command, timeoutMs = 10000) {
   });
 }
 
-function waitForEventAfter(start, predicate, timeoutMs = 120000) {
+function waitForEventAfter(start, predicate, label, timeoutMs = 180000) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
     const poll = () => {
       const found = events.slice(start).find(predicate);
       if (found) return resolve(found);
       if (Date.now() - startedAt > timeoutMs) {
-        return reject(new Error("Event timeout\n" + stderr));
+        const recentTypes = events
+          .slice(Math.max(start, events.length - 20))
+          .map((event) => event.type)
+          .join(", ");
+        return reject(
+          new Error(`${label}: event timeout; recent events: ${recentTypes || "none"}\n${stderr}`),
+        );
       }
       setTimeout(poll, 25);
     };
@@ -126,10 +139,13 @@ try {
   const commands = commandsResponse.data.commands;
   assert.ok(commands.some((entry) => entry.name === "develop" && entry.source === "extension"));
 
-  const loadedSkills = commands.filter((entry) => entry.source === "skill").map((entry) => entry.name);
-  assert.equal(loadedSkills.length, 10);
-  assert.equal(loadedSkills.includes("develop"), false);
-  for (const entry of commands.filter((command) => command.source === "skill")) {
+  const allLoadedSkills = commands.filter((entry) => entry.source === "skill");
+  const packageSkills = allLoadedSkills.filter((entry) =>
+    String(entry.sourceInfo?.path ?? "").startsWith(skills),
+  );
+  assert.equal(packageSkills.length, 10);
+  assert.equal(packageSkills.some((entry) => entry.name === "develop"), false);
+  for (const entry of packageSkills) {
     assert.ok(
       String(entry.sourceInfo.path).startsWith(skills),
       "Package skill provenance escaped @hobin/developer: " + entry.sourceInfo.path,
@@ -212,7 +228,11 @@ try {
         message: "Evaluation workspace: " + casePath + ". Work only in that directory.\n" + fixture.request,
       });
       assert.equal(response.success, true, response.error);
-      await waitForEventAfter(start, (event) => event.type === "agent_settled");
+      await waitForEventAfter(
+        start,
+        (event) => event.type === "agent_settled",
+        fixture.id,
+      );
 
       await validateExecutionTrace(fixture, events.slice(start), packageUnderTest, casePath);
       console.log("Live eval passed: " + fixture.id);

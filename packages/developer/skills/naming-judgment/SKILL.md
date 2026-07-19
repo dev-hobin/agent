@@ -1,6 +1,6 @@
 ---
 name: naming-judgment
-description: "Review or create code names by separating stable domain meaning from the current implementation. Use when variables, functions, types, modules, components, APIs, fields, or abstractions are generic, misleading, filler-like, implementation-shaped, or carrying multiple product senses, including requests to apply Elements of Clojure-style naming judgment."
+description: "Review or create code names by separating stable domain meaning from the current implementation. Use when variables, functions, types, modules, components, APIs, fields, or abstractions are generic, misleading, filler-like, implementation-shaped, effect-hiding, or carrying multiple product senses."
 ---
 
 # Naming Judgment
@@ -73,5 +73,7 @@ Reuse does not prove that a generic name is sound.
 
 ## Reference Routing
 
-Read [the naming reference](references/elements-of-clojure-naming.md) for
-subtle, disputed, or recurring naming pressure.
+Read [the domain naming reference](references/domain-naming.md) for
+subtle, disputed, or recurring naming pressure. Also read it when the apparent
+naming problem may involve false indirection, a data-scope crossing, an effect
+hidden by a pure-sounding word, or responsibility-derived vocabulary.

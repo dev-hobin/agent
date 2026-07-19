@@ -9,6 +9,7 @@ export const LEGACY_JUDGMENT_TOOL = "record_judgment" as const;
 export type DeveloperMode = "off" | "on" | "strict";
 export type JudgmentStatus = "resolved" | "needs-evidence" | "not-applicable" | "blocked";
 export type PendingQuestionStatus = "needs-evidence" | "blocked";
+export type DirectExecutionProfile = "ordinary" | "behavior-preserving-structure";
 
 export interface ModeEvent {
   protocol: typeof PROTOCOL;
@@ -26,6 +27,7 @@ export interface RouteEvent {
   knownEvidence: string[];
   targetQuestionId?: string;
   methodLocation?: string;
+  executionProfile?: DirectExecutionProfile;
 }
 
 export interface PendingQuestion {
@@ -143,6 +145,10 @@ function isJudgmentStatus(value: unknown): value is JudgmentStatus {
   return value === "resolved" || value === "needs-evidence" || value === "not-applicable" || value === "blocked";
 }
 
+function isDirectExecutionProfile(value: unknown): value is DirectExecutionProfile {
+  return value === "ordinary" || value === "behavior-preserving-structure";
+}
+
 function parsePendingQuestion(value: unknown): PendingQuestion | undefined {
   if (!isObject(value)) return undefined;
   if (
@@ -178,7 +184,8 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
       typeof value.reason !== "string" ||
       !isStringArray(value.knownEvidence) ||
       (value.targetQuestionId !== undefined && typeof value.targetQuestionId !== "string") ||
-      (value.methodLocation !== undefined && typeof value.methodLocation !== "string")
+      (value.methodLocation !== undefined && typeof value.methodLocation !== "string") ||
+      (value.executionProfile !== undefined && !isDirectExecutionProfile(value.executionProfile))
     ) {
       return undefined;
     }
@@ -192,6 +199,7 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
       knownEvidence: value.knownEvidence,
       targetQuestionId: value.targetQuestionId,
       methodLocation: value.methodLocation,
+      executionProfile: value.executionProfile,
     };
   }
 

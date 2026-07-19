@@ -211,3 +211,18 @@ test("ignores malformed Developer events instead of crashing branch replay", () 
   assert.equal(state.activeRoute, undefined);
   assert.equal(state.lastJudgment, undefined);
 });
+
+test("replays valid direct execution profiles and rejects malformed ones", () => {
+  const directRoute: RouteEvent = {
+    ...route,
+    owner: "direct",
+    executionProfile: "behavior-preserving-structure",
+  };
+  const valid = reconstructState([toolEntry(ROUTE_TOOL, directRoute)]);
+  assert.equal(valid.activeRoute?.executionProfile, "behavior-preserving-structure");
+
+  const invalid = reconstructState([
+    toolEntry(ROUTE_TOOL, { ...directRoute, executionProfile: "invented-profile" }),
+  ]);
+  assert.equal(invalid.activeRoute, undefined);
+});

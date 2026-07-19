@@ -1,274 +1,333 @@
 # Problem Modeling Reference
 
-Use this reference when condition modeling needs more than a light invariant.
+Use this reference when a requirement, bug, refactor, API change, or AI task
+contains enough conditional complexity that prose and isolated examples no longer
+show the full acceptable solution space.
 
-This reference models conditions only. It does not choose capability routing or
-task ownership.
+## Central Idea
 
-## Contents
-
-- Core Question
-- Requirement Normalization
-- Lens Selection
-- Problem Shape Router
-- Modeling Tool Selection
-- Modeling Rules
-- Guarantee Placement
-- Common Failure Signals
-- Verification Target Derivation
-- Stop Checks
-- AI Delegation Boundary
-- Conceptual Lineage
-
-## Core Question
-
-Model the condition space under judgment:
+Model only the condition space under judgment:
 
 ```text
-What facts, rules, constraints, forbidden cases, transitions, and objectives must
-be true for any acceptable solution?
+domain and facts
+-> predicates and rules
+-> assumptions and forbidden cases
+-> transitions or objectives when relevant
+-> guarantee owners
+-> counterexamples and verification targets
 ```
 
-Do not model the whole real-world domain. Include only the facts that affect the
-current invariant, product decision, or verification target.
+The model is a deliberately simplified view of the world. Its value is not
+formality by itself; it is the ability to expose ambiguity, missing cases,
+composition failures, and unsafe replacements before code hides them.
 
-## Requirement Normalization
+## Lower Prose Into Logic
 
-When starting from natural language, lower the prose into condition-space parts
-before choosing a modeling tool:
+Translate requirement language before choosing a representation:
+
+1. Nouns identify domains and facts: users, documents, orders, states, events.
+2. Judgments become predicates: `canEdit`, `isValidTransition`, `isReady`.
+3. Quantity words become scoped quantifiers: all, some, none, exactly one.
+4. Conditional words become implications: if, only if, unless, whenever.
+5. `P => Q` becomes the counterexample to exclude: `P && !Q`.
+6. Finite combinations become decision spaces.
+7. Time words become actions, transitions, safety, or progress questions.
+8. Preferences become objectives only after hard constraints are separated.
+9. Reasonable stakeholder choices remain open policy questions.
+
+Words such as *valid*, *ready*, *allowed*, *all*, *any*, *never*, *always*,
+*after*, *retry*, and *timeout* are often where the real requirement lives.
+
+## Logic Is Not Runtime Semantics
+
+A logically valid rewrite may be an invalid program rewrite. Before carrying an
+equivalence into code, check:
+
+- truthiness and coercion rules;
+- short-circuiting and evaluation order;
+- exceptions, side effects, mutation, and non-termination;
+- equality, identity, and collection semantics;
+- floating-point, overflow, null, and missing-value behavior;
+- whether a set-like mathematical model is actually represented by an ordered or
+  duplicate-preserving collection.
+
+Use the logical form to state the intended relationship, then separately prove
+that the implementation language preserves it.
+
+## The Ability-Guarantee Tradeoff
+
+Every representation or tool gains guarantees by excluding abilities. A set
+excludes duplicates and order; a read-only capability excludes writes; a narrow
+type excludes values; a decidable model excludes expressions its checker cannot
+handle.
+
+For every proposed modeling or implementation constraint, state both:
 
 ```text
-1. Nouns become domain facts: user, document, cart, item, order, state, event.
-2. Actions and judgments become predicates: canEdit, canCheckout, isValidTransition.
-3. Quantity words become quantifiers: all, at least one, none, exactly one, at most one.
-4. Conditional words become implication: if, only if, unless, whenever.
-5. Implications become counterexamples: P => Q means the failure shape is P && !Q.
-6. Finite policy combinations become decision spaces.
-7. Time words become transition or temporal questions.
-8. Unspecified domain choices become open policy questions.
+Guarantee gained: what becomes impossible or checkable
+Ability lost: what valid expression, input, behavior, or implementation is excluded
 ```
 
-Do not skip this step when a requirement contains words such as valid, ready,
-allowed, all, any, never, always, unless, only if, after, retry, or timeout.
-Those words are often the actual problem.
+Do not call a narrower representation better until the lost ability is known not
+to be a product requirement.
 
-## Lens Selection
+## Choose The Model From The Uncertainty
 
-Use multiple lenses when the task mixes concerns.
-
-| Lens | Use when | Output emphasis |
+| Problem shape | Start with | What it exposes |
 | --- | --- | --- |
-| `predicate-logic` | hidden booleans, quantifiers, implication, rewrite/equivalence questions | predicates, domains, counterexamples, equivalence risks |
-| `test-specification` | tests should express behavior, structural properties, or metamorphic relations | examples, properties, generators, counterexamples |
-| `contract-property` | function/API behavior, caller/callee boundaries, valid inputs | preconditions, postconditions, invariants |
-| `equation-invariant` | a compact formula, precedence rule, or conserved relationship is clearer than rows | formula, invariant, counterexample shape |
-| `proof-invariant` | proof, loop correctness, or preservation across steps matters | loop invariant, proof obligation, termination condition |
-| `data-relation` | data facts, queries, constraints, or representation replacement matter | relations, joins, violation queries, schema/model compatibility |
-| `absence-default-semantics` | configurable, optional, nullable, defaulted, persisted, or externally supplied values may be missing | valid members, absence meanings, default owner, legacy shape, misplaced-default counterexample |
-| `decision-space` | finite policy/case matrix, role/status/flag combinations | inputs, finite partitions, outputs, missing/conflicting cases |
-| `domain-relation` | entities and relationships drive behavior | entities, relations, assumptions, properties |
-| `transition-temporal` | state changes, async flows, retries, workers, lifecycle | states, actions, safety, liveness, stale events |
-| `constraint-objective` | assignment, optimization, configuration, solver-like work | variables, constraints, objective, invalid representations |
-| `logic-programming` | facts and rules should be queried directly or recursively | facts, rules, queries, possible worlds |
-| `ai-delegation` | preparing a clear task for another agent or skill | facts, rules, forbidden cases, objective, verification |
+| vague boolean or conditional rule | predicates, quantified sets, implication counterexamples | exact domain, scope, and failure shape |
+| function or API composition | contracts | caller obligations and callee guarantees |
+| refactor, upgrade, schema, or API replacement | replacement model | which old guarantees and accepted inputs must survive |
+| finite role/status/flag combinations | decision table | missing, overlapping, or contradictory cases |
+| entities and relationships | domain/relational model | possible instances, impossible combinations, and assumptions |
+| state, retry, concurrency, lifecycle | transition/temporal model | valid histories, safety, progress, stale events |
+| allocation, planning, configuration | constraints plus objective | valid solutions versus preferred solutions |
+| hard satisfaction or counterexample search | solver encoding | satisfiability, counterexamples, or optimal solutions |
+| stakeholder-dependent behavior | human decision surface | choices the model must not invent |
 
-## Problem Shape Router
+Use multiple views when the task genuinely mixes shapes. Do not model the whole
+product merely because one rule is complicated.
 
-Choose the first representation from the shape of uncertainty, not from tool
-preference.
+For complete, runnable-shaped examples of boolean policy, relational data,
+temporal behavior, proof boundaries, solvers, logic programming, and planning,
+read [Worked Models And Specialized Techniques](worked-models-and-specialized-techniques.md).
+The examples are selected by uncertainty; they are not a mandatory progression.
 
-| Problem shape | Start with | Why |
-| --- | --- | --- |
-| A boolean name feels vague: valid, ready, allowed, safe, complete | `predicate-naming` | Forces the domain question behind the boolean to be explicit |
-| The rule says all, any, none, at least one, exactly one, or at most one | `set-quantifier-model` | Separates the domain set from the required count |
-| The rule is conditional: if, only if, unless, whenever | `implication-counterexample` | Turns a policy into the failure shape to exclude |
-| A refactor, rewrite, schema change, or optimization must preserve meaning | `rewrite-equivalence-check` or `replacement-schema-model` | Separates logical equivalence from language/runtime semantics |
-| A fact must remain true across calls, steps, data mutations, or loops | `equation-invariant`, `contract-model`, or `loop-invariant-proof` | Names the preserved guarantee before choosing a representation or change |
-| Role/status/flag/action combinations are finite and reviewable | `decision-table` | Finds missing and conflicting cases |
-| Facts and relationships drive correctness | `domain-model`, `relational-query`, or `data-constraint` | Makes possible instances and impossible fact combinations visible |
-| Correctness depends on movement through time | `state-transition` or `temporal-model` | Distinguishes valid snapshots from valid behavior |
-| The task is to find a satisfying value, allocation, plan, or counterexample | `constraint-objective`, `smt-counterexample`, or `logic-programming` | Models the conditions a solution must satisfy |
-| The answer depends on stakeholder policy | `human-decision-surface` | Prevents the model from inventing product meaning |
+## Statements, Specifications, And Tests
 
-## Modeling Tool Selection
+A stronger statement implies more statements and excludes more implementations.
+A total specification describes all required behavior; most practical tests check
+partial specifications because complete behavior is too complex or because a
+smaller property localizes failures better.
 
-Select tools after selecting lenses. A lens says what to look for; a tool says
-how to represent the condition space. Use the full modeling range, not only
-decision tables or solvers.
+Combine evidence deliberately:
 
-| Tool | Use when | Do not use when |
-| --- | --- | --- |
-| `predicate-naming` | important booleans hide product meaning | sequence, data relationships, or optimization are the main issue |
-| `set-quantifier-model` | rules use all, any, none, at least one, exactly one | the domain cannot be stated |
-| `implication-counterexample` | a rule is conditional: if P then Q | no useful `P && !Q` failure case exists |
-| `rewrite-equivalence-check` | refactoring conditionals, predicates, sets, or quantifiers | language semantics, side effects, evaluation order, or runtime representation changes meaning |
-| `example-test-spec` | concrete scenarios define required behavior | examples are arbitrary and miss the intended property |
-| `structural-property-test` | behavior has a general property over many valid inputs | valid input generation or property definition is unclear |
-| `metamorphic-relation` | exact output is hard to know but related runs should agree | no meaningful relation exists between transformed inputs |
-| `contract-model` | the risk is at a function/API/component boundary | the main issue is stakeholder policy over many cases |
-| `type-representation-model` | invalid states can be excluded or exposed by data shape | the language cannot express the semantic guarantee |
-| `loop-invariant-proof` | correctness depends on every loop or proof step preserving a fact | tests provide enough evidence for the risk |
-| `relational-query` | facts are best modeled as relations, joins, projections | behavior is mainly local branching |
-| `data-constraint` | schema, uniqueness, existence, or update constraints matter | the rule is purely transient UI behavior |
-| `replacement-schema-model` | changing schema/API/representation must preserve old meaning | no old abstract model must be recovered |
-| `absence-default-model` | a value can be omitted, null, empty, defaulted, inherited, hydrated, or supplied by another boundary | the value is always required and has no legacy or external shape |
-| `decision-table` | independent inputs can be partitioned into finite buckets and mapped to outputs/actions | inputs depend strongly on each other, side effects dominate, a loop/recursion is required, inputs are unbounded lists/complex types, or the table is too large |
-| `equation-invariant` | a formula, precedence rule, or always-true relationship is clearer than enumerating rows | policy genuinely differs by many discrete buckets |
-| `domain-model` | entities, relations, possible instances, and properties matter | the task is a local transform with no domain ambiguity |
-| `state-transition` | a state can be valid but invalidly reached | current-state validity fully captures correctness |
-| `temporal-model` | concurrency, retry, timeout, stale event, fairness, or liveness matters | finite deterministic examples cover the risk |
-| `constraint-objective` | variables, hard constraints, and preferences must be separated | a bespoke algorithm is simple, fixed, and performance-critical |
-| `smt-counterexample` | satisfaction, contract, arithmetic, string, bitvector, or data-structure edge cases need counterexample search | the model cannot be encoded accurately enough |
-| `logic-programming` | facts, rules, recursive relations, or possible worlds are the program model | deterministic imperative control flow is simpler |
-| `human-decision-surface` | reasonable stakeholders could choose different policies | the answer follows from existing rules or data |
-| `ai-delegation-model` | another skill, tool, or agent needs a task contract | success criteria and verification cannot be stated |
+- examples make product cases concrete;
+- domain properties express rules specific to the product;
+- structural properties express reusable shapes such as valid output, idempotence,
+  monotonicity, membership, or preservation;
+- metamorphic relations compare several executions when the exact output is hard
+  to know;
+- generators define the valid input domain for property tests;
+- counterexample shrinking turns a broad failure into a diagnostic case.
 
-For decision tables, check the four fit questions before selecting the tool:
+A strong passing property gives breadth of confidence. A weak failing property
+may provide better localization. Prefer several meaningful partial specifications
+over one opaque assertion that cannot explain what failed.
+
+## Contracts And Composition
+
+Model a callable as:
 
 ```text
-1. Is there a clear map between independent inputs and outputs?
-2. Can the inputs be cleanly and concisely enumerated as finite partitions?
-3. Is a table clearer than prose, an equation, an invariant, or a state model?
-4. Will the table stay small enough to review?
+requires: facts callers must establish
+ensures: facts correct execution guarantees
+invariant: facts preserved through relevant internal steps
 ```
 
-If any answer is no, prefer another tool or split the model.
+Contracts propagate through call graphs. If `A` calls `B`, A's established facts
+must imply B's preconditions, and B's postconditions must be sufficient for A's
+remaining work. This finds bugs where every individual function is locally
+correct but their composition is not.
 
-When presenting selected tools to the user, explain each tool in plain terms:
+Choose a checking mechanism separately. Types are contracts over representable
+values and are usually cheaper to check but less expressive. Runtime assertions,
+validation, tests, properties, and proofs cover different parts of a semantic
+contract. An unchecked contract can still aid reasoning, but it is not evidence.
+
+## Safe Replacement
+
+To replace `old` with `new` for existing callers, require:
 
 ```text
-Tool:
-  What the tool means.
-Why this tool:
-  What shape of uncertainty or correctness risk it exposes.
-Not this tool when:
-  The boundary where another tool is more appropriate.
-Output:
-  What the tool should make visible: predicate, property, counterexample,
-  table row, transition, query, constraint, objective, or human decision.
+old.Pre  => new.Pre
+new.Post => old.Post
 ```
 
-## Modeling Rules
+The replacement must accept at least what old accepted and guarantee at least
+what old guaranteed. Apply this to functions, types, APIs, libraries, schemas,
+and system specifications.
 
-- Normalize prose before solving. First identify domain facts, predicates,
-  quantifiers, implications, counterexamples, finite decision spaces, temporal
-  language, and open policy questions.
-- Separate meaning from implementation. Predicate names should say what is true,
-  not how it is computed.
-- Separate predicate roles. A decision predicate can be true or false; an
-  assumption or precondition defines when a property is meaningful; a property
-  is a guarantee that must not be false in valid states.
-- Separate assumptions from guarantees. Use assumptions for well-formedness,
-  preconditions, and product decisions that must be true before a property means
-  anything.
-- Treat `P => Q` as a failure condition: `P && !Q`.
-- For finite decisions, prefer explicit case coverage over prose, but only when
-  inputs form reviewable finite partitions.
-- Prefer an equation or invariant over a decision table when a compact
-  relationship communicates the rule more clearly.
-- For stateful behavior, distinguish current-state invariants from transition
-  rules over old and new state.
-- For optimization, distinguish constraints that must hold from objectives that
-  choose among valid solutions.
-- For optional, nullable, defaulted, persisted, configurable, or externally
-  supplied values, model absence before design. State valid members; whether
-  absent, `undefined`, `null`, empty, and false-like values differ; the default;
-  the owner of that default; the legacy shape; and the counterexample that
-  proves the default was enforced in the wrong layer.
-- Preserve domain-specific unknowns as questions. Do not answer them by
-  aesthetic preference or by over-formalizing.
+Observable behavior outside the declared contract may still be depended on in
+real systems. Inspect actual callers, persisted data, tests, telemetry, and known
+bugs before claiming compatibility. Logical replaceability is necessary evidence,
+not a complete social or operational guarantee.
 
-## Guarantee Placement
+For representation changes, define an abstraction or refinement mapping from the
+new representation back to the old model. A change is safe only if relevant new
+states or behaviors map to valid old ones.
 
-For each property, choose the cheapest trustworthy layer that can carry the
-guarantee:
+## Proof And Formal Verification Boundary
 
-- Use `type` when the language can exclude invalid states directly.
-- Use `contract` when the rule is semantic and must guide callers/callees.
-- Use `runtime-validation` when invalid external input must be rejected.
-- Use `assertion` when an internal state must already be guaranteed and cheap to
-  check.
-- Use `unit-test` or `integration-test` when behavior has concrete examples.
-- Use `property-test` when a domain generator can express the valid input set.
-- Use `proof`, `model-check`, or `solver` only when exhaustive reasoning or
-  counterexample search is worth the modeling cost.
-- Use `human` when the rule is a product decision, not a derivable fact.
-- Use an explicit default or normalization owner when missing or legacy data
-  should be translated into a domain value before consumers rely on it.
+A proof establishes that an implementation conforms to a stated specification
+under stated assumptions. It does not establish that the specification captures
+everything the product needs or that environmental assumptions hold.
 
-If the chosen layer is not a test, still create a verification target explaining
-what evidence will prove the guarantee.
+For proof-shaped work, write:
 
-## Common Failure Signals
+```text
+preconditions
+postconditions
+facts known after each step
+loop/recursion invariant when control repeats
+termination argument when total correctness matters
+assumptions outside the model
+```
 
-- A natural-language `and/or` requirement has no explicit grouping.
-- A rule uses "all", "any", "never", "always", "at least one", or "exactly one"
-  without a domain.
-- A quantifier can be read in more than one order, such as "some resource all
-  users can access" versus "each user can access some resource."
-- A predicate mixes decision, assumption, and property roles.
-- A type accepts values outside the valid domain, but there is no validation or
-  precondition.
-- A fallback expression silently becomes the owner of product or domain default
-  policy.
-- A default value appears in multiple layers without one explicit owner.
-- A decision table is complete internally but may not be correct product policy.
-- A state enum exists, but allowed transitions are not represented.
-- A representation change loses information needed to reconstruct the old model.
-- An AI task prompt gives procedure but not facts, constraints, objective, or
-  verification.
+Check initialization, preservation, and conclusion. Use proof or formal tooling
+only when exhaustive confidence justifies the modeling and maintenance cost.
+Tests, runtime validation, model checking, theorem proving, and static types make
+different guarantees; do not label one as another.
 
-## Verification Target Derivation
+## Decision Tables
 
-Turn model elements into verification targets:
+Use a decision table only when:
 
-- `predicate`: unit test, property test, contract check, or proof obligation.
-- `forbiddenCase`: negative test, runtime validation, type exclusion, or model
-  check.
-- `decisionSpace`: case matrix, table validation, branch coverage by meaning.
-- `stateTransition`: transition tests, temporal model, stale event checks.
-- `constraint`: assertion, database constraint, validation, solver check.
-- `absenceDefault`: legacy/missing-value case, normalization contract, creation
-  default, serialization round trip, and consumer fallback boundary.
-- `objective`: ranking/optimization evidence and accepted tradeoff.
-- `openQuestion`: human decision before any action that depends on it, or
-  explicit acceptance of the uncertainty.
+1. independent inputs map clearly to outputs;
+2. each input can be partitioned into a small finite set;
+3. a table is clearer than an equation, invariant, or transition model;
+4. the expanded table remains reviewable.
 
-## Stop Checks
+A table is complete when no input combination is missing and sound when the same
+input does not map to conflicting outputs. Those properties make the table valid,
+not necessarily correct. A valid table can still encode misunderstood product
+policy; return ambiguous rows to a human owner.
 
-Before treating the model as usable, confirm:
+Avoid tables for strongly dependent inputs, unbounded collections, recursion,
+long-running side effects, or rules better expressed by precedence such as
+`flags > user settings > defaults`.
 
-- Each important boolean names a domain question, not an implementation trick.
-- Each rule has a domain: the values, states, entities, or transitions it talks
-  about.
-- Quantifiers have a clear scope and order.
-- Conditional rules have a counterexample shape.
-- Decision predicates, assumptions, and properties are not collapsed into one
-  vague predicate.
-- The selected tool explains the uncertainty it exposes.
-- Each guarantee has an owner and an evidence target.
-- Human policy choices remain open questions instead of guessed rules.
+## Absence And Defaults
+
+For optional, nullable, configurable, inherited, persisted, or externally supplied
+values, model absence before design:
+
+- valid members;
+- whether missing, `undefined`, `null`, empty, and false-like values differ;
+- the domain default and the one boundary that owns it;
+- legacy and serialized shapes;
+- whether normalization preserves source distinctions needed later;
+- a counterexample showing the default applied in the wrong layer.
+
+A fallback expression is not harmless when it silently becomes product policy.
+
+## Domains, Assumptions, And Time
+
+A domain model defines possible instances, not the entire real world. Separate
+three predicate roles:
+
+- **decision**: may be true or false across valid instances;
+- **property**: must hold or the model/design is wrong;
+- **assumption**: defines the well-behaved instances for which the property is
+  meaningful.
+
+Explore unusual valid instances even after properties pass. A checker verifies
+consequences of the model; it cannot tell whether omitted real-world facts should
+have been modeled.
+
+Use a temporal model when correct snapshots are insufficient. State:
+
+- initial states;
+- actions and allowed next states;
+- unchanged state for each action;
+- safety properties that must always hold;
+- progress/fairness properties that must eventually hold;
+- stale, duplicated, reordered, retried, or concurrent events.
+
+A concrete implementation refines an abstract system only when each observable
+implementation behavior is allowed by the abstract specification, possibly after
+an explicit refinement mapping. This catches gaps such as intermediate states
+that users can observe even though an abstract operation looked atomic.
+
+## Constraints, Objectives, And Solvers
+
+For solver-shaped work, separate:
+
+- variables and domains;
+- hard constraints;
+- an optional objective or ranking;
+- acceptable equivalence among solutions;
+- model assumptions and encoding limits.
+
+Use the least specialized tool that is still economical to model, then specialize
+when runtime or scale requires it. General solvers make new constraints easy but
+can be much slower than bespoke algorithms. A solver result of `unknown` is not
+proof of satisfaction or impossibility. Solver output is evidence only to the
+extent that the encoding matches the product problem.
+
+## Logic Programming And Planning
+
+Logic programming is useful when facts, relations, and inference rules are more
+natural than a fixed control flow. State facts, derived rules, query variables,
+negation meaning, duplicate behavior, search order, and termination. A more
+expressive query language may lose termination guarantees; a restricted system
+may be the better product boundary.
+
+For planning, model initial state, goal predicate, legal actions, transition
+result, state invariant, and optional action cost. A generated plan is valid only
+if every intermediate state satisfies the invariant. An optimal plan is optimal
+only for the encoded cost function.
+
+## Place Guarantees Deliberately
+
+Choose the cheapest trustworthy owner:
+
+- `type` for representable-state restrictions;
+- `contract` for caller/callee semantics;
+- `runtime validation` for hostile or external inputs;
+- `database constraint` for persisted relational facts;
+- `assertion` for internal facts already expected to hold;
+- `example/integration test` for concrete behavior;
+- `property test` for a generatable valid domain;
+- `model check/solver/proof` for exhaustive or high-risk relationships;
+- `human decision` for policy rather than derivable fact.
+
+Every important model element needs an owner and an evidence target, even when
+the owner is not a test.
 
 ## AI Delegation Boundary
 
-When delegating to an AI helper, sub-agent, or specialized skill, do not provide
-only a procedure. Provide:
+When the model feeds another skill, tool, or agent, provide:
 
-- context: where the work lives;
-- variables/concepts: relevant entities, states, and predicates;
-- constraints: must-hold rules and forbidden cases;
-- objective: what to optimize or preserve;
-- verification: counterexamples, gates, and accepted evidence.
+```text
+Context: where the work lives and what evidence is authoritative
+Facts: entities, states, predicates, and existing behavior
+Rules: assumptions, must-hold constraints, and forbidden cases
+Objective: what to change, optimize, or preserve
+Unknowns: product decisions that remain human-owned
+Verification: counterexamples, gates, and accepted evidence
+```
 
-AI helpers are not solvers. Their output must still be checked against the model.
+An AI helper is not a solver or proof. Check its output against the model and the
+runtime semantics.
 
-## Conceptual Lineage
+## Stop Checks
 
-This reference adapts the practical progression in Hillel Wayne's *Logic for
-Programmers*: make predicates and domains explicit, turn implications into
-counterexamples, choose representations that expose the real decision space,
-and place guarantees where they can be checked. It extends that lineage with a
-problem-shape router, explicit guarantee placement, and an AI delegation
-boundary for product-development work.
+The model is usable when:
 
-- Logic for Programmers: https://leanpub.com/logic
+- every important predicate names a domain question;
+- quantifiers have explicit domains and unambiguous nesting;
+- implications have counterexample shapes;
+- assumptions, decisions, and properties are distinct;
+- the representation's lost abilities are acceptable;
+- stateful rules cover transitions, not only enums;
+- replacements state old/new contract relationships;
+- every guarantee has an owner and evidence target;
+- unresolved policy remains visible rather than being guessed.
+
+## Source Trace
+
+- Hillel Wayne, *Logic for Programmers*, version 0.14.0, May 4, 2026:
+  predicates, sets, quantifiers, logical refactoring and runtime caveats, partial
+  specifications, contracts and replacement, data constraints, decision tables,
+  domains, time, system models, solvers, and logic programming.
+- Matthias Felleisen, Robert Bruce Findler, Matthew Flatt, and Shriram
+  Krishnamurthi, *How to Design Programs, Second Edition*, MIT Press, 2018:
+  information interpretation, data definitions, representative cases, and
+  iterative refinement.
+- Harold Abelson and Gerald Jay Sussman with Julie Sussman, *Structure and
+  Interpretation of Computer Programs*, Second Edition, MIT Press, 1996:
+  abstraction mappings, state/history, constraint propagation, and the semantic
+  cost of assignment and concurrency.
+- Zachary Tellman, *Elements of Clojure*, 2019: narrow access, absence semantics,
+  module models, and assumptions that constrain a useful interface.

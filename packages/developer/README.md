@@ -87,7 +87,8 @@ Developer adds two model-facing protocol tools:
 2. The route target is `direct` or one currently available Developer skill.
 3. A skill route returns the exact Pi-discovered `SKILL.md` instructions and canonical
    path; a direct route keeps implementation tools available for the justified
-   action.
+   action. A behavior-preserving structural direct route also loads the focused
+   execution profile that keeps edits small and returns to stable green landings.
 4. `developer_record_judgment` closes the route with a status, result, evidence,
    artifacts, and any newly opened questions.
 
@@ -140,12 +141,12 @@ or the user may invoke one directly with `/skill:<name>`.
 | Skill | Helps decide |
 | --- | --- |
 | `specify` | Product meaning, scope, invariants, risks, and blocking unknowns |
-| `model` | Logic for Programmers-style condition spaces, guarantees, and verification targets |
-| `sketch` | SICP-style abstraction barriers and HtDP-style data-directed design recipes |
-| `signal` | Flocking-style small structural movement and model-code mismatch |
-| `naming-judgment` | Elements of Clojure-style domain sense and change-preserving names |
+| `model` | Condition spaces, contracts, replacement, transitions, guarantees, and verification targets |
+| `sketch` | Data-driven skeletons, abstraction and composition boundaries, state, responsibility, and variation |
+| `signal` | Evidence-backed structural movement and model-code mismatch |
+| `naming-judgment` | Domain sense, honest effects, and change-preserving names |
 | `abstraction-review` | Whether a candidate should be kept, revised, split, rejected, or deferred |
-| `schedule` | Tidy First-style behavior/structure timing: now, after, or never |
+| `schedule` | Behavior/structure timing: now, after, or never |
 | `verify` | Verifier selection, evidence relevance, and pass-but-wrong risk |
 | `visualize` | The smallest visual surface that lowers judgment cost |
 | `adversarial-eval` | Finite, escalating attempts to falsify a skill or implementation claim |
@@ -154,10 +155,27 @@ Pi's loaded resource metadata is authoritative. If package configuration filters
 or disables a skill, Developer cannot route to it even if its file exists in the
 npm package.
 
-Several skills link to detailed documents under their own `references/`
-directory. Pi loads the `SKILL.md` instructions on demand; the instructions say
-when the additional reference is worth reading and resolve it relative to the
-skill directory. Small, already-settled judgments do not need the extra context.
+Several skills link to detailed capability documents under their own
+`references/` directory. Pi loads the `SKILL.md` instructions on demand; the
+instructions say when each reference is worth reading and resolve it relative to
+the skill directory. A reference may synthesize several sources because the
+leaf's question, not a book title, owns the capability. Each source-derived
+reference includes a source trace, and [SOURCES.md](./SOURCES.md) maps the full
+book coverage across leaves and the direct path. Small, settled judgments do not
+need the extra context.
+
+Primary references retain the capability's core insight and one complete case.
+When a question has materially different derivation rules, the skill routes a
+more focused supporting reference—for example, data-shape templates separately
+from generative recursion, or representation barriers separately from state and
+time. This follows Pi's documented progressive-disclosure structure: supporting
+files stay relative to their skill and load only when the unresolved question
+needs them. `SOURCES.md` also records the reference-quality contract used to
+prevent source summaries from replacing executable judgment recipes.
+
+Developer treats Pi's loaded `systemPromptOptions.skills` metadata as the skill
+SSOT. It does not rescan the package and cannot route a skill Pi filtered,
+disabled, or replaced through resource configuration.
 
 ## State, branches, and compaction
 
@@ -201,11 +219,13 @@ pinning, and security behavior.
 ```text
 extensions/
 ├── developer.ts    # command, protocol tools, events, and Pi integration
+├── references/     # direct execution profiles loaded through tool results
 ├── state.ts        # replayable developer/v2 branch state
-├── skills.ts       # Pi-native skill discovery and instruction loading
+├── skills.ts       # loaded-skill filtering and instruction rendering
 ├── tool-policy.ts  # strict-mode active-tool reconciliation
 └── tui.ts          # selectors, widget, status panel, and prompt preparation
 skills/             # ten independently loadable Pi skills
+SOURCES.md          # source-to-capability maintenance trace
 evals/              # model-dependent scenarios and workspace assertions
 tests/              # deterministic state, policy, extension, and TUI tests
 ```

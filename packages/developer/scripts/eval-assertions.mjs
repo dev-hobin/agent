@@ -42,12 +42,33 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
     assert.ok(judgments.length > 0, fixture.id + ": " + JUDGMENT_TOOL + " was not called");
   }
 
+  for (const expectedReference of fixture.expectedReferenceReads ?? []) {
+    assert.ok(
+      executions.some(
+        (event) =>
+          event.toolName === "read" &&
+          String(event.args?.path ?? event.args?.file_path ?? "")
+            .replaceAll("\\", "/")
+            .endsWith(expectedReference),
+      ),
+      fixture.id + ": Pi read did not load " + expectedReference,
+    );
+  }
+
   for (const route of routes) {
     const ending = endings.find(
       (event) => event.toolName === ROUTE_TOOL && event.toolCallId === route.toolCallId,
     );
     assert.ok(ending, fixture.id + ": route result was not observed");
-    assert.equal(ending.isError, false, fixture.id + ": route result was an error");
+    assert.equal(
+      ending.isError,
+      false,
+      fixture.id +
+        ": route result was an error for " +
+        JSON.stringify(route.args) +
+        "\n" +
+        resultText(ending),
+    );
     if (route.args.owner !== "direct") {
       const expectedBody = await skillBody(root, route.args.owner);
       assert.ok(

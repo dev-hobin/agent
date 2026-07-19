@@ -3,6 +3,10 @@
 Use this table when a wished abstraction failed, or when the observed symptom is
 clearer than the broken layer.
 
+The named repairs refer to [the recipe cards](recipe-cards.md). Record the result
+on [the field card](field-card.md); use [worked examples](worked-examples.md) only
+when the selected card still lacks a concrete calibration case.
+
 ## Diagnostic Loop
 
 ```text
@@ -38,6 +42,7 @@ If the repair output is empty, the review only explained the problem.
 | Helpers have nice names but the domain rule is invisible | Language | Restate desired vocabulary | primitive/combination/abstraction vocabulary | new case can be spoken without representation detail |
 | Similar functions differ only by predicate, term, next step, or strategy | Language/Unit | Movement Pattern Extraction | common movement plus variation role table | old cases become simple calls |
 | Similar-looking code has different responsibilities | Unit/Boundary | Reject or split the abstraction | responsibility split note | no shared unit is promoted |
+| Extracted unit still needs unrelated context from its old host | Unit/Boundary | Responsibility Boundary | owner/message map | representative change is local to one coherent owner |
 | Caller reads object fields, list indexes, tags, or provider-specific shape | Boundary | Data Abstraction Boundary | constructor/selector/predicate/operation list | caller no longer touches representation primitive |
 | Operation result cannot be fed into later operations | Unit | Closure Composition Unit | closed operation table | closed operations build larger units |
 | Chainable API forces final side effects into the chain | Unit/Boundary | Split closed operations from finalizers | observer/finalizer boundary | closed operations and boundary effects are distinct |

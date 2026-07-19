@@ -5,7 +5,6 @@ import { isAbsolute, relative, resolve } from "node:path";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
-  loadSkillsFromDir,
   stripFrontmatter,
   type Skill,
 } from "@earendil-works/pi-coding-agent";
@@ -33,30 +32,16 @@ export function isWithinRoot(root: string, path: string): boolean {
   return relation === "" || (!relation.startsWith("..") && !isAbsolute(relation));
 }
 
-export function loadCandidateSkills(skillsRoot: string): Map<string, Skill> {
-  const loaded = loadSkillsFromDir({ dir: skillsRoot, source: "@hobin/developer" });
-  const candidates = new Map<string, Skill>();
-
-  for (const skill of loaded.skills) {
-    if (candidates.has(skill.name)) throw new Error(`Duplicate Developer skill name: ${skill.name}`);
-    candidates.set(skill.name, skill);
-  }
-
-  if (candidates.size === 0) throw new Error(`No Developer skills found in ${skillsRoot}`);
-  return candidates;
-}
-
 export function availablePackageSkills(
   loadedSkills: Skill[],
-  candidates: ReadonlyMap<string, Skill>,
   skillsRoot: string,
 ): Map<string, Skill> {
   const available = new Map<string, Skill>();
 
   for (const skill of loadedSkills) {
     if (skill.disableModelInvocation) continue;
-    if (!candidates.has(skill.name)) continue;
     if (!isWithinRoot(skillsRoot, skill.filePath)) continue;
+    if (available.has(skill.name)) throw new Error(`Duplicate Pi-loaded Developer skill name: ${skill.name}`);
     available.set(skill.name, skill);
   }
 

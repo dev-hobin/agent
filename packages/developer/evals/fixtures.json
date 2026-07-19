@@ -32,5 +32,29 @@
     "expectedFirstOwners": ["verify", "model", "specify"],
     "mustRecordJudgment": true,
     "maxRoutes": 4
+  },
+  {
+    "id": "self-referential-design-template",
+    "mode": "on",
+    "request": "파일을 수정하지 말고 다음 설계를 완성해라. Tasks = Empty | Node(Task, Tasks)이고 totalEstimate : Tasks -> Minutes가 필요하다. 데이터 예제부터 함수 예제, 데이터 정의에서 파생되는 템플릿, 완성된 골격, 재귀 호출이 그 위치에 생기는 이유와 실패 진단까지 설명해라.",
+    "expectedFirstOwners": ["sketch"],
+    "expectedReferenceReads": [
+      "skills/sketch/references/data-driven-design.md",
+      "skills/sketch/references/data-shape-template-catalog.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "representation-barrier-design",
+    "mode": "on",
+    "request": "파일을 수정하지 말고 Schedule이 현재 [timezone, epochStart, epochEnd] 배열이지만 객체 표현으로 교체할 수 있게 설계해라. 호출자가 믿을 공개 연산과 법칙, 숨길 표현, invariant owner, 실제 호출자 모양, 두 표현 사이 replacement/leak check를 구체적으로 제시해라.",
+    "expectedFirstOwners": ["sketch"],
+    "expectedReferenceReads": [
+      "skills/sketch/references/abstraction-composition-and-state.md",
+      "skills/sketch/references/abstraction-barriers-and-closure.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
   }
 ]

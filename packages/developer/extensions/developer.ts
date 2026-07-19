@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,11 +15,7 @@ import {
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
-import {
-  availablePackageSkills,
-  loadCandidateSkills,
-  renderSkillMethod,
-} from "./skills.ts";
+import { availablePackageSkills, renderSkillMethod } from "./skills.ts";
 import {
   JUDGMENT_TOOL,
   MODE_ENTRY,
@@ -31,6 +28,7 @@ import {
   reconstructState,
   type DeveloperMode,
   type DeveloperState,
+  type DirectExecutionProfile,
   type JudgmentEvent,
   type ModeEvent,
   type RouteEvent,
@@ -50,7 +48,13 @@ import {
 } from "./tui.ts";
 
 const PROTOCOL_TOOLS = [ROUTE_TOOL, JUDGMENT_TOOL] as const;
-const skillsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "skills");
+const extensionRoot = dirname(fileURLToPath(import.meta.url));
+const skillsRoot = resolve(extensionRoot, "..", "skills");
+const structuralChangeMethodPath = resolve(
+  extensionRoot,
+  "references",
+  "behavior-preserving-structural-change.md",
+);
 const MAX_PENDING_QUESTIONS = 20;
 const MAX_QUESTION_CHARS = 2_000;
 const MAX_EVIDENCE_CHARS = 2_000;
@@ -116,6 +120,7 @@ function protocolPrompt(state: DeveloperState, availableSkillNames: string[]): s
     "- Treat the protocol as adaptive routing, never as a fixed sequence of skills.",
     `- Call ${ROUTE_TOOL} only when one concrete development question needs focused judgment or direct action.`,
     "- Use owner=direct when the next local action is already justified; otherwise set owner to the available skill whose scope best fits the question.",
+    "- For direct structural work intended to preserve behavior, set execution_profile=behavior-preserving-structure; omit the field for other direct actions and every skill route.",
     `- Follow the skill instructions returned by ${ROUTE_TOOL}, then close that route with ${JUDGMENT_TOOL}.`,
     "- Keep a direct route open through implementation and evidence collection; record its judgment afterward.",
     "- Protocol state is routing bookkeeping. Idle never proves product completion, user acceptance, or current verification.",
@@ -156,7 +161,8 @@ function protocolPrompt(state: DeveloperState, availableSkillNames: string[]): s
 function routeRenderText(event: RouteEvent | undefined): string {
   if (!event) return "Route unavailable";
   const target = event.targetQuestionId ? ` · revisits ${event.targetQuestionId}` : "";
-  return `${event.owner} · ${compactLine(event.question)}${target}`;
+  const profile = event.executionProfile ? `/${event.executionProfile}` : "";
+  return `${event.owner}${profile} · ${compactLine(event.question)}${target}`;
 }
 
 function judgmentRenderText(event: JudgmentEvent | undefined): string {
@@ -165,7 +171,6 @@ function judgmentRenderText(event: JudgmentEvent | undefined): string {
 }
 
 export default async function developer(pi: ExtensionAPI) {
-  const candidates = loadCandidateSkills(skillsRoot);
   let availableSkills = new Map<string, Skill>();
   let state = initialState();
   let routeOpening = false;
@@ -240,16 +245,11 @@ export default async function developer(pi: ExtensionAPI) {
     refreshUI(ctx);
   };
 
-  const RouteParams = Type.Object({
+  const SharedRouteParams = {
     question: Type.String({
       minLength: 1,
       maxLength: MAX_QUESTION_CHARS,
       description: "The single concrete judgment or action question to route",
-    }),
-    owner: Type.String({
-      minLength: 1,
-      maxLength: 64,
-      description: "direct, or an exact skill name from the current Available Developer skills list",
     }),
     reason: Type.String({
       minLength: 1,
@@ -265,7 +265,33 @@ export default async function developer(pi: ExtensionAPI) {
     open_question_id: Type.Optional(
       Type.String({ maxLength: 512, description: "Exact pending question ID when this route revisits one" }),
     ),
-  });
+  };
+  const RouteParams = Type.Union([
+    Type.Object(
+      {
+        ...SharedRouteParams,
+        owner: Type.String({
+          minLength: 1,
+          maxLength: 64,
+          pattern: "^(?!direct$)[a-z0-9]+(?:-[a-z0-9]+)*$",
+          description: "Exact skill name from the current Available Developer skills list",
+        }),
+      },
+      { additionalProperties: false, description: "Route one question to a Developer skill" },
+    ),
+    Type.Object(
+      {
+        ...SharedRouteParams,
+        owner: Type.Literal("direct", { description: "Use Pi implementation tools for an already-justified action" }),
+        execution_profile: Type.Optional(
+          Type.Literal("behavior-preserving-structure", {
+            description: "Load the focused structural-mutation protocol; omit for ordinary direct action",
+          }),
+        ),
+      },
+      { additionalProperties: false, description: "Route one already-justified direct action" },
+    ),
+  ]);
 
   pi.registerTool({
     name: ROUTE_TOOL,
@@ -302,15 +328,28 @@ export default async function developer(pi: ExtensionAPI) {
         if (owner !== "direct" && !skill) {
           fail(`Developer skill ${owner} is unavailable or disabled in the current Pi resource configuration.`);
         }
+        const requestedExecutionProfile =
+          "execution_profile" in params ? params.execution_profile : undefined;
+        if (owner !== "direct" && requestedExecutionProfile !== undefined) {
+          fail("execution_profile is valid only when owner=direct.");
+        }
+        const executionProfile: DirectExecutionProfile | undefined =
+          owner === "direct" ? (requestedExecutionProfile ?? "ordinary") : undefined;
 
         const method =
-          owner === "direct"
-            ? [
-                "# Direct action",
-                "",
-                "The next local action is already justified. Keep this route open while using Pi implementation tools and collecting evidence.",
-              ].join("\n")
-            : await renderSkillMethod(skill!);
+          owner !== "direct"
+            ? await renderSkillMethod(skill!)
+            : executionProfile === "behavior-preserving-structure"
+              ? [
+                  '<developer-direct-profile name="behavior-preserving-structure">',
+                  (await readFile(structuralChangeMethodPath, "utf8")).trim(),
+                  "</developer-direct-profile>",
+                ].join("\n")
+              : [
+                  "# Direct action",
+                  "",
+                  "The next local action is already justified. Keep this route open while using Pi implementation tools and collecting evidence.",
+                ].join("\n");
 
         const event: RouteEvent = {
           protocol: PROTOCOL,
@@ -322,12 +361,14 @@ export default async function developer(pi: ExtensionAPI) {
           knownEvidence: (params.known_evidence ?? []).map((item) => item.trim()).filter(Boolean),
           targetQuestionId,
           methodLocation: skill?.filePath,
+          executionProfile,
         };
         const response = [
           `Route ID: ${event.routeId}`,
           `Question: ${event.question}`,
           `Target: ${event.owner}`,
           skill ? `Skill location: ${skill.filePath}` : "Skill location: direct action; no skill file",
+          executionProfile ? `Execution profile: ${executionProfile}` : "Execution profile: skill judgment",
           `Reason: ${event.reason}`,
           `Known evidence: ${event.knownEvidence.length > 0 ? event.knownEvidence.join(" | ") : "none"}`,
           targetQuestionId ? `Revisits pending question: ${targetQuestionId}` : "Revisits pending question: none",
@@ -381,6 +422,9 @@ export default async function developer(pi: ExtensionAPI) {
         }
         text += `\n${theme.fg("dim", `revisits · ${event.targetQuestionId ?? "none"}`)}`;
         text += `\n${theme.fg("dim", `skill · ${event.methodLocation ?? "direct action"}`)}`;
+        if (event.executionProfile) {
+          text += `\n${theme.fg("dim", `profile · ${event.executionProfile}`)}`;
+        }
       }
       if (!expanded && event) text += ` · ${keyHint("app.tools.expand", "details")}`;
       return reusableText(text, context.lastComponent);
@@ -537,7 +581,6 @@ export default async function developer(pi: ExtensionAPI) {
     if (typeof ctx.getSystemPromptOptions !== "function") return;
     availableSkills = availablePackageSkills(
       ctx.getSystemPromptOptions().skills ?? [],
-      candidates,
       skillsRoot,
     );
   };
@@ -668,7 +711,7 @@ export default async function developer(pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", (event) => {
-    availableSkills = availablePackageSkills(event.systemPromptOptions.skills ?? [], candidates, skillsRoot);
+    availableSkills = availablePackageSkills(event.systemPromptOptions.skills ?? [], skillsRoot);
     if (state.mode === "off") return;
     return { systemPrompt: event.systemPrompt + protocolPrompt(state, [...availableSkills.keys()]) };
   });

@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 
 import {
   availablePackageSkills,
   isWithinRoot,
-  loadCandidateSkills,
   renderSkillMethod,
 } from "../extensions/skills.ts";
 
@@ -27,11 +27,11 @@ const expected = [
   "visualize",
 ];
 
-test("uses Pi's skill loader for the package leaf catalog", () => {
-  const catalog = loadCandidateSkills(skillsRoot);
-  assert.deepEqual([...catalog.keys()].sort(), expected);
-  assert.equal(catalog.has("develop"), false);
-  for (const skill of catalog.values()) {
+test("Pi's loaded skill metadata is the package leaf catalog", () => {
+  const catalog = loadSkillsFromDir({ dir: skillsRoot, source: "@hobin/developer" }).skills;
+  assert.deepEqual(catalog.map((skill) => skill.name).sort(), expected);
+  assert.equal(catalog.some((skill) => skill.name === "develop"), false);
+  for (const skill of catalog) {
     assert.ok(skill.description.length > 20);
     assert.ok(skill.filePath.endsWith("SKILL.md"));
   }
@@ -46,29 +46,31 @@ test("inherits Pi's recursive discovery, YAML parsing, and directory-name policy
     "---\nname: actual-name\ndescription: >-\n  Folded description from Pi.\n---\n\n# Actual\n\nKeep this body.\n",
   );
 
-  const catalog = loadCandidateSkills(root);
-  assert.equal(catalog.get("actual-name")?.description, "Folded description from Pi.");
-  const rendered = await renderSkillMethod(catalog.get("actual-name")!);
+  const catalog = loadSkillsFromDir({ dir: root, source: "test" }).skills;
+  const actual = catalog.find((skill) => skill.name === "actual-name")!;
+  assert.equal(actual.description, "Folded description from Pi.");
+  const rendered = await renderSkillMethod(actual);
   assert.match(rendered, /location=".*SKILL\.md"/);
   assert.match(rendered, /base-dir=".*directory-name-can-differ"/);
   assert.match(rendered, /# Actual\n\nKeep this body\./);
 });
 
 test("routes only Pi-loaded, model-invocable leaves from this package", () => {
-  const candidates = loadCandidateSkills(skillsRoot);
-  const specify = candidates.get("specify")!;
+  const specify = loadSkillsFromDir({ dir: skillsRoot, source: "@hobin/developer" }).skills.find(
+    (skill) => skill.name === "specify",
+  )!;
   const external = {
     ...specify,
     filePath: "/outside/specify/SKILL.md",
     baseDir: "/outside/specify",
   };
 
-  assert.deepEqual([...availablePackageSkills([external], candidates, skillsRoot).keys()], []);
+  assert.deepEqual([...availablePackageSkills([external], skillsRoot).keys()], []);
   assert.deepEqual(
-    [...availablePackageSkills([{ ...specify, disableModelInvocation: true }], candidates, skillsRoot).keys()],
+    [...availablePackageSkills([{ ...specify, disableModelInvocation: true }], skillsRoot).keys()],
     [],
   );
-  assert.deepEqual([...availablePackageSkills([specify], candidates, skillsRoot).keys()], ["specify"]);
+  assert.deepEqual([...availablePackageSkills([specify], skillsRoot).keys()], ["specify"]);
 });
 
 test("canonical path checks reject a skill symlink that escapes the package root", async () => {
@@ -91,6 +93,6 @@ test("rejects a forced leaf body that would exceed Pi's tool-output limit", asyn
     `---\nname: large\ndescription: Large test skill.\n---\n\n# Large\n\n${"x".repeat(60_000)}`,
   );
 
-  const skill = loadCandidateSkills(root).get("large")!;
+  const skill = loadSkillsFromDir({ dir: root, source: "test" }).skills[0]!;
   await assert.rejects(renderSkillMethod(skill), /too large for safe forced loading/);
 });

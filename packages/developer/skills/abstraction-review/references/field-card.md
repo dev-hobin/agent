@@ -30,6 +30,12 @@ The wish opens freedom; the stop check brings the review back to evidence.
 Failure is not handled by a better name. Failure exposes a broken layer,
 contract, or missing artifact.
 
+Use [the recipe cards](recipe-cards.md) when the derivation rule is missing,
+[the repair table](repair-table.md) when the stop check fails, and
+[the worked examples](worked-examples.md) when a completed calibration case is
+needed. The field card remains the auditable summary; these files supply focused
+construction, repair, and examples.
+
 ## Field Card
 
 Fill this card for serious reviews.
@@ -153,6 +159,7 @@ If the sentence cannot be filled:
 | --- | --- | --- |
 | The problem vocabulary is missing or misleading | Language | Notation As Data |
 | Similar functions, workflows, or tests move together | Language/Unit | Movement Pattern Extraction |
+| Data, methods, messages, or change reasons suggest a misplaced owner | Unit/Boundary | Responsibility Boundary |
 | Operation results do not remain composable | Unit | Closure Composition Unit |
 | A loop, state transition, or contract has no preserved meaning | Law | Invariant Iteration |
 | Callers must know raw representation or hidden policy | Boundary | Data Abstraction Boundary |

@@ -3,14 +3,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { initTheme, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
+import { initTheme, loadSkillsFromDir, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
 
 import developer from "../extensions/developer.ts";
-import { loadCandidateSkills } from "../extensions/skills.ts";
 import { JUDGMENT_TOOL, ROUTE_TOOL } from "../extensions/state.ts";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const loadedLeaves = [...loadCandidateSkills(join(packageRoot, "skills")).values()];
+const loadedLeaves = loadSkillsFromDir({
+  dir: join(packageRoot, "skills"),
+  source: "@hobin/developer",
+}).skills;
 
 initTheme(undefined, false);
 
@@ -353,6 +355,80 @@ test("a Pi-filtered leaf cannot be routed even though it exists in the package",
   );
 });
 
+test("direct execution profiles load only the protocol selected for that action", async () => {
+  const ordinaryHarness = await startHarness();
+  const ordinary = await ordinaryHarness.tools.get(ROUTE_TOOL).execute(
+    "ordinary-direct",
+    {
+      question: "Apply the already-justified generated-file update",
+      owner: "direct",
+      reason: "The output and verifier are already fixed",
+    },
+    undefined,
+    undefined,
+    ordinaryHarness.ctx,
+  );
+  assert.equal(ordinary.details.executionProfile, "ordinary");
+  assert.doesNotMatch(ordinary.content[0].text, /Smallest Green Transformation/);
+
+  const structuralHarness = await startHarness();
+  const structural = await structuralHarness.tools.get(ROUTE_TOOL).execute(
+    "structural-direct",
+    {
+      question: "Move the accepted responsibility without changing behavior",
+      owner: "direct",
+      reason: "Signal and abstraction review already justified one structural move",
+      execution_profile: "behavior-preserving-structure",
+    },
+    undefined,
+    undefined,
+    structuralHarness.ctx,
+  );
+  assert.equal(structural.details.executionProfile, "behavior-preserving-structure");
+  assert.match(structural.content[0].text, /<developer-direct-profile name="behavior-preserving-structure">/);
+  assert.match(structural.content[0].text, /## Smallest Green Transformation/);
+  assert.match(structural.content[0].text, /## Stable Landing/);
+  assert.match(structural.content[0].text, /99 Bottles of OOP/);
+});
+
+test("route schema exposes execution profiles only on the direct branch", async () => {
+  const harness = createHarness();
+  await developer(harness.api);
+  const schema = harness.tools.get(ROUTE_TOOL).parameters;
+  assert.equal(schema.anyOf.length, 2);
+
+  const skillBranch = schema.anyOf.find((branch: any) => branch.properties.owner.pattern);
+  const directBranch = schema.anyOf.find((branch: any) => branch.properties.owner.const === "direct");
+  assert.ok(skillBranch);
+  assert.ok(directBranch);
+  assert.equal(skillBranch.additionalProperties, false);
+  assert.equal(skillBranch.properties.execution_profile, undefined);
+  assert.equal(directBranch.additionalProperties, false);
+  assert.equal(
+    directBranch.properties.execution_profile.const,
+    "behavior-preserving-structure",
+  );
+});
+
+test("skill routes reject direct execution profiles", async () => {
+  const harness = await startHarness();
+  await assert.rejects(
+    harness.tools.get(ROUTE_TOOL).execute(
+      "profile-on-skill",
+      {
+        question: "What must be true?",
+        owner: "specify",
+        reason: "Product meaning is unclear",
+        execution_profile: "behavior-preserving-structure",
+      },
+      undefined,
+      undefined,
+      harness.ctx,
+    ),
+    /execution_profile is valid only when owner=direct/,
+  );
+});
+
 test("the protocol prompt lists only skills Pi made available", async () => {
   const specify = loadedLeaves.find((skill) => skill.name === "specify")!;
   const harness = createHarness();
@@ -627,6 +703,7 @@ test("tool renderers are partial-safe and expose routing evidence when expanded"
             knownEvidence: ["The current behavior differs across callers"],
             targetQuestionId: "question:earlier",
             methodLocation: "/skills/specify/SKILL.md",
+            executionProfile: undefined,
           },
         },
         { expanded: true, isPartial: false, isError: false },

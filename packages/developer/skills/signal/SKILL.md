@@ -1,6 +1,6 @@
 ---
 name: signal
-description: "Inspect requirements, code, diffs, tests, UI states, names, or recent changes for observable structural movement and classify it as absent, horizontal, vertical, or ambiguous. Use when evidence suggests duplication, model-code mismatch, boundary pressure, or an emerging refactoring candidate, including requests for flocking-style small behavior-preserving refactoring."
+description: "Inspect requirements, code, diffs, tests, UI states, names, or recent changes for observable structural movement and classify it as absent, horizontal, vertical, or ambiguous. Use when duplication, model-code mismatch, boundary pressure, parallel cases, or an emerging refactoring candidate needs a smallest evidence-backed observation."
 ---
 
 # Signal
@@ -20,7 +20,7 @@ What structural movement is actually visible in the evidence?
 
 ## Reference Routing
 
-Read [the flocking and structural movement reference](references/flocking-and-structural-movement.md)
+Read [the structural movement reference](references/structural-movement.md)
 when duplication, parallel branches, similar tests, repeated UI states,
 conditionals, or a recent refactor need a behavior-preserving next move. Also
 read it when the horizontal/vertical distinction is consequential or the

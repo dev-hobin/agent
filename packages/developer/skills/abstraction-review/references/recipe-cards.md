@@ -3,11 +3,16 @@
 Use this deck when the review needs a construction rule, not only a layer name.
 Each card must produce an artifact and a stop check.
 
+Read [the worked examples](worked-examples.md) when a card's compact rule is not
+enough to calibrate a real candidate. When a stop check fails, use
+[the repair table](repair-table.md) instead of polishing the same surface.
+
 ## Contents
 
 - Pocket Deck
 - Procedure -> Process Reality Check
 - Movement Pattern Extraction
+- Responsibility Boundary
 - Invariant Iteration
 - Data Abstraction Boundary
 - Closure Composition Unit
@@ -23,6 +28,7 @@ Each card must produce an artifact and a stop check.
 | --- | --- | --- | --- | --- | --- |
 | Procedure -> Process Reality Check | Result is plausible but process shape is unclear | procedure text, sample input, expected result | trace deferred work, state updates, duplicated work, cost | result, shape, and cost are all explainable | move to Law or Time |
 | Movement Pattern Extraction | Similar cases move together but differ in stable roles | concrete cases side by side, common movement, varying roles | keep common movement as body; lift stable variation roles to parameters, callbacks, or strategies | old cases become simple calls and new case is expressible | split, inline, or return to Language |
+| Responsibility Boundary | Knowledge and behavior appear owned by the wrong unit | current owners, messages, data, callers, change reasons | group knowledge with behavior and state the smallest role contract | representative change becomes local without context leaks | split, inline, or return to Model |
 | Invariant Iteration | Recursion or state should become a stable transition | original meaning, state variables, transition candidate | write `processed meaning + remaining meaning = original meaning` using the domain operation | initial, step, and final checks pass | return to Run trace or reduce state variables |
 | Data Abstraction Boundary | Caller knows raw representation | domain value, operations, representation candidates | create constructor, selector, predicate, and operation vocabulary | caller code stops touching raw representation | move to Unit or Engine |
 | Closure Composition Unit | Operation results cannot feed later operations | candidate unit, operation list, preserved meaning | mark closed operations vs observers/finalizers | closed operations build larger values of the same unit | move final effect outside the unit |
@@ -95,6 +101,48 @@ can be expressed without adding a new option that exposes internals.
 
 Reject if the cases only look textually similar but carry different
 responsibilities. Split if variation roles are not stable.
+
+### Responsibility Boundary
+
+Use when repeated arguments, data clumps, feature envy, conditional behavior, or
+several change reasons suggest that knowledge and behavior have the wrong owner.
+
+Input artifact:
+
+```text
+current owners:
+  unit -> knowledge, behavior, coordination, creation
+messages:
+  callers -> requests -> receivers
+pressure:
+  representative accepted change and affected path
+candidate:
+  knowledge and behavior proposed to move together
+```
+
+Derivation:
+
+1. group behavior with the knowledge needed to answer its messages;
+2. separate domain responsibility from coordination and object creation;
+3. state the smallest caller-visible role contract;
+4. identify old context callers should stop knowing;
+5. test a representative change against old and candidate ownership.
+
+Output artifact:
+
+```text
+responsibility: name and reason to change
+knowledge: data or history it owns
+messages: minimal protocol
+hidden context: mechanics removed from callers
+creation boundary: who selects or constructs it
+rejected alternatives: inline, split, or different owner
+```
+
+Stop check: the representative change is local to a coherent owner, callers use
+messages rather than extracting its knowledge, and the candidate does not need
+unrelated context from the old host. Reject or split when the candidate is only
+a bag of moved methods, a generic service, or a pattern-shaped destination.
 
 ### Invariant Iteration
 
@@ -253,3 +301,22 @@ cost:
 ```
 
 If everything must be serialized, the order law is probably too broad.
+
+## Source Trace
+
+- Harold Abelson and Gerald Jay Sussman with Julie Sussman, *Structure and
+  Interpretation of Computer Programs*, Second Edition, MIT Press, 1996:
+  procedure/process distinction, data abstraction, closure, generic dispatch,
+  state/history, and metalinguistic boundaries.
+- Matthias Felleisen, Robert Bruce Findler, Matthew Flatt, and Shriram
+  Krishnamurthi, *How to Design Programs, Second Edition*, MIT Press, 2018:
+  templates, abstraction from concrete examples, generative recursion, and
+  accumulator invariants.
+- Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
+  Edition, version 2.2.2, 2024: movement patterns, responsibility extraction,
+  messages, substitution, polymorphic roles, type transitions, and factory
+  tradeoffs.
+- Hillel Wayne, *Logic for Programmers*, version 0.14.0, May 4, 2026:
+  contracts, safe replacement, invariants, and meaning-preserving model changes.
+- Zachary Tellman, *Elements of Clojure*, 2019: indirection cost, module
+  assumptions, principled components, adaptable interfaces, and composition.

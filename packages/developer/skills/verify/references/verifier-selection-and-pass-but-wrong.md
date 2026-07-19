@@ -11,10 +11,11 @@ addition to visible behavior.
 - Verifier Ladder
 - Execution Versus Relevance
 - Pass-But-Wrong Search
+- Test Design And Cost
 - Structural Degradation
 - Feedback Classification
 - Residual Risk And Stop Checks
-- Compact Example
+- Complete Evidence Example
 
 ## Claim Before Check
 
@@ -104,6 +105,31 @@ current checks while violating the intended meaning. Look for:
 When a plausible shape remains cheap to test, add the smallest distinguishing
 fixture. Otherwise record it as residual risk instead of broadening the claim.
 
+## Test Design And Cost
+
+Tests are design evidence only when their boundary and maintenance cost remain
+useful. Prefer tests that expose public responsibility and product meaning over
+tests that echo private method structure.
+
+Choose the unit by the claim:
+
+- focused examples for stable responsibility and boundary cases;
+- role or contract tests when several implementations must substitute;
+- integration tests for collaborations, creation, persistence, and wiring;
+- properties when many examples share a generatable rule;
+- stateful fixtures when history, retry, order, or identity matters.
+
+Do not require one test layer per class. Loose coupling may make a smaller unit
+economical to test, while simple forwarding or framework glue may be better
+covered by a larger behavior check. Fakes should remove irrelevant context while
+preserving the collaborator role; mocks that restate call internals create an
+echo chamber.
+
+Delete or reorganize tests only when the remaining evidence still supports the
+same claims. Redundancy is sometimes cheap insurance and sometimes obsolete
+context that prevents a design from moving. State which claim each retained test
+protects.
+
 ## Structural Degradation
 
 Behavior may pass while the change weakens the code's ability to preserve the
@@ -153,7 +179,7 @@ Verification is complete enough when:
 Do not claim total correctness from a finite evidence set. State the strongest
 claim justified now.
 
-## Compact Example
+## Complete Evidence Example
 
 ```text
 Claim: recurring schedules without an end date remain valid.
@@ -166,4 +192,36 @@ Residual: timezone behavior remains unverified and is not included in the
 supported claim.
 ```
 
-The correct result is a narrower supported claim, not an unqualified "done."
+Now attempt a wrong implementation that always emits `recurring-open` whenever
+`endDate` is absent. It passes the open-recurring row but also misclassifies a
+one-time schedule whose UI omitted an optional display field. Add a one-time row
+with the same absence shape but a different recurrence discriminator. This
+fixture fails the plausible wrong rule while remaining at the public conversion
+boundary.
+
+Map the broader completion claim:
+
+| Claim | Verifier | What it can still miss |
+| --- | --- | --- |
+| semantic variants convert correctly | focused table test | persisted legacy shapes not in the table |
+| public type accepts intended callers | typecheck plus real caller build | runtime external input |
+| legacy saved schedules remain readable | migration fixture through persistence adapter | unknown production corruption |
+| UI shows the converted meaning | interaction test or manual run | timezone/environment variance |
+| package contains the changed source | packed-tarball inspection and fresh install | registry propagation delay |
+
+If only the first row is executed, report only the first claim. The correct
+result is a narrower supported statement, not an unqualified “done.”
+
+## Source Trace
+
+- Hillel Wayne, *Logic for Programmers*, version 0.14.0, May 4, 2026:
+  strong and weak tests, partial specifications, structural properties,
+  property-based testing, contracts, and proof limitations.
+- Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
+  Edition, version 2.2.2, 2024: chapters 2 and 9 on cost-effective tests,
+  avoiding implementation echo, choosing units, unit versus integration tests,
+  context independence, fakes, role verification, and obsolete-test removal.
+- Matthias Felleisen, Robert Bruce Findler, Matthew Flatt, and Shriram
+  Krishnamurthi, *How to Design Programs, Second Edition*, MIT Press, 2018:
+  representative examples and tests as successive constraints in a design
+  recipe.

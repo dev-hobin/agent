@@ -1,6 +1,6 @@
 ---
 name: model
-description: "Model the condition space behind a requirement, invariant, bug, policy, workflow, or code behavior using cases, predicates, rules, forbidden states, transitions, objectives, guarantee placement, and verification targets. Use when correctness depends on combinations, absence or default semantics, state, time, or policy interaction, including requests to apply Logic for Programmers-style condition modeling."
+description: "Model the condition space behind a requirement, invariant, bug, policy, workflow, or code behavior using cases, predicates, rules, forbidden states, transitions, objectives, guarantee placement, and verification targets. Use when correctness depends on combinations, absence or default semantics, contracts, replacement, state, time, or policy interaction."
 ---
 
 # Model
@@ -74,3 +74,8 @@ structural work, mutate artifacts, or make the final evidence judgment.
 Read [the problem-modeling reference](references/problem-modeling.md) for
 policy-heavy, stateful, optimization, safety-critical, or otherwise complex
 condition spaces.
+
+Read [the worked models and specialized techniques](references/worked-models-and-specialized-techniques.md)
+when a boolean policy, relational constraint, replacement, temporal rule, proof
+obligation, solver encoding, logic program, or plan needs a complete calibration
+example rather than the compact procedure alone.

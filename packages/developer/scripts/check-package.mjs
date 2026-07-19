@@ -20,10 +20,10 @@ const expectedSkills = [
 
 const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
 assert.equal(manifest.name, "@hobin/developer");
-assert.equal(manifest.version, "0.1.1");
+assert.equal(manifest.version, "0.1.2");
 assert.deepEqual(manifest.pi.extensions, ["./extensions/developer.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
-assert.deepEqual(manifest.files, ["extensions", "skills", "README.md", "LICENSE"]);
+assert.deepEqual(manifest.files, ["extensions", "skills", "README.md", "SOURCES.md", "LICENSE"]);
 for (const dependency of [
   "@earendil-works/pi-ai",
   "@earendil-works/pi-coding-agent",
@@ -47,6 +47,11 @@ for (const name of skills) {
   assert.match(source, new RegExp("^---\\nname: " + name + "\\n", "m"));
   const frontmatter = source.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "";
   assert.doesNotMatch(frontmatter, /\bskip\b/i);
+  assert.doesNotMatch(
+    frontmatter,
+    /99 Bottles|SICP|HtDP|Logic for Programmers|Elements of Clojure|Tidy First/i,
+    `Expected ${name} discovery metadata to describe a capability, not a source`,
+  );
   assert.match(source, /^Status: resolved \| needs-evidence \| not-applicable \| blocked$/m);
   assert.doesNotMatch(source, /Codex|developer-toolbox|openai\.yaml/);
 }
@@ -57,10 +62,18 @@ const requiredReferences = [
   "skills/abstraction-review/references/repair-table.md",
   "skills/abstraction-review/references/worked-examples.md",
   "skills/model/references/problem-modeling.md",
-  "skills/naming-judgment/references/elements-of-clojure-naming.md",
+  "skills/model/references/worked-models-and-specialized-techniques.md",
+  "skills/naming-judgment/references/domain-naming.md",
   "skills/schedule/references/structural-change-timing.md",
-  "skills/signal/references/flocking-and-structural-movement.md",
-  "skills/sketch/references/design-recipe-and-abstraction-barriers.md",
+  "skills/signal/references/structural-movement.md",
+  "skills/sketch/references/data-driven-design.md",
+  "skills/sketch/references/data-shape-template-catalog.md",
+  "skills/sketch/references/composition-generative-recursion-and-accumulators.md",
+  "skills/sketch/references/abstraction-composition-and-state.md",
+  "skills/sketch/references/abstraction-barriers-and-closure.md",
+  "skills/sketch/references/processes-state-and-time.md",
+  "skills/sketch/references/generic-operations-and-languages.md",
+  "skills/sketch/references/responsibility-and-variation.md",
   "skills/verify/references/verifier-selection-and-pass-but-wrong.md",
 ];
 
@@ -71,20 +84,32 @@ const referenceRoutes = {
     "references/repair-table.md",
     "references/worked-examples.md",
   ],
-  model: ["references/problem-modeling.md"],
-  "naming-judgment": ["references/elements-of-clojure-naming.md"],
+  model: [
+    "references/problem-modeling.md",
+    "references/worked-models-and-specialized-techniques.md",
+  ],
+  "naming-judgment": ["references/domain-naming.md"],
   schedule: ["references/structural-change-timing.md"],
-  signal: ["references/flocking-and-structural-movement.md"],
-  sketch: ["references/design-recipe-and-abstraction-barriers.md"],
+  signal: ["references/structural-movement.md"],
+  sketch: [
+    "references/data-driven-design.md",
+    "references/data-shape-template-catalog.md",
+    "references/composition-generative-recursion-and-accumulators.md",
+    "references/abstraction-composition-and-state.md",
+    "references/abstraction-barriers-and-closure.md",
+    "references/processes-state-and-time.md",
+    "references/generic-operations-and-languages.md",
+    "references/responsibility-and-variation.md",
+  ],
   verify: ["references/verifier-selection-and-pass-but-wrong.md"],
 };
 
 const descriptionTriggers = {
-  model: /Logic for Programmers/i,
-  "naming-judgment": /Elements of Clojure/i,
-  schedule: /Tidy First/i,
-  signal: /flocking/i,
-  sketch: /SICP.*HtDP/i,
+  model: /condition space.*contracts.*replacement/i,
+  "naming-judgment": /domain meaning.*effect-hiding/i,
+  schedule: /behavior-versus-structure separation/i,
+  signal: /structural movement.*model-code mismatch/i,
+  sketch: /data flow.*recursion.*state.*composition.*responsibility.*variation/i,
   verify: /verifier selection/i,
 };
 
@@ -106,21 +131,52 @@ for (const path of requiredReferences) {
 }
 
 const referenceAnchors = {
-  "skills/model/references/problem-modeling.md": /Logic for Programmers/,
-  "skills/naming-judgment/references/elements-of-clojure-naming.md": /Elements of Clojure/,
-  "skills/schedule/references/structural-change-timing.md": /Kent Beck/,
-  "skills/signal/references/flocking-and-structural-movement.md": /99 Bottles of OOP/,
-  "skills/sketch/references/design-recipe-and-abstraction-barriers.md": /SICP:[\s\S]*HtDP:/,
-  "skills/verify/references/verifier-selection-and-pass-but-wrong.md": /## Verifier Ladder/,
+  "skills/abstraction-review/references/field-card.md": /## Operating Loop[\s\S]*## Recipe-Grade Gate[\s\S]*## Self-Application Check/,
+  "skills/abstraction-review/references/recipe-cards.md": /## Pocket Deck[\s\S]*### Responsibility Boundary[\s\S]*## Source Trace/,
+  "skills/abstraction-review/references/repair-table.md": /## Diagnostic Loop[\s\S]*## Repair Matrix[\s\S]*## Exit Checks/,
+  "skills/abstraction-review/references/worked-examples.md": /## Example Selector[\s\S]*## Skill Update Self-Review[\s\S]*## Stateful Account[\s\S]*## Chainable Builder/,
+  "skills/model/references/problem-modeling.md": /## Safe Replacement[\s\S]*## Proof And Formal Verification Boundary[\s\S]*## Logic Programming And Planning[\s\S]*## Source Trace[\s\S]*Logic for Programmers/,
+  "skills/model/references/worked-models-and-specialized-techniques.md": /## Boolean Policy[\s\S]*## Relational Data And Constraints[\s\S]*## Proof Boundary[\s\S]*## Constraint Propagation[\s\S]*## Planning[\s\S]*## Source Trace/,
+  "skills/naming-judgment/references/domain-naming.md": /## Responsibility-Derived Names[\s\S]*## Worked Review[\s\S]*## Source Trace[\s\S]*Elements of Clojure/,
+  "skills/schedule/references/structural-change-timing.md": /## Worked Timing Decision[\s\S]*## Source Trace[\s\S]*Tidy First\?[\s\S]*99 Bottles of OOP/,
+  "skills/signal/references/structural-movement.md": /## Worked Observation[\s\S]*## Source Trace[\s\S]*99 Bottles of OOP[\s\S]*How to Design Programs/,
+  "skills/sketch/references/data-driven-design.md": /## The Six-Artifact Recipe[\s\S]*## Complete Example[\s\S]*## Failure Diagnosis[\s\S]*## Source Trace/,
+  "skills/sketch/references/data-shape-template-catalog.md": /## Self-Referential Data[\s\S]*## Interactive Programs[\s\S]*## Diagnosis[\s\S]*## Source Trace/,
+  "skills/sketch/references/composition-generative-recursion-and-accumulators.md": /## Generative Recursion Recipe[\s\S]*## Accumulator Recipe[\s\S]*## Failure Diagnosis[\s\S]*## Source Trace/,
+  "skills/sketch/references/abstraction-composition-and-state.md": /## Complete Example[\s\S]*## Modules As Models[\s\S]*## Failure Diagnosis[\s\S]*## Source Trace/,
+  "skills/sketch/references/abstraction-barriers-and-closure.md": /## Build A Data Barrier[\s\S]*## Closure[\s\S]*## Failure Diagnosis[\s\S]*## Source Trace/,
+  "skills/sketch/references/processes-state-and-time.md": /## Procedure Versus Process[\s\S]*## State Means History Matters[\s\S]*## Event Order And Atomicity[\s\S]*## Failure Diagnosis[\s\S]*## Source Trace/,
+  "skills/sketch/references/generic-operations-and-languages.md": /## Two Axes Of Generic Operations[\s\S]*## When Data Becomes A Language[\s\S]*## Source Trace/,
+  "skills/sketch/references/responsibility-and-variation.md": /## Object Creation And Factories[\s\S]*## Complete Example[\s\S]*## Source Trace[\s\S]*99 Bottles of OOP/,
+  "skills/verify/references/verifier-selection-and-pass-but-wrong.md": /## Test Design And Cost[\s\S]*## Complete Evidence Example[\s\S]*## Source Trace[\s\S]*Logic for Programmers[\s\S]*99 Bottles of OOP/,
 };
 
 for (const [path, expected] of Object.entries(referenceAnchors)) {
   assert.match(await readFile(join(root, path), "utf8"), expected, `Expected conceptual anchor in ${path}`);
 }
 
+const evalFixtures = JSON.parse(await readFile(join(root, "evals", "fixtures.json"), "utf8"));
+for (const fixture of evalFixtures) {
+  for (const referencePath of fixture.expectedReferenceReads ?? []) {
+    assert.ok(
+      requiredReferences.includes(referencePath),
+      `Expected live eval reference to be part of the package contract: ${referencePath}`,
+    );
+    await readFile(join(root, referencePath), "utf8");
+  }
+}
+
+const scheduleReference = await readFile(
+  join(root, "skills/schedule/references/structural-change-timing.md"),
+  "utf8",
+);
+assert.doesNotMatch(scheduleReference, /newsletter\.kentbeck\.com/);
+
 const markdownDocuments = [
   ...skills.map((name) => `skills/${name}/SKILL.md`),
   ...requiredReferences,
+  "SOURCES.md",
+  "extensions/references/behavior-preserving-structural-change.md",
 ];
 for (const documentPath of markdownDocuments) {
   const absoluteDocumentPath = join(root, documentPath);
@@ -137,8 +193,27 @@ assert.match(extension, /name: JUDGMENT_TOOL/);
 assert.match(extension, /registerCommand\("develop"/);
 assert.match(extension, /getArgumentCompletions/);
 assert.match(extension, /ctx\.ui\.confirm/);
+assert.match(extension, /event\.systemPromptOptions\.skills/);
+assert.match(extension, /behavior-preserving-structure/);
+assert.doesNotMatch(extension, /loadCandidateSkills|loadSkillsFromDir/);
 assert.doesNotMatch(extension, /developer\.snapshot|acceptedContract|verifiedClaims|completionState/);
 assert.doesNotMatch(extension, /isError\s*:/);
+
+const skillIntegration = await readFile(join(root, "extensions", "skills.ts"), "utf8");
+assert.doesNotMatch(skillIntegration, /loadSkillsFromDir/);
+
+const directReference = await readFile(
+  join(root, "extensions", "references", "behavior-preserving-structural-change.md"),
+  "utf8",
+);
+assert.match(directReference, /## Smallest Green Transformation[\s\S]*## Stable Landing/);
+assert.match(directReference, /## Worked Mutation Trace[\s\S]*## Failure Checks/);
+assert.match(directReference, /## Source Trace[\s\S]*99 Bottles of OOP[\s\S]*Tidy First\?/);
+
+const sourceTrace = await readFile(join(root, "SOURCES.md"), "utf8");
+assert.match(sourceTrace, /## Capability Matrix/);
+assert.match(sourceTrace, /## Runtime Reference Quality/);
+assert.match(sourceTrace, /## Intentionally Not Imported As Universal Rules/);
 
 const tui = await readFile(join(root, "extensions", "tui.ts"), "utf8");
 assert.match(tui, /SelectList/);

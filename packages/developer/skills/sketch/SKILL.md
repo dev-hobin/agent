@@ -1,6 +1,6 @@
 ---
 name: sketch
-description: "Shape an implementable design surface from a requirement, invariant, problem model, existing code, or representative cases using data definitions, templates, wishful top-level design, interfaces, checks, and a small implementation queue. Use when ownership, boundaries, data flow, or implementation shape remains unresolved, including requests to apply SICP-style wishful thinking or abstraction barriers and HtDP-style design recipes."
+description: "Shape an implementable design surface from a requirement, invariant, problem model, existing code, or representative cases using data definitions, templates, wished interfaces, collaborations, checks, and a small implementation queue. Use when ownership, boundaries, data flow, recursion, state, composition, responsibility, variation, or implementation shape remains unresolved."
 ---
 
 # Sketch
@@ -20,13 +20,40 @@ What design surface makes this intent implementable?
 
 ## Reference Routing
 
-Read [the design recipe and abstraction barriers reference](references/design-recipe-and-abstraction-barriers.md)
-when data shape, traversal, representation, ownership, or wished interfaces
-carry consequential design judgment. Also read it when a proposed sketch is
-mostly a file-edit plan, when representative cases do not shape the template,
-or when an abstraction barrier needs a concrete stop check. A small local design
-whose purpose, cases, data flow, and first implementation item are already clear
-does not need the reference.
+Read [the data-driven design reference](references/data-driven-design.md) when
+the information model, data variants, traversal, recursion, examples, or tests
+should determine the function skeleton. Read it when a proposed sketch jumps
+from prose to helpers without deriving cases and a template from the data.
+
+Within that capability, read [the data-shape template catalog](references/data-shape-template-catalog.md)
+when atomic, itemized, structured, recursive, intertwined, multi-input, output,
+or interactive data must derive a template. Read
+[composition, generative recursion, and accumulators](references/composition-generative-recursion-and-accumulators.md)
+for wished auxiliaries, abstraction from completed functions, generated
+subproblems and termination, or an invariant-bearing accumulator.
+
+Read [the abstraction, composition, and state reference](references/abstraction-composition-and-state.md)
+when wishful top-level design, representation independence, abstraction
+barriers, compositional interfaces, module assumptions, environmental process
+boundaries, state/history ownership, or levels of language carry consequential
+judgment.
+
+Within that capability, read [abstraction barriers and closure](references/abstraction-barriers-and-closure.md)
+for a representation or combination boundary,
+[processes, state, and time](references/processes-state-and-time.md) for runtime
+shape, history, identity, streams, concurrency, or order, and
+[generic operations and languages](references/generic-operations-and-languages.md)
+for additive representations, coercion, symbolic data, a DSL, or an evaluator.
+
+Read [the responsibility and variation reference](references/responsibility-and-variation.md)
+when real change pressure exposes repeated arguments, data clumps, conditional
+dispatch, misplaced knowledge, role substitution, object creation, factory
+tradeoffs, or test-unit boundaries.
+
+Read multiple references only when their questions genuinely combine: for
+example, data shape may derive the operational skeleton while abstraction and
+responsibility evidence determine its boundaries. A small local design whose
+purpose, cases, data flow, and first item are already clear needs none.
 
 ## Output
 

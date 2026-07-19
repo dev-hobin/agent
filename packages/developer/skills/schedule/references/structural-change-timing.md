@@ -7,14 +7,16 @@ invariant pressure, or the cost of delay.
 ## Contents
 
 - Behavior And Structure
+- Small And Separate Structural Moves
 - Timing Vocabulary
 - Decision Procedure
 - Guarantee And Ability Tradeoff
 - Reversibility And Cost Of Delay
 - Nested Work Pressure
+- Worked Timing Decision
 - Reopen Conditions
 - Failure Checks
-- Conceptual Lineage
+- Source Trace
 
 ## Behavior And Structure
 
@@ -29,6 +31,19 @@ committed together. A structural candidate belongs now only when its timing can
 be justified by the current behavior or invariant—not merely by aesthetic
 preference.
 
+## Small And Separate Structural Moves
+
+A tidying is a small, behavior-preserving structural move. Keep it small enough
+that the intended rearrangement, affected behavior evidence, and rollback are
+obvious. Separate it from behavior change in reasoning and, when practical, in
+the change history.
+
+Small does not mean arbitrary. A chain of tidyings can quietly become a redesign.
+After each move, ask whether the next one still lowers the cost of the accepted
+behavior change or has become an independent aspiration. When structural and
+behavior changes become tangled, return to the last green state and separate the
+two purposes before continuing.
+
 ## Timing Vocabulary
 
 This skill uses three outcomes:
@@ -40,9 +55,9 @@ This skill uses three outcomes:
 - `never`: reject the candidate for the current scope because it is speculative,
   harmful, or has no evidence-backed pressure.
 
-Kent Beck's broader vocabulary sometimes separates `later` from `after`. Here,
-`after` covers both immediate follow-up and evidence-triggered deferral. The
-reopen condition makes the distinction explicit.
+The book distinguishes `first`, `after`, `later`, and `never`. This skill maps
+`first` to `now` and folds immediate follow-up and evidence-triggered `later`
+into `after`; the reopen condition preserves the important distinction.
 
 ## Decision Procedure
 
@@ -112,6 +127,54 @@ Bias toward `after` when the candidate opens a chain of nested work without
 protecting the current invariant. If a small prerequisite is genuinely needed,
 schedule that prerequisite rather than the full idealized architecture.
 
+Also watch batch size and rhythm. Several individually safe moves can create a
+large review and debugging surface when chained without checkpoints. Prefer a
+rhythm of small structural movement, evidence, then behavior progress over a long
+cleanup prelude whose payoff cannot yet be observed.
+
+## Worked Timing Decision
+
+Accepted behavior change: add a locker fulfillment method. Current code has a
+small conditional for pickup and delivery copy. Candidate structure: introduce
+a public `FulfillmentStrategy` registry before adding the branch.
+
+```text
+Candidate:
+  public strategy registry
+Current dependency:
+  none; one local conditional can express the accepted third case
+Evidence of stability:
+  variants share a result but have different fields; no independent provider or
+  registration lifecycle exists
+Guarantee gained:
+  future variants could register without editing central dispatch
+Ability lost:
+  exhaustiveness and one visible owner; load order and duplicate registration
+  become new failure modes
+Reversibility:
+  registry is easy to add later but a public API is hard to retract
+Cost of delay:
+  one additional local branch
+Nested work:
+  registry errors, startup wiring, documentation, and plugin tests
+Decision:
+  after
+Reopen:
+  a separately deployed provider must add a variant without changing the core
+```
+
+The accepted behavior proceeds with the direct branch. This is not a claim that
+registries are bad; the present guarantee does not justify their present cost.
+
+Contrast: if the new method must be supplied by an independently deployed
+package and core releases cannot change with it, that pressure makes the
+extension boundary a current invariant. The decision can become `now`, but only
+the smallest boundary required by that invariant should precede behavior.
+
+`never` example: renaming every local `result` solely for stylistic uniformity
+has no relation to the accepted change and no evidence-triggered future value.
+Reject it for this scope rather than disguising it as `after`.
+
 ## Reopen Conditions
 
 An `after` decision must state observable evidence that reopens it, such as:
@@ -139,12 +202,16 @@ The timing judgment is weak when:
 - large nested work is hidden inside a small-sounding abstraction;
 - timing substitutes for product prioritization that only a human can decide.
 
-## Conceptual Lineage
+## Source Trace
 
-This reference adapts Kent Beck's distinction between behavior and structure,
-and his timing vocabulary of first, after, later, and never. The package reduces
-the vocabulary to `now`, `after`, and `never` while preserving reversibility,
-optionality, and cost-of-delay reasoning.
-
-- Structure and behavior: https://newsletter.kentbeck.com/p/structure-and-behavior
-- First, after, later, never: https://newsletter.kentbeck.com/p/first-after-later-never
+- Kent Beck, *Tidy First?: A Personal Exercise in Empirical Software Design*,
+  O'Reilly Media, 2023: behavior/structure separation, small tidyings,
+  first/after/later/never decisions, batching, optionality, reversibility, and
+  the economics of structural change.
+- Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
+  Edition, version 2.2.2, 2024: waiting for real change pressure, tolerating
+  duplication, selecting a point of attack, gradual movement, and stable
+  landings.
+- Hillel Wayne, *Logic for Programmers*, version 0.14.0, May 4, 2026:
+  ability-guarantee tradeoffs and replacement obligations that affect the cost
+  and reversibility of a structural choice.

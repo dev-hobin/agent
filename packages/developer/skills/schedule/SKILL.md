@@ -1,6 +1,6 @@
 ---
 name: schedule
-description: "Decide whether a concrete structural change or reviewed abstraction candidate belongs now, after, or never using invariant pressure, evidence, reversibility, nested-work pressure, and cost of delay. Use when the candidate is concrete and timing is consequential, including requests to apply Tidy First-style behavior-versus-structure sequencing."
+description: "Decide whether a concrete structural change or reviewed abstraction candidate belongs now, after, or never using invariant pressure, evidence, reversibility, nested-work pressure, behavior-versus-structure separation, and cost of delay. Use when the candidate is concrete and timing is consequential."
 ---
 
 # Schedule
