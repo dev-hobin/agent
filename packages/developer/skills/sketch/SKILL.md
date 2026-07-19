@@ -18,6 +18,16 @@ What design surface makes this intent implementable?
 - Representative normal, boundary, forbidden, and product-meaning cases
 - Constraints and verification targets
 
+## Reference Routing
+
+Read [the design recipe and abstraction barriers reference](references/design-recipe-and-abstraction-barriers.md)
+when data shape, traversal, representation, ownership, or wished interfaces
+carry consequential design judgment. Also read it when a proposed sketch is
+mostly a file-edit plan, when representative cases do not shape the template,
+or when an abstraction barrier needs a concrete stop check. A small local design
+whose purpose, cases, data flow, and first implementation item are already clear
+does not need the reference.
+
 ## Output
 
 Lead with the user's product language; keep design labels secondary.

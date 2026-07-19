@@ -18,6 +18,15 @@ What structural movement is actually visible in the evidence?
 - Invariant or condition model when available
 - Known callers when shared helpers, APIs, or boundaries are involved
 
+## Reference Routing
+
+Read [the flocking and structural movement reference](references/flocking-and-structural-movement.md)
+when duplication, parallel branches, similar tests, repeated UI states,
+conditionals, or a recent refactor need a behavior-preserving next move. Also
+read it when the horizontal/vertical distinction is consequential or the
+available checks may not keep a small movement green. A direct, evidence-backed
+observation with no proposed movement does not need the reference.
+
 ## Output
 
 Lead with the observed code or product pressure; keep signal labels secondary.

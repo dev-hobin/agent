@@ -92,7 +92,7 @@ pi remove npm:@hobin/learning
 ```
 
 An unversioned npm install follows future package updates. Install a specific
-version, such as `npm:@hobin/developer@0.1.0`, when you want it pinned.
+version, such as `npm:@hobin/developer@0.1.1`, when you want it pinned.
 
 ## Repository layout
 

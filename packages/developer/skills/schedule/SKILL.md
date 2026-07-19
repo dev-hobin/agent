@@ -18,6 +18,15 @@ When should this candidate be done: now, after, or never?
 - Current invariant pressure and nested-work pressure
 - Reversibility, cost of delay, risk if done now, and risk if delayed
 
+## Reference Routing
+
+Read [the structural change timing reference](references/structural-change-timing.md)
+when a behavior change and structural change compete, when `now` would remove
+meaningful implementation freedom, or when reversibility, nested work, and cost
+of delay point in different directions. Also read it when an `after` decision
+needs an observable reopen condition. A small, reversible candidate whose
+timing follows directly from the current invariant does not need the reference.
+
 ## Output
 
 Lead with the user's current risk and cost of delay; keep timing labels secondary.

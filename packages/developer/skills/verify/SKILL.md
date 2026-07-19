@@ -18,6 +18,15 @@ What claims does the available evidence support?
 - Invariant, model, accepted decisions, and verification targets when available
 - Relevant counterexamples and source provenance
 
+## Reference Routing
+
+Read [the verifier selection and pass-but-wrong reference](references/verifier-selection-and-pass-but-wrong.md)
+when several claims need different evidence, a passing command may not exercise
+the accepted meaning, source compatibility matters, or behavior can pass while
+structure degrades. Also read it before a consequential completion claim whose
+verifier relevance or residual risk is unclear. A narrow claim with direct,
+relevant evidence does not need the reference.
+
 ## Output
 
 Lead with the user's claim and observed evidence; keep verification labels secondary.

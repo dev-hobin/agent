@@ -18,6 +18,7 @@ task ownership.
 - Verification Target Derivation
 - Stop Checks
 - AI Delegation Boundary
+- Conceptual Lineage
 
 ## Core Question
 
@@ -260,3 +261,14 @@ only a procedure. Provide:
 - verification: counterexamples, gates, and accepted evidence.
 
 AI helpers are not solvers. Their output must still be checked against the model.
+
+## Conceptual Lineage
+
+This reference adapts the practical progression in Hillel Wayne's *Logic for
+Programmers*: make predicates and domains explicit, turn implications into
+counterexamples, choose representations that expose the real decision space,
+and place guarantees where they can be checked. It extends that lineage with a
+problem-shape router, explicit guarantee placement, and an AI delegation
+boundary for product-development work.
+
+- Logic for Programmers: https://leanpub.com/logic

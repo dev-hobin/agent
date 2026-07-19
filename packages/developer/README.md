@@ -154,6 +154,11 @@ Pi's loaded resource metadata is authoritative. If package configuration filters
 or disables a skill, Developer cannot route to it even if its file exists in the
 npm package.
 
+Several skills link to detailed documents under their own `references/`
+directory. Pi loads the `SKILL.md` instructions on demand; the instructions say
+when the additional reference is worth reading and resolve it relative to the
+skill directory. Small, already-settled judgments do not need the extra context.
+
 ## State, branches, and compaction
 
 Mode changes are stored as Pi custom session entries. Routes and judgments are
