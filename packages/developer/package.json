@@ -1,0 +1,43 @@
+{
+  "name": "@hobin/developer",
+  "version": "0.1.0",
+  "description": "Adaptive product-development reasoning and evidence for Pi.",
+  "type": "module",
+  "keywords": ["pi-package", "pi", "developer", "skills"],
+  "license": "MIT",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dev-hobin/agent.git",
+    "directory": "packages/developer"
+  },
+  "homepage": "https://github.com/dev-hobin/agent/tree/main/packages/developer#readme",
+  "bugs": {
+    "url": "https://github.com/dev-hobin/agent/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": ["extensions", "skills", "README.md", "LICENSE"],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "check": "node scripts/check-package.mjs && node --test tests/*.test.ts",
+    "eval": "node scripts/eval-rpc.mjs",
+    "eval:json": "node scripts/eval-json.mjs"
+  },
+  "pi": {
+    "extensions": ["./extensions/developer.ts"],
+    "skills": ["./skills"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  }
+}

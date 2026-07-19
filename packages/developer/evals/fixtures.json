@@ -1,0 +1,36 @@
+[
+  {
+    "id": "vague-product-request",
+    "mode": "on",
+    "request": "계약 기능을 개선해줘. 아직 무엇을 개선해야 하는지는 이 요청 외에 명시되어 있지 않다.",
+    "expectedFirstOwners": ["specify"],
+    "mustRecordJudgment": true,
+    "maxRoutes": 5
+  },
+  {
+    "id": "already-specified-local-change",
+    "mode": "strict",
+    "request": "ScheduleFormValues를 ScheduleContent로 변환하는 toScheduleContent 순수 함수를 추가하고 빈 입력과 날짜 입력을 표 기반 테스트로 검증해라. 관련 타입과 테스트 위치는 먼저 읽어서 확인해라.",
+    "expectedFirstOwners": ["direct"],
+    "mustRecordJudgment": true,
+    "mutationRequiresDirectRoute": true,
+    "maxRoutes": 3,
+    "workspaceAssertion": "schedule-conversion"
+  },
+  {
+    "id": "existing-abstraction-pressure",
+    "mode": "on",
+    "request": "기존 변환 helper 세 개가 비슷해 보이지만 기본값 의미가 서로 다르다. 공통 추상화를 만들어야 하는지 현재 코드와 테스트를 근거로 판단해라.",
+    "expectedFirstOwners": ["signal", "abstraction-review", "model"],
+    "mustRecordJudgment": true,
+    "maxRoutes": 5
+  },
+  {
+    "id": "pass-but-wrong-risk",
+    "mode": "on",
+    "request": "테스트는 통과하지만 계약 생성 시 빈 일정과 일정 없음이 같은 값으로 저장된다. 현재 완료 주장이 제품 의미까지 뒷받침되는지 판단해라.",
+    "expectedFirstOwners": ["verify", "model", "specify"],
+    "mustRecordJudgment": true,
+    "maxRoutes": 4
+  }
+]

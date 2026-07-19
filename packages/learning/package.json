@@ -1,0 +1,50 @@
+{
+  "name": "@hobin/learning",
+  "version": "0.1.0",
+  "description": "Source-grounded reading, concept formation, patternization, and deliberate practice for Pi.",
+  "type": "module",
+  "keywords": ["pi-package", "pi", "learning", "skills"],
+  "license": "MIT",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dev-hobin/agent.git",
+    "directory": "packages/learning"
+  },
+  "homepage": "https://github.com/dev-hobin/agent/tree/main/packages/learning#readme",
+  "bugs": {
+    "url": "https://github.com/dev-hobin/agent/issues"
+  },
+  "files": [
+    "extensions",
+    "references",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "check": "node scripts/check-package.mjs && node --test tests/*.test.ts",
+    "eval": "node scripts/eval-rpc.mjs"
+  },
+  "pi": {
+    "extensions": ["./extensions/learning.ts"],
+    "skills": ["./skills"]
+  },
+  "dependencies": {
+    "yaml": "^2.9.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  }
+}
