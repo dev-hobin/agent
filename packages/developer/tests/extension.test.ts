@@ -711,7 +711,7 @@ test("the no-argument command uses a selector only in TUI mode", async () => {
   assert.equal(harness.customCalls(), 1);
   assert.deepEqual(harness.customOptions.at(-1), {
     overlay: true,
-    overlayOptions: { anchor: "center", width: 78, maxHeight: 21, margin: 1 },
+    overlayOptions: { anchor: "center", width: 78, maxHeight: 17, margin: 1 },
   });
   assert.equal((harness.entries.at(-1)?.data as { mode: string }).mode, "strict");
   assert.equal(harness.activeTools().includes("edit"), false);
@@ -788,9 +788,9 @@ test("TUI question selection focuses the pending question and the next route ass
     overlay: true,
     overlayOptions: {
       anchor: "center",
-      width: "82%",
+      width: 92,
       minWidth: 56,
-      maxHeight: "85%",
+      maxHeight: 28,
       margin: 1,
     },
   });

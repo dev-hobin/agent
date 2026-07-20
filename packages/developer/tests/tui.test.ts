@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { type Component, visibleWidth } from "@earendil-works/pi-tui";
 
 import type { DeveloperState, PendingQuestion } from "../extensions/state.ts";
 import {
@@ -16,11 +16,38 @@ import {
   showPendingQuestionSelector,
 } from "../extensions/tui.ts";
 
+interface InteractiveTestComponent extends Component {
+  handleInput(data: string): void;
+}
+
+type TestComponentFactory = (
+  tui: { requestRender(): void },
+  theme: Theme,
+  keybindings: unknown,
+  done: (value: unknown) => void,
+) => InteractiveTestComponent | Promise<InteractiveTestComponent>;
+
 const theme = {
   bold: (text: string) => text,
   fg: (_color: string, text: string) => text,
   bg: (_color: string, text: string) => text,
 } as Theme;
+
+const ansiTheme = {
+  ...theme,
+  bold: (text: string) => `\u001b[1m${text}\u001b[22m`,
+  fg: (_color: string, text: string) => `\u001b[38;5;7m${text}\u001b[39m`,
+} as Theme;
+
+const keybindings = {
+  matches(data: string, binding: string): boolean {
+    if (binding === "tui.select.up") return data === "\u001b[A";
+    if (binding === "tui.select.down") return data === "\u001b[B";
+    if (binding === "tui.select.confirm") return data === "\r";
+    if (binding === "tui.select.cancel") return data === "\u001b" || data === "\u0003";
+    return false;
+  },
+};
 
 const openQuestion: PendingQuestion = {
   id: "question:route:earlier",
@@ -81,22 +108,17 @@ test("Developer assigns footer, widget, action list, and pending list distinct i
   assert.match(questions[0]?.description ?? "", /needs-evidence/);
 });
 
-test("Developer control uses a descriptive SelectList overlay", async () => {
+test("Developer control uses a compact selection overlay with inline wrapping", async () => {
   let rendered = "";
   let overlayOptions: unknown;
   const ctx = {
     ui: {
-      async custom(factory: any, options: unknown) {
+      async custom(factory: TestComponentFactory, options: unknown) {
         overlayOptions = options;
         let selected: unknown;
-        const component = await factory(
-          { requestRender() {} },
-          theme,
-          {},
-          (value: unknown) => {
-            selected = value;
-          },
-        );
+        const component = await factory({ requestRender() {} }, theme, keybindings, (value: unknown) => {
+          selected = value;
+        });
         rendered = component.render(78).join("\n");
         component.handleInput("\u001b[B");
         component.handleInput("\r");
@@ -109,31 +131,45 @@ test("Developer control uses a descriptive SelectList overlay", async () => {
   assert.equal(result, "questions");
   assert.match(rendered, /Developer control/);
   assert.match(rendered, /Revisit an open question/);
+  assert.match(rendered, /strict · needs-judgment · 1 open/);
+  assert.doesNotMatch(rendered, /Selected detail|scroll detail/);
+  const renderedLines = rendered.split("\n");
+  assert.match(renderedLines[0] ?? "", /^╭.*╮$/);
+  assert.match(renderedLines.at(-1) ?? "", /^╰.*╯$/);
+  assert.ok(renderedLines.slice(1, -1).every((line) => line.startsWith("│") && line.endsWith("│")));
+  assert.ok(renderedLines.every((line) => visibleWidth(line) <= 78));
   assert.deepEqual(overlayOptions, {
     overlay: true,
-    overlayOptions: { anchor: "center", width: 78, maxHeight: 21, margin: 1 },
+    overlayOptions: { anchor: "center", width: 78, maxHeight: 17, margin: 1 },
   });
 });
 
-test("pending selection returns an exact protocol question ID", async () => {
+test("pending selection wraps the selected question and returns its exact protocol ID", async () => {
+  let rendered = "";
+  const longQuestion: PendingQuestion = {
+    ...openQuestion,
+    question:
+      "Which browser observation is still missing after the narrow checkout modal wraps onto the next terminal line?",
+  };
   const ctx = {
     ui: {
-      async custom(factory: any) {
+      async custom(factory: TestComponentFactory) {
         let selected: unknown;
-        const component = await factory(
-          { requestRender() {} },
-          theme,
-          {},
-          (value: unknown) => {
-            selected = value;
-          },
-        );
+        const component = await factory({ requestRender() {} }, ansiTheme, keybindings, (value: unknown) => {
+          selected = value;
+        });
+        rendered = component.render(52).join("\n");
         component.handleInput("\r");
         return selected;
       },
     },
   };
-  assert.equal(await showPendingQuestionSelector(ctx as never, [openQuestion]), openQuestion.id);
+  assert.equal(await showPendingQuestionSelector(ctx as never, [longQuestion]), longQuestion.id);
+  assert.match(rendered, /terminal line\?/);
+  assert.doesNotMatch(rendered, /…/);
+  assert.equal(rendered.match(/Which browser observation/g)?.length, 1);
+  assert.doesNotMatch(rendered, /question:route:earlier/);
+  assert.ok(rendered.split("\n").every((line) => visibleWidth(line) <= 52));
 });
 
 test("status panel is bounded, branch-grounded, and keyboard dismissible", () => {
@@ -156,10 +192,43 @@ test("status panel is bounded, branch-grounded, and keyboard dismissible", () =>
   assert.match(output, /Open questions · 1/);
   assert.match(output, /A browser observation remains/);
   assert.match(output, /2 skills · 3 active tools/);
-  assert.ok(lines.length <= 30);
+  assert.ok(lines.length <= 28);
   assert.ok(lines.every((line) => visibleWidth(line) <= 88));
+
+  const narrowLines = panel.render(52);
+  assert.match(narrowLines.join("\n"), /question · Does the rendered interface preserve/);
+  assert.match(narrowLines.join("\n"), / {13}the product invariant\?/);
+  assert.ok(narrowLines.every((line) => visibleWidth(line) <= 52));
   panel.handleInput("\r");
   assert.equal(closed, true);
+});
+
+test("Developer overlays do not paint full-panel backgrounds", async () => {
+  let backgroundCalls = 0;
+  const transparentTheme = {
+    ...theme,
+    bg: (_color: string, text: string) => {
+      backgroundCalls += 1;
+      return text;
+    },
+  } as Theme;
+  const ctx = {
+    ui: {
+      async custom(factory: TestComponentFactory) {
+        const component = await factory({ requestRender() {} }, transparentTheme, keybindings, () => {});
+        component.render(78);
+        return null;
+      },
+    },
+  };
+
+  await showDeveloperActionSelector(ctx as never, activeState());
+  new DeveloperStatusPanel(
+    { state: activeState(), activeTools: [], availableSkills: [] },
+    transparentTheme,
+    () => {},
+  ).render(78);
+  assert.equal(backgroundCalls, 0);
 });
 
 test("preparing an open question preserves existing editor text without exposing its internal ID", () => {

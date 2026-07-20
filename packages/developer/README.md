@@ -267,6 +267,17 @@ Load the workspace package into Pi without installing it:
 pi -e ./packages/developer
 ```
 
+Launch the isolated modal fixture in a new Ghostty window for visual QA:
+
+```sh
+./packages/developer/scripts/ghostty-tui-qa.sh
+```
+
+Choose **Inspect status** or **Revisit an open question**, then resize the window
+while the modal is open. The fixture disables discovered extensions, skills,
+tools, sessions, and network startup so it cannot mutate Developer state or call
+a model.
+
 `check` validates package structure and deterministic behavior. `eval` launches
 the real Pi RPC surface without a model and covers package resources, commands,
 mode state, and strict tool gating. Maintainers can use `eval:json` and the live

@@ -1,15 +1,13 @@
 import {
-  DynamicBorder,
   type ExtensionCommandContext,
+  type KeybindingsManager,
   type Theme,
   type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
 import {
-  Box,
   Container,
   matchesKey,
   type SelectItem,
-  SelectList,
   Text,
   truncateToWidth,
   visibleWidth,
@@ -97,7 +95,7 @@ export function pendingQuestionItems(questions: PendingQuestion[]): SelectItem[]
   return questions.map((question) => ({
     value: question.id,
     label: question.question,
-    description: `${question.status} · ${question.id}`,
+    description: question.status,
   }));
 }
 
@@ -107,52 +105,124 @@ interface SelectDialogOptions {
   items: SelectItem[];
   width: number;
   maxVisible: number;
-  maxPrimaryColumnWidth?: number;
+  selectedLabelMaxLines: number;
+  selectedDescriptionMaxLines: number;
 }
 
-class SelectionPreview {
-  private item?: SelectItem;
-  private offset = 0;
-  private lastWidth = 40;
+function boundedWrappedLines(content: string, width: number, maxLines: number, ellipsis: string): string[] {
+  const contentWidth = Math.max(1, width);
+  const wrapped = wrapTextWithAnsi(content, contentWidth);
+  const visible = wrapped.slice(0, Math.max(1, maxLines));
+  if (wrapped.length > visible.length && visible.length > 0) {
+    const last = visible.length - 1;
+    visible[last] = truncateToWidth(visible[last] ?? "", Math.max(1, contentWidth - 1), "") + ellipsis;
+  }
+  return visible;
+}
+
+function renderModalFrame(container: Container, theme: Theme, width: number): string[] {
+  if (width < 3) return container.render(Math.max(1, width));
+
+  const innerWidth = width - 2;
+  const border = (text: string) => theme.fg("borderAccent", text);
+  const rows = container
+    .render(innerWidth)
+    .map((line) => `${border("│")}${truncateToWidth(line, innerWidth, "…", true)}${border("│")}`);
+  return [border(`╭${"─".repeat(innerWidth)}╮`), ...rows, border(`╰${"─".repeat(innerWidth)}╯`)];
+}
+
+class WrappedSelectList {
+  private selectedIndex = 0;
+  private readonly items: SelectItem[];
+  private readonly keybindings: KeybindingsManager;
+  private readonly maxVisible: number;
+  private readonly selectedDescriptionMaxLines: number;
+  private readonly selectedLabelMaxLines: number;
   private readonly theme: Theme;
-  private readonly maxLines: number;
+  onSelect?: (item: SelectItem) => void;
+  onCancel?: () => void;
 
-  constructor(theme: Theme, maxLines = 5) {
+  constructor(
+    items: SelectItem[],
+    maxVisible: number,
+    theme: Theme,
+    keybindings: KeybindingsManager,
+    options: {
+      selectedLabelMaxLines: number;
+      selectedDescriptionMaxLines: number;
+    },
+  ) {
+    this.items = items;
+    this.maxVisible = maxVisible;
     this.theme = theme;
-    this.maxLines = maxLines;
-  }
-
-  setItem(item: SelectItem): void {
-    this.item = item;
-    this.offset = 0;
-  }
-
-  scroll(delta: number): void {
-    const total = this.contentLines(this.lastWidth).length;
-    this.offset = Math.max(0, Math.min(this.offset + delta, Math.max(0, total - this.maxLines)));
+    this.keybindings = keybindings;
+    this.selectedLabelMaxLines = options.selectedLabelMaxLines;
+    this.selectedDescriptionMaxLines = options.selectedDescriptionMaxLines;
   }
 
   render(width: number): string[] {
-    this.lastWidth = width;
-    const lines = this.contentLines(width);
-    const visible = lines.slice(this.offset, this.offset + this.maxLines);
-    if (lines.length > this.maxLines) {
-      const end = Math.min(lines.length, this.offset + this.maxLines);
-      visible.push(this.theme.fg("dim", `  detail ${this.offset + 1}–${end}/${lines.length} · shift+↑↓ scroll`));
+    if (this.items.length === 0) return [this.theme.fg("warning", "  No items")];
+
+    const lines: string[] = [];
+    const startIndex = Math.max(
+      0,
+      Math.min(this.selectedIndex - Math.floor(this.maxVisible / 2), this.items.length - this.maxVisible),
+    );
+    const endIndex = Math.min(startIndex + this.maxVisible, this.items.length);
+
+    for (let index = startIndex; index < endIndex; index += 1) {
+      const item = this.items[index];
+      if (!item) continue;
+      if (index !== this.selectedIndex) {
+        lines.push(`  ${truncateToWidth(item.label, Math.max(1, width - 2), "…")}`);
+        continue;
+      }
+
+      const labels = boundedWrappedLines(
+        this.theme.fg("accent", item.label),
+        width - 2,
+        this.selectedLabelMaxLines,
+        this.theme.fg("dim", "…"),
+      );
+      lines.push(`${this.theme.fg("accent", "→ ")}${labels[0] ?? ""}`);
+      for (const line of labels.slice(1)) lines.push(`  ${line}`);
+
+      if (item.description) {
+        const descriptions = boundedWrappedLines(
+          this.theme.fg("muted", item.description),
+          width - 4,
+          this.selectedDescriptionMaxLines,
+          this.theme.fg("dim", "…"),
+        );
+        for (const line of descriptions) lines.push(`  ${line}`);
+      }
     }
-    return visible;
+
+    if (startIndex > 0 || endIndex < this.items.length) {
+      lines.push(
+        this.theme.fg(
+          "dim",
+          truncateToWidth(`  (${this.selectedIndex + 1}/${this.items.length})`, Math.max(1, width - 2), ""),
+        ),
+      );
+    }
+    return lines;
+  }
+
+  handleInput(data: string): void {
+    if (this.keybindings.matches(data, "tui.select.up")) {
+      this.selectedIndex = this.selectedIndex === 0 ? this.items.length - 1 : this.selectedIndex - 1;
+    } else if (this.keybindings.matches(data, "tui.select.down")) {
+      this.selectedIndex = this.selectedIndex === this.items.length - 1 ? 0 : this.selectedIndex + 1;
+    } else if (this.keybindings.matches(data, "tui.select.confirm")) {
+      const selected = this.items[this.selectedIndex];
+      if (selected) this.onSelect?.(selected);
+    } else if (this.keybindings.matches(data, "tui.select.cancel")) {
+      this.onCancel?.();
+    }
   }
 
   invalidate(): void {}
-
-  private contentLines(width: number): string[] {
-    if (!this.item) return [];
-    const content = [
-      this.theme.fg("accent", this.theme.bold(this.item.label)),
-      ...(this.item.description ? [this.theme.fg("muted", this.item.description)] : []),
-    ].join("\n");
-    return new Text(content, 1, 0).render(width);
-  }
 }
 
 async function showSelectDialog(
@@ -160,64 +230,46 @@ async function showSelectDialog(
   options: SelectDialogOptions,
 ): Promise<string | undefined> {
   const result = await ctx.ui.custom<string | null>(
-    (tui, theme, _keybindings, done) => {
+    (tui, theme, keybindings, done) => {
       const container = new Container();
-      const surface = new Box(1, 0, (text) => theme.bg("customMessageBg", text));
-      surface.addChild(container);
       const title = new Text("", 1, 0);
       const subtitle = new Text("", 1, 0);
       const hint = new Text("", 1, 0);
-      const previewLabel = new Text(theme.fg("dim", "Selected detail"), 1, 0);
-      const preview = new SelectionPreview(theme);
       const updateText = () => {
         title.setText(theme.fg("accent", theme.bold(`◆ ${options.title}`)));
         subtitle.setText(theme.fg("muted", options.subtitle));
-        hint.setText(theme.fg("dim", "↑↓ navigate · shift+↑↓ scroll detail · enter select · esc cancel"));
+        hint.setText(theme.fg("dim", "↑↓ navigate · enter select · esc cancel"));
       };
       updateText();
 
-      const list = new SelectList(
+      const list = new WrappedSelectList(
         options.items,
         Math.min(options.items.length, options.maxVisible),
+        theme,
+        keybindings,
         {
-          selectedPrefix: (text) => theme.fg("accent", text),
-          selectedText: (text) => theme.fg("accent", text),
-          description: (text) => theme.fg("muted", text),
-          scrollInfo: (text) => theme.fg("dim", text),
-          noMatch: (text) => theme.fg("warning", text),
+          selectedLabelMaxLines: options.selectedLabelMaxLines,
+          selectedDescriptionMaxLines: options.selectedDescriptionMaxLines,
         },
-        options.maxPrimaryColumnWidth
-          ? { minPrimaryColumnWidth: 24, maxPrimaryColumnWidth: options.maxPrimaryColumnWidth }
-          : undefined,
       );
       list.onSelect = (item) => done(item.value);
       list.onCancel = () => done(null);
-      list.onSelectionChange = (item) => preview.setItem(item);
-      const initialItem = list.getSelectedItem();
-      if (initialItem) preview.setItem(initialItem);
 
-      container.addChild(new DynamicBorder((text) => theme.fg("borderAccent", text)));
       container.addChild(title);
       container.addChild(subtitle);
       container.addChild(list);
-      container.addChild(new DynamicBorder((text) => theme.fg("borderMuted", text)));
-      container.addChild(previewLabel);
-      container.addChild(preview);
       container.addChild(hint);
-      container.addChild(new DynamicBorder((text) => theme.fg("borderAccent", text)));
 
       return {
         render(width: number) {
-          return surface.render(width);
+          return renderModalFrame(container, theme, width);
         },
         invalidate() {
           updateText();
-          surface.invalidate();
+          container.invalidate();
         },
         handleInput(data: string) {
-          if (matchesKey(data, "shift+up")) preview.scroll(-1);
-          else if (matchesKey(data, "shift+down")) preview.scroll(1);
-          else list.handleInput(data);
+          list.handleInput(data);
           tui.requestRender();
         },
       };
@@ -227,7 +279,10 @@ async function showSelectDialog(
       overlayOptions: {
         anchor: "center",
         width: options.width,
-        maxHeight: Math.min(options.maxVisible + 15, 26),
+        maxHeight: Math.min(
+          options.maxVisible + options.selectedLabelMaxLines + options.selectedDescriptionMaxLines + 7,
+          24,
+        ),
         margin: 1,
       },
     },
@@ -245,6 +300,8 @@ export async function showDeveloperActionSelector(
     items: developerActionItems(state),
     width: 78,
     maxVisible: 6,
+    selectedLabelMaxLines: 2,
+    selectedDescriptionMaxLines: 2,
   });
   if (result === "status" || result === "questions" || result === "on" || result === "strict" || result === "off") {
     return result;
@@ -263,7 +320,8 @@ export async function showPendingQuestionSelector(
     items: pendingQuestionItems(questions),
     width: 96,
     maxVisible: 10,
-    maxPrimaryColumnWidth: 52,
+    selectedLabelMaxLines: 5,
+    selectedDescriptionMaxLines: 1,
   });
 }
 
@@ -357,77 +415,89 @@ export class DeveloperStatusPanel {
   render(width: number): string[] {
     if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
 
-    const panelWidth = Math.max(20, width);
-    const innerWidth = Math.max(18, panelWidth - 2);
+    const panelWidth = Math.max(1, width);
+    const innerWidth = Math.max(1, panelWidth - 2);
     const rows: string[] = [];
-    const background = (text: string) => this.theme.bg("customMessageBg", text);
     const border = (text: string) => this.theme.fg("borderAccent", text);
-    const row = (content = "") => {
-      const clipped = truncateToWidth(content, innerWidth, "…", true);
-      const padding = " ".repeat(Math.max(0, innerWidth - visibleWidth(clipped)));
-      return background(`${border("│")}${clipped}${padding}${border("│")}`);
-    };
-    const addWrapped = (label: string, value: string, color: ThemeColor = "muted", _maxLines?: number) => {
-      const prefix = `  ${this.theme.fg("dim", `${label} ·`)} `;
-      const wrapped = wrapTextWithAnsi(prefix + this.theme.fg(color, value), innerWidth);
-      for (const line of wrapped) rows.push(row(line));
+    const row = (content = "") => `${border("│")}${truncateToWidth(content, innerWidth, "…", true)}${border("│")}`;
+    const addWrapped = (label: string, value: string, color: ThemeColor = "muted", maxLines = 2) => {
+      const labelText = `${label} ·`;
+      const plainPrefix = `  ${labelText} `;
+      const styledPrefix = `  ${this.theme.fg("dim", labelText)} `;
+      const contentWidth = Math.max(1, innerWidth - visibleWidth(plainPrefix));
+      const wrapped = wrapTextWithAnsi(this.theme.fg(color, value.trim()), contentWidth);
+      const visible = wrapped.slice(0, Math.max(1, maxLines));
+      if (wrapped.length > visible.length && visible.length > 0) {
+        const last = visible.length - 1;
+        visible[last] =
+          truncateToWidth(visible[last] ?? "", Math.max(1, contentWidth - 1), "") + this.theme.fg("dim", "…");
+      }
+      rows.push(row(styledPrefix + (visible[0] ?? "")));
+      const hangingIndent = " ".repeat(visibleWidth(plainPrefix));
+      for (const line of visible.slice(1)) rows.push(row(hangingIndent + line));
     };
     const section = (title: string) => rows.push(row(`  ${this.theme.fg("accent", this.theme.bold(title))}`));
 
-    rows.push(background(border(`╭${"─".repeat(innerWidth)}╮`)));
+    rows.push(border(`╭${"─".repeat(innerWidth)}╮`));
     rows.push(row(`  ${this.theme.fg("accent", this.theme.bold("◆ Developer status"))}`));
     rows.push(row());
 
     const state = this.view.state;
     const currentProtocol = protocolState(state);
-    rows.push(
-      row(
-        `  mode ${this.theme.fg(modeColor(state.mode), modeName(state.mode))}` +
-          this.theme.fg("dim", " · ") +
-          `protocol ${this.theme.fg(protocolColor(currentProtocol), currentProtocol)}` +
-          this.theme.fg("dim", " · ") +
-          `target ${this.theme.fg("muted", state.activeRoute?.owner ?? "none")}`,
-      ),
-    );
+    const summary =
+      `mode ${this.theme.fg(modeColor(state.mode), modeName(state.mode))}` +
+      this.theme.fg("dim", " · ") +
+      `protocol ${this.theme.fg(protocolColor(currentProtocol), currentProtocol)}` +
+      this.theme.fg("dim", " · ") +
+      `target ${this.theme.fg("muted", state.activeRoute?.owner ?? "none")}`;
+    for (const line of wrapTextWithAnsi(summary, Math.max(1, innerWidth - 2))) rows.push(row(`  ${line}`));
     rows.push(row());
 
     section("Active route");
     if (state.activeRoute) {
       addWrapped("id", state.activeRoute.routeId, "dim", 1);
-      addWrapped("question", state.activeRoute.question, "text");
-      addWrapped("reason", state.activeRoute.reason);
+      addWrapped("question", state.activeRoute.question, "text", 3);
+      addWrapped("reason", state.activeRoute.reason, "muted", 2);
       addWrapped("skill", state.activeRoute.methodLocation ?? "direct action", "dim", 1);
       addWrapped("known evidence", String(state.activeRoute.knownEvidence.length), "muted", 1);
     } else {
-      addWrapped("state", "No route is currently waiting for judgment.", "dim", 1);
+      addWrapped("state", "No route is currently waiting for judgment.", "dim", 2);
     }
 
     rows.push(row());
     section(`Open questions · ${state.pendingQuestions.length}`);
     if (state.pendingQuestions.length === 0) {
-      addWrapped("state", "No unresolved Developer questions.", "dim", 1);
+      addWrapped("state", "No unresolved Developer questions.", "dim", 2);
     } else {
-      for (const question of state.pendingQuestions) {
+      for (const question of state.pendingQuestions.slice(0, 4)) {
         addWrapped(
           question.status === "blocked" ? "blocked" : "needs evidence",
           question.question,
           question.status === "blocked" ? "error" : "warning",
-          1,
+          2,
         );
+      }
+      if (state.pendingQuestions.length > 4) {
+        addWrapped("more", `${state.pendingQuestions.length - 4} additional open questions`, "dim", 1);
       }
     }
 
     rows.push(row());
     section("Last judgment");
     if (state.lastJudgment) {
-      addWrapped("status", state.lastJudgment.status, protocolColor(
-        state.lastJudgment.status === "blocked"
-          ? "blocked"
-          : state.lastJudgment.status === "needs-evidence"
-            ? "needs-evidence"
-            : "idle",
-      ), 1);
-      addWrapped("result", state.lastJudgment.result, "muted");
+      addWrapped(
+        "status",
+        state.lastJudgment.status,
+        protocolColor(
+          state.lastJudgment.status === "blocked"
+            ? "blocked"
+            : state.lastJudgment.status === "needs-evidence"
+              ? "needs-evidence"
+              : "idle",
+        ),
+        1,
+      );
+      addWrapped("result", state.lastJudgment.result, "muted", 3);
       addWrapped(
         "evidence",
         `${state.lastJudgment.basis.length} basis · ${state.lastJudgment.artifacts.length} artifacts`,
@@ -435,7 +505,7 @@ export class DeveloperStatusPanel {
         1,
       );
     } else {
-      addWrapped("state", "No judgment has been recorded on this branch.", "dim", 1);
+      addWrapped("state", "No judgment has been recorded on this branch.", "dim", 2);
     }
 
     rows.push(row());
@@ -446,23 +516,22 @@ export class DeveloperStatusPanel {
       1,
     );
     rows.push(row());
-    rows.push(row(`  ${this.theme.fg("dim", "enter/esc close · /develop questions revisits open work")}`));
-    rows.push(background(border(`╰${"─".repeat(innerWidth)}╯`)));
 
     const header = rows.slice(0, 2);
-    const body = rows.slice(2, -2);
+    const body = rows.slice(2);
     const bodyCapacity = Math.max(1, this.viewportHeight - 4);
     this.maxScrollOffset = Math.max(0, body.length - bodyCapacity);
     this.scrollOffset = Math.min(this.scrollOffset, this.maxScrollOffset);
     const visibleBody = body.slice(this.scrollOffset, this.scrollOffset + bodyCapacity);
-    const position = body.length > bodyCapacity
-      ? `↑↓ scroll · ${this.scrollOffset + 1}–${Math.min(body.length, this.scrollOffset + bodyCapacity)}/${body.length} · enter/esc close`
-      : "enter/esc close · /develop questions revisits open work";
+    const position =
+      body.length > bodyCapacity
+        ? `↑↓ scroll · ${this.scrollOffset + 1}–${Math.min(body.length, this.scrollOffset + bodyCapacity)}/${body.length} · enter/esc close`
+        : "enter/esc close · /develop questions revisits open work";
     const visibleRows = [
       ...header,
       ...visibleBody,
       row(`  ${this.theme.fg("dim", position)}`),
-      background(border(`╰${"─".repeat(innerWidth)}╯`)),
+      border(`╰${"─".repeat(innerWidth)}╯`),
     ];
 
     this.cachedWidth = width;
@@ -476,23 +545,20 @@ export class DeveloperStatusPanel {
   }
 }
 
-export async function showDeveloperStatus(
-  ctx: ExtensionCommandContext,
-  view: DeveloperStatusView,
-): Promise<void> {
+export async function showDeveloperStatus(ctx: ExtensionCommandContext, view: DeveloperStatusView): Promise<void> {
   await ctx.ui.custom<void>(
     (tui, theme, _keybindings, done) =>
       new DeveloperStatusPanel(view, theme, () => done(), {
-        viewportHeight: Math.max(12, Math.floor(tui.terminal.rows * 0.8)),
+        viewportHeight: Math.max(6, Math.min(28, tui.terminal.rows - 2)),
         requestRender: () => tui.requestRender(),
       }),
     {
       overlay: true,
       overlayOptions: {
         anchor: "center",
-        width: "82%",
+        width: 92,
         minWidth: 56,
-        maxHeight: "85%",
+        maxHeight: 28,
         margin: 1,
       },
     },

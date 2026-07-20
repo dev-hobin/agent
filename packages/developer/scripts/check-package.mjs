@@ -5,6 +5,17 @@ import { fileURLToPath } from "node:url";
 import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+async function readJson(path) {
+  try {
+    return JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    throw new Error(`Failed to read JSON fixture ${path}: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    });
+  }
+}
+
 const expectedSkills = [
   "abstraction-review",
   "adversarial-eval",
@@ -18,9 +29,9 @@ const expectedSkills = [
   "visualize",
 ];
 
-const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+const manifest = await readJson(join(root, "package.json"));
 assert.equal(manifest.name, "@hobin/developer");
-assert.equal(manifest.version, "0.1.3");
+assert.equal(manifest.version, "0.1.4");
 assert.deepEqual(manifest.pi.extensions, ["./extensions/developer.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
 assert.deepEqual(manifest.files, ["extensions", "skills", "README.md", "SOURCES.md", "LICENSE"]);
@@ -155,7 +166,7 @@ for (const [path, expected] of Object.entries(referenceAnchors)) {
   assert.match(await readFile(join(root, path), "utf8"), expected, `Expected conceptual anchor in ${path}`);
 }
 
-const evalFixtures = JSON.parse(await readFile(join(root, "evals", "fixtures.json"), "utf8"));
+const evalFixtures = await readJson(join(root, "evals", "fixtures.json"));
 for (const fixture of evalFixtures) {
   for (const referencePath of fixture.expectedReferenceReads ?? []) {
     assert.ok(
