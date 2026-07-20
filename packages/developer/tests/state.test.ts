@@ -38,6 +38,7 @@ const resolved = (active: RouteEvent, result = "Use a pure boundary conversion."
   basis: ["Representative cases agree."],
   openedQuestions: [],
   artifacts: ["tests/schedule.test.ts"],
+  changedArtifacts: false,
 });
 
 const toolEntry = (toolName: string, details: unknown) => ({
@@ -150,6 +151,32 @@ test("an unrelated resolved route cannot hide an existing blocker", () => {
 
   assert.equal(protocolState(state), "blocked");
   assert.equal(state.pendingQuestions[0]?.status, "blocked");
+});
+
+test("resolved model work requires sketch or signal framing before implementation", () => {
+  const modelRoute = { ...route, owner: "model" };
+  let state = applyDeveloperEvent(initialState(), modelRoute);
+  state = applyDeveloperEvent(state, resolved(modelRoute));
+  assert.equal(state.implementationFramingRequired, true);
+
+  const sketchRoute = { ...route, routeId: "route:sketch", owner: "sketch" };
+  state = applyDeveloperEvent(state, sketchRoute);
+  state = applyDeveloperEvent(state, resolved(sketchRoute));
+  assert.equal(state.implementationFramingRequired, false);
+});
+
+test("a changed direct landing requires a later resolved verify judgment", () => {
+  const directRoute = { ...route, owner: "direct" };
+  let state = applyDeveloperEvent(initialState(), directRoute);
+  state = applyDeveloperEvent(state, { ...resolved(directRoute), changedArtifacts: true });
+  assert.equal(state.verificationRequired, true);
+  assert.equal(protocolState(state), "needs-verification");
+
+  const verifyRoute = { ...route, routeId: "route:verify", owner: "verify" };
+  state = applyDeveloperEvent(state, verifyRoute);
+  state = applyDeveloperEvent(state, resolved(verifyRoute));
+  assert.equal(state.verificationRequired, false);
+  assert.equal(protocolState(state), "idle");
 });
 
 test("stale judgments cannot close a different active route", () => {

@@ -3,9 +3,10 @@
 Adaptive product-development judgment for [Pi](https://pi.dev).
 
 Developer combines a small, branch-aware coordination extension with ten
-independent skills. It routes one concrete question at a time, records the
-resulting evidence, and preserves unresolved questions without turning product
-development into a fixed lifecycle.
+independent skills. It routes one concrete question or green-to-green movement
+at a time, records the resulting evidence, and preserves unresolved questions.
+Its default topology gives feature work a useful backbone without turning every
+task into a fixed lifecycle.
 
 ## Install
 
@@ -86,11 +87,26 @@ Developer adds two model-facing protocol tools:
 1. `developer_route_question` opens one route for one concrete question.
 2. The route target is `direct` or one currently available Developer skill.
 3. A skill route returns the exact Pi-discovered `SKILL.md` instructions and canonical
-   path; a direct route keeps implementation tools available for the justified
-   action. A behavior-preserving structural direct route also loads the focused
-   execution profile that keeps edits small and returns to stable green landings.
+   path; a direct route declares one movement, its stable landing, and its narrow
+   verification. A behavior-preserving structural route also loads the focused
+   execution profile based on flocking-style movement and small tidyings.
 4. `developer_record_judgment` closes the route with a status, result, evidence,
-   artifacts, and any newly opened questions.
+   artifacts, and any newly opened questions. Developer then routes again from
+   the stable landing before another movement.
+
+The conditional default topology is:
+
+```text
+clarify when needed → model consequential cases
+→ sketch the first feature implementation surface OR signal existing-code movement
+→ one direct green-to-green movement → re-route from evidence
+→ verify before completion
+```
+
+This is not a mandatory phase sequence. A stage may be not applicable and new
+evidence may route backward or sideways. One guard is deliberate: a resolved
+model cannot flow straight into mutation. New feature work receives an initial
+`sketch`; existing-code structural work receives a `signal` first.
 
 Product code is still read, edited, executed, and tested with Pi's normal tools.
 Developer's tools only route and record judgment; they do not implement product
@@ -130,8 +146,12 @@ These are routing states, not product-completion claims. In particular:
 - A resolved `specify` judgment is not user acceptance.
 - A resolved `verify` judgment is not timeless proof after later changes.
 
-Pending questions receive stable IDs. A later route revisits one by passing the
-exact ID; wording similarity is never used as identity.
+Pending questions receive stable internal IDs, but users do not type them.
+Selecting `/develop questions` focuses the question in branch state; the next
+route automatically associates that focus. A sole pending question or an exact
+question match is also associated automatically. Resolved and not-applicable
+judgments remove the associated question immediately; needs-evidence and blocked
+judgments retain the same identity.
 
 ## Skills
 
@@ -184,8 +204,9 @@ stored in tool-result details. Developer reconstructs state from the current
 session branch on startup and tree navigation, so a fork inherits only the
 events on its branch.
 
-The current event contract is `developer/v2`. Legacy `developer/v1` routing
-history can be replayed, but removed inferred fields are not revived.
+The current event contract is `developer/v3`. Legacy `developer/v1` and
+`developer/v2` routing history can be replayed, but new framing and verification
+obligations are not retroactively inferred.
 
 Developer uses Pi's normal compaction. Each new agent turn receives current
 protocol state, and route results place identity and recovery metadata before

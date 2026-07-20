@@ -1,6 +1,8 @@
-export const PROTOCOL = "developer/v2" as const;
+export const PROTOCOL = "developer/v3" as const;
+export const PREVIOUS_PROTOCOL = "developer/v2" as const;
 export const LEGACY_PROTOCOL = "developer/v1" as const;
 export const MODE_ENTRY = "developer.mode" as const;
+export const FOCUS_ENTRY = "developer.question-focus" as const;
 export const ROUTE_TOOL = "developer_route_question" as const;
 export const JUDGMENT_TOOL = "developer_record_judgment" as const;
 export const LEGACY_ROUTE_TOOL = "route_question" as const;
@@ -17,6 +19,18 @@ export interface ModeEvent {
   mode: DeveloperMode;
 }
 
+export interface FocusEvent {
+  protocol: typeof PROTOCOL;
+  kind: "focus";
+  questionId: string;
+}
+
+export interface DirectStepContract {
+  movement: string;
+  stopCondition: string;
+  verification: string;
+}
+
 export interface RouteEvent {
   protocol: typeof PROTOCOL;
   kind: "route";
@@ -28,6 +42,7 @@ export interface RouteEvent {
   targetQuestionId?: string;
   methodLocation?: string;
   executionProfile?: DirectExecutionProfile;
+  directStep?: DirectStepContract;
 }
 
 export interface PendingQuestion {
@@ -48,9 +63,10 @@ export interface JudgmentEvent {
   basis: string[];
   openedQuestions: PendingQuestion[];
   artifacts: string[];
+  changedArtifacts: boolean;
 }
 
-export type DeveloperEvent = ModeEvent | RouteEvent | JudgmentEvent;
+export type DeveloperEvent = ModeEvent | FocusEvent | RouteEvent | JudgmentEvent;
 
 export interface DeveloperState {
   mode: DeveloperMode;
@@ -58,19 +74,25 @@ export interface DeveloperState {
   lastRoute?: RouteEvent;
   lastJudgment?: JudgmentEvent;
   pendingQuestions: PendingQuestion[];
+  focusedQuestionId?: string;
+  implementationFramingRequired: boolean;
+  verificationRequired: boolean;
 }
 
 export const initialState = (): DeveloperState => ({
   mode: "off",
   pendingQuestions: [],
+  implementationFramingRequired: false,
+  verificationRequired: false,
 });
 
-export type ProtocolState = "idle" | "needs-judgment" | "needs-evidence" | "blocked";
+export type ProtocolState = "idle" | "needs-judgment" | "needs-evidence" | "needs-verification" | "blocked";
 
 export function protocolState(state: DeveloperState): ProtocolState {
   if (state.activeRoute) return "needs-judgment";
   if (state.pendingQuestions.some((question) => question.status === "blocked")) return "blocked";
   if (state.pendingQuestions.length > 0) return "needs-evidence";
+  if (state.verificationRequired) return "needs-verification";
   return "idle";
 }
 
@@ -84,12 +106,19 @@ export function applyDeveloperEvent(state: DeveloperState, event: DeveloperEvent
     return { ...state, mode: event.mode };
   }
 
+  if (event.kind === "focus") {
+    if (!state.pendingQuestions.some((question) => question.id === event.questionId)) return state;
+    return { ...state, focusedQuestionId: event.questionId };
+  }
+
   if (event.kind === "route") {
     if (state.activeRoute) return state;
     return {
       ...state,
       activeRoute: event,
       lastRoute: event,
+      focusedQuestionId:
+        event.targetQuestionId === state.focusedQuestionId ? undefined : state.focusedQuestionId,
     };
   }
 
@@ -106,7 +135,7 @@ export function applyDeveloperEvent(state: DeveloperState, event: DeveloperEvent
       pending = upsertQuestion(pending, {
         id: route.targetQuestionId,
         question: route.question,
-        status: event.status,
+        status: event.status === "blocked" ? "blocked" : "needs-evidence",
         sourceRouteId: route.routeId,
       });
     }
@@ -114,18 +143,35 @@ export function applyDeveloperEvent(state: DeveloperState, event: DeveloperEvent
     pending = upsertQuestion(pending, {
       id: `question:${route.routeId}`,
       question: route.question,
-      status: event.status,
+      status: event.status === "blocked" ? "blocked" : "needs-evidence",
       sourceRouteId: route.routeId,
     });
   }
 
   for (const question of event.openedQuestions) pending = upsertQuestion(pending, question);
 
+  const closesFramingGate =
+    (route.owner === "sketch" || route.owner === "signal") &&
+    (event.status === "resolved" || event.status === "not-applicable");
+  const opensFramingGate = route.owner === "model" && event.status === "resolved";
+  let implementationFramingRequired = state.implementationFramingRequired;
+  if (opensFramingGate) implementationFramingRequired = true;
+  if (closesFramingGate) implementationFramingRequired = false;
+
+  let verificationRequired = state.verificationRequired;
+  if (route.owner === "direct" && event.changedArtifacts) verificationRequired = true;
+  if (route.owner === "verify" && event.status === "resolved") verificationRequired = false;
+
   return {
     ...state,
     activeRoute: undefined,
     lastJudgment: judgment,
     pendingQuestions: pending,
+    focusedQuestionId: pending.some((question) => question.id === state.focusedQuestionId)
+      ? state.focusedQuestionId
+      : undefined,
+    implementationFramingRequired,
+    verificationRequired,
   };
 }
 
@@ -149,6 +195,22 @@ function isDirectExecutionProfile(value: unknown): value is DirectExecutionProfi
   return value === "ordinary" || value === "behavior-preserving-structure";
 }
 
+function parseDirectStep(value: unknown): DirectStepContract | undefined {
+  if (!isObject(value)) return undefined;
+  if (
+    typeof value.movement !== "string" ||
+    typeof value.stopCondition !== "string" ||
+    typeof value.verification !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    movement: value.movement,
+    stopCondition: value.stopCondition,
+    verification: value.verification,
+  };
+}
+
 function parsePendingQuestion(value: unknown): PendingQuestion | undefined {
   if (!isObject(value)) return undefined;
   if (
@@ -169,11 +231,20 @@ function parsePendingQuestion(value: unknown): PendingQuestion | undefined {
 
 export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefined {
   if (!isObject(value)) return undefined;
-  if (value.protocol !== PROTOCOL && value.protocol !== LEGACY_PROTOCOL) return undefined;
+  if (
+    value.protocol !== PROTOCOL &&
+    value.protocol !== PREVIOUS_PROTOCOL &&
+    value.protocol !== LEGACY_PROTOCOL
+  ) return undefined;
 
   if (value.kind === "mode") {
     if (!isMode(value.mode)) return undefined;
     return { protocol: PROTOCOL, kind: "mode", mode: value.mode };
+  }
+
+  if (value.kind === "focus") {
+    if (value.protocol !== PROTOCOL || typeof value.questionId !== "string") return undefined;
+    return { protocol: PROTOCOL, kind: "focus", questionId: value.questionId };
   }
 
   if (value.kind === "route") {
@@ -185,7 +256,8 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
       !isStringArray(value.knownEvidence) ||
       (value.targetQuestionId !== undefined && typeof value.targetQuestionId !== "string") ||
       (value.methodLocation !== undefined && typeof value.methodLocation !== "string") ||
-      (value.executionProfile !== undefined && !isDirectExecutionProfile(value.executionProfile))
+      (value.executionProfile !== undefined && !isDirectExecutionProfile(value.executionProfile)) ||
+      (value.directStep !== undefined && !parseDirectStep(value.directStep))
     ) {
       return undefined;
     }
@@ -200,6 +272,7 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
       targetQuestionId: value.targetQuestionId,
       methodLocation: value.methodLocation,
       executionProfile: value.executionProfile,
+      directStep: value.directStep === undefined ? undefined : parseDirectStep(value.directStep),
     };
   }
 
@@ -231,9 +304,10 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
         id: `question:${value.routeId}:legacy:${index + 1}`,
         question,
         status: "needs-evidence",
-        sourceRouteId: value.routeId,
+        sourceRouteId: String(value.routeId),
       })),
       artifacts: value.artifacts,
+      changedArtifacts: false,
     };
   }
 
@@ -251,6 +325,7 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
     basis: value.basis,
     openedQuestions: openedQuestions as PendingQuestion[],
     artifacts: value.artifacts,
+    changedArtifacts: typeof value.changedArtifacts === "boolean" ? value.changedArtifacts : false,
   };
 }
 
@@ -261,7 +336,7 @@ interface BranchEntryLike {
   message?: { role?: string; toolName?: string; details?: unknown };
 }
 
-const DEVELOPER_TOOL_NAMES = new Set([
+const DEVELOPER_TOOL_NAMES = new Set<string>([
   ROUTE_TOOL,
   JUDGMENT_TOOL,
   LEGACY_ROUTE_TOOL,
@@ -269,7 +344,10 @@ const DEVELOPER_TOOL_NAMES = new Set([
 ]);
 
 export function eventFromBranchEntry(entry: BranchEntryLike): DeveloperEvent | undefined {
-  if (entry.type === "custom" && entry.customType === MODE_ENTRY) {
+  if (
+    entry.type === "custom" &&
+    (entry.customType === MODE_ENTRY || entry.customType === FOCUS_ENTRY)
+  ) {
     return normalizeDeveloperEvent(entry.data);
   }
   if (

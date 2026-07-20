@@ -17,6 +17,7 @@ import { Type } from "typebox";
 
 import { availablePackageSkills, renderSkillMethod } from "./skills.ts";
 import {
+  FOCUS_ENTRY,
   JUDGMENT_TOOL,
   MODE_ENTRY,
   PROTOCOL,
@@ -29,6 +30,7 @@ import {
   type DeveloperMode,
   type DeveloperState,
   type DirectExecutionProfile,
+  type FocusEvent,
   type JudgmentEvent,
   type ModeEvent,
   type RouteEvent,
@@ -107,6 +109,25 @@ function compactLine(value: string, maxChars = 160): string {
   return line.length <= maxChars ? line : `${line.slice(0, maxChars - 1)}…`;
 }
 
+function normalizedQuestion(value: string): string {
+  return value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function inferredQuestionId(
+  state: DeveloperState,
+  question: string,
+  explicitQuestionId?: string,
+): string | undefined {
+  if (explicitQuestionId) return explicitQuestionId;
+  if (state.focusedQuestionId) return state.focusedQuestionId;
+  const normalized = normalizedQuestion(question);
+  const exact = state.pendingQuestions.filter(
+    (pending) => normalizedQuestion(pending.question) === normalized,
+  );
+  if (exact.length === 1) return exact[0]?.id;
+  return state.pendingQuestions.length === 1 ? state.pendingQuestions[0]?.id : undefined;
+}
+
 function summarizeState(state: DeveloperState): string {
   if (state.mode === "off") return "developer: off";
   const target = state.activeRoute ? state.activeRoute.owner : "none";
@@ -117,12 +138,14 @@ function protocolPrompt(state: DeveloperState, availableSkillNames: string[]): s
   const lines = [
     "",
     `Developer protocol (${state.mode}) is active.`,
-    "- Treat the protocol as adaptive routing, never as a fixed sequence of skills.",
-    `- Call ${ROUTE_TOOL} only when one concrete development question needs focused judgment or direct action.`,
-    "- Use owner=direct when the next local action is already justified; otherwise set owner to the available skill whose scope best fits the question.",
+    "- Use the default topology as a conditional backbone, not a rigid lifecycle: clarify meaning when needed -> model consequential cases -> sketch the first implementation surface for new behavior or signal the smallest structural movement in existing code -> execute one direct step -> verify current claims.",
+    "- Adapt away from that topology when evidence makes a stage not applicable, but never jump directly from a resolved model to mutation: use sketch for feature implementation or signal for existing-code structural movement first.",
+    `- Call ${ROUTE_TOOL} for exactly one concrete judgment or one green-to-green direct movement.`,
+    "- Use owner=direct only when the next local movement, stable landing, and narrow verification are already justified; otherwise choose the focused skill whose scope fits the current question.",
+    "- A direct step has one observable difference and one structural or behavioral purpose. Stop when its failure is locally explainable and the repository is green, pausable, and reviewable.",
     "- For direct structural work intended to preserve behavior, set execution_profile=behavior-preserving-structure; omit the field for other direct actions and every skill route.",
-    `- Follow the skill instructions returned by ${ROUTE_TOOL}, then close that route with ${JUDGMENT_TOOL}.`,
-    "- Keep a direct route open through implementation and evidence collection; record its judgment afterward.",
+    `- Follow the routed method, then close the route with ${JUDGMENT_TOOL}. After every direct stable landing, route again from the new evidence before selecting another movement.`,
+    "- Do not carry a predetermined implementation queue through multiple direct steps. Re-observe after each stable landing and reroute to a skill whenever meaning, cases, design, structural direction, timing, naming, or evidence becomes uncertain.",
     "- Protocol state is routing bookkeeping. Idle never proves product completion, user acceptance, or current verification.",
     "- Product files are changed with Pi implementation tools. Developer protocol tools only route and record judgments.",
   ];
@@ -130,6 +153,17 @@ function protocolPrompt(state: DeveloperState, availableSkillNames: string[]): s
   if (state.mode === "strict") {
     lines.push(
       "- Strict mode withholds active Pi built-in edit, write, and bash tools unless the active route target is direct. It does not classify or sandbox other extensions' tools.",
+    );
+  }
+
+  if (state.implementationFramingRequired) {
+    lines.push(
+      "Required next framing: the latest resolved model exposed implementation work. Route sketch before new feature mutation, or signal before an existing-code structural movement; direct is not ready yet.",
+    );
+  }
+  if (state.verificationRequired) {
+    lines.push(
+      "Verification debt: a direct route changed artifacts after the last resolved verify judgment. Route verify before claiming completion or handing off as done.",
     );
   }
 
@@ -149,7 +183,7 @@ function protocolPrompt(state: DeveloperState, availableSkillNames: string[]): s
       lines.push(`- ${question.id} · ${question.status} · ${question.question}`);
     }
     lines.push(
-      `- To revisit one, pass its exact ID as open_question_id to ${ROUTE_TOOL}. Report any question that remains open at handoff.`,
+      "- Revisit questions naturally. Developer automatically associates a focused, sole, or exactly matching pending question; open_question_id is an internal disambiguator only when several questions remain.",
     );
   }
   lines.push(
@@ -174,6 +208,7 @@ export default async function developer(pi: ExtensionAPI) {
   let availableSkills = new Map<string, Skill>();
   let state = initialState();
   let routeOpening = false;
+  const routesWithMutation = new Set<string>();
   let toolPolicyMemory: ToolPolicyMemory = { withheldBuiltins: new Set() };
 
   pi.registerFlag("develop-mode", {
@@ -206,7 +241,12 @@ export default async function developer(pi: ExtensionAPI) {
       "developer",
       ctx.mode === "tui" ? renderDeveloperFooter(state, ctx.ui.theme) : summarizeState(state),
     );
-    if (!state.activeRoute && state.pendingQuestions.length === 0) {
+    if (
+      !state.activeRoute &&
+      state.pendingQuestions.length === 0 &&
+      !state.implementationFramingRequired &&
+      !state.verificationRequired
+    ) {
       ctx.ui.setWidget("developer", undefined);
       return;
     }
@@ -227,6 +267,8 @@ export default async function developer(pi: ExtensionAPI) {
         .slice(0, 3)
         .map((question) => `open · ${question.id} · ${compactLine(question.question)}`),
       ...(state.pendingQuestions.length > 3 ? [`open · +${state.pendingQuestions.length - 3} more`] : []),
+      ...(state.implementationFramingRequired ? ["next · sketch feature shape or signal structural movement"] : []),
+      ...(state.verificationRequired ? ["next · verify changed artifacts before completion"] : []),
     ];
     ctx.ui.setWidget("developer", lines, { placement: "belowEditor" });
   };
@@ -283,6 +325,21 @@ export default async function developer(pi: ExtensionAPI) {
       {
         ...SharedRouteParams,
         owner: Type.Literal("direct", { description: "Use Pi implementation tools for an already-justified action" }),
+        movement: Type.String({
+          minLength: 1,
+          maxLength: MAX_QUESTION_CHARS,
+          description: "One locally explainable behavioral or structural movement; not a multi-step implementation queue",
+        }),
+        stop_condition: Type.String({
+          minLength: 1,
+          maxLength: MAX_QUESTION_CHARS,
+          description: "The green, pausable, reviewable stable landing that ends this direct route",
+        }),
+        verification: Type.String({
+          minLength: 1,
+          maxLength: MAX_EVIDENCE_CHARS,
+          description: "The narrowest check that can catch the likely break in this movement",
+        }),
         execution_profile: Type.Optional(
           Type.Literal("behavior-preserving-structure", {
             description: "Load the focused structural-mutation protocol; omit for ordinary direct action",
@@ -297,11 +354,12 @@ export default async function developer(pi: ExtensionAPI) {
     name: ROUTE_TOOL,
     label: "Developer Route Question",
     description:
-      "Route one concrete development question to direct action or one currently available @hobin/developer skill. This is adaptive routing, not a workflow sequence.",
+      "Route one concrete judgment or one green-to-green direct movement. Uses an adaptive default topology: model, then sketch for feature shape or signal for structural movement, direct stable landings, and verify before completion.",
     promptSnippet: "Choose how to handle one development question",
     promptGuidelines: [
       `Call ${ROUTE_TOOL} only when there is no active Developer route.`,
-      `Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; use owner=direct for an already-justified local action.`,
+      `Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; owner=direct requires one movement, one stable landing, and one narrow verification.`,
+      `After a resolved model, use sketch for first feature implementation framing or signal for existing-code structural movement before direct mutation.`,
     ],
     parameters: RouteParams,
     executionMode: "sequential",
@@ -318,12 +376,22 @@ export default async function developer(pi: ExtensionAPI) {
         const reason = params.reason.trim();
         if (!question || !reason) fail("Question and reason must contain non-whitespace text.");
 
-        const targetQuestionId = params.open_question_id?.trim() || undefined;
+        const explicitQuestionId = params.open_question_id?.trim() || undefined;
+        const targetQuestionId = inferredQuestionId(state, question, explicitQuestionId);
         if (targetQuestionId && !state.pendingQuestions.some((item) => item.id === targetQuestionId)) {
           fail(`Unknown pending question ID: ${targetQuestionId}`);
         }
 
         const owner = params.owner;
+        if (
+          owner === "direct" &&
+          state.implementationFramingRequired &&
+          (availableSkills.has("sketch") || availableSkills.has("signal"))
+        ) {
+          fail(
+            "The latest resolved model requires implementation framing before direct work. Route sketch for new feature shape or signal for existing-code structural movement.",
+          );
+        }
         const skill = owner === "direct" ? undefined : availableSkills.get(owner);
         if (owner !== "direct" && !skill) {
           fail(`Developer skill ${owner} is unavailable or disabled in the current Pi resource configuration.`);
@@ -351,6 +419,23 @@ export default async function developer(pi: ExtensionAPI) {
                   "The next local action is already justified. Keep this route open while using Pi implementation tools and collecting evidence.",
                 ].join("\n");
 
+        const directStep =
+          owner === "direct"
+            ? {
+                movement: ("movement" in params ? params.movement : question).trim(),
+                stopCondition: (
+                  "stop_condition" in params
+                    ? params.stop_condition
+                    : "Reach a green, pausable, reviewable stable landing."
+                ).trim(),
+                verification: (
+                  "verification" in params
+                    ? params.verification
+                    : "Run the narrowest relevant check and inspect the resulting diff or output."
+                ).trim(),
+              }
+            : undefined;
+
         const event: RouteEvent = {
           protocol: PROTOCOL,
           kind: "route",
@@ -362,6 +447,7 @@ export default async function developer(pi: ExtensionAPI) {
           targetQuestionId,
           methodLocation: skill?.filePath,
           executionProfile,
+          directStep,
         };
         const response = [
           `Route ID: ${event.routeId}`,
@@ -369,6 +455,14 @@ export default async function developer(pi: ExtensionAPI) {
           `Target: ${event.owner}`,
           skill ? `Skill location: ${skill.filePath}` : "Skill location: direct action; no skill file",
           executionProfile ? `Execution profile: ${executionProfile}` : "Execution profile: skill judgment",
+          ...(directStep
+            ? [
+                `Movement: ${directStep.movement}`,
+                `Stable landing: ${directStep.stopCondition}`,
+                `Narrow verification: ${directStep.verification}`,
+                "Stop this direct route at that landing, record the evidence, and route again before another movement.",
+              ]
+            : []),
           `Reason: ${event.reason}`,
           `Known evidence: ${event.knownEvidence.length > 0 ? event.knownEvidence.join(" | ") : "none"}`,
           targetQuestionId ? `Revisits pending question: ${targetQuestionId}` : "Revisits pending question: none",
@@ -397,11 +491,11 @@ export default async function developer(pi: ExtensionAPI) {
         context.lastComponent,
       );
     },
-    renderResult(result, { expanded, isPartial, isError }, theme, context) {
+    renderResult(result, { expanded, isPartial }, theme, context) {
       if (isPartial) {
         return reusableText(theme.fg("warning", "routing development question…"), context.lastComponent);
       }
-      if (isError) {
+      if (context.isError) {
         return reusableText(
           theme.fg("error", resultText(result) || "Developer route failed"),
           context.lastComponent,
@@ -424,6 +518,11 @@ export default async function developer(pi: ExtensionAPI) {
         text += `\n${theme.fg("dim", `skill · ${event.methodLocation ?? "direct action"}`)}`;
         if (event.executionProfile) {
           text += `\n${theme.fg("dim", `profile · ${event.executionProfile}`)}`;
+        }
+        if (event.directStep) {
+          text += `\n${theme.fg("dim", `movement · ${event.directStep.movement}`)}`;
+          text += `\n${theme.fg("dim", `landing · ${event.directStep.stopCondition}`)}`;
+          text += `\n${theme.fg("dim", `verify · ${event.directStep.verification}`)}`;
         }
       }
       if (!expanded && event) text += ` · ${keyHint("app.tools.expand", "details")}`;
@@ -503,6 +602,7 @@ export default async function developer(pi: ExtensionAPI) {
         basis,
         openedQuestions,
         artifacts: (params.artifacts ?? []).map((item) => item.trim()).filter(Boolean),
+        changedArtifacts: routesWithMutation.has(params.route_id),
       };
       const nextState = applyDeveloperEvent(state, event);
       if (nextState.pendingQuestions.length > MAX_PENDING_QUESTIONS) {
@@ -513,12 +613,17 @@ export default async function developer(pi: ExtensionAPI) {
 
       const next = protocolState(nextState);
       const nextMessage =
-        next === "idle"
-          ? "Developer protocol is idle. This is routing state only and does not prove task completion."
-          : `Developer protocol is ${next}. Address or report the pending question before handoff.`;
+        event.owner === "direct"
+          ? nextState.verificationRequired
+            ? "Stable landing recorded. Route again from the new evidence; verify is required before claiming completion."
+            : "Stable landing recorded. Route again from the new evidence before selecting another movement."
+          : next === "idle"
+            ? "Developer protocol is idle. This is routing state only and does not prove task completion."
+            : `Developer protocol is ${next}. Address the current routing obligation before handoff.`;
       const response = `Recorded ${event.status} judgment for ${event.routeId}: ${event.result}\n${nextMessage}`;
       ensureSafeToolText(response, "Developer judgment result");
 
+      routesWithMutation.delete(params.route_id);
       state = nextState;
       syncProtocolTools();
       refreshUI(ctx);
@@ -541,11 +646,11 @@ export default async function developer(pi: ExtensionAPI) {
         context.lastComponent,
       );
     },
-    renderResult(result, { expanded, isPartial, isError }, theme, context) {
+    renderResult(result, { expanded, isPartial }, theme, context) {
       if (isPartial) {
         return reusableText(theme.fg("warning", "recording development judgment…"), context.lastComponent);
       }
-      if (isError) {
+      if (context.isError) {
         return reusableText(
           theme.fg("error", resultText(result) || "Developer judgment failed"),
           context.lastComponent,
@@ -668,8 +773,16 @@ export default async function developer(pi: ExtensionAPI) {
           if (!questionId) return;
           const question = state.pendingQuestions.find((item) => item.id === questionId);
           if (!question) return;
+          const focusEvent: FocusEvent = {
+            protocol: PROTOCOL,
+            kind: "focus",
+            questionId: question.id,
+          };
+          pi.appendEntry(FOCUS_ENTRY, focusEvent);
+          state = applyDeveloperEvent(state, focusEvent);
+          refreshUI(ctx);
           prepareQuestionPrompt(ctx, question);
-          ctx.ui.notify("Open question loaded into the editor for review.", "info");
+          ctx.ui.notify("Open question focused and loaded into the editor for review.", "info");
           return;
         }
         ctx.ui.notify(
@@ -717,10 +830,12 @@ export default async function developer(pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", (event) => {
-    if (state.mode !== "strict") return;
     const mutationBuiltins = builtinMutationToolNames(pi.getAllTools());
-    if (!mutationBuiltins.has(event.toolName)) return;
-    if (state.activeRoute?.owner === "direct") return;
+    if (mutationBuiltins.has(event.toolName) && state.activeRoute?.owner === "direct") {
+      routesWithMutation.add(state.activeRoute.routeId);
+      return;
+    }
+    if (state.mode !== "strict" || !mutationBuiltins.has(event.toolName)) return;
     return {
       block: true,
       reason: `Developer strict mode requires an active ${ROUTE_TOOL} targeting direct action (owner=direct) before Pi built-in edit, write, or bash.`,

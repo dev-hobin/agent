@@ -404,6 +404,9 @@ test("route schema exposes execution profiles only on the direct branch", async 
   assert.equal(skillBranch.additionalProperties, false);
   assert.equal(skillBranch.properties.execution_profile, undefined);
   assert.equal(directBranch.additionalProperties, false);
+  assert.ok(directBranch.required.includes("movement"));
+  assert.ok(directBranch.required.includes("stop_condition"));
+  assert.ok(directBranch.required.includes("verification"));
   assert.equal(
     directBranch.properties.execution_profile.const,
     "behavior-preserving-structure",
@@ -501,6 +504,125 @@ test("leaf routing remains adaptive rather than enforcing a phase order", async 
   assert.equal(modelSecond.details.owner, "model");
 });
 
+test("resolved model work must pass through sketch or signal before direct mutation", async () => {
+  const harness = await startHarness();
+  const route = harness.tools.get(ROUTE_TOOL);
+  const judgment = harness.tools.get(JUDGMENT_TOOL);
+  const modeled = await route.execute(
+    "model-feature",
+    {
+      question: "Which feature cases must the implementation support?",
+      owner: "model",
+      reason: "The feature has consequential variants",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  await judgment.execute(
+    "model-feature-close",
+    {
+      route_id: modeled.details.routeId,
+      status: "resolved",
+      result: "The implementation cases are explicit.",
+      basis: ["A representative case table was derived."],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+
+  await assert.rejects(
+    route.execute(
+      "premature-direct",
+      {
+        question: "Implement the feature",
+        owner: "direct",
+        reason: "The cases are known",
+        movement: "Add the first feature path",
+        stop_condition: "The first path is green and reviewable",
+        verification: "Run its focused test",
+      },
+      undefined,
+      undefined,
+      harness.ctx,
+    ),
+    /requires implementation framing/,
+  );
+
+  const sketched = await route.execute(
+    "feature-sketch",
+    {
+      question: "What is the first implementable feature surface?",
+      owner: "sketch",
+      reason: "New behavior needs an initial implementation shape",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  await judgment.execute(
+    "feature-sketch-close",
+    {
+      route_id: sketched.details.routeId,
+      status: "resolved",
+      result: "The first interface and check are explicit.",
+      basis: ["The sketch derives from the modeled cases."],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const direct = await route.execute(
+    "framed-direct",
+    {
+      question: "Implement the first sketched item",
+      owner: "direct",
+      reason: "Its movement and stop check are now explicit",
+      movement: "Add the first wished interface implementation",
+      stop_condition: "The focused case is green and the diff has one purpose",
+      verification: "Run the focused representative-case test",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  assert.equal(direct.details.directStep.movement, "Add the first wished interface implementation");
+});
+
+test("a changed direct landing creates verification debt", async () => {
+  const harness = await startHarness();
+  const direct = await harness.tools.get(ROUTE_TOOL).execute(
+    "changed-direct",
+    {
+      question: "Apply one local change",
+      owner: "direct",
+      reason: "The step is justified",
+      movement: "Change one caller",
+      stop_condition: "The caller is green and reviewable",
+      verification: "Run the caller test",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  await harness.emit("tool_call", { toolName: "edit", input: {}, toolCallId: "edit:1" });
+  const recorded = await harness.tools.get(JUDGMENT_TOOL).execute(
+    "changed-direct-close",
+    {
+      route_id: direct.details.routeId,
+      status: "resolved",
+      result: "The caller reached its stable landing.",
+      basis: ["The focused caller test passes."],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  assert.equal(recorded.details.changedArtifacts, true);
+  assert.match(recorded.content[0].text, /verify is required before claiming completion/);
+});
+
 test("strict direct routing uses additive built-in activation and preserves unrelated tools", async () => {
   const harness = createHarness();
   await developer(harness.api);
@@ -589,7 +711,7 @@ test("the no-argument command uses a selector only in TUI mode", async () => {
   assert.equal(harness.customCalls(), 1);
   assert.deepEqual(harness.customOptions.at(-1), {
     overlay: true,
-    overlayOptions: { anchor: "center", width: 78, maxHeight: 13, margin: 1 },
+    overlayOptions: { anchor: "center", width: 78, maxHeight: 21, margin: 1 },
   });
   assert.equal((harness.entries.at(-1)?.data as { mode: string }).mode, "strict");
   assert.equal(harness.activeTools().includes("edit"), false);
@@ -631,7 +753,7 @@ test("/develop completes actions and confirms before discarding active TUI state
   assert.equal((harness.entries.at(-1)?.data as { mode: string }).mode, "off");
 });
 
-test("TUI status uses a read-only panel and open-question selection only prepares editor text", async () => {
+test("TUI question selection focuses the pending question and the next route associates it automatically", async () => {
   const harness = await startHarness();
   const route = await harness.tools.get(ROUTE_TOOL).execute(
     "question-picker",
@@ -662,13 +784,50 @@ test("TUI status uses a read-only panel and open-question selection only prepare
   harness.ctx.mode = "tui";
   harness.setCustomResult(undefined);
   await harness.commands.get("develop").handler("status", harness.ctx);
-  assert.equal(harness.customOptions.at(-1), undefined);
+  assert.deepEqual(harness.customOptions.at(-1), {
+    overlay: true,
+    overlayOptions: {
+      anchor: "center",
+      width: "82%",
+      minWidth: 56,
+      maxHeight: "85%",
+      margin: 1,
+    },
+  });
 
   harness.setCustomResult(questionId);
   await harness.commands.get("develop").handler("questions", harness.ctx);
-  assert.match(harness.editorText(), new RegExp(`Revisit Developer question ${questionId}:`));
+  assert.match(harness.editorText(), /Revisit this Developer question:/);
   assert.match(harness.editorText(), /Which browser observation remains/);
-  assert.equal(harness.entries.at(-1)?.customType, "developer.mode");
+  assert.doesNotMatch(harness.editorText(), /question:route:/);
+  assert.equal(harness.entries.at(-1)?.customType, "developer.question-focus");
+
+  const revisited = await harness.tools.get(ROUTE_TOOL).execute(
+    "question-picker-revisit",
+    {
+      question: "What does the browser now show?",
+      owner: "verify",
+      reason: "The focused observation is now available",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  assert.equal(revisited.details.targetQuestionId, questionId);
+  await harness.tools.get(JUDGMENT_TOOL).execute(
+    "question-picker-resolved",
+    {
+      route_id: revisited.details.routeId,
+      status: "resolved",
+      result: "The rendered state now supports the claim.",
+      basis: ["The focused browser observation was recorded."],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  await harness.commands.get("develop").handler("questions", harness.ctx);
+  assert.equal(harness.notifications.at(-1)?.message, "Developer has no open questions on the current branch.");
 });
 
 test("tool renderers are partial-safe and expose routing evidence when expanded", () => {

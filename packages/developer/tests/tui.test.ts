@@ -19,6 +19,7 @@ import {
 const theme = {
   bold: (text: string) => text,
   fg: (_color: string, text: string) => text,
+  bg: (_color: string, text: string) => text,
 } as Theme;
 
 const openQuestion: PendingQuestion = {
@@ -32,7 +33,7 @@ function activeState(): DeveloperState {
   return {
     mode: "strict",
     activeRoute: {
-      protocol: "developer/v2",
+      protocol: "developer/v3",
       kind: "route",
       routeId: "route:active",
       question: "Does the rendered interface preserve the product invariant?",
@@ -42,7 +43,7 @@ function activeState(): DeveloperState {
       methodLocation: "/skills/verify/SKILL.md",
     },
     lastJudgment: {
-      protocol: "developer/v2",
+      protocol: "developer/v3",
       kind: "judgment",
       routeId: "route:earlier",
       question: "Is the implementation complete?",
@@ -52,8 +53,11 @@ function activeState(): DeveloperState {
       basis: ["Unit tests pass."],
       openedQuestions: [openQuestion],
       artifacts: ["pnpm check"],
+      changedArtifacts: false,
     },
     pendingQuestions: [openQuestion],
+    implementationFramingRequired: false,
+    verificationRequired: false,
   };
 }
 
@@ -107,7 +111,7 @@ test("Developer control uses a descriptive SelectList overlay", async () => {
   assert.match(rendered, /Revisit an open question/);
   assert.deepEqual(overlayOptions, {
     overlay: true,
-    overlayOptions: { anchor: "center", width: 78, maxHeight: 13, margin: 1 },
+    overlayOptions: { anchor: "center", width: 78, maxHeight: 21, margin: 1 },
   });
 });
 
@@ -158,7 +162,7 @@ test("status panel is bounded, branch-grounded, and keyboard dismissible", () =>
   assert.equal(closed, true);
 });
 
-test("preparing an open question preserves existing editor text without mutating protocol state", () => {
+test("preparing an open question preserves existing editor text without exposing its internal ID", () => {
   let editor = "Existing draft";
   const ctx = {
     ui: {
@@ -169,6 +173,7 @@ test("preparing an open question preserves existing editor text without mutating
     },
   };
   prepareQuestionPrompt(ctx as never, openQuestion);
-  assert.match(editor, /^Existing draft\n\nRevisit Developer question question:route:earlier:/);
+  assert.match(editor, /^Existing draft\n\nRevisit this Developer question:/);
   assert.match(editor, /Which browser observation is still missing/);
+  assert.doesNotMatch(editor, /question:route:earlier/);
 });
