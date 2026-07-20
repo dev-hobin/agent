@@ -21,9 +21,11 @@ What visual surface would materially lower judgment cost?
 ## Output
 
 Use the user's concepts as labels; keep visualization terminology secondary.
-Produce whether a visual is useful, the inspection question, recommended form,
-visual content, what it reveals, and what it must not imply. When used inside a
-larger task, return:
+When a visual is useful, render the completed table, ASCII/Mermaid diagram,
+timeline, tree, or matrix in the response; do not stop at recommending a form.
+When prose is better, state that decision and use the smallest structured list
+that answers the inspection question. Include what the surface reveals and what
+it must not imply. When used inside a larger task, return:
 
 ```text
 Status: resolved | needs-evidence | not-applicable | blocked

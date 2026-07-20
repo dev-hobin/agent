@@ -25,7 +25,9 @@ function createHarness() {
   const widgets: Array<{ key: string; value: unknown; options?: unknown }> = [];
   const notifications: Array<{ message: string; level: string }> = [];
   const confirmations: Array<{ title: string; message: string }> = [];
+  const sentUserMessages: Array<{ content: string; options?: unknown }> = [];
   let customResult: unknown;
+  let editorResult: string | undefined;
   let confirmResult = true;
   let customCalls = 0;
   const customOptions: unknown[] = [];
@@ -49,6 +51,9 @@ function createHarness() {
     },
     appendEntry(customType: string, data: unknown) {
       entries.push({ customType, data });
+    },
+    sendUserMessage(content: string, options?: unknown) {
+      sentUserMessages.push({ content, options });
     },
     getActiveTools() {
       return [...activeTools];
@@ -93,6 +98,9 @@ function createHarness() {
       customOptions.push(options);
       return customResult;
     },
+    async editor() {
+      return editorResult;
+    },
     getEditorText() {
       return editorText;
     },
@@ -103,6 +111,7 @@ function createHarness() {
   const ctx = {
     mode: "print",
     ui,
+    isIdle: () => true,
     sessionManager: { getBranch: () => [] },
   };
 
@@ -116,11 +125,15 @@ function createHarness() {
     widgets,
     notifications,
     confirmations,
+    sentUserMessages,
     setConfirmResult(value: boolean) {
       confirmResult = value;
     },
     setCustomResult(value: unknown) {
       customResult = value;
+    },
+    setEditorResult(value: string | undefined) {
+      editorResult = value;
     },
     customCalls: () => customCalls,
     customOptions,
@@ -138,6 +151,16 @@ const theme = {
   bold: (text: string) => text,
   fg: (color: string, text: string) => `<${color}>${text}</${color}>`,
 };
+
+function agentOpenQuestion(question: string) {
+  return {
+    question,
+    status: "open" as const,
+    resolution_owner: "agent" as const,
+    gate: "none" as const,
+    resolution_criteria: `Obtain concrete evidence that settles: ${question}`,
+  };
+}
 
 function renderedText(component: { render(width: number): string[] }): string {
   return component.render(10_000).join("\n");
@@ -316,7 +339,9 @@ test("a judgment cannot commit an unbounded pending-question set", async () => {
         status: "needs-evidence",
         result: "Too many separate questions were proposed.",
         basis: [],
-        open_questions: Array.from({ length: 21 }, (_, index) => `Question ${index + 1}`),
+        open_questions: Array.from({ length: 21 }, (_, index) =>
+          agentOpenQuestion(`Question ${index + 1}`),
+        ),
       },
       undefined,
       undefined,
@@ -332,7 +357,7 @@ test("a judgment cannot commit an unbounded pending-question set", async () => {
       status: "needs-evidence",
       result: "One question remains.",
       basis: [],
-      open_questions: ["What evidence is missing?"],
+      open_questions: [agentOpenQuestion("What evidence is missing?")],
     },
     undefined,
     undefined,
@@ -407,10 +432,25 @@ test("route schema exposes execution profiles only on the direct branch", async 
   assert.ok(directBranch.required.includes("movement"));
   assert.ok(directBranch.required.includes("stop_condition"));
   assert.ok(directBranch.required.includes("verification"));
+  assert.ok(directBranch.properties.alternatives_considered);
+  assert.equal(skillBranch.properties.alternatives_considered, undefined);
   assert.equal(
     directBranch.properties.execution_profile.const,
     "behavior-preserving-structure",
   );
+});
+
+test("judgment schema classifies open questions and supports cross-route question updates", async () => {
+  const harness = createHarness();
+  await developer(harness.api);
+  const schema = harness.tools.get(JUDGMENT_TOOL).parameters;
+  const openQuestion = schema.properties.open_questions.items;
+  assert.ok(openQuestion.required.includes("resolution_owner"));
+  assert.ok(openQuestion.required.includes("gate"));
+  assert.ok(openQuestion.required.includes("resolution_criteria"));
+  assert.deepEqual(openQuestion.properties.resolution_owner.enum, ["agent", "user", "environment"]);
+  assert.deepEqual(openQuestion.properties.gate.enum, ["none", "before-direct", "before-completion"]);
+  assert.ok(schema.properties.question_updates.items.required.includes("question_id"));
 });
 
 test("skill routes reject direct execution profiles", async () => {
@@ -621,6 +661,590 @@ test("a changed direct landing creates verification debt", async () => {
   );
   assert.equal(recorded.details.changedArtifacts, true);
   assert.match(recorded.content[0].text, /verify is required before claiming completion/);
+  await harness.commands.get("develop").handler("status", harness.ctx);
+  const status = harness.notifications.at(-1)?.message ?? "";
+  assert.match(status, /developer: on · target: none · needs-routing/);
+  assert.match(status, /checkpoint: reroute required/);
+  assert.match(status, /verification: required/);
+});
+
+test("implementation evidence can resolve an unfocused agent question through question_updates", async () => {
+  const harness = await startHarness();
+  const route = harness.tools.get(ROUTE_TOOL);
+  const judgment = harness.tools.get(JUDGMENT_TOOL);
+  const evidenceRoute = await route.execute(
+    "evidence-question",
+    {
+      question: "Does the empty schedule preserve absence?",
+      owner: "verify",
+      reason: "No focused implementation evidence exists yet",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const opened = await judgment.execute(
+    "evidence-open",
+    {
+      route_id: evidenceRoute.details.routeId,
+      status: "needs-evidence",
+      result: "A focused implementation test is still needed.",
+      basis: [],
+      open_questions: [agentOpenQuestion("Does the empty schedule preserve absence?")],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const questionId = opened.details.openedQuestions[0].id;
+
+  const implementationRoute = await route.execute(
+    "implementation-route",
+    {
+      question: "Implement the accepted schedule conversion",
+      owner: "direct",
+      reason: "The conversion contract is already explicit",
+      movement: "Add the empty-schedule conversion",
+      stop_condition: "The focused conversion test is green",
+      verification: "Run the focused conversion test",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const implemented = await judgment.execute(
+    "implementation-close",
+    {
+      route_id: implementationRoute.details.routeId,
+      status: "resolved",
+      result: "The conversion is implemented and its focused test passes.",
+      basis: ["The focused conversion test passes."],
+      question_updates: [
+        {
+          question_id: questionId,
+          status: "resolved",
+          result: "The empty schedule preserves absence.",
+          basis: ["The focused conversion test observes absence."],
+        },
+      ],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+
+  assert.equal(implemented.details.questionUpdates[0].questionId, questionId);
+  harness.ctx.mode = "tui";
+  await harness.commands.get("develop").handler("questions", harness.ctx);
+  assert.equal(harness.notifications.at(-1)?.message, "Developer has no open questions on the current branch.");
+});
+
+test("consecutive direct routing records prior evidence and reconsidered skill routes without banning direct", async () => {
+  const harness = await startHarness();
+  const route = harness.tools.get(ROUTE_TOOL);
+  const judgment = harness.tools.get(JUDGMENT_TOOL);
+  const first = await route.execute(
+    "first-direct",
+    {
+      question: "Implement the first justified movement",
+      owner: "direct",
+      reason: "The current design makes the movement explicit",
+      movement: "Add the first boundary",
+      stop_condition: "The boundary test is green",
+      verification: "Run the boundary test",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  await judgment.execute(
+    "first-direct-close",
+    {
+      route_id: first.details.routeId,
+      status: "resolved",
+      result: "The first boundary is green.",
+      basis: ["The boundary test passes."],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+
+  const secondParams = {
+    question: "Implement the next justified movement",
+    owner: "direct",
+    reason: "The first landing exposes one local caller update",
+    movement: "Update the local caller",
+    stop_condition: "The caller test is green",
+    verification: "Run the caller test",
+  };
+  await assert.rejects(
+    route.execute("second-without-evidence", secondParams, undefined, undefined, harness.ctx),
+    /cite evidence from the previous direct landing/,
+  );
+  await assert.rejects(
+    route.execute(
+      "second-without-alternatives",
+      { ...secondParams, known_evidence: ["The first boundary test passes."] },
+      undefined,
+      undefined,
+      harness.ctx,
+    ),
+    /must record the plausible available skill routes/,
+  );
+
+  const second = await route.execute(
+    "second-direct",
+    {
+      ...secondParams,
+      known_evidence: ["The first boundary test passes and exposes one unchanged caller."],
+      alternatives_considered: [
+        { owner: "verify", reason: "The narrow boundary check already settled the current landing claim." },
+        { owner: "signal", reason: "No new structural direction appeared; the caller update was already exposed." },
+      ],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  assert.equal(second.details.owner, "direct");
+  assert.deepEqual(second.details.consideredAlternatives.map((item: { owner: string }) => item.owner), [
+    "verify",
+    "signal",
+  ]);
+});
+
+test("a user-owned before-direct question blocks routes and built-in mutation until resolved", async () => {
+  const harness = await startHarness();
+  const route = harness.tools.get(ROUTE_TOOL);
+  const judgment = harness.tools.get(JUDGMENT_TOOL);
+  const decisionRoute = await route.execute(
+    "decision-route",
+    {
+      question: "What should an empty schedule mean?",
+      owner: "specify",
+      reason: "The product meaning is human-owned",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const blocked = await judgment.execute(
+    "decision-blocked",
+    {
+      route_id: decisionRoute.details.routeId,
+      status: "blocked",
+      result: "The product owner must choose the empty-schedule meaning.",
+      basis: ["No accepted product policy exists."],
+      open_questions: [
+        {
+          question: "Should an empty schedule mean absent or explicitly cleared?",
+          status: "open",
+          resolution_owner: "user",
+          gate: "before-direct",
+          resolution_criteria: "The product owner chooses absent or explicitly cleared.",
+        },
+      ],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const questionId = blocked.details.openedQuestions[0].id;
+
+  await assert.rejects(
+    route.execute(
+      "blocked-direct",
+      {
+        question: "Implement the empty-schedule behavior",
+        owner: "direct",
+        reason: "Attempt mutation before the decision",
+        movement: "Change empty-schedule storage",
+        stop_condition: "The storage test passes",
+        verification: "Run the storage test",
+      },
+      undefined,
+      undefined,
+      harness.ctx,
+    ),
+    /Direct work is blocked/,
+  );
+  const mutationGate = await harness.emit("tool_call", {
+    toolName: "edit",
+    input: {},
+    toolCallId: "edit:blocked",
+  });
+  assert.match(mutationGate.reason, /question gate blocks artifact mutation/);
+
+  const answerRoute = await route.execute(
+    "answer-route",
+    {
+      question: "Should an empty schedule mean absent or explicitly cleared?",
+      owner: "specify",
+      reason: "The product owner answered the focused decision",
+      known_evidence: ["The product owner chose absent."],
+      open_question_id: questionId,
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  await assert.rejects(
+    judgment.execute(
+      "answer-without-question-review",
+      {
+        route_id: answerRoute.details.routeId,
+        status: "resolved",
+        result: "An empty schedule means absent.",
+        basis: ["The product owner explicitly chose absent."],
+      },
+      undefined,
+      undefined,
+      harness.ctx,
+    ),
+    /Include question_updates/,
+  );
+  await assert.rejects(
+    judgment.execute(
+      "answer-without-explicit-resolution",
+      {
+        route_id: answerRoute.details.routeId,
+        status: "resolved",
+        result: "An empty schedule means absent.",
+        basis: ["The product owner explicitly chose absent."],
+        question_updates: [],
+      },
+      undefined,
+      undefined,
+      harness.ctx,
+    ),
+    /requires an explicit question_updates entry/,
+  );
+  await judgment.execute(
+    "answer-resolved",
+    {
+      route_id: answerRoute.details.routeId,
+      status: "resolved",
+      result: "An empty schedule means absent.",
+      basis: ["The product owner explicitly chose absent."],
+      question_updates: [
+        {
+          question_id: questionId,
+          status: "resolved",
+          result: "The product owner chose absent.",
+          basis: ["Explicit product-owner answer."],
+        },
+      ],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+
+  const direct = await route.execute(
+    "unblocked-direct",
+    {
+      question: "Implement the accepted empty-schedule meaning",
+      owner: "direct",
+      reason: "The blocking product decision is resolved",
+      movement: "Store an empty schedule as absent",
+      stop_condition: "The storage test is green",
+      verification: "Run the storage test",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  assert.equal(direct.details.owner, "direct");
+});
+
+test("an agent before-direct question keeps a strict judgment evidence lane reachable", async () => {
+  const harness = await startHarness();
+  await harness.commands.get("develop").handler("strict", harness.ctx);
+  const route = harness.tools.get(ROUTE_TOOL);
+  const judgment = harness.tools.get(JUDGMENT_TOOL);
+  assert.equal(harness.activeTools().includes("bash"), false);
+
+  const discovery = await route.execute(
+    "strict-discovery",
+    {
+      question: "Which source file owns the schedule conversion?",
+      owner: "signal",
+      reason: "Repository evidence is required before mutation",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  assert.equal(harness.activeTools().includes("bash"), true);
+  assert.equal(harness.activeTools().includes("edit"), false);
+  const opened = await judgment.execute(
+    "strict-discovery-open",
+    {
+      route_id: discovery.details.routeId,
+      status: "needs-evidence",
+      result: "A repository search is still required.",
+      basis: [],
+      open_questions: [
+        {
+          question: "Which source file owns the schedule conversion?",
+          status: "open",
+          resolution_owner: "agent",
+          gate: "before-direct",
+          resolution_criteria: "Repository search identifies the owning source file.",
+        },
+      ],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const questionId = opened.details.openedQuestions[0].id;
+  assert.equal(harness.activeTools().includes("bash"), false);
+
+  await assert.rejects(
+    route.execute(
+      "strict-blocked-direct",
+      {
+        question: "Implement the schedule conversion",
+        owner: "direct",
+        reason: "Attempt implementation before locating the owner",
+        movement: "Add the conversion",
+        stop_condition: "The conversion test passes",
+        verification: "Run the conversion test",
+      },
+      undefined,
+      undefined,
+      harness.ctx,
+    ),
+    /Direct work is blocked/,
+  );
+
+  const resolution = await route.execute(
+    "strict-resolve-evidence",
+    {
+      question: "Which source file owns the schedule conversion?",
+      owner: "signal",
+      reason: "The pending agent question is resolved through repository evidence",
+      open_question_id: questionId,
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  assert.equal(harness.activeTools().includes("bash"), true);
+  assert.equal(harness.activeTools().includes("edit"), false);
+  assert.equal(
+    await harness.emit("tool_call", { toolName: "bash", input: { command: "find . -type f" }, toolCallId: "bash:evidence" }),
+    undefined,
+  );
+  const blockedEdit = await harness.emit("tool_call", {
+    toolName: "edit",
+    input: {},
+    toolCallId: "edit:evidence",
+  });
+  assert.match(blockedEdit.reason, /blocks artifact mutation/);
+
+  await judgment.execute(
+    "strict-resolve-evidence-close",
+    {
+      route_id: resolution.details.routeId,
+      status: "resolved",
+      result: "src/contracts.ts owns the conversion.",
+      basis: ["Repository search result."],
+      question_updates: [
+        {
+          question_id: questionId,
+          status: "resolved",
+          result: "The owning source file is src/contracts.ts.",
+          basis: ["Repository search result."],
+        },
+      ],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+
+  const direct = await route.execute(
+    "strict-unblocked-direct",
+    {
+      question: "Implement the schedule conversion",
+      owner: "direct",
+      reason: "The owning file and local movement are now known",
+      movement: "Add the pure conversion in src/contracts.ts",
+      stop_condition: "The focused conversion test passes",
+      verification: "Run the conversion test",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  assert.equal(direct.details.owner, "direct");
+  assert.equal(harness.activeTools().includes("edit"), true);
+  assert.equal(harness.activeTools().includes("bash"), true);
+});
+
+test("a before-completion question allows direct work but keeps completion evidence unresolved", async () => {
+  const harness = await startHarness();
+  const route = harness.tools.get(ROUTE_TOOL);
+  const judgment = harness.tools.get(JUDGMENT_TOOL);
+  const acceptanceRoute = await route.execute(
+    "acceptance-question",
+    {
+      question: "Has the user accepted the rendered checkout behavior?",
+      owner: "verify",
+      reason: "Acceptance is separate from implementation evidence",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const opened = await judgment.execute(
+    "acceptance-open",
+    {
+      route_id: acceptanceRoute.details.routeId,
+      status: "needs-evidence",
+      result: "Implementation may continue, but user acceptance is still missing.",
+      basis: [],
+      open_questions: [
+        {
+          question: "Does the user accept the rendered checkout behavior?",
+          status: "open",
+          resolution_owner: "user",
+          gate: "before-completion",
+          resolution_criteria: "The user explicitly accepts the rendered checkout behavior.",
+        },
+      ],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  assert.equal(opened.details.openedQuestions[0].gate, "before-completion");
+
+  const direct = await route.execute(
+    "allowed-before-completion",
+    {
+      question: "Implement the already accepted checkout layout",
+      owner: "direct",
+      reason: "The remaining question gates completion, not implementation",
+      movement: "Apply the local checkout layout change",
+      stop_condition: "The focused checkout test is green",
+      verification: "Run the focused checkout test",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const mutationGate = await harness.emit("tool_call", {
+    toolName: "edit",
+    input: {},
+    toolCallId: "edit:before-completion",
+  });
+  assert.equal(mutationGate, undefined);
+  await judgment.execute(
+    "allowed-before-completion-close",
+    {
+      route_id: direct.details.routeId,
+      status: "resolved",
+      result: "The local checkout change reached a stable landing.",
+      basis: ["The focused checkout test passes."],
+      question_updates: [],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+
+  const verifyRoute = await route.execute(
+    "verify-before-acceptance",
+    {
+      question: "Does current implementation evidence support the checkout claim?",
+      owner: "verify",
+      reason: "The changed landing requires current verification",
+      known_evidence: ["The focused checkout test passes."],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  await judgment.execute(
+    "verify-before-acceptance-close",
+    {
+      route_id: verifyRoute.details.routeId,
+      status: "resolved",
+      result: "Implementation evidence is current, but acceptance is not.",
+      basis: ["The focused checkout test passes."],
+      question_updates: [],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  await harness.commands.get("develop").handler("status", harness.ctx);
+  const status = harness.notifications.at(-1)?.message ?? "";
+  assert.match(status, /needs-answer/);
+  assert.match(status, /verification: required/);
+});
+
+test("a sole unrelated pending question is not implicitly focused or resolved", async () => {
+  const harness = await startHarness();
+  const route = harness.tools.get(ROUTE_TOOL);
+  const judgment = harness.tools.get(JUDGMENT_TOOL);
+  const evidenceRoute = await route.execute(
+    "sole-question",
+    {
+      question: "What does the narrow checkout viewport show?",
+      owner: "verify",
+      reason: "A rendered observation is missing",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const opened = await judgment.execute(
+    "sole-question-open",
+    {
+      route_id: evidenceRoute.details.routeId,
+      status: "needs-evidence",
+      result: "The viewport observation is still missing.",
+      basis: [],
+      open_questions: [agentOpenQuestion("What does the narrow checkout viewport show?")],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const questionId = opened.details.openedQuestions[0].id;
+
+  const unrelated = await route.execute(
+    "unrelated-route",
+    {
+      question: "Are the schedule conversion tests current?",
+      owner: "verify",
+      reason: "This is independent evidence",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  assert.equal(unrelated.details.targetQuestionId, undefined);
+  await judgment.execute(
+    "unrelated-route-close",
+    {
+      route_id: unrelated.details.routeId,
+      status: "resolved",
+      result: "The schedule conversion tests are current.",
+      basis: ["The focused schedule test passes."],
+      question_updates: [],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  await harness.commands.get("develop").handler("questions", harness.ctx);
+  assert.ok((harness.notifications.at(-1)?.message ?? "").includes(questionId));
 });
 
 test("strict direct routing uses additive built-in activation and preserves unrelated tools", async () => {
@@ -711,7 +1335,7 @@ test("the no-argument command uses a selector only in TUI mode", async () => {
   assert.equal(harness.customCalls(), 1);
   assert.deepEqual(harness.customOptions.at(-1), {
     overlay: true,
-    overlayOptions: { anchor: "center", width: 78, maxHeight: 17, margin: 1 },
+    overlayOptions: { anchor: "center", width: "84%", minWidth: 78, maxHeight: "88%", margin: 1 },
   });
   assert.equal((harness.entries.at(-1)?.data as { mode: string }).mode, "strict");
   assert.equal(harness.activeTools().includes("edit"), false);
@@ -773,12 +1397,13 @@ test("TUI question selection focuses the pending question and the next route ass
       status: "needs-evidence",
       result: "A rendered-state observation is missing.",
       basis: ["Pure-function tests pass."],
+      open_questions: [agentOpenQuestion("Which browser observation remains?")],
     },
     undefined,
     undefined,
     harness.ctx,
   );
-  const questionId = `question:${route.details.routeId}`;
+  const questionId = judgment.details.openedQuestions[0].id;
   assert.equal(judgment.details.status, "needs-evidence");
 
   harness.ctx.mode = "tui";
@@ -788,18 +1413,22 @@ test("TUI question selection focuses the pending question and the next route ass
     overlay: true,
     overlayOptions: {
       anchor: "center",
-      width: 92,
-      minWidth: 56,
-      maxHeight: 28,
+      width: "90%",
+      minWidth: 72,
+      maxHeight: "88%",
       margin: 1,
     },
   });
 
   harness.setCustomResult(questionId);
+  harness.setEditorResult(
+    "Resolve this open Developer question.\n\nQuestion: Which browser observation remains?\n\nAnswer/evidence: the value remains visible.",
+  );
   await harness.commands.get("develop").handler("questions", harness.ctx);
-  assert.match(harness.editorText(), /Revisit this Developer question:/);
-  assert.match(harness.editorText(), /Which browser observation remains/);
-  assert.doesNotMatch(harness.editorText(), /question:route:/);
+  assert.equal(harness.editorText(), "");
+  assert.match(harness.sentUserMessages.at(-1)?.content ?? "", /Which browser observation remains/);
+  assert.match(harness.sentUserMessages.at(-1)?.content ?? "", /value remains visible/);
+  assert.doesNotMatch(harness.sentUserMessages.at(-1)?.content ?? "", /question:route:/);
   assert.equal(harness.entries.at(-1)?.customType, "developer.question-focus");
 
   const revisited = await harness.tools.get(ROUTE_TOOL).execute(
@@ -821,6 +1450,14 @@ test("TUI question selection focuses the pending question and the next route ass
       status: "resolved",
       result: "The rendered state now supports the claim.",
       basis: ["The focused browser observation was recorded."],
+      question_updates: [
+        {
+          question_id: questionId,
+          status: "resolved",
+          result: "The browser observation now supports the claim.",
+          basis: ["Recorded focused browser observation."],
+        },
+      ],
     },
     undefined,
     undefined,
@@ -830,51 +1467,55 @@ test("TUI question selection focuses the pending question and the next route ass
   assert.equal(harness.notifications.at(-1)?.message, "Developer has no open questions on the current branch.");
 });
 
-test("tool renderers are partial-safe and expose routing evidence when expanded", () => {
+test("tool renderers are partial-safe and expose routing evidence when expanded", async () => {
   const harness = createHarness();
-  return developer(harness.api).then(() => {
-    const route = harness.tools.get(ROUTE_TOOL);
-    const callComponent = route.renderCall({}, theme, {});
-    const partialCall = renderedText(callComponent);
-    assert.match(partialCall, /…/);
-    assert.equal(route.renderCall({ owner: "direct", question: "Q" }, theme, { lastComponent: callComponent }), callComponent);
-    const partialResult = renderedText(
-      route.renderResult(
-        { content: [], details: undefined },
-        { expanded: false, isPartial: true, isError: false },
-        theme,
-        {},
-      ),
-    );
-    assert.match(partialResult, /routing development question/);
+  await developer(harness.api);
+  const route = harness.tools.get(ROUTE_TOOL);
+  assert.equal(route.renderShell, "self");
+  const callComponent = route.renderCall({}, theme, {});
+  const partialCall = renderedText(callComponent);
+  assert.match(partialCall, /…/);
+  assert.equal(
+    route.renderCall({ owner: "direct", question: "Q" }, theme, { lastComponent: callComponent }),
+    callComponent,
+  );
+  const partialResult = renderedText(
+    route.renderResult(
+      { content: [], details: undefined },
+      { expanded: false, isPartial: true, isError: false },
+      theme,
+      {},
+    ),
+  );
+  assert.match(partialResult, /routing development question/);
 
-    const expanded = renderedText(
-      route.renderResult(
-        {
-          content: [],
-          details: {
-            protocol: "developer/v2",
-            kind: "route",
-            routeId: "route:render",
-            question: "What should own this change?",
-            owner: "specify",
-            reason: "The invariant is unclear",
-            knownEvidence: ["The current behavior differs across callers"],
-            targetQuestionId: "question:earlier",
-            methodLocation: "/skills/specify/SKILL.md",
-            executionProfile: undefined,
-          },
+  const expanded = renderedText(
+    route.renderResult(
+      {
+        content: [],
+        details: {
+          protocol: "developer/v2",
+          kind: "route",
+          routeId: "route:render",
+          question: "What should own this change?",
+          owner: "specify",
+          reason: "The invariant is unclear",
+          knownEvidence: ["The current behavior differs across callers"],
+          consideredAlternatives: [],
+          targetQuestionId: "question:earlier",
+          methodLocation: "/skills/specify/SKILL.md",
+          executionProfile: undefined,
         },
-        { expanded: true, isPartial: false, isError: false },
-        theme,
-        {},
-      ),
-    );
-    assert.match(expanded, /reason · The invariant is unclear/);
-    assert.match(expanded, /evidence · The current behavior differs across callers/);
-    assert.match(expanded, /revisits · question:earlier/);
-    assert.match(expanded, /skill · \/skills\/specify\/SKILL\.md/);
-  });
+      },
+      { expanded: true, isPartial: false, isError: false },
+      theme,
+      {},
+    ),
+  );
+  assert.match(expanded, /<dim>reason · <\/dim><muted>The invariant is unclear<\/muted>/);
+  assert.match(expanded, /evidence · <\/dim><muted>The current behavior differs across callers/);
+  assert.match(expanded, /<dim>revisits · <\/dim><muted>question:earlier<\/muted>/);
+  assert.match(expanded, /skill · <\/dim><muted>\/skills\/specify\/SKILL\.md/);
 });
 
 test("judgment renderers use status semantics and show opened questions", async () => {
@@ -886,7 +1527,7 @@ test("judgment renderers use status semantics and show opened questions", async 
       {
         content: [],
         details: {
-          protocol: "developer/v2",
+          protocol: "developer/v4",
           kind: "judgment",
           routeId: "route:render",
           question: "Is the evidence sufficient?",
@@ -899,10 +1540,14 @@ test("judgment renderers use status semantics and show opened questions", async 
             {
               id: "question:route:render:open:1",
               question: "What does the rendered UI show?",
-              status: "needs-evidence",
+              status: "open",
+              resolutionOwner: "agent",
+              gate: "none",
+              resolutionCriteria: "Observe the rendered UI.",
               sourceRouteId: "route:render",
             },
           ],
+          questionUpdates: [],
         },
       },
       { expanded: true, isPartial: false, isError: false },
@@ -911,10 +1556,39 @@ test("judgment renderers use status semantics and show opened questions", async 
     ),
   );
   assert.match(expanded, /<warning>needs-evidence/);
-  assert.match(expanded, /basis · Unit tests cover only the pure function/);
-  assert.match(expanded, /artifact · pnpm test/);
-  assert.match(expanded, /opened · question:route:render:open:1 · What does the rendered UI show/);
+  assert.match(expanded, /A browser observation is still missing\./);
+  assert.match(expanded, /basis · <\/dim><muted>Unit tests cover only the pure function/);
+  assert.match(expanded, /artifact · <\/dim><muted>pnpm test/);
+  assert.match(expanded, /opened agent\/none · <\/dim><warning>What does the rendered UI show\?/);
 
+  const markdownSurface = judgment.renderResult(
+    {
+      content: [],
+      details: {
+        protocol: "developer/v3",
+        kind: "judgment",
+        routeId: "route:markdown",
+        question: "Which claims are supported?",
+        owner: "verify",
+        status: "resolved",
+        result:
+          "## Evidence matrix\n\n| Claim | Evidence | Status |\n| --- | --- | --- |\n| UI state | Browser observation | supported |",
+        basis: ["Observed in browser"],
+        artifacts: [],
+        openedQuestions: [],
+        changedArtifacts: false,
+      },
+    },
+    { expanded: true, isPartial: false, isError: false },
+    theme,
+    {},
+  );
+  const markdownOutput = markdownSurface.render(100).join("\n");
+  assert.match(markdownOutput, /Evidence matrix/);
+  assert.match(markdownOutput, /Claim/);
+  assert.match(markdownOutput, /Browser observation/);
+
+  assert.equal(judgment.renderShell, "self");
   const blockedCall = renderedText(
     judgment.renderCall({ status: "blocked", result: "External access is unavailable." }, theme, {}),
   );

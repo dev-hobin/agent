@@ -21,9 +21,15 @@ change boundary should it preserve?
 
 ## Output
 
-Lead with the user's product language; keep naming theory secondary.
-Produce the naming pressure, current sense, hidden or overexposed detail,
-failure mode, proposed name or placement move, affected scope, and intentionally
+Lead with the user's product language; keep naming theory secondary. Use a
+rename map as the primary inspection surface:
+
+| Current | What it says | What callers rely on | Proposed | Scope |
+| --- | --- | --- | --- | --- |
+
+For callable APIs or placement moves, add a minimal before/after caller snippet
+showing how the proposed name reads in context. Keep prose for the decisive
+sense boundary, hidden or overexposed detail, failure mode, and intentionally
 deferred names. When used inside a larger task, return:
 
 ```text

@@ -1,5 +1,16 @@
-export const PROTOCOL = "developer/v3" as const;
-export const PREVIOUS_PROTOCOL = "developer/v2" as const;
+import { applyDeveloperEvent, developerSnapshot, initialState } from "./machine.ts";
+
+export {
+  applyDeveloperEvent,
+  canApplyDeveloperEvent,
+  developerMachine,
+  developerSnapshot,
+  initialState,
+} from "./machine.ts";
+
+export const PROTOCOL = "developer/v4" as const;
+export const PREVIOUS_PROTOCOL = "developer/v3" as const;
+export const OLDER_PROTOCOL = "developer/v2" as const;
 export const LEGACY_PROTOCOL = "developer/v1" as const;
 export const MODE_ENTRY = "developer.mode" as const;
 export const FOCUS_ENTRY = "developer.question-focus" as const;
@@ -10,7 +21,10 @@ export const LEGACY_JUDGMENT_TOOL = "record_judgment" as const;
 
 export type DeveloperMode = "off" | "on" | "strict";
 export type JudgmentStatus = "resolved" | "needs-evidence" | "not-applicable" | "blocked";
-export type PendingQuestionStatus = "needs-evidence" | "blocked";
+export type PendingQuestionStatus = "open" | "blocked";
+export type QuestionResolutionOwner = "agent" | "user" | "environment" | "unknown";
+export type QuestionGate = "none" | "before-direct" | "before-completion";
+export type QuestionUpdateStatus = "resolved" | "not-applicable" | "open" | "blocked";
 export type DirectExecutionProfile = "ordinary" | "behavior-preserving-structure";
 
 export interface ModeEvent {
@@ -31,6 +45,11 @@ export interface DirectStepContract {
   verification: string;
 }
 
+export interface RouteAlternative {
+  owner: string;
+  reason: string;
+}
+
 export interface RouteEvent {
   protocol: typeof PROTOCOL;
   kind: "route";
@@ -39,6 +58,7 @@ export interface RouteEvent {
   owner: string;
   reason: string;
   knownEvidence: string[];
+  consideredAlternatives: RouteAlternative[];
   targetQuestionId?: string;
   methodLocation?: string;
   executionProfile?: DirectExecutionProfile;
@@ -49,7 +69,17 @@ export interface PendingQuestion {
   id: string;
   question: string;
   status: PendingQuestionStatus;
+  resolutionOwner: QuestionResolutionOwner;
+  gate: QuestionGate;
+  resolutionCriteria: string;
   sourceRouteId: string;
+}
+
+export interface QuestionUpdate {
+  questionId: string;
+  status: QuestionUpdateStatus;
+  result: string;
+  basis: string[];
 }
 
 export interface JudgmentEvent {
@@ -62,6 +92,7 @@ export interface JudgmentEvent {
   result: string;
   basis: string[];
   openedQuestions: PendingQuestion[];
+  questionUpdates: QuestionUpdate[];
   artifacts: string[];
   changedArtifacts: boolean;
 }
@@ -73,106 +104,36 @@ export interface DeveloperState {
   activeRoute?: RouteEvent;
   lastRoute?: RouteEvent;
   lastJudgment?: JudgmentEvent;
+  routeHistory: RouteEvent[];
+  judgmentHistory: JudgmentEvent[];
   pendingQuestions: PendingQuestion[];
   focusedQuestionId?: string;
+  rerouteRequired: boolean;
   implementationFramingRequired: boolean;
   verificationRequired: boolean;
 }
 
-export const initialState = (): DeveloperState => ({
-  mode: "off",
-  pendingQuestions: [],
-  implementationFramingRequired: false,
-  verificationRequired: false,
-});
-
-export type ProtocolState = "idle" | "needs-judgment" | "needs-evidence" | "needs-verification" | "blocked";
+export type ProtocolState =
+  | "idle"
+  | "needs-judgment"
+  | "needs-evidence"
+  | "needs-answer"
+  | "needs-routing"
+  | "needs-verification"
+  | "blocked";
 
 export function protocolState(state: DeveloperState): ProtocolState {
-  if (state.activeRoute) return "needs-judgment";
-  if (state.pendingQuestions.some((question) => question.status === "blocked")) return "blocked";
-  if (state.pendingQuestions.length > 0) return "needs-evidence";
-  if (state.verificationRequired) return "needs-verification";
+  const snapshot = developerSnapshot(state);
+  if (!snapshot.matches({ route: "idle" })) return "needs-judgment";
+  if (
+    snapshot.hasTag("blocks-direct") ||
+    state.pendingQuestions.some((question) => question.status === "blocked")
+  ) return "blocked";
+  if (state.pendingQuestions.some((question) => question.resolutionOwner === "user")) return "needs-answer";
+  if (snapshot.matches({ questions: "open" })) return "needs-evidence";
+  if (snapshot.hasTag("reroute-required")) return "needs-routing";
+  if (snapshot.hasTag("verification-required")) return "needs-verification";
   return "idle";
-}
-
-function upsertQuestion(questions: PendingQuestion[], next: PendingQuestion): PendingQuestion[] {
-  return [...questions.filter((question) => question.id !== next.id), next];
-}
-
-export function applyDeveloperEvent(state: DeveloperState, event: DeveloperEvent): DeveloperState {
-  if (event.kind === "mode") {
-    if (event.mode === "off") return initialState();
-    return { ...state, mode: event.mode };
-  }
-
-  if (event.kind === "focus") {
-    if (!state.pendingQuestions.some((question) => question.id === event.questionId)) return state;
-    return { ...state, focusedQuestionId: event.questionId };
-  }
-
-  if (event.kind === "route") {
-    if (state.activeRoute) return state;
-    return {
-      ...state,
-      activeRoute: event,
-      lastRoute: event,
-      focusedQuestionId:
-        event.targetQuestionId === state.focusedQuestionId ? undefined : state.focusedQuestionId,
-    };
-  }
-
-  if (!state.activeRoute || state.activeRoute.routeId !== event.routeId) return state;
-
-  const route = state.activeRoute;
-  const judgment = { ...event, question: route.question, owner: route.owner };
-  let pending = [...state.pendingQuestions];
-  const remainsOpen = event.status === "needs-evidence" || event.status === "blocked";
-
-  if (route.targetQuestionId) {
-    pending = pending.filter((question) => question.id !== route.targetQuestionId);
-    if (remainsOpen) {
-      pending = upsertQuestion(pending, {
-        id: route.targetQuestionId,
-        question: route.question,
-        status: event.status === "blocked" ? "blocked" : "needs-evidence",
-        sourceRouteId: route.routeId,
-      });
-    }
-  } else if (remainsOpen) {
-    pending = upsertQuestion(pending, {
-      id: `question:${route.routeId}`,
-      question: route.question,
-      status: event.status === "blocked" ? "blocked" : "needs-evidence",
-      sourceRouteId: route.routeId,
-    });
-  }
-
-  for (const question of event.openedQuestions) pending = upsertQuestion(pending, question);
-
-  const closesFramingGate =
-    (route.owner === "sketch" || route.owner === "signal") &&
-    (event.status === "resolved" || event.status === "not-applicable");
-  const opensFramingGate = route.owner === "model" && event.status === "resolved";
-  let implementationFramingRequired = state.implementationFramingRequired;
-  if (opensFramingGate) implementationFramingRequired = true;
-  if (closesFramingGate) implementationFramingRequired = false;
-
-  let verificationRequired = state.verificationRequired;
-  if (route.owner === "direct" && event.changedArtifacts) verificationRequired = true;
-  if (route.owner === "verify" && event.status === "resolved") verificationRequired = false;
-
-  return {
-    ...state,
-    activeRoute: undefined,
-    lastJudgment: judgment,
-    pendingQuestions: pending,
-    focusedQuestionId: pending.some((question) => question.id === state.focusedQuestionId)
-      ? state.focusedQuestionId
-      : undefined,
-    implementationFramingRequired,
-    verificationRequired,
-  };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -211,21 +172,70 @@ function parseDirectStep(value: unknown): DirectStepContract | undefined {
   };
 }
 
+function parseRouteAlternative(value: unknown): RouteAlternative | undefined {
+  if (!isObject(value) || typeof value.owner !== "string" || typeof value.reason !== "string") {
+    return undefined;
+  }
+  return { owner: value.owner, reason: value.reason };
+}
+
+function isQuestionResolutionOwner(value: unknown): value is QuestionResolutionOwner {
+  return value === "agent" || value === "user" || value === "environment" || value === "unknown";
+}
+
+function isQuestionGate(value: unknown): value is QuestionGate {
+  return value === "none" || value === "before-direct" || value === "before-completion";
+}
+
+function isQuestionUpdateStatus(value: unknown): value is QuestionUpdateStatus {
+  return value === "resolved" || value === "not-applicable" || value === "open" || value === "blocked";
+}
+
 function parsePendingQuestion(value: unknown): PendingQuestion | undefined {
   if (!isObject(value)) return undefined;
   if (
     typeof value.id !== "string" ||
     typeof value.question !== "string" ||
-    (value.status !== "needs-evidence" && value.status !== "blocked") ||
+    (value.status !== "open" && value.status !== "blocked" && value.status !== "needs-evidence") ||
     typeof value.sourceRouteId !== "string"
   ) {
     return undefined;
   }
+  const legacyBlocked = value.status === "blocked";
+  let resolutionOwner: QuestionResolutionOwner = legacyBlocked ? "unknown" : "agent";
+  if (isQuestionResolutionOwner(value.resolutionOwner)) resolutionOwner = value.resolutionOwner;
+  let gate: QuestionGate = legacyBlocked ? "before-completion" : "none";
+  if (isQuestionGate(value.gate)) gate = value.gate;
+  const resolutionCriteria =
+    typeof value.resolutionCriteria === "string"
+      ? value.resolutionCriteria
+      : `Obtain evidence that settles: ${value.question}`;
   return {
     id: value.id,
     question: value.question,
-    status: value.status,
+    status: legacyBlocked ? "blocked" : "open",
+    resolutionOwner,
+    gate,
+    resolutionCriteria,
     sourceRouteId: value.sourceRouteId,
+  };
+}
+
+function parseQuestionUpdate(value: unknown): QuestionUpdate | undefined {
+  if (
+    !isObject(value) ||
+    typeof value.questionId !== "string" ||
+    !isQuestionUpdateStatus(value.status) ||
+    typeof value.result !== "string" ||
+    !isStringArray(value.basis)
+  ) {
+    return undefined;
+  }
+  return {
+    questionId: value.questionId,
+    status: value.status,
+    result: value.result,
+    basis: value.basis,
   };
 }
 
@@ -234,6 +244,7 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
   if (
     value.protocol !== PROTOCOL &&
     value.protocol !== PREVIOUS_PROTOCOL &&
+    value.protocol !== OLDER_PROTOCOL &&
     value.protocol !== LEGACY_PROTOCOL
   ) return undefined;
 
@@ -243,7 +254,10 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
   }
 
   if (value.kind === "focus") {
-    if (value.protocol !== PROTOCOL || typeof value.questionId !== "string") return undefined;
+    if (
+      (value.protocol !== PROTOCOL && value.protocol !== PREVIOUS_PROTOCOL) ||
+      typeof value.questionId !== "string"
+    ) return undefined;
     return { protocol: PROTOCOL, kind: "focus", questionId: value.questionId };
   }
 
@@ -254,6 +268,7 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
       typeof value.owner !== "string" ||
       typeof value.reason !== "string" ||
       !isStringArray(value.knownEvidence) ||
+      (value.consideredAlternatives !== undefined && !Array.isArray(value.consideredAlternatives)) ||
       (value.targetQuestionId !== undefined && typeof value.targetQuestionId !== "string") ||
       (value.methodLocation !== undefined && typeof value.methodLocation !== "string") ||
       (value.executionProfile !== undefined && !isDirectExecutionProfile(value.executionProfile)) ||
@@ -261,6 +276,10 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
     ) {
       return undefined;
     }
+    const consideredAlternatives = Array.isArray(value.consideredAlternatives)
+      ? value.consideredAlternatives.map(parseRouteAlternative)
+      : [];
+    if (consideredAlternatives.some((alternative) => !alternative)) return undefined;
     return {
       protocol: PROTOCOL,
       kind: "route",
@@ -269,6 +288,7 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
       owner: value.owner,
       reason: value.reason,
       knownEvidence: value.knownEvidence,
+      consideredAlternatives: consideredAlternatives as RouteAlternative[],
       targetQuestionId: value.targetQuestionId,
       methodLocation: value.methodLocation,
       executionProfile: value.executionProfile,
@@ -303,9 +323,13 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
       openedQuestions: value.openQuestions.map((question, index) => ({
         id: `question:${value.routeId}:legacy:${index + 1}`,
         question,
-        status: "needs-evidence",
+        status: "open",
+        resolutionOwner: "agent",
+        gate: "none",
+        resolutionCriteria: `Obtain evidence that settles: ${question}`,
         sourceRouteId: String(value.routeId),
       })),
+      questionUpdates: [],
       artifacts: value.artifacts,
       changedArtifacts: false,
     };
@@ -314,6 +338,11 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
   if (!Array.isArray(value.openedQuestions)) return undefined;
   const openedQuestions = value.openedQuestions.map(parsePendingQuestion);
   if (openedQuestions.some((question) => !question)) return undefined;
+  if (value.questionUpdates !== undefined && !Array.isArray(value.questionUpdates)) return undefined;
+  const questionUpdates = Array.isArray(value.questionUpdates)
+    ? value.questionUpdates.map(parseQuestionUpdate)
+    : [];
+  if (questionUpdates.some((update) => !update)) return undefined;
   return {
     protocol: PROTOCOL,
     kind: "judgment",
@@ -324,6 +353,7 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
     result: value.result,
     basis: value.basis,
     openedQuestions: openedQuestions as PendingQuestion[],
+    questionUpdates: questionUpdates as QuestionUpdate[],
     artifacts: value.artifacts,
     changedArtifacts: typeof value.changedArtifacts === "boolean" ? value.changedArtifacts : false,
   };

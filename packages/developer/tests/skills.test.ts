@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,6 +34,26 @@ test("Pi's loaded skill metadata is the package leaf catalog", () => {
   for (const skill of catalog) {
     assert.ok(skill.description.length > 20);
     assert.ok(skill.filePath.endsWith("SKILL.md"));
+  }
+});
+
+test("every skill defines an inspection surface suited to its judgment", async () => {
+  const expectedSurfaces: Record<string, RegExp> = {
+    "abstraction-review": /review card or table/,
+    "adversarial-eval": /escalation ladder as an ordered matrix/,
+    model: /case, decision, or truth table/,
+    "naming-judgment": /rename map as the primary inspection surface/,
+    schedule: /compact timing matrix/,
+    signal: /Make the comparison visible/,
+    sketch: /compact case\/check table[\s\S]*wished-interface table[\s\S]*ASCII flow/,
+    specify: /scope table separating in scope/,
+    verify: /evidence matrix as the primary surface/,
+    visualize: /render the completed table, ASCII\/Mermaid diagram/,
+  };
+
+  for (const [name, expectedSurface] of Object.entries(expectedSurfaces)) {
+    const source = await readFile(join(skillsRoot, name, "SKILL.md"), "utf8");
+    assert.match(source, expectedSurface, `${name} should expose an inspectable output surface`);
   }
 });
 

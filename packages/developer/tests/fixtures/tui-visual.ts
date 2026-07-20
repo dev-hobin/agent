@@ -10,76 +10,92 @@ import {
 	showPendingQuestionSelector,
 } from "../../extensions/tui.ts";
 
+const visualQuestion = (
+	id: string,
+	question: string,
+	status: "open" | "blocked" = "open",
+): PendingQuestion => ({
+	id,
+	question,
+	status,
+	resolutionOwner: status === "blocked" ? "environment" : "agent",
+	gate: status === "blocked" ? "before-completion" : "none",
+	resolutionCriteria: "Observe the requested behavior in the real Ghostty fixture.",
+	sourceRouteId: status === "blocked" ? "route:visual:earlier" : "route:visual:active",
+});
+
 const questions: PendingQuestion[] = [
-	{
-		id: "question:visual:narrow-checkout",
-		question:
-			"Which browser observation is still missing after the narrow checkout modal wraps onto the next terminal line without clipping its final words?",
-		status: "needs-evidence",
-		sourceRouteId: "route:visual:active",
-	},
-	{
-		id: "question:visual:ghostty-background",
-		question:
-			"Does the modal remain visually separate without painting a large custom-message background over Ghostty's Catppuccin terminal surface?",
-		status: "needs-evidence",
-		sourceRouteId: "route:visual:active",
-	},
-	{
-		id: "question:visual:blocked",
-		question:
-			"Is the right border still aligned after repeatedly resizing the Ghostty window between wide and narrow layouts?",
-		status: "blocked",
-		sourceRouteId: "route:visual:earlier",
-	},
-	{
-		id: "question:visual:unicode",
-		question:
-			"Do ◆, →, ↑↓, ·, … and 한글 remain aligned with the surrounding text?",
-		status: "needs-evidence",
-		sourceRouteId: "route:visual:earlier",
-	},
-	{
-		id: "question:visual:height",
-		question:
-			"Does the status panel stay compact instead of expanding into a mostly empty scrolling region?",
-		status: "needs-evidence",
-		sourceRouteId: "route:visual:earlier",
-	},
+	visualQuestion(
+		"question:visual:narrow-checkout",
+		"Which browser observation is still missing after the narrow checkout modal wraps onto the next terminal line without clipping its final words?",
+	),
+	visualQuestion(
+		"question:visual:ghostty-background",
+		"Does the modal remain visually separate without painting a large custom-message background over Ghostty's Catppuccin terminal surface?",
+	),
+	visualQuestion(
+		"question:visual:blocked",
+		"Is the right border still aligned after repeatedly resizing the Ghostty window between wide and narrow layouts?",
+		"blocked",
+	),
+	visualQuestion(
+		"question:visual:unicode",
+		"Do ◆, →, ↑↓, ·, … and 한글 remain aligned with the surrounding text?",
+	),
+	visualQuestion(
+		"question:visual:height",
+		"Does the status panel stay compact instead of expanding into a mostly empty scrolling region?",
+	),
 ];
+
+const activeRoute = {
+	protocol: "developer/v4" as const,
+	kind: "route" as const,
+	routeId: "route:visual:active",
+	question:
+		"Does the Developer modal preserve complete readable text, aligned borders, and compact height across wide and narrow Ghostty windows?",
+	owner: "verify",
+	reason:
+		"Unit tests cover ANSI-aware widths, but final acceptance still needs observation in the real Ghostty renderer with the user's font fallback and Catppuccin theme.",
+	knownEvidence: [
+		"The deterministic TUI suite passes at 52 columns.",
+		"No full-panel background call remains in the Developer overlays.",
+	],
+	consideredAlternatives: [],
+	methodLocation: "/skills/verify/SKILL.md",
+};
+
+const lastJudgment = {
+	protocol: "developer/v4" as const,
+	kind: "judgment" as const,
+	routeId: "route:visual:earlier",
+	question: "Is the previous modal patch acceptable?",
+	owner: "verify",
+	status: "needs-evidence" as const,
+	result:
+		"The previous patch still clipped list text and introduced an oversized detail area, so real-terminal visual evidence remains necessary.",
+	basis: ["The issue was reproduced in the installed package."],
+	openedQuestions: questions,
+	questionUpdates: [],
+	artifacts: ["pnpm --filter @hobin/developer check"],
+	changedArtifacts: true,
+};
+
+const earlierRoute = {
+	...activeRoute,
+	routeId: "route:visual:earlier",
+	question: lastJudgment.question,
+};
 
 const state: DeveloperState = {
 	mode: "strict",
-	activeRoute: {
-		protocol: "developer/v3",
-		kind: "route",
-		routeId: "route:visual:active",
-		question:
-			"Does the Developer modal preserve complete readable text, aligned borders, and compact height across wide and narrow Ghostty windows?",
-		owner: "verify",
-		reason:
-			"Unit tests cover ANSI-aware widths, but final acceptance still needs observation in the real Ghostty renderer with the user's font fallback and Catppuccin theme.",
-		knownEvidence: [
-			"The deterministic TUI suite passes at 52 columns.",
-			"No full-panel background call remains in the Developer overlays.",
-		],
-		methodLocation: "/skills/verify/SKILL.md",
-	},
-	lastJudgment: {
-		protocol: "developer/v3",
-		kind: "judgment",
-		routeId: "route:visual:earlier",
-		question: "Is the previous modal patch acceptable?",
-		owner: "verify",
-		status: "needs-evidence",
-		result:
-			"The previous patch still clipped list text and introduced an oversized detail area, so real-terminal visual evidence remains necessary.",
-		basis: ["The issue was reproduced in the installed package."],
-		openedQuestions: questions,
-		artifacts: ["pnpm --filter @hobin/developer check"],
-		changedArtifacts: true,
-	},
+	activeRoute,
+	lastRoute: activeRoute,
+	lastJudgment,
+	routeHistory: [earlierRoute, activeRoute],
+	judgmentHistory: [lastJudgment],
 	pendingQuestions: questions,
+	rerouteRequired: false,
 	implementationFramingRequired: false,
 	verificationRequired: true,
 };

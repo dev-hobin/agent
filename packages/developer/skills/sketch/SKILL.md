@@ -57,10 +57,23 @@ purpose, cases, data flow, and first item are already clear needs none.
 
 ## Output
 
-Lead with the user's product language; keep design labels secondary.
-Produce purpose, relevant data definitions, representative cases, a template,
-wishful top level, wished interfaces, checks, a small implementation queue, and
-explicitly deferred abstractions. When used inside a larger task, return:
+Lead with the user's product language; keep design labels secondary. A resolved
+sketch must be inspectable as an implementation shape, not only narrated in
+paragraphs. Produce:
+
+1. a compact case/check table;
+2. concrete data or state definitions;
+3. wishful top-level code, pseudocode, or an interaction skeleton in a fenced
+   code block;
+4. a wished-interface table with contract, owner, hidden detail, and stop check;
+5. a small ordered implementation queue and explicitly deferred abstractions;
+6. an ASCII flow, relation map, state transition, or boundary diagram whenever
+   two or more components, states, or collaborations are materially related.
+
+Use prose only to explain why those artifacts have their shape. Route
+`visualize` separately when choosing the visual form is itself consequential;
+do not require that extra route for a straightforward inline table or ASCII
+map. When used inside a larger task, return:
 
 ```text
 Status: resolved | needs-evidence | not-applicable | blocked
@@ -77,8 +90,10 @@ routing to the caller.
 
 Finish when the first implementation item is small enough to execute and check,
 and non-local or invariant-bearing candidates are explicit rather than silently
-assumed. Revisit when implementation evidence breaks the ownership or data-flow
-assumptions.
+assumed. `resolved` is not valid for a prose-only sketch: the output must show
+the code or interaction skeleton and the checks that make the first item
+executable. Revisit when implementation evidence breaks the ownership or
+data-flow assumptions.
 
 ## Method
 
@@ -87,11 +102,15 @@ assumptions.
 3. Derive relevant data or state definitions and their ownership pressure.
 4. List representative cases before choosing code shape.
 5. Derive the template from data, state, traversal, or ownership flow.
-6. Write wishful top-level code, pseudocode, or interaction flow.
+6. Write wishful top-level code, pseudocode, or interaction flow in a fenced
+   code block. Show every wished interface in context rather than merely naming
+   helpers in prose.
 7. For each wished interface, state its purpose, contract, owner, hidden detail,
-   and representative stop check.
-8. Separate design artifacts, implementation items, and deferred candidates.
-9. Keep the queue small; do not turn the sketch into a project plan.
+   and representative stop check in a table.
+8. Draw the smallest inline map that exposes non-trivial data flow,
+   collaboration, state movement, or ownership boundaries.
+9. Separate design artifacts, implementation items, and deferred candidates.
+10. Keep the queue small; do not turn the sketch into a project plan.
 
 ## Missing Evidence
 

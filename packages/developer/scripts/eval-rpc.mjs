@@ -6,16 +6,35 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { validateExecutionTrace } from "./eval-assertions.mjs";
+import { createFixtureBudgetMonitor } from "./eval-budget.mjs";
+import { diffWorkspaceSnapshots, snapshotWorkspace } from "./eval-filesystem.mjs";
+import { assertAllowedOutcome, classifyEvalOutcome, parseDeveloperStatus } from "./eval-outcome.mjs";
 import { createEvalWorkspace } from "./eval-workspace.mjs";
 import { createJsonlDecoder } from "./jsonl.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const packageUnderTest = process.env.DEVELOPER_EVAL_PACKAGE_PATH || root;
 const extension = join(packageUnderTest, "extensions", "developer.ts");
+const observerExtension = join(root, "scripts", "eval-observer.ts");
 const skills = join(packageUnderTest, "skills");
 const piBin = process.env.PI_BIN || "pi";
 const live = process.env.DEVELOPER_EVAL_LIVE === "1";
-const allFixtures = JSON.parse(await readFile(join(root, "evals", "fixtures.json"), "utf8"));
+const liveThinking = process.env.DEVELOPER_EVAL_THINKING || "medium";
+const fixtureTimeoutMs = Number(process.env.DEVELOPER_EVAL_TIMEOUT_MS || 150000);
+const noProgressTimeoutMs = Number(process.env.DEVELOPER_EVAL_NO_PROGRESS_MS || 60000);
+
+function parseJson(value, label) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(`${label}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+  }
+}
+
+const allFixtures = parseJson(
+  await readFile(join(root, "evals", "fixtures.json"), "utf8"),
+  "Invalid eval fixtures",
+);
 const fixtureFilter = process.env.DEVELOPER_EVAL_FIXTURE;
 const fixtures = fixtureFilter
   ? allFixtures.filter((fixture) => fixture.id === fixtureFilter)
@@ -35,7 +54,18 @@ const loadAsPackage = !process.env.PI_CODING_AGENT_DIR;
 if (loadAsPackage) {
   await writeFile(join(configDir, "settings.json"), JSON.stringify({ packages: [packageUnderTest] }, null, 2));
 }
-const resourceArgs = loadAsPackage ? [] : ["--extension", extension, "--skill", skills];
+const resourceArgs = loadAsPackage
+  ? []
+  : [
+      "--no-extensions",
+      "--no-skills",
+      "--extension",
+      extension,
+      "--extension",
+      observerExtension,
+      "--skill",
+      skills,
+    ];
 const child = spawn(
   piBin,
   [
@@ -43,11 +73,16 @@ const child = spawn(
     "rpc",
     "--offline",
     "--no-session",
+    ...(live ? ["--thinking", liveThinking] : []),
     ...resourceArgs,
   ],
   {
     cwd: workspace,
-    env: { ...process.env, PI_CODING_AGENT_DIR: configDir },
+    env: {
+      ...process.env,
+      PI_CODING_AGENT_DIR: configDir,
+      DEVELOPER_EVAL_WORKSPACE: workspace,
+    },
     stdio: ["pipe", "pipe", "pipe"],
   },
 );
@@ -107,30 +142,50 @@ function send(command, timeoutMs = 10000) {
   });
 }
 
-function waitForEventAfter(start, predicate, label, timeoutMs = 180000) {
-  return new Promise((resolve, reject) => {
-    const startedAt = Date.now();
-    const poll = () => {
-      const found = events.slice(start).find(predicate);
-      if (found) return resolve(found);
-      if (Date.now() - startedAt > timeoutMs) {
-        const recentTypes = events
-          .slice(Math.max(start, events.length - 20))
-          .map((event) => event.type)
-          .join(", ");
-        return reject(
-          new Error(`${label}: event timeout; recent events: ${recentTypes || "none"}\n${stderr}`),
-        );
-      }
-      setTimeout(poll, 25);
-    };
-    poll();
+function recentEventTypes(start) {
+  return events
+    .slice(Math.max(start, events.length - 20))
+    .map((event) => event.type)
+    .join(", ");
+}
+
+async function waitForFixtureSettled(start, fixture) {
+  const budget = createFixtureBudgetMonitor({
+    fixture,
+    fixtureTimeoutMs,
+    noProgressTimeoutMs,
   });
+  let observed = start;
+  while (true) {
+    const trace = events.slice(start);
+    const settled = trace.find((event) => event.type === "agent_settled");
+    if (settled) return settled;
+
+    budget.observe(events.slice(observed));
+    observed = events.length;
+    const budgetFailure = budget.failure(trace);
+    if (budgetFailure) {
+      throw new Error(
+        `${fixture.id}: ${budgetFailure}; recent events: ${recentEventTypes(start) || "none"}\n${stderr}`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 }
 
 async function command(message) {
   const response = await send({ type: "prompt", message });
   assert.equal(response.success, true, response.error);
+}
+
+async function currentDeveloperStatus() {
+  const start = events.length;
+  await command("/develop status");
+  const notification = events.slice(start).find(
+    (event) => event.type === "extension_ui_request" && event.method === "notify",
+  );
+  assert.ok(notification, "Expected /develop status notification");
+  return parseDeveloperStatus(notification.message);
 }
 
 try {
@@ -223,19 +278,47 @@ try {
       await command("/develop " + fixture.mode);
       const start = events.length;
       const casePath = join(workspace, fixture.id);
-      const response = await send({
-        type: "prompt",
-        message: "Evaluation workspace: " + casePath + ". Work only in that directory.\n" + fixture.request,
-      });
-      assert.equal(response.success, true, response.error);
-      await waitForEventAfter(
-        start,
-        (event) => event.type === "agent_settled",
-        fixture.id,
-      );
+      const workspaceBefore = await snapshotWorkspace(casePath);
+      try {
+        const response = await send({
+          type: "prompt",
+          message: "Evaluation workspace: " + casePath + ". Work only in that directory.\n" + fixture.request,
+        });
+        assert.equal(response.success, true, response.error);
+        await waitForFixtureSettled(start, fixture);
 
-      await validateExecutionTrace(fixture, events.slice(start), packageUnderTest, casePath);
-      console.log("Live eval passed: " + fixture.id);
+        const executionTrace = events.slice(start);
+        const traceSummary = await validateExecutionTrace(
+          fixture,
+          executionTrace,
+          packageUnderTest,
+          casePath,
+        );
+        const changes = diffWorkspaceSnapshots(workspaceBefore, await snapshotWorkspace(casePath));
+        const status = await currentDeveloperStatus();
+        const outcome = classifyEvalOutcome({ changes, status });
+        assertAllowedOutcome(fixture, outcome);
+        console.log(
+          "DEVELOPER_EVAL_RESULT " +
+            JSON.stringify({
+              fixtureId: fixture.id,
+              structuralValid: true,
+              outcome,
+              ...traceSummary,
+            }),
+        );
+        console.log(`Live eval passed: ${fixture.id} (${outcome})`);
+      } catch (error) {
+        try {
+          await send({ type: "abort" }, 5000);
+        } catch {
+          child.kill("SIGTERM");
+        }
+        const tracePath = join(tmpdir(), `developer-eval-${fixture.id}.json`);
+        await writeFile(tracePath, JSON.stringify(events.slice(start), null, 2));
+        error.message += `\nTrace: ${tracePath}`;
+        throw error;
+      }
     }
   }
 } finally {

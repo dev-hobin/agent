@@ -21,11 +21,12 @@ rejected, or deferred?
 
 ## Output
 
-Lead with the caller's concrete failure mode; keep review labels secondary.
-Produce review timing, layer, contract, hidden detail, output artifact, stop
-check, evidence and gaps, and one decision: `keep`, `revise-surface`,
-`revise-model`, `split`, `reject`, or `defer`. When used inside a larger task,
-return:
+Lead with the caller's concrete failure mode; keep review labels secondary. Use
+a review card or table with `Candidate`, `Pressure`, `Caller contract`, `Hidden
+detail`, `Failure`, `Stop check`, and `Evidence gap`. Add a boundary diagram or
+before/after interface snippet when the candidate changes layers or callers.
+End with one prominent decision: `keep`, `revise-surface`, `revise-model`,
+`split`, `reject`, or `defer`. When used inside a larger task, return:
 
 ```text
 Status: resolved | needs-evidence | not-applicable | blocked

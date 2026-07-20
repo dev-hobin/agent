@@ -21,8 +21,17 @@ What must be true, in scope, and not guessed?
 ## Output
 
 Lead with the user's product language; keep specification labels secondary.
-Produce product meaning, invariant, scope and non-scope, constraints,
-counterexamples, and blocking unknowns. When used inside a larger task, return:
+Make the contract inspectable rather than burying it in prose. Default to:
+
+- a scope table separating in scope, out of scope, and intentionally unchanged;
+- a contract table with `Must be true`, `Evidence or owner`, and `Violating counterexample`;
+- a short assumptions/decisions list that visibly distinguishes provisional facts
+  from human-owned choices.
+
+A single obvious invariant may use compact bullets, but multiple constraints or
+scope boundaries must use the tables. Produce product meaning, invariant, scope
+and non-scope, constraints, counterexamples, and blocking unknowns. When used
+inside a larger task, return:
 
 ```text
 Status: resolved | needs-evidence | not-applicable | blocked

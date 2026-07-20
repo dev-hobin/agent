@@ -48,10 +48,10 @@ Unify the duplicate schedule types and conversion logic without changing existin
 | Command | Effect |
 | --- | --- |
 | `/develop` | Open the interactive Developer control menu |
-| `/develop on` | Enable adaptive routing without restricting Pi's existing tools |
-| `/develop strict` | Enable routing and withhold Pi's built-in mutation tools until a direct route is active |
+| `/develop on` | Enable adaptive routing; tools stay active unless a `before-direct` question gate is open |
+| `/develop strict` | Gate shell execution behind an active route and structured artifact mutation behind a direct route |
 | `/develop status` | Inspect current branch state in a read-only panel |
-| `/develop questions` | Choose an unresolved question and prepare an editable revisit prompt |
+| `/develop questions` | Choose an unresolved question, answer it or request investigation, and submit it to Pi |
 | `/develop off` | Disable the protocol and clear current protocol state |
 
 Explicit command arguments participate in Pi's completion UI. In interactive
@@ -71,14 +71,18 @@ pi --develop-mode strict
 
 | Mode | Routing | Built-in mutation tools | Best fit |
 | --- | --- | --- | --- |
-| `on` | Adaptive | Unchanged | Normal product development |
-| `strict` | Adaptive | Pi built-in `edit`, `write`, and `bash` require an active `direct` route | High-risk changes and workflow-discipline experiments |
+| `on` | Adaptive | Unchanged except while a `before-direct` question gate is open | Normal product development |
+| `strict` | Adaptive | `bash` is available during skill/direct routes; Pi built-in `edit` and `write` require an active `direct` route and no `before-direct` gate | High-risk changes and workflow-discipline experiments |
 | `off` | Disabled | Developer makes no changes to the active set | Normal Pi behavior without the protocol |
 
-Strict mode is a workflow-integrity gate, not a security sandbox. It recognizes
-Pi built-ins from their provenance and does not claim to classify or block
-mutation-capable tools registered by other extensions. It also preserves
-unrelated active tools and does not force-enable read tools the user disabled.
+Strict mode and question gates are workflow-integrity controls, not a security
+sandbox. A skill route receives the shell execution lane needed for repository
+inspection and verifier execution, while structured `edit`/`write` mutation
+remains direct-only. Shell commands are not parsed as a security language; skill
+contracts prohibit artifact mutation, and adversarial evaluation checks the
+workspace boundary. Developer recognizes Pi built-ins from their provenance,
+preserves unrelated active tools, and does not force-enable tools the user
+disabled.
 
 ## How a request runs
 
@@ -93,6 +97,10 @@ Developer adds two model-facing protocol tools:
 4. `developer_record_judgment` closes the route with a status, result, evidence,
    artifacts, and any newly opened questions. Developer then routes again from
    the stable landing before another movement.
+5. Consecutive direct routes remain valid. To prevent routing by momentum, a
+   direct route that follows a direct judgment must cite the previous landing
+   evidence and record the plausible skill routes reconsidered plus why they add
+   no useful judgment at that point.
 
 The conditional default topology is:
 
@@ -122,11 +130,19 @@ Developer uses different Pi surfaces for different information:
 - The footer contains only global mode, protocol state, and current route target.
 - A compact widget appears only while a route or unresolved question exists.
 - `/develop` uses a `SelectList` action menu.
-- `/develop status` opens a branch-grounded, read-only status panel.
-- `/develop questions` uses stable question IDs and only prepares editor text;
-  selection alone never mutates protocol state.
-- Protocol tool rows show compact status by default and evidence details when
-  expanded with the user's configured Pi keybinding.
+- `/develop status` opens a branch-grounded, read-only status panel with recent
+  route/judgment history and the alternatives recorded for consecutive direct work.
+- `/develop questions` uses stable internal question IDs. Selecting one opens an
+  answer/evidence editor and submits the resulting resolution request to Pi;
+  cancelling the editor leaves protocol state unchanged.
+- Selection and status overlays use most of the terminal, keep a stable rendered
+  height while navigating or scrolling, and remain bounded on small terminals.
+  They support mouse-wheel/trackpad scrolling, arrow keys, Page Up/Down, and
+  Home/End. Terminal mouse reporting is enabled only while the overlay is open
+  and is released when it closes.
+- Protocol tool rows show compact status by default and higher-contrast evidence
+  details when expanded with the user's configured Pi keybinding. They render
+  without Pi's default full tool-row background.
 
 RPC, JSON, and print modes keep the same protocol semantics without depending on
 terminal components.
@@ -137,8 +153,11 @@ terminal components.
 | --- | --- |
 | `idle` | No active route and no unresolved Developer question |
 | `needs-judgment` | One route is active and must be closed with a judgment |
-| `needs-evidence` | At least one question remains open for evidence |
-| `blocked` | At least one pending question carries a recorded blocker |
+| `needs-evidence` | At least one agent- or environment-owned evidence question remains open |
+| `needs-answer` | At least one user-owned answer or decision remains open |
+| `needs-routing` | A direct stable landing must be re-observed and routed again |
+| `needs-verification` | Changed artifacts still need a resolved verify judgment |
+| `blocked` | A question is unavailable or explicitly gates direct work |
 
 These are routing states, not product-completion claims. In particular:
 
@@ -146,12 +165,34 @@ These are routing states, not product-completion claims. In particular:
 - A resolved `specify` judgment is not user acceptance.
 - A resolved `verify` judgment is not timeless proof after later changes.
 
-Pending questions receive stable internal IDs, but users do not type them.
-Selecting `/develop questions` focuses the question in branch state; the next
-route automatically associates that focus. A sole pending question or an exact
-question match is also associated automatically. Resolved and not-applicable
-judgments remove the associated question immediately; needs-evidence and blocked
-judgments retain the same identity.
+Pending questions receive stable internal IDs, but users do not type them. Each
+question records:
+
+- `resolutionOwner`: `agent`, `user`, or `environment`;
+- `gate`: `none`, `before-direct`, or `before-completion`;
+- `resolutionCriteria`: the observable evidence or answer that closes it.
+
+Selecting `/develop questions` opens an owner-specific editor: user questions
+ask for the required decision, agent questions ask Pi to investigate, and
+environment questions request access or an external observation. Submitting the
+editor focuses the question in branch state; an explicit ID, focus, or exact
+question match associates the next route. Selection alone never closes it.
+
+Every judgment rechecks all pending questions. `question_updates` can resolve an
+unfocused question when implementation, tests, inspection, user input, or an
+environment observation naturally supplies its criteria. A focused question
+must receive an explicit update: resolve or dismiss it with concrete basis,
+retain it as open or blocked, or close the broad parent while opening narrower
+children. Resolved and not-applicable updates remove the question with recorded
+basis; open or blocked updates preserve its identity. A `before-direct` question blocks both direct
+routes and Pi built-in mutation tools even in adaptive mode. A
+`before-completion` question allows investigation and implementation but keeps
+the protocol non-idle and prevents verification debt from being cleared as a
+completion claim.
+
+When a judgment replaces a broad unresolved question with more specific evidence
+questions, only the actionable children remain. Equivalent question wording is
+deduplicated while preserving the existing identity.
 
 ## Skills
 
@@ -162,7 +203,7 @@ or the user may invoke one directly with `/skill:<name>`.
 | --- | --- |
 | `specify` | Product meaning, scope, invariants, risks, and blocking unknowns |
 | `model` | Condition spaces, contracts, replacement, transitions, guarantees, and verification targets |
-| `sketch` | Data-driven skeletons, abstraction and composition boundaries, state, responsibility, and variation |
+| `sketch` | Inspectable code/pseudocode skeletons, case and interface tables, boundary/flow maps, state, responsibility, and variation |
 | `signal` | Evidence-backed structural movement and model-code mismatch |
 | `naming-judgment` | Domain sense, honest effects, and change-preserving names |
 | `abstraction-review` | Whether a candidate should be kept, revised, split, rejected, or deferred |
@@ -170,6 +211,19 @@ or the user may invoke one directly with `/skill:<name>`.
 | `verify` | Verifier selection, evidence relevance, and pass-but-wrong risk |
 | `visualize` | The smallest visual surface that lowers judgment cost |
 | `adversarial-eval` | Finite, escalating attempts to falsify a skill or implementation claim |
+
+Each leaf chooses a surface that matches its inspection problem instead of
+returning undifferentiated prose: contract and scope tables for `specify`, case
+or transition models for `model`, code/interface/check surfaces for `sketch`,
+artifact comparisons for `signal`, rename maps for `naming-judgment`, review
+cards and boundaries for `abstraction-review`, timing matrices for `schedule`,
+evidence matrices for `verify`, escalation matrices for `adversarial-eval`, and
+a completed visual artifact for `visualize` when a visual is warranted. Simple
+judgments may remain compact when prose is genuinely clearer.
+
+Skill judgment results preserve those surfaces as Markdown. Expanded protocol
+rows render tables and code blocks through Pi's Markdown component rather than
+flattening them into dim text.
 
 Pi's loaded resource metadata is authoritative. If package configuration filters
 or disables a skill, Developer cannot route to it even if its file exists in the
@@ -200,19 +254,46 @@ disabled, or replaced through resource configuration.
 ## State, branches, and compaction
 
 Mode changes are stored as Pi custom session entries. Routes and judgments are
-stored in tool-result details. Developer reconstructs state from the current
-session branch on startup and tree navigation, so a fork inherits only the
-events on its branch.
+stored in tool-result details. Developer replays the current branch through an
+XState v5 machine on startup and tree navigation, so a fork inherits only the
+events on its branch. Parallel machine regions keep mode, route, question gates,
+framing debt, and verification debt explicit; transition guards reject a direct
+route while a `before-direct` question remains.
 
-The current event contract is `developer/v3`. Legacy `developer/v1` and
-`developer/v2` routing history can be replayed, but new framing and verification
-obligations are not retroactively inferred.
+```text
+developerMachine (parallel)
+├── mode: off | on | strict
+├── route: idle | judgment | direct
+├── questions: clear | open
+├── directGate: clear | blocked
+├── completionGate: clear | blocked
+├── checkpoint: ready | required
+├── framing: clear | required
+└── verification: current | required
+```
 
-Developer uses Pi's normal compaction. Each new agent turn receives current
-protocol state, and route results place identity and recovery metadata before
-potentially long skill instructions. Tool output is checked against Pi's standard size
-limits before state changes are committed. At most twenty pending questions may
-remain in current state.
+Judgment routes carry the `execute` tag, direct routes carry `execute` and
+`mutate`, and question/debt regions expose blocking tags. Every direct judgment
+moves the checkpoint to `required`; the next accepted route returns it to
+`ready`. Tool availability, runtime call guards, status, and direct-transition
+eligibility are derived from the same machine snapshot.
+
+The current event contract is `developer/v4`. Legacy `developer/v1` through
+`developer/v3` routing history can be replayed. Legacy questions receive
+conservative owner, gate, and resolution-criteria defaults rather than guessed
+product decisions.
+
+Developer deliberately leaves compaction ownership to Pi. It does not trigger,
+cancel, or replace threshold/overflow compaction, so it cannot override the
+user's Pi settings or race another extension. Configure earlier compaction with
+Pi's `compaction.reserveTokens` and `compaction.keepRecentTokens` settings when
+a large-context model reaches its limit too abruptly.
+
+Each new agent turn receives current protocol state, and route results place
+identity and recovery metadata before potentially long skill instructions. That
+makes the active route recoverable after Pi compacts normally. Tool output is
+checked against Pi's standard size limits before state changes are committed.
+At most twenty pending questions may remain in current state.
 
 ## Update, configure, and remove
 
@@ -240,10 +321,11 @@ pinning, and security behavior.
 ```text
 extensions/
 ├── developer.ts    # command, protocol tools, events, and Pi integration
+├── machine.ts      # XState v5 parallel regions, guards, transitions, and tags
 ├── references/     # direct execution profiles loaded through tool results
-├── state.ts        # replayable developer/v2 branch state
+├── state.ts        # developer/v4 event normalization and branch replay
 ├── skills.ts       # loaded-skill filtering and instruction rendering
-├── tool-policy.ts  # strict-mode active-tool reconciliation
+├── tool-policy.ts  # machine-derived execution and mutation access policy
 └── tui.ts          # selectors, widget, status panel, and prompt preparation
 skills/             # ten independently loadable Pi skills
 SOURCES.md          # source-to-capability maintenance trace
@@ -280,8 +362,37 @@ a model.
 
 `check` validates package structure and deterministic behavior. `eval` launches
 the real Pi RPC surface without a model and covers package resources, commands,
-mode state, and strict tool gating. Maintainers can use `eval:json` and the live
-fixtures for model-dependent scenarios.
+mode state, and strict tool gating. These are release-gating checks.
+
+Model-dependent runs are probabilistic evaluations rather than binary tests:
+
+```sh
+PI_CODING_AGENT_DIR=~/.pi/agent \
+DEVELOPER_EVAL_FIXTURE=agent-before-direct-evidence-gate \
+DEVELOPER_EVAL_TRIALS=5 \
+pnpm --filter @hobin/developer eval:live
+```
+
+Use `eval:live:json` for the JSON transport. Each report separates the hard
+admissibility envelope from routing quality: structurally valid runs must use an
+admissible route, preserve mutation/question/completion invariants, satisfy
+hidden artifact checks, include required semantic terms, and end in a declared
+outcome. Among accepted runs, `preferredFirstOwners` measures better versus
+merely admissible routing. Reports include acceptance and preference rates,
+95% Wilson intervals, inadmissible results, rejected protocol attempts, budget
+exhaustion, and environment failures. Any accepted inadmissible result makes the
+evaluation command fail; ordinary admissible preference variation remains a
+rate. A single model sample is not release evidence.
+
+Live fixtures classify terminal outcomes as `settled-unchanged`, `pending`,
+`changed-paused`, or `changed-verified`. An eval-only observer compares
+product-file snapshots around bash/edit/write calls and rejects artifact changes
+outside a direct route. Dedicated fixtures sample a deliberately paused direct
+landing and an agent-owned before-direct question resolved through a non-direct
+bash evidence route; their structural guarantees also have deterministic machine,
+extension, trace, filesystem, and outcome tests. RPC and JSON runners share
+route, tool-call, tool-error, wall-clock, and no-progress budgets and preserve a
+trace for diagnosis.
 
 ## License
 

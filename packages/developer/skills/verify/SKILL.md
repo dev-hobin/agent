@@ -30,10 +30,16 @@ relevant evidence does not need the reference.
 ## Output
 
 Lead with the user's claim and observed evidence; keep verification labels secondary.
-Produce a scoped satisfaction judgment, evidence map, target and counterexample
-coverage, evidence strength, wrong implementations that could still pass,
-assumptions, unverified claims, and residual risk. When used inside a larger
-task, return:
+Use an evidence matrix as the primary surface:
+
+| Claim | Evidence | Strength/relevance | Wrong case that could pass | Status |
+| --- | --- | --- | --- | --- |
+
+Follow it with a concise residual-risk and unverified-claims list. When source
+compatibility matters, add requested-versus-exercised provenance as a separate
+row or table. Produce the strongest scoped satisfaction judgment, target and
+counterexample coverage, assumptions, and residual risk. When used inside a
+larger task, return:
 
 ```text
 Status: resolved | needs-evidence | not-applicable | blocked

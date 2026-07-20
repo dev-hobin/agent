@@ -7,6 +7,7 @@ import {
   LEGACY_PROTOCOL,
   LEGACY_ROUTE_TOOL,
   MODE_ENTRY,
+  PREVIOUS_PROTOCOL,
   PROTOCOL,
   ROUTE_TOOL,
   applyDeveloperEvent,
@@ -25,6 +26,7 @@ const route: RouteEvent = {
   owner: "sketch",
   reason: "The behavior is known but the boundary is not.",
   knownEvidence: ["The form and domain model use different shapes."],
+  consideredAlternatives: [],
 };
 
 const resolved = (active: RouteEvent, result = "Use a pure boundary conversion."): JudgmentEvent => ({
@@ -37,6 +39,7 @@ const resolved = (active: RouteEvent, result = "Use a pure boundary conversion."
   result,
   basis: ["Representative cases agree."],
   openedQuestions: [],
+  questionUpdates: [],
   artifacts: ["tests/schedule.test.ts"],
   changedArtifacts: false,
 });
@@ -72,6 +75,8 @@ test("reconstructs mode and protocol state from the active branch", () => {
   assert.equal(state.activeRoute, undefined);
   assert.equal(protocolState(state), "idle");
   assert.equal(state.lastJudgment?.result, "Use a pure boundary conversion.");
+  assert.equal(state.routeHistory.length, 1);
+  assert.equal(state.judgmentHistory.length, 1);
   assert.deepEqual(state.pendingQuestions, []);
 });
 
@@ -89,7 +94,7 @@ test("branch reconstruction ignores events from another branch", () => {
   assert.equal(secondBranch.activeRoute?.routeId, "route:2");
 });
 
-test("needs-evidence closes the route and creates structured pending questions", () => {
+test("structured evidence questions replace the generic route question", () => {
   let state = applyDeveloperEvent(initialState(), { protocol: PROTOCOL, kind: "mode", mode: "on" });
   state = applyDeveloperEvent(state, route);
   state = applyDeveloperEvent(state, {
@@ -101,7 +106,10 @@ test("needs-evidence closes the route and creates structured pending questions",
       {
         id: "question:route:1:open:1",
         question: "What happens for an empty schedule?",
-        status: "needs-evidence",
+        status: "open",
+        resolutionOwner: "agent",
+        gate: "none",
+        resolutionCriteria: "Observe the empty-schedule result.",
         sourceRouteId: route.routeId,
       },
     ],
@@ -109,9 +117,165 @@ test("needs-evidence closes the route and creates structured pending questions",
 
   assert.equal(protocolState(state), "needs-evidence");
   assert.deepEqual(state.pendingQuestions.map((question) => question.id), [
-    "question:route:1",
     "question:route:1:open:1",
   ]);
+});
+
+test("a focused broad question is explicitly replaced by its actionable child", () => {
+  let state = applyDeveloperEvent(initialState(), route);
+  state = applyDeveloperEvent(state, {
+    ...resolved(route),
+    status: "needs-evidence",
+    result: "The broad environment claim needs one concrete observation.",
+    basis: [],
+    openedQuestions: [
+      {
+        id: "question:broad",
+        question: "Is the checkout environment correct?",
+        status: "open",
+        resolutionOwner: "agent",
+        gate: "none",
+        resolutionCriteria: "Identify the concrete missing environment observation.",
+        sourceRouteId: route.routeId,
+      },
+    ],
+  });
+  const refinementRoute = {
+    ...route,
+    routeId: "route:refine-question",
+    question: "Which concrete checkout observation is missing?",
+    targetQuestionId: "question:broad",
+  };
+  state = applyDeveloperEvent(state, refinementRoute);
+  state = applyDeveloperEvent(state, {
+    ...resolved(refinementRoute),
+    status: "needs-evidence",
+    result: "Only the narrow viewport observation remains.",
+    basis: ["Desktop checkout has already been observed."],
+    openedQuestions: [
+      {
+        id: "question:narrow-viewport",
+        question: "Does checkout remain usable at 320px?",
+        status: "open",
+        resolutionOwner: "agent",
+        gate: "before-completion",
+        resolutionCriteria: "Observe a successful checkout interaction at 320px.",
+        sourceRouteId: refinementRoute.routeId,
+      },
+    ],
+    questionUpdates: [
+      {
+        questionId: "question:broad",
+        status: "not-applicable",
+        result: "The broad question was decomposed into one observable child.",
+        basis: ["Desktop behavior was already observed."],
+      },
+    ],
+  });
+
+  assert.deepEqual(state.pendingQuestions.map((question) => question.id), ["question:narrow-viewport"]);
+});
+
+test("duplicate open-question wording keeps one stable question identity", () => {
+  let state = applyDeveloperEvent(initialState(), { protocol: PROTOCOL, kind: "mode", mode: "on" });
+  state = applyDeveloperEvent(state, route);
+  state = applyDeveloperEvent(state, {
+    ...resolved(route),
+    status: "needs-evidence",
+    result: "The same evidence gap was reported twice.",
+    basis: [],
+    openedQuestions: [
+      {
+        id: "question:first",
+        question: "What happens for an empty schedule?",
+        status: "open",
+        resolutionOwner: "agent",
+        gate: "none",
+        resolutionCriteria: "Observe the empty-schedule result.",
+        sourceRouteId: route.routeId,
+      },
+      {
+        id: "question:duplicate",
+        question: "What happens for an empty schedule",
+        status: "open",
+        resolutionOwner: "agent",
+        gate: "none",
+        resolutionCriteria: "Observe the empty-schedule result.",
+        sourceRouteId: route.routeId,
+      },
+    ],
+  });
+
+  assert.equal(state.pendingQuestions.length, 1);
+  assert.equal(state.pendingQuestions[0]?.id, "question:first");
+});
+
+test("an unrelated implementation judgment can naturally resolve an existing agent question", () => {
+  let state = applyDeveloperEvent(initialState(), { protocol: PROTOCOL, kind: "mode", mode: "on" });
+  state = applyDeveloperEvent(state, route);
+  state = applyDeveloperEvent(state, {
+    ...resolved(route),
+    status: "needs-evidence",
+    result: "Implementation evidence is still needed.",
+    basis: [],
+    openedQuestions: [
+      {
+        id: "question:implementation-evidence",
+        question: "Does the empty schedule preserve absence?",
+        status: "open",
+        resolutionOwner: "agent",
+        gate: "none",
+        resolutionCriteria: "The focused empty-schedule test observes absence.",
+        sourceRouteId: route.routeId,
+      },
+    ],
+  });
+
+  const implementationRoute = {
+    ...route,
+    routeId: "route:implementation",
+    question: "Implement the accepted local conversion.",
+    owner: "direct",
+  };
+  state = applyDeveloperEvent(state, implementationRoute);
+  state = applyDeveloperEvent(state, {
+    ...resolved(implementationRoute),
+    questionUpdates: [
+      {
+        questionId: "question:implementation-evidence",
+        status: "resolved",
+        result: "The empty schedule preserves absence.",
+        basis: ["The focused empty-schedule test passes."],
+      },
+    ],
+  });
+
+  assert.deepEqual(state.pendingQuestions, []);
+  assert.equal(state.rerouteRequired, true);
+  assert.equal(protocolState(state), "needs-routing");
+});
+
+test("a user-owned before-direct question is visibly blocking", () => {
+  let state = applyDeveloperEvent(initialState(), route);
+  state = applyDeveloperEvent(state, {
+    ...resolved(route),
+    status: "blocked",
+    result: "A product decision is required.",
+    openedQuestions: [
+      {
+        id: "question:user-decision",
+        question: "Should an empty schedule mean absent or cleared?",
+        status: "open",
+        resolutionOwner: "user",
+        gate: "before-direct",
+        resolutionCriteria: "The product owner chooses absent or cleared.",
+        sourceRouteId: route.routeId,
+      },
+    ],
+  });
+
+  assert.equal(protocolState(state), "blocked");
+  assert.equal(state.pendingQuestions[0]?.resolutionOwner, "user");
 });
 
 test("a later route resolves a pending question by ID instead of text matching", () => {
@@ -130,7 +294,17 @@ test("a later route resolves a pending question by ID instead of text matching",
     targetQuestionId: "question:route:1",
   };
   state = applyDeveloperEvent(state, retry);
-  state = applyDeveloperEvent(state, resolved(retry));
+  state = applyDeveloperEvent(state, {
+    ...resolved(retry),
+    questionUpdates: [
+      {
+        questionId: "question:route:1",
+        status: "resolved",
+        result: "The product owner confirmed the boundary.",
+        basis: ["Explicit product-owner confirmation."],
+      },
+    ],
+  });
 
   assert.equal(protocolState(state), "idle");
   assert.deepEqual(state.pendingQuestions, []);
@@ -170,11 +344,60 @@ test("a changed direct landing requires a later resolved verify judgment", () =>
   let state = applyDeveloperEvent(initialState(), directRoute);
   state = applyDeveloperEvent(state, { ...resolved(directRoute), changedArtifacts: true });
   assert.equal(state.verificationRequired, true);
-  assert.equal(protocolState(state), "needs-verification");
+  assert.equal(state.rerouteRequired, true);
+  assert.equal(protocolState(state), "needs-routing");
 
   const verifyRoute = { ...route, routeId: "route:verify", owner: "verify" };
   state = applyDeveloperEvent(state, verifyRoute);
+  assert.equal(state.rerouteRequired, false);
   state = applyDeveloperEvent(state, resolved(verifyRoute));
+  assert.equal(state.verificationRequired, false);
+  assert.equal(protocolState(state), "idle");
+});
+
+test("before-completion questions keep verification debt until their criteria are resolved", () => {
+  const questionRoute = { ...route, routeId: "route:completion-question", owner: "specify" };
+  let state = applyDeveloperEvent(initialState(), questionRoute);
+  state = applyDeveloperEvent(state, {
+    ...resolved(questionRoute),
+    status: "needs-evidence",
+    result: "User acceptance is still required.",
+    basis: [],
+    openedQuestions: [
+      {
+        id: "question:acceptance",
+        question: "Does the user accept the rendered behavior?",
+        status: "open",
+        resolutionOwner: "user",
+        gate: "before-completion",
+        resolutionCriteria: "The user explicitly accepts the rendered behavior.",
+        sourceRouteId: questionRoute.routeId,
+      },
+    ],
+  });
+
+  const directRoute = { ...route, routeId: "route:changed", owner: "direct" };
+  state = applyDeveloperEvent(state, directRoute);
+  state = applyDeveloperEvent(state, { ...resolved(directRoute), changedArtifacts: true });
+  const firstVerify = { ...route, routeId: "route:verify-before-acceptance", owner: "verify" };
+  state = applyDeveloperEvent(state, firstVerify);
+  state = applyDeveloperEvent(state, resolved(firstVerify));
+  assert.equal(state.verificationRequired, true);
+  assert.equal(protocolState(state), "needs-answer");
+
+  const finalVerify = { ...route, routeId: "route:verify-after-acceptance", owner: "verify" };
+  state = applyDeveloperEvent(state, finalVerify);
+  state = applyDeveloperEvent(state, {
+    ...resolved(finalVerify),
+    questionUpdates: [
+      {
+        questionId: "question:acceptance",
+        status: "resolved",
+        result: "The user accepted the rendered behavior.",
+        basis: ["Explicit user acceptance."],
+      },
+    ],
+  });
   assert.equal(state.verificationRequired, false);
   assert.equal(protocolState(state), "idle");
 });
@@ -198,6 +421,32 @@ test("a second route event cannot overwrite an active route during replay", () =
 
   assert.equal(second.activeRoute?.routeId, route.routeId);
   assert.equal(second.lastRoute?.routeId, route.routeId);
+});
+
+test("replays v3 pending questions with conservative owner and gate defaults", () => {
+  const previousRoute = { ...route, protocol: PREVIOUS_PROTOCOL };
+  const state = reconstructState([
+    toolEntry(ROUTE_TOOL, previousRoute),
+    toolEntry(JUDGMENT_TOOL, {
+      ...resolved(route),
+      protocol: PREVIOUS_PROTOCOL,
+      status: "needs-evidence",
+      openedQuestions: [
+        {
+          id: "question:v3",
+          question: "What evidence is still missing?",
+          status: "needs-evidence",
+          sourceRouteId: route.routeId,
+        },
+      ],
+      questionUpdates: undefined,
+    }),
+  ]);
+
+  assert.equal(state.pendingQuestions[0]?.status, "open");
+  assert.equal(state.pendingQuestions[0]?.resolutionOwner, "agent");
+  assert.equal(state.pendingQuestions[0]?.gate, "none");
+  assert.deepEqual(state.lastJudgment?.questionUpdates, []);
 });
 
 test("reconstructs legacy v1 entries without reviving accepted or verified claims", () => {

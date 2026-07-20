@@ -23,5 +23,8 @@
     "check": "pnpm --filter './packages/**' --fail-if-no-match --if-present check",
     "eval": "pnpm --filter './packages/**' --fail-if-no-match --if-present eval",
     "eval:json": "pnpm --filter @hobin/developer eval:json"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1"
   }
 }

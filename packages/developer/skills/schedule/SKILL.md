@@ -30,9 +30,12 @@ timing follows directly from the current invariant does not need the reference.
 ## Output
 
 Lead with the user's current risk and cost of delay; keep timing labels secondary.
-Produce `now`, `after`, or `never` with rationale, evidence, invariant pressure,
-risks, and a reopen condition for deferred work. When used inside a larger task,
-return:
+Use a compact timing matrix with `Pressure`, `Do now`, `Delay`, `Reversibility`,
+and `Evidence`, followed by a prominent `now`, `after`, or `never` decision. For
+`after`, show the reopen condition as an observable trigger; use a short timeline
+only when ordering between behavior and structure is consequential. Produce the
+rationale, invariant pressure, risks, and reopen condition for deferred work.
+When used inside a larger task, return:
 
 ```text
 Status: resolved | needs-evidence | not-applicable | blocked

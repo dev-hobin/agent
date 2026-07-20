@@ -19,10 +19,19 @@ Which cases, rules, states, or transitions make the claim precise?
 
 ## Output
 
-Lead with the user's product language; keep modeling labels secondary.
-Produce the lightest useful model: domain, predicates or cases, facts, rules,
-forbidden cases, transitions or objectives when relevant, guarantee placement,
-and verification targets. When used inside a larger task, return:
+Lead with the user's product language; keep modeling labels secondary. Render
+the lightest executable model, not a prose-only explanation. Choose the surface
+that matches the condition space:
+
+- case, decision, or truth table for finite combinations;
+- state-transition table or ASCII state diagram when order matters;
+- rules plus forbidden-state table for policy and invariants;
+- guarantee map linking each rule to its owner and verification target.
+
+Show predicates, data shapes, equations, or solver-like rules in a fenced code
+block when they are part of the model. Produce domain, facts, rules, forbidden
+cases, transitions or objectives when relevant, guarantee placement, and
+verification targets. When used inside a larger task, return:
 
 ```text
 Status: resolved | needs-evidence | not-applicable | blocked

@@ -6,14 +6,17 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
+  getMarkdownTheme,
   keyHint,
   type ExtensionAPI,
   type ExtensionCommandContext,
   type ExtensionContext,
   type Skill,
+  type Theme,
+  type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
-import { Type } from "typebox";
+import { Container, Markdown, Text } from "@earendil-works/pi-tui";
+import { Type, type Static } from "typebox";
 
 import { availablePackageSkills, renderSkillMethod } from "./skills.ts";
 import {
@@ -23,6 +26,8 @@ import {
   PROTOCOL,
   ROUTE_TOOL,
   applyDeveloperEvent,
+  canApplyDeveloperEvent,
+  developerSnapshot,
   initialState,
   normalizeDeveloperEvent,
   protocolState,
@@ -33,16 +38,25 @@ import {
   type FocusEvent,
   type JudgmentEvent,
   type ModeEvent,
+  type PendingQuestion,
+  type PendingQuestionStatus,
+  type QuestionGate,
+  type QuestionResolutionOwner,
+  type QuestionUpdate,
+  type QuestionUpdateStatus,
+  type RouteAlternative,
   type RouteEvent,
 } from "./state.ts";
 import {
-  builtinMutationToolNames,
+  builtinControlledToolCapabilities,
+  isControlledToolAllowed,
   reconcileProtocolTools,
+  type ProtocolToolAccess,
   type ToolPolicyMemory,
 } from "./tool-policy.ts";
 import {
   DeveloperWidget,
-  prepareQuestionPrompt,
+  editQuestionResolutionRequest,
   renderDeveloperFooter,
   showDeveloperActionSelector,
   showDeveloperStatus,
@@ -60,7 +74,7 @@ const structuralChangeMethodPath = resolve(
 const MAX_PENDING_QUESTIONS = 20;
 const MAX_QUESTION_CHARS = 2_000;
 const MAX_EVIDENCE_CHARS = 2_000;
-const MAX_RESULT_CHARS = 4_000;
+const MAX_RESULT_CHARS = 12_000;
 const MAX_ARTIFACT_CHARS = 4_096;
 const DEVELOPER_COMMAND_ACTIONS = ["on", "strict", "status", "questions", "off"] as const;
 
@@ -113,6 +127,112 @@ function normalizedQuestion(value: string): string {
   return value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
+interface OpenQuestionInput {
+  question: string;
+  status: PendingQuestionStatus;
+  resolution_owner: Exclude<QuestionResolutionOwner, "unknown">;
+  gate: QuestionGate;
+  resolution_criteria: string;
+}
+
+interface QuestionUpdateInput {
+  question_id: string;
+  status: QuestionUpdateStatus;
+  result: string;
+  basis: string[];
+}
+
+function legacyOpenQuestion(question: string, judgmentStatus?: string): OpenQuestionInput {
+  if (judgmentStatus === "blocked") {
+    return {
+      question,
+      status: "blocked",
+      resolution_owner: "environment",
+      gate: "before-completion",
+      resolution_criteria: `Obtain evidence that settles: ${question}`,
+    };
+  }
+  return {
+    question,
+    status: "open",
+    resolution_owner: "agent",
+    gate: "none",
+    resolution_criteria: `Obtain evidence that settles: ${question}`,
+  };
+}
+
+function buildOpenedQuestions(
+  input: OpenQuestionInput[],
+  state: DeveloperState,
+  routeId: string,
+): PendingQuestion[] {
+  const questionIds = new Map(
+    state.pendingQuestions.map((question) => [normalizedQuestion(question.question), question.id]),
+  );
+  const openedQuestions: PendingQuestion[] = [];
+  for (const [index, item] of input.entries()) {
+    const question = item.question.trim();
+    const resolutionCriteria = item.resolution_criteria.trim();
+    if (!question || !resolutionCriteria) {
+      fail("Each open question requires non-whitespace question and resolution_criteria text.");
+    }
+    const questionKey = normalizedQuestion(question);
+    const questionId = questionIds.get(questionKey) ?? `question:${routeId}:open:${index + 1}`;
+    questionIds.set(questionKey, questionId);
+    const pendingQuestion: PendingQuestion = {
+      id: questionId,
+      question,
+      status: item.status,
+      resolutionOwner: item.resolution_owner,
+      gate: item.gate,
+      resolutionCriteria,
+      sourceRouteId: routeId,
+    };
+    const duplicateIndex = openedQuestions.findIndex((candidate) => candidate.id === questionId);
+    if (duplicateIndex === -1) openedQuestions.push(pendingQuestion);
+    else openedQuestions[duplicateIndex] = pendingQuestion;
+  }
+  return openedQuestions;
+}
+
+function buildQuestionUpdates(input: QuestionUpdateInput[], state: DeveloperState): QuestionUpdate[] {
+  const questionUpdates = input.map((update) => ({
+    questionId: update.question_id.trim(),
+    status: update.status,
+    result: update.result.trim(),
+    basis: update.basis.map((item) => item.trim()).filter(Boolean),
+  }));
+  const knownQuestionIds = new Set(state.pendingQuestions.map((question) => question.id));
+  const updatedIds = new Set<string>();
+  for (const update of questionUpdates) {
+    if (!knownQuestionIds.has(update.questionId)) fail(`Unknown pending question ID: ${update.questionId}`);
+    if (updatedIds.has(update.questionId)) fail(`Question ${update.questionId} was updated more than once.`);
+    updatedIds.add(update.questionId);
+    if (!update.result) fail(`Question update ${update.questionId} requires a non-empty result.`);
+    if (
+      (update.status === "resolved" || update.status === "not-applicable" || update.status === "blocked") &&
+      update.basis.length === 0
+    ) {
+      fail(`Question update ${update.questionId} with status ${update.status} requires concrete basis.`);
+    }
+  }
+  return questionUpdates;
+}
+
+function judgmentNextMessage(event: JudgmentEvent, nextState: DeveloperState): string {
+  if (event.owner === "direct") {
+    if (nextState.verificationRequired) {
+      return "Stable landing recorded. Route again from the new evidence; verify is required before claiming completion.";
+    }
+    return "Stable landing recorded. Route again from the new evidence before selecting another movement.";
+  }
+  const next = protocolState(nextState);
+  if (next === "idle") {
+    return "Developer protocol is idle. This is routing state only and does not prove task completion.";
+  }
+  return `Developer protocol is ${next}. Address the current routing obligation before handoff.`;
+}
+
 function inferredQuestionId(
   state: DeveloperState,
   question: string,
@@ -124,8 +244,16 @@ function inferredQuestionId(
   const exact = state.pendingQuestions.filter(
     (pending) => normalizedQuestion(pending.question) === normalized,
   );
-  if (exact.length === 1) return exact[0]?.id;
-  return state.pendingQuestions.length === 1 ? state.pendingQuestions[0]?.id : undefined;
+  return exact.length === 1 ? exact[0]?.id : undefined;
+}
+
+function protocolToolAccess(state: DeveloperState): ProtocolToolAccess {
+  const snapshot = developerSnapshot(state);
+  return {
+    canExecute: snapshot.hasTag("execute"),
+    canMutate: snapshot.hasTag("mutate"),
+    hasBeforeDirectGate: snapshot.hasTag("blocks-direct"),
+  };
 }
 
 function summarizeState(state: DeveloperState): string {
@@ -145,14 +273,22 @@ function protocolPrompt(state: DeveloperState, availableSkillNames: string[]): s
     "- A direct step has one observable difference and one structural or behavioral purpose. Stop when its failure is locally explainable and the repository is green, pausable, and reviewable.",
     "- For direct structural work intended to preserve behavior, set execution_profile=behavior-preserving-structure; omit the field for other direct actions and every skill route.",
     `- Follow the routed method, then close the route with ${JUDGMENT_TOOL}. After every direct stable landing, route again from the new evidence before selecting another movement.`,
+    "- Consecutive direct routes are valid when the new evidence still justifies direct action. On a reroute after direct, explicitly reconsider the most plausible skill routes and record why they are not needed; do not choose direct by momentum.",
     "- Do not carry a predetermined implementation queue through multiple direct steps. Re-observe after each stable landing and reroute to a skill whenever meaning, cases, design, structural direction, timing, naming, or evidence becomes uncertain.",
     "- Protocol state is routing bookkeeping. Idle never proves product completion, user acceptance, or current verification.",
+    "- Preserve each skill's inspectable output surface in judgment result Markdown: keep its tables, diagrams, matrices, timelines, or code blocks instead of flattening them into prose.",
+    `- On every ${JUDGMENT_TOOL} call, re-check all pending questions against the new evidence. Use question_updates to resolve questions naturally even when the current route did not focus them.`,
+    "- question_updates accepts only question IDs that were already listed as pending before the current route. Never use route_id or an ID for a new open_questions entry; use an empty array or omit question_updates when no pending question exists.",
+    "- A focused question always requires an explicit question_updates entry. Resolve or dismiss it with concrete basis, retain it as open/blocked, or explicitly replace the broad question while opening narrower children.",
+    "- Pending questions declare who can resolve them, what they block, and observable resolution criteria. Never guess a user-owned answer or bypass a before-direct gate.",
+    "- Use before-direct only when the missing answer can change whether or what artifact mutation is valid. An agent-owned before-direct question must be resolvable through a non-direct skill route using observation or evidence execution; it must never require the mutation it blocks.",
     "- Product files are changed with Pi implementation tools. Developer protocol tools only route and record judgments.",
   ];
 
   if (state.mode === "strict") {
     lines.push(
-      "- Strict mode withholds active Pi built-in edit, write, and bash tools unless the active route target is direct. It does not classify or sandbox other extensions' tools.",
+      "- Strict mode withholds Pi built-in bash while idle, restores bash for a routed skill judgment so it can inspect or run evidence checks, and restores edit/write only for a direct route. It does not classify or sandbox other extensions' tools.",
+      "- Use a skill judgment route, not a direct route, when repository discovery or verifier execution is the unresolved work. Direct remains the artifact-mutation lane.",
     );
   }
 
@@ -164,6 +300,19 @@ function protocolPrompt(state: DeveloperState, availableSkillNames: string[]): s
   if (state.verificationRequired) {
     lines.push(
       "Verification debt: a direct route changed artifacts after the last resolved verify judgment. Route verify before claiming completion or handing off as done.",
+    );
+  }
+  const completionGates = state.pendingQuestions.filter(
+    (question) => question.gate === "before-completion" || question.gate === "before-direct",
+  );
+  if (completionGates.length > 0) {
+    lines.push(
+      `Completion gate: ${completionGates.map((question) => question.id).join(", ")} must be resolved before a completion claim.`,
+    );
+  }
+  if (!state.activeRoute && state.rerouteRequired) {
+    lines.push(
+      "Rerouting checkpoint: use the previous direct landing as known_evidence. If direct is still right, include alternatives_considered for the plausible available skills and explain why each adds no useful judgment now.",
     );
   }
 
@@ -180,10 +329,13 @@ function protocolPrompt(state: DeveloperState, availableSkillNames: string[]): s
   if (state.pendingQuestions.length > 0) {
     lines.push("Pending Developer questions:");
     for (const question of state.pendingQuestions) {
-      lines.push(`- ${question.id} · ${question.status} · ${question.question}`);
+      lines.push(
+        `- ${question.id} · ${question.status} · owner=${question.resolutionOwner} · gate=${question.gate} · ${question.question} · resolves when: ${question.resolutionCriteria}`,
+      );
     }
     lines.push(
-      "- Revisit questions naturally. Developer automatically associates a focused, sole, or exactly matching pending question; open_question_id is an internal disambiguator only when several questions remain.",
+      "- Revisit questions naturally. Developer associates an explicitly focused or exactly matching pending question; open_question_id is an internal disambiguator when wording is intentionally changed or several questions remain.",
+      "- question_updates may resolve any pending ID from implementation, test, inspection, user, or environment evidence; each resolved update requires concrete basis.",
     );
   }
   lines.push(
@@ -199,9 +351,56 @@ function routeRenderText(event: RouteEvent | undefined): string {
   return `${event.owner}${profile} · ${compactLine(event.question)}${target}`;
 }
 
+function compactJudgmentResult(result: string, maxChars = 160): string {
+  const firstContentLine = result
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith("```"));
+  return compactLine(firstContentLine ?? result, maxChars);
+}
+
 function judgmentRenderText(event: JudgmentEvent | undefined): string {
   if (!event) return "Judgment unavailable";
-  return `${event.status} · ${compactLine(event.result)}`;
+  return `${event.status} · ${compactJudgmentResult(event.result)}`;
+}
+
+function detailLine(
+  theme: Theme,
+  label: string,
+  value: string,
+  valueColor: ThemeColor = "muted",
+): string {
+  return `${theme.fg("dim", `${label} · `)}${theme.fg(valueColor, value)}`;
+}
+
+function expandedJudgment(event: JudgmentEvent, statusText: string, theme: Theme): Container {
+  const container = new Container();
+  const header = [
+    statusText,
+    detailLine(theme, "route", event.routeId, "text"),
+    detailLine(theme, "target", event.owner, "accent"),
+    detailLine(theme, "question", event.question, "text"),
+  ];
+  container.addChild(new Text(header.join("\n"), 0, 0));
+  container.addChild(new Markdown(event.result, 0, 0, getMarkdownTheme()));
+
+  const evidence = [
+    ...event.basis.map((basis) => detailLine(theme, "basis", basis)),
+    ...event.artifacts.map((artifact) => detailLine(theme, "artifact", artifact)),
+    ...event.openedQuestions.map((question) =>
+      detailLine(
+        theme,
+        `opened ${question.resolutionOwner}/${question.gate}`,
+        `${question.question} — resolves when: ${question.resolutionCriteria}`,
+        "warning",
+      ),
+    ),
+    ...(event.questionUpdates ?? []).map((update) =>
+      detailLine(theme, `question ${update.status}`, `${update.questionId} — ${update.result}`, "accent"),
+    ),
+  ];
+  if (evidence.length > 0) container.addChild(new Text(evidence.join("\n"), 0, 0));
+  return container;
 }
 
 export default async function developer(pi: ExtensionAPI) {
@@ -222,7 +421,7 @@ export default async function developer(pi: ExtensionAPI) {
       activeTools: current,
       allTools: pi.getAllTools(),
       mode: state.mode,
-      directRouteOpen: state.activeRoute?.owner === "direct",
+      access: protocolToolAccess(state),
       protocolTools: PROTOCOL_TOOLS,
       memory: toolPolicyMemory,
     });
@@ -308,6 +507,21 @@ export default async function developer(pi: ExtensionAPI) {
       Type.String({ maxLength: 512, description: "Exact pending question ID when this route revisits one" }),
     ),
   };
+  const RouteAlternativeParam = Type.Object(
+    {
+      owner: Type.String({
+        minLength: 1,
+        maxLength: 64,
+        description: "Exact available Developer skill name that was reconsidered",
+      }),
+      reason: Type.String({
+        minLength: 1,
+        maxLength: MAX_EVIDENCE_CHARS,
+        description: "Why this skill would add no useful judgment before the proposed direct movement",
+      }),
+    },
+    { additionalProperties: false },
+  );
   const RouteParams = Type.Union([
     Type.Object(
       {
@@ -340,6 +554,13 @@ export default async function developer(pi: ExtensionAPI) {
           maxLength: MAX_EVIDENCE_CHARS,
           description: "The narrowest check that can catch the likely break in this movement",
         }),
+        alternatives_considered: Type.Optional(
+          Type.Array(RouteAlternativeParam, {
+            maxItems: 6,
+            description:
+              "On a reroute after direct, the plausible skill routes reconsidered and why each is unnecessary now",
+          }),
+        ),
         execution_profile: Type.Optional(
           Type.Literal("behavior-preserving-structure", {
             description: "Load the focused structural-mutation protocol; omit for ordinary direct action",
@@ -359,10 +580,12 @@ export default async function developer(pi: ExtensionAPI) {
     promptGuidelines: [
       `Call ${ROUTE_TOOL} only when there is no active Developer route.`,
       `Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; owner=direct requires one movement, one stable landing, and one narrow verification.`,
+      `When ${ROUTE_TOOL} follows a direct judgment with another direct route, cite the previous landing in known_evidence and record plausible skill routes in alternatives_considered instead of selecting direct by momentum.`,
       `After a resolved model, use sketch for first feature implementation framing or signal for existing-code structural movement before direct mutation.`,
     ],
     parameters: RouteParams,
     executionMode: "sequential",
+    renderShell: "self",
     async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       if (state.mode === "off") fail("Developer protocol is off. Run /develop on or /develop strict first.");
       if (state.activeRoute || routeOpening) {
@@ -383,6 +606,42 @@ export default async function developer(pi: ExtensionAPI) {
         }
 
         const owner = params.owner;
+        const directBlockers = state.pendingQuestions.filter(
+          (pending) => pending.gate === "before-direct",
+        );
+        if (owner === "direct" && directBlockers.length > 0) {
+          fail(
+            `Direct work is blocked by ${directBlockers
+              .map((pending) => `${pending.id} (${pending.resolutionOwner}: ${pending.question})`)
+              .join("; ")}. Resolve those questions first.`,
+          );
+        }
+        const knownEvidence = (params.known_evidence ?? []).map((item) => item.trim()).filter(Boolean);
+        const consideredAlternatives: RouteAlternative[] =
+          owner === "direct" && "alternatives_considered" in params
+            ? (params.alternatives_considered ?? []).map((alternative) => ({
+                owner: alternative.owner.trim(),
+                reason: alternative.reason.trim(),
+              }))
+            : [];
+        for (const alternative of consideredAlternatives) {
+          if (!availableSkills.has(alternative.owner)) {
+            fail(`Considered alternative ${alternative.owner} is unavailable or disabled.`);
+          }
+        }
+        if (new Set(consideredAlternatives.map((alternative) => alternative.owner)).size !== consideredAlternatives.length) {
+          fail("Each considered alternative must name a different available Developer skill.");
+        }
+        if (owner === "direct" && state.lastJudgment?.owner === "direct") {
+          if (knownEvidence.length === 0) {
+            fail("A consecutive direct route must cite evidence from the previous direct landing in known_evidence.");
+          }
+          if (availableSkills.size > 0 && consideredAlternatives.length === 0) {
+            fail(
+              "A consecutive direct route must record the plausible available skill routes in alternatives_considered and explain why they are not needed now.",
+            );
+          }
+        }
         if (
           owner === "direct" &&
           state.implementationFramingRequired &&
@@ -443,7 +702,8 @@ export default async function developer(pi: ExtensionAPI) {
           question,
           owner,
           reason,
-          knownEvidence: (params.known_evidence ?? []).map((item) => item.trim()).filter(Boolean),
+          knownEvidence,
+          consideredAlternatives,
           targetQuestionId,
           methodLocation: skill?.filePath,
           executionProfile,
@@ -465,6 +725,13 @@ export default async function developer(pi: ExtensionAPI) {
             : []),
           `Reason: ${event.reason}`,
           `Known evidence: ${event.knownEvidence.length > 0 ? event.knownEvidence.join(" | ") : "none"}`,
+          `Alternatives reconsidered: ${
+            event.consideredAlternatives.length > 0
+              ? event.consideredAlternatives
+                  .map((alternative) => `${alternative.owner} — ${alternative.reason}`)
+                  .join(" | ")
+              : "none"
+          }`,
           targetQuestionId ? `Revisits pending question: ${targetQuestionId}` : "Revisits pending question: none",
           `When this route has done its job, call ${JUDGMENT_TOOL} with this exact route ID.`,
           "",
@@ -473,6 +740,9 @@ export default async function developer(pi: ExtensionAPI) {
           method,
         ].join("\n");
         ensureSafeToolText(response, "Developer route result");
+        if (!canApplyDeveloperEvent(state, event)) {
+          fail("Developer machine guard rejected the route transition from the current branch state.");
+        }
 
         state = applyDeveloperEvent(state, event);
         syncProtocolTools();
@@ -504,25 +774,28 @@ export default async function developer(pi: ExtensionAPI) {
       const event = result.details as RouteEvent | undefined;
       let text = theme.fg("success", `routed ${routeRenderText(event)}`);
       if (expanded && event) {
-        text += `\n${theme.fg("dim", `route · ${event.routeId}`)}`;
-        text += `\n${theme.fg("dim", `question · ${event.question}`)}`;
-        text += `\n${theme.fg("dim", `reason · ${event.reason}`)}`;
+        text += `\n${detailLine(theme, "route", event.routeId, "text")}`;
+        text += `\n${detailLine(theme, "question", event.question, "text")}`;
+        text += `\n${detailLine(theme, "reason", event.reason)}`;
         if (event.knownEvidence.length > 0) {
           for (const evidence of event.knownEvidence) {
-            text += `\n${theme.fg("dim", `evidence · ${evidence}`)}`;
+            text += `\n${detailLine(theme, "evidence", evidence)}`;
           }
         } else {
-          text += `\n${theme.fg("dim", "evidence · none recorded before routing")}`;
+          text += `\n${detailLine(theme, "evidence", "none recorded before routing", "warning")}`;
         }
-        text += `\n${theme.fg("dim", `revisits · ${event.targetQuestionId ?? "none"}`)}`;
-        text += `\n${theme.fg("dim", `skill · ${event.methodLocation ?? "direct action"}`)}`;
+        for (const alternative of event.consideredAlternatives ?? []) {
+          text += `\n${detailLine(theme, `considered ${alternative.owner}`, alternative.reason)}`;
+        }
+        text += `\n${detailLine(theme, "revisits", event.targetQuestionId ?? "none")}`;
+        text += `\n${detailLine(theme, "skill", event.methodLocation ?? "direct action")}`;
         if (event.executionProfile) {
-          text += `\n${theme.fg("dim", `profile · ${event.executionProfile}`)}`;
+          text += `\n${detailLine(theme, "profile", event.executionProfile)}`;
         }
         if (event.directStep) {
-          text += `\n${theme.fg("dim", `movement · ${event.directStep.movement}`)}`;
-          text += `\n${theme.fg("dim", `landing · ${event.directStep.stopCondition}`)}`;
-          text += `\n${theme.fg("dim", `verify · ${event.directStep.verification}`)}`;
+          text += `\n${detailLine(theme, "movement", event.directStep.movement, "text")}`;
+          text += `\n${detailLine(theme, "landing", event.directStep.stopCondition)}`;
+          text += `\n${detailLine(theme, "verify", event.directStep.verification)}`;
         }
       }
       if (!expanded && event) text += ` · ${keyHint("app.tools.expand", "details")}`;
@@ -530,22 +803,66 @@ export default async function developer(pi: ExtensionAPI) {
     },
   });
 
+  const OpenQuestionParam = Type.Object(
+    {
+      question: Type.String({ minLength: 1, maxLength: MAX_QUESTION_CHARS }),
+      status: StringEnum(["open", "blocked"] as const, {
+        description: "Whether the required evidence or answer is currently obtainable",
+      }),
+      resolution_owner: StringEnum(["agent", "user", "environment"] as const, {
+        description: "Who can provide the evidence or decision that resolves this question",
+      }),
+      gate: StringEnum(["none", "before-direct", "before-completion"] as const, {
+        description:
+          "What work this question blocks; an agent before-direct question must be resolvable through a non-direct evidence route",
+      }),
+      resolution_criteria: Type.String({
+        minLength: 1,
+        maxLength: MAX_EVIDENCE_CHARS,
+        description: "Observable evidence or answer that will settle the question",
+      }),
+    },
+    { additionalProperties: false },
+  );
+  const QuestionUpdateParam = Type.Object(
+    {
+      question_id: Type.String({
+        minLength: 1,
+        maxLength: 512,
+        description:
+          "Exact ID of a question that was pending before this route; never route_id or a newly opened question ID",
+      }),
+      status: StringEnum(["resolved", "not-applicable", "open", "blocked"] as const),
+      result: Type.String({ minLength: 1, maxLength: MAX_RESULT_CHARS }),
+      basis: Type.Array(Type.String({ maxLength: MAX_EVIDENCE_CHARS }), { maxItems: 20 }),
+    },
+    { additionalProperties: false },
+  );
   const JudgmentParams = Type.Object({
     route_id: Type.String({ minLength: 1, maxLength: 512, description: `Exact route ID returned by ${ROUTE_TOOL}` }),
     status: StringEnum(["resolved", "needs-evidence", "not-applicable", "blocked"] as const),
     result: Type.String({
       minLength: 1,
       maxLength: MAX_RESULT_CHARS,
-      description: "The resulting judgment in concrete terms",
+      description:
+        "The resulting judgment in Markdown; preserve the routed skill's inspectable tables, diagrams, matrices, timelines, or code blocks",
     }),
     basis: Type.Array(Type.String({ maxLength: MAX_EVIDENCE_CHARS }), {
       maxItems: 20,
       description: "Evidence supporting the judgment or blocker",
     }),
     open_questions: Type.Optional(
-      Type.Array(Type.String({ maxLength: MAX_QUESTION_CHARS }), {
+      Type.Array(OpenQuestionParam, {
         maxItems: 10,
-        description: "New questions that remain unresolved",
+        description:
+          "New unresolved questions with explicit resolution owner, gate, and observable resolution criteria",
+      }),
+    ),
+    question_updates: Type.Optional(
+      Type.Array(QuestionUpdateParam, {
+        maxItems: 20,
+        description:
+          "Updates to questions already pending before this route; use [] when none exist, and never put route_id or newly opened questions here",
       }),
     ),
     artifacts: Type.Optional(
@@ -564,10 +881,28 @@ export default async function developer(pi: ExtensionAPI) {
     promptSnippet: "Record evidence and close the active development route",
     promptGuidelines: [
       `Use ${JUDGMENT_TOOL} with the exact active Developer route ID.`,
+      `Use ${JUDGMENT_TOOL} result as Markdown and preserve the routed skill's inspectable tables, diagrams, matrices, timelines, and code blocks instead of reducing them to prose.`,
+      `Use ${JUDGMENT_TOOL} open_questions with resolution_owner, gate, and resolution_criteria; use question_updates whenever current evidence settles or changes any existing pending question.`,
       `Do not use ${JUDGMENT_TOOL} with resolved, not-applicable, or blocked status without at least one concrete basis.`,
     ],
     parameters: JudgmentParams,
     executionMode: "sequential",
+    renderShell: "self",
+    prepareArguments(args): Static<typeof JudgmentParams> {
+      const input = args as Static<typeof JudgmentParams> & {
+        status?: string;
+        open_questions?: unknown[];
+      };
+      if (!input || typeof input !== "object" || !Array.isArray(input.open_questions)) {
+        return args as Static<typeof JudgmentParams>;
+      }
+      return {
+        ...input,
+        open_questions: input.open_questions.map((question) =>
+          typeof question === "string" ? legacyOpenQuestion(question, input.status) : question,
+        ) as Static<typeof JudgmentParams>["open_questions"],
+      };
+    },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (state.mode === "off") fail("Developer protocol is off.");
       if (!state.activeRoute) fail("There is no active Developer route to close.");
@@ -582,15 +917,55 @@ export default async function developer(pi: ExtensionAPI) {
         fail(`${params.status} judgments require at least one concrete basis.`);
       }
 
-      const openedQuestions = (params.open_questions ?? [])
-        .map((item) => item.trim())
-        .filter(Boolean)
-        .map((question, index) => ({
-          id: `question:${params.route_id}:open:${index + 1}`,
-          question,
-          status: "needs-evidence" as const,
-          sourceRouteId: params.route_id,
-        }));
+      const openedQuestions = buildOpenedQuestions(params.open_questions ?? [], state, params.route_id);
+      if (
+        availableSkills.size === 0 &&
+        openedQuestions.some(
+          (question) => question.resolutionOwner === "agent" && question.gate === "before-direct",
+        )
+      ) {
+        fail("An agent-owned before-direct question requires an available non-direct skill resolution path.");
+      }
+      const remainsOpen = params.status === "needs-evidence" || params.status === "blocked";
+      if (remainsOpen && !state.activeRoute.targetQuestionId && openedQuestions.length === 0) {
+        fail(
+          "A needs-evidence or blocked judgment for a new question must include at least one structured open_questions entry.",
+        );
+      }
+
+      if (state.pendingQuestions.length > 0 && params.question_updates === undefined) {
+        fail(
+          "Pending questions exist. Include question_updates (an empty array is valid) after rechecking them against this route's evidence.",
+        );
+      }
+      const questionUpdates = buildQuestionUpdates(params.question_updates ?? [], state);
+      const updatedQuestionIds = new Set(questionUpdates.map((update) => update.questionId));
+      if (openedQuestions.some((question) => updatedQuestionIds.has(question.id))) {
+        fail("A question cannot be opened and updated in the same judgment.");
+      }
+      if (!remainsOpen && openedQuestions.length > 0) {
+        fail("A resolved or not-applicable judgment cannot open new questions.");
+      }
+      const targetQuestionId = state.activeRoute.targetQuestionId;
+      const targetUpdate = targetQuestionId
+        ? questionUpdates.find((update) => update.questionId === targetQuestionId)
+        : undefined;
+      if (targetQuestionId && !targetUpdate) {
+        fail(`Focused question ${targetQuestionId} requires an explicit question_updates entry.`);
+      }
+      if (targetUpdate) {
+        const closesTarget = targetUpdate.status === "resolved" || targetUpdate.status === "not-applicable";
+        if (!remainsOpen && !closesTarget) {
+          fail("A resolved focused judgment must explicitly resolve or dismiss its question.");
+        }
+        if (remainsOpen && openedQuestions.length === 0 && closesTarget) {
+          fail("A focused question cannot close while its judgment reports no replacement evidence question.");
+        }
+        if (remainsOpen && openedQuestions.length > 0 && !closesTarget) {
+          fail("Replacement questions require explicitly resolving or dismissing the broader focused question.");
+        }
+      }
+
       const event: JudgmentEvent = {
         protocol: PROTOCOL,
         kind: "judgment",
@@ -601,9 +976,13 @@ export default async function developer(pi: ExtensionAPI) {
         result,
         basis,
         openedQuestions,
+        questionUpdates,
         artifacts: (params.artifacts ?? []).map((item) => item.trim()).filter(Boolean),
         changedArtifacts: routesWithMutation.has(params.route_id),
       };
+      if (!canApplyDeveloperEvent(state, event)) {
+        fail("Developer machine guard rejected the judgment transition from the current active route.");
+      }
       const nextState = applyDeveloperEvent(state, event);
       if (nextState.pendingQuestions.length > MAX_PENDING_QUESTIONS) {
         fail(
@@ -611,16 +990,11 @@ export default async function developer(pi: ExtensionAPI) {
         );
       }
 
-      const next = protocolState(nextState);
-      const nextMessage =
-        event.owner === "direct"
-          ? nextState.verificationRequired
-            ? "Stable landing recorded. Route again from the new evidence; verify is required before claiming completion."
-            : "Stable landing recorded. Route again from the new evidence before selecting another movement."
-          : next === "idle"
-            ? "Developer protocol is idle. This is routing state only and does not prove task completion."
-            : `Developer protocol is ${next}. Address the current routing obligation before handoff.`;
-      const response = `Recorded ${event.status} judgment for ${event.routeId}: ${event.result}\n${nextMessage}`;
+      const nextMessage = judgmentNextMessage(event, nextState);
+      const resolvedQuestionCount = event.questionUpdates.filter(
+        (update) => update.status === "resolved" || update.status === "not-applicable",
+      ).length;
+      const response = `Recorded ${event.status} judgment for ${event.routeId}: ${event.result}\nQuestion updates: ${resolvedQuestionCount} resolved, ${event.questionUpdates.length - resolvedQuestionCount} retained or blocked.\n${nextMessage}`;
       ensureSafeToolText(response, "Developer judgment result");
 
       routesWithMutation.delete(params.route_id);
@@ -632,7 +1006,7 @@ export default async function developer(pi: ExtensionAPI) {
     renderCall(args, theme, context) {
       const status = typeof args.status === "string" && args.status.length > 0 ? args.status : "…";
       const result =
-        typeof args.result === "string" && args.result.length > 0 ? compactLine(args.result) : "…";
+        typeof args.result === "string" && args.result.length > 0 ? compactJudgmentResult(args.result) : "…";
       const statusText =
         status === "resolved"
           ? theme.fg("success", status)
@@ -666,18 +1040,8 @@ export default async function developer(pi: ExtensionAPI) {
             : event?.status === "blocked"
               ? theme.fg("error", summary)
               : theme.fg("muted", summary);
-      if (expanded && event) {
-        text += `\n${theme.fg("dim", `route · ${event.routeId}`)}`;
-        text += `\n${theme.fg("dim", `target · ${event.owner}`)}`;
-        text += `\n${theme.fg("dim", `question · ${event.question}`)}`;
-        text += `\n${theme.fg("dim", `result · ${event.result}`)}`;
-        for (const basis of event.basis) text += `\n${theme.fg("dim", `basis · ${basis}`)}`;
-        for (const artifact of event.artifacts) text += `\n${theme.fg("dim", `artifact · ${artifact}`)}`;
-        for (const question of event.openedQuestions) {
-          text += `\n${theme.fg("warning", `opened · ${question.id} · ${question.question}`)}`;
-        }
-      }
-      if (!expanded && event) text += ` · ${keyHint("app.tools.expand", "details")}`;
+      if (expanded && event) return expandedJudgment(event, text, theme);
+      if (event) text += ` · ${keyHint("app.tools.expand", "details")}`;
       return reusableText(text, context.lastComponent);
     },
   });
@@ -697,7 +1061,10 @@ export default async function developer(pi: ExtensionAPI) {
     const pending =
       state.pendingQuestions.length > 0
         ? state.pendingQuestions
-            .map((question) => `${question.id} · ${question.status} · ${question.question}`)
+            .map(
+              (question) =>
+                `${question.id} · ${question.status} · ${question.resolutionOwner}/${question.gate} · ${question.question} · resolves when: ${question.resolutionCriteria}`,
+            )
             .join(" | ")
         : "none";
     const last = state.lastJudgment
@@ -711,12 +1078,31 @@ export default async function developer(pi: ExtensionAPI) {
       state.lastJudgment && state.lastJudgment.artifacts.length > 0
         ? state.lastJudgment.artifacts.join(" | ")
         : "none";
+    const history =
+      state.judgmentHistory.length > 0
+        ? state.judgmentHistory
+            .slice(-10)
+            .map((judgment) => {
+              const route = state.routeHistory.find((candidate) => candidate.routeId === judgment.routeId);
+              const alternatives = (route?.consideredAlternatives ?? [])
+                .map((alternative) => `${alternative.owner}: ${alternative.reason}`)
+                .join("; ");
+              return `${judgment.owner} · ${judgment.status} · ${judgment.result}${
+                alternatives ? ` · considered ${alternatives}` : ""
+              }`;
+            })
+            .join("\n")
+        : "none";
     return (
       `${summarizeState(state)}` +
       `\nactive: ${active}` +
       `\nlast: ${last}` +
       `\nbasis: ${basis}` +
       `\nartifacts: ${artifacts}` +
+      `\nimplementation framing: ${state.implementationFramingRequired ? "required" : "clear"}` +
+      `\ncheckpoint: ${state.rerouteRequired ? "reroute required" : "ready"}` +
+      `\nverification: ${state.verificationRequired ? "required" : "current"}` +
+      `\nhistory:\n${history}` +
       `\nactive tools: ${pi.getActiveTools().join(", ")}` +
       `\navailable skills: ${[...availableSkills.keys()].join(", ") || "none"}` +
       `\npending: ${pending}` +
@@ -778,16 +1164,26 @@ export default async function developer(pi: ExtensionAPI) {
             kind: "focus",
             questionId: question.id,
           };
+          const request = await editQuestionResolutionRequest(ctx, question);
+          if (request === undefined) return;
           pi.appendEntry(FOCUS_ENTRY, focusEvent);
           state = applyDeveloperEvent(state, focusEvent);
           refreshUI(ctx);
-          prepareQuestionPrompt(ctx, question);
-          ctx.ui.notify("Open question focused and loaded into the editor for review.", "info");
+          ctx.ui.setEditorText("");
+          ctx.ui.notify(
+            "Question response submitted. It remains open until Developer records a resolved or not-applicable judgment.",
+            "info",
+          );
+          if (ctx.isIdle()) pi.sendUserMessage(request);
+          else pi.sendUserMessage(request, { deliverAs: "followUp" });
           return;
         }
         ctx.ui.notify(
           state.pendingQuestions
-            .map((question) => `${question.id} · ${question.status} · ${question.question}`)
+            .map(
+              (question) =>
+                `${question.id} · ${question.status} · ${question.resolutionOwner}/${question.gate} · ${question.question}\n  resolves when: ${question.resolutionCriteria}`,
+            )
             .join("\n"),
           "info",
         );
@@ -830,15 +1226,34 @@ export default async function developer(pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", (event) => {
-    const mutationBuiltins = builtinMutationToolNames(pi.getAllTools());
-    if (mutationBuiltins.has(event.toolName) && state.activeRoute?.owner === "direct") {
-      routesWithMutation.add(state.activeRoute.routeId);
+    const capability = builtinControlledToolCapabilities(pi.getAllTools()).get(event.toolName);
+    if (!capability) return;
+
+    const access = protocolToolAccess(state);
+    if (isControlledToolAllowed({ mode: state.mode, capability, access })) {
+      if (access.canMutate && state.activeRoute) routesWithMutation.add(state.activeRoute.routeId);
       return;
     }
-    if (state.mode !== "strict" || !mutationBuiltins.has(event.toolName)) return;
+
+    const directBlockers = state.pendingQuestions.filter(
+      (question) => question.gate === "before-direct",
+    );
+    if (directBlockers.length > 0) {
+      const blockedAction = capability === "execute" ? "unrouted shell execution" : "artifact mutation";
+      return {
+        block: true,
+        reason: `Developer question gate blocks ${blockedAction} until resolved: ${directBlockers
+          .map((question) => `${question.id} (${question.resolutionOwner}: ${question.question})`)
+          .join("; ")}. A non-direct judgment route may still use bash to obtain evidence.`,
+      };
+    }
+
     return {
       block: true,
-      reason: `Developer strict mode requires an active ${ROUTE_TOOL} targeting direct action (owner=direct) before Pi built-in edit, write, or bash.`,
+      reason:
+        capability === "execute"
+          ? `Developer strict mode requires an active judgment or direct route before Pi built-in bash can execute evidence checks.`
+          : `Developer strict mode requires an active ${ROUTE_TOOL} targeting direct action (owner=direct) before Pi built-in edit or write.`,
     };
   });
 

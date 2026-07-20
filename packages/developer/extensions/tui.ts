@@ -8,6 +8,7 @@ import {
   Container,
   matchesKey,
   type SelectItem,
+  type SizeValue,
   Text,
   truncateToWidth,
   visibleWidth,
@@ -18,6 +19,7 @@ import {
   protocolState,
   type DeveloperMode,
   type DeveloperState,
+  type JudgmentStatus,
   type PendingQuestion,
   type ProtocolState,
 } from "./state.ts";
@@ -31,7 +33,12 @@ function modeName(mode: DeveloperMode): string {
 
 function protocolColor(value: ProtocolState): ThemeColor {
   if (value === "blocked") return "error";
-  if (value === "needs-evidence" || value === "needs-verification") return "warning";
+  if (
+    value === "needs-evidence" ||
+    value === "needs-answer" ||
+    value === "needs-routing" ||
+    value === "needs-verification"
+  ) return "warning";
   if (value === "needs-judgment") return "accent";
   return "dim";
 }
@@ -40,6 +47,22 @@ function modeColor(mode: DeveloperMode): ThemeColor {
   if (mode === "strict") return "warning";
   if (mode === "on") return "accent";
   return "dim";
+}
+
+function judgmentColor(status: JudgmentStatus): ThemeColor {
+  if (status === "blocked") return "error";
+  if (status === "needs-evidence") return "warning";
+  if (status === "resolved") return "success";
+  return "muted";
+}
+
+function judgmentSummary(result: string): string {
+  return (
+    result
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line && !line.startsWith("```")) ?? result
+  );
 }
 
 export function renderDeveloperFooter(state: DeveloperState, theme: Theme): string {
@@ -80,7 +103,7 @@ export function developerActionItems(state: DeveloperState): SelectItem[] {
     {
       value: "strict",
       label: state.mode === "strict" ? "Strict mode (active)" : "Strict mode",
-      description: "Require a direct route before Pi built-in mutation tools become active",
+      description: "Allow bash on judgment routes; require direct for Pi built-in edit/write",
     },
     {
       value: "off",
@@ -91,19 +114,62 @@ export function developerActionItems(state: DeveloperState): SelectItem[] {
   return items;
 }
 
+function questionAction(owner: PendingQuestion["resolutionOwner"]): string {
+  if (owner === "user") return "enter to provide the required answer";
+  if (owner === "environment") return "enter to provide access or external evidence";
+  if (owner === "agent") return "enter to ask Pi to investigate";
+  return "enter to classify and resolve this legacy question";
+}
+
+function resolutionRequestLabel(owner: PendingQuestion["resolutionOwner"]): string {
+  if (owner === "user") return "Required answer or product decision:";
+  if (owner === "environment") return "External access, observation, or environment evidence:";
+  return "Evidence or investigation request for Pi:";
+}
+
+const ENABLE_MOUSE_SCROLL = "\u001b[?1000h\u001b[?1006h";
+const DISABLE_MOUSE_SCROLL = "\u001b[?1006l\u001b[?1000l";
+
+interface WritableTerminal {
+  write(data: string): void;
+}
+
+function enableMouseScroll(tui: { terminal?: WritableTerminal }): WritableTerminal | undefined {
+  const terminal = tui.terminal;
+  if (!terminal || typeof terminal.write !== "function") return undefined;
+  terminal.write(ENABLE_MOUSE_SCROLL);
+  return terminal;
+}
+
+function disableMouseScroll(terminal: WritableTerminal | undefined): void {
+  terminal?.write(DISABLE_MOUSE_SCROLL);
+}
+
+function mouseWheelDirection(data: string): -1 | 1 | undefined {
+  const match = /^\u001b\[<(\d+);\d+;\d+M$/.exec(data);
+  if (!match?.[1]) return undefined;
+  const button = Number(match[1]);
+  if ((button & 64) === 0 || (button & 3) > 1) return undefined;
+  return (button & 1) === 0 ? -1 : 1;
+}
+
 export function pendingQuestionItems(questions: PendingQuestion[]): SelectItem[] {
-  return questions.map((question) => ({
-    value: question.id,
-    label: question.question,
-    description: question.status,
-  }));
+  return questions.map((question) => {
+    const action = questionAction(question.resolutionOwner);
+    return {
+      value: question.id,
+      label: question.question,
+      description: `${question.status} · ${question.resolutionOwner} · ${question.gate} · ${action}`,
+    };
+  });
 }
 
 interface SelectDialogOptions {
   title: string;
   subtitle: string;
   items: SelectItem[];
-  width: number;
+  width: SizeValue;
+  minWidth: number;
   maxVisible: number;
   selectedLabelMaxLines: number;
   selectedDescriptionMaxLines: number;
@@ -136,6 +202,7 @@ class WrappedSelectList {
   private readonly items: SelectItem[];
   private readonly keybindings: KeybindingsManager;
   private readonly maxVisible: number;
+  private readonly renderHeight: number;
   private readonly selectedDescriptionMaxLines: number;
   private readonly selectedLabelMaxLines: number;
   private readonly theme: Theme;
@@ -158,6 +225,10 @@ class WrappedSelectList {
     this.keybindings = keybindings;
     this.selectedLabelMaxLines = options.selectedLabelMaxLines;
     this.selectedDescriptionMaxLines = options.selectedDescriptionMaxLines;
+    this.renderHeight = Math.max(
+      1,
+      maxVisible - 1 + options.selectedLabelMaxLines + options.selectedDescriptionMaxLines + 1,
+    );
   }
 
   render(width: number): string[] {
@@ -206,20 +277,37 @@ class WrappedSelectList {
         ),
       );
     }
-    return lines;
+    const visible = lines.slice(0, this.renderHeight);
+    while (visible.length < this.renderHeight) visible.push("");
+    return visible;
   }
 
   handleInput(data: string): void {
-    if (this.keybindings.matches(data, "tui.select.up")) {
+    const wheelDirection = mouseWheelDirection(data);
+    if (wheelDirection !== undefined) {
+      this.moveSelection(wheelDirection * 3);
+    } else if (this.keybindings.matches(data, "tui.select.up")) {
       this.selectedIndex = this.selectedIndex === 0 ? this.items.length - 1 : this.selectedIndex - 1;
     } else if (this.keybindings.matches(data, "tui.select.down")) {
       this.selectedIndex = this.selectedIndex === this.items.length - 1 ? 0 : this.selectedIndex + 1;
+    } else if (this.keybindings.matches(data, "tui.select.pageUp")) {
+      this.moveSelection(-Math.max(1, this.maxVisible - 1));
+    } else if (this.keybindings.matches(data, "tui.select.pageDown")) {
+      this.moveSelection(Math.max(1, this.maxVisible - 1));
+    } else if (matchesKey(data, "home")) {
+      this.selectedIndex = 0;
+    } else if (matchesKey(data, "end")) {
+      this.selectedIndex = Math.max(0, this.items.length - 1);
     } else if (this.keybindings.matches(data, "tui.select.confirm")) {
       const selected = this.items[this.selectedIndex];
       if (selected) this.onSelect?.(selected);
     } else if (this.keybindings.matches(data, "tui.select.cancel")) {
       this.onCancel?.();
     }
+  }
+
+  private moveSelection(delta: number): void {
+    this.selectedIndex = Math.max(0, Math.min(this.items.length - 1, this.selectedIndex + delta));
   }
 
   invalidate(): void {}
@@ -229,65 +317,69 @@ async function showSelectDialog(
   ctx: ExtensionCommandContext,
   options: SelectDialogOptions,
 ): Promise<string | undefined> {
-  const result = await ctx.ui.custom<string | null>(
-    (tui, theme, keybindings, done) => {
-      const container = new Container();
-      const title = new Text("", 1, 0);
-      const subtitle = new Text("", 1, 0);
-      const hint = new Text("", 1, 0);
-      const updateText = () => {
-        title.setText(theme.fg("accent", theme.bold(`◆ ${options.title}`)));
-        subtitle.setText(theme.fg("muted", options.subtitle));
-        hint.setText(theme.fg("dim", "↑↓ navigate · enter select · esc cancel"));
-      };
-      updateText();
+  let mouseTerminal: WritableTerminal | undefined;
+  try {
+    const result = await ctx.ui.custom<string | null>(
+      (tui, theme, keybindings, done) => {
+        mouseTerminal = enableMouseScroll(tui);
+        const container = new Container();
+        const title = new Text("", 1, 0);
+        const subtitle = new Text("", 1, 0);
+        const hint = new Text("", 1, 0);
+        const updateText = () => {
+          title.setText(theme.fg("accent", theme.bold(`◆ ${options.title}`)));
+          subtitle.setText(theme.fg("muted", options.subtitle));
+          hint.setText(theme.fg("dim", "wheel/↑↓ · PgUp/PgDn · Home/End · enter select · esc cancel"));
+        };
+        updateText();
 
-      const list = new WrappedSelectList(
-        options.items,
-        Math.min(options.items.length, options.maxVisible),
-        theme,
-        keybindings,
-        {
-          selectedLabelMaxLines: options.selectedLabelMaxLines,
-          selectedDescriptionMaxLines: options.selectedDescriptionMaxLines,
-        },
-      );
-      list.onSelect = (item) => done(item.value);
-      list.onCancel = () => done(null);
+        const list = new WrappedSelectList(
+          options.items,
+          Math.min(options.items.length, options.maxVisible),
+          theme,
+          keybindings,
+          {
+            selectedLabelMaxLines: options.selectedLabelMaxLines,
+            selectedDescriptionMaxLines: options.selectedDescriptionMaxLines,
+          },
+        );
+        list.onSelect = (item) => done(item.value);
+        list.onCancel = () => done(null);
 
-      container.addChild(title);
-      container.addChild(subtitle);
-      container.addChild(list);
-      container.addChild(hint);
+        container.addChild(title);
+        container.addChild(subtitle);
+        container.addChild(list);
+        container.addChild(hint);
 
-      return {
-        render(width: number) {
-          return renderModalFrame(container, theme, width);
-        },
-        invalidate() {
-          updateText();
-          container.invalidate();
-        },
-        handleInput(data: string) {
-          list.handleInput(data);
-          tui.requestRender();
-        },
-      };
-    },
-    {
-      overlay: true,
-      overlayOptions: {
-        anchor: "center",
-        width: options.width,
-        maxHeight: Math.min(
-          options.maxVisible + options.selectedLabelMaxLines + options.selectedDescriptionMaxLines + 7,
-          24,
-        ),
-        margin: 1,
+        return {
+          render(width: number) {
+            return renderModalFrame(container, theme, width);
+          },
+          invalidate() {
+            updateText();
+            container.invalidate();
+          },
+          handleInput(data: string) {
+            list.handleInput(data);
+            tui.requestRender();
+          },
+        };
       },
-    },
-  );
-  return result ?? undefined;
+      {
+        overlay: true,
+        overlayOptions: {
+          anchor: "center",
+          width: options.width,
+          minWidth: options.minWidth,
+          maxHeight: "88%",
+          margin: 1,
+        },
+      },
+    );
+    return result ?? undefined;
+  } finally {
+    disableMouseScroll(mouseTerminal);
+  }
 }
 
 export async function showDeveloperActionSelector(
@@ -298,10 +390,11 @@ export async function showDeveloperActionSelector(
     title: "Developer control",
     subtitle: `Current · ${modeName(state.mode)} · ${protocolState(state)}`,
     items: developerActionItems(state),
-    width: 78,
+    width: "84%",
+    minWidth: 78,
     maxVisible: 6,
-    selectedLabelMaxLines: 2,
-    selectedDescriptionMaxLines: 2,
+    selectedLabelMaxLines: 3,
+    selectedDescriptionMaxLines: 3,
   });
   if (result === "status" || result === "questions" || result === "on" || result === "strict" || result === "off") {
     return result;
@@ -309,19 +402,20 @@ export async function showDeveloperActionSelector(
   return undefined;
 }
 
-export async function showPendingQuestionSelector(
+export function showPendingQuestionSelector(
   ctx: ExtensionCommandContext,
   questions: PendingQuestion[],
 ): Promise<string | undefined> {
-  if (questions.length === 0) return undefined;
+  if (questions.length === 0) return Promise.resolve(undefined);
   return showSelectDialog(ctx, {
-    title: "Revisit an open Developer question",
-    subtitle: "Selection prepares an editable prompt; protocol state changes only after the route is judged",
+    title: "Resolve an open Developer question",
+    subtitle: "Enter opens an answer/evidence editor; the question closes after a resolved or not-applicable judgment",
     items: pendingQuestionItems(questions),
-    width: 96,
+    width: "92%",
+    minWidth: 88,
     maxVisible: 10,
     selectedLabelMaxLines: 5,
-    selectedDescriptionMaxLines: 1,
+    selectedDescriptionMaxLines: 3,
   });
 }
 
@@ -346,9 +440,10 @@ export class DeveloperWidget {
       );
     }
     for (const question of this.state.pendingQuestions.slice(0, 3)) {
+      const label = question.resolutionOwner === "user" ? "? answer" : "? evidence";
       lines.push(
         truncateToWidth(
-          `${this.theme.fg(question.status === "blocked" ? "error" : "warning", "? open")} ${this.theme.fg("dim", "·")} ${this.theme.fg("muted", question.question)}`,
+          `${this.theme.fg(question.status === "blocked" ? "error" : "warning", label)} ${this.theme.fg("dim", `· ${question.gate} ·`)} ${this.theme.fg("muted", question.question)}`,
           width,
           "…",
         ),
@@ -359,6 +454,9 @@ export class DeveloperWidget {
     }
     if (this.state.implementationFramingRequired) {
       lines.push(this.theme.fg("warning", "→ next · sketch feature shape or signal structural movement"));
+    }
+    if (this.state.rerouteRequired) {
+      lines.push(this.theme.fg("warning", "→ next · reroute from the latest direct landing"));
     }
     if (this.state.verificationRequired) {
       lines.push(this.theme.fg("warning", "→ next · verify changed artifacts before completion"));
@@ -404,12 +502,22 @@ export class DeveloperStatusPanel {
       this.onClose();
       return;
     }
-    if (matchesKey(data, "up")) this.scrollOffset = Math.max(0, this.scrollOffset - 1);
-    else if (matchesKey(data, "down")) {
-      this.scrollOffset = Math.min(this.maxScrollOffset, this.scrollOffset + 1);
-    } else return;
+    const wheelDirection = mouseWheelDirection(data);
+    const pageSize = Math.max(1, this.viewportHeight - 6);
+    if (wheelDirection !== undefined) this.moveScroll(wheelDirection * 3);
+    else if (matchesKey(data, "up")) this.moveScroll(-1);
+    else if (matchesKey(data, "down")) this.moveScroll(1);
+    else if (matchesKey(data, "pageUp")) this.moveScroll(-pageSize);
+    else if (matchesKey(data, "pageDown")) this.moveScroll(pageSize);
+    else if (matchesKey(data, "home")) this.scrollOffset = 0;
+    else if (matchesKey(data, "end")) this.scrollOffset = this.maxScrollOffset;
+    else return;
     this.invalidate();
     this.requestRender();
+  }
+
+  private moveScroll(delta: number): void {
+    this.scrollOffset = Math.max(0, Math.min(this.maxScrollOffset, this.scrollOffset + delta));
   }
 
   render(width: number): string[] {
@@ -471,11 +579,12 @@ export class DeveloperStatusPanel {
     } else {
       for (const question of state.pendingQuestions.slice(0, 4)) {
         addWrapped(
-          question.status === "blocked" ? "blocked" : "needs evidence",
+          `${question.status} · ${question.resolutionOwner} · ${question.gate}`,
           question.question,
           question.status === "blocked" ? "error" : "warning",
           2,
         );
+        addWrapped("resolves when", question.resolutionCriteria, "dim", 2);
       }
       if (state.pendingQuestions.length > 4) {
         addWrapped("more", `${state.pendingQuestions.length - 4} additional open questions`, "dim", 1);
@@ -483,29 +592,30 @@ export class DeveloperStatusPanel {
     }
 
     rows.push(row());
-    section("Last judgment");
-    if (state.lastJudgment) {
-      addWrapped(
-        "status",
-        state.lastJudgment.status,
-        protocolColor(
-          state.lastJudgment.status === "blocked"
-            ? "blocked"
-            : state.lastJudgment.status === "needs-evidence"
-              ? "needs-evidence"
-              : "idle",
-        ),
-        1,
-      );
-      addWrapped("result", state.lastJudgment.result, "muted", 3);
-      addWrapped(
-        "evidence",
-        `${state.lastJudgment.basis.length} basis · ${state.lastJudgment.artifacts.length} artifacts`,
-        "dim",
-        1,
-      );
-    } else {
+    section(`Judgment history · ${state.judgmentHistory.length}`);
+    if (state.judgmentHistory.length === 0) {
       addWrapped("state", "No judgment has been recorded on this branch.", "dim", 2);
+    } else {
+      const recentJudgments = state.judgmentHistory.slice(-10).toReversed();
+      for (const judgment of recentJudgments) {
+        const route = state.routeHistory.find((candidate) => candidate.routeId === judgment.routeId);
+        addWrapped(
+          `${judgment.owner} ${judgment.status}`,
+          `${judgment.question} → ${judgmentSummary(judgment.result)}`,
+          judgmentColor(judgment.status),
+          3,
+        );
+        if (route) addWrapped("route reason", route.reason, "dim", 2);
+        for (const alternative of route?.consideredAlternatives ?? []) {
+          addWrapped(`considered ${alternative.owner}`, alternative.reason, "dim", 2);
+        }
+        for (const update of judgment.questionUpdates ?? []) {
+          addWrapped(`question ${update.status}`, `${update.questionId} → ${update.result}`, "accent", 2);
+        }
+      }
+      if (state.judgmentHistory.length > recentJudgments.length) {
+        addWrapped("earlier", `${state.judgmentHistory.length - recentJudgments.length} earlier judgments`, "dim", 1);
+      }
     }
 
     rows.push(row());
@@ -523,9 +633,10 @@ export class DeveloperStatusPanel {
     this.maxScrollOffset = Math.max(0, body.length - bodyCapacity);
     this.scrollOffset = Math.min(this.scrollOffset, this.maxScrollOffset);
     const visibleBody = body.slice(this.scrollOffset, this.scrollOffset + bodyCapacity);
+    while (visibleBody.length < bodyCapacity) visibleBody.push(row());
     const position =
       body.length > bodyCapacity
-        ? `↑↓ scroll · ${this.scrollOffset + 1}–${Math.min(body.length, this.scrollOffset + bodyCapacity)}/${body.length} · enter/esc close`
+        ? `wheel/↑↓ · PgUp/PgDn · Home/End · ${this.scrollOffset + 1}–${Math.min(body.length, this.scrollOffset + bodyCapacity)}/${body.length} · enter/esc close`
         : "enter/esc close · /develop questions revisits open work";
     const visibleRows = [
       ...header,
@@ -546,27 +657,55 @@ export class DeveloperStatusPanel {
 }
 
 export async function showDeveloperStatus(ctx: ExtensionCommandContext, view: DeveloperStatusView): Promise<void> {
-  await ctx.ui.custom<void>(
-    (tui, theme, _keybindings, done) =>
-      new DeveloperStatusPanel(view, theme, () => done(), {
-        viewportHeight: Math.max(6, Math.min(28, tui.terminal.rows - 2)),
-        requestRender: () => tui.requestRender(),
-      }),
-    {
-      overlay: true,
-      overlayOptions: {
-        anchor: "center",
-        width: 92,
-        minWidth: 56,
-        maxHeight: 28,
-        margin: 1,
+  let mouseTerminal: WritableTerminal | undefined;
+  try {
+    await ctx.ui.custom<void>(
+      (tui, theme, _keybindings, done) => {
+        mouseTerminal = enableMouseScroll(tui);
+        return new DeveloperStatusPanel(view, theme, () => done(), {
+          viewportHeight: Math.max(10, Math.min(36, Math.floor(tui.terminal.rows * 0.88))),
+          requestRender: () => tui.requestRender(),
+        });
       },
-    },
-  );
+      {
+        overlay: true,
+        overlayOptions: {
+          anchor: "center",
+          width: "90%",
+          minWidth: 72,
+          maxHeight: "88%",
+          margin: 1,
+        },
+      },
+    );
+  } finally {
+    disableMouseScroll(mouseTerminal);
+  }
 }
 
-export function prepareQuestionPrompt(ctx: ExtensionCommandContext, question: PendingQuestion): void {
-  const prompt = `Revisit this Developer question: ${question.question}`;
+export function questionResolutionPrompt(question: PendingQuestion): string {
+  const requestLabel = resolutionRequestLabel(question.resolutionOwner);
+  return [
+    "Resolve this open Developer question.",
+    "",
+    `Question: ${question.question}`,
+    `Resolution owner: ${question.resolutionOwner}`,
+    `Gate: ${question.gate}`,
+    `Resolution criteria: ${question.resolutionCriteria}`,
+    "",
+    requestLabel,
+    "",
+    "Use the supplied answer as new evidence, or investigate with available tools when the owner is agent.",
+    "Route the focused question, then record resolved/not-applicable with question_updates when it is settled; otherwise retain it with the specific remaining evidence gap.",
+  ].join("\n");
+}
+
+export function editQuestionResolutionRequest(
+  ctx: ExtensionCommandContext,
+  question: PendingQuestion,
+): Promise<string | undefined> {
   const current = ctx.ui.getEditorText();
-  ctx.ui.setEditorText(current.trim() ? `${current.trimEnd()}\n\n${prompt}` : prompt);
+  const request = questionResolutionPrompt(question);
+  const initial = current.trim() ? `${current.trimEnd()}\n\n${request}` : request;
+  return ctx.ui.editor("Answer or investigate the selected Developer question", initial);
 }

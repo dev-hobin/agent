@@ -30,9 +30,12 @@ observation with no proposed movement does not need the reference.
 ## Output
 
 Lead with the observed code or product pressure; keep signal labels secondary.
-Produce a judgment of `no-signal`, `horizontal`, `vertical`, or `ambiguous`,
-with confidence, evidence, selected comparison, smallest meaningful difference,
-smallest behavior-preserving movement, model-code mismatch, and a concrete
+Make the comparison visible. For two or more artifacts, use a table with
+`Artifact`, `Same responsibility`, `Smallest difference`, and `Evidence`; then
+show the proposed behavior-preserving movement as a compact before/after code
+snippet or ASCII relation map when code or boundaries are involved. Finish with
+a one-line classification card containing `no-signal`, `horizontal`, `vertical`,
+or `ambiguous` plus confidence. Include model-code mismatch and a concrete
 review candidate only when vertical or ambiguous. When used inside a larger
 task, return:
 

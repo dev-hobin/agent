@@ -21,9 +21,13 @@ What adversarial evidence would expose the target's real failure modes?
 ## Output
 
 Lead with the target claim and observed failure mode; keep eval labels secondary.
-Produce target provenance, claims and risk model, an escalating fixture ladder,
-execution matrix, observed feedback, failure taxonomy, stop rule, and residual
-risks. When used inside a larger task, return:
+Render the escalation ladder as an ordered matrix with source/version,
+fixture, verifier, expected falsifier, mutation scope, and stop condition. After
+execution, append observations to the evidence table below and show round
+progression as a compact `smoke → visible → … → stop` line. Do not replace exact
+commands or fixture provenance with narrative summaries. Produce target
+provenance, claims and risk model, observed feedback, failure taxonomy, stop
+rule, and residual risks. When used inside a larger task, return:
 
 ```text
 Status: resolved | needs-evidence | not-applicable | blocked
