@@ -29,7 +29,10 @@ const route: RouteEvent = {
   consideredAlternatives: [],
 };
 
-const resolved = (active: RouteEvent, result = "Use a pure boundary conversion."): JudgmentEvent => ({
+const resolved = (
+  active: RouteEvent,
+  result = "Use a pure boundary conversion.",
+): JudgmentEvent => ({
   protocol: PROTOCOL,
   kind: "judgment",
   routeId: active.routeId,
@@ -80,6 +83,111 @@ test("reconstructs mode and protocol state from the active branch", () => {
   assert.deepEqual(state.pendingQuestions, []);
 });
 
+test("reconstructs optional pending-question context", () => {
+  const openQuestionJudgment: JudgmentEvent = {
+    ...resolved(route),
+    status: "needs-evidence",
+    openedQuestions: [
+      {
+        id: "question:context",
+        question: "Which empty-state policy should apply?",
+        context: "Choose one:\n- absent\n- explicitly cleared",
+        responseSpec: {
+          kind: "choice-form",
+          fields: [
+            {
+              id: "A",
+              prompt: "Choose the empty-state policy",
+              options: [
+                { value: "A1", label: "Absent" },
+                {
+                  value: "A2",
+                  label: "Explicitly cleared",
+                  detailPrompt: "Describe the clearing signal.",
+                },
+              ],
+            },
+          ],
+        },
+        status: "open",
+        resolutionOwner: "user",
+        gate: "before-direct",
+        resolutionCriteria: "The product owner selects one empty-state policy.",
+        sourceRouteId: route.routeId,
+      },
+    ],
+  };
+  const state = reconstructState([
+    toolEntry(ROUTE_TOOL, route),
+    toolEntry(JUDGMENT_TOOL, openQuestionJudgment),
+  ]);
+
+  assert.equal(state.pendingQuestions[0]?.context, "Choose one:\n- absent\n- explicitly cleared");
+  assert.deepEqual(state.pendingQuestions[0]?.responseSpec, {
+    kind: "choice-form",
+    fields: [
+      {
+        id: "A",
+        prompt: "Choose the empty-state policy",
+        description: undefined,
+        options: [
+          {
+            value: "A1",
+            label: "Absent",
+            description: undefined,
+            detailPrompt: undefined,
+          },
+          {
+            value: "A2",
+            label: "Explicitly cleared",
+            description: undefined,
+            detailPrompt: "Describe the clearing signal.",
+          },
+        ],
+      },
+    ],
+  });
+});
+
+test("malformed response specs fall back without dropping the pending question", () => {
+  const malformedJudgment = {
+    ...resolved(route),
+    status: "needs-evidence",
+    openedQuestions: [
+      {
+        id: "question:malformed-form",
+        question: "Which policy applies?",
+        status: "open",
+        resolutionOwner: "user",
+        gate: "before-direct",
+        resolutionCriteria: "The product owner selects a policy.",
+        sourceRouteId: route.routeId,
+        responseSpec: {
+          kind: "choice-form",
+          fields: [
+            {
+              id: "A",
+              prompt: "Choose",
+              options: [
+                { value: "same", label: "First" },
+                { value: "same", label: "Second" },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  };
+  const state = reconstructState([
+    toolEntry(ROUTE_TOOL, route),
+    toolEntry(JUDGMENT_TOOL, malformedJudgment),
+  ]);
+
+  assert.equal(state.pendingQuestions.length, 1);
+  assert.equal(state.pendingQuestions[0]?.id, "question:malformed-form");
+  assert.equal(state.pendingQuestions[0]?.responseSpec, undefined);
+});
+
 test("branch reconstruction ignores events from another branch", () => {
   const base = {
     type: "custom",
@@ -87,7 +195,12 @@ test("branch reconstruction ignores events from another branch", () => {
     data: { protocol: PROTOCOL, kind: "mode", mode: "strict" },
   };
   const firstBranch = reconstructState([base, toolEntry(ROUTE_TOOL, route)]);
-  const otherRoute = { ...route, routeId: "route:2", question: "Is this only a naming problem?", owner: "naming-judgment" };
+  const otherRoute = {
+    ...route,
+    routeId: "route:2",
+    question: "Is this only a naming problem?",
+    owner: "naming-judgment",
+  };
   const secondBranch = reconstructState([base, toolEntry(ROUTE_TOOL, otherRoute)]);
 
   assert.equal(firstBranch.activeRoute?.routeId, "route:1");
@@ -95,7 +208,11 @@ test("branch reconstruction ignores events from another branch", () => {
 });
 
 test("structured evidence questions replace the generic route question", () => {
-  let state = applyDeveloperEvent(initialState(), { protocol: PROTOCOL, kind: "mode", mode: "on" });
+  let state = applyDeveloperEvent(initialState(), {
+    protocol: PROTOCOL,
+    kind: "mode",
+    mode: "on",
+  });
   state = applyDeveloperEvent(state, route);
   state = applyDeveloperEvent(state, {
     ...resolved(route),
@@ -116,9 +233,10 @@ test("structured evidence questions replace the generic route question", () => {
   });
 
   assert.equal(protocolState(state), "needs-evidence");
-  assert.deepEqual(state.pendingQuestions.map((question) => question.id), [
-    "question:route:1:open:1",
-  ]);
+  assert.deepEqual(
+    state.pendingQuestions.map((question) => question.id),
+    ["question:route:1:open:1"],
+  );
 });
 
 test("a focused broad question is explicitly replaced by its actionable child", () => {
@@ -173,11 +291,18 @@ test("a focused broad question is explicitly replaced by its actionable child", 
     ],
   });
 
-  assert.deepEqual(state.pendingQuestions.map((question) => question.id), ["question:narrow-viewport"]);
+  assert.deepEqual(
+    state.pendingQuestions.map((question) => question.id),
+    ["question:narrow-viewport"],
+  );
 });
 
 test("duplicate open-question wording keeps one stable question identity", () => {
-  let state = applyDeveloperEvent(initialState(), { protocol: PROTOCOL, kind: "mode", mode: "on" });
+  let state = applyDeveloperEvent(initialState(), {
+    protocol: PROTOCOL,
+    kind: "mode",
+    mode: "on",
+  });
   state = applyDeveloperEvent(state, route);
   state = applyDeveloperEvent(state, {
     ...resolved(route),
@@ -211,7 +336,11 @@ test("duplicate open-question wording keeps one stable question identity", () =>
 });
 
 test("an unrelated implementation judgment can naturally resolve an existing agent question", () => {
-  let state = applyDeveloperEvent(initialState(), { protocol: PROTOCOL, kind: "mode", mode: "on" });
+  let state = applyDeveloperEvent(initialState(), {
+    protocol: PROTOCOL,
+    kind: "mode",
+    mode: "on",
+  });
   state = applyDeveloperEvent(state, route);
   state = applyDeveloperEvent(state, {
     ...resolved(route),
@@ -279,7 +408,11 @@ test("a user-owned before-direct question is visibly blocking", () => {
 });
 
 test("a later route resolves a pending question by ID instead of text matching", () => {
-  let state = applyDeveloperEvent(initialState(), { protocol: PROTOCOL, kind: "mode", mode: "on" });
+  let state = applyDeveloperEvent(initialState(), {
+    protocol: PROTOCOL,
+    kind: "mode",
+    mode: "on",
+  });
   state = applyDeveloperEvent(state, route);
   state = applyDeveloperEvent(state, {
     ...resolved(route),
@@ -311,7 +444,11 @@ test("a later route resolves a pending question by ID instead of text matching",
 });
 
 test("an unrelated resolved route cannot hide an existing blocker", () => {
-  let state = applyDeveloperEvent(initialState(), { protocol: PROTOCOL, kind: "mode", mode: "on" });
+  let state = applyDeveloperEvent(initialState(), {
+    protocol: PROTOCOL,
+    kind: "mode",
+    mode: "on",
+  });
   state = applyDeveloperEvent(state, route);
   state = applyDeveloperEvent(state, {
     ...resolved(route),
@@ -319,7 +456,12 @@ test("an unrelated resolved route cannot hide an existing blocker", () => {
     result: "Product policy is missing.",
     openedQuestions: [],
   });
-  const unrelated = { ...route, routeId: "route:unrelated", question: "Is this variable named well?", owner: "naming-judgment" };
+  const unrelated = {
+    ...route,
+    routeId: "route:unrelated",
+    question: "Is this variable named well?",
+    owner: "naming-judgment",
+  };
   state = applyDeveloperEvent(state, unrelated);
   state = applyDeveloperEvent(state, resolved(unrelated, "The name preserves domain meaning."));
 
@@ -342,7 +484,10 @@ test("resolved model work requires sketch or signal framing before implementatio
 test("a changed direct landing requires a later resolved verify judgment", () => {
   const directRoute = { ...route, owner: "direct" };
   let state = applyDeveloperEvent(initialState(), directRoute);
-  state = applyDeveloperEvent(state, { ...resolved(directRoute), changedArtifacts: true });
+  state = applyDeveloperEvent(state, {
+    ...resolved(directRoute),
+    changedArtifacts: true,
+  });
   assert.equal(state.verificationRequired, true);
   assert.equal(state.rerouteRequired, true);
   assert.equal(protocolState(state), "needs-routing");
@@ -356,7 +501,11 @@ test("a changed direct landing requires a later resolved verify judgment", () =>
 });
 
 test("before-completion questions keep verification debt until their criteria are resolved", () => {
-  const questionRoute = { ...route, routeId: "route:completion-question", owner: "specify" };
+  const questionRoute = {
+    ...route,
+    routeId: "route:completion-question",
+    owner: "specify",
+  };
   let state = applyDeveloperEvent(initialState(), questionRoute);
   state = applyDeveloperEvent(state, {
     ...resolved(questionRoute),
@@ -378,14 +527,25 @@ test("before-completion questions keep verification debt until their criteria ar
 
   const directRoute = { ...route, routeId: "route:changed", owner: "direct" };
   state = applyDeveloperEvent(state, directRoute);
-  state = applyDeveloperEvent(state, { ...resolved(directRoute), changedArtifacts: true });
-  const firstVerify = { ...route, routeId: "route:verify-before-acceptance", owner: "verify" };
+  state = applyDeveloperEvent(state, {
+    ...resolved(directRoute),
+    changedArtifacts: true,
+  });
+  const firstVerify = {
+    ...route,
+    routeId: "route:verify-before-acceptance",
+    owner: "verify",
+  };
   state = applyDeveloperEvent(state, firstVerify);
   state = applyDeveloperEvent(state, resolved(firstVerify));
   assert.equal(state.verificationRequired, true);
   assert.equal(protocolState(state), "needs-answer");
 
-  const finalVerify = { ...route, routeId: "route:verify-after-acceptance", owner: "verify" };
+  const finalVerify = {
+    ...route,
+    routeId: "route:verify-after-acceptance",
+    owner: "verify",
+  };
   state = applyDeveloperEvent(state, finalVerify);
   state = applyDeveloperEvent(state, {
     ...resolved(finalVerify),
@@ -452,7 +612,11 @@ test("replays v3 pending questions with conservative owner and gate defaults", (
 test("reconstructs legacy v1 entries without reviving accepted or verified claims", () => {
   const legacyRoute = { ...route, protocol: LEGACY_PROTOCOL };
   const state = reconstructState([
-    { type: "custom", customType: MODE_ENTRY, data: { protocol: LEGACY_PROTOCOL, kind: "mode", mode: "on" } },
+    {
+      type: "custom",
+      customType: MODE_ENTRY,
+      data: { protocol: LEGACY_PROTOCOL, kind: "mode", mode: "on" },
+    },
     toolEntry(LEGACY_ROUTE_TOOL, legacyRoute),
     toolEntry(LEGACY_JUDGMENT_TOOL, {
       protocol: LEGACY_PROTOCOL,
@@ -481,8 +645,16 @@ test("ignores matching-looking details emitted by another tool", () => {
 
 test("ignores malformed Developer events instead of crashing branch replay", () => {
   const state = reconstructState([
-    toolEntry(ROUTE_TOOL, { protocol: PROTOCOL, kind: "route", routeId: "broken" }),
-    toolEntry(JUDGMENT_TOOL, { protocol: PROTOCOL, kind: "judgment", openedQuestions: "not-an-array" }),
+    toolEntry(ROUTE_TOOL, {
+      protocol: PROTOCOL,
+      kind: "route",
+      routeId: "broken",
+    }),
+    toolEntry(JUDGMENT_TOOL, {
+      protocol: PROTOCOL,
+      kind: "judgment",
+      openedQuestions: "not-an-array",
+    }),
   ]);
   assert.equal(state.activeRoute, undefined);
   assert.equal(state.lastJudgment, undefined);
@@ -498,7 +670,10 @@ test("replays valid direct execution profiles and rejects malformed ones", () =>
   assert.equal(valid.activeRoute?.executionProfile, "behavior-preserving-structure");
 
   const invalid = reconstructState([
-    toolEntry(ROUTE_TOOL, { ...directRoute, executionProfile: "invented-profile" }),
+    toolEntry(ROUTE_TOOL, {
+      ...directRoute,
+      executionProfile: "invented-profile",
+    }),
   ]);
   assert.equal(invalid.activeRoute, undefined);
 });

@@ -11,6 +11,7 @@ import {
   developerActionItems,
   editQuestionResolutionRequest,
   pendingQuestionItems,
+  promptImmediateUserQuestion,
   questionResolutionPrompt,
   renderDeveloperFooter,
   showDeveloperActionSelector,
@@ -23,7 +24,10 @@ interface InteractiveTestComponent extends Component {
 }
 
 type TestComponentFactory = (
-  tui: { requestRender(): void; terminal?: { rows: number; write(data: string): void } },
+  tui: {
+    requestRender(): void;
+    terminal?: { rows: number; write(data: string): void };
+  },
   theme: Theme,
   keybindings: unknown,
   done: (value: unknown) => void,
@@ -61,6 +65,40 @@ const openQuestion: PendingQuestion = {
   gate: "none",
   resolutionCriteria: "Observe the rendered browser state.",
   sourceRouteId: "route:earlier",
+};
+
+const choiceQuestion: PendingQuestion = {
+  ...openQuestion,
+  id: "question:product-controls",
+  question: "Which controls should be exposed?",
+  resolutionOwner: "user",
+  gate: "before-direct",
+  resolutionCriteria: "The product owner selects every control policy.",
+  responseSpec: {
+    kind: "choice-form",
+    fields: [
+      {
+        id: "A",
+        prompt: "Choose the mobile-view policy",
+        options: [
+          { value: "A1", label: "Expose all" },
+          {
+            value: "A2",
+            label: "Expose selected components",
+            detailPrompt: "List the selected component types.",
+          },
+        ],
+      },
+      {
+        id: "B1",
+        prompt: "Expose the catalog icon control?",
+        options: [
+          { value: "show", label: "Expose" },
+          { value: "hide", label: "Hide" },
+        ],
+      },
+    ],
+  },
 };
 
 function activeState(): DeveloperState {
@@ -118,9 +156,15 @@ test("Developer assigns footer, widget, action list, and pending list distinct i
   assert.ok(widgetLines.every((line) => visibleWidth(line) <= 64));
 
   const actions = developerActionItems(state);
-  assert.deepEqual(actions.map((item) => item.value), ["status", "questions", "on", "strict", "off"]);
+  assert.deepEqual(
+    actions.map((item) => item.value),
+    ["status", openQuestion.id, "on", "strict", "off"],
+  );
   assert.match(actions.find((item) => item.value === "strict")?.label ?? "", /active/);
-  assert.match(actions.find((item) => item.value === "questions")?.description ?? "", /1 unresolved/);
+  assert.match(
+    actions.find((item) => item.value === openQuestion.id)?.description ?? "",
+    /ask Pi to investigate/,
+  );
 
   const questions = pendingQuestionItems(state.pendingQuestions);
   assert.equal(questions[0]?.value, openQuestion.id);
@@ -129,11 +173,23 @@ test("Developer assigns footer, widget, action list, and pending list distinct i
   assert.match(questions[0]?.description ?? "", /ask Pi to investigate/);
 });
 
+test("implementation framing is rendered as a direct gate rather than a next-step prediction", () => {
+  const state = { ...activeState(), implementationFramingRequired: true };
+  const widgetLines = new DeveloperWidget(state, theme).render(100);
+
+  assert.ok(widgetLines.includes("◇ gate · frame implementation before direct (sketch or signal)"));
+  assert.equal(
+    widgetLines.some((line) => line.includes("next · sketch")),
+    false,
+  );
+});
+
 test("pending question UI distinguishes agent evidence from required user answers", () => {
   const userQuestion: PendingQuestion = {
     ...openQuestion,
     id: "question:user-decision",
     question: "Should empty mean absent or cleared?",
+    context: "Choose one:\n- A1: absent\n- A2: explicitly cleared",
     resolutionOwner: "user",
     gate: "before-direct",
     resolutionCriteria: "The product owner chooses absent or cleared.",
@@ -142,8 +198,167 @@ test("pending question UI distinguishes agent evidence from required user answer
   assert.match(description, /user · before-direct/);
   assert.match(description, /required answer/);
   const prompt = questionResolutionPrompt(userQuestion);
+  assert.match(
+    prompt,
+    /Decision or evidence context:\nChoose one:\n- A1: absent\n- A2: explicitly cleared/,
+  );
   assert.match(prompt, /Required answer or product decision:/);
   assert.match(prompt, /Gate: before-direct/);
+});
+
+test("a new blocking user question can be answered immediately", async () => {
+  let editorInitial = "";
+  let overlayOptions: unknown;
+  const question: PendingQuestion = {
+    ...openQuestion,
+    question: "Should empty mean absent or cleared?",
+    context: "Choose one:\n- A1: absent\n- A2: explicitly cleared",
+    resolutionOwner: "user",
+    gate: "before-direct",
+  };
+  const ctx = {
+    ui: {
+      async custom(_factory: TestComponentFactory, options: unknown) {
+        overlayOptions = options;
+        return "answer";
+      },
+      async editor(_title: string, initial: string) {
+        editorInitial = initial;
+        return `${initial}\nA1: absent`;
+      },
+      notify() {},
+    },
+  };
+
+  const disposition = await promptImmediateUserQuestion(ctx as never, question);
+
+  assert.equal(disposition.kind, "answer");
+  assert.match(disposition.kind === "answer" ? disposition.request : "", /A1: absent$/);
+  assert.match(editorInitial, /Decision or evidence context:\nChoose one:/);
+  assert.deepEqual(overlayOptions, {
+    overlay: true,
+    overlayOptions: {
+      anchor: "center",
+      width: "92%",
+      minWidth: 88,
+      maxHeight: "88%",
+      margin: 1,
+    },
+  });
+});
+
+test("choice response specs render field controls and submit exact structured answers", async () => {
+  let customCall = 0;
+  let editorInitial = "";
+  const renderedControls: string[] = [];
+  const ctx = {
+    ui: {
+      async custom(factory: TestComponentFactory) {
+        customCall += 1;
+        let selected: unknown;
+        const component = await factory({ requestRender() {} }, theme, keybindings, (value) => {
+          selected = value;
+        });
+        renderedControls.push(component.render(100).join("\n"));
+        if (customCall === 2) component.handleInput("\u001b[B");
+        component.handleInput("\r");
+        return selected;
+      },
+      async editor(_title: string, initial: string) {
+        editorInitial = initial;
+        return `${initial}\n카드그룹__타일, 특장점__슬라이드_탭`;
+      },
+      notify() {},
+    },
+  };
+
+  const disposition = await promptImmediateUserQuestion(ctx as never, choiceQuestion);
+
+  assert.equal(customCall, 4);
+  assert.match(renderedControls[1] ?? "", /A1 · Expose all/);
+  assert.match(renderedControls[1] ?? "", /A2 · Expose selected components/);
+  assert.match(renderedControls[2] ?? "", /show · Expose/);
+  assert.match(renderedControls[3] ?? "", /A · A2 — Expose selected components/);
+  assert.match(editorInitial, /List the selected component types/);
+  assert.equal(disposition.kind, "answer");
+  const request = disposition.kind === "answer" ? disposition.request : "";
+  assert.match(request, /Structured answer:/);
+  assert.match(request, /- A: A2 — Expose selected components/);
+  assert.match(request, /Detail: 카드그룹__타일, 특장점__슬라이드_탭/);
+  assert.match(request, /- B1: show — Expose/);
+  assert.doesNotMatch(request, /question:product-controls/);
+});
+
+test("structured answer navigation backs through fields, detail, review, and edits", async () => {
+  const selections: Array<string | undefined> = [
+    "A1",
+    undefined,
+    "A2",
+    "A2",
+    "hide",
+    "edit:0",
+    "A1",
+    undefined,
+    "show",
+    "submit",
+  ];
+  let customCalls = 0;
+  let editorCalls = 0;
+  const ctx = {
+    ui: {
+      async custom() {
+        customCalls += 1;
+        return selections.shift();
+      },
+      async editor(_title: string, initial: string) {
+        editorCalls += 1;
+        if (editorCalls === 1) return undefined;
+        return `${initial}\n카드그룹__타일`;
+      },
+      getEditorText() {
+        throw new Error("structured forms must not consume the freeform editor draft");
+      },
+      notify() {},
+    },
+  };
+
+  const request = await editQuestionResolutionRequest(ctx as never, choiceQuestion);
+
+  assert.equal(customCalls, 10);
+  assert.equal(editorCalls, 2);
+  assert.match(request ?? "", /- A: A1 — Expose all/);
+  assert.match(request ?? "", /- B1: show — Expose/);
+  assert.doesNotMatch(request ?? "", /Detail:/);
+});
+
+test("escape from the immediate answer editor returns to a deferable decision card", async () => {
+  const selections = ["answer", "defer"];
+  let customCalls = 0;
+  let editorCalls = 0;
+  const question: PendingQuestion = {
+    ...openQuestion,
+    resolutionOwner: "user",
+    gate: "before-direct",
+  };
+  const ctx = {
+    ui: {
+      async custom() {
+        customCalls += 1;
+        return selections.shift();
+      },
+      async editor() {
+        editorCalls += 1;
+        return undefined;
+      },
+      notify() {},
+    },
+  };
+
+  assert.deepEqual(await promptImmediateUserQuestion(ctx as never, question), {
+    kind: "defer",
+  });
+  assert.equal(customCalls, 2);
+  assert.equal(editorCalls, 1);
 });
 
 test("Developer control uses a stable, roomy selection overlay with inline wrapping", async () => {
@@ -155,9 +370,14 @@ test("Developer control uses a stable, roomy selection overlay with inline wrapp
       async custom(factory: TestComponentFactory, options: unknown) {
         overlayOptions = options;
         let selected: unknown;
-        const component = await factory({ requestRender() {} }, theme, keybindings, (value: unknown) => {
-          selected = value;
-        });
+        const component = await factory(
+          { requestRender() {} },
+          theme,
+          keybindings,
+          (value: unknown) => {
+            selected = value;
+          },
+        );
         rendered = component.render(78).join("\n");
         component.handleInput("\u001b[B");
         renderedAfterNavigation = component.render(78).join("\n");
@@ -168,9 +388,10 @@ test("Developer control uses a stable, roomy selection overlay with inline wrapp
   };
 
   const result = await showDeveloperActionSelector(ctx as never, activeState());
-  assert.equal(result, "questions");
+  assert.deepEqual(result, { kind: "question", questionId: openQuestion.id });
   assert.match(rendered, /Developer control/);
-  assert.match(rendered, /Revisit an open question/);
+  assert.match(rendered, /Which browser observation is still missing\?/);
+  assert.doesNotMatch(rendered, /Revisit an open question/);
   assert.match(rendered, /strict · needs-judgment · 1 open/);
   assert.doesNotMatch(rendered, /Selected detail|scroll detail/);
   const renderedLines = rendered.split("\n");
@@ -181,7 +402,13 @@ test("Developer control uses a stable, roomy selection overlay with inline wrapp
   assert.equal(renderedAfterNavigation.split("\n").length, renderedLines.length);
   assert.deepEqual(overlayOptions, {
     overlay: true,
-    overlayOptions: { anchor: "center", width: "84%", minWidth: 78, maxHeight: "88%", margin: 1 },
+    overlayOptions: {
+      anchor: "center",
+      width: "84%",
+      minWidth: 78,
+      maxHeight: "88%",
+      margin: 1,
+    },
   });
 });
 
@@ -196,9 +423,14 @@ test("pending selection wraps the selected question and returns its exact protoc
     ui: {
       async custom(factory: TestComponentFactory) {
         let selected: unknown;
-        const component = await factory({ requestRender() {} }, ansiTheme, keybindings, (value: unknown) => {
-          selected = value;
-        });
+        const component = await factory(
+          { requestRender() {} },
+          ansiTheme,
+          keybindings,
+          (value: unknown) => {
+            selected = value;
+          },
+        );
         rendered = component.render(52).join("\n");
         component.handleInput("\r");
         return selected;
@@ -219,11 +451,14 @@ test("pending selection wraps the selected question and returns its exact protoc
 test("selection modals support wheel, page, and jump navigation without leaking mouse tracking", async () => {
   const writes: string[] = [];
   let rendered = "";
-  const questions = Array.from({ length: 10 }, (_, index): PendingQuestion => ({
-    ...openQuestion,
-    id: `question:${index}`,
-    question: `Question ${index}`,
-  }));
+  const questions = Array.from(
+    { length: 10 },
+    (_, index): PendingQuestion => ({
+      ...openQuestion,
+      id: `question:${index}`,
+      question: `Question ${index}`,
+    }),
+  );
   const ctx = {
     ui: {
       async custom(factory: TestComponentFactory) {
@@ -325,10 +560,19 @@ test("status panel is bounded, branch-grounded, and keyboard dismissible", () =>
 test("status panel keeps a fixed height while scrolling so a centered modal does not move", () => {
   let renderRequests = 0;
   const panel = new DeveloperStatusPanel(
-    { state: activeState(), activeTools: ["read"], availableSkills: ["verify"] },
+    {
+      state: activeState(),
+      activeTools: ["read"],
+      availableSkills: ["verify"],
+    },
     theme,
     () => {},
-    { viewportHeight: 14, requestRender: () => { renderRequests += 1; } },
+    {
+      viewportHeight: 14,
+      requestRender: () => {
+        renderRequests += 1;
+      },
+    },
   );
   const initial = panel.render(72);
   panel.handleInput("\u001b[B");
@@ -368,7 +612,12 @@ test("Developer overlays do not paint full-panel backgrounds", async () => {
   const ctx = {
     ui: {
       async custom(factory: TestComponentFactory) {
-        const component = await factory({ requestRender() {} }, transparentTheme, keybindings, () => {});
+        const component = await factory(
+          { requestRender() {} },
+          transparentTheme,
+          keybindings,
+          () => {},
+        );
         component.render(78);
         return null;
       },
@@ -402,4 +651,5 @@ test("question resolution opens an answerable editor without exposing its intern
   assert.match(request ?? "", /The browser preserves the selected value/);
   assert.doesNotMatch(request ?? "", /question:route:earlier/);
   assert.doesNotMatch(questionResolutionPrompt(openQuestion), /question:route:earlier/);
+  assert.doesNotMatch(questionResolutionPrompt(openQuestion), /Decision or evidence context:/);
 });

@@ -129,12 +129,20 @@ Developer uses different Pi surfaces for different information:
 
 - The footer contains only global mode, protocol state, and current route target.
 - A compact widget appears only while a route or unresolved question exists.
-- `/develop` uses a `SelectList` action menu.
+- `/develop` uses a `SelectList` action menu that exposes pending questions directly instead of hiding them behind a second question menu.
 - `/develop status` opens a branch-grounded, read-only status panel with recent
   route/judgment history and the alternatives recorded for consecutive direct work.
-- `/develop questions` uses stable internal question IDs. Selecting one opens an
-  answer/evidence editor and submits the resulting resolution request to Pi;
-  cancelling the editor leaves protocol state unchanged.
+- `/develop questions` uses stable internal question IDs. A sole question opens
+  directly; multiple questions use one selector before the answer/evidence editor.
+  Editor Escape returns to the previous root or multi-question selector; a sole
+  direct editor closes because it has no parent selector. Cancelling leaves
+  protocol state unchanged, while submitting sends the resolution request to Pi.
+- A newly opened, answerable user question that gates direct work is pushed to the
+  TUI immediately. The user can answer now or leave it open. When the question
+  supplies a `choice-form` `responseSpec`, Answer now renders every required
+  decision as an individual option control, collects option-specific detail, and
+  provides a review/edit step before submission. The answer still requires a
+  focused judgment and explicit `question_updates` resolution.
 - Selection and status overlays use most of the terminal, keep a stable rendered
   height while navigating or scrolling, and remain bounded on small terminals.
   They support mouse-wheel/trackpad scrolling, arrow keys, Page Up/Down, and
@@ -170,13 +178,24 @@ question records:
 
 - `resolutionOwner`: `agent`, `user`, or `environment`;
 - `gate`: `none`, `before-direct`, or `before-completion`;
-- `resolutionCriteria`: the observable evidence or answer that closes it.
+- `resolutionCriteria`: the observable evidence or answer that closes it;
+- optional `context`: detailed Markdown choices, examples, or constraints shown
+  when the question is revisited without repeating that detail in every protocol prompt;
+- optional user-owned `responseSpec`: a bounded `choice-form` with required
+  single-choice fields and optional per-option detail prompts.
 
-Selecting `/develop questions` opens an owner-specific editor: user questions
-ask for the required decision, agent questions ask Pi to investigate, and
-environment questions request access or an external observation. Submitting the
-editor focuses the question in branch state; an explicit ID, focus, or exact
-question match associates the next route. Selection alone never closes it.
+A producer should use `response_spec` when a user must answer finite decisions
+such as A, B1–B4, C, and so on. Each decision becomes one field; the TUI does not
+infer controls by parsing Markdown. Options such as A3 or G3 that need additional
+input declare `detail_prompt`. Missing or malformed replay data falls back to the
+freeform editor without dropping the pending question.
+
+Selecting `/develop questions` opens structured controls when a valid user
+`responseSpec` exists. Otherwise it opens the owner-specific editor: user
+questions ask for the required decision, agent questions ask Pi to investigate,
+and environment questions request access or an external observation. Submitting
+focuses the question in branch state; an explicit ID, focus, or exact question
+match associates the next route. Selection alone never closes it.
 
 Every judgment rechecks all pending questions. `question_updates` can resolve an
 unfocused question when implementation, tests, inspection, user input, or an
@@ -189,6 +208,11 @@ routes and Pi built-in mutation tools even in adaptive mode. A
 `before-completion` question allows investigation and implementation but keeps
 the protocol non-idle and prevents verification debt from being cleared as a
 completion claim.
+
+A resolved or not-applicable judgment may preserve a distinct follow-up question:
+finishing the routed judgment does not imply that no later work was discovered.
+It may not reopen its own normalized question under a resolved status; that route
+must remain needs-evidence/blocked or explicitly refine a focused parent instead.
 
 When a judgment replaces a broad unresolved question with more specific evidence
 questions, only the actionable children remain. Equivalent question wording is

@@ -3,7 +3,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { initTheme, loadSkillsFromDir, type ExtensionAPI, type Skill } from "@earendil-works/pi-coding-agent";
+import {
+  initTheme,
+  loadSkillsFromDir,
+  type ExtensionAPI,
+  type Skill,
+} from "@earendil-works/pi-coding-agent";
 
 import developer from "../extensions/developer.ts";
 import { JUDGMENT_TOOL, ROUTE_TOOL } from "../extensions/state.ts";
@@ -27,7 +32,9 @@ function createHarness() {
   const confirmations: Array<{ title: string; message: string }> = [];
   const sentUserMessages: Array<{ content: string; options?: unknown }> = [];
   let customResult: unknown;
+  let customResults: unknown[] = [];
   let editorResult: string | undefined;
+  let editorResults: Array<string | undefined> = [];
   let confirmResult = true;
   let customCalls = 0;
   const customOptions: unknown[] = [];
@@ -63,13 +70,23 @@ function createHarness() {
         name,
         description: name,
         parameters: {},
-        sourceInfo: { path: `<builtin:${name}>`, source: "builtin", scope: "temporary", origin: "top-level" },
+        sourceInfo: {
+          path: `<builtin:${name}>`,
+          source: "builtin",
+          scope: "temporary",
+          origin: "top-level",
+        },
       }));
       const extensionTools = [...tools.values()].map((tool) => ({
         name: tool.name,
         description: tool.description,
         parameters: tool.parameters,
-        sourceInfo: { path: "/developer.ts", source: "/developer.ts", scope: "temporary", origin: "top-level" },
+        sourceInfo: {
+          path: "/developer.ts",
+          source: "/developer.ts",
+          scope: "temporary",
+          origin: "top-level",
+        },
       }));
       return [...builtins, ...extensionTools];
     },
@@ -96,10 +113,10 @@ function createHarness() {
     async custom(_factory: unknown, options: unknown) {
       customCalls += 1;
       customOptions.push(options);
-      return customResult;
+      return customResults.length > 0 ? customResults.shift() : customResult;
     },
     async editor() {
-      return editorResult;
+      return editorResults.length > 0 ? editorResults.shift() : editorResult;
     },
     getEditorText() {
       return editorText;
@@ -131,9 +148,17 @@ function createHarness() {
     },
     setCustomResult(value: unknown) {
       customResult = value;
+      customResults = [];
+    },
+    setCustomResults(values: unknown[]) {
+      customResults = [...values];
     },
     setEditorResult(value: string | undefined) {
       editorResult = value;
+      editorResults = [];
+    },
+    setEditorResults(values: Array<string | undefined>) {
+      editorResults = [...values];
     },
     customCalls: () => customCalls,
     customOptions,
@@ -169,7 +194,10 @@ function renderedText(component: { render(width: number): string[] }): string {
 async function startHarness(loadedSkills: Skill[] = loadedLeaves) {
   const harness = createHarness();
   await developer(harness.api);
-  await harness.emit("session_start", { type: "session_start", reason: "startup" });
+  await harness.emit("session_start", {
+    type: "session_start",
+    reason: "startup",
+  });
   await harness.commands.get("develop").handler("on", harness.ctx);
   await harness.emit("before_agent_start", {
     type: "before_agent_start",
@@ -183,11 +211,20 @@ async function startHarness(loadedSkills: Skill[] = loadedLeaves) {
 test("tool contract failures throw so Pi records them as errors", async () => {
   const harness = createHarness();
   await developer(harness.api);
-  await harness.emit("session_start", { type: "session_start", reason: "startup" });
+  await harness.emit("session_start", {
+    type: "session_start",
+    reason: "startup",
+  });
   const route = harness.tools.get(ROUTE_TOOL);
 
   await assert.rejects(
-    route.execute("off", { question: "Q", owner: "direct", reason: "R" }, undefined, undefined, harness.ctx),
+    route.execute(
+      "off",
+      { question: "Q", owner: "direct", reason: "R" },
+      undefined,
+      undefined,
+      harness.ctx,
+    ),
     /protocol is off/,
   );
 
@@ -200,18 +237,29 @@ test("tool contract failures throw so Pi records them as errors", async () => {
   });
   const opened = await route.execute(
     "valid",
-    { question: "What must be true?", owner: "specify", reason: "Product meaning is unclear" },
+    {
+      question: "What must be true?",
+      owner: "specify",
+      reason: "Product meaning is unclear",
+    },
     undefined,
     undefined,
     harness.ctx,
   );
   assert.match(opened.content[0].text.slice(0, 2_000), /Route ID: route:valid/);
   assert.match(opened.content[0].text.slice(0, 2_000), /developer_record_judgment/);
-  assert.match(opened.content[0].text, /<developer-method name="specify" location="[^"]+" base-dir="[^"]+">/);
+  assert.match(
+    opened.content[0].text,
+    /<developer-method name="specify" location="[^"]+" base-dir="[^"]+">/,
+  );
   await assert.rejects(
     route.execute(
       "overlap",
-      { question: "Can another route start?", owner: "direct", reason: "Testing route ownership" },
+      {
+        question: "Can another route start?",
+        owner: "direct",
+        reason: "Testing route ownership",
+      },
       undefined,
       undefined,
       harness.ctx,
@@ -223,7 +271,12 @@ test("tool contract failures throw so Pi records them as errors", async () => {
   await assert.rejects(
     judgment.execute(
       "wrong",
-      { route_id: "route:wrong", status: "resolved", result: "Done", basis: ["Evidence"] },
+      {
+        route_id: "route:wrong",
+        status: "resolved",
+        result: "Done",
+        basis: ["Evidence"],
+      },
       undefined,
       undefined,
       harness.ctx,
@@ -237,7 +290,11 @@ test("concurrent route attempts cannot overwrite a route that is still opening",
   const route = harness.tools.get(ROUTE_TOOL);
   const opening = route.execute(
     "opening",
-    { question: "What must be true?", owner: "specify", reason: "Product meaning is unclear" },
+    {
+      question: "What must be true?",
+      owner: "specify",
+      reason: "Product meaning is unclear",
+    },
     undefined,
     undefined,
     harness.ctx,
@@ -245,7 +302,11 @@ test("concurrent route attempts cannot overwrite a route that is still opening",
   await assert.rejects(
     route.execute(
       "overlap",
-      { question: "Can direct work start too?", owner: "direct", reason: "Testing concurrent ownership" },
+      {
+        question: "Can direct work start too?",
+        owner: "direct",
+        reason: "Testing concurrent ownership",
+      },
       undefined,
       undefined,
       harness.ctx,
@@ -262,7 +323,11 @@ test("oversized route output fails before protocol state is mutated", async () =
   await assert.rejects(
     route.execute(
       "oversized",
-      { question: "x".repeat(60_000), owner: "direct", reason: "The action is otherwise justified" },
+      {
+        question: "x".repeat(60_000),
+        owner: "direct",
+        reason: "The action is otherwise justified",
+      },
       undefined,
       undefined,
       harness.ctx,
@@ -272,7 +337,11 @@ test("oversized route output fails before protocol state is mutated", async () =
 
   const opened = await route.execute(
     "after-oversized",
-    { question: "Can a valid route still open?", owner: "direct", reason: "The failed result was atomic" },
+    {
+      question: "Can a valid route still open?",
+      owner: "direct",
+      reason: "The failed result was atomic",
+    },
     undefined,
     undefined,
     harness.ctx,
@@ -284,7 +353,11 @@ test("oversized judgment output leaves the active route available for a valid re
   const harness = await startHarness();
   const route = await harness.tools.get(ROUTE_TOOL).execute(
     "judgment-output",
-    { question: "Record a bounded result", owner: "direct", reason: "The local action is justified" },
+    {
+      question: "Record a bounded result",
+      owner: "direct",
+      reason: "The local action is justified",
+    },
     undefined,
     undefined,
     harness.ctx,
@@ -325,7 +398,11 @@ test("a judgment cannot commit an unbounded pending-question set", async () => {
   const harness = await startHarness();
   const route = await harness.tools.get(ROUTE_TOOL).execute(
     "pending-limit",
-    { question: "Which questions remain?", owner: "direct", reason: "The evidence has been inspected" },
+    {
+      question: "Which questions remain?",
+      owner: "direct",
+      reason: "The evidence has been inspected",
+    },
     undefined,
     undefined,
     harness.ctx,
@@ -371,7 +448,11 @@ test("a Pi-filtered leaf cannot be routed even though it exists in the package",
   await assert.rejects(
     harness.tools.get(ROUTE_TOOL).execute(
       "filtered",
-      { question: "What must be true?", owner: "specify", reason: "Need a contract" },
+      {
+        question: "What must be true?",
+        owner: "specify",
+        reason: "Need a contract",
+      },
       undefined,
       undefined,
       harness.ctx,
@@ -410,7 +491,10 @@ test("direct execution profiles load only the protocol selected for that action"
     structuralHarness.ctx,
   );
   assert.equal(structural.details.executionProfile, "behavior-preserving-structure");
-  assert.match(structural.content[0].text, /<developer-direct-profile name="behavior-preserving-structure">/);
+  assert.match(
+    structural.content[0].text,
+    /<developer-direct-profile name="behavior-preserving-structure">/,
+  );
   assert.match(structural.content[0].text, /## Smallest Green Transformation/);
   assert.match(structural.content[0].text, /## Stable Landing/);
   assert.match(structural.content[0].text, /99 Bottles of OOP/);
@@ -423,7 +507,9 @@ test("route schema exposes execution profiles only on the direct branch", async 
   assert.equal(schema.anyOf.length, 2);
 
   const skillBranch = schema.anyOf.find((branch: any) => branch.properties.owner.pattern);
-  const directBranch = schema.anyOf.find((branch: any) => branch.properties.owner.const === "direct");
+  const directBranch = schema.anyOf.find(
+    (branch: any) => branch.properties.owner.const === "direct",
+  );
   assert.ok(skillBranch);
   assert.ok(directBranch);
   assert.equal(skillBranch.additionalProperties, false);
@@ -434,10 +520,7 @@ test("route schema exposes execution profiles only on the direct branch", async 
   assert.ok(directBranch.required.includes("verification"));
   assert.ok(directBranch.properties.alternatives_considered);
   assert.equal(skillBranch.properties.alternatives_considered, undefined);
-  assert.equal(
-    directBranch.properties.execution_profile.const,
-    "behavior-preserving-structure",
-  );
+  assert.equal(directBranch.properties.execution_profile.const, "behavior-preserving-structure");
 });
 
 test("judgment schema classifies open questions and supports cross-route question updates", async () => {
@@ -448,9 +531,266 @@ test("judgment schema classifies open questions and supports cross-route questio
   assert.ok(openQuestion.required.includes("resolution_owner"));
   assert.ok(openQuestion.required.includes("gate"));
   assert.ok(openQuestion.required.includes("resolution_criteria"));
+  assert.equal(openQuestion.required.includes("context"), false);
+  assert.equal(openQuestion.properties.context.maxLength, 8_000);
+  assert.equal(openQuestion.required.includes("response_spec"), false);
+  assert.match(openQuestion.properties.response_spec.description, /finite user-owned decisions/);
+  assert.equal(openQuestion.properties.response_spec.properties.kind.const, "choice-form");
+  assert.equal(openQuestion.properties.response_spec.properties.fields.minItems, 1);
+  assert.equal(openQuestion.properties.response_spec.properties.fields.maxItems, 20);
+  assert.equal(
+    openQuestion.properties.response_spec.properties.fields.items.properties.options.minItems,
+    2,
+  );
   assert.deepEqual(openQuestion.properties.resolution_owner.enum, ["agent", "user", "environment"]);
-  assert.deepEqual(openQuestion.properties.gate.enum, ["none", "before-direct", "before-completion"]);
+  assert.deepEqual(openQuestion.properties.gate.enum, [
+    "none",
+    "before-direct",
+    "before-completion",
+  ]);
   assert.ok(schema.properties.question_updates.items.required.includes("question_id"));
+  assert.match(
+    harness.tools.get(JUDGMENT_TOOL).promptGuidelines.join("\n"),
+    /choice-form response_spec with one field per decision/,
+  );
+});
+
+test("choice response specs are canonicalized and invalid producer contracts do not mutate judgment state", async () => {
+  const harness = await startHarness();
+  const route = await harness.tools.get(ROUTE_TOOL).execute(
+    "choice-response-route",
+    {
+      question: "Which empty-state policy applies?",
+      owner: "specify",
+      reason: "The product owner must choose one explicit policy",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const openQuestion = {
+    question: "Should empty mean absent or explicitly cleared?",
+    status: "open" as const,
+    resolution_owner: "user" as const,
+    gate: "before-direct" as const,
+    resolution_criteria: "The product owner selects one policy.",
+    response_spec: {
+      kind: "choice-form" as const,
+      fields: [
+        {
+          id: "A",
+          prompt: "Choose the empty-state policy",
+          options: [
+            { value: "A1", label: "Absent" },
+            {
+              value: "A2",
+              label: "Explicitly cleared",
+              detail_prompt: "Describe the clearing signal.",
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const recorded = await harness.tools.get(JUDGMENT_TOOL).execute(
+    "choice-response-judgment",
+    {
+      route_id: route.details.routeId,
+      status: "needs-evidence",
+      result: "An explicit product decision is required.",
+      basis: [],
+      open_questions: [openQuestion],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+
+  assert.deepEqual(recorded.details.openedQuestions[0].responseSpec, {
+    kind: "choice-form",
+    fields: [
+      {
+        id: "A",
+        prompt: "Choose the empty-state policy",
+        description: undefined,
+        options: [
+          {
+            value: "A1",
+            label: "Absent",
+            description: undefined,
+            detailPrompt: undefined,
+          },
+          {
+            value: "A2",
+            label: "Explicitly cleared",
+            description: undefined,
+            detailPrompt: "Describe the clearing signal.",
+          },
+        ],
+      },
+    ],
+  });
+
+  const invalidHarness = await startHarness();
+  const invalidRoute = await invalidHarness.tools.get(ROUTE_TOOL).execute(
+    "invalid-choice-response-route",
+    {
+      question: "Can this structured question be recorded?",
+      owner: "specify",
+      reason: "The question contract must be validated before persistence",
+    },
+    undefined,
+    undefined,
+    invalidHarness.ctx,
+  );
+  const invalidParams = {
+    route_id: invalidRoute.details.routeId,
+    status: "needs-evidence",
+    result: "A user answer is required.",
+    basis: [],
+    open_questions: [
+      {
+        ...openQuestion,
+        response_spec: {
+          ...openQuestion.response_spec,
+          fields: [
+            {
+              ...openQuestion.response_spec.fields[0],
+              options: [
+                { value: "same", label: "First" },
+                { value: "same", label: "Second" },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  };
+  await assert.rejects(
+    invalidHarness.tools
+      .get(JUDGMENT_TOOL)
+      .execute("invalid-duplicate-values", invalidParams, undefined, undefined, invalidHarness.ctx),
+    /unique field IDs and unique option values/,
+  );
+  await assert.rejects(
+    invalidHarness.tools.get(JUDGMENT_TOOL).execute(
+      "invalid-non-user-spec",
+      {
+        ...invalidParams,
+        open_questions: [
+          {
+            ...openQuestion,
+            resolution_owner: "agent",
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      invalidHarness.ctx,
+    ),
+    /valid only for user-owned questions/,
+  );
+  assert.equal(
+    invalidHarness.entries.filter((entry) => entry.customType === JUDGMENT_TOOL).length,
+    0,
+  );
+});
+
+test("resolved and not-applicable judgments can preserve distinct follow-up questions", async () => {
+  const resolvedHarness = await startHarness();
+  const resolvedRoute = await resolvedHarness.tools.get(ROUTE_TOOL).execute(
+    "resolved-follow-up",
+    {
+      question: "Is the current conversion contract settled?",
+      owner: "specify",
+      reason: "The current contract and later migration work are separate judgments",
+    },
+    undefined,
+    undefined,
+    resolvedHarness.ctx,
+  );
+  const resolvedJudgment = await resolvedHarness.tools.get(JUDGMENT_TOOL).execute(
+    "resolved-follow-up-close",
+    {
+      route_id: resolvedRoute.details.routeId,
+      status: "resolved",
+      result: "The current conversion contract is settled.",
+      basis: ["Current callers agree on the contract."],
+      open_questions: [agentOpenQuestion("Which legacy migration should happen later?")],
+    },
+    undefined,
+    undefined,
+    resolvedHarness.ctx,
+  );
+
+  const notApplicableHarness = await startHarness();
+  const notApplicableRoute = await notApplicableHarness.tools.get(ROUTE_TOOL).execute(
+    "not-applicable-follow-up",
+    {
+      question: "Does the current conversion require a compatibility shim?",
+      owner: "specify",
+      reason: "The current shim and later migration work are separate judgments",
+    },
+    undefined,
+    undefined,
+    notApplicableHarness.ctx,
+  );
+  const notApplicableJudgment = await notApplicableHarness.tools.get(JUDGMENT_TOOL).execute(
+    "not-applicable-follow-up-close",
+    {
+      route_id: notApplicableRoute.details.routeId,
+      status: "not-applicable",
+      result: "The current conversion does not require a compatibility shim.",
+      basis: ["Current callers already use the accepted representation."],
+      open_questions: [agentOpenQuestion("Which legacy migration should happen later?")],
+    },
+    undefined,
+    undefined,
+    notApplicableHarness.ctx,
+  );
+
+  assert.equal(resolvedJudgment.details.status, "resolved");
+  assert.equal(notApplicableJudgment.details.status, "not-applicable");
+  assert.equal(
+    resolvedJudgment.details.openedQuestions[0].question,
+    "Which legacy migration should happen later?",
+  );
+  assert.equal(
+    notApplicableJudgment.details.openedQuestions[0].question,
+    "Which legacy migration should happen later?",
+  );
+});
+
+test("a resolved judgment cannot reopen its own question", async () => {
+  const harness = await startHarness();
+  const routed = await harness.tools.get(ROUTE_TOOL).execute(
+    "self-reopen",
+    {
+      question: "Can this conversion contract ship?",
+      owner: "verify",
+      reason: "The shipping claim is under review",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+
+  await assert.rejects(
+    harness.tools.get(JUDGMENT_TOOL).execute(
+      "self-reopen-close",
+      {
+        route_id: routed.details.routeId,
+        status: "resolved",
+        result: "The conversion contract can ship.",
+        basis: ["The contract tests pass."],
+        open_questions: [agentOpenQuestion("CAN this conversion contract ship?")],
+      },
+      undefined,
+      undefined,
+      harness.ctx,
+    ),
+    /cannot reopen its own question/,
+  );
 });
 
 test("skill routes reject direct execution profiles", async () => {
@@ -476,7 +816,10 @@ test("the protocol prompt lists only skills Pi made available", async () => {
   const specify = loadedLeaves.find((skill) => skill.name === "specify")!;
   const harness = createHarness();
   await developer(harness.api);
-  await harness.emit("session_start", { type: "session_start", reason: "startup" });
+  await harness.emit("session_start", {
+    type: "session_start",
+    reason: "startup",
+  });
   await harness.commands.get("develop").handler("on", harness.ctx);
   const result = await harness.emit("before_agent_start", {
     type: "before_agent_start",
@@ -486,6 +829,7 @@ test("the protocol prompt lists only skills Pi made available", async () => {
   });
 
   assert.match(result.systemPrompt, /Available Developer skills: specify\./);
+  assert.match(result.systemPrompt, /choice-form response_spec with one field per decision/);
   assert.doesNotMatch(result.systemPrompt, /Available Developer skills:.*model/);
 });
 
@@ -493,7 +837,11 @@ test("a later turn can recover the active leaf method from its canonical locatio
   const harness = await startHarness();
   await harness.tools.get(ROUTE_TOOL).execute(
     "recoverable",
-    { question: "What must be true?", owner: "specify", reason: "Product meaning is unclear" },
+    {
+      question: "What must be true?",
+      owner: "specify",
+      reason: "Product meaning is unclear",
+    },
     undefined,
     undefined,
     harness.ctx,
@@ -515,7 +863,11 @@ test("leaf routing remains adaptive rather than enforcing a phase order", async 
   const judgment = harness.tools.get(JUDGMENT_TOOL);
   const verifyFirst = await route.execute(
     "verify-first",
-    { question: "Does current evidence support the claim?", owner: "verify", reason: "A claim already exists" },
+    {
+      question: "Does current evidence support the claim?",
+      owner: "verify",
+      reason: "A claim already exists",
+    },
     undefined,
     undefined,
     harness.ctx,
@@ -534,7 +886,11 @@ test("leaf routing remains adaptive rather than enforcing a phase order", async 
   );
   const modelSecond = await route.execute(
     "model-second",
-    { question: "Which condition distinguishes absence from empty?", owner: "model", reason: "A new state question appeared" },
+    {
+      question: "Which condition distinguishes absence from empty?",
+      owner: "model",
+      reason: "A new state question appeared",
+    },
     undefined,
     undefined,
     harness.ctx,
@@ -571,6 +927,20 @@ test("resolved model work must pass through sketch or signal before direct mutat
     undefined,
     harness.ctx,
   );
+  const framingWidget = harness.widgets.at(-1)?.value as string[];
+  assert.ok(framingWidget.includes("gate · frame implementation before direct (sketch or signal)"));
+  assert.equal(
+    framingWidget.some((line) => line.startsWith("next · sketch")),
+    false,
+  );
+  const framingPrompt = await harness.emit("before_agent_start", {
+    type: "before_agent_start",
+    prompt: "test",
+    systemPrompt: "base",
+    systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+  });
+  assert.match(framingPrompt.systemPrompt, /Direct gate:/);
+  assert.doesNotMatch(framingPrompt.systemPrompt, /Required next framing/);
 
   await assert.rejects(
     route.execute(
@@ -646,7 +1016,11 @@ test("a changed direct landing creates verification debt", async () => {
     undefined,
     harness.ctx,
   );
-  await harness.emit("tool_call", { toolName: "edit", input: {}, toolCallId: "edit:1" });
+  await harness.emit("tool_call", {
+    toolName: "edit",
+    input: {},
+    toolCallId: "edit:1",
+  });
   const recorded = await harness.tools.get(JUDGMENT_TOOL).execute(
     "changed-direct-close",
     {
@@ -736,7 +1110,10 @@ test("implementation evidence can resolve an unfocused agent question through qu
   assert.equal(implemented.details.questionUpdates[0].questionId, questionId);
   harness.ctx.mode = "tui";
   await harness.commands.get("develop").handler("questions", harness.ctx);
-  assert.equal(harness.notifications.at(-1)?.message, "Developer has no open questions on the current branch.");
+  assert.equal(
+    harness.notifications.at(-1)?.message,
+    "Developer has no open questions on the current branch.",
+  );
 });
 
 test("consecutive direct routing records prior evidence and reconsidered skill routes without banning direct", async () => {
@@ -799,8 +1176,14 @@ test("consecutive direct routing records prior evidence and reconsidered skill r
       ...secondParams,
       known_evidence: ["The first boundary test passes and exposes one unchanged caller."],
       alternatives_considered: [
-        { owner: "verify", reason: "The narrow boundary check already settled the current landing claim." },
-        { owner: "signal", reason: "No new structural direction appeared; the caller update was already exposed." },
+        {
+          owner: "verify",
+          reason: "The narrow boundary check already settled the current landing claim.",
+        },
+        {
+          owner: "signal",
+          reason: "No new structural direction appeared; the caller update was already exposed.",
+        },
       ],
     },
     undefined,
@@ -808,10 +1191,10 @@ test("consecutive direct routing records prior evidence and reconsidered skill r
     harness.ctx,
   );
   assert.equal(second.details.owner, "direct");
-  assert.deepEqual(second.details.consideredAlternatives.map((item: { owner: string }) => item.owner), [
-    "verify",
-    "signal",
-  ]);
+  assert.deepEqual(
+    second.details.consideredAlternatives.map((item: { owner: string }) => item.owner),
+    ["verify", "signal"],
+  );
 });
 
 test("a user-owned before-direct question blocks routes and built-in mutation until resolved", async () => {
@@ -829,6 +1212,10 @@ test("a user-owned before-direct question blocks routes and built-in mutation un
     undefined,
     harness.ctx,
   );
+  harness.ctx.mode = "tui";
+  harness.setCustomResults(["answer", "absent", "submit"]);
+  const customCallsBeforeQuestion = harness.customCalls();
+  const entriesBeforeQuestion = harness.entries.length;
   const blocked = await judgment.execute(
     "decision-blocked",
     {
@@ -839,6 +1226,24 @@ test("a user-owned before-direct question blocks routes and built-in mutation un
       open_questions: [
         {
           question: "Should an empty schedule mean absent or explicitly cleared?",
+          context:
+            "Choose one:\n- absent: omit the value\n- cleared: persist an explicit empty value",
+          response_spec: {
+            kind: "choice-form",
+            fields: [
+              {
+                id: "A",
+                prompt: "Choose the empty-schedule meaning",
+                options: [
+                  { value: "absent", label: "Omit the value" },
+                  {
+                    value: "cleared",
+                    label: "Persist an explicit empty value",
+                  },
+                ],
+              },
+            ],
+          },
           status: "open",
           resolution_owner: "user",
           gate: "before-direct",
@@ -851,6 +1256,13 @@ test("a user-owned before-direct question blocks routes and built-in mutation un
     harness.ctx,
   );
   const questionId = blocked.details.openedQuestions[0].id;
+  assert.match(blocked.details.openedQuestions[0].context, /persist an explicit empty value/);
+  assert.equal(harness.customCalls(), customCallsBeforeQuestion + 3);
+  assert.equal(harness.entries.length, entriesBeforeQuestion);
+  assert.ok(blocked.content[0].text.includes(`Immediate user answer for ${questionId}`));
+  assert.match(blocked.content[0].text, /Structured answer:/);
+  assert.match(blocked.content[0].text, /- A: absent — Omit the value/);
+  assert.ok(blocked.content[0].text.includes(`open_question_id=${questionId}`));
 
   await assert.rejects(
     route.execute(
@@ -1035,7 +1447,11 @@ test("an agent before-direct question keeps a strict judgment evidence lane reac
   assert.equal(harness.activeTools().includes("bash"), true);
   assert.equal(harness.activeTools().includes("edit"), false);
   assert.equal(
-    await harness.emit("tool_call", { toolName: "bash", input: { command: "find . -type f" }, toolCallId: "bash:evidence" }),
+    await harness.emit("tool_call", {
+      toolName: "bash",
+      input: { command: "find . -type f" },
+      toolCallId: "bash:evidence",
+    }),
     undefined,
   );
   const blockedEdit = await harness.emit("tool_call", {
@@ -1100,6 +1516,7 @@ test("a before-completion question allows direct work but keeps completion evide
     undefined,
     harness.ctx,
   );
+  const customCallsBeforeAcceptance = harness.customCalls();
   const opened = await judgment.execute(
     "acceptance-open",
     {
@@ -1122,6 +1539,7 @@ test("a before-completion question allows direct work but keeps completion evide
     harness.ctx,
   );
   assert.equal(opened.details.openedQuestions[0].gate, "before-completion");
+  assert.equal(harness.customCalls(), customCallsBeforeAcceptance);
 
   const direct = await route.execute(
     "allowed-before-completion",
@@ -1250,7 +1668,10 @@ test("a sole unrelated pending question is not implicitly focused or resolved", 
 test("strict direct routing uses additive built-in activation and preserves unrelated tools", async () => {
   const harness = createHarness();
   await developer(harness.api);
-  await harness.emit("session_start", { type: "session_start", reason: "startup" });
+  await harness.emit("session_start", {
+    type: "session_start",
+    reason: "startup",
+  });
   await harness.commands.get("develop").handler("strict", harness.ctx);
   assert.equal(harness.activeTools().includes("edit"), false);
 
@@ -1259,7 +1680,11 @@ test("strict direct routing uses additive built-in activation and preserves unre
   const route = harness.tools.get(ROUTE_TOOL);
   const opened = await route.execute(
     "direct",
-    { question: "Apply the justified local change", owner: "direct", reason: "The contract is explicit" },
+    {
+      question: "Apply the justified local change",
+      owner: "direct",
+      reason: "The contract is explicit",
+    },
     undefined,
     undefined,
     harness.ctx,
@@ -1323,7 +1748,10 @@ test("persistent TUI state stays compact and disappears when routing is idle", a
 test("the no-argument command uses a selector only in TUI mode", async () => {
   const harness = createHarness();
   await developer(harness.api);
-  await harness.emit("session_start", { type: "session_start", reason: "startup" });
+  await harness.emit("session_start", {
+    type: "session_start",
+    reason: "startup",
+  });
 
   await harness.commands.get("develop").handler("", harness.ctx);
   assert.equal(harness.customCalls(), 0);
@@ -1335,7 +1763,13 @@ test("the no-argument command uses a selector only in TUI mode", async () => {
   assert.equal(harness.customCalls(), 1);
   assert.deepEqual(harness.customOptions.at(-1), {
     overlay: true,
-    overlayOptions: { anchor: "center", width: "84%", minWidth: 78, maxHeight: "88%", margin: 1 },
+    overlayOptions: {
+      anchor: "center",
+      width: "84%",
+      minWidth: 78,
+      maxHeight: "88%",
+      margin: 1,
+    },
   });
   assert.equal((harness.entries.at(-1)?.data as { mode: string }).mode, "strict");
   assert.equal(harness.activeTools().includes("edit"), false);
@@ -1369,7 +1803,8 @@ test("/develop completes actions and confirms before discarding active TUI state
   assert.equal(harness.entries.length, entryCount);
   assert.deepEqual(harness.confirmations.at(-1), {
     title: "Turn off Developer?",
-    message: "This clears the active route from the current protocol state. Existing session history remains.",
+    message:
+      "This clears the active route from the current protocol state. Existing session history remains.",
   });
 
   harness.setConfirmResult(true);
@@ -1420,11 +1855,25 @@ test("TUI question selection focuses the pending question and the next route ass
     },
   });
 
-  harness.setCustomResult(questionId);
+  const customCallsBeforeDirectQuestion = harness.customCalls();
+  harness.setCustomResults([questionId, undefined]);
+  harness.setEditorResult(undefined);
+  await harness.commands.get("develop").handler("", harness.ctx);
+  assert.equal(harness.customCalls(), customCallsBeforeDirectQuestion + 2);
+  assert.equal(harness.sentUserMessages.length, 0);
+
+  const customCallsBeforeSingleQuestionCancel = harness.customCalls();
+  harness.setEditorResult(undefined);
+  await harness.commands.get("develop").handler("questions", harness.ctx);
+  assert.equal(harness.customCalls(), customCallsBeforeSingleQuestionCancel);
+  assert.equal(harness.sentUserMessages.length, 0);
+
+  const customCallsBeforeSingleQuestionCommand = harness.customCalls();
   harness.setEditorResult(
     "Resolve this open Developer question.\n\nQuestion: Which browser observation remains?\n\nAnswer/evidence: the value remains visible.",
   );
   await harness.commands.get("develop").handler("questions", harness.ctx);
+  assert.equal(harness.customCalls(), customCallsBeforeSingleQuestionCommand);
   assert.equal(harness.editorText(), "");
   assert.match(harness.sentUserMessages.at(-1)?.content ?? "", /Which browser observation remains/);
   assert.match(harness.sentUserMessages.at(-1)?.content ?? "", /value remains visible/);
@@ -1464,7 +1913,55 @@ test("TUI question selection focuses the pending question and the next route ass
     harness.ctx,
   );
   await harness.commands.get("develop").handler("questions", harness.ctx);
-  assert.equal(harness.notifications.at(-1)?.message, "Developer has no open questions on the current branch.");
+  assert.equal(
+    harness.notifications.at(-1)?.message,
+    "Developer has no open questions on the current branch.",
+  );
+});
+
+test("a multi-question editor cancel returns to the question selector", async () => {
+  const harness = await startHarness();
+  const routed = await harness.tools.get(ROUTE_TOOL).execute(
+    "multi-question-picker",
+    {
+      question: "Which rendered observations remain?",
+      owner: "verify",
+      reason: "Two independent rendered states still need evidence",
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const judgment = await harness.tools.get(JUDGMENT_TOOL).execute(
+    "multi-question-picker-close",
+    {
+      route_id: routed.details.routeId,
+      status: "needs-evidence",
+      result: "Two rendered observations remain.",
+      basis: [],
+      open_questions: [
+        agentOpenQuestion("What does the narrow viewport show?"),
+        agentOpenQuestion("What does the wide viewport show?"),
+      ],
+    },
+    undefined,
+    undefined,
+    harness.ctx,
+  );
+  const [narrowQuestion, wideQuestion] = judgment.details.openedQuestions;
+  harness.ctx.mode = "tui";
+  harness.setCustomResults([narrowQuestion.id, wideQuestion.id]);
+  harness.setEditorResults([undefined, "The wide viewport preserves the selected value."]);
+  const customCallsBeforeQuestions = harness.customCalls();
+
+  await harness.commands.get("develop").handler("questions", harness.ctx);
+
+  assert.equal(harness.customCalls(), customCallsBeforeQuestions + 2);
+  assert.match(harness.sentUserMessages.at(-1)?.content ?? "", /wide viewport preserves/);
+  assert.equal(
+    (harness.entries.at(-1)?.data as { questionId?: string } | undefined)?.questionId,
+    wideQuestion.id,
+  );
 });
 
 test("tool renderers are partial-safe and expose routing evidence when expanded", async () => {
@@ -1476,7 +1973,9 @@ test("tool renderers are partial-safe and expose routing evidence when expanded"
   const partialCall = renderedText(callComponent);
   assert.match(partialCall, /…/);
   assert.equal(
-    route.renderCall({ owner: "direct", question: "Q" }, theme, { lastComponent: callComponent }),
+    route.renderCall({ owner: "direct", question: "Q" }, theme, {
+      lastComponent: callComponent,
+    }),
     callComponent,
   );
   const partialResult = renderedText(
@@ -1590,7 +2089,11 @@ test("judgment renderers use status semantics and show opened questions", async 
 
   assert.equal(judgment.renderShell, "self");
   const blockedCall = renderedText(
-    judgment.renderCall({ status: "blocked", result: "External access is unavailable." }, theme, {}),
+    judgment.renderCall(
+      { status: "blocked", result: "External access is unavailable." },
+      theme,
+      {},
+    ),
   );
   assert.match(blockedCall, /<error>blocked<\/error>/);
 });

@@ -18,6 +18,10 @@ export const ROUTE_TOOL = "developer_route_question" as const;
 export const JUDGMENT_TOOL = "developer_record_judgment" as const;
 export const LEGACY_ROUTE_TOOL = "route_question" as const;
 export const LEGACY_JUDGMENT_TOOL = "record_judgment" as const;
+export const MAX_RESPONSE_FIELDS = 20;
+export const MAX_RESPONSE_OPTIONS = 20;
+export const MAX_RESPONSE_IDENTIFIER_CHARS = 64;
+export const MAX_RESPONSE_TEXT_CHARS = 2_000;
 
 export type DeveloperMode = "off" | "on" | "strict";
 export type JudgmentStatus = "resolved" | "needs-evidence" | "not-applicable" | "blocked";
@@ -65,9 +69,30 @@ export interface RouteEvent {
   directStep?: DirectStepContract;
 }
 
+export interface ChoiceResponseOption {
+  value: string;
+  label: string;
+  description?: string;
+  detailPrompt?: string;
+}
+
+export interface ChoiceResponseField {
+  id: string;
+  prompt: string;
+  description?: string;
+  options: ChoiceResponseOption[];
+}
+
+export interface ChoiceResponseSpec {
+  kind: "choice-form";
+  fields: ChoiceResponseField[];
+}
+
 export interface PendingQuestion {
   id: string;
   question: string;
+  context?: string;
+  responseSpec?: ChoiceResponseSpec;
   status: PendingQuestionStatus;
   resolutionOwner: QuestionResolutionOwner;
   gate: QuestionGate;
@@ -128,8 +153,10 @@ export function protocolState(state: DeveloperState): ProtocolState {
   if (
     snapshot.hasTag("blocks-direct") ||
     state.pendingQuestions.some((question) => question.status === "blocked")
-  ) return "blocked";
-  if (state.pendingQuestions.some((question) => question.resolutionOwner === "user")) return "needs-answer";
+  )
+    return "blocked";
+  if (state.pendingQuestions.some((question) => question.resolutionOwner === "user"))
+    return "needs-answer";
   if (snapshot.matches({ questions: "open" })) return "needs-evidence";
   if (snapshot.hasTag("reroute-required")) return "needs-routing";
   if (snapshot.hasTag("verification-required")) return "needs-verification";
@@ -149,7 +176,12 @@ function isMode(value: unknown): value is DeveloperMode {
 }
 
 function isJudgmentStatus(value: unknown): value is JudgmentStatus {
-  return value === "resolved" || value === "needs-evidence" || value === "not-applicable" || value === "blocked";
+  return (
+    value === "resolved" ||
+    value === "needs-evidence" ||
+    value === "not-applicable" ||
+    value === "blocked"
+  );
 }
 
 function isDirectExecutionProfile(value: unknown): value is DirectExecutionProfile {
@@ -188,7 +220,78 @@ function isQuestionGate(value: unknown): value is QuestionGate {
 }
 
 function isQuestionUpdateStatus(value: unknown): value is QuestionUpdateStatus {
-  return value === "resolved" || value === "not-applicable" || value === "open" || value === "blocked";
+  return (
+    value === "resolved" || value === "not-applicable" || value === "open" || value === "blocked"
+  );
+}
+
+const RESPONSE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+function requiredResponseText(value: unknown, maxChars: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  return text && text.length <= maxChars ? text : undefined;
+}
+
+function optionalResponseText(value: unknown): string | undefined | null {
+  if (value === undefined) return undefined;
+  return requiredResponseText(value, MAX_RESPONSE_TEXT_CHARS) ?? null;
+}
+
+function parseChoiceResponseOption(
+  value: unknown,
+  seenValues: Set<string>,
+): ChoiceResponseOption | undefined {
+  if (!isObject(value)) return undefined;
+  const optionValue = requiredResponseText(value.value, MAX_RESPONSE_IDENTIFIER_CHARS);
+  const label = requiredResponseText(value.label, MAX_RESPONSE_TEXT_CHARS);
+  const description = optionalResponseText(value.description);
+  const detailPrompt = optionalResponseText(value.detailPrompt);
+  if (!optionValue || !RESPONSE_IDENTIFIER.test(optionValue)) return undefined;
+  if (seenValues.has(optionValue) || !label) return undefined;
+  if (description === null || detailPrompt === null) return undefined;
+  seenValues.add(optionValue);
+  return { value: optionValue, label, description, detailPrompt };
+}
+
+function parseChoiceResponseField(
+  value: unknown,
+  seenIds: Set<string>,
+): ChoiceResponseField | undefined {
+  if (!isObject(value) || !Array.isArray(value.options)) return undefined;
+  const id = requiredResponseText(value.id, MAX_RESPONSE_IDENTIFIER_CHARS);
+  const prompt = requiredResponseText(value.prompt, MAX_RESPONSE_TEXT_CHARS);
+  const description = optionalResponseText(value.description);
+  if (!id || !RESPONSE_IDENTIFIER.test(id)) return undefined;
+  if (seenIds.has(id) || !prompt || description === null) return undefined;
+  if (value.options.length < 2 || value.options.length > MAX_RESPONSE_OPTIONS) return undefined;
+
+  seenIds.add(id);
+  const seenValues = new Set<string>();
+  const options: ChoiceResponseOption[] = [];
+  for (const rawOption of value.options) {
+    const option = parseChoiceResponseOption(rawOption, seenValues);
+    if (!option) return undefined;
+    options.push(option);
+  }
+  return { id, prompt, description, options };
+}
+
+export function parseChoiceResponseSpec(value: unknown): ChoiceResponseSpec | undefined {
+  if (!isObject(value) || value.kind !== "choice-form" || !Array.isArray(value.fields)) {
+    return undefined;
+  }
+  if (value.fields.length === 0 || value.fields.length > MAX_RESPONSE_FIELDS) {
+    return undefined;
+  }
+  const seenIds = new Set<string>();
+  const fields: ChoiceResponseField[] = [];
+  for (const rawField of value.fields) {
+    const field = parseChoiceResponseField(rawField, seenIds);
+    if (!field) return undefined;
+    fields.push(field);
+  }
+  return { kind: "choice-form", fields };
 }
 
 function parsePendingQuestion(value: unknown): PendingQuestion | undefined {
@@ -210,9 +313,14 @@ function parsePendingQuestion(value: unknown): PendingQuestion | undefined {
     typeof value.resolutionCriteria === "string"
       ? value.resolutionCriteria
       : `Obtain evidence that settles: ${value.question}`;
+  const context = typeof value.context === "string" ? value.context.trim() || undefined : undefined;
+  const responseSpec =
+    resolutionOwner === "user" ? parseChoiceResponseSpec(value.responseSpec) : undefined;
   return {
     id: value.id,
     question: value.question,
+    context,
+    responseSpec,
     status: legacyBlocked ? "blocked" : "open",
     resolutionOwner,
     gate,
@@ -246,7 +354,8 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
     value.protocol !== PREVIOUS_PROTOCOL &&
     value.protocol !== OLDER_PROTOCOL &&
     value.protocol !== LEGACY_PROTOCOL
-  ) return undefined;
+  )
+    return undefined;
 
   if (value.kind === "mode") {
     if (!isMode(value.mode)) return undefined;
@@ -257,7 +366,8 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
     if (
       (value.protocol !== PROTOCOL && value.protocol !== PREVIOUS_PROTOCOL) ||
       typeof value.questionId !== "string"
-    ) return undefined;
+    )
+      return undefined;
     return { protocol: PROTOCOL, kind: "focus", questionId: value.questionId };
   }
 
@@ -268,7 +378,8 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
       typeof value.owner !== "string" ||
       typeof value.reason !== "string" ||
       !isStringArray(value.knownEvidence) ||
-      (value.consideredAlternatives !== undefined && !Array.isArray(value.consideredAlternatives)) ||
+      (value.consideredAlternatives !== undefined &&
+        !Array.isArray(value.consideredAlternatives)) ||
       (value.targetQuestionId !== undefined && typeof value.targetQuestionId !== "string") ||
       (value.methodLocation !== undefined && typeof value.methodLocation !== "string") ||
       (value.executionProfile !== undefined && !isDirectExecutionProfile(value.executionProfile)) ||
@@ -338,7 +449,8 @@ export function normalizeDeveloperEvent(value: unknown): DeveloperEvent | undefi
   if (!Array.isArray(value.openedQuestions)) return undefined;
   const openedQuestions = value.openedQuestions.map(parsePendingQuestion);
   if (openedQuestions.some((question) => !question)) return undefined;
-  if (value.questionUpdates !== undefined && !Array.isArray(value.questionUpdates)) return undefined;
+  if (value.questionUpdates !== undefined && !Array.isArray(value.questionUpdates))
+    return undefined;
   const questionUpdates = Array.isArray(value.questionUpdates)
     ? value.questionUpdates.map(parseQuestionUpdate)
     : [];
