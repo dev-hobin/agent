@@ -1,6 +1,6 @@
 {
   "name": "@hobin/developer",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Adaptive product-development reasoning and evidence for Pi.",
   "type": "module",
   "keywords": ["pi-package", "pi", "developer", "skills"],

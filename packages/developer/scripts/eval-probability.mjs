@@ -11,7 +11,7 @@ export function wilsonInterval(successes, trials) {
 }
 
 export function classifyLiveFailure(output) {
-  if (/structurally inadmissible|omitted required semantic term|outside a direct route|mutation started before a direct route|outcome .* is not allowed/.test(output)) {
+  if (/structurally inadmissible|omitted required semantic term|outside an implementation route|mutation started before an implementation route|outcome .* is not allowed/.test(output)) {
     return "inadmissible-result";
   }
   if (/route budget|tool-call budget|tool-error budget|wall-clock budget|no-progress budget/.test(output)) {

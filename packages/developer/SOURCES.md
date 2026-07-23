@@ -2,8 +2,8 @@
 
 Developer is organized around questions the agent must answer, not around books.
 This maintainer document records how source material is decomposed across leaf
-skills and the direct execution path. It is not a Pi runtime resource or a
-required workflow.
+skills and the implementation path. It is not a Pi runtime resource or a required
+workflow.
 
 ## Ownership Rule
 
@@ -17,7 +17,7 @@ A source idea belongs where its observable job is performed:
 - timing goes to `schedule`;
 - names go to `naming-judgment`;
 - claim-to-evidence judgment goes to `verify`;
-- already-justified mutation goes to the `direct` route.
+- already-justified mutation goes to the `implementation` route.
 
 No source implies a mandatory route order. Several leaves may use different
 parts of the same source because they answer different questions.
@@ -51,8 +51,8 @@ capability boundary.
 | Source | Capability extracted | Primary owner | Supporting owner or execution path |
 | --- | --- | --- | --- |
 | *99 Bottles of OOP*, ch. 1-2 | simple concrete baseline, Shameless Green, cost-effective and intention-revealing tests | `verify` | `signal`, `schedule` |
-| *99 Bottles of OOP*, ch. 3-4 | real change pressure, point of attack, closest pair, smallest difference, horizontal movement | `signal` | `direct` behavior-preserving protocol |
-| *99 Bottles of OOP*, ch. 4-5 | stable landings, responsibility-derived names, argument and data movement | `abstraction-review`, `naming-judgment` | `direct` behavior-preserving protocol |
+| *99 Bottles of OOP*, ch. 3-4 | real change pressure, point of attack, closest pair, smallest difference, horizontal movement | `signal` | `implementation` behavior-preserving protocol |
+| *99 Bottles of OOP*, ch. 4-5 | stable landings, responsibility-derived names, argument and data movement | `abstraction-review`, `naming-judgment` | `implementation` behavior-preserving protocol |
 | *99 Bottles of OOP*, ch. 5-8 | responsibility separation, messages, type transitions, polymorphism, dependency direction, object creation at the edge, factory tradeoffs | `sketch`, `abstraction-review` | `model`, `schedule` |
 | *99 Bottles of OOP*, ch. 9 | unit boundaries, context independence, role verification, obsolete-test removal | `verify` | `sketch` |
 | *How to Design Programs* | information analysis, data definitions, examples, templates, structural and generative recursion, accumulators, iterative refinement | `sketch` | `model`, `verify`, `signal`, `abstraction-review` |
@@ -63,10 +63,10 @@ capability boundary.
 | *Logic for Programmers*, ch. 4-6 | partial specifications, properties, contracts, replacement, proof limits | `model`, `verify` | `abstraction-review` |
 | *Logic for Programmers*, ch. 7-12 | relational constraints, decision tables, domain/time/system models, solvers, logic programming | `model` | `verify` |
 | *Elements of Clojure*: Names | narrow and consistent sense, honest effects and scope crossing | `naming-judgment` | `model` |
-| *Elements of Clojure*: Idioms | language-specific conventions and explicit operational semantics | project conventions or `direct` | generalized only when the semantic lesson survives the language |
+| *Elements of Clojure*: Idioms | language-specific conventions and explicit operational semantics | project conventions or `implementation` | generalized only when the semantic lesson survives the language |
 | *Elements of Clojure*: Indirection | abstraction cost, module environment/model/interface/assumptions, principled versus adaptable systems | `sketch`, `abstraction-review` | `schedule` |
 | *Elements of Clojure*: Composition | units of computation and pull-transform-push process boundaries | `sketch` | `naming-judgment`, `verify` |
-| *Tidy First?* | separate behavior from structure, small tidyings, optionality, reversibility, first/after/later/never | `schedule` | `direct` behavior-preserving protocol, `signal` |
+| *Tidy First?* | separate behavior from structure, small tidyings, optionality, reversibility, first/after/later/never | `schedule` | `implementation` behavior-preserving protocol, `signal` |
 
 ## Intentionally Not Imported As Universal Rules
 
@@ -94,7 +94,7 @@ When adding or revising a source-derived reference, record:
 ```text
 Source location: book, edition/version, chapter or section
 Capability: the question or action the idea improves
-Owner: one leaf or the direct path
+Owner: one leaf or the implementation path
 Boundary: what the owner must not absorb
 Observable effect: the artifact, decision, or safer execution behavior expected
 ```

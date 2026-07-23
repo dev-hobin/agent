@@ -1,57 +1,127 @@
 [
   {
     "id": "vague-product-request",
-    "mode": "on",
     "request": "계약 기능을 개선해줘. 아직 무엇을 개선해야 하는지는 이 요청 외에 명시되어 있지 않다.",
-    "admissibleFirstOwners": ["specify", "model"],
-    "preferredFirstOwners": ["specify"],
-    "requiredJudgmentConcepts": [["계약", "contract"], ["개선", "improv"]],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "admissibleFirstTargets": [
+      "specify",
+      "model"
+    ],
+    "preferredFirstTargets": [
+      "specify"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "계약",
+        "contract"
+      ],
+      [
+        "개선",
+        "improv"
+      ]
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
     "mustRecordJudgment": true,
     "maxRoutes": 5
   },
   {
     "id": "already-specified-local-change",
-    "mode": "strict",
     "request": "ScheduleFormValues를 ScheduleContent로 변환하는 toScheduleContent 순수 함수를 추가하고 빈 입력과 날짜 입력을 표 기반 테스트로 검증해라. 관련 타입과 테스트 위치는 먼저 읽어서 확인해라.",
-    "admissibleFirstOwners": ["direct", "signal", "sketch"],
-    "preferredFirstOwners": ["direct", "signal"],
-    "allowedOutcomes": ["changed-verified"],
+    "admissibleFirstTargets": [
+      "implementation",
+      "signal",
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "implementation",
+      "signal"
+    ],
+    "allowedOutcomes": [
+      "changed-verified"
+    ],
     "mustRecordJudgment": true,
-    "mutationRequiresDirectRoute": true,
+    "mutationRequiresImplementationRoute": true,
     "maxRoutes": 4,
     "workspaceAssertion": "schedule-conversion"
   },
   {
     "id": "existing-abstraction-pressure",
-    "mode": "on",
     "request": "기존 변환 helper 세 개가 비슷해 보이지만 기본값 의미가 서로 다르다. 공통 추상화를 만들어야 하는지 현재 코드와 테스트를 근거로 판단해라.",
-    "admissibleFirstOwners": ["signal", "abstraction-review", "model"],
-    "preferredFirstOwners": ["signal", "abstraction-review"],
-    "requiredJudgmentConcepts": [["기본값", "default"], ["추상화", "abstraction"]],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "admissibleFirstTargets": [
+      "signal",
+      "abstraction-review",
+      "model"
+    ],
+    "preferredFirstTargets": [
+      "signal",
+      "abstraction-review"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "기본값",
+        "default"
+      ],
+      [
+        "추상화",
+        "abstraction"
+      ]
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
     "mustRecordJudgment": true,
     "maxRoutes": 5
   },
   {
     "id": "pass-but-wrong-risk",
-    "mode": "on",
     "request": "테스트는 통과하지만 계약 생성 시 빈 일정과 일정 없음이 같은 값으로 저장된다. 현재 완료 주장이 제품 의미까지 뒷받침되는지 판단해라.",
-    "admissibleFirstOwners": ["verify", "model", "specify"],
-    "preferredFirstOwners": ["verify"],
-    "requiredJudgmentConcepts": [["빈 일정", "empty schedule"], ["일정 없음", "no schedule", "absence"]],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "admissibleFirstTargets": [
+      "verify",
+      "model",
+      "specify"
+    ],
+    "preferredFirstTargets": [
+      "verify"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "빈 일정",
+        "empty schedule"
+      ],
+      [
+        "일정 없음",
+        "no schedule",
+        "absence"
+      ]
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
     "mustRecordJudgment": true,
     "maxRoutes": 4
   },
   {
     "id": "self-referential-design-template",
-    "mode": "on",
     "request": "파일을 수정하지 말고 다음 설계를 완성해라. Tasks = Empty | Node(Task, Tasks)이고 totalEstimate : Tasks -> Minutes가 필요하다. 데이터 예제부터 함수 예제, 데이터 정의에서 파생되는 템플릿, 완성된 골격, 재귀 호출이 그 위치에 생기는 이유와 실패 진단까지 설명해라.",
-    "admissibleFirstOwners": ["sketch"],
-    "preferredFirstOwners": ["sketch"],
-    "allowedOutcomes": ["settled-unchanged"],
-    "requiredJudgmentTerms": ["Tasks", "Empty", "Node", "totalEstimate"],
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "Tasks",
+      "Empty",
+      "Node",
+      "totalEstimate"
+    ],
     "expectedReferenceReads": [
       "skills/sketch/references/data-driven-design.md",
       "skills/sketch/references/data-shape-template-catalog.md"
@@ -61,12 +131,22 @@
   },
   {
     "id": "representation-barrier-design",
-    "mode": "on",
     "request": "파일을 수정하지 말고 Schedule이 현재 [timezone, epochStart, epochEnd] 배열이지만 객체 표현으로 교체할 수 있게 설계해라. 호출자가 믿을 공개 연산과 법칙, 숨길 표현, invariant owner, 실제 호출자 모양, 두 표현 사이 replacement/leak check를 구체적으로 제시해라.",
-    "admissibleFirstOwners": ["sketch"],
-    "preferredFirstOwners": ["sketch"],
-    "allowedOutcomes": ["settled-unchanged"],
-    "requiredJudgmentTerms": ["Schedule", "startOf", "endOf", "replacement"],
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "Schedule",
+      "startOf",
+      "endOf",
+      "replacement"
+    ],
     "expectedReferenceReads": [
       "skills/sketch/references/abstraction-composition-and-state.md",
       "skills/sketch/references/abstraction-barriers-and-closure.md"
@@ -75,28 +155,39 @@
     "maxRoutes": 2
   },
   {
-    "id": "direct-stable-landing-paused",
-    "mode": "strict",
-    "request": "이 요청은 pausable handoff 회귀 평가다. src/contracts.ts를 확인하고 export const PAUSED_EVAL_MARKER = \"stable-landing\" 하나만 추가해라. 변경이 정당화되면 direct route에서 이 한 movement를 수행하고 status=resolved, open_questions=[]인 direct judgment를 기록한 직후 멈춰라. 테스트를 실행하거나 verify route를 열거나 완료를 주장하지 마라. 검증 미실행은 새 질문으로 표현하지 말고 machine의 rerouting checkpoint와 verification debt로만 남겨 그대로 handoff해라.",
-    "admissibleFirstOwners": ["direct", "signal"],
-    "preferredFirstOwners": ["direct"],
-    "allowedOutcomes": ["changed-paused"],
+    "id": "implementation-stable-landing-paused",
+    "request": "이 요청은 pausable handoff 회귀 평가다. src/contracts.ts를 확인하고 export const PAUSED_EVAL_MARKER = \"stable-landing\" 하나만 추가해라. 변경이 정당화되면 implementation route에서 이 한 movement를 수행하고 status=resolved, open_questions=[]인 implementation judgment를 기록한 직후 멈춰라. 테스트를 실행하거나 verify route를 열거나 완료를 주장하지 마라. 검증 미실행은 새 질문으로 표현하지 말고 machine의 rerouting checkpoint와 verification debt로만 남겨 그대로 handoff해라.",
+    "admissibleFirstTargets": [
+      "implementation",
+      "signal"
+    ],
+    "preferredFirstTargets": [
+      "implementation"
+    ],
+    "allowedOutcomes": [
+      "changed-paused"
+    ],
     "mustRecordJudgment": true,
-    "mutationRequiresDirectRoute": true,
+    "mutationRequiresImplementationRoute": true,
     "maxRoutes": 2,
     "maxToolCalls": 24,
     "workspaceAssertion": "paused-marker"
   },
   {
-    "id": "agent-before-direct-evidence-gate",
-    "mode": "strict",
-    "request": "이 요청은 agent-owned before-direct gate 회귀 평가다. 다음 lifecycle을 실제 Developer protocol로 수행해라. (1) 첫 signal route의 judgment에서 'src/contracts.ts가 marker의 올바른 변경 위치인가?'를 needs-evidence로 남기고, resolution_owner=agent, gate=before-direct, resolution_criteria='A read-only bash check confirms src/contracts.ts exists and owns contract exports.'인 질문을 정확히 하나 열어라. (2) direct로 가지 말고 그 질문을 대상으로 두 번째 non-direct signal evidence route를 열어라. 그 route가 active인 동안 bash로 test -f src/contracts.ts를 실행하고 파일을 확인한 뒤, 기존 질문 ID를 question_updates의 resolved 상태와 구체적 basis로 해소해라. (3) gate가 해제된 뒤 direct route에서 export const AGENT_GATE_EVAL_MARKER = \"resolved\" 하나만 src/contracts.ts에 추가하고 judgment를 기록해라. (4) verify route에서 변경과 테스트를 확인하고 resolved judgment를 기록해라. 다른 제품 변경은 하지 마라.",
-    "admissibleFirstOwners": ["signal"],
-    "preferredFirstOwners": ["signal"],
-    "allowedOutcomes": ["changed-verified"],
+    "id": "agent-before-implementation-evidence-gate",
+    "request": "이 요청은 agent-owned before-implementation gate 회귀 평가다. 다음 lifecycle을 실제 Developer protocol로 수행해라. (1) 첫 signal route의 judgment에서 'src/contracts.ts가 marker의 올바른 변경 위치인가?'를 needs-evidence로 남기고, resolution_owner=agent, gate=before-implementation, resolution_criteria='A read-only bash check confirms src/contracts.ts exists and owns contract exports.'인 질문을 정확히 하나 열어라. (2) implementation로 가지 말고 그 질문을 대상으로 두 번째 non-implementation signal evidence route를 열어라. 그 route가 active인 동안 bash로 test -f src/contracts.ts를 실행하고 파일을 확인한 뒤, 기존 질문 ID를 question_updates의 resolved 상태와 구체적 basis로 해소해라. (3) gate가 해제된 뒤 implementation route에서 export const AGENT_GATE_EVAL_MARKER = \"resolved\" 하나만 src/contracts.ts에 추가하고 judgment를 기록해라. (4) verify route에서 변경과 테스트를 확인하고 resolved judgment를 기록해라. 다른 제품 변경은 하지 마라.",
+    "admissibleFirstTargets": [
+      "signal"
+    ],
+    "preferredFirstTargets": [
+      "signal"
+    ],
+    "allowedOutcomes": [
+      "changed-verified"
+    ],
     "mustRecordJudgment": true,
-    "mutationRequiresDirectRoute": true,
-    "requiresAgentBeforeDirectResolution": true,
+    "mutationRequiresImplementationRoute": true,
+    "requiresAgentBeforeImplementationResolution": true,
     "requiresJudgmentBashEvidence": true,
     "maxRoutes": 4,
     "maxToolCalls": 36,

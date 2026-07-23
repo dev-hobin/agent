@@ -41,9 +41,9 @@ test("live failure classification keeps wrong answers distinct from ordinary var
 test("structured live results are parsed independently of human-readable output", () => {
   assert.deepEqual(
     parseEvalResult(
-      'noise\nDEVELOPER_EVAL_RESULT {"fixtureId":"x","structuralValid":true,"preferredFirstOwner":false}\ndone',
+      'noise\nDEVELOPER_EVAL_RESULT {"fixtureId":"x","structuralValid":true,"preferredFirstTarget":false}\ndone',
     ),
-    { fixtureId: "x", structuralValid: true, preferredFirstOwner: false },
+    { fixtureId: "x", structuralValid: true, preferredFirstTarget: false },
   );
   assert.equal(parseEvalResult("no result marker"), undefined);
   assert.throws(

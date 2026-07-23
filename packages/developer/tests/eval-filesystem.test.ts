@@ -28,7 +28,7 @@ test("workspace snapshots report product changes and ignore declared ephemeral o
   }
 });
 
-test("the eval observer rejects artifact changes outside direct and permits direct mutation", async () => {
+test("the eval observer rejects artifact changes outside implementation and permits implementation mutation", async () => {
   const root = await mkdtemp(join(tmpdir(), "developer-eval-observer-"));
   const previousWorkspace = process.env.DEVELOPER_EVAL_WORKSPACE;
   process.env.DEVELOPER_EVAL_WORKSPACE = root;
@@ -45,11 +45,11 @@ test("the eval observer rejects artifact changes outside direct and permits dire
       toolName: "developer_route_question",
       toolCallId: "route:signal",
       isError: false,
-      details: { owner: "signal" },
+      details: { target: "signal",  },
       content: [],
     });
     await toolCall({ toolName: "bash", toolCallId: "bash:signal" });
-    await writeFile(join(root, "source.ts"), "changed outside direct");
+    await writeFile(join(root, "source.ts"), "changed outside implementation");
     const violation = await toolResult({
       toolName: "bash",
       toolCallId: "bash:signal",
@@ -58,20 +58,20 @@ test("the eval observer rejects artifact changes outside direct and permits dire
       content: [],
     });
     assert.equal(violation?.isError, true);
-    assert.match(violation?.content.at(-1)?.text ?? "", /outside a direct route/);
+    assert.match(violation?.content.at(-1)?.text ?? "", /outside an implementation route/);
 
     await toolResult({
       toolName: "developer_route_question",
-      toolCallId: "route:direct",
+      toolCallId: "route:implementation",
       isError: false,
-      details: { owner: "direct" },
+      details: { target: "implementation",  },
       content: [],
     });
-    await toolCall({ toolName: "edit", toolCallId: "edit:direct" });
-    await writeFile(join(root, "source.ts"), "changed inside direct");
+    await toolCall({ toolName: "edit", toolCallId: "edit:implementation" });
+    await writeFile(join(root, "source.ts"), "changed inside implementation");
     const allowed = await toolResult({
       toolName: "edit",
-      toolCallId: "edit:direct",
+      toolCallId: "edit:implementation",
       isError: false,
       details: {},
       content: [],

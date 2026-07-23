@@ -34,11 +34,14 @@ const expectedSkills = [
 
 const manifest = await readJson(join(root, "package.json"));
 assert.equal(manifest.name, "@hobin/developer");
-assert.equal(manifest.version, "0.1.6");
+assert.equal(manifest.version, "0.1.7");
 assert.deepEqual(manifest.pi.extensions, ["./extensions/developer.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
 assert.match(manifest.scripts["eval:live"], /eval-live\.mjs --transport rpc/);
-assert.match(manifest.scripts["eval:live:json"], /eval-live\.mjs --transport json/);
+assert.match(
+	manifest.scripts["eval:live:json"],
+	/eval-live\.mjs --transport json/,
+);
 assert.deepEqual(manifest.files, [
 	"extensions",
 	"skills",
@@ -223,17 +226,19 @@ for (const [path, expected] of Object.entries(referenceAnchors)) {
 const evalFixtures = await readJson(join(root, "evals", "fixtures.json"));
 for (const fixture of evalFixtures) {
 	assert.ok(
-		Array.isArray(fixture.admissibleFirstOwners) && fixture.admissibleFirstOwners.length > 0,
-		`Eval fixture ${fixture.id} must declare admissibleFirstOwners`,
+		Array.isArray(fixture.admissibleFirstTargets) &&
+			fixture.admissibleFirstTargets.length > 0,
+		`Eval fixture ${fixture.id} must declare admissibleFirstTargets`,
 	);
 	assert.ok(
-		Array.isArray(fixture.preferredFirstOwners) && fixture.preferredFirstOwners.length > 0,
-		`Eval fixture ${fixture.id} must declare preferredFirstOwners`,
+		Array.isArray(fixture.preferredFirstTargets) &&
+			fixture.preferredFirstTargets.length > 0,
+		`Eval fixture ${fixture.id} must declare preferredFirstTargets`,
 	);
-	for (const owner of fixture.preferredFirstOwners) {
+	for (const target of fixture.preferredFirstTargets) {
 		assert.ok(
-			fixture.admissibleFirstOwners.includes(owner),
-			`Eval fixture ${fixture.id} prefers inadmissible owner ${owner}`,
+			fixture.admissibleFirstTargets.includes(target),
+			`Eval fixture ${fixture.id} prefers inadmissible target ${target}`,
 		);
 	}
 	for (const term of fixture.requiredJudgmentTerms ?? []) {
@@ -246,7 +251,9 @@ for (const fixture of evalFixtures) {
 		assert.ok(
 			Array.isArray(alternatives) &&
 				alternatives.length > 0 &&
-				alternatives.every((term) => typeof term === "string" && term.length > 0),
+				alternatives.every(
+					(term) => typeof term === "string" && term.length > 0,
+				),
 			`Eval fixture ${fixture.id} has an invalid required judgment concept`,
 		);
 	}
@@ -259,8 +266,8 @@ for (const fixture of evalFixtures) {
 	}
 }
 for (const fixtureId of [
-	"direct-stable-landing-paused",
-	"agent-before-direct-evidence-gate",
+	"implementation-stable-landing-paused",
+	"agent-before-implementation-evidence-gate",
 ]) {
 	assert.ok(
 		evalFixtures.some((fixture) => fixture.id === fixtureId),
@@ -268,7 +275,10 @@ for (const fixtureId of [
 	);
 }
 const evalJson = await readFile(join(root, "scripts/eval-json.mjs"), "utf8");
-const evalEventMonitor = await readFile(join(root, "scripts/eval-event-monitor.mjs"), "utf8");
+const evalEventMonitor = await readFile(
+	join(root, "scripts/eval-event-monitor.mjs"),
+	"utf8",
+);
 const evalLive = await readFile(join(root, "scripts/eval-live.mjs"), "utf8");
 assert.match(evalJson, /createEvalEventMonitor/);
 assert.match(evalEventMonitor, /createFixtureBudgetMonitor/);
@@ -320,7 +330,7 @@ const skillIntegration = await readFile(
 );
 assert.doesNotMatch(skillIntegration, /loadSkillsFromDir/);
 
-const directReference = await readFile(
+const implementationReference = await readFile(
 	join(
 		root,
 		"extensions",
@@ -330,15 +340,15 @@ const directReference = await readFile(
 	"utf8",
 );
 assert.match(
-	directReference,
+	implementationReference,
 	/## Smallest Green Transformation[\s\S]*## Stable Landing/,
 );
 assert.match(
-	directReference,
+	implementationReference,
 	/## Worked Mutation Trace[\s\S]*## Failure Checks/,
 );
 assert.match(
-	directReference,
+	implementationReference,
 	/## Source Trace[\s\S]*99 Bottles of OOP[\s\S]*Tidy First\?/,
 );
 
@@ -354,7 +364,8 @@ assert.match(tui, /showPendingQuestionSelector/);
 assert.match(tui, /overlay:\s*true/);
 
 const state = await readFile(join(root, "extensions", "state.ts"), "utf8");
-assert.match(state, /developer\/v2/);
+assert.match(state, /developer\/v5/);
+assert.doesNotMatch(state, /developer\/v[1-4]/);
 assert.match(state, /pendingQuestions/);
 assert.doesNotMatch(state, /acceptedContract|verifiedClaims/);
 

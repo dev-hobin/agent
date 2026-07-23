@@ -2,7 +2,7 @@ import assertModule from "node:assert";
 import test from "node:test";
 
 import {
-  assertAgentBeforeDirectResolution,
+  assertAgentBeforeImplementationResolution,
   validateExecutionTrace,
 } from "../scripts/eval-assertions.mjs";
 
@@ -17,43 +17,43 @@ const trace = [
     toolName: "developer_record_judgment",
     args: {
       status: "needs-evidence",
-      open_questions: [{ resolution_owner: "agent", gate: "before-direct" }],
+      open_questions: [{ resolution_owner: "agent", gate: "before-implementation" }],
     },
   },
-  { toolName: "developer_route_question", args: { owner: "signal" } },
+  { toolName: "developer_route_question", args: { target: "signal",  } },
   { toolName: "bash", args: { command: "test -f src/contracts.ts" } },
   {
     toolName: "developer_record_judgment",
     args: { question_updates: [{ question_id: "question:1", status: "resolved" }] },
   },
-  { toolName: "developer_route_question", args: { owner: "direct" } },
+  { toolName: "developer_route_question", args: { target: "implementation",  } },
 ];
 
-test("agent before-direct trace requires evidence routing, bash, explicit resolution, then direct", () => {
-  assert.doesNotThrow(() => assertAgentBeforeDirectResolution(fixture, trace));
+test("agent before-implementation trace requires evidence routing, bash, explicit resolution, then implementation", () => {
+  assert.doesNotThrow(() => assertAgentBeforeImplementationResolution(fixture, trace));
   assert.throws(
-    () => assertAgentBeforeDirectResolution(fixture, trace.filter((event) => event.toolName !== "bash")),
+    () => assertAgentBeforeImplementationResolution(fixture, trace.filter((event) => event.toolName !== "bash")),
     /did not run bash/,
   );
   assert.throws(
-    () => assertAgentBeforeDirectResolution(fixture, trace.slice(0, -1)),
-    /no direct route followed/,
+    () => assertAgentBeforeImplementationResolution(fixture, trace.slice(0, -1)),
+    /no implementation route followed/,
   );
 });
 
-const directTrace = [
+const implementationTrace = [
   {
     type: "tool_execution_start",
     toolCallId: "route:1",
     toolName: "developer_route_question",
-    args: { owner: "direct" },
+    args: { target: "implementation",  },
   },
   {
     type: "tool_execution_end",
     toolCallId: "route:1",
     toolName: "developer_route_question",
     isError: false,
-    result: { content: [{ type: "text", text: "direct route" }] },
+    result: { content: [{ type: "text", text: "implementation route" }] },
   },
   {
     type: "tool_execution_start",
@@ -72,26 +72,26 @@ const directTrace = [
 
 const structuralFixture = {
   id: "structural",
-  admissibleFirstOwners: ["direct"],
-  preferredFirstOwners: ["signal"],
+  admissibleFirstTargets: ["implementation"],
+  preferredFirstTargets: ["signal"],
   requiredJudgmentTerms: ["Marker", "stable landing"],
   requiredJudgmentConcepts: [["change", "movement"]],
   mustRecordJudgment: true,
 };
 
 test("structural admissibility is hard while preferred routing remains a score", async () => {
-  const summary = await validateExecutionTrace(structuralFixture, directTrace, ".");
+  const summary = await validateExecutionTrace(structuralFixture, implementationTrace, ".");
   assert.deepEqual(summary, {
-    firstOwner: "direct",
-    preferredFirstOwner: false,
+    firstTarget: "implementation",
+    preferredFirstTarget: false,
     routeCount: 1,
     toolCallCount: 2,
   });
 
   await assert.rejects(
     validateExecutionTrace(
-      { ...structuralFixture, admissibleFirstOwners: ["signal"] },
-      directTrace,
+      { ...structuralFixture, admissibleFirstTargets: ["signal"] },
+      implementationTrace,
       ".",
     ),
     /structurally inadmissible first route/,
@@ -99,7 +99,7 @@ test("structural admissibility is hard while preferred routing remains a score",
   await assert.rejects(
     validateExecutionTrace(
       { ...structuralFixture, requiredJudgmentTerms: ["unrelated-required-term"] },
-      directTrace,
+      implementationTrace,
       ".",
     ),
     /omitted required semantic term/,
@@ -107,7 +107,7 @@ test("structural admissibility is hard while preferred routing remains a score",
   await assert.rejects(
     validateExecutionTrace(
       { ...structuralFixture, requiredJudgmentConcepts: [["unrelated", "irrelevant"]] },
-      directTrace,
+      implementationTrace,
       ".",
     ),
     /omitted required semantic concept/,

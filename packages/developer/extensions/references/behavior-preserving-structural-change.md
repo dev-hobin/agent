@@ -1,9 +1,9 @@
 # Behavior-Preserving Structural Change
 
-Use this protocol only after a `direct` route has justified one concrete structural
-movement and its stable landing. It governs that single green-to-green mutation;
-it does not discover the move, approve an abstraction, decide its timing, or carry
-a multi-step implementation queue across landings.
+Use this protocol only after an `implementation` route has justified one
+concrete structural movement and its stable landing. It governs that single
+green-to-green mutation; it does not discover the move, approve an abstraction,
+decide its timing, or carry a multi-step implementation queue across landings.
 
 ## Entry Contract
 
@@ -19,7 +19,7 @@ Stop: the next stable, pausable state
 ```
 
 If the behavior claim, timing, or candidate is still under judgment, close or
-pause the direct route and route that question to the appropriate leaf.
+pause the implementation route and route that question to the appropriate leaf.
 
 ## Smallest Green Transformation
 
@@ -49,8 +49,8 @@ Within the routed movement:
 2. inspect the diff for mixed behavior and structural changes;
 3. reduce the step when the failure cannot be explained locally;
 4. return to the declared green, deployable stable landing;
-5. close the direct route there and let Developer re-observe and route the next
-   question instead of following a predetermined final design.
+5. close the implementation route there and let Developer re-observe and route
+   the next question instead of following a predetermined final design.
 
 A passing test is useful only when it exercises the preserved behavior. When no
 cheap verifier exists, keep the movement smaller and record the residual risk.
@@ -65,15 +65,16 @@ A stable landing is not merely a green command. It is a state where:
 - the diff has one explainable structural purpose;
 - the next decision can be made from the new evidence.
 
-Stop and close the direct route there even when the wider accepted task still has
-work remaining. Developer must select the next movement or focused judgment from
-the new evidence. Further caller movement, cleanup, polymorphism, factory design,
-or public abstraction requires another route and its own current pressure.
+Stop and close the implementation route there even when the wider accepted task
+still has work remaining. Developer must select the next movement or focused
+judgment from the new evidence. Further caller movement, cleanup, polymorphism,
+factory design, or public abstraction requires another route and its own current
+pressure.
 
 ## Reroute Conditions
 
-Close direct execution at the latest stable landing and open a focused judgment
-when the movement reveals:
+Close the implementation route at the latest stable landing and open a focused
+judgment when the movement reveals:
 
 - an unexpected product behavior or policy choice: `specify`;
 - missing cases, transition rules, or replacement obligations: `model`;

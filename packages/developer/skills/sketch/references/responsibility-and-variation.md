@@ -198,7 +198,7 @@ Smallest implementation surface:
 5. inspect whether the role remains coherent; stop at the stable landing
 ```
 
-This reference shapes the collaboration. The direct execution protocol owns the
+This reference shapes the collaboration. The implementation protocol owns the
 sender-by-sender mutation, and `abstraction-review` decides whether the candidate
 is stable enough to keep.
 
