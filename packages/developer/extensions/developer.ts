@@ -53,9 +53,12 @@ import {
 	type RouteEvent,
 } from "./state.ts";
 import {
+	TOOL_POLICY_LIFECYCLE_ENTRY,
 	builtinControlledToolCapabilities,
 	isControlledToolAllowed,
 	reconcileProtocolTools,
+	reloadSafeToolPolicyMarker,
+	toolPolicyReloadRequiresRestart,
 	type ProtocolToolAccess,
 	type ToolPolicyMemory,
 } from "./tool-policy.ts";
@@ -88,6 +91,8 @@ const MAX_EVIDENCE_CHARS = 2_000;
 const MAX_RESULT_CHARS = 12_000;
 const MAX_ARTIFACT_CHARS = 4_096;
 const DEVELOPER_COMMAND_ACTIONS = ["on", "status", "questions", "off"] as const;
+const TOOL_POLICY_RESTART_MESSAGE =
+	"Developer detected an in-process package reload from a version without reload-safe tool handoff. Restart the Pi process before enabling Developer; /reload and /develop off/on cannot safely reconstruct the prior built-in tool selection.";
 
 function textResult<T>(text: string, details: T) {
 	return {
@@ -560,6 +565,7 @@ export default async function developer(pi: ExtensionAPI) {
 	let routeOpening = false;
 	const routesWithMutation = new Set<string>();
 	let toolPolicyMemory: ToolPolicyMemory = { withheldBuiltins: new Set() };
+	let toolPolicyRestartRequired = false;
 
 	pi.registerFlag("develop", {
 		description: "Start with the Developer protocol enabled",
@@ -582,7 +588,31 @@ export default async function developer(pi: ExtensionAPI) {
 			pi.setActiveTools(next.activeTools);
 	};
 
+	const releaseProtocolTools = () => {
+		const current = pi.getActiveTools();
+		const next = reconcileProtocolTools({
+			activeTools: current,
+			allTools: pi.getAllTools(),
+			enabled: false,
+			access: protocolToolAccess(state),
+			protocolTools: PROTOCOL_TOOLS,
+			memory: toolPolicyMemory,
+		});
+		toolPolicyMemory = next.memory;
+		if (!sameToolSet(current, next.activeTools))
+			pi.setActiveTools(next.activeTools);
+	};
+
 	const refreshUI = (ctx: ExtensionContext) => {
+		if (toolPolicyRestartRequired) {
+			ctx.ui.setStatus("developer", "developer · restart required");
+			ctx.ui.setWidget(
+				"developer",
+				["blocked · restart Pi to reset Developer tool access"],
+				{ placement: "belowEditor" },
+			);
+			return;
+		}
 		if (!state.enabled) {
 			ctx.ui.setStatus("developer", undefined);
 			ctx.ui.setWidget("developer", undefined);
@@ -643,12 +673,19 @@ export default async function developer(pi: ExtensionAPI) {
 	};
 
 	const reconstruct = (ctx: ExtensionContext) => {
-		state = reconstructState(ctx.sessionManager.getBranch());
+		state = toolPolicyRestartRequired
+			? initialState()
+			: reconstructState(ctx.sessionManager.getBranch());
 		syncProtocolTools();
 		refreshUI(ctx);
 	};
 
-	const setEnabled = (enabled: boolean, ctx: ExtensionContext) => {
+	const setEnabled = (enabled: boolean, ctx: ExtensionContext): boolean => {
+		if (enabled && toolPolicyRestartRequired) {
+			ctx.ui.notify(TOOL_POLICY_RESTART_MESSAGE, "error");
+			refreshUI(ctx);
+			return false;
+		}
 		const event: ActivationEvent = {
 			protocol: PROTOCOL,
 			kind: "activation",
@@ -658,6 +695,7 @@ export default async function developer(pi: ExtensionAPI) {
 		state = applyDeveloperEvent(state, event);
 		syncProtocolTools();
 		refreshUI(ctx);
+		return true;
 	};
 
 	const SharedRouteParams = {
@@ -1576,9 +1614,10 @@ export default async function developer(pi: ExtensionAPI) {
 				return true;
 			};
 
-			const setAndNotifyEnabled = (enabled: boolean) => {
-				setEnabled(enabled, ctx);
+			const setAndNotifyEnabled = (enabled: boolean): boolean => {
+				if (!setEnabled(enabled, ctx)) return false;
 				ctx.ui.notify(`Developer: ${enabled ? "on" : "off"}`, "info");
+				return true;
 			};
 
 			const turnOff = async (): Promise<boolean> => {
@@ -1603,6 +1642,11 @@ export default async function developer(pi: ExtensionAPI) {
 			};
 
 			const inspectStatus = async () => {
+				if (toolPolicyRestartRequired) {
+					ctx.ui.notify(TOOL_POLICY_RESTART_MESSAGE, "error");
+					refreshUI(ctx);
+					return;
+				}
 				refreshAvailableSkills(ctx);
 				if (ctx.mode === "tui") {
 					await showDeveloperStatus(ctx, {
@@ -1796,14 +1840,33 @@ export default async function developer(pi: ExtensionAPI) {
 		};
 	});
 
-	pi.on("session_start", (_event, ctx) => {
+	pi.on("session_start", (event, ctx) => {
+		const branch = ctx.sessionManager.getBranch();
+		toolPolicyRestartRequired =
+			event.reason === "reload" &&
+			toolPolicyReloadRequiresRestart({
+				entries: branch,
+				protocol: PROTOCOL,
+				protocolTools: PROTOCOL_TOOLS,
+			});
 		reconstruct(ctx);
+		if (toolPolicyRestartRequired) {
+			ctx.ui.notify(TOOL_POLICY_RESTART_MESSAGE, "error");
+			return;
+		}
 		const startEnabled = pi.getFlag("develop");
 		if (startEnabled === true && !state.enabled) setEnabled(true, ctx);
 	});
 	pi.on("session_tree", (_event, ctx) => reconstruct(ctx));
 	pi.on("agent_settled", (_event, ctx) => refreshUI(ctx));
 	pi.on("session_shutdown", (_event, ctx) => {
+		releaseProtocolTools();
+		if (!toolPolicyRestartRequired) {
+			pi.appendEntry(
+				TOOL_POLICY_LIFECYCLE_ENTRY,
+				reloadSafeToolPolicyMarker(PROTOCOL),
+			);
+		}
 		ctx.ui.setStatus("developer", undefined);
 		ctx.ui.setWidget("developer", undefined);
 	});

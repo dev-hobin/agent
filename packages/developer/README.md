@@ -74,6 +74,14 @@ workspace boundary. Developer recognizes Pi built-ins from their provenance,
 preserves unrelated active tools, and does not force-enable tools the user
 disabled.
 
+Before Pi tears down a session runtime, Developer releases its route-bound tool
+delta so a reload, session replacement, or later extension instance does not
+inherit orphaned restrictions. After that release, the package records a
+reload-safe lifecycle marker. If an in-process reload finds older Developer
+history without a later release marker, Developer stays off and requires a full
+Pi process restart. Neither `/reload` nor `/develop off` → `on` can safely infer
+which built-ins the user originally enabled.
+
 ## How a request runs
 
 Developer adds two model-facing protocol tools:
@@ -300,6 +308,10 @@ eligibility are derived from the same machine snapshot.
 The current event contract is `developer/v5`. Earlier protocol entries are not
 replayed; this breaking contract uses `target`, `implementation`, and
 `before-implementation` consistently across tools, events, and machine state.
+A process started on the current package may open a branch containing those
+entries, but hot-reloading directly from a pre-handoff runtime is rejected with
+a restart instruction so its in-memory tool ownership cannot be mistaken for
+user configuration.
 
 Developer deliberately leaves compaction ownership to Pi. It does not trigger,
 cancel, or replace threshold/overflow compaction, so it cannot override the
@@ -402,9 +414,11 @@ not append entries, submit answers, register tools, mutate active tools, restore
 sessions, start network work, or send model messages. Prepared answers are shown
 only as a character count.
 
-`check` validates package structure and deterministic behavior. `eval` launches
-the real Pi RPC surface without a model and covers package resources, commands,
-activation state, and route-bound tool gating. These are release-gating checks.
+`check` validates package structure and deterministic behavior, including
+reload migration detection and shutdown restoration of Developer-owned tool
+deltas. `eval` launches the real Pi RPC surface without a model and covers
+package resources, commands, activation state, and route-bound tool gating.
+These are release-gating checks.
 
 Model-dependent runs are probabilistic evaluations rather than binary tests:
 

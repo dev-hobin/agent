@@ -12,6 +12,7 @@ import {
 
 import developer from "../extensions/developer.ts";
 import { JUDGMENT_TOOL, ROUTE_TOOL } from "../extensions/state.ts";
+import { TOOL_POLICY_LIFECYCLE_ENTRY } from "../extensions/tool-policy.ts";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const loadedLeaves = loadSkillsFromDir({
@@ -20,6 +21,17 @@ const loadedLeaves = loadSkillsFromDir({
 }).skills;
 
 initTheme(undefined, false);
+
+interface HarnessBranchEntry {
+	type?: string;
+	customType?: string;
+	data?: unknown;
+	message?: {
+		role?: string;
+		toolName?: string;
+		details?: unknown;
+	};
+}
 
 function createHarness() {
 	const handlers = new Map<string, Array<(event: any, ctx: any) => any>>();
@@ -40,6 +52,7 @@ function createHarness() {
 	const customOptions: unknown[] = [];
 	let editorText = "";
 	let activeTools = ["read", "edit", "write", "bash"];
+	let branchEntries: HarnessBranchEntry[] = [];
 
 	const api = {
 		on(name: string, handler: (event: any, ctx: any) => any) {
@@ -129,7 +142,7 @@ function createHarness() {
 		mode: "print",
 		ui,
 		isIdle: () => true,
-		sessionManager: { getBranch: () => [] },
+		sessionManager: { getBranch: () => [...branchEntries] },
 	};
 
 	return {
@@ -167,6 +180,9 @@ function createHarness() {
 		setActiveTools(names: string[]) {
 			activeTools = [...names];
 		},
+		setBranch(entries: HarnessBranchEntry[]) {
+			branchEntries = [...entries];
+		},
 		async emit(name: string, event: any) {
 			let result;
 			for (const handler of handlers.get(name) ?? [])
@@ -193,6 +209,28 @@ function agentOpenQuestion(question: string) {
 
 function renderedText(component: { render(width: number): string[] }): string {
 	return component.render(10_000).join("\n");
+}
+
+function entryKind(entry: { data: unknown }): string | undefined {
+	if (
+		typeof entry.data !== "object" ||
+		entry.data === null ||
+		!("kind" in entry.data)
+	)
+		return undefined;
+	return typeof entry.data.kind === "string" ? entry.data.kind : undefined;
+}
+
+function entryEnabled(entry: { data: unknown }): boolean | undefined {
+	if (
+		typeof entry.data !== "object" ||
+		entry.data === null ||
+		!("enabled" in entry.data)
+	)
+		return undefined;
+	return typeof entry.data.enabled === "boolean"
+		? entry.data.enabled
+		: undefined;
 }
 
 async function startHarness(loadedSkills: Skill[] = loadedLeaves) {
@@ -1851,6 +1889,157 @@ test("a sole unrelated pending question is not implicitly focused or resolved", 
 	assert.ok((harness.notifications.at(-1)?.message ?? "").includes(questionId));
 });
 
+test("an unsafe in-process upgrade requires restart instead of silently stranding tools", async () => {
+	const legacyEntry = {
+		type: "custom",
+		customType: "developer.mode",
+		data: {
+			protocol: "developer/v4",
+			kind: "mode",
+			mode: "strict",
+		},
+	};
+	const harness = createHarness();
+	harness.setActiveTools(["read"]);
+	harness.setBranch([legacyEntry]);
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "reload",
+	});
+
+	assert.deepEqual(harness.activeTools(), ["read"]);
+	assert.match(
+		harness.notifications.at(-1)?.message ?? "",
+		/restart the Pi process/i,
+	);
+	assert.equal(
+		harness.entries.some(
+			(entry) => entry.customType === TOOL_POLICY_LIFECYCLE_ENTRY,
+		),
+		false,
+	);
+
+	await harness.commands.get("develop").handler("on", harness.ctx);
+	assert.deepEqual(harness.activeTools(), ["read"]);
+	assert.equal(
+		harness.entries.some((entry) => entryKind(entry) === "activation"),
+		false,
+	);
+	await harness.emit("session_shutdown", {
+		type: "session_shutdown",
+		reason: "reload",
+	});
+	assert.equal(
+		harness.entries.some(
+			(entry) => entry.customType === TOOL_POLICY_LIFECYCLE_ENTRY,
+		),
+		false,
+	);
+});
+
+test("a fresh Pi startup accepts an older branch and establishes reload-safe ownership", async () => {
+	const harness = createHarness();
+	harness.setBranch([
+		{
+			type: "custom",
+			customType: "developer.mode",
+			data: {
+				protocol: "developer/v4",
+				kind: "mode",
+				mode: "strict",
+			},
+		},
+	]);
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+
+	assert.equal(
+		harness.entries.some(
+			(entry) => entry.customType === TOOL_POLICY_LIFECYCLE_ENTRY,
+		),
+		false,
+	);
+	await harness.commands.get("develop").handler("on", harness.ctx);
+	assert.equal(harness.activeTools().includes("edit"), false);
+
+	await harness.emit("session_shutdown", {
+		type: "session_shutdown",
+		reason: "reload",
+	});
+	assert.ok(harness.activeTools().includes("edit"));
+	assert.ok(harness.activeTools().includes("write"));
+	assert.ok(harness.activeTools().includes("bash"));
+	assert.ok(
+		harness.entries.some(
+			(entry) => entry.customType === TOOL_POLICY_LIFECYCLE_ENTRY,
+		),
+	);
+	assert.equal(harness.activeTools().includes(ROUTE_TOOL), false);
+	assert.equal(harness.activeTools().includes(JUDGMENT_TOOL), false);
+});
+
+test("a released tool delta is claimed safely by the reloaded extension instance", async () => {
+	const first = createHarness();
+	await developer(first.api);
+	await first.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await first.commands.get("develop").handler("on", first.ctx);
+	await first.emit("session_shutdown", {
+		type: "session_shutdown",
+		reason: "reload",
+	});
+
+	const second = createHarness();
+	second.setActiveTools(first.activeTools());
+	second.setBranch(
+		first.entries.map((entry) => ({
+			type: "custom",
+			customType: entry.customType,
+			data: entry.data,
+		})),
+	);
+	await developer(second.api);
+	await second.emit("session_start", {
+		type: "session_start",
+		reason: "reload",
+	});
+
+	assert.equal(second.activeTools().includes("edit"), false);
+	assert.equal(second.activeTools().includes("write"), false);
+	assert.equal(second.activeTools().includes("bash"), false);
+	assert.equal(
+		second.notifications.some((notification) =>
+			/restart the Pi process/i.test(notification.message),
+		),
+		false,
+	);
+});
+
+test("shutdown restores only built-ins that Developer actually withheld", async () => {
+	const harness = createHarness();
+	harness.setActiveTools(["read", "edit", "write"]);
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("develop").handler("on", harness.ctx);
+	await harness.emit("session_shutdown", {
+		type: "session_shutdown",
+		reason: "reload",
+	});
+
+	assert.ok(harness.activeTools().includes("edit"));
+	assert.ok(harness.activeTools().includes("write"));
+	assert.equal(harness.activeTools().includes("bash"), false);
+});
+
 test("implementation routing uses additive built-in activation and preserves unrelated tools", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
@@ -1951,13 +2140,14 @@ test("the no-argument command uses a non-overlay settings surface only in TUI mo
 	await harness.commands.get("develop").handler("", harness.ctx);
 	assert.equal(harness.customCalls(), 1);
 	assert.equal(harness.customOptions.at(-1), undefined);
-	assert.equal(harness.entries.length, 0);
+	assert.equal(
+		harness.entries.filter((entry) => entryKind(entry) === "activation").length,
+		0,
+	);
 
 	await harness.commands.get("develop").handler("on", harness.ctx);
-	assert.equal(
-		(harness.entries.at(-1)?.data as { enabled: boolean }).enabled,
-		true,
-	);
+	const latestEntry = harness.entries.at(-1);
+	assert.equal(latestEntry ? entryEnabled(latestEntry) : undefined, true);
 	assert.equal(harness.activeTools().includes("edit"), false);
 });
 

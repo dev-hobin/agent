@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+	TOOL_POLICY_LIFECYCLE_ENTRY,
 	reconcileProtocolTools,
+	reloadSafeToolPolicyMarker,
+	toolPolicyReloadRequiresRestart,
 	type ToolPolicyMemory,
 } from "../extensions/tool-policy.ts";
 
@@ -39,6 +42,76 @@ const implementationAccess = {
 	allowsArtifactTools: true,
 	hasBeforeImplementationGate: false,
 };
+
+const protocol = "developer/v5";
+
+const lifecycleEntry = {
+	type: "custom",
+	customType: TOOL_POLICY_LIFECYCLE_ENTRY,
+	data: reloadSafeToolPolicyMarker(protocol),
+};
+
+test("reloads with Developer history require a restart until a safe lifecycle marker exists", () => {
+	const legacyEntries = [
+		{
+			type: "custom",
+			customType: "developer.mode",
+			data: {
+				protocol: "developer/v4",
+				kind: "mode",
+				mode: "strict",
+			},
+		},
+	];
+	assert.equal(
+		toolPolicyReloadRequiresRestart({
+			entries: legacyEntries,
+			protocol,
+			protocolTools,
+		}),
+		true,
+	);
+	assert.equal(
+		toolPolicyReloadRequiresRestart({
+			entries: [...legacyEntries, lifecycleEntry],
+			protocol,
+			protocolTools,
+		}),
+		false,
+	);
+});
+
+test("a first reload without Developer history can establish the safe lifecycle", () => {
+	assert.equal(
+		toolPolicyReloadRequiresRestart({
+			entries: [{ type: "custom", customType: "other.extension", data: {} }],
+			protocol,
+			protocolTools,
+		}),
+		false,
+	);
+});
+
+test("current-protocol history without a lifecycle marker is treated as an unsafe old runtime", () => {
+	assert.equal(
+		toolPolicyReloadRequiresRestart({
+			entries: [
+				lifecycleEntry,
+				{
+					type: "message",
+					message: {
+						role: "toolResult",
+						toolName: protocolTools[0],
+						details: { protocol, kind: "route" },
+					},
+				},
+			],
+			protocol,
+			protocolTools,
+		}),
+		true,
+	);
+});
 
 test("enabled idle withholds controlled built-ins and preserves unrelated tools", () => {
 	const result = reconcileProtocolTools({

@@ -1,5 +1,8 @@
 export type ControlledToolCapability = "shell" | "artifact";
 
+export const TOOL_POLICY_LIFECYCLE_ENTRY = "developer.tool-policy-lifecycle";
+export const TOOL_POLICY_LIFECYCLE = "released-before-reload/v1";
+
 const CONTROLLED_BUILTIN_CAPABILITIES = new Map<
 	string,
 	ControlledToolCapability
@@ -27,6 +30,90 @@ export interface ProtocolToolAccess {
 	allowsShell: boolean;
 	allowsArtifactTools: boolean;
 	hasBeforeImplementationGate: boolean;
+}
+
+interface ToolPolicyBranchEntry {
+	type?: string;
+	customType?: string;
+	data?: unknown;
+	message?: {
+		role?: string;
+		toolName?: string;
+		details?: unknown;
+	};
+}
+
+interface ToolPolicyLifecycleMarker {
+	protocol: string;
+	kind: "tool-policy-lifecycle";
+	lifecycle: typeof TOOL_POLICY_LIFECYCLE;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+export function reloadSafeToolPolicyMarker(
+	protocol: string,
+): ToolPolicyLifecycleMarker {
+	return {
+		protocol,
+		kind: "tool-policy-lifecycle",
+		lifecycle: TOOL_POLICY_LIFECYCLE,
+	};
+}
+
+function isReloadSafeToolPolicyMarker(
+	entry: ToolPolicyBranchEntry,
+	protocol: string,
+): boolean {
+	if (
+		entry.type !== "custom" ||
+		entry.customType !== TOOL_POLICY_LIFECYCLE_ENTRY ||
+		!isObject(entry.data)
+	)
+		return false;
+	return (
+		entry.data.protocol === protocol &&
+		entry.data.kind === "tool-policy-lifecycle" &&
+		entry.data.lifecycle === TOOL_POLICY_LIFECYCLE
+	);
+}
+
+export function toolPolicyReloadRequiresRestart(input: {
+	entries: readonly ToolPolicyBranchEntry[];
+	protocol: string;
+	protocolTools: readonly string[];
+}): boolean {
+	const protocolTools = new Set(input.protocolTools);
+	for (let index = input.entries.length - 1; index >= 0; index -= 1) {
+		const entry = input.entries[index];
+		if (!entry) continue;
+		if (isReloadSafeToolPolicyMarker(entry, input.protocol)) return false;
+
+		let value: unknown;
+		if (
+			entry.type === "custom" &&
+			entry.customType?.startsWith("developer.") &&
+			entry.customType !== TOOL_POLICY_LIFECYCLE_ENTRY
+		) {
+			value = entry.data;
+		} else if (
+			entry.type === "message" &&
+			entry.message?.role === "toolResult" &&
+			entry.message.toolName &&
+			protocolTools.has(entry.message.toolName)
+		) {
+			value = entry.message.details;
+		}
+		if (
+			isObject(value) &&
+			typeof value.protocol === "string" &&
+			value.protocol.startsWith("developer/")
+		)
+			return true;
+	}
+	return false;
 }
 
 export function builtinControlledToolCapabilities(
