@@ -87,8 +87,8 @@ function runFixture(fixture) {
 				observerExtension,
 				"--skill",
 				skills,
-				"--develop",
 				fixture.request,
+				"--develop",
 			],
 			{
 				cwd,

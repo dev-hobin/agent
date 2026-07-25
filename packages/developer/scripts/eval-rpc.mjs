@@ -289,6 +289,7 @@ try {
 	for (const tool of [
 		"read",
 		"developer_route_question",
+		"developer_load_reference",
 		"developer_record_judgment",
 	]) {
 		assert.ok(

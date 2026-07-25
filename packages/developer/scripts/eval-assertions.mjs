@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const ROUTE_TOOL = "developer_route_question";
+const REFERENCE_TOOL = "developer_load_reference";
 const JUDGMENT_TOOL = "developer_record_judgment";
 
 function resultText(event) {
@@ -125,16 +126,69 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 		);
 	}
 
-	for (const expectedReference of fixture.expectedReferenceReads ?? []) {
+	for (const expectedRoute of fixture.expectedReferenceRoutes ?? []) {
+		const load = executions.find(
+			(event) =>
+				event.toolName === REFERENCE_TOOL &&
+				event.args?.reference_route === expectedRoute,
+		);
 		assert.ok(
-			executions.some(
+			load,
+			fixture.id +
+				": Developer reference tool did not select policy route " +
+				expectedRoute,
+		);
+		assert.ok(
+			endings.some(
 				(event) =>
-					event.toolName === "read" &&
-					String(event.args?.path ?? event.args?.file_path ?? "")
-						.replaceAll("\\", "/")
-						.endsWith(expectedReference),
+					event.toolCallId === load.toolCallId && event.isError === false,
 			),
-			fixture.id + ": Pi read did not load " + expectedReference,
+			fixture.id +
+				": Developer reference route selection failed for " +
+				expectedRoute,
+		);
+	}
+
+	for (const expectedReference of fixture.expectedReferenceReads ?? []) {
+		const routedPath = expectedReference.split("/").slice(-2).join("/");
+		const load = executions.find(
+			(event) =>
+				event.toolName === REFERENCE_TOOL &&
+				String(event.args?.path ?? "")
+					.replaceAll("\\", "/")
+					.endsWith(routedPath),
+		);
+		assert.ok(
+			load,
+			fixture.id +
+				": Developer reference tool did not load " +
+				expectedReference,
+		);
+		assert.ok(
+			endings.some(
+				(event) =>
+					event.toolCallId === load.toolCallId && event.isError === false,
+			),
+			fixture.id + ": Developer reference load failed for " + expectedReference,
+		);
+		assert.ok(
+			judgments.some((event) =>
+				event.args.reference_basis?.some(
+					(basis) =>
+						String(basis.path ?? "")
+							.replaceAll("\\", "/")
+							.endsWith(routedPath) &&
+						typeof basis.trigger === "string" &&
+						basis.trigger.length > 0 &&
+						typeof basis.applied_rule === "string" &&
+						basis.applied_rule.length > 0 &&
+						typeof basis.artifact === "string" &&
+						basis.artifact.length > 0,
+				),
+			),
+			fixture.id +
+				": judgment did not apply loaded reference " +
+				expectedReference,
 		);
 	}
 

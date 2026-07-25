@@ -122,6 +122,9 @@
       "Node",
       "totalEstimate"
     ],
+    "expectedReferenceRoutes": [
+      "data-shape-template"
+    ],
     "expectedReferenceReads": [
       "skills/sketch/references/data-driven-design.md",
       "skills/sketch/references/data-shape-template-catalog.md"
@@ -131,7 +134,240 @@
   },
   {
     "id": "representation-barrier-design",
-    "request": "파일을 수정하지 말고 Schedule이 현재 [timezone, epochStart, epochEnd] 배열이지만 객체 표현으로 교체할 수 있게 설계해라. 호출자가 믿을 공개 연산과 법칙, 숨길 표현, invariant owner, 실제 호출자 모양, 두 표현 사이 replacement/leak check를 구체적으로 제시해라.",
+    "request": "src/schedule.ts를 읽되 파일은 수정하지 말고, 현재 [timezone, epochStart, epochEnd] 배열인 Schedule을 객체 표현으로 교체할 수 있는 원래 설계 표면을 완성해라. 호출자가 믿을 공개 연산과 법칙, 숨길 표현, invariant owner, 구체적인 before/after caller 모양, 두 표현 사이 replacement/leak check를 제시해라.",
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "Schedule"
+      ],
+      [
+        "startOf",
+        "startEpoch",
+        "epochStart",
+        "start law",
+        "시작 포함"
+      ],
+      [
+        "endOf",
+        "endEpoch",
+        "epochEnd",
+        "end law",
+        "끝 제외"
+      ],
+      [
+        "replacement"
+      ]
+    ],
+    "expectedReferenceRoutes": [
+      "representation-barrier"
+    ],
+    "expectedReferenceReads": [
+      "skills/sketch/references/design-levels-and-boundaries.md",
+      "skills/sketch/references/representation-barriers.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "specialized-temporal-model",
+    "request": "파일을 수정하지 말고 재시도 가능한 결제 승인 모델을 완성해라. Created, Authorizing(attempt, requestId), Authorized(paymentId), Failed 상태와 stale, duplicate, reordered approval을 구분하고 safety/progress 가정, 금지 반례, 검증 대상을 완전한 calibration example로 제시해라.",
+    "admissibleFirstTargets": [
+      "model"
+    ],
+    "preferredFirstTargets": [
+      "model"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "Created",
+      "Authorizing",
+      "stale",
+      "safety"
+    ],
+    "expectedReferenceRoutes": [
+      "temporal-behavior"
+    ],
+    "expectedReferenceReads": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/temporal-behavior-models.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "behavior-preserving-structural-signal",
+    "request": "파일을 수정하지 말고 src/verses.ts와 exact-output tests를 읽어 verse 2와 verse 3 출력 branch가 거의 같지만 수량과 명사구만 다른 현재 증거를 판단해라. baseline behavior, selected pair, smallest difference, 한 번의 behavior-preserving observation move, relevant check, horizontal/vertical/ambiguous 분류를 구체적으로 제시하고 아직 추상화를 승인하지 마라.",
+    "admissibleFirstTargets": [
+      "signal"
+    ],
+    "preferredFirstTargets": [
+      "signal"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "verse 2",
+        "verse(2)",
+        "count === 2"
+      ],
+      [
+        "verse 3",
+        "verse(3)",
+        "count === 3"
+      ],
+      [
+        "smallest difference"
+      ],
+      [
+        "horizontal"
+      ]
+    ],
+    "expectedReferenceRoutes": [
+      "behavior-preserving-movement"
+    ],
+    "expectedReferenceReads": [
+      "skills/signal/references/structural-movement.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "structural-change-timing-tradeoff",
+    "request": "파일을 수정하지 말고 locker fulfillment를 추가하기 전에 public FulfillmentStrategy registry를 먼저 도입할지 판단해라. behavior와 structure를 분리하고 guarantee gained, ability lost, reversibility, cost of delay, nested work를 비교해 now/after/never를 결정하며 after라면 observable reopen condition을 제시해라.",
+    "admissibleFirstTargets": [
+      "schedule"
+    ],
+    "preferredFirstTargets": [
+      "schedule"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "FulfillmentStrategy",
+      "ability",
+      "nested",
+      "reopen"
+    ],
+    "expectedReferenceRoutes": [
+      "structural-timing-tradeoff"
+    ],
+    "expectedReferenceReads": [
+      "skills/schedule/references/structural-change-timing.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "domain-sense-naming-boundary",
+    "request": "파일을 수정하지 말고 getEffectiveSchedule(formValues) 이름을 검토해라. 이 함수는 I/O나 fallback 없이 ScheduleFormValues를 검증해 ScheduleContent로 변환한다. sign/referent/sense, 호출자가 의존하는 의미, 숨길 구현, effect 오해, rename map과 before/after caller를 제시해라.",
+    "admissibleFirstTargets": [
+      "naming-judgment"
+    ],
+    "preferredFirstTargets": [
+      "naming-judgment"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "getEffectiveSchedule",
+      "referent",
+      "sense",
+      "ScheduleContent"
+    ],
+    "expectedReferenceRoutes": [
+      "domain-sense-boundary"
+    ],
+    "expectedReferenceReads": [
+      "skills/naming-judgment/references/domain-naming.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "abstraction-candidate-contract-review",
+    "request": "파일을 수정하지 말고 이미 제안된 withRetry(operation, shouldRetry, delayStrategy, maxAttempts) 후보를 감사 가능한 abstraction review로 판단해라. 세 concrete request workflow가 공유한다고 주장된 attempt-classify-wait-retry movement와 operation/shouldRetry/delayStrategy/maxAttempts 역할을 후보의 근거로 삼되 새 인터페이스를 설계하지 마라. caller promise, hidden detail, process observer, plausible counterexample, observable stop check, keep/revise/split/reject/defer 결정을 제시해라. 구체 workflow 증거가 없어서 후보 약속을 판정할 수 없다면 필요한 증거와 handoff를 명시한 needs-evidence도 허용된다.",
+    "admissibleFirstTargets": [
+      "abstraction-review"
+    ],
+    "preferredFirstTargets": [
+      "abstraction-review"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "withRetry"
+      ],
+      [
+        "promise",
+        "contract",
+        "약속",
+        "계약"
+      ],
+      [
+        "counterexample",
+        "반례"
+      ],
+      [
+        "stop"
+      ]
+    ],
+    "expectedReferenceRoutes": [
+      "candidate-contract-review"
+    ],
+    "expectedReferenceReads": [
+      "skills/abstraction-review/references/field-card.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "multi-claim-pass-but-wrong-verification",
+    "request": "파일을 수정하지 말고 완료 주장을 검증해라. 타입체크와 현재 테스트는 통과하지만 empty schedule과 no schedule이 같은 저장 값이 되고, 실제 persisted legacy shape와 UI 의미는 실행되지 않았다. claim-evidence matrix, verifier relevance, source/exercised provenance, plausible pass-but-wrong implementation, strongest narrowed claim, residual risk를 제시해라.",
+    "admissibleFirstTargets": [
+      "verify"
+    ],
+    "preferredFirstTargets": [
+      "verify"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "empty schedule",
+      "no schedule",
+      "pass-but-wrong",
+      "residual"
+    ],
+    "expectedReferenceRoutes": [
+      "claim-evidence-gap"
+    ],
+    "expectedReferenceReads": [
+      "skills/verify/references/verifier-selection-and-pass-but-wrong.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "generative-recursion-preservation-progress",
+    "request": "파일을 수정하지 말고 정렬된 유한 배열의 binary search 설계 표면을 만들어라. 재귀 호출 구간은 데이터 필드가 아니라 midpoint에서 생성된다. trivial case, generation rule, original problem과의 preservation relation, combination, branch별 well-founded measure, midpoint stagnation과 invalid bounds, failure/exhaustion/divergence 구별을 제시해라.",
     "admissibleFirstTargets": [
       "sketch"
     ],
@@ -142,15 +378,487 @@
       "settled-unchanged"
     ],
     "requiredJudgmentTerms": [
-      "Schedule",
-      "startOf",
-      "endOf",
-      "replacement"
+      "generation",
+      "preservation",
+      "measure",
+      "divergence"
+    ],
+    "expectedReferenceRoutes": [
+      "generative-recursion"
     ],
     "expectedReferenceReads": [
-      "skills/sketch/references/abstraction-composition-and-state.md",
-      "skills/sketch/references/abstraction-barriers-and-closure.md"
+      "skills/sketch/references/data-driven-design.md",
+      "skills/sketch/references/generative-recursion.md"
     ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "accumulator-invariant-ownership",
+    "request": "파일을 수정하지 말고 리스트 reverse가 반복 append로 prior work를 재처리하는 상황의 설계 표면을 만들어라. original/current/accumulated relation을 먼저 쓰고 identity, transition preservation, conclusion, private wrapper, ownership 선택, order/failure/stack/memory semantic delta를 제시해라. generative recursion이나 persistent product history로 확장하지 마라.",
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      ["invariant", "불변식"],
+      ["identity"],
+      ["preservation"],
+      ["wrapper"]
+    ],
+    "expectedReferenceRoutes": [
+      "accumulator-invariant"
+    ],
+    "expectedReferenceReads": [
+      "skills/sketch/references/data-driven-design.md",
+      "skills/sketch/references/accumulator-invariants.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "process-resource-boundary",
+    "request": "파일을 수정하지 말고 외부 주문을 lazy pull하고 bounded queue를 거쳐 pure notification transform 후 push하는 프로세스의 설계 표면을 만들어라. product history가 아니라 generated work, active/paused dependency, too-much/too-little policy, backpressure, resource lifetime, cancellation, task acknowledgment와 outstanding-work owner가 질문이다. state machine이나 event log를 발명하지 마라.",
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "active",
+        "paused"
+      ],
+      [
+        "backpressure"
+      ],
+      [
+        "acknowledgment",
+        "ack",
+        "settlement"
+      ],
+      [
+        "outstanding"
+      ]
+    ],
+    "expectedReferenceRoutes": [
+      "process-resources"
+    ],
+    "expectedReferenceReads": [
+      "skills/sketch/references/design-levels-and-boundaries.md",
+      "skills/sketch/references/process-shape-and-resources.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "state-history-order-boundary",
+    "request": "파일을 수정하지 말고 payment approval의 이미 합의된 이력 규칙을 구현 가능한 설계 표면으로 만들어라. accepted rules: current requestId와 다른 approval은 unchanged, 같은 approval의 duplicate는 idempotent, current approval은 한 번만 Authorized로 전이하며 read-current-attempt부터 commit까지 한 transition이다. 이 의미는 다시 모델링하지 말고 required history, sufficient summary, owner/writers, identity, transition table, atomic order law, log 대안을 제시해라. 일반 queue capacity 문제로 바꾸지 마라.",
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "history",
+      "requestId",
+      "stale",
+      "atomic"
+    ],
+    "expectedReferenceRoutes": [
+      "state-history-order"
+    ],
+    "expectedReferenceReads": [
+      "skills/sketch/references/design-levels-and-boundaries.md",
+      "skills/sketch/references/state-history-and-order.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "generic-operation-extension-axis",
+    "request": "파일을 수정하지 말고 Card, BankTransfer, StoreCredit에 charge/refund/describe를 적용하는 generic operation surface를 설계해라. variant-operation matrix, observed row/column growth axis, dispatch owner, duplicate/overlap/precedence/load-order/unsupported policy, fake variant와 new operation check, Money coercion의 preserved/lost meaning을 제시해라. DSL이나 evaluator를 만들지 마라.",
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "matrix",
+      "precedence",
+      "unsupported",
+      "coercion"
+    ],
+    "expectedReferenceRoutes": [
+      "generic-dispatch",
+      "meaning-preserving-conversion"
+    ],
+    "expectedReferenceReads": [
+      "skills/sketch/references/design-levels-and-boundaries.md",
+      "skills/sketch/references/generic-dispatch-systems.md",
+      "skills/sketch/references/meaning-preserving-conversions.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "language-semantics-runtime-boundary",
+    "request": "파일을 수정하지 말고 Allow/HasTag/All/Any policy DSL의 설계 표면을 만들어라. ordinary typed data 대안과 language gate를 비교하고 grammar/semantic representation, validation, evaluator의 zero/one/many result와 error, scope/order/effects/termination, calling convention/effect summary, optimization guard와 runtime roots를 제시해라. 단순 registration table로 축소하지 마라.",
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "language gate",
+      "evaluator",
+      "effect",
+      "roots"
+    ],
+    "expectedReferenceRoutes": [
+      "language-semantics",
+      "runtime-compilation"
+    ],
+    "expectedReferenceReads": [
+      "skills/sketch/references/design-levels-and-boundaries.md",
+      "skills/sketch/references/language-semantics.md",
+      "skills/sketch/references/runtime-and-compilation.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "earned-abstraction-from-completed-designs",
+    "request": "파일을 수정하지 말고 이미 완성되고 검증된 sum(numbers)와 allReady(tasks)를 비교해라. 두 함수의 data model과 purpose는 안정적이다. common movement와 base/project/combine variation roles를 정렬하고 fold 후보, migrated callers, realistic transfer case, evaluation order와 process observer, abstraction-review handoff를 포함한 sketch를 만들어라. wished decomposition이나 generative recursion으로 바꾸지 마라. 실제 caller/process 증거가 없어 promotion할 수 없다면 candidate와 필요한 증거를 남긴 needs-evidence도 허용된다.",
+    "admissibleFirstTargets": ["sketch"],
+    "preferredFirstTargets": ["sketch"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["sum"],
+      ["allReady"],
+      ["variation", "role", "역할"],
+      ["transfer"]
+    ],
+    "expectedReferenceRoutes": ["earned-abstraction"],
+    "expectedReferenceReads": [
+      "skills/sketch/references/data-driven-design.md",
+      "skills/sketch/references/earned-abstraction.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "closure-finalizer-boundary",
+    "request": "파일을 수정하지 말고 Query의 where/orderBy/limit가 Query를 반환하고 execute만 Result를 반환하는 이미 합의된 composition surface를 sketch해라. unit predicate, primitives, closed operations, finalizer, invalid combinations, eager/lazy/order/replay assumptions와 transfer composition check를 제시해라. raw representation barrier나 DSL evaluator를 설계하지 마라.",
+    "admissibleFirstTargets": ["sketch"],
+    "preferredFirstTargets": ["sketch"],
+    "allowedOutcomes": ["settled-unchanged"],
+    "requiredJudgmentTerms": ["Query", "closed", "finalizer", "replay"],
+    "expectedReferenceRoutes": ["closure-interface"],
+    "expectedReferenceReads": [
+      "skills/sketch/references/design-levels-and-boundaries.md",
+      "skills/sketch/references/closure-and-conventional-interfaces.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "variation-role-without-creation",
+    "request": "파일을 수정하지 말고 이미 외부에서 공급되는 CardAuthorizer와 BankAuthorizer가 authorize(Money) 역할을 공유할 수 있는지 구현 표면을 sketch해라. selection/factory와 type transition은 범위 밖이다. caller role contract, precondition/result/failure/effect substitution, unsupported cases, direct conditional alternative와 transfer implementation을 제시해라.",
+    "admissibleFirstTargets": ["sketch"],
+    "preferredFirstTargets": ["sketch"],
+    "allowedOutcomes": ["settled-unchanged"],
+    "requiredJudgmentTerms": ["authorize", "precondition", "effect", "transfer"],
+    "expectedReferenceRoutes": ["variation-role"],
+    "expectedReferenceReads": ["skills/sketch/references/variation-roles.md"],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "type-transition-without-shared-role",
+    "request": "파일을 수정하지 말고 authorize event가 PendingPayment를 AuthorizedPayment 또는 DeclinedPayment로 바꾸는 구현 표면을 sketch해라. 공유 polymorphic role이나 factory는 범위 밖이다. source/event/target, preconditions, preserved/consumed/retained facts, terminal behavior, failure, construction owner, examples와 representation-coincidence 반례를 제시해라.",
+    "admissibleFirstTargets": ["sketch"],
+    "preferredFirstTargets": ["sketch"],
+    "allowedOutcomes": ["settled-unchanged"],
+    "requiredJudgmentTerms": ["PendingPayment", "AuthorizedPayment", "preserved", "failure"],
+    "expectedReferenceRoutes": ["type-transition"],
+    "expectedReferenceReads": ["skills/sketch/references/type-transitions.md"],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "selection-creation-without-role-redesign",
+    "request": "파일을 수정하지 말고 이미 합의된 DeliveryChannel 역할의 Email/SMS 구현을 tenant config로 선택하고 생성하는 boundary를 sketch해라. 역할 계약은 다시 설계하지 마라. selection owner, overlap/precedence/duplicate/unsupported/load-order policy를 쓰고 local conditional, mapping, registration, discovery를 비교해 least-powerful mechanism과 fake variant/startup failure check를 제시해라.",
+    "admissibleFirstTargets": ["sketch"],
+    "preferredFirstTargets": ["sketch"],
+    "allowedOutcomes": ["settled-unchanged"],
+    "requiredJudgmentTerms": ["DeliveryChannel", "precedence", "registration", "startup"],
+    "expectedReferenceRoutes": ["selection-creation"],
+    "expectedReferenceReads": ["skills/sketch/references/selection-and-creation.md"],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "contract-replacement-observer",
+    "request": "파일을 수정하지 말고 old schedule API는 non-empty timezone string을 받고 domain error를 반환하지만 new API는 known enum만 받고 throw하는 교체를 모델링해라. old/new requires/ensures/failure, old.Pre=>new.Pre와 new.Post=>old.Post, value/error observer, legacy caller counterexample, refinement/adapter 선택과 verification target을 제시해라. API를 sketch하거나 migration timing을 정하지 마라. 실제 legacy caller와 adapter policy가 없어서 최종 compatibility를 결정할 수 없다면 unsafe relation과 필요한 증거를 남긴 needs-evidence도 허용된다.",
+    "admissibleFirstTargets": ["model"],
+    "preferredFirstTargets": ["model"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentTerms": ["old.Pre", "new.Pre", "observer", "legacy"],
+    "expectedReferenceRoutes": ["contract-replacement"],
+    "expectedReferenceReads": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/contract-and-replacement-models.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "failed-candidate-stop-localization",
+    "request": "파일을 수정하지 말고 이미 review 중인 query.where(...).execute() 후보를 판정해라. 약속은 execute까지 Query 세계에 남는다는 것이었지만 관찰 결과 execute는 I/O를 하고 rows를 반환해 closure stop이 실패했다. candidate field card를 보존하고 failed stop, exact observation, contradicted promise, earliest broken layer, one revision class, owning skill handoff와 same-stop rerun을 기록해라. 여기서 새 API를 만들지 마라.",
+    "admissibleFirstTargets": ["abstraction-review"],
+    "preferredFirstTargets": ["abstraction-review"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["execute"],
+      ["closure", "finalizer"],
+      ["contradicted", "실패", "위반"],
+      ["sketch"]
+    ],
+    "expectedReferenceRoutes": ["failed-candidate-check"],
+    "expectedReferenceReads": [
+      "skills/abstraction-review/references/field-card.md",
+      "skills/abstraction-review/references/repair-table.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "candidate-promise-falsifier-calibration",
+    "request": "파일을 수정하지 말고 완성된 registerProvider(kind,{charge,refund}) 후보 field card를 review해라. accepted pressure는 세 provider가 central dispatch를 반복 편집한다는 것이고 promise는 additive provider, hidden choice는 registry storage/load order다. duplicate registration의 silent overwrite 때문에 keep과 revise가 애매하다. worked examples 중 surface 모양이 아니라 matching promise와 falsifier 하나만 선택하고, unmatched examples를 확장하지 말며, case-calibrated decision과 open consequence를 기록해라.",
+    "admissibleFirstTargets": ["abstraction-review"],
+    "preferredFirstTargets": ["abstraction-review"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["registerProvider"],
+      ["duplicate"],
+      ["Provider Registry", "registry"],
+      ["revise", "수정"]
+    ],
+    "expectedReferenceRoutes": ["candidate-calibration"],
+    "expectedReferenceReads": [
+      "skills/abstraction-review/references/field-card.md",
+      "skills/abstraction-review/references/worked-examples.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "bounded-condition-space-ownership",
+    "request": "파일을 수정하지 말고 contract patch에서 schedule이 omitted, null, empty list, non-empty list일 때의 condition space를 모델링해라. omitted은 unchanged, null은 clear, empty는 invalid라는 policy가 accepted다. domain/distinction map, rules, forbidden states, defaults, assumptions, human-owned policy, guarantee owner, one counterexample와 verification targets를 제시해라. API surface나 migration plan은 만들지 마라.",
+    "admissibleFirstTargets": ["model"],
+    "preferredFirstTargets": ["model"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["omitted"],
+      ["null"],
+      ["empty", "빈"],
+      ["owner", "소유"]
+    ],
+    "expectedReferenceRoutes": ["condition-space"],
+    "expectedReferenceReads": ["skills/model/references/problem-modeling.md"],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "relational-interval-constraint-boundary",
+    "request": "파일을 수정하지 말고 room booking의 relational constraint를 모델링해라. Booking(room,start,end), start<end, 같은 room의 [start,end) interval은 겹치면 안 되고 cancelled row는 제외한다. NULL endpoint와 duplicate rows는 invalid라는 policy다. quantified constraint, valid/invalid instances, endpoint/null/bag multiplicity/mutation coverage/contradiction과 SQL translation obligations를 제시해라.",
+    "admissibleFirstTargets": ["model"],
+    "preferredFirstTargets": ["model"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["Booking"],
+      ["start", "end"],
+      ["NULL", "null"],
+      ["duplicate", "multiplicity"]
+    ],
+    "expectedReferenceRoutes": ["relational-constraints"],
+    "expectedReferenceReads": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/relational-constraint-models.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "loop-proof-obligation-boundary",
+    "request": "파일을 수정하지 말고 integer array의 prefix sum loop가 total sum을 반환한다는 주장을 모델링해라. specification, initialization, invariant preservation, conclusion, termination measure, arithmetic/overflow assumptions, omitted observers와 concrete verification targets를 써라. proof notation을 implementation이나 runtime/resource proof로 과장하지 마라.",
+    "admissibleFirstTargets": ["model"],
+    "preferredFirstTargets": ["model"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["invariant"],
+      ["initial", "초기"],
+      ["termination", "종료"],
+      ["overflow"]
+    ],
+    "expectedReferenceRoutes": ["proof-obligation"],
+    "expectedReferenceReads": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/proof-obligations.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "bounded-solver-result-claim",
+    "request": "파일을 수정하지 말고 scope 5의 bounded access-control model에서 solver가 satisfiable과 한 witness를 반환한 상황을 모델링해라. encoding/scope, exact status, witness가 지지하는 existential claim, 지지하지 않는 universal/unbounded claim, unknown/timeout과의 차이, residual과 verifier target을 명시해라. production correctness로 확대하지 마라.",
+    "admissibleFirstTargets": ["model"],
+    "preferredFirstTargets": ["model"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["satisfiable"],
+      ["scope", "bound"],
+      ["witness"],
+      ["unbounded", "universal"]
+    ],
+    "expectedReferenceRoutes": ["solver-result-boundary"],
+    "expectedReferenceReads": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/solver-result-boundaries.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "logic-query-empty-result-semantics",
+    "request": "파일을 수정하지 말고 ancestor facts/rules/query에서 cycles와 duplicate proof paths가 있고 not blocked(X)를 사용하는 상황을 모델링해라. answer와 proof multiplicity, dedup policy, negation-as-failure와 binding order, empty result가 no proof인지 completed no-answer인지 divergence인지, cycle handling과 completion cases를 구분해라. evaluator API는 설계하지 마라.",
+    "admissibleFirstTargets": ["model"],
+    "preferredFirstTargets": ["model"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["ancestor"],
+      ["duplicate", "multiplicity"],
+      ["negation", "not blocked"],
+      ["divergence", "completion"]
+    ],
+    "expectedReferenceRoutes": ["logic-query-semantics"],
+    "expectedReferenceReads": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/logic-query-semantics.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "capacity-preserving-plan-model",
+    "request": "파일을 수정하지 말고 service A와 B를 old cluster에서 new cluster로 옮기는 planning model을 만들어라. 항상 healthy replica가 각 service에 하나 이상 있고 new cluster capacity 2를 넘지 않아야 한다. initial/goal state, legal actions와 frame assumptions, valid/invalid sequence, every intermediate invariant, objective와 plan equivalence, complete search 대 unknown no-plan 의미를 제시해라. rollout 구현은 만들지 마라.",
+    "admissibleFirstTargets": ["model"],
+    "preferredFirstTargets": ["model"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["capacity"],
+      ["invariant"],
+      ["initial", "goal"],
+      ["no-plan", "unknown"]
+    ],
+    "expectedReferenceRoutes": ["planning-model"],
+    "expectedReferenceReads": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/planning-models.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "data-driven-first-function-surface",
+    "request": "파일을 수정하지 말고 accepted TrafficLight data meaning(red|yellow|green), examples와 next-light behavior에서 첫 executable function surface를 sketch해라. ordered six design artifacts, data interpretation, signature/purpose/header/examples/template/code/tests, repository contradiction mapping, bounded first item과 propagation check를 제시해라. generic state machine abstraction이나 temporal policy를 새로 만들지 마라.",
+    "admissibleFirstTargets": ["sketch"],
+    "preferredFirstTargets": ["sketch"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["TrafficLight"],
+      ["signature"],
+      ["template"],
+      ["test", "example"]
+    ],
+    "expectedReferenceRoutes": ["data-driven-design"],
+    "expectedReferenceReads": ["skills/sketch/references/data-driven-design.md"],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "top-down-wished-composition",
+    "request": "파일을 수정하지 말고 accepted checkout total을 itemSubtotal, discountFor, taxFor의 independently meaningful operations로 top-down sketch해라. top-level wished composition, each contract/template/example, intermediate type compatibility, order/effect/failure assumptions와 first composable slice를 제시해라. completed-design fold abstraction이나 representation barrier로 바꾸지 마라.",
+    "admissibleFirstTargets": ["sketch"],
+    "preferredFirstTargets": ["sketch"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["itemSubtotal"],
+      ["discountFor"],
+      ["taxFor"],
+      ["intermediate", "compatibility", "중간", "호환"]
+    ],
+    "expectedReferenceRoutes": ["composition-by-wishes"],
+    "expectedReferenceReads": [
+      "skills/sketch/references/data-driven-design.md",
+      "skills/sketch/references/composition-by-wishes.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "truthful-design-level-boundary",
+    "request": "파일을 수정하지 말고 caller가 object storage인지 local file인지 몰라도 되는 accepted BlobStore contract를 sketch해라. caller purpose/vocabulary/level map, public contract, owner, hidden choice, assumptions, dependency direction, S3와 filesystem alternate implementation 또는 falsifier를 제시해라. bytes representation accessor나 creation registry는 설계하지 마라.",
+    "admissibleFirstTargets": ["sketch"],
+    "preferredFirstTargets": ["sketch"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["BlobStore"],
+      ["vocabulary", "level"],
+      ["owner"],
+      ["S3", "filesystem"]
+    ],
+    "expectedReferenceRoutes": ["design-levels"],
+    "expectedReferenceReads": ["skills/sketch/references/design-levels-and-boundaries.md"],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "responsibility-collaboration-local-change",
+    "request": "파일을 수정하지 말고 invoice formatting change가 controller, line-item loop, currency helper를 함께 수정하고 customer/locale/currency가 repeated arguments로 이동하는 상황을 sketch해라. responsibility inventory, point of attack, wished messages, one coherent owner, participant assumptions, navigation leaks, representative change locality와 evidence checks를 제시해라. polymorphic variants나 factory는 만들지 마라.",
+    "admissibleFirstTargets": ["sketch"],
+    "preferredFirstTargets": ["sketch"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["invoice"],
+      ["responsibility", "owner"],
+      ["message"],
+      ["navigation", "participant"]
+    ],
+    "expectedReferenceRoutes": ["responsibility-collaboration"],
+    "expectedReferenceReads": ["skills/sketch/references/responsibility-and-collaboration.md"],
     "mustRecordJudgment": true,
     "maxRoutes": 2
   },
