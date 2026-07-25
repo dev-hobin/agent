@@ -11,7 +11,11 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import developer from "../extensions/developer.ts";
-import { JUDGMENT_TOOL, ROUTE_TOOL } from "../extensions/state.ts";
+import {
+	JUDGMENT_TOOL,
+	REFERENCE_TOOL,
+	ROUTE_TOOL,
+} from "../extensions/state.ts";
 import { TOOL_POLICY_LIFECYCLE_ENTRY } from "../extensions/tool-policy.ts";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -205,6 +209,26 @@ function agentOpenQuestion(question: string) {
 		gate: "none" as const,
 		resolution_criteria: `Obtain concrete evidence that settles: ${question}`,
 	};
+}
+
+function referenceExemption(
+	reason = "The test exercises protocol behavior that does not depend on the routed reference methods.",
+) {
+	return {
+		reason,
+		evidence: [
+			"The asserted behavior is independent of reference-derived judgment.",
+		],
+	};
+}
+
+function resultText(result: {
+	content: Array<{ type: string; text?: string }>;
+}): string {
+	return result.content
+		.filter((item) => item.type === "text")
+		.map((item) => item.text ?? "")
+		.join("\n");
 }
 
 function renderedText(component: { render(width: number): string[] }): string {
@@ -506,6 +530,245 @@ test("a Pi-filtered leaf cannot be routed even though it exists in the package",
 	);
 });
 
+test("resolved skill judgments require auditable reference application or a concrete exemption", async () => {
+	const harness = await startHarness();
+	const routeTool = harness.tools.get(ROUTE_TOOL);
+	const referenceTool = harness.tools.get(REFERENCE_TOOL);
+	const judgmentTool = harness.tools.get(JUDGMENT_TOOL);
+	const routed = await routeTool.execute(
+		"reference-contract",
+		{
+			question: "How should totalEstimate follow the recursive Tasks shape?",
+			target: "sketch",
+			reason: "The data definition must determine the implementation skeleton",
+		},
+		undefined,
+		undefined,
+		harness.ctx,
+	);
+	assert.ok(
+		routed.details.availableReferences.includes(
+			"references/data-driven-design.md",
+		),
+	);
+	assert.deepEqual(
+		routed.details.referenceRoutes.find(
+			(route: { id: string }) => route.id === "data-shape-template",
+		)?.references,
+		[
+			"references/data-driven-design.md",
+			"references/data-shape-template-catalog.md",
+		],
+	);
+	const blockedDirectReferenceRead = await harness.emit("tool_call", {
+		toolName: "read",
+		input: {
+			path: join(
+				packageRoot,
+				"skills",
+				"sketch",
+				"references",
+				"data-driven-design.md",
+			),
+		},
+		toolCallId: "direct-reference-read",
+	});
+	assert.equal(blockedDirectReferenceRead.block, true);
+	assert.match(blockedDirectReferenceRead.reason, /developer_load_reference/);
+	await assert.rejects(
+		judgmentTool.execute(
+			"reference-contract-missing",
+			{
+				route_id: routed.details.routeId,
+				status: "resolved",
+				result: "The recursive skeleton is ready.",
+				basis: ["Tasks has Empty and Node clauses."],
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		),
+		/must provide reference_basis.*reference_exemption/,
+	);
+
+	await assert.rejects(
+		referenceTool.execute(
+			"reference-catalog-before-listed-order",
+			{
+				reference_route: "data-shape-template",
+				path: "references/data-shape-template-catalog.md",
+				reason:
+					"Tasks is self-referential and needs an exact recursive template.",
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		),
+		/listed read order.*data-driven-design\.md/,
+	);
+	const loadedBase = await referenceTool.execute(
+		"reference-base-first",
+		{
+			reference_route: "data-shape-template",
+			path: "references/data-driven-design.md",
+			reason:
+				"The recursive template route starts with the six-artifact derivation.",
+		},
+		undefined,
+		undefined,
+		harness.ctx,
+	);
+	assert.equal(loadedBase.details.contentSha256.length, 64);
+	assert.match(loadedBase.details.sourceTrace, /How to Design Programs/);
+	assert.match(resultText(loadedBase), /The Six-Artifact Recipe/);
+	await assert.rejects(
+		referenceTool.execute(
+			"reference-base-duplicate",
+			{
+				reference_route: "data-shape-template",
+				path: "references/data-driven-design.md",
+				reason: "A second selected route shares the base method.",
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		),
+		/already loaded.*overlapping route membership.*one reference_basis entry/,
+	);
+	await assert.rejects(
+		judgmentTool.execute(
+			"reference-contract-incomplete-route",
+			{
+				route_id: routed.details.routeId,
+				status: "resolved",
+				result: "The recursive skeleton is ready.",
+				basis: ["Tasks has Empty and Node clauses."],
+				reference_basis: [
+					{
+						path: "references/data-driven-design.md",
+						trigger: "Tasks variants determine the function cases.",
+						applied_rule: "One data clause produces one function branch.",
+						artifact: "Empty and Node branches.",
+					},
+				],
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		),
+		/route data-shape-template is incomplete.*data-shape-template-catalog\.md/,
+	);
+	const loadedCatalog = await referenceTool.execute(
+		"reference-catalog-second",
+		{
+			reference_route: "data-shape-template",
+			path: "references/data-shape-template-catalog.md",
+			reason:
+				"Tasks is self-referential and needs an exact recursive template.",
+		},
+		undefined,
+		undefined,
+		harness.ctx,
+	);
+	assert.deepEqual(loadedCatalog.details.referenceRouteIds, [
+		"data-shape-template",
+	]);
+	await assert.rejects(
+		judgmentTool.execute(
+			"reference-contract-missing-loaded-basis",
+			{
+				route_id: routed.details.routeId,
+				status: "resolved",
+				result: "The recursive skeleton is ready.",
+				basis: ["Tasks has Empty and Node clauses."],
+				reference_basis: [
+					{
+						path: "references/data-shape-template-catalog.md",
+						trigger: "Tasks is self-referential.",
+						applied_rule: "Recurse at the exact self-reference position.",
+						artifact: "totalEstimate(rest)",
+					},
+				],
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		),
+		/Every loaded reference must have a reference_basis entry.*data-driven-design\.md/,
+	);
+	const recorded = await judgmentTool.execute(
+		"reference-contract-close",
+		{
+			route_id: routed.details.routeId,
+			status: "resolved",
+			result: "The recursive skeleton follows the Tasks clauses.",
+			basis: ["Tasks has Empty and Node clauses."],
+			reference_basis: [
+				{
+					path: "references/data-driven-design.md",
+					trigger: "Tasks variants determine the function cases.",
+					applied_rule: "One data clause produces one function branch.",
+					artifact: "Empty and Node branches in the totalEstimate template.",
+				},
+				{
+					path: "references/data-shape-template-catalog.md",
+					trigger: "Tasks is self-referential.",
+					applied_rule: "Recurse at the exact self-reference position.",
+					artifact: "totalEstimate(rest)",
+				},
+			],
+		},
+		undefined,
+		undefined,
+		harness.ctx,
+	);
+	assert.equal(
+		recorded.details.referenceBasis[0].path,
+		loadedBase.details.path,
+	);
+	assert.equal(
+		recorded.details.referenceBasis[0].contentSha256,
+		loadedBase.details.contentSha256,
+	);
+	assert.equal(
+		recorded.details.referenceBasis[1].contentSha256,
+		loadedCatalog.details.contentSha256,
+	);
+	assert.deepEqual(recorded.details.referenceBasis[1].referenceRouteIds, [
+		"data-shape-template",
+	]);
+
+	const direct = await routeTool.execute(
+		"reference-exemption",
+		{
+			question: "Which already-accepted local helper signature is first?",
+			target: "sketch",
+			reason: "Only the protocol exemption behavior remains under test",
+		},
+		undefined,
+		undefined,
+		harness.ctx,
+	);
+	const exempted = await judgmentTool.execute(
+		"reference-exemption-close",
+		{
+			route_id: direct.details.routeId,
+			status: "resolved",
+			result: "The accepted local signature is the first item.",
+			basis: [
+				"Purpose, cases, data flow, and first item are already explicit.",
+			],
+			reference_exemption: referenceExemption(
+				"No ownership, data-shape, state, recursion, or variation question remains.",
+			),
+		},
+		undefined,
+		undefined,
+		harness.ctx,
+	);
+	assert.match(exempted.details.referenceExemption.reason, /No ownership/);
+});
+
 test("implementation profiles load only the protocol selected for that action", async () => {
 	const ordinaryHarness = await startHarness();
 	const ordinary = await ordinaryHarness.tools.get(ROUTE_TOOL).execute(
@@ -625,9 +888,34 @@ test("judgment schema classifies open questions and supports cross-route questio
 	assert.ok(
 		schema.properties.question_updates.items.required.includes("question_id"),
 	);
+	assert.ok(schema.properties.reference_basis.items.required.includes("path"));
+	assert.ok(
+		schema.properties.reference_basis.items.required.includes("applied_rule"),
+	);
+	assert.equal(
+		schema.properties.reference_exemption.required.includes("reason"),
+		true,
+	);
+	assert.equal(
+		schema.properties.reference_exemption.properties.evidence.minItems,
+		1,
+	);
+	assert.deepEqual(harness.tools.get(REFERENCE_TOOL).parameters.required, [
+		"reference_route",
+		"path",
+		"reason",
+	]);
 	assert.match(
 		harness.tools.get(JUDGMENT_TOOL).promptGuidelines.join("\n"),
 		/choice-form response_spec with one field per decision/,
+	);
+	assert.match(
+		harness.tools.get(ROUTE_TOOL).description,
+		/sketch creates an original design surface, abstraction-review judges an already-shaped candidate/,
+	);
+	assert.match(
+		harness.tools.get(ROUTE_TOOL).promptGuidelines.join("\n"),
+		/choose sketch for an original interface or boundary/,
 	);
 });
 
@@ -893,6 +1181,7 @@ test("a resolved judgment cannot reopen its own question", async () => {
 				status: "resolved",
 				result: "The conversion contract can ship.",
 				basis: ["The contract tests pass."],
+				reference_exemption: referenceExemption(),
 				open_questions: [
 					agentOpenQuestion("CAN this conversion contract ship?"),
 				],
@@ -941,6 +1230,10 @@ test("the protocol prompt lists only skills Pi made available", async () => {
 	});
 
 	assert.match(result.systemPrompt, /Available Developer skills: specify\./);
+	assert.match(
+		result.systemPrompt,
+		/Route by the requested work product, not keywords/,
+	);
 	assert.match(
 		result.systemPrompt,
 		/choice-form response_spec with one field per decision/,
@@ -1000,6 +1293,7 @@ test("leaf routing remains adaptive rather than enforcing a phase order", async 
 			status: "resolved",
 			result: "The claim is supported.",
 			basis: ["Observed test output"],
+			reference_exemption: referenceExemption(),
 		},
 		undefined,
 		undefined,
@@ -1043,6 +1337,7 @@ test("resolved model work must pass through sketch or signal before implementati
 			status: "resolved",
 			result: "The implementation cases are explicit.",
 			basis: ["A representative case table was derived."],
+			reference_exemption: referenceExemption(),
 		},
 		undefined,
 		undefined,
@@ -1103,6 +1398,7 @@ test("resolved model work must pass through sketch or signal before implementati
 			status: "resolved",
 			result: "The first interface and check are explicit.",
 			basis: ["The sketch derives from the modeled cases."],
+			reference_exemption: referenceExemption(),
 		},
 		undefined,
 		undefined,
@@ -1685,6 +1981,7 @@ test("an agent before-implementation question keeps the judgment evidence lane r
 			status: "resolved",
 			result: "src/contracts.ts owns the conversion.",
 			basis: ["Repository search result."],
+			reference_exemption: referenceExemption(),
 			question_updates: [
 				{
 					question_id: questionId,
@@ -1816,6 +2113,7 @@ test("a before-completion question allows implementation work but keeps completi
 			status: "resolved",
 			result: "Implementation evidence is current, but acceptance is not.",
 			basis: ["The focused checkout test passes."],
+			reference_exemption: referenceExemption(),
 			question_updates: [],
 		},
 		undefined,
@@ -1879,6 +2177,7 @@ test("a sole unrelated pending question is not implicitly focused or resolved", 
 			status: "resolved",
 			result: "The schedule conversion tests are current.",
 			basis: ["The focused schedule test passes."],
+			reference_exemption: referenceExemption(),
 			question_updates: [],
 		},
 		undefined,
@@ -2188,6 +2487,7 @@ test("the no-argument command returns from history detail to the same list and t
 			status: "resolved",
 			result: "History inspection is ready.",
 			basis: ["The detail contract is exercised."],
+			reference_exemption: referenceExemption(),
 		},
 		undefined,
 		undefined,
@@ -2353,6 +2653,7 @@ test("TUI question selection focuses the pending question and the next route ass
 			status: "resolved",
 			result: "The rendered state now supports the claim.",
 			basis: ["The focused browser observation was recorded."],
+			reference_exemption: referenceExemption(),
 			question_updates: [
 				{
 					question_id: questionId,

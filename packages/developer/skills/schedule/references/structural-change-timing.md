@@ -4,6 +4,10 @@ Use this reference when a concrete refactor or abstraction candidate competes
 with a behavior change, and timing depends on reversibility, optionality,
 invariant pressure, or the cost of delay.
 
+It extends `schedule` only at the tradeoff step: derive one `now | after | never`
+decision, its observer-relative reversibility, and its reopen condition. If the
+candidate surface is still unstable, hand it back rather than timing a wish.
+
 ## Contents
 
 - Behavior And Structure
@@ -27,16 +31,20 @@ Separate two kinds of change before deciding timing:
   behavior.
 
 The same diff may contain both. Split them conceptually even when they are
-committed together. A structural candidate belongs now only when its timing can
-be justified by the current behavior or invariant—not merely by aesthetic
-preference.
+committed together. Define the behavior observer before calling a change
+structural: returned values may stay equal while effects, exception timing,
+ordering, resource use, persisted forms, or public compatibility change. A
+structural candidate belongs now only when its timing can be justified by the
+current behavior or invariant—not merely by aesthetic preference.
 
 ## Small And Separate Structural Moves
 
 A tidying is a small, behavior-preserving structural move. Keep it small enough
 that the intended rearrangement, affected behavior evidence, and rollback are
 obvious. Separate it from behavior change in reasoning and, when practical, in
-the change history.
+the change history. Separate pull requests are one workflow option, not the
+definition: review latency, integration policy, deployment independence, and
+team trust determine useful batch boundaries.
 
 Small does not mean arbitrary. A chain of tidyings can quietly become a redesign.
 After each move, ask whether the next one still lowers the cost of the accepted
@@ -56,8 +64,16 @@ This skill uses three outcomes:
   harmful, or has no evidence-backed pressure.
 
 The book distinguishes `first`, `after`, `later`, and `never`. This skill maps
-`first` to `now` and folds immediate follow-up and evidence-triggered `later`
-into `after`; the reopen condition preserves the important distinction.
+`first` to `now` and folds both immediate follow-up and evidence-triggered
+`later` into `after`. Preserve the distinction inside the decision:
+
+```text
+after mode: immediate follow-up | evidence-triggered later
+reopen: observation that starts a later move; `none` for immediate follow-up
+```
+
+Do not use `never` to mean merely “not in this task.” It requires no credible
+future behavior pressure or learning value within the admitted environment.
 
 ## Decision Procedure
 
@@ -70,9 +86,16 @@ Ask in order:
 5. What implementation freedom or alternate representation would it remove?
 6. Can a smaller type, contract, test, validation, adapter, or local movement
    provide the same guarantee?
-7. How reversible is the move if the model changes?
+7. How reversible is the move if the model changes, and for which observer?
 8. What cost grows if the move is delayed?
 9. What nested work does doing it now create?
+10. Does the move pay off immediately through comprehension or a cheaper accepted
+    behavior change?
+11. If payoff is later, which credible behavior changes become cheaper and how
+    will that option be exercised?
+12. How confident are we that this specific movement removes the present obstacle?
+13. What batch, review, integration, and deployment boundaries keep the move
+    locally explainable?
 
 Choose `now` when the accepted work is otherwise blocked, unsafe, or difficult
 to verify for a concrete reason. Choose `after` when the move is plausible and
@@ -111,6 +134,24 @@ valid implementation paths.
 
 Do not confuse large effort with irreversibility. A large but isolated movement
 may remain reversible; a one-line public contract can be difficult to undo.
+Assess reversibility against code rollback, persisted data, public consumers,
+external effects, generated artifacts, deployment order, and the time during
+which old and new forms coexist. “Can revert the commit” is not enough when an
+observer has already acted on the new behavior or shape.
+
+Treat optionality as a decision aid, not an options-pricing calculation. Name the
+credible future behavior portfolio, the structural choice preserved, the cost of
+exercising it, the period in which it remains useful, and the present premium.
+Unspecified future flexibility is not an option, and uncertainty alone does not
+make a structural investment valuable.
+
+Judge structural excess against the environment the code serves now and is
+credibly expected to serve. A broader model removes assumptions but grows the
+conceptual surface. A public or multi-party interface can outlive every current
+implementation, so let a boundary mature under local control before making it
+foundational when possible. Conversely, replacing an accreted component from
+scratch is costly; cut away only what current work can no longer use rather than
+rebuilding merely to obtain a cleaner model.
 
 ## Nested Work Pressure
 
@@ -128,9 +169,14 @@ protecting the current invariant. If a small prerequisite is genuinely needed,
 schedule that prerequisite rather than the full idealized architecture.
 
 Also watch batch size and rhythm. Several individually safe moves can create a
-large review and debugging surface when chained without checkpoints. Prefer a
-rhythm of small structural movement, evidence, then behavior progress over a long
-cleanup prelude whose payoff cannot yet be observed.
+large review and debugging surface when chained without checkpoints. Compare
+fixed review/integration/deployment cost against collision delay, interactions
+between moves, and speculative cleanup. Those curves are local measurements,
+not universal laws. Integration and deployment may be separate events, and
+unreviewed tidyings require earned evidence about tooling, checks, ownership,
+and failure recovery—not a claim of absolute safety. Prefer a rhythm of small
+structural movement, evidence, then behavior progress over a long cleanup prelude
+whose payoff cannot yet be observed.
 
 ## Worked Timing Decision
 
@@ -205,13 +251,30 @@ The timing judgment is weak when:
 ## Source Trace
 
 - Kent Beck, *Tidy First?: A Personal Exercise in Empirical Software Design*,
-  O'Reilly Media, 2023: behavior/structure separation, small tidyings,
-  first/after/later/never decisions, batching, optionality, reversibility, and
-  the economics of structural change.
+  First Edition, Second Release, O'Reilly Media, 2025-12-12:
+  Part II, Chapters 16-21, pp. 35-54, for separating behavior and structure,
+  chaining, batch costs, rhythm, untangling, and first/after/later/never timing;
+  and Part III, Chapters 23-31, pp. 61-87, for immediate behavior value,
+  optionality, cash-flow timing, reversibility, and change-relative coupling.
+  The package treats option pricing, Pareto/power-law claims, absolute safety,
+  integration-equals-deployment, and Constantine's Equivalence as heuristics or
+  excluded overclaims, not universal laws. Production migration, telemetry,
+  rollout, and rollback protocols remain Developer adaptations.
 - Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
-  Edition, version 2.2.2, 2024: waiting for real change pressure, tolerating
-  duplication, selecting a point of attack, gradual movement, and stable
-  landings.
+  Edition, version 2.2.2, 2024: Chapter 1, pp. 2-22; Chapters 3-4,
+  pp. 51-101; and Chapter 8, pp. 188-192 and 223-225, on waiting for real
+  change pressure, tolerating informative duplication, selecting a point of
+  attack, gradual movement, stable landings, and deferring added indirection
+  whose current payoff is not justified.
+- Zachary Tellman, *Elements of Clojure*, Leanpub edition published 2019-02-11,
+  cross-checked against the public
+  first-printing manuscript:
+  Indirection, public-manuscript pp. 81-95, for environment-relative
+  over-engineering, model growth, replacement cost, interface calcification,
+  and maturing externally visible boundaries. Production migration, telemetry,
+  rollout, and rollback protocols remain Developer adaptations.
 - Hillel Wayne, *Logic for Programmers*, version 0.14.0, May 4, 2026:
-  ability-guarantee tradeoffs and replacement obligations that affect the cost
-  and reversibility of a structural choice.
+  Chapter 2, pp. 16-17, for the bidirectional ability-guarantee tradeoff and
+  Chapter 5, pp. 55-60, for replacement obligations and observable accidental
+  contracts. Production migration, telemetry, and rollback economics remain
+  Developer adaptations.

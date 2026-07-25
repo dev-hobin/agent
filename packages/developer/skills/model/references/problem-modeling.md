@@ -1,333 +1,200 @@
-# Problem Modeling Reference
+# Problem Modeling
 
-Use this reference when a requirement, bug, refactor, API change, or AI task
-contains enough conditional complexity that prose and isolated examples no longer
-show the full acceptable solution space.
+Use this reference when prose and isolated examples no longer expose the whole
+condition space under judgment. It extends `model` at the point where dimensions,
+rules, and forbidden cases must become explicit. It does not select an API,
+implementation, verifier, or specialized formal tool.
 
-## Central Idea
-
-Model only the condition space under judgment:
-
-```text
-domain and facts
--> predicates and rules
--> assumptions and forbidden cases
--> transitions or objectives when relevant
--> guarantee owners
--> counterexamples and verification targets
-```
-
-The model is a deliberately simplified view of the world. Its value is not
-formality by itself; it is the ability to expose ambiguity, missing cases,
-composition failures, and unsafe replacements before code hides them.
-
-## Lower Prose Into Logic
-
-Translate requirement language before choosing a representation:
-
-1. Nouns identify domains and facts: users, documents, orders, states, events.
-2. Judgments become predicates: `canEdit`, `isValidTransition`, `isReady`.
-3. Quantity words become scoped quantifiers: all, some, none, exactly one.
-4. Conditional words become implications: if, only if, unless, whenever.
-5. `P => Q` becomes the counterexample to exclude: `P && !Q`.
-6. Finite combinations become decision spaces.
-7. Time words become actions, transitions, safety, or progress questions.
-8. Preferences become objectives only after hard constraints are separated.
-9. Reasonable stakeholder choices remain open policy questions.
-
-Words such as *valid*, *ready*, *allowed*, *all*, *any*, *never*, *always*,
-*after*, *retry*, and *timeout* are often where the real requirement lives.
-
-## Logic Is Not Runtime Semantics
-
-A logically valid rewrite may be an invalid program rewrite. Before carrying an
-equivalence into code, check:
-
-- truthiness and coercion rules;
-- short-circuiting and evaluation order;
-- exceptions, side effects, mutation, and non-termination;
-- equality, identity, and collection semantics;
-- floating-point, overflow, null, and missing-value behavior;
-- whether a set-like mathematical model is actually represented by an ordered or
-  duplicate-preserving collection.
-
-Use the logical form to state the intended relationship, then separately prove
-that the implementation language preserves it.
-
-## The Ability-Guarantee Tradeoff
-
-Every representation or tool gains guarantees by excluding abilities. A set
-excludes duplicates and order; a read-only capability excludes writes; a narrow
-type excludes values; a decidable model excludes expressions its checker cannot
-handle.
-
-For every proposed modeling or implementation constraint, state both:
+## Judgment Spine
 
 ```text
-Guarantee gained: what becomes impossible or checkable
-Ability lost: what valid expression, input, behavior, or implementation is excluded
+uncertainty
+-> admitted domain and distinctions
+-> predicates, rules, and forbidden combinations
+-> assumptions and policy gaps
+-> guarantee owners and counterexample targets
 ```
 
-Do not call a narrower representation better until the lost ability is known not
-to be a product requirement.
+The model is complete enough when every consequential distinction changes a rule,
+forbidden case, owner, or check. Extra detail that changes none of those is not a
+better model.
 
-## Choose The Model From The Uncertainty
+## Lower Prose Into Decisions
 
-| Problem shape | Start with | What it exposes |
+Translate requirement language before choosing notation:
+
+1. nouns identify domains and facts;
+2. judgments become predicates such as `canEdit` or `isReady`;
+3. quantity words become scoped quantifiers;
+4. conditional words become implications;
+5. `P => Q` exposes the forbidden counterexample `P && !Q`;
+6. finite combinations become partitions or decision tables;
+7. time words identify a possible temporal handoff;
+8. preferences remain separate from hard constraints;
+9. stakeholder choices remain visible rather than being guessed.
+
+A predicate states a relationship, not how to compute it. Mark abstract terms and
+state the domain and nesting order of every quantifier. If `all qualifying items`
+must not pass on an empty set, add the required existence condition explicitly.
+
+## Keep Logic And Runtime Distinct
+
+A truth-preserving rewrite is not automatically a behavior-preserving program
+rewrite. Record the observers that can distinguish it:
+
+- coercion, equality, identity, and collection multiplicity;
+- short-circuit demand and evaluation order;
+- effects, exceptions, mutation, and non-termination;
+- null, missing, false-like, and legacy values;
+- numeric range, exactness, rounding, overflow, and underflow;
+- time, storage, and resource behavior when they are part of the claim.
+
+Use logic to state intended relations. A later sketch or verification must still
+show that the implementation model preserves them.
+
+## Choose The Smallest Sufficient Model
+
+| Uncertainty | Model view | Handoff when it becomes consequential |
 | --- | --- | --- |
-| vague boolean or conditional rule | predicates, quantified sets, implication counterexamples | exact domain, scope, and failure shape |
-| function or API composition | contracts | caller obligations and callee guarantees |
-| refactor, upgrade, schema, or API replacement | replacement model | which old guarantees and accepted inputs must survive |
-| finite role/status/flag combinations | decision table | missing, overlapping, or contradictory cases |
-| entities and relationships | domain/relational model | possible instances, impossible combinations, and assumptions |
-| state, retry, concurrency, lifecycle | transition/temporal model | valid histories, safety, progress, stale events |
-| allocation, planning, configuration | constraints plus objective | valid solutions versus preferred solutions |
-| hard satisfaction or counterexample search | solver encoding | satisfiability, counterexamples, or optimal solutions |
-| stakeholder-dependent behavior | human decision surface | choices the model must not invent |
+| finite roles, flags, statuses, or defaults | predicates and a partition table | remain here while the complete finite surface is visible |
+| caller/callee obligations or compatibility | contract and replacement relation | [Contract And Replacement Models](contract-and-replacement-models.md) |
+| entities, intervals, and cross-record facts | relational constraints | [Relational Constraint Models](relational-constraint-models.md) |
+| retry, lifecycle, concurrency, or allowed histories | transition and temporal behavior | [Temporal Behavior Models](temporal-behavior-models.md) |
+| deductive implementation-conformance claim | proof obligations | [Proof Obligations](proof-obligations.md) |
+| bounded counterexample, satisfiability, feasibility, or optimization status | solver-result boundary | [Solver Result Boundaries](solver-result-boundaries.md) |
+| inference, answer multiplicity, negation, or query search | logic-query semantics | [Logic Query Semantics](logic-query-semantics.md) |
+| legal action sequence toward a goal | planning model | [Planning Models](planning-models.md) |
+| product-owned choice | human decision surface | return an explicit open question |
 
-Use multiple views when the task genuinely mixes shapes. Do not model the whole
-product merely because one rule is complicated.
+Use more than one view only when each answers a different unresolved question.
+Do not model the whole product because one rule is difficult.
 
-For complete, runnable-shaped examples of boolean policy, relational data,
-temporal behavior, proof boundaries, solvers, logic programming, and planning,
-read [Worked Models And Specialized Techniques](worked-models-and-specialized-techniques.md).
-The examples are selected by uncertainty; they are not a mandatory progression.
+## Ability And Guarantee
 
-## Statements, Specifications, And Tests
-
-A stronger statement implies more statements and excludes more implementations.
-A total specification describes all required behavior; most practical tests check
-partial specifications because complete behavior is too complex or because a
-smaller property localizes failures better.
-
-Combine evidence deliberately:
-
-- examples make product cases concrete;
-- domain properties express rules specific to the product;
-- structural properties express reusable shapes such as valid output, idempotence,
-  monotonicity, membership, or preservation;
-- metamorphic relations compare several executions when the exact output is hard
-  to know;
-- generators define the valid input domain for property tests;
-- counterexample shrinking turns a broad failure into a diagnostic case.
-
-A strong passing property gives breadth of confidence. A weak failing property
-may provide better localization. Prefer several meaningful partial specifications
-over one opaque assertion that cannot explain what failed.
-
-## Contracts And Composition
-
-Model a callable as:
+Every restriction removes an ability while gaining a guarantee:
 
 ```text
-requires: facts callers must establish
-ensures: facts correct execution guarantees
-invariant: facts preserved through relevant internal steps
+restriction:
+guarantee gained:
+ability lost:
+product evidence that the loss is acceptable:
 ```
 
-Contracts propagate through call graphs. If `A` calls `B`, A's established facts
-must imply B's preconditions, and B's postconditions must be sufficient for A's
-remaining work. This finds bugs where every individual function is locally
-correct but their composition is not.
+A set removes order and duplicates. A narrow type removes representable values. A
+read-only capability removes writes. A decidable language removes expressions.
+Do not call a narrower model better until the excluded ability is known not to be
+required.
 
-Choose a checking mechanism separately. Types are contracts over representable
-values and are usually cheaper to check but less expressive. Runtime assertions,
-validation, tests, properties, and proofs cover different parts of a semantic
-contract. An unchecked contract can still aid reasoning, but it is not evidence.
+## Finite Partitions And Defaults
 
-## Safe Replacement
+A decision table is justified only when every dimension has a finite, pairwise
+disjoint, exhaustive partition. Row count is evidence only after those conditions
+hold. A structurally valid table can still encode the wrong policy, so ambiguous
+rows remain human-owned.
 
-To replace `old` with `new` for existing callers, require:
+For absence-sensitive values, distinguish at least:
 
 ```text
-old.Pre  => new.Pre
-new.Post => old.Post
+missing | undefined | null | empty | false-like | defaulted | legacy | invalid
 ```
 
-The replacement must accept at least what old accepted and guarantee at least
-what old guaranteed. Apply this to functions, types, APIs, libraries, schemas,
-and system specifications.
+State which distinctions survive normalization, the single owner of the default,
+and a counterexample where applying the default in another layer changes meaning.
+A fallback expression is product policy when callers can observe it.
 
-Observable behavior outside the declared contract may still be depended on in
-real systems. Inspect actual callers, persisted data, tests, telemetry, and known
-bugs before claiming compatibility. Logical replaceability is necessary evidence,
-not a complete social or operational guarantee.
+## Prediction, Observation, And Refinement
 
-For representation changes, define an abstraction or refinement mapping from the
-new representation back to the old model. A change is safe only if relevant new
-states or behaviors map to valid old ones.
-
-## Proof And Formal Verification Boundary
-
-A proof establishes that an implementation conforms to a stated specification
-under stated assumptions. It does not establish that the specification captures
-everything the product needs or that environmental assumptions hold.
-
-For proof-shaped work, write:
+Use the simplest representation that preserves the facts required for the current
+prediction:
 
 ```text
-preconditions
-postconditions
-facts known after each step
-loop/recursion invariant when control repeats
-termination argument when total correctness matters
-assumptions outside the model
+model + assumptions
+-> predicted case or transition
+-> observation
+-> discrepancy
+-> one explicit model refinement
 ```
 
-Check initialization, preservation, and conclusion. Use proof or formal tooling
-only when exhaustive confidence justifies the modeling and maintenance cost.
-Tests, runtime validation, model checking, theorem proving, and static types make
-different guarantees; do not label one as another.
+A discrepancy may locate an implementation defect, an omitted fact, an external
+drift, or a mistaken purpose. Keep these explanations separate.
 
-## Decision Tables
+Distinguish enforceable internal consistency from environmental observation:
 
-Use a decision table only when:
+```text
+internal invariant: transition the modeled owner can enforce
+external relation: correspondence observed at a time
+drift signal: evidence the correspondence may no longer hold
+mitigation: revalidate, narrow use, revise the model, or accept bounded failure
+```
 
-1. independent inputs map clearly to outputs;
-2. each input can be partitioned into a small finite set;
-3. a table is clearer than an equation, invariant, or transition model;
-4. the expanded table remains reviewable.
-
-A table is complete when no input combination is missing and sound when the same
-input does not map to conflicting outputs. Those properties make the table valid,
-not necessarily correct. A valid table can still encode misunderstood product
-policy; return ambiguous rows to a human owner.
-
-Avoid tables for strongly dependent inputs, unbounded collections, recursion,
-long-running side effects, or rules better expressed by precedence such as
-`flags > user settings > defaults`.
-
-## Absence And Defaults
-
-For optional, nullable, configurable, inherited, persisted, or externally supplied
-values, model absence before design:
-
-- valid members;
-- whether missing, `undefined`, `null`, empty, and false-like values differ;
-- the domain default and the one boundary that owns it;
-- legacy and serialized shapes;
-- whether normalization preserves source distinctions needed later;
-- a counterexample showing the default applied in the wrong layer.
-
-A fallback expression is not harmless when it silently becomes product policy.
-
-## Domains, Assumptions, And Time
-
-A domain model defines possible instances, not the entire real world. Separate
-three predicate roles:
-
-- **decision**: may be true or false across valid instances;
-- **property**: must hold or the model/design is wrong;
-- **assumption**: defines the well-behaved instances for which the property is
-  meaningful.
-
-Explore unusual valid instances even after properties pass. A checker verifies
-consequences of the model; it cannot tell whether omitted real-world facts should
-have been modeled.
-
-Use a temporal model when correct snapshots are insufficient. State:
-
-- initial states;
-- actions and allowed next states;
-- unchanged state for each action;
-- safety properties that must always hold;
-- progress/fairness properties that must eventually hold;
-- stale, duplicated, reordered, retried, or concurrent events.
-
-A concrete implementation refines an abstract system only when each observable
-implementation behavior is allowed by the abstract specification, possibly after
-an explicit refinement mapping. This catches gaps such as intermediate states
-that users can observe even though an abstract operation looked atomic.
-
-## Constraints, Objectives, And Solvers
-
-For solver-shaped work, separate:
-
-- variables and domains;
-- hard constraints;
-- an optional objective or ranking;
-- acceptable equivalence among solutions;
-- model assumptions and encoding limits.
-
-Use the least specialized tool that is still economical to model, then specialize
-when runtime or scale requires it. General solvers make new constraints easy but
-can be much slower than bespoke algorithms. A solver result of `unknown` is not
-proof of satisfaction or impossibility. Solver output is evidence only to the
-extent that the encoding matches the product problem.
-
-## Logic Programming And Planning
-
-Logic programming is useful when facts, relations, and inference rules are more
-natural than a fixed control flow. State facts, derived rules, query variables,
-negation meaning, duplicate behavior, search order, and termination. A more
-expressive query language may lose termination guarantees; a restricted system
-may be the better product boundary.
-
-For planning, model initial state, goal predicate, legal actions, transition
-result, state invariant, and optional action cost. A generated plan is valid only
-if every intermediate state satisfies the invariant. An optimal plan is optimal
-only for the encoded cost function.
+A health check or compatibility probe cannot permanently force the environment
+to remain aligned.
 
 ## Place Guarantees Deliberately
 
-Choose the cheapest trustworthy owner:
+For every important rule, name the cheapest trustworthy owner and evidence target:
 
-- `type` for representable-state restrictions;
-- `contract` for caller/callee semantics;
-- `runtime validation` for hostile or external inputs;
-- `database constraint` for persisted relational facts;
-- `assertion` for internal facts already expected to hold;
-- `example/integration test` for concrete behavior;
-- `property test` for a generatable valid domain;
-- `model check/solver/proof` for exhaustive or high-risk relationships;
-- `human decision` for policy rather than derivable fact.
+- type for representable-state restrictions;
+- constructor or runtime validation for hostile input;
+- contract for caller/callee meaning;
+- database constraint for persisted relational facts;
+- state transition owner for history-sensitive rules;
+- example or integration check for concrete behavior;
+- property check for a declared generatable domain;
+- model, solver, or proof for bounded exhaustive relationships;
+- human decision for policy.
 
-Every important model element needs an owner and an evidence target, even when
-the owner is not a test.
+An unchecked statement may guide design, but it is not evidence.
 
-## AI Delegation Boundary
-
-When the model feeds another skill, tool, or agent, provide:
+## Model Artifact
 
 ```text
-Context: where the work lives and what evidence is authoritative
-Facts: entities, states, predicates, and existing behavior
-Rules: assumptions, must-hold constraints, and forbidden cases
-Objective: what to change, optimize, or preserve
-Unknowns: product decisions that remain human-owned
-Verification: counterexamples, gates, and accepted evidence
+Question under judgment:
+Domain and admitted values:
+Dimensions and distinctions:
+Predicates and rules:
+Forbidden cases or transitions:
+Decisions / properties / assumptions:
+Ability gained and lost:
+Guarantee owner and evidence target:
+Counterexamples:
+Human-owned unknowns:
+Specialized handoff, if any:
 ```
 
-An AI helper is not a solver or proof. Check its output against the model and the
-runtime semantics.
+## Stop And Separation
 
-## Stop Checks
+Stop when the admitted space, rules, forbidden cases, assumptions, owners, and
+counterexamples are explicit enough to constrain a later design.
 
-The model is usable when:
+Separate rather than expanding this reference when:
 
-- every important predicate names a domain question;
-- quantifiers have explicit domains and unambiguous nesting;
-- implications have counterexample shapes;
-- assumptions, decisions, and properties are distinct;
-- the representation's lost abilities are acceptable;
-- stateful rules cover transitions, not only enums;
-- replacements state old/new contract relationships;
-- every guarantee has an owner and evidence target;
-- unresolved policy remains visible rather than being guessed.
+- a public operation, ownership map, or caller shape must be invented (`sketch`);
+- an existing structural candidate must be approved (`abstraction-review`);
+- an implementation claim needs evidence (`verify`);
+- a specialized contract, temporal, relational, proof, solver, logic, or planning
+  obligation has its own artifact and stop check (use the routed reference above).
 
 ## Source Trace
 
-- Hillel Wayne, *Logic for Programmers*, version 0.14.0, May 4, 2026:
-  predicates, sets, quantifiers, logical refactoring and runtime caveats, partial
-  specifications, contracts and replacement, data constraints, decision tables,
-  domains, time, system models, solvers, and logic programming.
+- Hillel Wayne, *Logic for Programmers*, v0.14.0, 2026-05-04:
+  Chapters 2-4, pp. 5-46, for predicates, quantifiers, ability/guarantee,
+  specifications, and logic/runtime boundaries. Recorded beta defects are
+  excluded.
 - Matthias Felleisen, Robert Bruce Findler, Matthew Flatt, and Shriram
-  Krishnamurthi, *How to Design Programs, Second Edition*, MIT Press, 2018:
-  information interpretation, data definitions, representative cases, and
-  iterative refinement.
+  Krishnamurthi, *How to Design Programs*, living build 9.2.0.3:
+  Preface,
+  Chapter 19,
+  Chapter 20,
+  and Intermezzo 4
+  for interpretation, simplest sufficient representations, prediction,
+  discrepancy, refinement, and numeric assumptions.
 - Harold Abelson and Gerald Jay Sussman with Julie Sussman, *Structure and
-  Interpretation of Computer Programs*, Second Edition, MIT Press, 1996:
-  abstraction mappings, state/history, constraint propagation, and the semantic
-  cost of assignment and concurrency.
-- Zachary Tellman, *Elements of Clojure*, 2019: narrow access, absence semantics,
-  module models, and assumptions that constrain a useful interface.
+  Interpretation of Computer Programs*, Second Edition:
+  Section 2.1
+  and Section 3.1
+  for abstraction mappings, state, identity, and history-sensitive meaning.
+- Zachary Tellman, *Elements of Clojure*, Leanpub 2019-02-11:
+  Indirection, public-manuscript pp. 70-89, for model/environment distinctions,
+  assumptions, observation, drift, and environment-relative usefulness. Broad
+  proof rhetoric and language-specific idioms are not imported as general laws.

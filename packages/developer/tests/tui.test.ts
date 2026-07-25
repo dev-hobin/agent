@@ -187,6 +187,9 @@ function activeState(): DeveloperState {
 		reason: "Unit tests do not cover the rendered state.",
 		knownEvidence: ["Pure-function tests pass."],
 		consideredAlternatives: [],
+		availableReferences: [],
+		referenceRoutes: [],
+		loadedReferences: [],
 		methodLocation: "/skills/verify/SKILL.md",
 	};
 	const earlierRoute = {
@@ -203,6 +206,7 @@ function activeState(): DeveloperState {
 		status: "needs-evidence" as const,
 		result: "A browser observation remains.",
 		basis: ["Unit tests pass."],
+		referenceBasis: [],
 		openedQuestions: [openQuestion],
 		questionUpdates: [],
 		artifacts: ["pnpm check"],

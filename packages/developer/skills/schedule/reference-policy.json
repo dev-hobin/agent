@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "routes": [
+    {
+      "id": "structural-timing-tradeoff",
+      "question": "Should this concrete structural candidate happen now, after, or never for the current accepted work?",
+      "trigger": "Behavior and structural change compete, doing structure now may remove meaningful ability, reversibility and delay cost conflict, nested work is consequential, or an after decision needs an observable reopen condition.",
+      "method_step": "after confirming a concrete candidate, compare current invariant pressure, gained guarantee, lost ability, observer-relative reversibility, delay cost, nested work, optionality, and batch boundary",
+      "references": [
+        "references/structural-change-timing.md"
+      ],
+      "artifacts": [
+        "a now/after/never timing matrix",
+        "guarantee-versus-ability and reversibility evidence",
+        "an after mode and observable reopen condition when applicable"
+      ],
+      "stop": "One timing outcome follows from current evidence without inventing product priority or treating future flexibility as free value.",
+      "separate_when": "The candidate surface, meaning, or stability is unresolved; hand back to sketch, model, signal, or abstraction-review before scheduling."
+    }
+  ],
+  "exemption": {
+    "when": "A small reversible candidate has a direct timing consequence from the current invariant, with no behavior/structure conflict, lost ability, nested work, or meaningful delay tradeoff.",
+    "evidence": [
+      "the exact candidate and current dependency",
+      "the direct invariant and reversibility evidence",
+      "the outcome and any immediate follow-up boundary"
+    ]
+  }
+}

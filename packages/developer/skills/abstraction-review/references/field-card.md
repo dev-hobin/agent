@@ -1,216 +1,161 @@
-# Abstraction Review Field Card
+# Abstraction Candidate Review
 
-Use this reference when a review should produce more than a paragraph of advice.
-The goal is to turn a wished abstraction into an artifact with a stop check.
+Use this reference when an already-shaped interface, helper, boundary, role,
+workflow rule, or structural unit needs an auditable keep/revise/split/reject/
+defer decision.
 
-## Contents
+This reference reviews a candidate. It does not create the original design,
+extract movement, settle product rules, or choose timing.
 
-- Operating Loop
-- Field Card
-- Source Modes
-- Good Wish Test
-- Recipe-Grade Gate
-- Layer Router
-- Minimal Output
-- Self-Application Check
-
-## Operating Loop
+## Judgment Spine
 
 ```text
-pressure
-  -> wish
-  -> layer
-  -> recipe card
-  -> output artifact
-  -> observable stop
-  -> repair decision
+concrete candidate and caller shape
+-> pressure it claims to remove
+-> promises callers would rely on
+-> evidence and counterexample
+-> observable stop
+-> keep | revise-surface | revise-model | split | reject | defer
 ```
 
-The wish opens freedom; the stop check brings the review back to evidence.
-Failure is not handled by a better name. Failure exposes a broken layer,
-contract, or missing artifact.
+A polished name or familiar pattern is not evidence. Missing construction is a
+handoff, not an invitation for this review to absorb another skill.
 
-Use [the recipe cards](recipe-cards.md) when the derivation rule is missing,
-[the repair table](repair-table.md) when the stop check fails, and
-[the worked examples](worked-examples.md) when a completed calibration case is
-needed. The field card remains the auditable summary; these files supply focused
-construction, repair, and examples.
-
-## Field Card
-
-Fill this card for serious reviews.
+## Candidate Field Card
 
 ```text
-Candidate:
-  What wished interface, helper, boundary, condition model, or abstraction is
-  being judged?
-
-Source and confidence:
-  Where did the candidate come from, and how strong is the evidence?
+Candidate and source:
+  exact current or wished surface; where it came from
 
 Pressure:
-  What complexity, repetition, variation, history, or representation detail is
-  this candidate supposed to remove?
+  accepted change, repeated movement, invariant, participant, or representation
+  issue it is meant to remove
 
-Wish:
-  In the better world, what would callers be able to say or do?
-
-Mismatch:
-  What currently breaks or might break that wish?
-
-Timing:
-  pre-implementation / post-implementation
-
-Layer:
-  Language / Unit / Law / Boundary / Engine / Time / Run
-
-Recipe:
-  Which narrow card is being executed?
-
-Input artifact:
-  What concrete input must be written before judgment?
-
-Derivation:
-  How does that input constrain the output?
-
-Contract:
-  What can callers or future users rely on?
+Caller contract:
+  operations, inputs, outputs, failures, effects, and observers
 
 Hidden detail:
-  What representation, policy, timing, history, cost, or process detail should
-  callers not depend on?
+  representation, policy, creation, history, ordering, or process callers may
+  ignore
 
-Output artifact:
-  What table, graph, contract, invariant, trace, or decision remains?
+Owner and assumptions:
+  owner of guarantees; environment facts required for usefulness
 
-Stop:
-  What observable check decides pass/fail?
+Representative cases:
+  normal, boundary, forbidden, and transfer case
+
+Replacement or variation:
+  another implementation/caller/case the candidate claims to support
+
+Counterexample:
+  smallest plausible case that would pass a superficial review while breaking
+  the promise
+
+Stop check:
+  observable evidence that decides this review
 
 Evidence and gaps:
-  What evidence supports the decision, and what would change it?
+  callers, cases, code, tests, traces, costs, or human-owned policy
 
 Decision:
   keep / revise-surface / revise-model / split / reject / defer
 
-Open consequence:
-  What remains unresolved after this review?
+Open consequence and handoff:
 ```
 
-## Source Modes
+## Review Promises
 
-Use the candidate source to choose evidence and timing.
+Select only promises the candidate actually makes.
 
-| Source | Review pressure | Evidence to require |
-| --- | --- | --- |
-| design draft wished interface | Is the wish implementable and bounded? | caller contract, representative cases, hidden detail, planned stop |
-| structural observation | Is the movement real abstraction or local churn? | before/after diff, repeated movement, condition relation |
-| user-proposed API/helper | Is it domain language or implementation-shaped naming? | wished use, caller obligations, failure modes |
-| existing implementation | Does code still match the abstraction promise? | tests, trace, cost, call sites, hidden coupling |
-| skill/workflow update | Will future agents behave differently? | trigger wording, reference routing, realistic invocation |
+| Promise | Evidence required | Pass-but-wrong shape | Handoff when the surface is missing |
+| --- | --- | --- | --- |
+| caller language hides representation | two representations or a leak search | new type name with raw fields still required | `sketch` barrier design |
+| one responsibility owns a change | owner/message map and representative change | moved-method bag or generic service | `sketch` responsibility design |
+| several implementations share a role | pre/post/failure compatibility | subtype needs stronger preconditions or different effects | `model` contract/replacement |
+| composition remains in one value world | closed-operation and finalizer table | side effect disguised as chainable result | `sketch` closure design |
+| additive extension is supported | row/column and fake-variant evidence | registry hides precedence or load-order policy | `sketch` generic operations |
+| process remains truthful | trace, waits, cost, resource, failure ownership | same result with unbounded buffer or changed order | `sketch` process design |
+| state/history has one owner | transition and order evidence | enum without stale/duplicate policy | `model` or `sketch` state work |
+| name exposes stable sense | caller/audience/evolution evidence | rich word over unstable responsibility | `naming-judgment` |
 
-## Good Wish Test
+A candidate can make several promises, but each must be evaluated against the
+same caller contract. If the promises require independent surfaces or owners,
+that is split evidence.
 
-A wish is strong enough to review when it exposes a small language, not merely a
-preferred name.
+## Stability Tests
+
+A candidate is stable enough to keep only when:
+
+- its pressure is current and observable;
+- callers can use its vocabulary without reopening hidden details;
+- the contract includes relevant effects, failures, order, and resources;
+- a realistic transfer case fits without flags that expose internals;
+- lost abilities are acceptable for current and credible callers;
+- the owner can enforce the promised invariant;
+- the stop check can fail the candidate rather than merely exercise it.
+
+Bias toward `defer` when pressure is plausible but examples or participant
+independence are too weak. Choose `revise-model` when the candidate cannot be
+judged because admitted meaning is unsettled. Choose `revise-surface` when the
+meaning is accepted but the caller contract leaks or lies.
+
+## Separation Router
+
+Do not construct missing evidence inside this leaf:
 
 ```text
-primitive words:
-  What operations can be trusted without re-opening implementation detail?
-
-means of combination:
-  How do smaller units produce larger valid units?
-
-means of abstraction:
-  How is a repeated composition or method given a reusable handle?
+no concrete caller-facing surface -> sketch
+unresolved product cases/rules -> model
+only repeated movement is visible -> signal
+surface is stable but timing is disputed -> schedule
+word/sense is the issue -> naming-judgment
+implementation claim needs evidence -> verify
 ```
 
-Reject or revise a wish when:
-
-- it only renames current representation shape;
-- it has no caller contract or failure mode;
-- its result cannot be composed or intentionally finalized;
-- no preserved meaning, invariant, or policy owner is visible;
-- it hides cost, history, order, or mutation that callers must understand.
-
-## Recipe-Grade Gate
-
-A review is recipe-grade only when this sentence can be filled:
-
-```text
-Given <input artifact>,
-derive <output artifact>
-by <rule>,
-then check <observable stop>.
-If it fails, repair <layer, contract, or artifact>.
-```
-
-If the sentence cannot be filled:
-
-| What it is | Missing | Review consequence |
-| --- | --- | --- |
-| Advice | trigger, artifact, stop check | keep as explanation; do not promote |
-| Heuristic | derivation from input to output | read `repair-table.md` or expose the missing model |
-| Candidate recipe | derivation is still loose | run one worked case |
-| Recipe-grade | trigger, input, rule, output, stop, repair all exist | use in the review |
-
-## Layer Router
-
-| Symptom | Layer | First card |
-| --- | --- | --- |
-| The problem vocabulary is missing or misleading | Language | Notation As Data |
-| Similar functions, workflows, or tests move together | Language/Unit | Movement Pattern Extraction |
-| Data, methods, messages, or change reasons suggest a misplaced owner | Unit/Boundary | Responsibility Boundary |
-| Operation results do not remain composable | Unit | Closure Composition Unit |
-| A loop, state transition, or contract has no preserved meaning | Law | Invariant Iteration |
-| Callers must know raw representation or hidden policy | Boundary | Data Abstraction Boundary |
-| New variants keep changing old conditionals | Engine | Dispatch Registration |
-| Conversion works but meaning loss is hidden | Engine/Law | Meaning-Preserving Path |
-| Same call depends on past interaction | Time | History Placement |
-| Event order changes correctness | Time/Run | Event Order Protection |
-| Result is right but process, cost, sharing, or stack shape is wrong | Run | Procedure -> Process Reality Check |
-
-When the symptom is clearer than the layer, open `repair-table.md`.
+A reference route inside this skill may deepen review, failure localization, or
+calibration. It must not reproduce the construction methods owned by those
+leaves.
 
 ## Minimal Output
 
-For a compact user-facing review, show:
-
 ```text
 Candidate:
-Source and confidence:
-Layer:
-Recipe:
-Input artifact:
-Derivation rule:
-Contract:
-Hidden detail:
-Output artifact:
-Stop check:
-Evidence and gaps:
+Pressure:
+Caller contract and hidden detail:
+Promises under review:
+Counterexample:
+Stop check and evidence:
 Decision:
-Open consequence:
+Handoff or open consequence:
 ```
 
-When this review is part of a larger task, return the decision and its open
-consequence. The caller or orchestrator decides what happens next. Otherwise,
-stop at the review result. The card must be complete enough that a later person
-or agent can use it without reconstructing the reasoning.
+## Source Trace
 
-## Self-Application Check
+This review spine is Developer synthesis over these bounded capabilities:
 
-When the candidate is a skill, workflow, recipe, or reference update, review the
-update with the same card.
-
-Map the layers this way:
-
-| Skill update surface | Review layer |
-| --- | --- |
-| trigger wording, user-facing command language | Language |
-| skill responsibility and core question | Boundary |
-| recipe-grade invariant or stop condition | Law |
-| progressive disclosure and reference routing | Engine |
-| whether future agents actually read enough context | Run |
-
-The stop check should be a realistic invocation, self-review card, or
-forward-test prompt. If the review cannot name what future behavior changes, the
-update is probably documentation, not a stable workflow abstraction.
+- Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
+  Edition, v2.2.2:
+  Chapters 3-9, pp. 51-268, for pressure, movement, responsibility, roles,
+  factories, and responsibility-level evidence.
+- Harold Abelson and Gerald Jay Sussman with Julie Sussman, *Structure and
+  Interpretation of Computer Programs*, Second Edition:
+  Section 1.1,
+  Section 1.3,
+  Section 2.1,
+  Section 2.2,
+  Section 2.4,
+  Section 3.1, and
+  Section 3.4
+  for black-box promises, barriers, closure, dispatch, history, and order.
+- Matthias Felleisen et al., *How to Design Programs*, living build 9.2.0.3:
+  Chapter 14,
+  Chapter 15,
+  Chapter 16,
+  Chapter 19,
+  and Chapter 20
+  for completed examples, migrated clients, and model stability.
+- Hillel Wayne, *Logic for Programmers*, v0.14.0:
+  Chapter 5, pp. 47-60, for contract and observer-relative replacement.
+- Zachary Tellman, *Elements of Clojure*, Leanpub 2019-02-11:
+  Indirection, public-manuscript pp. 70-95, for participant pressure and
+  interface calcification. Source-specific and universalized claims are excluded.

@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "routes": [
+    {
+      "id": "condition-space",
+      "question": "Which distinctions, rules, forbidden cases, assumptions, and guarantee owners define this condition space?",
+      "trigger": "Prose or isolated examples hide consequential combinations, quantifiers, absence/default meaning, ability-guarantee tradeoffs, or model/environment assumptions, and no specialized route below is primary.",
+      "method_step": "lower accepted language into the smallest sufficient domain, distinctions, predicates, forbidden cases, assumptions, owners, and counterexamples",
+      "references": ["references/problem-modeling.md"],
+      "artifacts": ["a bounded domain and distinction map", "explicit rules, forbidden cases, assumptions, and human-owned policy", "a guarantee-owner and counterexample map"],
+      "stop": "Every consequential distinction changes a rule, forbidden case, owner, or check, and no unsupported implementation surface has been invented.",
+      "separate_when": "A contract/replacement, relational, temporal, proof, solver, logic-query, or planning question has an independent artifact and stop; select that route."
+    },
+    {
+      "id": "contract-replacement",
+      "question": "Can the new contract replace the old one for the declared callers and observers?",
+      "trigger": "Caller/callee obligations, API or schema compatibility, old/new preconditions and postconditions, or observer-relative refinement are consequential.",
+      "method_step": "after defining the admitted domain, compare requires, ensures, failures, observers, and refinement mapping",
+      "read_order": "listed",
+      "references": ["references/problem-modeling.md", "references/contract-and-replacement-models.md"],
+      "artifacts": ["old and new contract relations", "precondition and postcondition implication results", "an observer set, refinement mapping, and excluded compatibility cases"],
+      "stop": "Every replacement obligation is supported, contradicted, or left as an explicit compatibility question for a named observer.",
+      "separate_when": "Adapters or migration surfaces must be designed, timing chosen, or compatibility evidence executed; hand off to sketch, schedule, or verify."
+    },
+    {
+      "id": "relational-constraints",
+      "question": "Which entity relationships and quantified constraints distinguish valid from invalid instances?",
+      "trigger": "Correctness depends on entities, intervals, cross-record integrity, quantified relations, bidirectional constraints, SQL translation, or set-versus-bag semantics.",
+      "method_step": "after defining domains, state decisions, properties, assumptions, quantified constraints, identity, multiplicity, and runtime translation obligations",
+      "read_order": "listed",
+      "references": ["references/problem-modeling.md", "references/relational-constraint-models.md"],
+      "artifacts": ["a relational domain and quantified constraint set", "known valid and invalid instances", "endpoint, null, multiplicity, mutation, and contradiction policy"],
+      "stop": "Known valid and invalid instances differ for the modeled reason and runtime translation obligations are explicit.",
+      "separate_when": "Histories rather than instances carry meaning, solver status is the claim, or an enforcement API must be designed."
+    },
+    {
+      "id": "temporal-behavior",
+      "question": "Which histories are allowed, forbidden, or required to make progress?",
+      "trigger": "Snapshots are insufficient because retry, stale or duplicate events, lifecycle, concurrency, safety, progress, stuttering, fairness, or temporal refinement matters.",
+      "method_step": "derive states, actions, guards, effects, frame conditions, representative traces, safety, progress, fairness, and observer mapping",
+      "read_order": "listed",
+      "references": ["references/problem-modeling.md", "references/temporal-behavior-models.md"],
+      "artifacts": ["a state/action relation with frame conditions", "valid, stale, duplicate, retry, reorder, and concurrent traces", "safety, progress, stuttering, fairness, and refinement obligations"],
+      "stop": "Every consequential history is classified and each safety or progress claim has assumptions and a counterexample trace.",
+      "separate_when": "State ownership or event APIs must be designed, traces executed, or the task is finding one goal-directed plan."
+    },
+    {
+      "id": "proof-obligation",
+      "question": "What exact implementation claim follows from this specification, invariant, and proof argument?",
+      "trigger": "A deductive implementation-conformance claim needs preconditions, postconditions, invariant initialization/preservation/conclusion, termination, or arithmetic/tool assumptions.",
+      "method_step": "bind the claim to its specification, invariant, proof steps, termination argument, runtime model, trusted boundary, and omitted observers",
+      "read_order": "listed",
+      "references": ["references/problem-modeling.md", "references/proof-obligations.md"],
+      "artifacts": ["a specification and proof-obligation set", "initialization, preservation, conclusion, and termination evidence", "a narrowed claim and omitted-observer list"],
+      "stop": "The proof supports exactly the stated specification under explicit assumptions and every omitted observer is visible.",
+      "separate_when": "The evidence is bounded search or optimization status, or proof execution/relevance must be verified."
+    },
+    {
+      "id": "solver-result-boundary",
+      "question": "What exact claim follows from this bounded model or solver status?",
+      "trigger": "Bounded counterexample search, satisfiability, feasibility, optimization, scope/configuration, or solver result-state interpretation is consequential.",
+      "method_step": "bind status to variables, domains, constraints, objective, equivalence, bound, encoding assumptions, satisfiable witness, and unmodeled observers",
+      "read_order": "listed",
+      "references": ["references/problem-modeling.md", "references/solver-result-boundaries.md"],
+      "artifacts": ["a solver encoding and scope", "a satisfiable witness and exact result status", "a narrowed bounded/feasible/optimal claim and residual"],
+      "stop": "The reported claim is no broader than the encoding, bound, witness, and exact result state.",
+      "separate_when": "The task is deductive proof, query-answer semantics, action planning, or tool execution relevance."
+    },
+    {
+      "id": "logic-query-semantics",
+      "question": "What do answers, empty results, duplicates, negation, and search completion mean for this query?",
+      "trigger": "Facts/rules, zero-one-many answers, proof multiplicity, duplicates, negation-as-failure, binding order, search fairness, cycles, or divergence are consequential.",
+      "method_step": "define answer/proof identity, duplicate and aggregation policy, negation, bindings, search order, outcomes, fairness, cycles, and termination",
+      "read_order": "listed",
+      "references": ["references/problem-modeling.md", "references/logic-query-semantics.md"],
+      "artifacts": ["a facts/rules/query model", "answer, proof, duplicate, negation, binding, and search semantics", "answer, no-answer, cycle, divergence, and completion cases"],
+      "stop": "Every observed empty/non-empty result has one interpretation relative to search completion, duplicates, negation, and termination.",
+      "separate_when": "The task is action planning, conclusive solver status, or design of the query language runtime."
+    },
+    {
+      "id": "planning-model",
+      "question": "Which legal action sequence reaches the goal while preserving the invariant, and what makes one plan preferred?",
+      "trigger": "Initial state, goal, legal actions, intermediate-state invariants, action costs, equivalent plans, or no-plan meaning is consequential.",
+      "method_step": "derive action guards/transitions, intermediate-state invariant, representative valid/invalid plan, objective, equivalence, and search-completeness boundary",
+      "read_order": "listed",
+      "references": ["references/problem-modeling.md", "references/planning-models.md"],
+      "artifacts": ["an initial/goal/action model", "a plan with every intermediate invariant check", "objective/equivalence and complete-versus-unknown no-plan semantics"],
+      "stop": "One valid and one invalid sequence are distinguishable and preferred/no-plan claims are relative to objective and search completeness.",
+      "separate_when": "The question is all allowed histories, relational query answers, solver optimality status, or planner runtime design."
+    }
+  ],
+  "exemption": {
+    "when": "The condition space is finite and direct enough for the SKILL.md judgment spine to expose every consequential distinction, rule, forbidden case, assumption, owner, and counterexample without a specialized model extension.",
+    "evidence": ["the bounded dimensions and admitted values", "the complete rule and forbidden-case surface", "the guarantee owners and counterexamples", "why no specialized model question has an independent artifact"]
+  }
+}

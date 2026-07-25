@@ -4,6 +4,10 @@ Use this reference when duplication, parallel branches, repeated tests, code
 smells, or a model-code mismatch suggests movement but does not yet justify an
 abstraction or implementation plan.
 
+It extends `signal` at comparison and falsification: choose one pair, expose one
+difference with one behavior-preserving observation move, then classify. It does
+not promote the resulting candidate or continue a refactoring sequence.
+
 ## Central Question
 
 What is actually moving in the evidence, and what smallest observation could
@@ -31,10 +35,12 @@ was appropriate for a previous requirement may become awkward only after new
 evidence arrives.
 
 A simple concrete implementation with temporary duplication can be a strong
-baseline when it is understandable and protected by relevant examples. Visible
-duplication without current pressure is not an instruction to refactor. Return
-`no-signal` when the behavior is cheap to change and no accepted claim is being
-inhibited.
+baseline when it is understandable and protected by relevant examples. Before
+simplifying parallel cases, ask whether the data definition and problem model are
+stable enough that the repeated responsibilities are known; model discrepancy is
+not abstraction evidence. Visible duplication without current pressure is not an
+instruction to refactor. Return `no-signal` when the behavior is cheap to change
+and no accepted claim is being inhibited.
 
 ## Select The Comparison
 
@@ -68,7 +74,34 @@ Revealing result: what would support or reject the suspected structure
 ```
 
 If the relevant evidence is missing, return `needs-evidence`. Do not rewrite
-tests merely so a proposed refactor can remain green.
+tests merely so a proposed refactor can remain green. “Behavior-preserving” must
+name the relevant semantics: reassociation, traversal order, effects, failure
+versus divergence, or a new complexity class can make an apparently structural
+alignment observable.
+
+## Catalog Moves Are Experiments
+
+Use familiar tidyings as candidate observation moves, not automatic cleanup:
+
+- flatten a nested condition to a guard only when the condition governs all of
+  the remaining body and return/failure behavior is equivalent;
+- delete suspected dead code only after static and scoped runtime evidence;
+  silence in telemetry is bounded negative evidence, not proof of absence;
+- normalize one symmetry only when representational difference does not encode a
+  product, ordering, or failure difference;
+- introduce a wished interface over the old implementation as a reversible
+  compatibility seam, not as proof of a durable public abstraction;
+- change reading or cohesion order only while preserving declaration, data, and
+  evaluation dependencies;
+- introduce explaining names or explicit parameters only after the represented
+  meaning and effect boundary are understood;
+- chunk or extract when purpose and interaction are bounded, but inline toward
+  one pile when fragmentation itself hides the process;
+- preserve a nonredundant comment when code cannot carry the reason, external
+  constraint, or known coupling honestly.
+
+Each move must end in a locally explainable comparison. The catalog does not
+supply the accepted pressure, verifier, or next destination.
 
 ## Horizontal Movement
 
@@ -81,7 +114,9 @@ Classify movement as horizontal when alignment stays at the current level:
 
 A stable landing is useful evidence: the code is green, understandable, safe to
 pause, and newly comparable. It is not permission to continue toward a
-predetermined design. Re-select the closest pair from the new state.
+predetermined design. A structural template may expose more selectors or
+recursive candidates than the completed purpose needs; an explicit purpose-based
+omission is not missing movement. Re-select the closest pair from the new state.
 
 ## Vertical Movement
 
@@ -125,6 +160,31 @@ accepted model with the implementation for:
 
 Use a behavior-preserving movement only to expose the mismatch. When satisfying
 the model requires changed behavior, keep that behavior change explicit.
+
+## Change-Relative Coupling And Cohesion
+
+Do not report two elements as simply “coupled.” Name the accepted or historically
+observed delta and direction:
+
+```text
+change delta:
+source element and required change:
+dependent element and why it must also change:
+fanout or cascade:
+evidence: contract, repeated accepted diff, compatibility rule, or trace
+counterevidence: tooling, generated code, shared owner, or accidental batching
+```
+
+Files appearing together in commits are a clue, not proof: formatting, broad
+pull requests, ownership, and generated output can create false co-change.
+Conversely, runtime capacity or deployment assumptions can couple elements with
+no source dependency.
+
+Moving change-related elements adjacent is horizontal cohesion movement. It can
+make a change set easier to see without eliminating the coupling. Report a
+vertical candidate only when repeated deltas reveal a stable containing unit,
+policy, or invariant owner. Do not infer cohesion from proximity alone or create
+one giant container for every transitive relationship.
 
 ## Worked Observation
 
@@ -190,13 +250,26 @@ The capability is being misused when:
 ## Source Trace
 
 - Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
-  Edition, version 2.2.2, 2024: chapters 1-4 on Shameless Green, listening to
-  change, points of attack, flocking, concentrating on difference, horizontal
-  movement, and stable landings.
+  Edition, version 2.2.2, 2024: Chapter 1, pp. 2-22; Chapter 2, pp. 23-50;
+  Chapter 3, pp. 51-72; and Chapter 4, pp. 73-101, on Shameless Green,
+  listening to change, points of attack, flocking, concentrating on difference,
+  horizontal movement, and stable landings.
 - Matthias Felleisen, Robert Bruce Findler, Matthew Flatt, and Shriram
-  Krishnamurthi, *How to Design Programs, Second Edition*, MIT Press, 2018:
-  deriving abstractions by comparing completed concrete designs and lifting
-  corresponding differences.
+  Krishnamurthi, *How to Design Programs*, official living build 9.2.0.3,
+  released 2026-05-28 and audited 2026-05-28:
+  Chapter 14
+  and Chapter 15
+  for comparing completed concrete designs and lifting corresponding roles;
+  Chapter 19
+  and Chapter 20
+  for stabilizing a data model before simplification; and
+  Intermezzo 5
+  for duplicated-work and hidden-traversal cost signals.
 - Kent Beck, *Tidy First?: A Personal Exercise in Empirical Software Design*,
-  O'Reilly Media, 2023: small behavior-preserving structural moves and the need
-  to keep them separate from behavior changes.
+  First Edition, Second Release, O'Reilly Media, 2025-12-12:
+  Part I, Chapters 1-15, pp. 3-32, for small catalog-shaped observation moves;
+  Part II, Chapters 16-18, pp. 35-46, for behavior/structure separation,
+  chaining, and batch interactions; and Part III, Chapters 29-32, pp. 77-90,
+  for change-relative coupling, fanout/cascades, and cohesion movement. Commit
+  co-change, power-law cost, tool-constant fanout, and universal collocation are
+  qualified rather than imported as laws.

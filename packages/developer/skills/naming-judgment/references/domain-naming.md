@@ -5,6 +5,10 @@ misleading, effect-hiding, or disputed across callers. This capability judges
 the word and the sense readers may rely on; it does not redesign the surrounding
 module or process.
 
+It extends `naming-judgment` at the sense step: distinguish sign, current
+referent, relied-upon sense, audience, and expected evolution, then produce one
+bounded rename map. An unstable responsibility is a handoff, not a naming task.
+
 ## Narrow And Consistent
 
 A useful name is both narrow and consistent:
@@ -28,8 +32,13 @@ referent: the current value, function, type, or implementation
 sense: the stable properties readers understand and rely on
 ```
 
-Judge the name around its sense. Complete this statement before proposing a
-rename:
+Judge the name around its sense. Equal current referents do not establish equal
+sense: two values or implementations may need distinct names because readers
+expect them to evolve independently. Conversely, two distinct signs should not
+invent a future divergence nobody intends. Record that evolution observer before
+merging or splitting vocabulary.
+
+Complete this statement before proposing a rename:
 
 ```text
 <old> says <current sense>, but callers rely on <actual sense>.
@@ -191,12 +200,22 @@ Naming judgment is weak when:
 
 ## Source Trace
 
-- Zachary Tellman, *Elements of Clojure*, 2019: the Names chapter on narrow and
-  consistent names, sign/referent/sense, naming data, functions, and macros; the
-  Indirection and Composition chapters inform effect and context boundaries but
-  their architectural decisions are owned by `sketch` and
-  `abstraction-review`.
+- Zachary Tellman, *Elements of Clojure*, Leanpub edition published 2019-02-11,
+  cross-checked against the public
+  first-printing manuscript:
+  Names, public-manuscript pp. 7-26, for narrow and consistent names,
+  sign/referent/sense, expected evolution, audience, and naming data, functions,
+  and macros; Idioms pp. 40-45 and 58-61 for dynamic-scope/effect and absence
+  boundaries; Indirection pp. 64-95 for context and interface sense; and
+  Composition pp. 98-119 for process effects. Architectural decisions remain
+  owned by `sketch` and `abstraction-review`;
+  recorded source defects and Clojure-specific naming syntax are not universal
+  rules.
 - Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
-  Edition, version 2.2.2, 2024: chapters 2, 4, 5, and 9 on exposing
-  responsibilities, provisional names, deriving names from responsibilities,
-  naming classes, and communicating with future readers.
+  Edition, version 2.2.2, 2024: Chapter 1, pp. 12-13; Chapter 2, pp. 37-43;
+  Chapter 3, pp. 63-64; Chapter 4, pp. 75-99; Chapter 5, pp. 112-113;
+  Chapter 6, pp. 159-160; Chapter 8, pp. 196-216; and Chapter 9, pp. 237-243
+  and 257-259, on implementation-shaped names, sender knowledge, provisional
+  names, deriving names from responsibilities, receiver-supplied context,
+  sender-oriented requests, naming classes, and communicating with future
+  readers.

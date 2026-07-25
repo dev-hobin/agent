@@ -1,6 +1,6 @@
 ---
 name: sketch
-description: "Shape an implementable design surface from a requirement, invariant, problem model, existing code, or representative cases using data definitions, templates, wished interfaces, collaborations, checks, and a small implementation queue. Use when ownership, boundaries, data flow, recursion, state, composition, responsibility, variation, or implementation shape remains unresolved."
+description: "Shape an implementable design surface from a requirement, invariant, problem model, existing code, or representative cases using data definitions, templates, wished interfaces, collaborations, checks, and a small implementation queue. Use when ownership, boundaries, data flow, recursion, state, composition, responsibility, variation, or implementation shape remains unresolved. Prefer sketch when caller-facing operations or collaborations still need to be invented; review a candidate only after that concrete surface exists."
 ---
 
 # Sketch
@@ -11,6 +11,21 @@ Turn accepted intent into an implementable design surface.
 
 What design surface makes this intent implementable?
 
+## Judgment Spine
+
+```text
+accepted intent and cases
+-> data/state/ownership facts
+-> one unresolved design question
+-> wishful caller-visible surface
+-> contract, owner, hidden detail, and falsifier
+-> first executable item + explicit handoffs
+```
+
+A reference extends one arrow in this spine. It must not contribute unrelated
+insights merely because they share a book or broad topic. If a question has its
+own artifact and stop, select or create a separate route.
+
 ## Inputs
 
 - Requirement, invariant, or problem model when available
@@ -20,40 +35,13 @@ What design surface makes this intent implementable?
 
 ## Reference Routing
 
-Read [the data-driven design reference](references/data-driven-design.md) when
-the information model, data variants, traversal, recursion, examples, or tests
-should determine the function skeleton. Read it when a proposed sketch jumps
-from prose to helpers without deriving cases and a template from the data.
-
-Within that capability, read [the data-shape template catalog](references/data-shape-template-catalog.md)
-when atomic, itemized, structured, recursive, intertwined, multi-input, output,
-or interactive data must derive a template. Read
-[composition, generative recursion, and accumulators](references/composition-generative-recursion-and-accumulators.md)
-for wished auxiliaries, abstraction from completed functions, generated
-subproblems and termination, or an invariant-bearing accumulator.
-
-Read [the abstraction, composition, and state reference](references/abstraction-composition-and-state.md)
-when wishful top-level design, representation independence, abstraction
-barriers, compositional interfaces, module assumptions, environmental process
-boundaries, state/history ownership, or levels of language carry consequential
-judgment.
-
-Within that capability, read [abstraction barriers and closure](references/abstraction-barriers-and-closure.md)
-for a representation or combination boundary,
-[processes, state, and time](references/processes-state-and-time.md) for runtime
-shape, history, identity, streams, concurrency, or order, and
-[generic operations and languages](references/generic-operations-and-languages.md)
-for additive representations, coercion, symbolic data, a DSL, or an evaluator.
-
-Read [the responsibility and variation reference](references/responsibility-and-variation.md)
-when real change pressure exposes repeated arguments, data clumps, conditional
-dispatch, misplaced knowledge, role substitution, object creation, factory
-tradeoffs, or test-unit boundaries.
-
-Read multiple references only when their questions genuinely combine: for
-example, data shape may derive the operational skeleton while abstraction and
-responsibility evidence determine its boundaries. A small local design whose
-purpose, cases, data flow, and first item are already clear needs none.
+The machine-readable [reference policy](reference-policy.json) is the routing
+authority. Each route answers one narrower design question and declares the
+judgment step, artifact, stop, and separation boundary it owns. Select a narrow
+route instead of its fallback; select several only when each produces an
+independent artifact needed by the same sketch. A co-required set means every
+member is necessary for that route's one result, not that the documents share a
+subject. Use the exemption only when no trigger applies and cite its evidence.
 
 ## Output
 
@@ -101,16 +89,19 @@ data-flow assumptions.
 2. State the design unit's purpose in the user's language.
 3. Derive relevant data or state definitions and their ownership pressure.
 4. List representative cases before choosing code shape.
-5. Derive the template from data, state, traversal, or ownership flow.
-6. Write wishful top-level code, pseudocode, or interaction flow in a fenced
+5. Name each independently unresolved design question and select only its routed
+   extension; keep disputed meaning in `model`.
+6. Derive the needed template, composition, generation, invariant, level,
+   process, state, dispatch, language, or responsibility artifact.
+7. Write wishful top-level code, pseudocode, or interaction flow in a fenced
    code block. Show every wished interface in context rather than merely naming
    helpers in prose.
-7. For each wished interface, state its purpose, contract, owner, hidden detail,
+8. For each wished interface, state its purpose, contract, owner, hidden detail,
    and representative stop check in a table.
-8. Draw the smallest inline map that exposes non-trivial data flow,
+9. Draw the smallest inline map that exposes non-trivial data flow,
    collaboration, state movement, or ownership boundaries.
-9. Separate design artifacts, implementation items, and deferred candidates.
-10. Keep the queue small; do not turn the sketch into a project plan.
+10. Separate design artifacts, implementation items, candidate reviews, and
+    deferred questions. Keep the implementation queue small.
 
 ## Missing Evidence
 
@@ -123,4 +114,9 @@ assumptions.
 ## Boundary
 
 Do not own product scope, decide model correctness, promote an abstraction,
-schedule structural timing, implement the change, or verify completion.
+schedule structural timing, implement the change, or verify completion. Creating
+an original public operation set, representation boundary, ownership map, or
+caller shape belongs here even when replacement pressure motivates it. Route
+`abstraction-review` only after a concrete caller-facing candidate exists; route
+`model` first only when unresolved cases or rules can materially change the
+surface.

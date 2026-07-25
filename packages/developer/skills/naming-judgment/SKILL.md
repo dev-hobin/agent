@@ -12,6 +12,19 @@ Choose names that preserve domain sense across implementation change.
 What domain sense should this name expose, what detail should it hide, and what
 change boundary should it preserve?
 
+## Judgment Spine
+
+```text
+callers and audience
+-> sign / current referent / relied-upon sense
+-> expected evolution and effect boundary
+-> reveal/hide decision
+-> bounded rename map + unchanged checks
+```
+
+If the sense cannot stabilize without redesigning responsibility or policy, hand
+off instead of hiding that work in a rename.
+
 ## Inputs
 
 - Current name and the code or artifact it identifies
@@ -79,7 +92,7 @@ Reuse does not prove that a generic name is sound.
 
 ## Reference Routing
 
-Read [the domain naming reference](references/domain-naming.md) for
-subtle, disputed, or recurring naming pressure. Also read it when the apparent
-naming problem may involve false indirection, a data-scope crossing, an effect
-hidden by a pure-sounding word, or responsibility-derived vocabulary.
+The machine-readable [reference policy](reference-policy.json) is the routing
+authority. Its routed extension refines the sense step, declares the rename
+artifact and stop, and names when model or design work owns the instability. Use
+the exemption only when no trigger applies and cite its evidence.

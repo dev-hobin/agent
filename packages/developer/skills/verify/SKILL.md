@@ -11,6 +11,19 @@ Map evidence to claims without turning green checks into broader proof.
 
 What claims does the available evidence support?
 
+## Judgment Spine
+
+```text
+claim and observer
+-> cheapest relevant falsifier
+-> executed evidence and provenance
+-> plausible pass-but-wrong implementation
+-> strongest supported claim + explicit residual
+```
+
+Green execution is only an observation until relevance and counterexample
+coverage connect it to the claim.
+
 ## Inputs
 
 - Claims under review
@@ -20,12 +33,10 @@ What claims does the available evidence support?
 
 ## Reference Routing
 
-Read [the verifier selection and pass-but-wrong reference](references/verifier-selection-and-pass-but-wrong.md)
-when several claims need different evidence, a passing command may not exercise
-the accepted meaning, source compatibility matters, or behavior can pass while
-structure degrades. Also read it before a consequential completion claim whose
-verifier relevance or residual risk is unclear. A narrow claim with direct,
-relevant evidence does not need the reference.
+The machine-readable [reference policy](reference-policy.json) is the routing
+authority. Its routed extension refines claim splitting, verifier relevance, and
+pass-but-wrong search, then declares the evidence artifact, stop, and handoff.
+Use the exemption only when no trigger applies and cite its evidence.
 
 ## Output
 

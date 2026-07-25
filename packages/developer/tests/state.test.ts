@@ -5,6 +5,7 @@ import {
 	JUDGMENT_TOOL,
 	ACTIVATION_ENTRY,
 	PROTOCOL,
+	REFERENCE_TOOL,
 	ROUTE_TOOL,
 	applyDeveloperEvent,
 	initialState,
@@ -12,6 +13,7 @@ import {
 	reconstructState,
 	type DeveloperState,
 	type JudgmentEvent,
+	type ReferenceLoadEvent,
 	type RouteEvent,
 } from "../extensions/state.ts";
 
@@ -24,6 +26,21 @@ const route: RouteEvent = {
 	reason: "The behavior is known but the boundary is not.",
 	knownEvidence: ["The form and domain model use different shapes."],
 	consideredAlternatives: [],
+	availableReferences: ["references/design-levels-and-boundaries.md"],
+	referenceRoutes: [
+		{
+			id: "design-levels",
+			question: "Which level should own the representation boundary?",
+			trigger: "A representation boundary is unresolved.",
+			methodStep: "place ownership after the caller contract is visible",
+			references: ["references/design-levels-and-boundaries.md"],
+			readOrder: "any",
+			artifacts: ["a level map"],
+			stop: "each dependency crosses only one truthful boundary",
+			separateWhen: "the representation needs its own public operation set",
+		},
+	],
+	loadedReferences: [],
 };
 
 const resolved = (
@@ -38,6 +55,12 @@ const resolved = (
 	status: "resolved",
 	result,
 	basis: ["Representative cases agree."],
+	referenceBasis: [],
+	referenceExemption: {
+		reason:
+			"The state test exercises protocol transitions, not skill semantics.",
+		evidence: ["No reference-dependent judgment is under test."],
+	},
 	openedQuestions: [],
 	questionUpdates: [],
 	artifacts: ["tests/schedule.test.ts"],
@@ -74,6 +97,40 @@ test("idle means no routed or pending question, not task completion", () => {
 	});
 	assert.equal(protocolState(state), "idle");
 	assert.equal(state.lastJudgment, undefined);
+});
+
+test("records and replays branch-local reference loads on the active route", () => {
+	const referenceLoad: ReferenceLoadEvent = {
+		protocol: PROTOCOL,
+		kind: "reference-load",
+		routeId: route.routeId,
+		target: route.target,
+		path: "references/design-levels-and-boundaries.md",
+		reason: "The representation boundary is unresolved.",
+		contentSha256: "a".repeat(64),
+		sourceTrace: "SICP, chapter 2",
+		referenceRouteIds: ["design-levels"],
+	};
+	let state = applyDeveloperEvent(enabledState(), route);
+	state = applyDeveloperEvent(state, referenceLoad);
+	assert.deepEqual(state.activeRoute?.loadedReferences, [
+		{
+			path: referenceLoad.path,
+			reason: referenceLoad.reason,
+			contentSha256: referenceLoad.contentSha256,
+			sourceTrace: referenceLoad.sourceTrace,
+			referenceRouteIds: ["design-levels"],
+		},
+	]);
+
+	const replayed = reconstructEnabledState([
+		toolEntry(ROUTE_TOOL, route),
+		toolEntry(REFERENCE_TOOL, referenceLoad),
+	]);
+	assert.equal(
+		replayed.activeRoute?.loadedReferences[0]?.path,
+		referenceLoad.path,
+	);
 });
 
 test("turning Developer off clears optional route, focus, question, and debt state", () => {
@@ -128,6 +185,29 @@ test("reconstructs activation and protocol state from the active branch", () => 
 	assert.equal(state.routeHistory.length, 1);
 	assert.equal(state.judgmentHistory.length, 1);
 	assert.deepEqual(state.pendingQuestions, []);
+});
+
+test("replays legacy policy routes with explicit integration fallbacks", () => {
+	const legacyRoute = {
+		...route,
+		referenceRoutes: [
+			{
+				id: "legacy-boundary",
+				trigger: "A representation boundary is unresolved.",
+				references: ["references/legacy.md"],
+				readOrder: "any",
+				artifacts: ["a boundary"],
+			},
+		],
+	} as unknown as RouteEvent;
+	const replayed = reconstructEnabledState([
+		toolEntry(ROUTE_TOOL, legacyRoute),
+	]);
+	const legacyPolicyRoute = replayed.activeRoute?.referenceRoutes[0];
+	assert.equal(legacyPolicyRoute?.question, legacyPolicyRoute?.trigger);
+	assert.match(legacyPolicyRoute?.methodStep ?? "", /legacy route/);
+	assert.match(legacyPolicyRoute?.stop ?? "", /legacy route/);
+	assert.match(legacyPolicyRoute?.separateWhen ?? "", /current policy/);
 });
 
 test("reconstructs optional pending-question context", () => {

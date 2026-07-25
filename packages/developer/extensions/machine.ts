@@ -7,6 +7,7 @@ import type {
 	FocusEvent,
 	JudgmentEvent,
 	PendingQuestion,
+	ReferenceLoadEvent,
 	RouteEvent,
 } from "./state.ts";
 
@@ -14,6 +15,7 @@ type DeveloperMachineEvent =
 	| { type: "ACTIVATION"; event: ActivationEvent }
 	| { type: "FOCUS"; event: FocusEvent }
 	| { type: "ROUTE"; event: RouteEvent }
+	| { type: "REFERENCE_LOAD"; event: ReferenceLoadEvent }
 	| { type: "JUDGMENT"; event: JudgmentEvent };
 
 export type DeveloperMachineTag =
@@ -79,6 +81,37 @@ function applyRouteContext(
 			event.targetQuestionId === state.focusedQuestionId
 				? undefined
 				: state.focusedQuestionId,
+	};
+}
+
+function applyReferenceLoadContext(
+	state: DeveloperState,
+	event: ReferenceLoadEvent,
+): DeveloperState {
+	const route = state.activeRoute;
+	if (!route || route.routeId !== event.routeId) return state;
+	const existingIndex = route.loadedReferences.findIndex(
+		(reference) => reference.path === event.path,
+	);
+	const existingReference = route.loadedReferences[existingIndex];
+	const loadedReference = {
+		path: event.path,
+		reason: event.reason,
+		contentSha256: event.contentSha256,
+		sourceTrace: event.sourceTrace,
+		referenceRouteIds: [
+			...new Set([
+				...(existingReference?.referenceRouteIds ?? []),
+				...event.referenceRouteIds,
+			]),
+		],
+	};
+	const loadedReferences = [...route.loadedReferences];
+	if (existingIndex === -1) loadedReferences.push(loadedReference);
+	else loadedReferences[existingIndex] = loadedReference;
+	return {
+		...state,
+		activeRoute: { ...route, loadedReferences },
 	};
 }
 
@@ -207,6 +240,8 @@ function reduceDeveloperContext(
 			return { ...state, focusedQuestionId: event.questionId };
 		case "route":
 			return applyRouteContext(state, event);
+		case "reference-load":
+			return applyReferenceLoadContext(state, event);
 		case "judgment":
 			return applyJudgmentContext(state, event);
 		default:
@@ -222,6 +257,8 @@ function machineEvent(event: DeveloperEvent): DeveloperMachineEvent {
 			return { type: "FOCUS", event };
 		case "route":
 			return { type: "ROUTE", event };
+		case "reference-load":
+			return { type: "REFERENCE_LOAD", event };
 		case "judgment":
 			return { type: "JUDGMENT", event };
 		default:
@@ -251,6 +288,13 @@ function canApplyEvent(
 					!context.pendingQuestions.some(
 						(question) => question.gate === "before-implementation",
 					))
+			);
+		case "REFERENCE_LOAD":
+			return (
+				context.enabled &&
+				context.activeRoute?.routeId === event.event.routeId &&
+				context.activeRoute.target === event.event.target &&
+				context.activeRoute.target !== "implementation"
 			);
 		case "JUDGMENT":
 			return (
@@ -322,6 +366,7 @@ export const developerMachine = machineSetup.createMachine({
 		ACTIVATION: { guard: "eventAllowed", actions: "applyEvent" },
 		FOCUS: { guard: "eventAllowed", actions: "applyEvent" },
 		ROUTE: { guard: "eventAllowed", actions: "applyEvent" },
+		REFERENCE_LOAD: { guard: "eventAllowed", actions: "applyEvent" },
 		JUDGMENT: { guard: "eventAllowed", actions: "applyEvent" },
 	},
 	states: {

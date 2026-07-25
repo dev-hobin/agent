@@ -11,6 +11,18 @@ Observe structural movement without promoting or scheduling it.
 
 What structural movement is actually visible in the evidence?
 
+## Judgment Spine
+
+```text
+current pressure
+-> closest comparable pair
+-> one smallest meaningful difference
+-> one behavior-preserving falsifying move
+-> no-signal | horizontal | vertical | ambiguous
+```
+
+The output is an observation and optional candidate, never a refactoring plan.
+
 ## Inputs
 
 - Requirement, code slice, diff, tests, command output, or UI state
@@ -20,12 +32,11 @@ What structural movement is actually visible in the evidence?
 
 ## Reference Routing
 
-Read [the structural movement reference](references/structural-movement.md)
-when duplication, parallel branches, similar tests, repeated UI states,
-conditionals, or a recent refactor need a behavior-preserving next move. Also
-read it when the horizontal/vertical distinction is consequential or the
-available checks may not keep a small movement green. A direct, evidence-backed
-observation with no proposed movement does not need the reference.
+The machine-readable [reference policy](reference-policy.json) is the routing
+authority. Its routed extension refines comparison and falsification, declares
+the classification artifact and stop, and names when promotion or implementation
+belongs elsewhere. Use the exemption only when no trigger applies and cite its
+evidence.
 
 ## Output
 

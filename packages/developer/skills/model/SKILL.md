@@ -1,6 +1,6 @@
 ---
 name: model
-description: "Model the condition space behind a requirement, invariant, bug, policy, workflow, or code behavior using cases, predicates, rules, forbidden states, transitions, objectives, guarantee placement, and verification targets. Use when correctness depends on combinations, absence or default semantics, contracts, replacement, state, time, or policy interaction."
+description: "Model unresolved condition space behind a requirement, invariant, bug, policy, workflow, or code behavior using cases, predicates, rules, forbidden states, transitions, objectives, guarantee placement, and verification targets. Use when correctness depends on combinations, absence or default semantics, contracts, replacement, state, time, or policy interaction that must be settled before design. Supplied laws or invariants that only need an interface shape belong directly to sketch."
 ---
 
 # Model
@@ -10,6 +10,20 @@ Expose the condition space a valid implementation must satisfy.
 ## Core Question
 
 Which cases, rules, states, or transitions make the claim precise?
+
+## Judgment Spine
+
+```text
+unresolved uncertainty
+-> admitted domain and consequential distinctions
+-> rules, forbidden cases, and assumptions
+-> counterexamples and guarantee owners
+-> model artifact that constrains later design
+```
+
+Choose representation from the uncertainty, not from a favorite formal tool.
+Specialized references extend one modeling obligation; they do not turn the leaf
+into a catalog of solvers or languages.
 
 ## Inputs
 
@@ -61,10 +75,12 @@ states, transitions, or policy decisions invalidate the model.
 3. Separate facts, decisions, assumptions, properties, and helper predicates.
 4. Make missing, undefined, null, empty, legacy, and configured states explicit
    when absence matters. Name the policy owner and misplaced-default cases.
-5. Model transitions separately from current-state validity when order matters.
-6. Place each guarantee at the appropriate type, boundary, validation, test,
+5. Select one specialized model only when contract, relation, time, exhaustive
+   evidence, or search has an independent artifact and stop condition.
+6. State the ability lost and guarantee gained by the chosen representation.
+7. Place each guarantee at the appropriate type, boundary, validation, test,
    property, proof, model check, or human decision.
-7. Derive verification targets and the counterexample each target should catch.
+8. Derive counterexamples and verification targets without designing the API.
 
 ## Missing Evidence
 
@@ -76,15 +92,17 @@ Keep provisional rules visibly provisional.
 ## Boundary
 
 Do not decide product scope, design the implementation surface, schedule
-structural work, mutate artifacts, or make the final evidence judgment.
+structural work, mutate artifacts, or make the final evidence judgment. Words
+such as “law,” “invariant,” or “replacement” do not require a model route when
+the requirement already fixes their meaning and asks only for public operations,
+ownership, collaborators, or caller shape; route that original surface to
+`sketch`.
 
 ## Reference Routing
 
-Read [the problem-modeling reference](references/problem-modeling.md) for
-policy-heavy, stateful, optimization, safety-critical, or otherwise complex
-condition spaces.
-
-Read [the worked models and specialized techniques](references/worked-models-and-specialized-techniques.md)
-when a boolean policy, relational constraint, replacement, temporal rule, proof
-obligation, solver encoding, logic program, or plan needs a complete calibration
-example rather than the compact procedure alone.
+The machine-readable [reference policy](reference-policy.json) is the routing
+authority. Each route answers one modeling question, refines one judgment step,
+and declares its artifact, stop, and separation boundary. Prefer a specialized
+route over the broad condition-space fallback when it owns the unresolved
+obligation; combine routes only for independent model questions. Use the
+exemption only when no route trigger applies and cite its evidence.

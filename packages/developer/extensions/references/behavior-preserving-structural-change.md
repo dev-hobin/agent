@@ -15,11 +15,16 @@ Structural move: one concrete rearrangement
 Pressure: why the accepted task needs or benefits from it now
 Baseline evidence: the cheapest relevant check that is currently green
 Affected surface: files, callers, persisted forms, or public boundaries
+Runtime semantics: effects, evaluation/order, numeric representation, failure, termination
+Resource claim: unchanged / deliberately changed / not part of preserved behavior
 Stop: the next stable, pausable state
 ```
 
 If the behavior claim, timing, or candidate is still under judgment, close or
 pause the implementation route and route that question to the appropriate leaf.
+The behavior/structure distinction is observer-relative. Equal return values do
+not make a movement structural when it changes effects, exception timing,
+ordering, resource use, persistence, compatibility, or another admitted observer.
 
 ## Smallest Green Transformation
 
@@ -40,6 +45,52 @@ new shape parses
 For movement across a boundary, update one sender or caller at a time when the
 old and new forms can safely coexist. Confirm that each intermediate state is
 valid. Do not rely on a final large diff to explain which step changed behavior.
+A forwarding interface over the old implementation can be a temporary seam, but
+it is not evidence that the interface is a stable public abstraction.
+
+For suspected dead code, combine static references, dynamic reachability, and a
+scoped observation window appropriate to rare jobs, reflection, configuration,
+and external entry points. A log with no hits narrows uncertainty; it does not
+prove absence. Delete in a separately reversible step and retain the recovery
+path and residual risk.
+
+## Derive Completely, Then Simplify
+
+When a change affects cases or data shape, first make the complete case space
+explicit. Derive branches, selectors, candidate recursive calls, and failure
+cases from the accepted model; only then merge clauses or remove redundant guards
+with a stated preserving law. Guessing the compact version can omit a case while
+remaining green on a narrow suite.
+
+Propagate a changed data definition through:
+
+```text
+data and persisted examples
+-> behavior examples
+-> templates and collaborations
+-> implementations
+-> tests and properties
+-> callers, serializers, and public compatibility surfaces
+```
+
+A local type edit is not a stable landing while an old accepted form remains
+unhandled. Conversely, a structurally available selector or recursion may be
+absent from the final body when purpose explicitly proves it irrelevant.
+
+## Runtime-Semantic Boundary
+
+A source-level rearrangement is not behavior-preserving merely because an
+algebraic identity holds mathematically. Check whether the move changes:
+
+- short-circuiting, exception timing, effects, or repeated external reads;
+- floating-point association, overflow, underflow, or non-finite propagation;
+- collection order, duplicate handling, sharing, or mutation;
+- termination, branch starvation, or failure-versus-divergence behavior;
+- time, stack, allocation, or query/update complexity when resource behavior is
+  part of the accepted claim.
+
+If any item is intentionally changed, split that claim from the structural move
+and route it explicitly.
 
 ## Evidence Rhythm
 
@@ -49,8 +100,15 @@ Within the routed movement:
 2. inspect the diff for mixed behavior and structural changes;
 3. reduce the step when the failure cannot be explained locally;
 4. return to the declared green, deployable stable landing;
-5. close the implementation route there and let Developer re-observe and route
+5. distinguish local integration evidence from production deployment and
+   external-effect evidence;
+6. close the implementation route there and let Developer re-observe and route
    the next question instead of following a predetermined final design.
+
+Separate commits or pull requests can expose structural purpose, but repository
+policy, review latency, deployment independence, and team evidence determine the
+actual batch. Never infer “absolute safety” from a small diff or omit review only
+because a change is labeled a tidying.
 
 A passing test is useful only when it exercises the preserved behavior. When no
 cheap verifier exists, keep the movement smaller and record the residual risk.
@@ -139,12 +197,33 @@ The protocol is being misused when:
 ## Source Trace
 
 - Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
-  Edition, version 2.2.2, 2024: chapters 3-5 on methodical transformations,
-  flocking, gradual refactoring, stable landings, and sender-by-sender movement.
+  Edition, version 2.2.2, 2024: Chapters 3-5, pp. 51-137, especially
+  pp. 58-71, 84-101, and 113-125, on methodical transformations, flocking,
+  gradual refactoring, stable landings, and sender-by-sender movement.
 - Kent Beck, *Tidy First?: A Personal Exercise in Empirical Software Design*,
-  O'Reilly Media, 2023: separating behavior and structure, keeping tidyings
-  small, and managing structural change as optionality.
+  First Edition, Second Release, O'Reilly Media, 2025-12-12:
+  Part I, Chapters 1-15, pp. 3-32, for small structural moves, reversible seams,
+  dead-code observation, dependency-preserving reorder, extraction, inlining,
+  and communication; Part II, Chapters 16-20, pp. 35-50, for separating change
+  purposes, chaining, batches, rhythm, and untangling; and Chapter 28,
+  pp. 75-76, for reversibility pressure. The protocol narrows the source's
+  behavior observer and qualifies its PR, review, deployment, telemetry, and
+  absolute-safety claims; production recovery remains a Developer adaptation.
 - Matthias Felleisen, Robert Bruce Findler, Matthew Flatt, and Shriram
-  Krishnamurthi, *How to Design Programs, Second Edition*, MIT Press, 2018:
-  iterative refinement and propagating a changed data design through dependent
-  artifacts.
+  Krishnamurthi, *How to Design Programs*, official living build 9.2.0.3,
+  released 2026-05-28 and audited 2026-05-28:
+  Chapter 19
+  and Chapter 20
+  for model stabilization and staged simplification;
+  Chapter 23
+  for exhaustive case derivation followed by algebraic simplification;
+  Intermezzo 4
+  for order-sensitive inexact arithmetic;
+  Intermezzo 5
+  for resource-class changes; and
+  Chapter 31,
+  Chapter 32,
+  Chapter 33,
+  and Chapter 34
+  for accumulator transformations that may change order, totality, time, and
+  space.

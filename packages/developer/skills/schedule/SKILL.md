@@ -11,6 +11,18 @@ Decide when a concrete structural move belongs.
 
 When should this candidate be done: now, after, or never?
 
+## Judgment Spine
+
+```text
+stable concrete candidate
+-> current dependency and invariant pressure
+-> guarantee gained / ability lost
+-> reversibility, delay cost, and nested work
+-> now | after(immediate/later + reopen) | never
+```
+
+Timing cannot stabilize a candidate whose meaning or surface is still unresolved.
+
 ## Inputs
 
 - Concrete candidate and scope
@@ -20,12 +32,10 @@ When should this candidate be done: now, after, or never?
 
 ## Reference Routing
 
-Read [the structural change timing reference](references/structural-change-timing.md)
-when a behavior change and structural change compete, when `now` would remove
-meaningful implementation freedom, or when reversibility, nested work, and cost
-of delay point in different directions. Also read it when an `after` decision
-needs an observable reopen condition. A small, reversible candidate whose
-timing follows directly from the current invariant does not need the reference.
+The machine-readable [reference policy](reference-policy.json) is the routing
+authority. Its routed extension refines the tradeoff step, declares the timing
+artifact and stop, and names when an unstable candidate must be handed back. Use
+the exemption only when no trigger applies and cite its evidence.
 
 ## Output
 

@@ -154,6 +154,9 @@ function qaRoute(routeId: string, question: string): RouteEvent {
 			"The deterministic TUI suite covers canonical activation and narrow widths.",
 		],
 		consideredAlternatives: [],
+		availableReferences: [],
+		referenceRoutes: [],
+		loadedReferences: [],
 		methodLocation: "/skills/verify/SKILL.md",
 	};
 }
@@ -178,6 +181,7 @@ export function createRichQaState(): DeveloperState {
 		result:
 			"Real-terminal activation, focus, IME, resize, glyph, and compact-overlay evidence remains necessary.",
 		basis: ["The prior static fixture rendered stale activation state."],
+		referenceBasis: [],
 		openedQuestions: questions,
 		questionUpdates: [],
 		artifacts: ["pnpm --filter @hobin/developer check"],
@@ -216,6 +220,7 @@ export function createLongQaState(): DeveloperState {
 			status: index % 3 === 0 ? "needs-evidence" : "resolved",
 			result: `Historical observation ${index + 1} includes ◆ → ↑↓ · … 한글 for alignment checks.`,
 			basis: [`Synthetic visual fixture evidence ${index + 1}.`],
+			referenceBasis: [],
 			openedQuestions: [],
 			questionUpdates: [],
 			artifacts: [],

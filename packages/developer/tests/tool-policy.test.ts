@@ -9,7 +9,11 @@ import {
 	type ToolPolicyMemory,
 } from "../extensions/tool-policy.ts";
 
-const protocolTools = ["developer_route_question", "developer_record_judgment"];
+const protocolTools = [
+	"developer_route_question",
+	"developer_load_reference",
+	"developer_record_judgment",
+];
 const allTools = [
 	{ name: "read", sourceInfo: { source: "builtin" } },
 	{ name: "edit", sourceInfo: { source: "builtin" } },
@@ -22,6 +26,10 @@ const allTools = [
 	},
 	{
 		name: protocolTools[1],
+		sourceInfo: { source: "/extensions/developer.ts" },
+	},
+	{
+		name: protocolTools[2],
 		sourceInfo: { source: "/extensions/developer.ts" },
 	},
 ];

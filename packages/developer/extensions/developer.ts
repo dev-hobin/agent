@@ -18,7 +18,14 @@ import {
 import { Container, Markdown, Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 
-import { availablePackageSkills, renderSkillMethod } from "./skills.ts";
+import {
+	availablePackageSkills,
+	isWithinRoot,
+	loadSkillReference,
+	loadSkillReferencePolicy,
+	renderSkillMethod,
+	skillReferencePaths,
+} from "./skills.ts";
 import {
 	ACTIVATION_ENTRY,
 	FOCUS_ENTRY,
@@ -28,6 +35,7 @@ import {
 	MAX_RESPONSE_OPTIONS,
 	MAX_RESPONSE_TEXT_CHARS,
 	PROTOCOL,
+	REFERENCE_TOOL,
 	ROUTE_TOOL,
 	applyDeveloperEvent,
 	canApplyDeveloperEvent,
@@ -49,6 +57,11 @@ import {
 	type QuestionResolutionOwner,
 	type QuestionUpdate,
 	type QuestionUpdateStatus,
+	type ReferenceBasis,
+	type ReferenceExemption,
+	type ReferenceLoadEvent,
+	type ReferencePolicyExemption,
+	type ReferencePolicyRoute,
 	type RouteAlternative,
 	type RouteEvent,
 } from "./state.ts";
@@ -76,7 +89,7 @@ import {
 	type ImmediateQuestionDisposition,
 } from "./tui.ts";
 
-const PROTOCOL_TOOLS = [ROUTE_TOOL, JUDGMENT_TOOL] as const;
+const PROTOCOL_TOOLS = [ROUTE_TOOL, REFERENCE_TOOL, JUDGMENT_TOOL] as const;
 const extensionRoot = dirname(fileURLToPath(import.meta.url));
 const skillsRoot = resolve(extensionRoot, "..", "skills");
 const structuralChangeMethodPath = resolve(
@@ -140,6 +153,27 @@ function sameToolSet(left: string[], right: string[]): boolean {
 function compactLine(value: string, maxChars = 160): string {
 	const line = value.replace(/\s+/g, " ").trim();
 	return line.length <= maxChars ? line : `${line.slice(0, maxChars - 1)}…`;
+}
+
+function referenceRouteSummary(route: ReferencePolicyRoute): string {
+	return `${route.id}: question=${route.question} | trigger=${route.trigger} | refines=${route.methodStep} | references=${route.references.join(" + ")} (read order: ${route.readOrder}) | produces=${route.artifacts.join("; ")} | stop=${route.stop} | separate when=${route.separateWhen}`;
+}
+
+function referencePolicyLines(
+	routes: ReferencePolicyRoute[],
+	exemption: ReferencePolicyExemption | undefined,
+): string[] {
+	if (routes.length === 0) return [];
+	return [
+		"Reference routes (each route extends one named judgment step and answers one narrower question; its references are one co-required set, while read order is declared separately):",
+		...routes.map((route) => `- ${referenceRouteSummary(route)}`),
+		...(exemption
+			? [
+					`Reference exemption applies only when: ${exemption.when}`,
+					`Exemption evidence: ${exemption.evidence.join(" | ")}`,
+				]
+			: []),
+	];
 }
 
 function normalizedQuestion(value: string): string {
@@ -413,11 +447,13 @@ function protocolPrompt(
 		"Developer protocol is active.",
 		"- Use the default topology as a conditional backbone, not a rigid lifecycle: clarify meaning when needed -> model consequential cases -> sketch the first implementation surface for new behavior or signal the smallest structural movement in existing code -> execute one implementation step -> verify current claims.",
 		"- Adapt away from that topology when evidence makes a stage not applicable, but never jump directly from a resolved model to mutation: use sketch for feature implementation or signal for existing-code structural movement first.",
+		"- Route by the requested work product, not keywords: use sketch to create an original caller-facing interface, representation boundary, ownership map, or collaboration; use abstraction-review only when a concrete candidate surface already exists to keep/revise/split/reject/defer; use model first only when unresolved cases, rules, or policy can materially change that surface.",
 		`- Call ${ROUTE_TOOL} for exactly one concrete judgment or one green-to-green implementation movement.`,
 		"- Use target=implementation only when the next local movement, stable landing, and narrow verification are already justified; otherwise choose the focused skill whose scope fits the current question.",
 		"- An implementation step has one observable difference and one structural or behavioral purpose. Stop when its failure is locally explainable and the repository is green, pausable, and reviewable.",
 		"- For implementation structural work intended to preserve behavior, set execution_profile=behavior-preserving-structure; omit the field for other implementation actions and every skill route.",
 		`- Follow the routed method, then close the route with ${JUDGMENT_TOOL}. After every implementation stable landing, route again from the new evidence before selecting another movement.`,
+		`- During a reference-bearing skill route, select every policy route whose observable trigger addresses a distinct unresolved question. Each selected route must refine its declared skill-method step, produce its declared artifact, satisfy its stop condition, and hand off instead of absorbing work covered by separate_when. Load every reference in each route's co-required set with ${REFERENCE_TOOL} in its explicit order. Do not select a broad fallback route when a narrower selected route already includes its work. A resolved judgment must apply every loaded reference in reference_basis, or use reference_exemption only when no route trigger applies.`,
 		"- Consecutive implementation routes are valid when the new evidence still justifies implementation action. On a reroute after implementation, explicitly reconsider the most plausible skill routes and record why they are not needed; do not choose implementation by momentum.",
 		"- Do not carry a predetermined implementation queue through multiple implementation steps. Re-observe after each stable landing and reroute to a skill whenever meaning, cases, design, structural direction, timing, naming, or evidence becomes uncertain.",
 		"- Protocol state is routing bookkeeping. Idle never proves product completion, user acceptance, or current verification.",
@@ -465,6 +501,9 @@ function protocolPrompt(
 		if (state.activeRoute.methodLocation) {
 			lines.push(
 				`Active skill location: ${state.activeRoute.methodLocation}. Read it again if compaction or a later turn no longer contains the full instructions.`,
+				`Available routed references: ${state.activeRoute.availableReferences.join(", ") || "none"}.`,
+				`Reference routes: ${state.activeRoute.referenceRoutes.map((route) => `${route.id}[${route.references.join("+")}; order=${route.readOrder}]`).join(" | ") || "none"}. Re-read the skill's reference-policy.json if trigger or artifact details were compacted.`,
+				`Loaded routed references: ${state.activeRoute.loadedReferences.map((reference) => `${reference.path}@${reference.contentSha256.slice(0, 12)}[${reference.referenceRouteIds.join(",") || "legacy"}]`).join(", ") || "none"}.`,
 			);
 		}
 	}
@@ -534,6 +573,26 @@ function expandedJudgment(
 
 	const evidence = [
 		...event.basis.map((basis) => detailLine(theme, "basis", basis)),
+		...(event.referenceBasis ?? []).flatMap((reference) => [
+			detailLine(
+				theme,
+				"reference",
+				`${reference.path}@${reference.contentSha256.slice(0, 12)} [${reference.referenceRouteIds.join(", ") || "legacy"}] — trigger: ${reference.trigger}`,
+				"accent",
+			),
+			detailLine(theme, "applied rule", reference.appliedRule, "text"),
+			detailLine(theme, "resulting artifact", reference.artifact, "text"),
+		]),
+		...(event.referenceExemption
+			? [
+					detailLine(
+						theme,
+						"reference exemption",
+						`${event.referenceExemption.reason} — ${event.referenceExemption.evidence.join(" | ")}`,
+						"warning",
+					),
+				]
+			: []),
 		...event.artifacts.map((artifact) =>
 			detailLine(theme, "artifact", artifact),
 		),
@@ -806,11 +865,11 @@ export default async function developer(pi: ExtensionAPI) {
 		name: ROUTE_TOOL,
 		label: "Developer Route Question",
 		description:
-			"Route one concrete judgment or one green-to-green implementation movement. Uses an adaptive default topology: model, then sketch for feature shape or signal for structural movement, implementation stable landings, and verify before completion.",
+			"Route one concrete judgment or one green-to-green implementation movement. Route by work product: sketch creates an original design surface, abstraction-review judges an already-shaped candidate, and model settles unresolved conditions before design. Then use implementation stable landings and verify before completion.",
 		promptSnippet: "Choose how to handle one development question",
 		promptGuidelines: [
 			`Call ${ROUTE_TOOL} only when there is no active Developer route.`,
-			`Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; target=implementation requires one movement, one stable landing, and one narrow verification.`,
+			`Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; choose sketch for an original interface or boundary, abstraction-review only for an already-shaped candidate, and model only for unresolved condition space. target=implementation requires one movement, one stable landing, and one narrow verification.`,
 			`When ${ROUTE_TOOL} follows an implementation judgment with another implementation route, cite the previous landing in known_evidence and record plausible skill routes in alternatives_considered instead of selecting implementation by momentum.`,
 			`After a resolved model, use sketch for first feature implementation framing or signal for existing-code structural movement before implementation mutation.`,
 		],
@@ -934,20 +993,29 @@ export default async function developer(pi: ExtensionAPI) {
 						? (requestedExecutionProfile ?? "ordinary")
 						: undefined;
 
-				const method =
-					target !== "implementation"
-						? await renderSkillMethod(skill!)
-						: executionProfile === "behavior-preserving-structure"
-							? [
-									'<developer-implementation-profile name="behavior-preserving-structure">',
-									(await readFile(structuralChangeMethodPath, "utf8")).trim(),
-									"</developer-implementation-profile>",
-								].join("\n")
-							: [
-									"# Implementation action",
-									"",
-									"The next local action is already justified. Keep this route open while using Pi implementation tools and collecting evidence.",
-								].join("\n");
+				const availableReferences = skill
+					? await skillReferencePaths(skill)
+					: [];
+				const referencePolicy = skill
+					? await loadSkillReferencePolicy(skill, availableReferences)
+					: { routes: [] };
+				let method: string;
+				if (skill) {
+					method = await renderSkillMethod(skill);
+				} else if (executionProfile === "behavior-preserving-structure") {
+					const profile = await readFile(structuralChangeMethodPath, "utf8");
+					method = [
+						'<developer-implementation-profile name="behavior-preserving-structure">',
+						profile.trim(),
+						"</developer-implementation-profile>",
+					].join("\n");
+				} else {
+					method = [
+						"# Implementation action",
+						"",
+						"The next local action is already justified. Keep this route open while using Pi implementation tools and collecting evidence.",
+					].join("\n");
+				}
 
 				const implementationStep =
 					target === "implementation"
@@ -976,6 +1044,11 @@ export default async function developer(pi: ExtensionAPI) {
 					reason,
 					knownEvidence,
 					consideredAlternatives,
+					availableReferences,
+					referenceRoutes: referencePolicy.routes,
+					referenceExemptionCriteria: referencePolicy.exemption,
+					referencePolicySha256: referencePolicy.contentSha256,
+					loadedReferences: [],
 					targetQuestionId,
 					methodLocation: skill?.filePath,
 					executionProfile,
@@ -1000,6 +1073,17 @@ export default async function developer(pi: ExtensionAPI) {
 							]
 						: []),
 					`Reason: ${event.reason}`,
+					`Available references: ${event.availableReferences.join(" | ") || "none"}`,
+					...referencePolicyLines(
+						event.referenceRoutes,
+						event.referenceExemptionCriteria,
+					),
+					`Reference policy SHA-256: ${event.referencePolicySha256 ?? "none"}`,
+					...(skill && event.availableReferences.length > 0
+						? [
+								`Reference contract: choose policy routes by observable trigger, use ${REFERENCE_TOOL} for every reference in each selected route's co-required set, and provide reference_basis for every loaded path; use reference_exemption only when no policy route applies.`,
+							]
+						: []),
 					`Known evidence: ${event.knownEvidence.length > 0 ? event.knownEvidence.join(" | ") : "none"}`,
 					`Alternatives reconsidered: ${
 						event.consideredAlternatives.length > 0
@@ -1080,6 +1164,15 @@ export default async function developer(pi: ExtensionAPI) {
 				}
 				text += `\n${detailLine(theme, "revisits", event.targetQuestionId ?? "none")}`;
 				text += `\n${detailLine(theme, "skill", event.methodLocation ?? "implementation action")}`;
+				if ((event.availableReferences ?? []).length > 0) {
+					text += `\n${detailLine(theme, "references", event.availableReferences.join(", "))}`;
+				}
+				for (const route of event.referenceRoutes ?? []) {
+					text += `\n${detailLine(theme, `reference route ${route.id}`, `${route.question} · ${route.trigger} → ${route.references.join(" + ")} · step=${route.methodStep} · stop=${route.stop} · separate=${route.separateWhen}`)}`;
+				}
+				if (event.referencePolicySha256) {
+					text += `\n${detailLine(theme, "reference policy", event.referencePolicySha256)}`;
+				}
 				if (event.executionProfile) {
 					text += `\n${detailLine(theme, "profile", event.executionProfile)}`;
 				}
@@ -1091,6 +1184,192 @@ export default async function developer(pi: ExtensionAPI) {
 			}
 			if (!expanded && event)
 				text += ` · ${keyHint("app.tools.expand", "details")}`;
+			return reusableText(text, context.lastComponent);
+		},
+	});
+
+	const ReferenceParams = Type.Object(
+		{
+			reference_route: Type.String({
+				minLength: 1,
+				maxLength: 128,
+				description:
+					"Exact reference route ID listed by the active Developer skill policy",
+			}),
+			path: Type.String({
+				minLength: 1,
+				maxLength: MAX_ARTIFACT_CHARS,
+				description:
+					"Exact direct skill-relative reference path listed by the active route, such as references/data-driven-design.md",
+			}),
+			reason: Type.String({
+				minLength: 1,
+				maxLength: MAX_EVIDENCE_CHARS,
+				description:
+					"Observable task evidence that makes this reference relevant now",
+			}),
+		},
+		{ additionalProperties: false },
+	);
+
+	pi.registerTool({
+		name: REFERENCE_TOOL,
+		label: "Developer Load Reference",
+		description:
+			"Select one active policy route while loading one reference from its co-required set, recording route ID, exact path, content SHA-256, Source Trace, and trigger evidence.",
+		promptSnippet: "Load an active Developer skill reference with provenance",
+		promptGuidelines: [
+			`Use ${REFERENCE_TOOL}, not an ordinary read, for any reference that supports an active Developer skill judgment.`,
+			`Call ${REFERENCE_TOOL} with a policy reference_route and one not-yet-loaded path from that route's co-required set; state the observable trigger and apply it only at the declared method step. One successful load satisfies an overlapping path for every selected route, so never reload a shared path and provide only one reference_basis entry per distinct path.`,
+		],
+		parameters: ReferenceParams,
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			if (!state.enabled) fail("Developer protocol is off.");
+			const activeRoute = state.activeRoute;
+			if (!activeRoute) fail("There is no active Developer skill route.");
+			if (activeRoute.target === "implementation") {
+				fail("Implementation routes do not load skill references.");
+			}
+			const referenceRouteId = params.reference_route.trim();
+			const path = params.path.trim().replaceAll("\\", "/");
+			const reason = params.reason.trim();
+			if (!referenceRouteId || !path || !reason) {
+				fail(
+					"Reference route, path, and reason must contain non-whitespace text.",
+				);
+			}
+			const skill = availableSkills.get(activeRoute.target);
+			if (!skill || skill.filePath !== activeRoute.methodLocation) {
+				fail(
+					"The active skill source is no longer available at the route's canonical location. Route again against the current Pi resources.",
+				);
+			}
+			const availableReferences =
+				activeRoute.availableReferences.length > 0
+					? activeRoute.availableReferences
+					: await skillReferencePaths(skill);
+			let referenceRoutes = activeRoute.referenceRoutes;
+			if (referenceRoutes.length === 0) {
+				const policy = await loadSkillReferencePolicy(
+					skill,
+					availableReferences,
+				);
+				referenceRoutes = policy.routes;
+			}
+			const policyRoute = referenceRoutes.find(
+				(candidate) => candidate.id === referenceRouteId,
+			);
+			if (!policyRoute) {
+				fail(
+					`Unknown reference route ${referenceRouteId}. Available routes: ${referenceRoutes.map((route) => route.id).join(", ") || "none"}.`,
+				);
+			}
+			if (!policyRoute.references.includes(path)) {
+				fail(
+					`Reference ${path} is not part of route ${policyRoute.id}. Co-required route references: ${policyRoute.references.join(", ")}.`,
+				);
+			}
+			const loadedPaths = new Set(
+				activeRoute.loadedReferences.map((reference) => reference.path),
+			);
+			if (loadedPaths.has(path)) {
+				fail(
+					`Reference ${path} is already loaded. One successful load satisfies overlapping route membership; select ${policyRoute.id} by loading one of its not-yet-loaded paths and keep one reference_basis entry per distinct path.`,
+				);
+			}
+			if (policyRoute.readOrder === "listed") {
+				const pathIndex = policyRoute.references.indexOf(path);
+				const missingEarlierReferences = policyRoute.references
+					.slice(0, pathIndex)
+					.filter((reference) => !loadedPaths.has(reference));
+				if (missingEarlierReferences.length > 0) {
+					fail(
+						`Reference route ${policyRoute.id} declares listed read order. Load these earlier route references first: ${missingEarlierReferences.join(", ")}.`,
+					);
+				}
+			}
+			const reference = await loadSkillReference(skill, path);
+			const event: ReferenceLoadEvent = {
+				protocol: PROTOCOL,
+				kind: "reference-load",
+				routeId: activeRoute.routeId,
+				target: activeRoute.target,
+				path: reference.path,
+				reason,
+				contentSha256: reference.contentSha256,
+				sourceTrace: reference.sourceTrace,
+				referenceRouteIds: [policyRoute.id],
+			};
+			if (!canApplyDeveloperEvent(state, event)) {
+				fail(
+					"Developer machine guard rejected the reference load for the current active route.",
+				);
+			}
+			const response = [
+				`Route ID: ${event.routeId}`,
+				`Target: ${event.target}`,
+				`Reference policy route: ${policyRoute.id}`,
+				`Route question: ${policyRoute.question}`,
+				`Route trigger: ${policyRoute.trigger}`,
+				`Skill method step refined: ${policyRoute.methodStep}`,
+				`Co-required references: ${policyRoute.references.join(" + ")}`,
+				`Read order: ${policyRoute.readOrder}`,
+				`Expected application artifacts: ${policyRoute.artifacts.join(" | ")}`,
+				`Route stop: ${policyRoute.stop}`,
+				`Separate or hand off when: ${policyRoute.separateWhen}`,
+				`Reference: ${event.path}`,
+				`Reference SHA-256: ${event.contentSha256}`,
+				`Source Trace: ${event.sourceTrace ? "present in loaded content and recorded in tool details" : "not declared by this reference"}`,
+				`Trigger evidence: ${event.reason}`,
+				"",
+				"<developer-reference>",
+				reference.content,
+				"</developer-reference>",
+			].join("\n");
+			ensureSafeToolText(response, "Developer reference result");
+			state = applyDeveloperEvent(state, event);
+			syncProtocolTools();
+			refreshUI(ctx);
+			return textResult(response, event);
+		},
+		renderCall(args, theme, context) {
+			const path =
+				typeof args.path === "string" && args.path.length > 0 ? args.path : "…";
+			return reusableText(
+				`${theme.fg("toolTitle", theme.bold(REFERENCE_TOOL))} ${theme.fg("accent", path)}`,
+				context.lastComponent,
+			);
+		},
+		renderResult(result, { expanded, isPartial }, theme, context) {
+			if (isPartial) {
+				return reusableText(
+					theme.fg("warning", "loading Developer reference…"),
+					context.lastComponent,
+				);
+			}
+			if (context.isError) {
+				return reusableText(
+					theme.fg("error", resultText(result) || "Developer reference failed"),
+					context.lastComponent,
+				);
+			}
+			const event = result.details as ReferenceLoadEvent | undefined;
+			let text = theme.fg(
+				"success",
+				`loaded ${event?.path ?? "Developer reference"}`,
+			);
+			if (expanded && event) {
+				text += `\n${detailLine(theme, "route", event.routeId, "text")}`;
+				text += `\n${detailLine(theme, "target", event.target, "accent")}`;
+				text += `\n${detailLine(theme, "reference route", event.referenceRouteIds.join(", ") || "legacy", "accent")}`;
+				text += `\n${detailLine(theme, "sha256", event.contentSha256)}`;
+				text += `\n${detailLine(theme, "trigger", event.reason, "text")}`;
+				text += `\n${detailLine(theme, "source trace", event.sourceTrace || "not declared", event.sourceTrace ? "muted" : "warning")}`;
+			}
+			if (!expanded && event)
+				text += ` · ${keyHint("app.tools.expand", "provenance")}`;
 			return reusableText(text, context.lastComponent);
 		},
 	});
@@ -1204,6 +1483,54 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 		{ additionalProperties: false },
 	);
+	const ReferenceBasisParam = Type.Object(
+		{
+			path: Type.String({
+				minLength: 1,
+				maxLength: MAX_ARTIFACT_CHARS,
+				description: `A reference path successfully loaded through ${REFERENCE_TOOL} during this route`,
+			}),
+			trigger: Type.String({
+				minLength: 1,
+				maxLength: MAX_EVIDENCE_CHARS,
+				description:
+					"Observable input, code, state, or requirement condition that made the reference applicable",
+			}),
+			applied_rule: Type.String({
+				minLength: 1,
+				maxLength: MAX_EVIDENCE_CHARS,
+				description:
+					"The concrete derivation, diagnostic, or decision rule taken from the loaded reference",
+			}),
+			artifact: Type.String({
+				minLength: 1,
+				maxLength: MAX_ARTIFACT_CHARS,
+				description:
+					"The result table, model, interface, trace, decision, or check produced by applying that rule",
+			}),
+		},
+		{ additionalProperties: false },
+	);
+	const ReferenceExemptionParam = Type.Object(
+		{
+			reason: Type.String({
+				minLength: 1,
+				maxLength: MAX_EVIDENCE_CHARS,
+				description:
+					"Why none of the active skill's available references can add useful judgment for this resolved local question",
+			}),
+			evidence: Type.Array(
+				Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+				{
+					minItems: 1,
+					maxItems: 8,
+					description:
+						"Concrete facts supporting the exemption rather than a convenience claim",
+				},
+			),
+		},
+		{ additionalProperties: false },
+	);
 	const JudgmentParams = Type.Object({
 		route_id: Type.String({
 			minLength: 1,
@@ -1226,6 +1553,14 @@ export default async function developer(pi: ExtensionAPI) {
 			maxItems: 20,
 			description: "Evidence supporting the judgment or blocker",
 		}),
+		reference_basis: Type.Optional(
+			Type.Array(ReferenceBasisParam, {
+				maxItems: 12,
+				description:
+					"Loaded references linked to their trigger, applied rule, and resulting judgment artifact",
+			}),
+		),
+		reference_exemption: Type.Optional(ReferenceExemptionParam),
 		open_questions: Type.Optional(
 			Type.Array(OpenQuestionParam, {
 				maxItems: 10,
@@ -1257,6 +1592,7 @@ export default async function developer(pi: ExtensionAPI) {
 		promptGuidelines: [
 			`Use ${JUDGMENT_TOOL} with the exact active Developer route ID.`,
 			`Use ${JUDGMENT_TOOL} result as Markdown and preserve the routed skill's inspectable tables, diagrams, matrices, timelines, and code blocks instead of reducing them to prose.`,
+			`For a resolved skill route with available references, use ${JUDGMENT_TOOL} reference_basis to connect each relied-on ${REFERENCE_TOOL} load to its trigger, applied rule, and resulting artifact, or use reference_exemption when no reference is relevant. Never provide both.`,
 			`Use ${JUDGMENT_TOOL} open_questions with resolution_owner, gate, and resolution_criteria. User-owned gated questions require explanatory context before controls; for finite required decisions, add a choice-form response_spec with one field per decision. Use question_updates whenever current evidence settles or changes any existing pending question.`,
 			`Do not use ${JUDGMENT_TOOL} with resolved, not-applicable, or blocked status without at least one concrete basis.`,
 		],
@@ -1291,6 +1627,34 @@ export default async function developer(pi: ExtensionAPI) {
 			if (params.route_id !== activeRoute.routeId) {
 				fail(`Route ID mismatch. Active route is ${activeRoute.routeId}.`);
 			}
+			const activeSkill =
+				activeRoute.target === "implementation"
+					? undefined
+					: availableSkills.get(activeRoute.target);
+			let availableReferences: string[] = [];
+			if (activeRoute.target !== "implementation") {
+				if (activeRoute.availableReferences.length > 0) {
+					availableReferences = activeRoute.availableReferences;
+				} else if (
+					activeSkill &&
+					activeSkill.filePath === activeRoute.methodLocation
+				) {
+					availableReferences = await skillReferencePaths(activeSkill);
+				}
+			}
+			let referenceRoutes = activeRoute.referenceRoutes;
+			if (
+				activeRoute.target !== "implementation" &&
+				referenceRoutes.length === 0 &&
+				activeSkill &&
+				activeSkill.filePath === activeRoute.methodLocation
+			) {
+				const policy = await loadSkillReferencePolicy(
+					activeSkill,
+					availableReferences,
+				);
+				referenceRoutes = policy.routes;
+			}
 
 			const basis = params.basis.map((item) => item.trim()).filter(Boolean);
 			const result = params.result.trim();
@@ -1298,6 +1662,131 @@ export default async function developer(pi: ExtensionAPI) {
 			if (params.status !== "needs-evidence" && basis.length === 0) {
 				fail(`${params.status} judgments require at least one concrete basis.`);
 			}
+
+			const referenceBasisInput = (params.reference_basis ?? []).map(
+				(item) => ({
+					path: item.path.trim().replaceAll("\\", "/"),
+					trigger: item.trigger.trim(),
+					appliedRule: item.applied_rule.trim(),
+					artifact: item.artifact.trim(),
+				}),
+			);
+			const referenceExemptionInput = params.reference_exemption
+				? {
+						reason: params.reference_exemption.reason.trim(),
+						evidence: params.reference_exemption.evidence
+							.map((item) => item.trim())
+							.filter(Boolean),
+					}
+				: undefined;
+			if (referenceBasisInput.length > 0 && referenceExemptionInput) {
+				fail("Use reference_basis or reference_exemption, never both.");
+			}
+			if (
+				new Set(referenceBasisInput.map((item) => item.path)).size !==
+				referenceBasisInput.length
+			) {
+				fail("Each reference_basis path must be unique within a judgment.");
+			}
+			if (
+				activeRoute.target === "implementation" &&
+				(referenceBasisInput.length > 0 || referenceExemptionInput)
+			) {
+				fail(
+					"Implementation judgments do not accept skill reference evidence.",
+				);
+			}
+			if (referenceExemptionInput && params.status !== "resolved") {
+				fail(
+					"reference_exemption is valid only for a resolved skill judgment.",
+				);
+			}
+			if (referenceExemptionInput && availableReferences.length === 0) {
+				fail(
+					"reference_exemption is unnecessary because the active skill has no available references.",
+				);
+			}
+			if (referenceExemptionInput && activeRoute.loadedReferences.length > 0) {
+				fail(
+					"reference_exemption is valid only when no routed reference was loaded during this route.",
+				);
+			}
+			if (
+				params.status === "resolved" &&
+				availableReferences.length > 0 &&
+				referenceBasisInput.length === 0 &&
+				!referenceExemptionInput
+			) {
+				fail(
+					`A resolved ${activeRoute.target} judgment must provide reference_basis for references loaded through ${REFERENCE_TOOL}, or a concrete reference_exemption.`,
+				);
+			}
+			const referenceBasisPaths = new Set(
+				referenceBasisInput.map((item) => item.path),
+			);
+			const loadedReferences = new Map(
+				activeRoute.loadedReferences.map((reference) => [
+					reference.path,
+					reference,
+				]),
+			);
+			const loadedPaths = new Set(loadedReferences.keys());
+			const basisMissingForLoaded = [...loadedPaths].filter(
+				(path) => !referenceBasisPaths.has(path),
+			);
+			if (basisMissingForLoaded.length > 0) {
+				fail(
+					`Every loaded reference must have a reference_basis entry: ${basisMissingForLoaded.join(", ")}.`,
+				);
+			}
+			const selectedReferenceRouteIds = new Set(
+				activeRoute.loadedReferences.flatMap(
+					(reference) => reference.referenceRouteIds,
+				),
+			);
+			for (const referenceRouteId of selectedReferenceRouteIds) {
+				const route = referenceRoutes.find(
+					(candidate) => candidate.id === referenceRouteId,
+				);
+				if (!route) {
+					fail(
+						`Loaded reference selected unknown policy route ${referenceRouteId}; route again against the current skill policy.`,
+					);
+				}
+				const missingRouteReferences = route.references.filter(
+					(path) => !loadedPaths.has(path),
+				);
+				if (missingRouteReferences.length > 0) {
+					fail(
+						`Reference route ${route.id} is incomplete. Load its co-required references before judgment: ${missingRouteReferences.join(", ")}.`,
+					);
+				}
+			}
+			for (const loaded of activeRoute.loadedReferences) {
+				for (const referenceRouteId of loaded.referenceRouteIds) {
+					const route = referenceRoutes.find(
+						(candidate) => candidate.id === referenceRouteId,
+					);
+					if (route && !route.references.includes(loaded.path)) {
+						fail(
+							`Reference ${loaded.path} is not part of its recorded policy route ${route.id}.`,
+						);
+					}
+				}
+			}
+			const referenceBasis: ReferenceBasis[] = referenceBasisInput.map(
+				(item) => {
+					const loaded = loadedReferences.get(item.path);
+					if (!loaded) {
+						fail(
+							`reference_basis path ${item.path} was not successfully loaded through ${REFERENCE_TOOL} during this route.`,
+						);
+					}
+					return { ...loaded, ...item };
+				},
+			);
+			const referenceExemption: ReferenceExemption | undefined =
+				referenceExemptionInput;
 
 			const openedQuestions = buildOpenedQuestions(
 				params.open_questions ?? [],
@@ -1399,6 +1888,8 @@ export default async function developer(pi: ExtensionAPI) {
 				status: params.status,
 				result,
 				basis,
+				referenceBasis,
+				referenceExemption,
 				openedQuestions,
 				questionUpdates,
 				artifacts: (params.artifacts ?? [])
@@ -1796,6 +2287,30 @@ export default async function developer(pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_call", (event) => {
+		if (
+			state.enabled &&
+			event.toolName === "read" &&
+			state.activeRoute?.target !== "implementation"
+		) {
+			const activeSkill = state.activeRoute
+				? availableSkills.get(state.activeRoute.target)
+				: undefined;
+			const requestedPath = event.input.path;
+			if (
+				activeSkill &&
+				typeof requestedPath === "string" &&
+				isWithinRoot(
+					resolve(activeSkill.baseDir, "references"),
+					resolve(requestedPath),
+				)
+			) {
+				return {
+					block: true,
+					reason: `Developer skill references must be loaded through ${REFERENCE_TOOL} with a policy route so provenance and application remain auditable.`,
+				};
+			}
+		}
+
 		const capability = builtinControlledToolCapabilities(pi.getAllTools()).get(
 			event.toolName,
 		);

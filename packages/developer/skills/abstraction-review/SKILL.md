@@ -1,6 +1,6 @@
 ---
 name: abstraction-review
-description: "Judge whether a concrete wished interface, helper, API, workflow rule, boundary, or structural candidate is stable enough to keep, revise, split, reject, or defer. Use when a concrete candidate and the pressure behind it can be inspected, including when its contract or evidence may be incomplete."
+description: "Judge whether an already-shaped wished interface, helper, API, workflow rule, boundary, or structural candidate is stable enough to keep, revise, split, reject, or defer. Use when concrete caller-facing shape and pressure can be inspected, even if evidence is incomplete. A desired representation or requested property list without an interface shape belongs to sketch, not abstraction review."
 ---
 
 # Abstraction Review
@@ -11,6 +11,19 @@ Decide whether a concrete abstraction candidate is safe to rely on.
 
 Is this candidate stable enough to keep, or should it be revised, split,
 rejected, or deferred?
+
+## Judgment Spine
+
+```text
+existing candidate + current pressure
+-> caller-visible promise and hidden detail
+-> smallest plausible counterexample
+-> observable stop and evidence
+-> keep | revise-surface | revise-model | split | reject | defer
+```
+
+Review only promises the candidate already makes. When operations, ownership, or
+rules still need to be invented, hand off instead of constructing them here.
 
 ## Inputs
 
@@ -41,13 +54,9 @@ routing to the caller.
 
 ## Completion
 
-Finish when the candidate can satisfy this sentence or is rejected/deferred for
-failing it:
-
-```text
-Given <input artifact>, derive <output artifact> by <rule>, then check
-<observable stop>. If it fails, repair the named layer or contract.
-```
+Finish when each declared candidate promise is supported, contradicted, or left
+as an explicit gap, and one observable stop can fail the candidate. A failed stop
+produces a decision and owning-skill handoff, not an in-leaf redesign.
 
 Revisit when new callers, cases, implementation evidence, or failures change
 the contract or stop check.
@@ -57,13 +66,16 @@ the contract or stop check.
 1. Identify the candidate, its source, and confidence.
 2. State the pressure it is supposed to remove. Bias toward `reject` or `defer`
    when no pressure is visible.
-3. Review pre-implementation intent or post-implementation evidence explicitly.
-4. Choose the tested layer: Language, Unit, Law, Boundary, Engine, Time, or Run.
-5. State the contract in caller language and the detail callers may ignore.
-6. Name the reusable output artifact left by the review.
-7. Define an observable stop check using cases, properties, tests, diffs,
-   behavior, traces, or command output.
-8. Decide without converting missing evidence into polished approval.
+3. State the contract in caller language, its relevant observers, and the detail
+   callers may ignore.
+4. Name only the promises the candidate makes: representation, responsibility,
+   substitution, closure, extension, process, state, or stable sense.
+5. Construct the smallest plausible counterexample to one promise.
+6. Define an observable stop using cases, properties, tests, diffs, traces, cost,
+   or command output.
+7. Decide and name the owning handoff for any missing model, design, timing,
+   naming, or verification artifact.
+8. Do not convert missing evidence into polished approval or a shadow design.
 
 ## Missing Evidence
 
@@ -75,14 +87,16 @@ human-owned.
 ## Boundary
 
 Do not discover structural movement, create the original design surface, decide
-timing, implement the change, or perform final completion review.
+timing, implement the change, or perform final completion review. A desire such
+as “replace this array with an object” is pressure, not yet a reviewable
+abstraction, when public operations, caller shape, ownership, and hidden detail
+still have to be invented; route that work to `sketch`.
 
 ## Reference Routing
 
-- Read [the field card](references/field-card.md) for substantial or auditable
-  reviews.
-- Read [the recipe cards](references/recipe-cards.md) when the candidate needs a construction or
-  repair rule.
-- Read [the repair table](references/repair-table.md) when a stop check fails.
-- Read [the worked examples](references/worked-examples.md) for concrete
-  calibration.
+The machine-readable [reference policy](reference-policy.json) is the routing
+authority. Each route answers one narrower review question, identifies the exact
+judgment step it refines, names its artifacts and stop, and states when to
+separate or hand off. Select only routes that deepen this candidate judgment;
+never use a review reference to recreate another skill's construction method.
+Use the exemption only when no route trigger applies and cite its evidence.

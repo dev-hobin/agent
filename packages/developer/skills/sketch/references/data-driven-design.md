@@ -1,10 +1,17 @@
 # Data-Driven Design
 
 Use this reference when product information should determine the program shape.
-The central insight is concrete: **a data definition is a construction rule for
-valid values, and that same rule determines the first honest function
-template**. Code shape should not be guessed from framework files or a favorite
-pattern when the cases are already present in the data.
+It extends `sketch` from accepted meaning through data, examples, template, and
+first executable item. Specialized references refine one later step; they do not
+replace this derivation.
+
+The central insight is concrete: **a data definition states how valid values are
+constructed and what they mean, and that construction rule determines the first
+honest structural template**. The template inventories possible branches,
+fields, recursions, and delegations. Purpose and examples decide which available
+parts the completed function actually uses. Code shape should not be guessed
+from framework files or a favorite pattern when the cases are already present
+in the data.
 
 ## The Six-Artifact Recipe
 
@@ -24,9 +31,31 @@ required case, repair the data definition. If the template exposes all required
 ingredients but the result is wrong, repair the completed body. If no template
 ingredient can express the purpose, design an auxiliary with its own recipe.
 
-In an existing repository, recover the same artifacts from schemas, types,
-fixtures, callers, UI states, persistence, and tests. Do not copy pedagogical
-comments into production merely to imitate the recipe.
+In an existing repository, recover equivalent evidence from schemas, types,
+fixtures, callers, UI states, persistence, and tests. This recovery is a
+Developer adaptation for production repositories, not a claim that HtDP replaces
+its pedagogical artifacts with those sources. Do not copy recipe comments into
+production merely to imitate the teaching form.
+
+## Function Recipe Versus Program Recipe
+
+The six artifacts organize one function. Whole-program design has a different
+collaboration:
+
+```text
+analyze the information and external interfaces
+-> sketch a top-down wish list of needed functions
+-> choose a coherent inspectable slice
+-> design wished functions bottom-up with the small recipe
+-> run or demonstrate the slice
+-> refine the model and work list from observed discrepancies
+```
+
+Do not flatten top-down planning and bottom-up function construction into one
+large template. Iterative refinement changes an intentionally simplified model
+and propagates the change through data examples, behavior examples, templates,
+implementations, tests, and compatibility surfaces. It is not arbitrary cleanup
+of an unchanged problem.
 
 ## Complete Example: Let The Variants Write The Skeleton
 
@@ -108,20 +137,29 @@ Run all three examples. Then try a fake fourth variant. A compiler failure or
 explicit missing branch reveals the exact extension point; a catch-all returning
 an empty string would hide it.
 
-## Select The Specific Recipe
+## Select One Design Extension
 
-Read only the detail that matches the unresolved design question:
+Read only the extension that answers the unresolved question:
 
-| Evidence | Read | Expected artifact |
+| Question after the base recipe | Read | Expected artifact |
 | --- | --- | --- |
-| atomic values, intervals, itemizations, records, recursive or mutually recursive data, multiple complex inputs, complex outputs, or event loops | [Data-Shape Template Catalog](data-shape-template-catalog.md) | a template whose branches, selectors, recursive positions, and delegations correspond to the data definition |
-| wished helpers, several completed concrete functions, generated subproblems, termination uncertainty, repeated work, or lost traversal knowledge | [Composition, Generative Recursion, And Accumulators](composition-generative-recursion-and-accumulators.md) | separately designed auxiliaries, a justified abstraction, a generation template plus termination argument, or an accumulator invariant |
+| Which branches, selectors, recursive positions, or delegations follow from this data shape? | [Data-Shape Template Catalog](data-shape-template-catalog.md) | a data-corresponding template |
+| Which independently meaningful operations compose the result? | [Composition By Wished Operations](composition-by-wishes.md) | wished-operation contracts and one composable slice |
+| Which stable roles appear across several completed designs? | [Earned Abstraction](earned-abstraction.md) | completed-design alignment, variation-role table, and candidate handoff |
+| How are new problem instances generated, preserved, and proven to progress? | [Generative Recursion](generative-recursion.md) | generation, preservation, combination, and progress artifacts |
+| What lost knowledge or repeated work should traversal carry? | [Accumulator Invariants](accumulator-invariants.md) | an original/current/accumulated invariant with ownership and semantic-delta checks |
 
-These documents extend this recipe; they do not replace the six artifacts.
+Each extension refines a different design step. Select several only when their
+questions are independently consequential; do not treat them as a progression or
+one bundled recursion topic.
 
-## Existing-Code Recovery
+## Existing-Code Recovery (Developer Adaptation)
 
-Use this recovery table rather than assuming the declared type is complete.
+Use this recovery table rather than assuming the declared type is complete. The
+evidence sources and compatibility obligations below adapt HtDP's artifacts to
+an existing repository; they are package-owned operational guidance.
+
+<!-- markdownlint-disable MD013 -->
 
 | Artifact | Repository evidence | Typical contradiction |
 | --- | --- | --- |
@@ -132,9 +170,30 @@ Use this recovery table rather than assuming the declared type is complete.
 | template | branches, selectors, traversal, delegation | catch-all hides a meaningful clause |
 | completed body | implementation | code needs information absent from the data model |
 
+<!-- markdownlint-enable MD013 -->
+
 When evidence conflicts, keep the contradiction visible. `model` owns disputed
 validity or policy; this reference shapes the implementable surface once the
 meaning is accepted.
+
+## Propagate Model Refinement
+
+When a required case cannot be represented or a forbidden value remains easy to
+construct, revise one accepted model fact and propagate it through:
+
+```text
+data definition and interpretation
+-> data examples
+-> behavior examples
+-> template
+-> implementation
+-> checks
+-> persisted and public compatibility surfaces
+```
+
+A type edit is not complete while older serialized values or callers still use
+the prior model. Propagation is a consistency obligation, not permission for
+unrelated cleanup.
 
 ## Sketch Output
 
@@ -152,6 +211,8 @@ Deferred: abstractions or policies not yet earned
 
 ## Failure Diagnosis
 
+<!-- markdownlint-disable MD013 -->
+
 | Symptom | Return to |
 | --- | --- |
 | valid product case has no representation | data definition and interpretation |
@@ -163,15 +224,31 @@ Deferred: abstractions or policies not yet earned
 | abstraction precedes comparable completed designs | abstraction-from-examples recipe |
 | changed type ignores stored/public older forms | existing-code recovery and compatibility model |
 
+<!-- markdownlint-enable MD013 -->
+
 ## Source Trace
 
 - Matthias Felleisen, Robert Bruce Findler, Matthew Flatt, and Shriram
-  Krishnamurthi, *How to Design Programs, Second Edition*, MIT Press, 2018,
-  and the [official living edition](https://htdp.org/2026-5-28/Book/index.html):
-  information analysis, data definitions and interpretations, examples,
-  signatures and purpose statements, templates, implementations, tests, and
-  iterative refinement.
+  Krishnamurthi, *How to Design Programs*, official living build 9.2.0.3,
+  released 2026-05-28 and audited 2026-05-28:
+  Preface: Systematic Program Design
+  for the ordered recipe and function/program distinction;
+  Chapter 3: How to Design Programs
+  for signatures, purpose, examples, templates, definitions, and tests;
+  Chapter 6: Itemizations and Structures
+  for mixed-data derivation; and
+  Epilogue: Moving On
+  for top-down work lists, bottom-up construction, feedback, and maintenance
+  communication.
+- The repository-recovery table, compatibility surfaces, and production artifact
+  substitutions are Developer adaptations derived from the source method; they
+  are not canonical HtDP artifacts.
 - Harold Abelson and Gerald Jay Sussman with Julie Sussman, *Structure and
   Interpretation of Computer Programs*, Second Edition, MIT Press, 1996:
-  wishful decomposition and the distinction between procedure text and the
-  process it generates.
+  Section 2.1
+  for wishful decomposition and
+  Section 1.2
+  for the distinction between procedure text and the process it generates. Data
+  interpretation, templates, ordered recipe steps, repository recovery, and
+  compatibility artifacts remain HtDP-derived or Developer adaptations as
+  identified above.

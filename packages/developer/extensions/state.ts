@@ -16,6 +16,7 @@ export const PROTOCOL = "developer/v5" as const;
 export const ACTIVATION_ENTRY = "developer.activation" as const;
 export const FOCUS_ENTRY = "developer.question-focus" as const;
 export const ROUTE_TOOL = "developer_route_question" as const;
+export const REFERENCE_TOOL = "developer_load_reference" as const;
 export const JUDGMENT_TOOL = "developer_record_judgment" as const;
 export const MAX_RESPONSE_FIELDS = 20;
 export const MAX_RESPONSE_OPTIONS = 20;
@@ -69,6 +70,38 @@ export interface RouteAlternative {
 	reason: string;
 }
 
+export interface ReferencePolicyRoute {
+	id: string;
+	question: string;
+	trigger: string;
+	methodStep: string;
+	references: string[];
+	readOrder: "any" | "listed";
+	artifacts: string[];
+	stop: string;
+	separateWhen: string;
+}
+
+export interface ReferencePolicyExemption {
+	when: string;
+	evidence: string[];
+}
+
+export interface ReferenceLoad {
+	path: string;
+	reason: string;
+	contentSha256: string;
+	sourceTrace: string;
+	referenceRouteIds: string[];
+}
+
+export interface ReferenceLoadEvent extends ReferenceLoad {
+	protocol: typeof PROTOCOL;
+	kind: "reference-load";
+	routeId: string;
+	target: string;
+}
+
 export interface RouteEvent {
 	protocol: typeof PROTOCOL;
 	kind: "route";
@@ -78,6 +111,11 @@ export interface RouteEvent {
 	reason: string;
 	knownEvidence: string[];
 	consideredAlternatives: RouteAlternative[];
+	availableReferences: string[];
+	referenceRoutes: ReferencePolicyRoute[];
+	referenceExemptionCriteria?: ReferencePolicyExemption;
+	referencePolicySha256?: string;
+	loadedReferences: ReferenceLoad[];
 	targetQuestionId?: string;
 	methodLocation?: string;
 	executionProfile?: ImplementationProfile;
@@ -122,6 +160,17 @@ export interface QuestionUpdate {
 	basis: string[];
 }
 
+export interface ReferenceBasis extends ReferenceLoad {
+	trigger: string;
+	appliedRule: string;
+	artifact: string;
+}
+
+export interface ReferenceExemption {
+	reason: string;
+	evidence: string[];
+}
+
 export interface JudgmentEvent {
 	protocol: typeof PROTOCOL;
 	kind: "judgment";
@@ -131,6 +180,8 @@ export interface JudgmentEvent {
 	status: JudgmentStatus;
 	result: string;
 	basis: string[];
+	referenceBasis: ReferenceBasis[];
+	referenceExemption?: ReferenceExemption;
 	openedQuestions: PendingQuestion[];
 	questionUpdates: QuestionUpdate[];
 	artifacts: string[];
@@ -141,6 +192,7 @@ export type DeveloperEvent =
 	| ActivationEvent
 	| FocusEvent
 	| RouteEvent
+	| ReferenceLoadEvent
 	| JudgmentEvent;
 
 export interface DeveloperState {
@@ -238,6 +290,118 @@ function parseRouteAlternative(value: unknown): RouteAlternative | undefined {
 		return undefined;
 	}
 	return { target: value.target, reason: value.reason };
+}
+
+function parseReferencePolicyRoute(
+	value: unknown,
+): ReferencePolicyRoute | undefined {
+	if (
+		!isObject(value) ||
+		typeof value.id !== "string" ||
+		typeof value.trigger !== "string" ||
+		!isStringArray(value.references) ||
+		(value.readOrder !== undefined &&
+			value.readOrder !== "any" &&
+			value.readOrder !== "listed") ||
+		!isStringArray(value.artifacts) ||
+		(value.question !== undefined && typeof value.question !== "string") ||
+		(value.methodStep !== undefined && typeof value.methodStep !== "string") ||
+		(value.stop !== undefined && typeof value.stop !== "string") ||
+		(value.separateWhen !== undefined && typeof value.separateWhen !== "string")
+	) {
+		return undefined;
+	}
+	return {
+		id: value.id,
+		question:
+			typeof value.question === "string" ? value.question : value.trigger,
+		trigger: value.trigger,
+		methodStep:
+			typeof value.methodStep === "string"
+				? value.methodStep
+				: "legacy route without a recorded integration step",
+		references: value.references,
+		readOrder: value.readOrder === "listed" ? "listed" : "any",
+		artifacts: value.artifacts,
+		stop:
+			typeof value.stop === "string"
+				? value.stop
+				: "legacy route without a recorded stop",
+		separateWhen:
+			typeof value.separateWhen === "string"
+				? value.separateWhen
+				: "re-route against the current policy before extending this judgment",
+	};
+}
+
+function parseReferencePolicyExemption(
+	value: unknown,
+): ReferencePolicyExemption | undefined {
+	if (
+		!isObject(value) ||
+		typeof value.when !== "string" ||
+		!isStringArray(value.evidence)
+	) {
+		return undefined;
+	}
+	return { when: value.when, evidence: value.evidence };
+}
+
+function parseReferenceLoad(value: unknown): ReferenceLoad | undefined {
+	if (
+		!isObject(value) ||
+		typeof value.path !== "string" ||
+		typeof value.reason !== "string" ||
+		typeof value.contentSha256 !== "string" ||
+		typeof value.sourceTrace !== "string"
+	) {
+		return undefined;
+	}
+	if (
+		value.referenceRouteIds !== undefined &&
+		!isStringArray(value.referenceRouteIds)
+	) {
+		return undefined;
+	}
+	return {
+		path: value.path,
+		reason: value.reason,
+		contentSha256: value.contentSha256,
+		sourceTrace: value.sourceTrace,
+		referenceRouteIds: value.referenceRouteIds ?? [],
+	};
+}
+
+function parseReferenceBasis(value: unknown): ReferenceBasis | undefined {
+	const load = parseReferenceLoad(value);
+	if (
+		!load ||
+		!isObject(value) ||
+		typeof value.trigger !== "string" ||
+		typeof value.appliedRule !== "string" ||
+		typeof value.artifact !== "string"
+	) {
+		return undefined;
+	}
+	return {
+		...load,
+		trigger: value.trigger,
+		appliedRule: value.appliedRule,
+		artifact: value.artifact,
+	};
+}
+
+function parseReferenceExemption(
+	value: unknown,
+): ReferenceExemption | undefined {
+	if (
+		!isObject(value) ||
+		typeof value.reason !== "string" ||
+		!isStringArray(value.evidence)
+	) {
+		return undefined;
+	}
+	return { reason: value.reason, evidence: value.evidence };
 }
 
 function isQuestionResolutionOwner(
@@ -437,6 +601,16 @@ export function normalizeDeveloperEvent(
 			!isStringArray(value.knownEvidence) ||
 			(value.consideredAlternatives !== undefined &&
 				!Array.isArray(value.consideredAlternatives)) ||
+			(value.availableReferences !== undefined &&
+				!isStringArray(value.availableReferences)) ||
+			(value.referenceRoutes !== undefined &&
+				!Array.isArray(value.referenceRoutes)) ||
+			(value.referenceExemptionCriteria !== undefined &&
+				!parseReferencePolicyExemption(value.referenceExemptionCriteria)) ||
+			(value.referencePolicySha256 !== undefined &&
+				typeof value.referencePolicySha256 !== "string") ||
+			(value.loadedReferences !== undefined &&
+				!Array.isArray(value.loadedReferences)) ||
 			(value.targetQuestionId !== undefined &&
 				typeof value.targetQuestionId !== "string") ||
 			(value.methodLocation !== undefined &&
@@ -453,6 +627,14 @@ export function normalizeDeveloperEvent(
 			: [];
 		if (consideredAlternatives.some((alternative) => !alternative))
 			return undefined;
+		const referenceRoutes = Array.isArray(value.referenceRoutes)
+			? value.referenceRoutes.map(parseReferencePolicyRoute)
+			: [];
+		if (referenceRoutes.some((route) => !route)) return undefined;
+		const loadedReferences = Array.isArray(value.loadedReferences)
+			? value.loadedReferences.map(parseReferenceLoad)
+			: [];
+		if (loadedReferences.some((reference) => !reference)) return undefined;
 		return {
 			protocol: PROTOCOL,
 			kind: "route",
@@ -462,6 +644,14 @@ export function normalizeDeveloperEvent(
 			reason: value.reason,
 			knownEvidence: value.knownEvidence,
 			consideredAlternatives: consideredAlternatives as RouteAlternative[],
+			availableReferences: value.availableReferences ?? [],
+			referenceRoutes: referenceRoutes as ReferencePolicyRoute[],
+			referenceExemptionCriteria:
+				value.referenceExemptionCriteria === undefined
+					? undefined
+					: parseReferencePolicyExemption(value.referenceExemptionCriteria),
+			referencePolicySha256: value.referencePolicySha256,
+			loadedReferences: loadedReferences as ReferenceLoad[],
 			targetQuestionId: value.targetQuestionId,
 			methodLocation: value.methodLocation,
 			executionProfile: value.executionProfile,
@@ -469,6 +659,24 @@ export function normalizeDeveloperEvent(
 				value.implementationStep === undefined
 					? undefined
 					: parseImplementationStep(value.implementationStep),
+		};
+	}
+
+	if (value.kind === "reference-load") {
+		const reference = parseReferenceLoad(value);
+		if (
+			!reference ||
+			typeof value.routeId !== "string" ||
+			typeof value.target !== "string"
+		) {
+			return undefined;
+		}
+		return {
+			protocol: PROTOCOL,
+			kind: "reference-load",
+			routeId: value.routeId,
+			target: value.target,
+			...reference,
 		};
 	}
 
@@ -481,13 +689,21 @@ export function normalizeDeveloperEvent(
 		typeof value.result !== "string" ||
 		!isStringArray(value.basis) ||
 		!isStringArray(value.artifacts) ||
-		!Array.isArray(value.openedQuestions)
+		!Array.isArray(value.openedQuestions) ||
+		(value.referenceBasis !== undefined &&
+			!Array.isArray(value.referenceBasis)) ||
+		(value.referenceExemption !== undefined &&
+			!parseReferenceExemption(value.referenceExemption))
 	) {
 		return undefined;
 	}
 
 	const openedQuestions = value.openedQuestions.map(parsePendingQuestion);
 	if (openedQuestions.some((question) => !question)) return undefined;
+	const referenceBasis = Array.isArray(value.referenceBasis)
+		? value.referenceBasis.map(parseReferenceBasis)
+		: [];
+	if (referenceBasis.some((basis) => !basis)) return undefined;
 	if (
 		value.questionUpdates !== undefined &&
 		!Array.isArray(value.questionUpdates)
@@ -506,6 +722,11 @@ export function normalizeDeveloperEvent(
 		status: value.status,
 		result: value.result,
 		basis: value.basis,
+		referenceBasis: referenceBasis as ReferenceBasis[],
+		referenceExemption:
+			value.referenceExemption === undefined
+				? undefined
+				: parseReferenceExemption(value.referenceExemption),
 		openedQuestions: openedQuestions as PendingQuestion[],
 		questionUpdates: questionUpdates as QuestionUpdate[],
 		artifacts: value.artifacts,
@@ -523,7 +744,11 @@ interface BranchEntryLike {
 	message?: { role?: string; toolName?: string; details?: unknown };
 }
 
-const DEVELOPER_TOOL_NAMES = new Set<string>([ROUTE_TOOL, JUDGMENT_TOOL]);
+const DEVELOPER_TOOL_NAMES = new Set<string>([
+	ROUTE_TOOL,
+	REFERENCE_TOOL,
+	JUDGMENT_TOOL,
+]);
 
 export function eventFromBranchEntry(
 	entry: BranchEntryLike,
