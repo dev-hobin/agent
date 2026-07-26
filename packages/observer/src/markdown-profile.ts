@@ -302,7 +302,9 @@ function markdownFailure(
 	};
 }
 
-function fenceMarker(line: string): { character: "`" | "~"; size: number } | null {
+function fenceMarker(
+	line: string,
+): { character: "`" | "~"; size: number } | null {
 	const match = /^ {0,3}(`{3,}|~{3,})/.exec(line);
 	if (!match) return null;
 	const marker = match[1];
@@ -416,7 +418,9 @@ function parseMarkdownBody(
 	input: MarkdownInput,
 	markdownLines: readonly string[],
 ): PhaseAResult<MarkdownBody> {
-	const firstContentIndex = markdownLines.findIndex((line) => line.trim() !== "");
+	const firstContentIndex = markdownLines.findIndex(
+		(line) => line.trim() !== "",
+	);
 	if (firstContentIndex === -1) {
 		return markdownFailure(
 			input,
@@ -561,9 +565,7 @@ export function decodeObserverMarkdown(
 					code: "schema.unsupported-version",
 					message: `Unsupported Observer schema: ${String(version)}.`,
 					recordId:
-						typeof frontmatter.id === "string"
-							? frontmatter.id
-							: undefined,
+						typeof frontmatter.id === "string" ? frontmatter.id : undefined,
 					pointer: "/observer_schema",
 				}),
 			],

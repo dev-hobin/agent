@@ -140,8 +140,7 @@ function lineageTypeViolation(
 		) {
 			return {
 				code: "graph.promotion.mismatch",
-				message:
-					"promoted_from must connect a Zettel to a promoted Memo.",
+				message: "promoted_from must connect a Zettel to a promoted Memo.",
 			};
 		}
 		return null;
@@ -296,8 +295,7 @@ function recordIntegrityDiagnostics(
 	const { record } = document;
 	if (record.observer_type === "memo") {
 		const hasInquiryLineage = record.lineage.some(
-			(lineage) =>
-				byId.get(lineage.target)?.record.observer_type === "inquiry",
+			(lineage) => byId.get(lineage.target)?.record.observer_type === "inquiry",
 		);
 		if (record.sources.length === 0 && !hasInquiryLineage) {
 			return [
@@ -312,8 +310,7 @@ function recordIntegrityDiagnostics(
 	}
 	if (record.observer_type === "zettel") {
 		const hasDirectSource = record.sources.some(
-			(source) =>
-				byId.get(source.record)?.record.observer_type === "source",
+			(source) => byId.get(source.record)?.record.observer_type === "source",
 		);
 		if (!hasDirectSource) {
 			return [

@@ -4,7 +4,13 @@
   "private": true,
   "description": "A local-first observation mode for durable inquiry, memo reconciliation, and Zettelkasten promotion in Pi.",
   "type": "module",
-  "keywords": ["pi-package", "pi", "observer", "zettelkasten", "inquiry"],
+  "keywords": [
+    "pi-package",
+    "pi",
+    "observer",
+    "zettelkasten",
+    "inquiry"
+  ],
   "license": "MIT",
   "author": {
     "name": "dev-hobin",
@@ -35,6 +41,7 @@
   "dependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "xstate": "5.32.5",
     "yaml": "^2.9.0"
   }
 }

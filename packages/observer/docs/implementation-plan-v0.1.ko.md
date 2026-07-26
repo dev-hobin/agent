@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 2 — Pure Observer Lifecycle Machine (재라우팅 필요)
+> 다음 실행 단위: Slice 3 — Notebook Setup과 Language Binding (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 1 complete | schema + record decoder + notebook graph validator |
+| Runtime implementation | Slice 2 complete | validation + pure lifecycle + XState projection |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | Complete | Slice 1 — Markdown Profile Fixtures와 Validation |
-| Next slice | Planned | Slice 2 — Pure Observer Lifecycle Machine |
+| Current slice | Complete | Slice 2 — Pure Observer Lifecycle Machine |
+| Next slice | Planned | Slice 3 — Notebook Setup과 Language Binding |
 
 ### 현재 branch checkpoint
 
@@ -108,7 +108,8 @@ feature/observer
 ├─ c7a6165 chore(observer): scaffold spec-first package
 ├─ cf0ac38 docs(observer): define v0.1 implementation plan
 ├─ a45c1ac feat(observer): validate Markdown profile records
-└─ Slice 1 Phase B landing: notebook graph integrity validation
+├─ 192a634 feat(observer): validate notebook graph integrity
+└─ Slice 2 landing: pure lifecycle와 XState projection
 ```
 
 ---
@@ -443,7 +444,7 @@ Slice 1의 Claim과 Stop은 충족됐다. 다음 movement는 Slice 2의 lifecycl
 
 ## Slice 2 — Pure Observer Lifecycle Machine
 
-**Status:** Planned
+**Status:** Complete
 
 ### Claim
 
@@ -486,11 +487,28 @@ Model inference
 
 ### Evidence
 
-Transition table tests와 replay tests.
+```text
+Pure lifecycle: src/lifecycle.ts
+XState projection: src/lifecycle-machine.ts
+Normalized event kinds: 6
+Decoder valid/invalid cases: 17
+Transition cases: 13
+Replay/XState cases: 5
+Lifecycle focused tests: 35/35
+Observer package tests: 69/69
+TypeScript diagnostics: 0
+Type assertions (`as`): 0
+```
+
+Transition table은 Sidecar, One-shot, OFF memo, off-preserving-open, proposal cancel, stale ID, unvalidated receipt, settle+OFF, episode reopen을 구분한다. Replay는 malformed/illegal entry를 index와 stage로 보고하면서 다음 entry를 계속 처리하고, 같은 ordered input과 shared-prefix branch fork에 대해 결정적이다.
+
+XState는 별도 lifecycle policy를 소유하지 않는다. `src/lifecycle.ts`의 guard/reducer를 호출하고 Mode와 Episode를 parallel state/tag로 projection한다. 모든 legal trace step과 rejected transition에서 reducer state와 machine context가 일치한다.
+
+`wrap-committed`의 `validated` status는 filesystem 검증 결과를 나타내는 evidence token이다. Slice 2는 token을 소비할 뿐 실제 save/readback truth를 만들지 않으며, 그 책임은 Slice 4에 남긴다.
 
 ### Stop
 
-Transcript의 legal lifecycle만 표현하며 notebook/persistence 구현을 포함하지 않는 pure module.
+Transcript의 legal lifecycle만 표현하며 notebook/persistence 구현을 포함하지 않는 pure module. 충족됨.
 
 ---
 
@@ -968,4 +986,11 @@ Stop:
 - Phase B는 locally decoded record만 입력으로 받으며 hostile Markdown boundary를 중복 구현하지 않는다.
 - Source target type은 Phase A ID/prefix와 Phase B existence의 합성 보장이다. 도달 불가능한 방어 branch를 만들지 않는다.
 - Notebook graph diagnostics는 입력 file order와 독립적으로 정렬되고 최대 100개로 제한한다.
+- Slice 2 lifecycle policy의 단일 owner는 `src/lifecycle.ts`이고 XState는 delegated parallel projection이다.
+- Observer event는 `observer/v1` protocol, exact-key decoder, bounded non-empty identity를 사용한다.
+- Mode와 Episode는 독립 축이지만 `ON+EMPTY`, `ON+SETTLED`는 TypeScript state union에서 표현하지 않는다.
+- invalid/stale/reordered event는 state를 바꾸지 않고 reason을 반환하며 replay에서는 index/stage issue로 보존한다.
+- Replay 순서는 branch별 finite total order이며 merge/concurrency/global dedupe를 소유하지 않는다.
+- `validated` local-save receipt의 진실성은 Slice 4 producer boundary가 소유한다.
+- XState의 `setup<ObserverState, ObserverMachineEvent>` explicit generic으로 `as` 단언을 피한다.
 ```

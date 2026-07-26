@@ -47,18 +47,18 @@ interface InvalidNotebookExpectation {
 }
 
 const invalidNotebooks: readonly InvalidNotebookExpectation[] = [
-	{name: "duplicate-id", code: "graph.id.duplicate"},
-	{name: "dangling-source", code: "graph.target.missing"},
-	{name: "dangling-lineage", code: "graph.target.missing"},
-	{name: "dangling-relation", code: "graph.target.missing"},
-	{name: "self-edge", code: "graph.edge.self"},
-	{name: "duplicate-edge", code: "graph.edge.duplicate"},
-	{name: "orphan-memo", code: "graph.memo.orphan"},
-	{name: "source-less-zettel", code: "graph.zettel.source-required"},
-	{name: "promotion-status", code: "graph.promotion.mismatch"},
-	{name: "promoted-unlinked", code: "graph.promotion.mismatch"},
-	{name: "lineage-type-mismatch", code: "graph.lineage.type-mismatch"},
-	{name: "promotion-target-type", code: "graph.promotion.mismatch"},
+	{ name: "duplicate-id", code: "graph.id.duplicate" },
+	{ name: "dangling-source", code: "graph.target.missing" },
+	{ name: "dangling-lineage", code: "graph.target.missing" },
+	{ name: "dangling-relation", code: "graph.target.missing" },
+	{ name: "self-edge", code: "graph.edge.self" },
+	{ name: "duplicate-edge", code: "graph.edge.duplicate" },
+	{ name: "orphan-memo", code: "graph.memo.orphan" },
+	{ name: "source-less-zettel", code: "graph.zettel.source-required" },
+	{ name: "promotion-status", code: "graph.promotion.mismatch" },
+	{ name: "promoted-unlinked", code: "graph.promotion.mismatch" },
+	{ name: "lineage-type-mismatch", code: "graph.lineage.type-mismatch" },
+	{ name: "promotion-target-type", code: "graph.promotion.mismatch" },
 ];
 
 describe("Observer notebook graph validation", () => {
@@ -67,7 +67,9 @@ describe("Observer notebook graph validation", () => {
 			await readMarkdownDirectory(baselineRoot),
 		);
 		if (!result.ok) {
-			assert.fail(`Expected valid baseline: ${JSON.stringify(result.diagnostics)}`);
+			assert.fail(
+				`Expected valid baseline: ${JSON.stringify(result.diagnostics)}`,
+			);
 		}
 		assert.equal(result.graphEvaluated, true);
 		assert.equal(result.records.length, 6);
