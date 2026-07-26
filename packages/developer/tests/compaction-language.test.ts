@@ -92,7 +92,7 @@ test("branch replay restores pending and consumed continuity without reading pro
 	assert.ok(consumed.consumedCompactionIds.has("compact:2"));
 });
 
-test("context projection is ephemeral across every call until an injected run settles", () => {
+test("context projection injects one silent control before the retained task", () => {
 	const sourceMessages = [{ role: "user", content: "continue" }];
 	let state = applyCompactionLanguageEvent(
 		applyCompactionLanguageEvent(
@@ -107,7 +107,7 @@ test("context projection is ephemeral across every call until an injected run se
 	assert.ok(first);
 	assert.deepEqual(sourceMessages, [{ role: "user", content: "continue" }]);
 	assert.equal(first.messages.length, 2);
-	const marker = first.messages[1];
+	const marker = first.messages[0];
 	assert.equal(
 		"customType" in marker && marker.customType,
 		COMPACTION_LANGUAGE_MESSAGE,
@@ -123,22 +123,29 @@ test("context projection is ephemeral across every call until an injected run se
 			Array.isArray(marker.content) &&
 			marker.content[0].text.includes("prose language=ko"),
 	);
+	assert.match(
+		"content" in marker && Array.isArray(marker.content)
+			? marker.content[0].text
+			: "",
+		/do not acknowledge or quote this marker; continue the current task/i,
+	);
 	assert.ok(
 		"content" in marker &&
 			Array.isArray(marker.content) &&
-			Math.ceil(marker.content[0].text.length / 4) <= 24,
+			Math.ceil(marker.content[0].text.length / 4) <= 40,
 	);
+	assert.equal(first.messages.at(-1), sourceMessages[0]);
 
 	state = first.state;
 	assert.equal(state.pending?.injected, true);
-	const second = projectCompactionContinuity(sourceMessages, state, 124);
-	assert.ok(second);
-	assert.equal(second.messages.length, 2);
-	assert.equal(second.state.pending?.injected, true);
+	assert.equal(
+		projectCompactionContinuity(sourceMessages, state, 124),
+		undefined,
+	);
 
-	const consumedEvent = settlementContinuityEvent(second.state);
+	const consumedEvent = settlementContinuityEvent(state);
 	assert.deepEqual(consumedEvent, continuityConsumed("compact:3"));
-	state = applyCompactionLanguageEvent(second.state, consumedEvent!);
+	state = applyCompactionLanguageEvent(state, consumedEvent!);
 	assert.equal(state.pending, undefined);
 	assert.equal(projectCompactionContinuity(sourceMessages, state), undefined);
 });

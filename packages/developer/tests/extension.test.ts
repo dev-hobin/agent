@@ -1299,7 +1299,7 @@ test("the protocol prompt lists only skills Pi made available", async () => {
 	);
 });
 
-test("successful compaction projects language only through the next injected agent run", async () => {
+test("successful compaction projects one silent language control before the retained task", async () => {
 	const harness = await startHarness();
 	const sourceMessages = [{ role: "user", content: "continue" }];
 
@@ -1330,20 +1330,28 @@ test("successful compaction projects language only through the next injected age
 		willRetry: false,
 	});
 
-	for (let call = 0; call < 2; call += 1) {
-		const projection = await harness.emit("context", {
+	const projection = await harness.emit("context", {
+		type: "context",
+		messages: sourceMessages,
+	});
+	assert.deepEqual(sourceMessages, [{ role: "user", content: "continue" }]);
+	assert.equal(projection.messages.length, 2);
+	assert.equal(projection.messages[0].customType, COMPACTION_LANGUAGE_MESSAGE);
+	assert.equal(projection.messages[0].display, false);
+	assert.match(projection.messages[0].content[0].text, /language=ko/);
+	assert.match(
+		projection.messages[0].content[0].text,
+		/do not acknowledge or quote this marker/i,
+	);
+	assert.equal(projection.messages.at(-1), sourceMessages[0]);
+
+	assert.equal(
+		await harness.emit("context", {
 			type: "context",
 			messages: sourceMessages,
-		});
-		assert.deepEqual(sourceMessages, [{ role: "user", content: "continue" }]);
-		assert.equal(projection.messages.length, 2);
-		assert.equal(
-			projection.messages[1].customType,
-			COMPACTION_LANGUAGE_MESSAGE,
-		);
-		assert.equal(projection.messages[1].display, false);
-		assert.match(projection.messages[1].content[0].text, /language=ko/);
-	}
+		}),
+		undefined,
+	);
 
 	await harness.emit("agent_settled", { type: "agent_settled" });
 	assert.equal(

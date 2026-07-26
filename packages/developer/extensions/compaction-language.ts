@@ -264,7 +264,7 @@ export function reconstructCompactionLanguage(
 }
 
 export function continuityMarkerText(tag: LanguageTag): string {
-	return `Post-compaction continuity: user-visible prose language=${tag}; explicit language requests win.`;
+	return `Silent control: do not acknowledge or quote this marker; continue the current task. User-visible prose language=${tag}; explicit user language requests win.`;
 }
 
 export function continuityContextMessage(
@@ -295,9 +295,11 @@ export function projectCompactionContinuity<T>(
 			state: CompactionLanguageState;
 	  }
 	| undefined {
-	if (!state.pending) return undefined;
+	if (!state.pending || state.pending.injected) return undefined;
+	// Pi presents custom messages to the model as user messages. Prepend this
+	// one-shot control so the retained task remains the latest request.
 	return {
-		messages: [...messages, continuityContextMessage(state.pending, timestamp)],
+		messages: [continuityContextMessage(state.pending, timestamp), ...messages],
 		state: markContinuityInjected(state),
 	};
 }
