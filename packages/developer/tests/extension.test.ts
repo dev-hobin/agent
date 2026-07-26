@@ -10,9 +10,17 @@ import {
 	type Skill,
 } from "@earendil-works/pi-coding-agent";
 
+import {
+	COMPACTION_LANGUAGE_ENTRY,
+	COMPACTION_LANGUAGE_MESSAGE,
+	continuityPending,
+	languageObserved,
+} from "../extensions/compaction-language.ts";
 import developer from "../extensions/developer.ts";
 import {
+	ACTIVATION_ENTRY,
 	JUDGMENT_TOOL,
+	PROTOCOL,
 	REFERENCE_TOOL,
 	ROUTE_TOOL,
 } from "../extensions/state.ts";
@@ -1242,6 +1250,110 @@ test("the protocol prompt lists only skills Pi made available", async () => {
 		result.systemPrompt,
 		/Available Developer skills:.*model/,
 	);
+});
+
+test("successful compaction projects language only through the next injected agent run", async () => {
+	const harness = await startHarness();
+	const sourceMessages = [{ role: "user", content: "continue" }];
+
+	await harness.emit("input", {
+		type: "input",
+		text: "이 작업을 계속 확인해줘",
+		source: "interactive",
+	});
+	assert.equal(
+		harness.entries.filter(
+			(entry) => entry.customType === COMPACTION_LANGUAGE_ENTRY,
+		).length,
+		1,
+	);
+	assert.equal(
+		await harness.emit("context", {
+			type: "context",
+			messages: sourceMessages,
+		}),
+		undefined,
+	);
+
+	await harness.emit("session_compact", {
+		type: "session_compact",
+		compactionEntry: { id: "compact:runtime" },
+		fromExtension: false,
+		reason: "manual",
+		willRetry: false,
+	});
+
+	for (let call = 0; call < 2; call += 1) {
+		const projection = await harness.emit("context", {
+			type: "context",
+			messages: sourceMessages,
+		});
+		assert.deepEqual(sourceMessages, [{ role: "user", content: "continue" }]);
+		assert.equal(projection.messages.length, 2);
+		assert.equal(
+			projection.messages[1].customType,
+			COMPACTION_LANGUAGE_MESSAGE,
+		);
+		assert.equal(projection.messages[1].display, false);
+		assert.match(projection.messages[1].content[0].text, /language=ko/);
+	}
+
+	await harness.emit("agent_settled", { type: "agent_settled" });
+	assert.equal(
+		await harness.emit("context", {
+			type: "context",
+			messages: sourceMessages,
+		}),
+		undefined,
+	);
+	assert.deepEqual(
+		harness.entries
+			.filter((entry) => entry.customType === COMPACTION_LANGUAGE_ENTRY)
+			.map((entry) => entryKind(entry)),
+		["language-observed", "continuity-pending", "continuity-consumed"],
+	);
+});
+
+test("uninjected continuity survives settlement, restores from branch, and is cancelled by Developer off", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	harness.setBranch([
+		{
+			type: "custom",
+			customType: ACTIVATION_ENTRY,
+			data: { protocol: PROTOCOL, kind: "activation", enabled: true },
+		},
+		{
+			type: "custom",
+			customType: COMPACTION_LANGUAGE_ENTRY,
+			data: languageObserved("ko"),
+		},
+		{
+			type: "custom",
+			customType: COMPACTION_LANGUAGE_ENTRY,
+			data: continuityPending("compact:reload", "ko"),
+		},
+	]);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+
+	await harness.emit("agent_settled", { type: "agent_settled" });
+	let projection = await harness.emit("context", {
+		type: "context",
+		messages: [],
+	});
+	assert.equal(projection.messages[0].details.compactionId, "compact:reload");
+
+	await harness.commands.get("develop").handler("off", harness.ctx);
+	assert.equal(entryKind(harness.entries.at(-1)!), "continuity-consumed");
+	await harness.commands.get("develop").handler("on", harness.ctx);
+	projection = await harness.emit("context", {
+		type: "context",
+		messages: [],
+	});
+	assert.equal(projection, undefined);
 });
 
 test("a later turn can recover the active leaf method from its canonical location", async () => {
