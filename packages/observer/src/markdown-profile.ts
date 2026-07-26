@@ -142,7 +142,11 @@ export interface DecodedObserverDocument {
 	readonly body: string;
 }
 
-export type ObserverValidationPhase = "markdown" | "schema" | "record";
+export type ObserverValidationPhase =
+	| "markdown"
+	| "schema"
+	| "record"
+	| "graph";
 
 export type ObserverDiagnosticCode =
 	| "markdown.frontmatter.missing"
@@ -154,7 +158,15 @@ export type ObserverDiagnosticCode =
 	| "schema.invalid"
 	| "record.id-prefix"
 	| "record.timestamp-order"
-	| "record.inquiry-revision-reason";
+	| "record.inquiry-revision-reason"
+	| "graph.id.duplicate"
+	| "graph.target.missing"
+	| "graph.edge.self"
+	| "graph.edge.duplicate"
+	| "graph.lineage.type-mismatch"
+	| "graph.memo.orphan"
+	| "graph.zettel.source-required"
+	| "graph.promotion.mismatch";
 
 export interface ObserverDiagnostic {
 	readonly phase: ObserverValidationPhase;
@@ -204,6 +216,7 @@ const PHASE_ORDER: Record<ObserverValidationPhase, number> = {
 	markdown: 0,
 	schema: 1,
 	record: 2,
+	graph: 3,
 };
 
 function isBcp47(value: string): boolean {

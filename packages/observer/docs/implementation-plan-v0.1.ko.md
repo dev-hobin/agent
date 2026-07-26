@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 1 — Phase B Notebook Graph Validation (재라우팅 필요)
+> 다음 실행 단위: Slice 2 — Pure Observer Lifecycle Machine (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,10 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Phase A complete | schema + in-memory record decoder + local fixtures |
+| Runtime implementation | Slice 1 complete | schema + record decoder + notebook graph validator |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | In progress | Slice 1 — Phase B graph validation remains |
+| Current slice | Complete | Slice 1 — Markdown Profile Fixtures와 Validation |
+| Next slice | Planned | Slice 2 — Pure Observer Lifecycle Machine |
 
 ### 현재 branch checkpoint
 
@@ -106,7 +107,8 @@ Golden Path와 Non-goals
 feature/observer
 ├─ c7a6165 chore(observer): scaffold spec-first package
 ├─ cf0ac38 docs(observer): define v0.1 implementation plan
-└─ Phase A landing: Observer Markdown Profile v1 record validation
+├─ a45c1ac feat(observer): validate Markdown profile records
+└─ Slice 1 Phase B landing: notebook graph integrity validation
 ```
 
 ---
@@ -346,7 +348,7 @@ Runtime code, dependency, schema, test를 추가하지 않은 docs-only baseline
 
 ## Slice 1 — Markdown Profile Fixtures와 Validation
 
-**Status:** In progress
+**Status:** Complete
 
 ### Claim
 
@@ -402,19 +404,22 @@ manual file order와 filesystem order에 결과가 의존하지 않음
 unknown field/version 정책이 명시됨
 ```
 
-### Current evidence — Phase A stable landing
+### Current evidence — Slice 1 stable landing
 
 ```text
 JSON Schema 2020-12: schemas/observer-record.v1.schema.json
 Pure decoder: src/markdown-profile.ts
+Pure graph validator: src/notebook-validation.ts
 Valid record fixtures: 5
 Local invalid fixtures: 13
-Focused tests: 19/19
+Valid notebook records: 6
+Graph invalid notebooks: 12
+Focused tests: 34/34
 TypeScript diagnostics: 0
 Type assertions (`as`): 0
 ```
 
-Phase A는 external/direct Source, Inquiry, Memo, Zettel을 decode하고 Markdown envelope, schema, ID prefix, timestamp order, inquiry revision reason을 검증한다. Filesystem과 notebook graph는 아직 다루지 않는다.
+Phase A는 external/direct Source, Inquiry, Memo, Zettel을 decode하고 Markdown envelope, schema, ID prefix, timestamp order, inquiry revision reason을 검증한다. Phase B는 Phase A를 모두 통과한 record만 받아 ID uniqueness, target existence, self/duplicate edges, Memo/Zettel provenance, lineage endpoint, promotion pairing을 검증한다. 어떤 Phase A 오류가 있어도 graph는 `not evaluated`이며 filesystem 접근은 없다.
 
 ### Stop
 
@@ -430,7 +435,9 @@ Validator가 승인된 fixture contract만 보호하고 writer나 generalized on
 [x] Fixture ID: type-prefixed lowercase RFC 4122 UUID v4
 ```
 
-다음 movement는 Phase A 결과만 입력으로 받는 notebook graph validator와 one-mutation fixtures다. 실행 전 Developer reroute가 필요하다.
+Source target type은 별도 graph branch가 아니다. `SourceRef`의 source-prefixed ID, Phase A type/ID agreement, Phase B target existence의 합성으로 보장된다. 도달 불가능한 `graph.source.target-type` fixture와 diagnostic은 만들지 않았다.
+
+Slice 1의 Claim과 Stop은 충족됐다. 다음 movement는 Slice 2의 lifecycle condition과 executable surface를 현재 evidence에서 다시 판단한 뒤 시작한다.
 
 ---
 
@@ -958,4 +965,7 @@ Stop:
 - Untrusted Markdown을 TypeScript domain value로 연결할 때 `as` 타입 단언을 사용하지 않는다.
 - Runtime validator의 type guard와 discriminated union narrowing이 성공 경로의 타입을 보장해야 한다.
 - Phase A는 JSON Schema 2020-12 + YAML envelope decoder로 구현하고 filesystem을 소유하지 않는다.
+- Phase B는 locally decoded record만 입력으로 받으며 hostile Markdown boundary를 중복 구현하지 않는다.
+- Source target type은 Phase A ID/prefix와 Phase B existence의 합성 보장이다. 도달 불가능한 방어 branch를 만들지 않는다.
+- Notebook graph diagnostics는 입력 file order와 독립적으로 정렬되고 최대 100개로 제한한다.
 ```
