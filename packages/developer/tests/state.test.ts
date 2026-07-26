@@ -210,6 +210,55 @@ test("replays legacy policy routes with explicit integration fallbacks", () => {
 	assert.match(legacyPolicyRoute?.separateWhen ?? "", /current policy/);
 });
 
+test("replays implementation invariant handling and gives legacy routes an explicit fallback", () => {
+	const implementationRoute: RouteEvent = {
+		...route,
+		routeId: "route:implementation",
+		target: "implementation",
+		methodLocation: undefined,
+		executionProfile: "ordinary",
+		implementationStep: {
+			movement: "Parse an external order",
+			stopCondition: "Core code receives Order only after parsing",
+			verification: "Exercise invalid input and inspect constructor paths",
+			invariantHandling: {
+				kind: "evidence-preserving-boundary",
+				rawRepresentation: "unknown",
+				refinedRepresentation: "Order",
+				producer: "parseOrder",
+				failure: "OrderInputError",
+				firstEffect: "persistOrder",
+			},
+		},
+	};
+	const replayed = reconstructEnabledState([
+		toolEntry(ROUTE_TOOL, implementationRoute),
+	]);
+	assert.deepEqual(
+		replayed.activeRoute?.implementationStep?.invariantHandling,
+		implementationRoute.implementationStep?.invariantHandling,
+	);
+
+	const legacyImplementation = {
+		...implementationRoute,
+		implementationStep: {
+			movement: "Legacy movement",
+			stopCondition: "Legacy landing",
+			verification: "Legacy check",
+		},
+	} as unknown as RouteEvent;
+	const legacyReplay = reconstructEnabledState([
+		toolEntry(ROUTE_TOOL, legacyImplementation),
+	]);
+	assert.match(
+		legacyReplay.activeRoute?.implementationStep?.invariantHandling.kind ===
+			"not-applicable"
+			? legacyReplay.activeRoute.implementationStep.invariantHandling.reason
+			: "",
+		/Legacy implementation route/,
+	);
+});
+
 test("reconstructs optional pending-question context", () => {
 	const openQuestionJudgment: JudgmentEvent = {
 		...resolved(route),

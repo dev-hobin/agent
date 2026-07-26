@@ -22,6 +22,7 @@ import {
 } from "@earendil-works/pi-tui";
 
 import {
+	formatInvariantHandling,
 	protocolState,
 	type ChoiceResponseField,
 	type ChoiceResponseOption,
@@ -1416,6 +1417,10 @@ export class DeveloperHistoryDetailPanel {
 				addField("movement", route.implementationStep.movement);
 				addField("stop condition", route.implementationStep.stopCondition);
 				addField("verification", route.implementationStep.verification);
+				addField(
+					"invariant handling",
+					formatInvariantHandling(route.implementationStep.invariantHandling),
+				);
 			}
 			addValues("known evidence", route.knownEvidence);
 			addValues(

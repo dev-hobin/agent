@@ -86,13 +86,17 @@ export function availablePackageSkills(
 	return available;
 }
 
+function hasErrorCode(error: unknown, code: string): boolean {
+	return isRecord(error) && error.code === code;
+}
+
 export async function skillReferencePaths(skill: Skill): Promise<string[]> {
 	const referencesRoot = resolve(skill.baseDir, "references");
 	let entries: Dirent[];
 	try {
 		entries = await readdir(referencesRoot, { withFileTypes: true });
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+		if (hasErrorCode(error, "ENOENT")) return [];
 		throw error;
 	}
 
@@ -248,7 +252,7 @@ export async function loadSkillReferencePolicy(
 	try {
 		source = await readFile(policyPath, "utf8");
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+		if (hasErrorCode(error, "ENOENT")) {
 			if (catalog.length > 0) {
 				throw new Error(
 					`Developer skill ${skill.name} has references but no reference-policy.json.`,

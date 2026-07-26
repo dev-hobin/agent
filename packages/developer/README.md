@@ -84,7 +84,10 @@ details but are actually product, model, boundary, or evidence questions.
 | Branches lose rationale | Evidence replays with its branch |
 
 Developer coordinates judgment; Pi still reads, edits, runs, and tests the
-product with its normal tools.
+product with its normal tools. Across those judgments, an unchecked assertion,
+cast, non-null claim, or typed decode is never treated as evidence that a domain
+invariant holds: broader input must cross an owned parser or smart-constructor
+boundary whose success returns the refined value.
 
 ## How it works
 
@@ -118,6 +121,7 @@ and the plausible judgment routes add no useful information.
 | Clarify a feature | Separate meaning, constraints, examples, and blockers |
 | Model behavior | Enumerate cases, contracts, transitions, and guarantees |
 | Shape code | Expose data, interfaces, collaboration, state, and checks |
+| Refine input safely | Turn broader input into invariant-carrying domain values before dependent effects |
 | Inspect a design | Identify structural movement and model-code mismatch |
 | Review an abstraction | Keep, revise, split, reject, or defer the candidate |
 | Time a refactor | Separate behavior work and judge the cost of delay |

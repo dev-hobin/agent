@@ -111,6 +111,17 @@ test("lists and loads direct skill references with content provenance", async ()
 		"references/data-driven-design.md",
 		"references/data-shape-template-catalog.md",
 	]);
+	const evidenceBoundaryRoute = policy.routes.find(
+		(route) => route.id === "evidence-preserving-boundary",
+	);
+	assert.deepEqual(evidenceBoundaryRoute?.references, [
+		"references/evidence-preserving-boundaries.md",
+	]);
+	assert.match(
+		evidenceBoundaryRoute?.question ?? "",
+		/less-trusted|domain value/i,
+	);
+	assert.match(evidenceBoundaryRoute?.stop ?? "", /unchecked narrowing/i);
 	assert.match(
 		policy.exemption?.when ?? "",
 		/no routed judgment has an independent artifact/i,

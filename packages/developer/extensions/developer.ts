@@ -53,6 +53,7 @@ import {
 	applyDeveloperEvent,
 	canApplyDeveloperEvent,
 	developerSnapshot,
+	formatInvariantHandling,
 	initialState,
 	normalizeDeveloperEvent,
 	parseChoiceResponseSpec,
@@ -62,6 +63,7 @@ import {
 	type ChoiceResponseSpec,
 	type DeveloperState,
 	type ImplementationProfile,
+	type InvariantHandling,
 	type FocusEvent,
 	type JudgmentEvent,
 	type PendingQuestion,
@@ -213,6 +215,59 @@ interface ChoiceResponseFieldInput {
 interface ChoiceResponseSpecInput {
 	kind: "choice-form";
 	fields: ChoiceResponseFieldInput[];
+}
+
+type InvariantHandlingInput =
+	| {
+			kind: "not-applicable";
+			reason: string;
+	  }
+	| {
+			kind: "evidence-preserving-boundary";
+			raw_representation: string;
+			refined_representation: string;
+			producer: string;
+			failure: string;
+			first_effect: string;
+	  }
+	| {
+			kind: "trusted-compiler-gap";
+			assertion: string;
+			established_by: string;
+			limitation: string;
+			containment: string;
+			verification: string;
+	  };
+
+function invariantHandlingFromInput(
+	input: InvariantHandlingInput | undefined,
+): InvariantHandling {
+	if (!input) {
+		return {
+			kind: "not-applicable",
+			reason:
+				"Legacy direct tool execution omitted the now-required invariant-handling declaration.",
+		};
+	}
+	if (input.kind === "not-applicable") return input;
+	if (input.kind === "evidence-preserving-boundary") {
+		return {
+			kind: input.kind,
+			rawRepresentation: input.raw_representation,
+			refinedRepresentation: input.refined_representation,
+			producer: input.producer,
+			failure: input.failure,
+			firstEffect: input.first_effect,
+		};
+	}
+	return {
+		kind: input.kind,
+		assertion: input.assertion,
+		establishedBy: input.established_by,
+		limitation: input.limitation,
+		containment: input.containment,
+		verification: input.verification,
+	};
 }
 
 interface OpenQuestionInput {
@@ -462,7 +517,9 @@ function protocolPrompt(
 		"- Adapt away from that topology when evidence makes a stage not applicable, but never jump directly from a resolved model to mutation: use sketch for feature implementation or signal for existing-code structural movement first.",
 		"- Route by the requested work product, not keywords: use sketch to create an original caller-facing interface, representation boundary, ownership map, or collaboration; use abstraction-review only when a concrete candidate surface already exists to keep/revise/split/reject/defer; use model first only when unresolved cases, rules, or policy can materially change that surface.",
 		`- Call ${ROUTE_TOOL} for exactly one concrete judgment or one green-to-green implementation movement.`,
-		"- Use target=implementation only when the next local movement, stable landing, and narrow verification are already justified; otherwise choose the focused skill whose scope fits the current question.",
+		"- Use target=implementation only when the next local movement, stable landing, narrow verification, and invariant handling are already justified; otherwise choose the focused skill whose scope fits the current question.",
+		"- Invariant gate: an unchecked assertion, cast, non-null claim, ignored conversion result, or typed deserialization target is not evidence that broader, external, persisted, legacy, or otherwise less-trusted input satisfies a domain invariant. Parse or construct a refined value whose success carries the learned information before dependent effects; validation followed by narrowing does not satisfy this gate.",
+		"- Every implementation route must classify invariant handling as not applicable, an evidence-preserving boundary, or a trusted compiler gap. A trusted compiler gap is valid only after a complete check or trusted contract already established the fact, the language cannot retain it, the unsafe operation is isolated to one owner, and a falsifier is named. Encountering a missing boundary requires sketch, not an implementation assertion.",
 		"- An implementation step has one observable difference and one structural or behavioral purpose. Stop when its failure is locally explainable and the repository is green, pausable, and reviewable.",
 		"- For implementation structural work intended to preserve behavior, set execution_profile=behavior-preserving-structure; omit the field for other implementation actions and every skill route.",
 		`- Follow the routed method, then close the route with ${JUDGMENT_TOOL}. After every implementation stable landing, route again from the new evidence before selecting another movement.`,
@@ -511,6 +568,11 @@ function protocolPrompt(
 		lines.push(
 			`Active route: ${state.activeRoute.routeId} · ${state.activeRoute.target} · ${state.activeRoute.question}`,
 		);
+		if (state.activeRoute.implementationStep) {
+			lines.push(
+				`Active invariant handling: ${formatInvariantHandling(state.activeRoute.implementationStep.invariantHandling)}. Stop and route sketch instead of mutating if this declaration is contradicted by the code.`,
+			);
+		}
 		if (state.activeRoute.methodLocation) {
 			lines.push(
 				`Active skill location: ${state.activeRoute.methodLocation}. Read it again if compaction or a later turn no longer contains the full instructions.`,
@@ -825,6 +887,83 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 		{ additionalProperties: false },
 	);
+	const InvariantHandlingParam = Type.Union([
+		Type.Object(
+			{
+				kind: Type.Literal("not-applicable"),
+				reason: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+					description:
+						"Why this movement neither creates nor narrows broader or less-trusted data into an invariant-carrying value",
+				}),
+			},
+			{ additionalProperties: false },
+		),
+		Type.Object(
+			{
+				kind: Type.Literal("evidence-preserving-boundary"),
+				raw_representation: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+				}),
+				refined_representation: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+				}),
+				producer: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+					description:
+						"Parser, refinement function, or smart constructor whose success returns the refined value",
+				}),
+				failure: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+				}),
+				first_effect: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+					description:
+						"First dependent domain effect allowed only after successful refinement",
+				}),
+			},
+			{ additionalProperties: false },
+		),
+		Type.Object(
+			{
+				kind: Type.Literal("trusted-compiler-gap"),
+				assertion: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+				}),
+				established_by: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+					description:
+						"Complete check or trusted runtime contract that already established the asserted fact",
+				}),
+				limitation: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+					description:
+						"Why ordinary language narrowing cannot retain the established fact",
+				}),
+				containment: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+					description: "Single parser or constructor owner containing the gap",
+				}),
+				verification: Type.String({
+					minLength: 1,
+					maxLength: MAX_EVIDENCE_CHARS,
+					description:
+						"Falsifier for the claimed prior evidence and containment",
+				}),
+			},
+			{ additionalProperties: false },
+		),
+	]);
 	const RouteParams = Type.Union([
 		Type.Object(
 			{
@@ -867,6 +1006,7 @@ export default async function developer(pi: ExtensionAPI) {
 					description:
 						"The narrowest check that can catch the likely break in this movement",
 				}),
+				invariant_handling: InvariantHandlingParam,
 				alternatives_considered: Type.Optional(
 					Type.Array(RouteAlternativeParam, {
 						maxItems: 6,
@@ -892,11 +1032,11 @@ export default async function developer(pi: ExtensionAPI) {
 		name: ROUTE_TOOL,
 		label: "Developer Route Question",
 		description:
-			"Route one concrete judgment or one green-to-green implementation movement. Route by work product: sketch creates an original design surface, abstraction-review judges an already-shaped candidate, and model settles unresolved conditions before design. Then use implementation stable landings and verify before completion.",
+			"Route one concrete judgment or one green-to-green implementation movement. Route by work product: sketch creates an original design surface, abstraction-review judges an already-shaped candidate, and model settles unresolved conditions before design. Implementation must declare how invariant-bearing values are constructed without unchecked narrowing. Then use stable landings and verify before completion.",
 		promptSnippet: "Choose how to handle one development question",
 		promptGuidelines: [
 			`Call ${ROUTE_TOOL} only when there is no active Developer route.`,
-			`Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; choose sketch for an original interface or boundary, abstraction-review only for an already-shaped candidate, and model only for unresolved condition space. target=implementation requires one movement, one stable landing, and one narrow verification.`,
+			`Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; choose sketch for an original interface or boundary, abstraction-review only for an already-shaped candidate, and model only for unresolved condition space. target=implementation requires one movement, one stable landing, one narrow verification, and a truthful invariant_handling declaration. Validation followed by an assertion is not an evidence-preserving boundary.`,
 			`When ${ROUTE_TOOL} follows an implementation judgment with another implementation route, cite the previous landing in known_evidence and record plausible skill routes in alternatives_considered instead of selecting implementation by momentum.`,
 			`After a resolved model, use sketch for first feature implementation framing or signal for existing-code structural movement before implementation mutation.`,
 		],
@@ -1041,6 +1181,10 @@ export default async function developer(pi: ExtensionAPI) {
 						"# Implementation action",
 						"",
 						"The next local action is already justified. Keep this route open while using Pi implementation tools and collecting evidence.",
+						"",
+						"## Invariant gate",
+						"",
+						"Follow the route's invariant-handling declaration. Broader or less-trusted input must become an invariant-carrying value through a parser, refinement function, or smart constructor before dependent effects. Validation followed by an assertion, cast, non-null claim, ignored conversion result, or typed decode is not evidence. If the declared handling is incomplete, stop without mutation and route sketch. Keep any trusted compiler gap isolated to its declared owner and verify its prior evidence and containment.",
 					].join("\n");
 				}
 
@@ -1059,6 +1203,11 @@ export default async function developer(pi: ExtensionAPI) {
 									? params.verification
 									: "Run the narrowest relevant check and inspect the resulting diff or output."
 								).trim(),
+								invariantHandling: invariantHandlingFromInput(
+									"invariant_handling" in params
+										? params.invariant_handling
+										: undefined,
+								),
 							}
 						: undefined;
 
@@ -1096,6 +1245,7 @@ export default async function developer(pi: ExtensionAPI) {
 								`Movement: ${implementationStep.movement}`,
 								`Stable landing: ${implementationStep.stopCondition}`,
 								`Narrow verification: ${implementationStep.verification}`,
+								`Invariant handling: ${formatInvariantHandling(implementationStep.invariantHandling)}`,
 								"Stop this implementation route at that landing, record the evidence, and route again before another movement.",
 							]
 						: []),
@@ -1173,7 +1323,8 @@ export default async function developer(pi: ExtensionAPI) {
 					context.lastComponent,
 				);
 			}
-			const event = result.details as RouteEvent | undefined;
+			const normalized = normalizeDeveloperEvent(result.details);
+			const event = normalized?.kind === "route" ? normalized : undefined;
 			let text = theme.fg("success", `routed ${routeRenderText(event)}`);
 			if (expanded && event) {
 				text += `\n${detailLine(theme, "route", event.routeId, "text")}`;
@@ -1207,6 +1358,7 @@ export default async function developer(pi: ExtensionAPI) {
 					text += `\n${detailLine(theme, "movement", event.implementationStep.movement, "text")}`;
 					text += `\n${detailLine(theme, "landing", event.implementationStep.stopCondition)}`;
 					text += `\n${detailLine(theme, "verify", event.implementationStep.verification)}`;
+					text += `\n${detailLine(theme, "invariant", formatInvariantHandling(event.implementationStep.invariantHandling))}`;
 				}
 			}
 			if (!expanded && event)
@@ -1382,7 +1534,9 @@ export default async function developer(pi: ExtensionAPI) {
 					context.lastComponent,
 				);
 			}
-			const event = result.details as ReferenceLoadEvent | undefined;
+			const normalized = normalizeDeveloperEvent(result.details);
+			const event =
+				normalized?.kind === "reference-load" ? normalized : undefined;
 			let text = theme.fg(
 				"success",
 				`loaded ${event?.path ?? "Developer reference"}`,
@@ -2011,7 +2165,8 @@ export default async function developer(pi: ExtensionAPI) {
 					context.lastComponent,
 				);
 			}
-			const event = result.details as JudgmentEvent | undefined;
+			const normalized = normalizeDeveloperEvent(result.details);
+			const event = normalized?.kind === "judgment" ? normalized : undefined;
 			const summary = judgmentRenderText(event);
 			let text =
 				event?.status === "resolved"

@@ -1,6 +1,6 @@
 {
   "name": "@hobin/developer",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Branch-aware judgment routing, evidence gates, and focused development skills for Pi.",
   "type": "module",
   "keywords": ["pi-package", "pi", "developer", "skills"],

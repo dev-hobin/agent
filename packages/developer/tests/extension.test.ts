@@ -823,7 +823,7 @@ test("implementation profiles load only the protocol selected for that action", 
 	assert.match(structural.content[0].text, /99 Bottles of OOP/);
 });
 
-test("route schema exposes execution profiles only on the implementation branch", async () => {
+test("route schema exposes execution profiles and invariant handling only on the implementation branch", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
 	const schema = harness.tools.get(ROUTE_TOOL).parameters;
@@ -843,7 +843,19 @@ test("route schema exposes execution profiles only on the implementation branch"
 	assert.ok(implementationBranch.required.includes("movement"));
 	assert.ok(implementationBranch.required.includes("stop_condition"));
 	assert.ok(implementationBranch.required.includes("verification"));
+	assert.ok(implementationBranch.required.includes("invariant_handling"));
+	assert.equal(
+		implementationBranch.properties.invariant_handling.anyOf.length,
+		3,
+	);
+	assert.deepEqual(
+		implementationBranch.properties.invariant_handling.anyOf.map(
+			(branch: any) => branch.properties.kind.const,
+		),
+		["not-applicable", "evidence-preserving-boundary", "trusted-compiler-gap"],
+	);
 	assert.ok(implementationBranch.properties.alternatives_considered);
+	assert.equal(skillBranch.properties.invariant_handling, undefined);
 	assert.equal(skillBranch.properties.alternatives_considered, undefined);
 	assert.equal(
 		implementationBranch.properties.execution_profile.const,
@@ -1246,6 +1258,8 @@ test("the protocol prompt lists only skills Pi made available", async () => {
 		result.systemPrompt,
 		/choice-form response_spec with one field per decision/,
 	);
+	assert.match(result.systemPrompt, /Invariant gate:/);
+	assert.match(result.systemPrompt, /unchecked assertion.*is not evidence/i);
 	assert.doesNotMatch(
 		result.systemPrompt,
 		/Available Developer skills:.*model/,
@@ -1525,6 +1539,14 @@ test("resolved model work must pass through sketch or signal before implementati
 			movement: "Add the first wished interface implementation",
 			stop_condition: "The focused case is green and the diff has one purpose",
 			verification: "Run the focused representative-case test",
+			invariant_handling: {
+				kind: "evidence-preserving-boundary",
+				raw_representation: "ScheduleFormValues",
+				refined_representation: "ScheduleContent",
+				producer: "toScheduleContent",
+				failure: "Invalid form result",
+				first_effect: "Persist ScheduleContent",
+			},
 		},
 		undefined,
 		undefined,
@@ -1534,6 +1556,18 @@ test("resolved model work must pass through sketch or signal before implementati
 		implementation.details.implementationStep.movement,
 		"Add the first wished interface implementation",
 	);
+	assert.deepEqual(
+		implementation.details.implementationStep.invariantHandling,
+		{
+			kind: "evidence-preserving-boundary",
+			rawRepresentation: "ScheduleFormValues",
+			refinedRepresentation: "ScheduleContent",
+			producer: "toScheduleContent",
+			failure: "Invalid form result",
+			firstEffect: "Persist ScheduleContent",
+		},
+	);
+	assert.match(implementation.content[0].text, /Invariant handling:/);
 });
 
 test("a changed implementation landing creates verification debt", async () => {

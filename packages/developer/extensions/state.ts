@@ -46,6 +46,36 @@ export type QuestionUpdateStatus =
 export type ImplementationProfile =
 	| "ordinary"
 	| "behavior-preserving-structure";
+export type InvariantHandling =
+	| {
+			kind: "not-applicable";
+			reason: string;
+	  }
+	| {
+			kind: "evidence-preserving-boundary";
+			rawRepresentation: string;
+			refinedRepresentation: string;
+			producer: string;
+			failure: string;
+			firstEffect: string;
+	  }
+	| {
+			kind: "trusted-compiler-gap";
+			assertion: string;
+			establishedBy: string;
+			limitation: string;
+			containment: string;
+			verification: string;
+	  };
+
+export function formatInvariantHandling(value: InvariantHandling): string {
+	if (value.kind === "not-applicable")
+		return `not applicable — ${value.reason}`;
+	if (value.kind === "evidence-preserving-boundary") {
+		return `${value.rawRepresentation} -> ${value.refinedRepresentation} via ${value.producer}; failure=${value.failure}; first effect=${value.firstEffect}`;
+	}
+	return `trusted compiler gap — ${value.assertion}; established by ${value.establishedBy}; limitation=${value.limitation}; contained at ${value.containment}; check=${value.verification}`;
+}
 
 export interface ActivationEvent {
 	protocol: typeof PROTOCOL;
@@ -63,6 +93,7 @@ export interface ImplementationStepContract {
 	movement: string;
 	stopCondition: string;
 	verification: string;
+	invariantHandling: InvariantHandling;
 }
 
 export interface RouteAlternative {
@@ -248,6 +279,20 @@ function isStringArray(value: unknown): value is string[] {
 	);
 }
 
+function parseArray<T>(
+	value: unknown,
+	parse: (item: unknown) => T | undefined,
+): T[] | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const parsed: T[] = [];
+	for (const item of value) {
+		const result = parse(item);
+		if (result === undefined) return undefined;
+		parsed.push(result);
+	}
+	return parsed;
+}
+
 function isJudgmentStatus(value: unknown): value is JudgmentStatus {
 	return (
 		value === "resolved" ||
@@ -263,6 +308,51 @@ function isImplementationProfile(
 	return value === "ordinary" || value === "behavior-preserving-structure";
 }
 
+function parseInvariantHandling(value: unknown): InvariantHandling | undefined {
+	if (!isObject(value) || typeof value.kind !== "string") return undefined;
+	if (value.kind === "not-applicable") {
+		if (typeof value.reason !== "string") return undefined;
+		return { kind: value.kind, reason: value.reason };
+	}
+	if (value.kind === "evidence-preserving-boundary") {
+		if (
+			typeof value.rawRepresentation !== "string" ||
+			typeof value.refinedRepresentation !== "string" ||
+			typeof value.producer !== "string" ||
+			typeof value.failure !== "string" ||
+			typeof value.firstEffect !== "string"
+		) {
+			return undefined;
+		}
+		return {
+			kind: value.kind,
+			rawRepresentation: value.rawRepresentation,
+			refinedRepresentation: value.refinedRepresentation,
+			producer: value.producer,
+			failure: value.failure,
+			firstEffect: value.firstEffect,
+		};
+	}
+	if (value.kind !== "trusted-compiler-gap") return undefined;
+	if (
+		typeof value.assertion !== "string" ||
+		typeof value.establishedBy !== "string" ||
+		typeof value.limitation !== "string" ||
+		typeof value.containment !== "string" ||
+		typeof value.verification !== "string"
+	) {
+		return undefined;
+	}
+	return {
+		kind: value.kind,
+		assertion: value.assertion,
+		establishedBy: value.establishedBy,
+		limitation: value.limitation,
+		containment: value.containment,
+		verification: value.verification,
+	};
+}
+
 function parseImplementationStep(
 	value: unknown,
 ): ImplementationStepContract | undefined {
@@ -274,10 +364,20 @@ function parseImplementationStep(
 	) {
 		return undefined;
 	}
+	const invariantHandling =
+		value.invariantHandling === undefined
+			? {
+					kind: "not-applicable" as const,
+					reason:
+						"Legacy implementation route predates the invariant-handling declaration.",
+				}
+			: parseInvariantHandling(value.invariantHandling);
+	if (!invariantHandling) return undefined;
 	return {
 		movement: value.movement,
 		stopCondition: value.stopCondition,
 		verification: value.verification,
+		invariantHandling,
 	};
 }
 
@@ -622,19 +722,21 @@ export function normalizeDeveloperEvent(
 		) {
 			return undefined;
 		}
-		const consideredAlternatives = Array.isArray(value.consideredAlternatives)
-			? value.consideredAlternatives.map(parseRouteAlternative)
-			: [];
-		if (consideredAlternatives.some((alternative) => !alternative))
-			return undefined;
-		const referenceRoutes = Array.isArray(value.referenceRoutes)
-			? value.referenceRoutes.map(parseReferencePolicyRoute)
-			: [];
-		if (referenceRoutes.some((route) => !route)) return undefined;
-		const loadedReferences = Array.isArray(value.loadedReferences)
-			? value.loadedReferences.map(parseReferenceLoad)
-			: [];
-		if (loadedReferences.some((reference) => !reference)) return undefined;
+		const consideredAlternatives =
+			value.consideredAlternatives === undefined
+				? []
+				: parseArray(value.consideredAlternatives, parseRouteAlternative);
+		if (!consideredAlternatives) return undefined;
+		const referenceRoutes =
+			value.referenceRoutes === undefined
+				? []
+				: parseArray(value.referenceRoutes, parseReferencePolicyRoute);
+		if (!referenceRoutes) return undefined;
+		const loadedReferences =
+			value.loadedReferences === undefined
+				? []
+				: parseArray(value.loadedReferences, parseReferenceLoad);
+		if (!loadedReferences) return undefined;
 		return {
 			protocol: PROTOCOL,
 			kind: "route",
@@ -643,15 +745,15 @@ export function normalizeDeveloperEvent(
 			target: value.target,
 			reason: value.reason,
 			knownEvidence: value.knownEvidence,
-			consideredAlternatives: consideredAlternatives as RouteAlternative[],
+			consideredAlternatives,
 			availableReferences: value.availableReferences ?? [],
-			referenceRoutes: referenceRoutes as ReferencePolicyRoute[],
+			referenceRoutes,
 			referenceExemptionCriteria:
 				value.referenceExemptionCriteria === undefined
 					? undefined
 					: parseReferencePolicyExemption(value.referenceExemptionCriteria),
 			referencePolicySha256: value.referencePolicySha256,
-			loadedReferences: loadedReferences as ReferenceLoad[],
+			loadedReferences,
 			targetQuestionId: value.targetQuestionId,
 			methodLocation: value.methodLocation,
 			executionProfile: value.executionProfile,
@@ -698,21 +800,21 @@ export function normalizeDeveloperEvent(
 		return undefined;
 	}
 
-	const openedQuestions = value.openedQuestions.map(parsePendingQuestion);
-	if (openedQuestions.some((question) => !question)) return undefined;
-	const referenceBasis = Array.isArray(value.referenceBasis)
-		? value.referenceBasis.map(parseReferenceBasis)
-		: [];
-	if (referenceBasis.some((basis) => !basis)) return undefined;
-	if (
-		value.questionUpdates !== undefined &&
-		!Array.isArray(value.questionUpdates)
-	)
-		return undefined;
-	const questionUpdates = Array.isArray(value.questionUpdates)
-		? value.questionUpdates.map(parseQuestionUpdate)
-		: [];
-	if (questionUpdates.some((update) => !update)) return undefined;
+	const openedQuestions = parseArray(
+		value.openedQuestions,
+		parsePendingQuestion,
+	);
+	if (!openedQuestions) return undefined;
+	const referenceBasis =
+		value.referenceBasis === undefined
+			? []
+			: parseArray(value.referenceBasis, parseReferenceBasis);
+	if (!referenceBasis) return undefined;
+	const questionUpdates =
+		value.questionUpdates === undefined
+			? []
+			: parseArray(value.questionUpdates, parseQuestionUpdate);
+	if (!questionUpdates) return undefined;
 	return {
 		protocol: PROTOCOL,
 		kind: "judgment",
@@ -722,13 +824,13 @@ export function normalizeDeveloperEvent(
 		status: value.status,
 		result: value.result,
 		basis: value.basis,
-		referenceBasis: referenceBasis as ReferenceBasis[],
+		referenceBasis,
 		referenceExemption:
 			value.referenceExemption === undefined
 				? undefined
 				: parseReferenceExemption(value.referenceExemption),
-		openedQuestions: openedQuestions as PendingQuestion[],
-		questionUpdates: questionUpdates as QuestionUpdate[],
+		openedQuestions,
+		questionUpdates,
 		artifacts: value.artifacts,
 		changedArtifacts:
 			typeof value.changedArtifacts === "boolean"

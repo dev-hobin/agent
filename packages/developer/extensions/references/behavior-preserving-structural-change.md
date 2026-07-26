@@ -46,7 +46,10 @@ For movement across a boundary, update one sender or caller at a time when the
 old and new forms can safely coexist. Confirm that each intermediate state is
 valid. Do not rely on a final large diff to explain which step changed behavior.
 A forwarding interface over the old implementation can be a temporary seam, but
-it is not evidence that the interface is a stable public abstraction.
+it is not evidence that the interface is a stable public abstraction. An
+assertion, cast, non-null claim, or unchecked typed decode is not a compatibility
+seam: if old or external data is broader than the new invariant, an adapter must
+parse and return the new representation or explicit failure.
 
 For suspected dead code, combine static references, dynamic reachability, and a
 scoped observation window appropriate to rare jobs, reflection, configuration,
@@ -192,10 +195,15 @@ The protocol is being misused when:
 - behavior work is hidden inside a structural label;
 - the route continues after a new human-owned policy question appears;
 - an intermediate state cannot safely run or be reviewed;
-- cleanup continues past the accepted pressure because the code could be nicer.
+- cleanup continues past the accepted pressure because the code could be nicer;
+- validation is preserved while its result is discarded and an assertion claims
+  the new representation.
 
 ## Source Trace
 
+- Alexis King, “Parse, don’t validate,” published November 5, 2019, for
+  evidence-preserving refinement before execution. The compatibility-seam and
+  migration wording is a Developer adaptation.
 - Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
   Edition, version 2.2.2, 2024: Chapters 3-5, pp. 51-137, especially
   pp. 58-71, 84-101, and 113-125, on methodical transformations, flocking,
