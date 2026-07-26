@@ -9,6 +9,7 @@ workflow.
 
 A source idea belongs where its observable job is performed:
 
+- scope-bound existing-code diagnosis and consultation synthesis go to `doctor`, while each underlying judgment remains with its focused owner;
 - product meaning and change pressure go to `specify`;
 - cases, rules, contracts, and transitions go to `model`;
 - implementable boundaries and collaborations go to `sketch`;
@@ -20,7 +21,10 @@ A source idea belongs where its observable job is performed:
 - already-justified mutation goes to the `implementation` route.
 
 No source implies a mandatory route order. Several leaves may use different
-parts of the same source because they answer different questions.
+parts of the same source because they answer different questions. Doctor does
+not become a new source owner: it dispositions those questions inside one claim
+boundary, hands triggered consultations to their existing owners, and
+synthesizes the resulting evidence without copying sibling references.
 
 ## Runtime Reference Quality
 

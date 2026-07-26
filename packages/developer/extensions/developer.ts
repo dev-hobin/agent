@@ -515,6 +515,9 @@ function protocolPrompt(
 		"Developer protocol is active.",
 		"- Use the default topology as a conditional backbone, not a rigid lifecycle: clarify meaning when needed -> model consequential cases -> sketch the first implementation surface for new behavior or signal the smallest structural movement in existing code -> execute one implementation step -> verify current claims.",
 		"- Adapt away from that topology when evidence makes a stage not applicable, but never jump directly from a resolved model to mutation: use sketch for feature implementation or signal for existing-code structural movement first.",
+		"- Route doctor only for an explicitly requested scope-bound diagnosis and improvement plan across several judgment kinds; it is not a mandatory prelude, pull-request review, environment check, or synonym for ordinary implementation.",
+		"- A thorough Doctor review is broad and shallow before it is narrow and deep: establish requested, inspected, and claim scope; disposition every other available Developer skill with evidence; close Doctor triage; route every triggered distinct consultation to its owning skill; let that owner select and apply every triggered policy route and co-required reference; then return to Doctor to synthesize diagnosis and treatment order. Doctor must not load sibling references or flatten their methods into one checklist.",
+		"- While Doctor consultations remain, keep one agent-owned before-completion synthesis question and update its remaining consultation evidence after each owner judgment; do not open one pending question per lens. Resolve it only in the final Doctor synthesis route.",
 		"- Route by the requested work product, not keywords: use sketch to create an original caller-facing interface, representation boundary, ownership map, or collaboration; use abstraction-review only when a concrete candidate surface already exists to keep/revise/split/reject/defer; use model first only when unresolved cases, rules, or policy can materially change that surface.",
 		`- Call ${ROUTE_TOOL} for exactly one concrete judgment or one green-to-green implementation movement.`,
 		"- Use target=implementation only when the next local movement, stable landing, narrow verification, and invariant handling are already justified; otherwise choose the focused skill whose scope fits the current question.",
@@ -1032,11 +1035,11 @@ export default async function developer(pi: ExtensionAPI) {
 		name: ROUTE_TOOL,
 		label: "Developer Route Question",
 		description:
-			"Route one concrete judgment or one green-to-green implementation movement. Route by work product: sketch creates an original design surface, abstraction-review judges an already-shaped candidate, and model settles unresolved conditions before design. Implementation must declare how invariant-bearing values are constructed without unchecked narrowing. Then use stable landings and verify before completion.",
+			"Route one concrete judgment or one green-to-green implementation movement. Route by work product: doctor coordinates an explicitly requested scope-bound existing-code diagnosis, sketch creates an original design surface, abstraction-review judges an already-shaped candidate, and model settles unresolved conditions before design. Implementation must declare how invariant-bearing values are constructed without unchecked narrowing. Then use stable landings and verify before completion.",
 		promptSnippet: "Choose how to handle one development question",
 		promptGuidelines: [
 			`Call ${ROUTE_TOOL} only when there is no active Developer route.`,
-			`Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; choose sketch for an original interface or boundary, abstraction-review only for an already-shaped candidate, and model only for unresolved condition space. target=implementation requires one movement, one stable landing, one narrow verification, and a truthful invariant_handling declaration. Validation followed by an assertion is not an evidence-preserving boundary.`,
+			`Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; choose doctor only for an explicit scope-bound existing-code diagnosis and improvement plan, choose sketch for an original interface or boundary, abstraction-review only for an already-shaped candidate, and model only for unresolved condition space. target=implementation requires one movement, one stable landing, one narrow verification, and a truthful invariant_handling declaration. Validation followed by an assertion is not an evidence-preserving boundary.`,
 			`When ${ROUTE_TOOL} follows an implementation judgment with another implementation route, cite the previous landing in known_evidence and record plausible skill routes in alternatives_considered instead of selecting implementation by momentum.`,
 			`After a resolved model, use sketch for first feature implementation framing or signal for existing-code structural movement before implementation mutation.`,
 		],
@@ -1259,6 +1262,11 @@ export default async function developer(pi: ExtensionAPI) {
 					...(skill && event.availableReferences.length > 0
 						? [
 								`Reference contract: choose policy routes by observable trigger, use ${REFERENCE_TOOL} for every reference in each selected route's co-required set, and provide reference_basis for every loaded path; use reference_exemption only when no policy route applies.`,
+							]
+						: []),
+					...(skill && event.availableReferences.length === 0
+						? [
+								"Reference contract: this skill has no packaged references; omit both reference_basis and reference_exemption from its judgment.",
 							]
 						: []),
 					`Known evidence: ${event.knownEvidence.length > 0 ? event.knownEvidence.join(" | ") : "none"}`,
@@ -1773,7 +1781,7 @@ export default async function developer(pi: ExtensionAPI) {
 		promptGuidelines: [
 			`Use ${JUDGMENT_TOOL} with the exact active Developer route ID.`,
 			`Use ${JUDGMENT_TOOL} result as Markdown and preserve the routed skill's inspectable tables, diagrams, matrices, timelines, and code blocks instead of reducing them to prose.`,
-			`For a resolved skill route with available references, use ${JUDGMENT_TOOL} reference_basis to connect each relied-on ${REFERENCE_TOOL} load to its trigger, applied rule, and resulting artifact, or use reference_exemption when no reference is relevant. Never provide both.`,
+			`For a resolved skill route with available references, use ${JUDGMENT_TOOL} reference_basis to connect each relied-on ${REFERENCE_TOOL} load to its trigger, applied rule, and resulting artifact, or use reference_exemption when no reference is relevant. Never provide both. For a skill with no packaged references, omit both fields.`,
 			`Use ${JUDGMENT_TOOL} open_questions with resolution_owner, gate, and resolution_criteria. User-owned gated questions require explanatory context before controls; for finite required decisions, add a choice-form response_spec with one field per decision. Use question_updates whenever current evidence settles or changes any existing pending question.`,
 			`Do not use ${JUDGMENT_TOOL} with resolved, not-applicable, or blocked status without at least one concrete basis.`,
 		],

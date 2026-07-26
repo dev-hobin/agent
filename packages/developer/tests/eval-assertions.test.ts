@@ -220,6 +220,87 @@ test("reference expectations require a successful auditable load and applied jud
 	);
 });
 
+test("Doctor evaluation requires owner consultation and a final synthesis route", async () => {
+	const completed = (
+		toolCallId: string,
+		toolName: string,
+		args: Record<string, unknown>,
+		text = "ok",
+	) => [
+		{
+			type: "tool_execution_start",
+			toolCallId,
+			toolName,
+			args,
+		},
+		{
+			type: "tool_execution_end",
+			toolCallId,
+			toolName,
+			isError: false,
+			result: { content: [{ type: "text", text }] },
+		},
+	];
+	const methodText = async (name: string) => {
+		const source = await readFile(
+			join(packageRoot, "skills", name, "SKILL.md"),
+			"utf8",
+		);
+		const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+		return `<developer-method name="${name}" location="/skills/${name}/SKILL.md" base-dir="/skills/${name}">\n${body}\n</developer-method>\nResolve relative references from /skills/${name}.`;
+	};
+	const doctorMethod = await methodText("doctor");
+	const sketchMethod = await methodText("sketch");
+	const events = [
+		...completed(
+			"route:triage",
+			"developer_route_question",
+			{ target: "doctor" },
+			doctorMethod,
+		),
+		...completed("judgment:triage", "developer_record_judgment", {
+			status: "needs-evidence",
+			result: "Consultation plan remains open.",
+		}),
+		...completed(
+			"route:owner",
+			"developer_route_question",
+			{ target: "sketch" },
+			sketchMethod,
+		),
+		...completed("judgment:owner", "developer_record_judgment", {
+			status: "resolved",
+			result: "The boundary owner is explicit.",
+		}),
+		...completed(
+			"route:synthesis",
+			"developer_route_question",
+			{ target: "doctor" },
+			doctorMethod,
+		),
+		...completed("judgment:synthesis", "developer_record_judgment", {
+			status: "resolved",
+			result:
+				"Consultation ledger integrated. Diagnosis is bounded. Treatment plan leaves speculative work alone.",
+		}),
+	];
+	const doctorFixture = {
+		id: "doctor-synthesis",
+		admissibleFirstTargets: ["doctor"],
+		preferredFirstTargets: ["doctor"],
+		mustRecordJudgment: true,
+		requiresDoctorSynthesis: true,
+	};
+
+	await assert.doesNotReject(
+		validateExecutionTrace(doctorFixture, events, packageRoot),
+	);
+	await assert.rejects(
+		validateExecutionTrace(doctorFixture, events.slice(0, -4), packageRoot),
+		/Doctor did not return for final synthesis|final route was not Doctor synthesis/,
+	);
+});
+
 test("structural admissibility is hard while preferred routing remains a score", async () => {
 	const summary = await validateExecutionTrace(
 		structuralFixture,

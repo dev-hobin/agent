@@ -20,6 +20,7 @@ const skillsRoot = join(packageRoot, "skills");
 const expected = [
 	"abstraction-review",
 	"adversarial-eval",
+	"doctor",
 	"model",
 	"naming-judgment",
 	"schedule",
@@ -50,6 +51,8 @@ test("every skill defines an inspection surface suited to its judgment", async (
 	const expectedSurfaces: Record<string, RegExp> = {
 		"abstraction-review": /review card or table/,
 		"adversarial-eval": /escalation ladder as an ordered matrix/,
+		doctor:
+			/Doctor scope and actual coverage[\s\S]*consultation ledger[\s\S]*treatment plan/,
 		model: /case, decision, or truth table/,
 		"naming-judgment": /rename map as the primary inspection surface/,
 		schedule: /compact timing matrix/,
@@ -69,6 +72,34 @@ test("every skill defines an inspection surface suited to its judgment", async (
 			`${name} should expose an inspectable output surface`,
 		);
 	}
+});
+
+test("Doctor bounds claims, dispositions every owner skill, and delegates routed references", async () => {
+	const source = await readFile(join(skillsRoot, "doctor", "SKILL.md"), "utf8");
+	for (const owner of expected.filter((name) => name !== "doctor")) {
+		assert.ok(
+			source.includes(`| \`${owner}\` |`),
+			`Doctor must disposition ${owner}`,
+		);
+	}
+	assert.match(source, /requested \/ inspected \/ claim scope/i);
+	assert.match(source, /thorough-within-scope/);
+	assert.match(
+		source,
+		/route\s+every triggered distinct consultation[\s\S]*every reference-policy route[\s\S]*every co-required reference/i,
+	);
+	assert.match(source, /must not read sibling skill\s+references/i);
+	assert.match(
+		source,
+		/treat-now[\s\S]*prepare-next[\s\S]*observe[\s\S]*leave-alone/,
+	);
+
+	const doctor = loadSkillsFromDir({
+		dir: skillsRoot,
+		source: "@hobin/developer",
+	}).skills.find((skill) => skill.name === "doctor")!;
+	assert.deepEqual(await skillReferencePaths(doctor), []);
+	assert.deepEqual((await loadSkillReferencePolicy(doctor)).routes, []);
 });
 
 test("inherits Pi's recursive discovery, YAML parsing, and directory-name policy", async () => {

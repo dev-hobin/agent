@@ -22,6 +22,7 @@ async function readJson(path) {
 const expectedSkills = [
 	"abstraction-review",
 	"adversarial-eval",
+	"doctor",
 	"model",
 	"naming-judgment",
 	"schedule",
@@ -34,7 +35,7 @@ const expectedSkills = [
 
 const manifest = await readJson(join(root, "package.json"));
 assert.equal(manifest.name, "@hobin/developer");
-assert.equal(manifest.version, "0.1.11");
+assert.equal(manifest.version, "0.1.12");
 assert.deepEqual(manifest.pi.extensions, ["./extensions/developer.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
 assert.match(manifest.scripts["eval:live"], /eval-live\.mjs --transport rpc/);
@@ -200,6 +201,7 @@ const referenceCatalog = {
 };
 
 const descriptionTriggers = {
+	doctor: /bounded existing codebase scope.*improvement plan/i,
 	model: /condition space.*contracts.*replacement/i,
 	"naming-judgment": /domain meaning.*effect-hiding/i,
 	schedule: /behavior-versus-structure separation/i,
@@ -426,6 +428,8 @@ for (const fixture of evalFixtures) {
 	}
 }
 for (const fixtureId of [
+	"doctor-unscoped-orientation",
+	"doctor-thorough-bounded-codebase",
 	"implementation-stable-landing-paused",
 	"agent-before-implementation-evidence-gate",
 ]) {
@@ -435,6 +439,7 @@ for (const fixtureId of [
 	);
 }
 const evalJson = await readFile(join(root, "scripts/eval-json.mjs"), "utf8");
+const evalRpc = await readFile(join(root, "scripts/eval-rpc.mjs"), "utf8");
 const evalEventMonitor = await readFile(
 	join(root, "scripts/eval-event-monitor.mjs"),
 	"utf8",
@@ -448,6 +453,11 @@ assert.match(
 );
 assert.match(evalEventMonitor, /createFixtureBudgetMonitor/);
 assert.match(evalEventMonitor, /createJsonlDecoder/);
+assert.match(
+	evalRpc,
+	/value\.type !== "message_update"/,
+	"RPC eval traces must drop cumulative token updates before long Doctor runs",
+);
 assert.match(evalLive, /summarizeTrialObservations/);
 
 const scheduleReference = await readFile(

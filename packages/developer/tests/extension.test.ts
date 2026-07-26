@@ -538,6 +538,27 @@ test("a Pi-filtered leaf cannot be routed even though it exists in the package",
 	);
 });
 
+test("reference-free skill routes explicitly omit reference evidence fields", async () => {
+	const harness = await startHarness();
+	const routed = await harness.tools.get(ROUTE_TOOL).execute(
+		"reference-free",
+		{
+			question: "Which product meaning is established?",
+			target: "specify",
+			reason: "The bounded contract needs clarification",
+		},
+		undefined,
+		undefined,
+		harness.ctx,
+	);
+
+	assert.deepEqual(routed.details.availableReferences, []);
+	assert.match(
+		resultText(routed),
+		/has no packaged references; omit both reference_basis and reference_exemption/,
+	);
+});
+
 test("resolved skill judgments require auditable reference application or a concrete exemption", async () => {
 	const harness = await startHarness();
 	const routeTool = harness.tools.get(ROUTE_TOOL);
@@ -1253,6 +1274,18 @@ test("the protocol prompt lists only skills Pi made available", async () => {
 	assert.match(
 		result.systemPrompt,
 		/Route by the requested work product, not keywords/,
+	);
+	assert.match(
+		result.systemPrompt,
+		/Route doctor only for an explicitly requested scope-bound diagnosis/,
+	);
+	assert.match(
+		result.systemPrompt,
+		/disposition every other available Developer skill[\s\S]*owning skill[\s\S]*return to Doctor/,
+	);
+	assert.match(
+		result.systemPrompt,
+		/one agent-owned before-completion synthesis question/,
 	);
 	assert.match(
 		result.systemPrompt,
