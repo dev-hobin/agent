@@ -1,0 +1,942 @@
+# Observer v0.1 구현 계획
+
+> 상태: 승인된 실행 기준선
+>
+> 기준 제품 명세: [`product-spec-v0.1.ko.md`](product-spec-v0.1.ko.md)
+>
+> 작업 브랜치: `feature/observer`
+>
+> 다음 실행 단위: Slice 1 — Markdown Profile Fixtures와 Validation
+>
+> 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
+
+---
+
+## 1. 계획의 목적
+
+이 계획은 전체 architecture를 미리 완성하려는 roadmap이 아니다. 승인된 제품 명세를 사용자에게 검증 가능한 작은 vertical slice로 구현하기 위한 실행 기준선이다.
+
+각 slice는 다음 형식을 가진다.
+
+```text
+Claim
+→ 이번 slice가 사용자 또는 다음 slice에 보장할 것
+
+Scope
+→ 이번에 구현할 것
+
+Non-scope
+→ 의도적으로 구현하지 않을 것
+
+State movement
+→ 허용하거나 새로 증명할 상태 전이
+
+Evidence
+→ claim을 반증할 수 있는 검사
+
+Stop
+→ 다음 판단 전 멈출 stable landing
+```
+
+한 slice가 green이더라도 다음 slice로 자동 이동하지 않는다. Developer가 새 evidence를 보고 다시 route한다.
+
+---
+
+## 2. 문서의 역할과 업데이트 규칙
+
+### 제품 명세
+
+[`product-spec-v0.1.ko.md`](product-spec-v0.1.ko.md)는 다음을 소유한다.
+
+```text
+제품 의미
+사용자 경험
+명령의 effect
+상태와 lifecycle
+Local-first 경계
+Markdown record의 의미
+Golden Path와 Non-goals
+```
+
+제품 의미가 바뀌면 코드를 먼저 고치지 않고 제품 명세를 먼저 수정·승인한다.
+
+### 구현 계획
+
+이 문서는 다음을 소유한다.
+
+```text
+현재 진행 slice
+각 slice의 Claim/Scope/Evidence/Stop
+기술적 위험과 보류 결정
+완료 evidence와 commit
+다음 실행 단위
+```
+
+### Stable landing 업데이트
+
+각 slice가 끝날 때 같은 변경 흐름에서 이 문서를 갱신한다.
+
+```text
+1. slice 상태를 complete로 변경
+2. 실제 구현된 범위를 기록
+3. 실행한 verifier와 결과를 기록
+4. 남은 위험과 발견된 질문을 기록
+5. 다음 slice를 next로 표시
+6. code와 docs가 같은 현실을 설명하는지 확인
+```
+
+계획이 바뀌면 기존 기록을 지우고 성공한 것처럼 다시 쓰지 않는다. 변경 이유를 `결정 기록`에 append한다.
+
+---
+
+## 3. 현재 현황
+
+| 항목 | 상태 | Evidence |
+| --- | --- | --- |
+| Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
+| Package scaffold | Complete | private `@hobin/observer@0.0.0`, docs-only package |
+| Runtime implementation | Not started | extensions, schemas, tests 없음 |
+| Previous implementation | Archived only | `archive/observer-v0.1` |
+| Git/remote integration | Out of scope | Product Spec Non-goals |
+| Current slice | Next | Slice 1 — fixtures and validation |
+
+### 현재 branch checkpoint
+
+```text
+feature/observer
+└─ c7a6165 chore(observer): scaffold spec-first package
+```
+
+이 계획 commit 이후 다음 prompt에서 `/develop on`을 활성화한다.
+
+---
+
+## 4. 전체 완료 주장
+
+Observer v0.1 구현은 다음 두 Golden Path를 실제 Pi에서 증명할 때 멈춘다.
+
+### Sidecar
+
+```text
+setup
+→ on
+→ 다른 학습 작업과 자료 관찰
+→ 사용자 가설 추적
+→ Hybrid 중요 변화 알림
+→ memo
+→ 계속 관찰
+→ wrap proposal
+→ 사용자 승인
+→ local save
+→ OFF
+→ fresh session re-entry
+```
+
+### One-shot
+
+```text
+Observer OFF
+→ 자료를 Observer 관점으로 요청
+→ open episode의 pending inquiry/memo 업데이트
+→ Mode OFF 유지
+→ memo while OFF
+→ wrap
+→ local save
+→ fresh session re-entry
+```
+
+통과한 unit test 수나 구현된 endpoint 수만으로 v0.1 완료를 주장하지 않는다.
+
+---
+
+## 5. Architecture Baseline
+
+### 5.1 독립 package
+
+Observer는 `@hobin/developer` 또는 `@hobin/learning`을 runtime dependency로 사용하지 않는다.
+
+- Developer는 구현 작업을 조정하는 개발 도구다.
+- Learning은 Observer가 함께 작동할 수 있는 사용자 workflow다.
+- Observer는 두 package의 내부 상태나 public contract를 변경하지 않는다.
+
+### 5.2 Archive의 역할
+
+`archive/observer-v0.1`은 다음 용도로만 사용한다.
+
+```text
+source audits
+failure evidence
+characterization cases
+정확히 맞는 leaf behavior 비교
+```
+
+다음을 하지 않는다.
+
+```text
+archive package 전체 import
+기존 orchestration을 새 baseline으로 사용
+검증 없이 module 복사
+기존 endpoint 수를 목표로 복원
+```
+
+### 5.3 Local-first
+
+Observer의 durable effect는 선택된 로컬 notebook에 기록하는 데서 끝난다.
+
+```text
+Observer owns:
+Source/Inquiry/Memo/Zettel local persistence
+
+Observer does not own:
+Git, GitHub, sync, remote backup, graph DB, vector DB
+```
+
+---
+
+## 6. Developer 상태 머신 패턴 재사용
+
+### 6.1 가져올 패턴
+
+Developer의 다음 구조를 Observer 도메인에 다시 적용한다.
+
+```text
+명시적 Domain State
++ 정규화된 Event decoder
++ pure reducer
++ XState guards/parallel state projection
++ Pi branch entry replay
+```
+
+Wished surface:
+
+```ts
+initialObserverState()
+normalizeObserverEvent(value)
+canApplyObserverEvent(state, event)
+applyObserverEvent(state, event)
+observerSnapshot(state)
+reconstructObserverState(branchEntries)
+```
+
+### 6.2 직접 재사용하지 않을 것
+
+```text
+DeveloperState
+route/question/judgment event
+Developer tool-policy
+Developer machine.ts import
+Developer package runtime dependency
+```
+
+Observer가 필요하면 자신의 `xstate` dependency를 선언한다. 공통 state-machine abstraction은 두 package의 실제 반복 압력이 확인되기 전에는 추출하지 않는다.
+
+### 6.3 상태 머신의 책임
+
+상태 머신이 소유한다.
+
+```text
+Mode: OFF | ON
+Episode: EMPTY | OPEN | REVIEWING_WRAP | SETTLED
+selected notebook identity
+snapshot된 episode language
+현재 wrap proposal identity
+compact memo/wrap receipt metadata
+legal transition guards
+branch replay
+```
+
+상태 머신이 소유하지 않는다.
+
+```text
+Source/Memo/Zettel 전체 본문
+전체 evidence graph
+semantic relation 판단
+Markdown file I/O
+embedding/search index
+Git state
+```
+
+### 6.4 초기 event 후보
+
+```ts
+type ObserverEvent =
+  | { kind: "episode-opened"; episodeId; notebookId; lang }
+  | { kind: "activation-changed"; enabled: boolean }
+  | { kind: "memo-reconciled"; revisionId; receipt }
+  | { kind: "wrap-proposed"; proposalId; summary }
+  | { kind: "wrap-cancelled"; proposalId }
+  | { kind: "wrap-committed"; proposalId; receipt };
+```
+
+이 목록은 Slice 2의 transcript cases에서 도출하며 지금 public API로 고정하지 않는다.
+
+### 6.5 핵심 guard
+
+```text
+ON
+→ valid selected notebook과 episode language 필요
+
+MEMO
+→ OPEN episode 필요; Mode는 ON/OFF 모두 허용
+
+WRAP_PROPOSED
+→ OPEN episode 필요
+
+WRAP_COMMITTED
+→ 현재 proposal ID와 일치
+→ validated local save receipt 필요
+
+notebook switch
+→ OPEN episode가 없어야 함
+
+OFF
+→ episode를 settle하지 않음
+```
+
+### 6.6 Durable-first ordering
+
+```text
+사용자 wrap 승인
+→ proposed records 검증
+→ local save
+→ saved content 재검증
+→ wrap-committed Pi event
+→ Episode SETTLED + Mode OFF
+```
+
+Filesystem 저장보다 먼저 Pi event가 durable save 성공을 주장하지 않는다.
+
+---
+
+# 7. Slice Plan
+
+## Slice 0 — Package와 제품 계약
+
+**Status:** Complete
+
+### Claim
+
+> Observer는 이전 구현과 분리된 private package와 승인된 제품 기준선을 가진다.
+
+### Implemented
+
+```text
+packages/observer/package.json
+packages/observer/README.md
+packages/observer/LICENSE
+packages/observer/docs/product-spec-v0.1.ko.md
+packages/observer/docs/implementation-plan-v0.1.ko.md
+```
+
+### Evidence
+
+```text
+workspace lock importer 존재
+package dry-run에 docs/README/LICENSE 포함
+Developer 148/148
+Learning 22/22
+Markdown/JSON diagnostics clean
+```
+
+### Stop
+
+Runtime code, dependency, schema, test를 추가하지 않은 docs-only baseline.
+
+---
+
+## Slice 1 — Markdown Profile Fixtures와 Validation
+
+**Status:** Next
+
+### Claim
+
+> Source, Inquiry, Memo, Zettel 및 direct observation을 Markdown으로 표현하고, 구조 또는 graph invariant를 위반한 기록을 의도한 이유로 거부할 수 있다.
+
+### Scope
+
+```text
+정상 Markdown fixtures
+- external-material Source
+- direct-observation Source
+- open Inquiry
+- incubating Memo
+- mature Zettel
+
+거부 fixtures
+- schema/type/ID mismatch
+- invalid lang/timestamp/status
+- dangling source/lineage/relation
+- orphan Memo
+- direct Source가 없는 Zettel
+- promoted Memo/Zettel lineage 불일치
+
+frontmatter parser
+observer-record/v1 JSON Schema
+record decoder
+notebook graph validator
+bounded diagnostics
+```
+
+### Non-scope
+
+```text
+Pi extension
+XState machine
+writer
+wrap transaction
+semantic Zettel quality 자동 판정
+RDF/SHACL runtime
+Graph DB
+```
+
+### State movement
+
+없음. Read-only validation slice다.
+
+### Evidence
+
+```text
+각 정상 fixture가 decode + graph validation 통과
+각 거부 fixture가 지정된 rule과 record ID로 실패
+manual file order와 filesystem order에 결과가 의존하지 않음
+unknown field/version 정책이 명시됨
+```
+
+### Stop
+
+Validator가 승인된 fixture contract만 보호하고 writer나 generalized ontology를 포함하지 않는 상태.
+
+### Slice 1에서 해결할 설계 질문
+
+```text
+Source locator의 정확한 nested YAML shape
+JSON Schema draft/version
+unknown frontmatter field 보존/거부 정책
+relation target type 제약
+fixture namespace와 ID format
+```
+
+---
+
+## Slice 2 — Pure Observer Lifecycle Machine
+
+**Status:** Planned
+
+### Claim
+
+> on/off, Sidecar, One-shot, memo, wrap lifecycle을 filesystem과 Pi UI 없이 결정론적으로 적용하고 replay할 수 있다.
+
+### Scope
+
+```text
+ObserverState
+ObserverEvent decoder
+pure reducer
+XState parallel machine
+guards/tags
+snapshot projection
+branch-entry replay
+```
+
+### Required cases
+
+```text
+OFF → ON → MEMO → WRAP proposal → cancel → OPEN
+OFF → One-shot로 Episode OPEN, Mode는 OFF
+Mode OFF에서 MEMO 허용
+ON → OFF, Episode OPEN 유지
+잘못된 proposal ID commit 거부
+validated receipt 없는 wrap commit 거부
+wrap commit → SETTLED + OFF
+같은 event replay → 같은 state
+branch fork → fork별 state
+```
+
+### Non-scope
+
+```text
+Markdown I/O
+Pi command/UI
+실제 Memo 내용
+Model inference
+```
+
+### Evidence
+
+Transition table tests와 replay tests.
+
+### Stop
+
+Transcript의 legal lifecycle만 표현하며 notebook/persistence 구현을 포함하지 않는 pure module.
+
+---
+
+## Slice 3 — Notebook Setup과 Language Binding
+
+**Status:** Planned
+
+### Claim
+
+> 사용자가 로컬 notebook과 ko/en 기본 생성 언어를 선택하고 다음 process/session에서 같은 설정을 다시 열 수 있다.
+
+### Scope
+
+```text
+notebook initialize/open
+notebook identity/manifest
+한 시점에 하나의 selected notebook
+ko/en default language
+episode language snapshot
+read-only status projection
+```
+
+### Non-scope
+
+```text
+Zettel/Memo writer
+Git repository initialization
+notebook migration
+여러 notebook 동시 episode
+```
+
+### Evidence
+
+```text
+new folder setup
+existing valid notebook open
+invalid/corrupt manifest rejection
+OPEN episode 중 notebook switch rejection
+episode 언어 고정
+기존 문서 언어 rewrite 없음
+```
+
+### Stop
+
+Knowledge record를 쓰지 않고 notebook identity와 language만 안정적으로 복구하는 상태.
+
+---
+
+## Slice 4 — Wrap Local Persistence
+
+**Status:** Planned
+
+### Claim
+
+> 준비된 wrap proposal을 사용자가 승인하면 검증된 Source/Inquiry/Memo/Zettel이 로컬에 일관되게 저장되고 fresh read로 다시 열리며, 성공 후에만 episode가 settle된다.
+
+### Scope
+
+```text
+prepared wrap proposal
+사용자 승인 input
+record batch preflight
+schema + graph validation
+local publication
+save receipt
+saved-content readback
+wrap-committed ordering
+fresh notebook reopen
+```
+
+### Non-scope
+
+```text
+Model이 proposal을 생성하는 과정
+memo reconciliation
+Git commit/push
+Graph/vector projection
+모든 OS crash scenario의 일반화
+```
+
+### Evidence
+
+```text
+valid proposal 저장 성공
+validation failure에서 filesystem/session 부분 mutation 없음
+write failure에서 wrap-committed 없음
+save receipt IDs와 실제 files 일치
+fresh process에서 같은 record graph 복구
+Mode OFF + Episode SETTLED는 save 성공 후에만 발생
+```
+
+### Stop
+
+Prepared data로 최초 local durable vertical slice가 증명된 상태.
+
+### Slice 4에서 해결할 설계 질문
+
+```text
+create/update batch의 최소 atomicity 전략
+manual edit와 기존 record revision 정책
+예상된 write failure와 process crash guarantee 경계
+```
+
+---
+
+## Slice 5 — Pi Commands와 Branch Replay
+
+**Status:** Planned
+
+### Claim
+
+> 실제 Pi에서 setup/status/on/off/wrap lifecycle이 작동하고 restart·branch fork·compaction 이후 상태가 올바르게 복구된다.
+
+### Scope
+
+```text
+Pi extension entry
+/observe setup
+/observe status
+/observe on
+/observe off
+/observe wrap (prepared proposal 사용)
+session entry encoding/decoding
+branch replay
+compact status/footer
+```
+
+### Non-scope
+
+```text
+Memo model behavior
+Hybrid observation
+One-shot semantic analysis
+복잡한 TUI panel
+```
+
+### Evidence
+
+```text
+Pi RPC command smoke
+fresh process replay
+branch fork isolation
+off/on OPEN episode 재개
+compaction 전후 state continuity
+packed package discovery
+```
+
+### Stop
+
+실제 Pi command lifecycle과 local persistence가 연결되지만 semantic observation은 아직 없는 상태.
+
+---
+
+## Slice 6 — Memo Reconciliation
+
+**Status:** Planned
+
+### Claim
+
+> 현재 episode와 관련 standing inquiry의 미승격 Memo를 현재 컨텍스트로 재조정하고, 장기 Zettel 저장 없이 compact receipt와 working revision을 남길 수 있다.
+
+### Initial scope
+
+```text
+create
+revise
+merge
+incubate
+promotion candidate
+사용자 가설 original/current revision 보존
+```
+
+### Deferred until observed
+
+```text
+복잡한 split
+다단계 conflict resolution
+대량 Memo prioritization
+자동 retire policy
+```
+
+### Evidence
+
+```text
+새 evidence가 없을 때 반복 memo가 duplicate를 만들지 않음
+current episode + related standing inquiries만 검토
+unrelated dormant Memo를 불러오지 않음
+Zettel file을 쓰지 않음
+compaction 이전 working context가 receipt에 반영됨
+```
+
+### Stop
+
+대표 reconciliation cases와 product transcript가 일치하고 Zettel persistence가 발생하지 않는 상태.
+
+---
+
+## Slice 7 — Sidecar Golden Path
+
+**Status:** Planned
+
+### Claim
+
+> Observer ON 상태에서 다른 학습 workflow를 방해하지 않고 중요한 변화만 알리며, 사용자 가설과 Memo를 wrap/re-entry까지 이어갈 수 있다.
+
+### Scope
+
+```text
+Observer activation context
+visible user/main-agent/tool outputs 관찰
+source-first pass
+standing inquiry relevance
+Hybrid interrupt threshold
+사용자 가설 acknowledgment
+memo → continue → wrap
+fresh-session re-entry
+```
+
+### Non-scope
+
+```text
+Subagent
+hidden chain-of-thought 접근
+모든 Learning skill과의 전용 adapter
+```
+
+### Evidence
+
+승인된 Sidecar transcript를 실제 Pi session과 packed RPC에서 수행한다.
+
+### Stop
+
+한 자료에서 시작해 다른 자료로 standing inquiry가 재활성화되고 wrap 후 fresh session에서 이어지는 상태.
+
+---
+
+## Slice 8 — One-shot Golden Path
+
+**Status:** Planned
+
+### Claim
+
+> Observer OFF 상태의 scoped 요청도 open episode의 relevant inquiry와 Memo를 실제 업데이트하며, Mode를 켜지 않고 memo/wrap까지 이어갈 수 있다.
+
+### Scope
+
+```text
+one-shot intent detection 또는 최소 explicit surface
+Mode OFF 유지
+Episode OPEN 생성/재사용
+pending inquiry revision
+Mode OFF에서 memo/wrap
+```
+
+### Evidence
+
+승인된 One-shot transcript를 실제 Pi session과 packed RPC에서 수행한다.
+
+### Stop
+
+Sidecar와 One-shot이 같은 state, record, persistence model을 사용하고 서로 다른 별도 architecture를 만들지 않는 상태.
+
+---
+
+## Slice 9 — v0.1 Golden Path Verification
+
+**Status:** Planned
+
+### Claim
+
+> Fresh install에서 Sidecar와 One-shot의 핵심 약속이 restart/re-entry까지 작동한다.
+
+### Evidence matrix
+
+```text
+workspace package checks
+packed npm tarball contents
+Pi 0.82.1 RPC discovery
+fresh notebook setup
+Sidecar transcript
+One-shot transcript
+compaction continuity
+wrap local save
+fresh process standing inquiry re-entry
+manual Markdown validation failure
+```
+
+### Stop
+
+제품 명세의 Golden Path를 증명한 뒤 멈춘다. 새로운 backend나 편의 기능을 추가하지 않는다.
+
+---
+
+## 8. Verification Rhythm
+
+코드가 생긴 뒤 각 slice에서 다음 순서를 기본으로 사용한다.
+
+```text
+1. 변경 파일 LSP/structure diagnostics
+2. 가장 좁은 focused tests
+3. package check
+4. diff와 public surface inspection
+5. 필요할 때만 packed/RPC integration
+6. implementation plan status update
+7. stable landing commit
+```
+
+Green test는 claim과 연결될 때만 evidence로 사용한다.
+
+---
+
+## 9. Endpoint Budget
+
+제품 명세의 사용자 command 외에 public endpoint를 선제적으로 추가하지 않는다.
+
+### 현재 승인된 human surface
+
+```text
+/observe setup
+/observe status
+/observe settings
+/observe on
+/observe off
+/observe memo
+/observe wrap
+```
+
+### 승인된 자연어 surface
+
+```text
+자료를 Observer 관점으로 봐달라는 One-shot
+사용자가 명시적으로 제안하는 가설
+특정 Memo/Zettel의 언어 override
+```
+
+Model tool의 이름과 개수는 Slice 6/7의 실제 collaboration에서 도출한다. 기존 archive의 tool 목록을 복원하지 않는다.
+
+새 endpoint는 최소한 다음을 답해야 한다.
+
+```text
+Object
+Caller
+Precondition
+Effect tier
+Receipt
+Handoff
+Forbidden responsibility
+```
+
+---
+
+## 10. Effect Ordering
+
+### Read-only
+
+```text
+status
+record decode
+notebook validation
+standing inquiry candidate selection
+```
+
+### Pi session/working state
+
+```text
+on/off
+open episode
+pending hypothesis revision
+memo reconciliation receipt
+wrap proposal
+```
+
+### Local durable notebook
+
+```text
+wrap 승인 후 Source/Inquiry/Memo/Zettel save
+```
+
+### External
+
+```text
+Git
+remote sync
+Graph/vector service
+```
+
+External tier는 v0.1 Observer가 소유하지 않는다.
+
+---
+
+## 11. Risks와 결정 시점
+
+| 위험 | 지금의 처리 | 다시 결정할 slice |
+| --- | --- | --- |
+| Source locator가 너무 일반화됨 | 정상/거부 fixture에서 대표 media만 모델링 | Slice 1 |
+| State machine context가 지식 본문을 흡수함 | lifecycle metadata로 제한 | Slice 2 |
+| Notebook transaction이 과도하게 복잡해짐 | accepted failure claim부터 모델링 | Slice 4 |
+| Pi session replay와 local working recovery가 중복됨 | ownership을 분리해 증명 | Slice 5/6 |
+| Hybrid가 원래 학습을 방해함 | interrupt threshold를 transcript로 검증 | Slice 7 |
+| One-shot이 예기치 않은 state mutation을 만듦 | receipt/status와 wrap에서 공개 | Slice 8 |
+| Graph/vector 확장 압력이 core를 키움 | Markdown projection contract만 유지 | v0.1 이후 |
+
+---
+
+## 12. 명시적 Deferred Work
+
+```text
+Subagent observer
+Graph DB
+RDF/JSON-LD runtime
+SHACL runtime
+Vector DB
+Semantic search backend
+zk adapter
+Obsidian plugin
+Graph view
+Backlink UI
+Tag browser
+Git/GitHub integration
+Remote sync
+Multi-user collaboration
+Project/output workflow
+Generalized 7-body source ontology
+모든 platform/crash/concurrency hardening
+```
+
+Deferred 항목은 Golden Path에서 관찰된 막힘이 없으면 다음 slice 후보가 아니다.
+
+---
+
+## 13. `/develop on` 이후 작업 규칙
+
+1. 현재 `Next` slice 하나만 Developer에 제시한다.
+2. Developer가 요구하는 제품·모델·설계 판단을 먼저 완료한다.
+3. Active implementation route 없이 파일을 변경하지 않는다.
+4. 한 movement가 stable landing에 도달하면 route를 닫고 검증한다.
+5. 다음 movement 전에 현황과 docs를 갱신한다.
+6. Plan이 실제 evidence와 어긋나면 plan을 고치며, 계획을 맞추기 위해 코드를 강행하지 않는다.
+
+### 첫 실행 prompt
+
+```text
+/develop on
+
+Observer v0.1 구현 계획의 Slice 1만 수행해줘.
+
+목표:
+정상/거부 Markdown fixtures와 observer-record/v1 JSON Schema,
+notebook graph validation contract를 만든다.
+
+제외:
+Pi extension, XState machine, writer, Git, retrieval, graph DB.
+
+Stop:
+모든 정상 fixture가 통과하고 각 거부 fixture가 의도한 이유로
+실패하면 멈추고 구현 계획의 현황과 evidence를 갱신한다.
+```
+
+---
+
+## 14. 결정 기록
+
+### Plan baseline
+
+```text
+- Product Spec을 구현의 의미 기준으로 사용한다.
+- Implementation Plan을 진행 현황과 slice evidence의 기준으로 사용한다.
+- Developer의 pure event + XState + branch replay 패턴을 Observer에 독립적으로 적용한다.
+- Slice 1은 schema/graph fixture validation으로 시작한다.
+- Runtime orchestration은 validation과 lifecycle이 각각 독립적으로 증명된 뒤 연결한다.
+- docs는 각 stable landing에서 code와 함께 갱신한다.
+```

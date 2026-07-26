@@ -1,8 +1,12 @@
 # Observer v0.1 제품 명세
 
-> 상태: 제품 계약 초안 — 구현 전 검토용  
-> 범위: 사용자 경험, 상태 모델, 로컬 기록, Zettelkasten 승격 및 검증 계약  
+> 상태: 승인된 v0.1 제품 기준선
+>
+> 범위: 사용자 경험, 상태 모델, 로컬 기록, Zettelkasten 승격 및 검증 계약
+>
 > 제외: 구현 언어, Pi extension API, JSON Schema 코드, graph DB, vector DB, Git 자동화
+>
+> 실행 현황: [`implementation-plan-v0.1.ko.md`](implementation-plan-v0.1.ko.md)
 
 ---
 
@@ -1003,42 +1007,42 @@ Subagent는 제3자 관찰 관점을 구현할 후보지만 v0.1 설계와 구�
 다음이 승인되기 전에는 코드를 작성하지 않는다.
 
 ```text
-[ ] 이 제품 약속이 사용자가 기대한 Observer를 설명한다.
-[ ] Sidecar transcript의 사용감이 맞다.
-[ ] One-shot transcript의 부작용이 맞다.
-[ ] on/off/memo/wrap의 effect가 구분된다.
-[ ] Mode와 Episode의 독립 상태가 이해된다.
-[ ] Memo와 Zettel의 생명주기가 맞다.
-[ ] 직접 관찰과 사용자 가설이 구분된다.
-[ ] Wrap이 무엇을 저장하고 무엇을 묻는지 맞다.
-[ ] Notebook 위치와 언어 설정 방식이 맞다.
-[ ] Local-first와 Git 비책임 경계가 맞다.
-[ ] Markdown Profile의 record 종류와 relation 분리가 맞다.
-[ ] Non-goals가 충분히 좁다.
+[x] 이 제품 약속이 사용자가 기대한 Observer를 설명한다.
+[x] Sidecar transcript의 사용감이 맞다.
+[x] One-shot transcript의 부작용이 맞다.
+[x] on/off/memo/wrap의 effect가 구분된다.
+[x] Mode와 Episode의 독립 상태가 이해된다.
+[x] Memo와 Zettel의 생명주기가 맞다.
+[x] 직접 관찰과 사용자 가설이 구분된다.
+[x] Wrap이 무엇을 저장하고 무엇을 묻는지 맞다.
+[x] Notebook 위치와 언어 설정 방식이 맞다.
+[x] Local-first와 Git 비책임 경계가 맞다.
+[x] Markdown Profile의 record 종류와 relation 분리가 맞다.
+[x] Non-goals가 충분히 좁다.
 ```
+
+이 Gate는 사용자 검토를 거쳐 승인됐다. 이후 제품 의미가 바뀌면 이 문서를 먼저 수정하고 다시 검토한다.
 
 ---
 
 ## 24. 승인 후의 작은 구현 순서
 
-전체 architecture를 한 번에 만들지 않는다.
+상세 순서, 현재 slice, evidence, stable landing은 [`implementation-plan-v0.1.ko.md`](implementation-plan-v0.1.ko.md)가 소유한다.
 
 ```text
-1. Product Spec 승인
-2. 정상/거부 Markdown fixture 확정
-3. JSON Schema 작성
-4. Notebook graph validation rules 작성
-5. Fixture decoder + validator
-6. Wrap proposal → 승인 → atomic local save
-7. Fresh session에서 standing inquiry 복구
-8. Setup/status와 notebook/language binding
-9. on/off episode state
-10. memo reconciliation의 최소 transcript
-11. one-shot transcript
-12. 실제 Pi RPC Golden Path dogfood
+Slice 0: Package와 제품 계약 — Complete
+Slice 1: Markdown Profile Fixtures와 Validation — Next
+Slice 2: Pure Observer Lifecycle Machine
+Slice 3: Notebook Setup과 Language Binding
+Slice 4: Wrap Local Persistence
+Slice 5: Pi Commands와 Branch Replay
+Slice 6: Memo Reconciliation
+Slice 7: Sidecar Golden Path
+Slice 8: One-shot Golden Path
+Slice 9: v0.1 Golden Path Verification
 ```
 
-각 단계는 Golden Path의 막힘 하나만 해결한다. Graph DB, vector DB, Git, subagent는 이 순서에 추가하지 않는다.
+각 slice는 Claim/Scope/Non-scope/Evidence/Stop을 가지며 stable landing에서 멈춘다. Graph DB, vector DB, Git, subagent는 이 순서에 추가하지 않는다.
 
 ---
 
@@ -1067,29 +1071,29 @@ Subagent는 제3자 관찰 관점을 구현할 후보지만 v0.1 설계와 구�
 ### Zettelkasten/Markdown 관행
 
 - zk YAML frontmatter: `title`, `date`, `modified`, `tags`/`keywords`, `aliases`, arbitrary metadata
-  - https://zk-org.github.io/zk/notes/note-frontmatter.html
+  - <https://zk-org.github.io/zk/notes/note-frontmatter.html>
 - Zettlr YAML/Pandoc metadata와 Zettelkasten ID/link 관행
-  - https://docs.zettlr.com/en/editor/yaml-frontmatter/
-  - https://docs.zettlr.com/en/pkms/zkn-method/
+  - <https://docs.zettlr.com/en/editor/yaml-frontmatter/>
+  - <https://docs.zettlr.com/en/pkms/zkn-method/>
 - Obsidian Properties, Markdown link/wikilink, backlinks
-  - https://obsidian.md/help/properties
-  - https://obsidian.md/help/links
-  - https://obsidian.md/help/plugins/backlinks
+  - <https://obsidian.md/help/properties>
+  - <https://obsidian.md/help/links>
+  - <https://obsidian.md/help/plugins/backlinks>
 - Quartz frontmatter compatibility
-  - https://quartz.jzhao.xyz/plugins/Frontmatter
+  - <https://quartz.jzhao.xyz/plugins/Frontmatter>
 
 ### Graph와 provenance 표준
 
 - RDF 1.1 Concepts
-  - https://www.w3.org/TR/rdf11-concepts/
+  - <https://www.w3.org/TR/rdf11-concepts/>
 - PROV-O
-  - https://www.w3.org/TR/prov-o/
+  - <https://www.w3.org/TR/prov-o/>
 - Web Annotation Data Model
-  - https://www.w3.org/TR/annotation-model/
+  - <https://www.w3.org/TR/annotation-model/>
 - SHACL
-  - https://www.w3.org/TR/shacl/
+  - <https://www.w3.org/TR/shacl/>
 - SKOS
-  - https://www.w3.org/TR/skos-reference/
+  - <https://www.w3.org/TR/skos-reference/>
 
 ### Observer 원전 책임
 

@@ -6,11 +6,12 @@ Observer is intended to provide a local-first observation mode that follows stan
 
 ## Status
 
-This package is private and contains no runtime implementation yet. Product behavior must be accepted before schemas or code are added.
+This package is private and contains no runtime implementation yet. The product specification is accepted, and implementation proceeds one documented slice at a time.
 
 ## Documentation
 
 - [Observer v0.1 product specification (Korean)](docs/product-spec-v0.1.ko.md)
+- [Observer v0.1 implementation plan and status (Korean)](docs/implementation-plan-v0.1.ko.md)
 
 ## Historical implementation
 
