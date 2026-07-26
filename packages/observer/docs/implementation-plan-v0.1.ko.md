@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 3 — Notebook Setup과 Language Binding (재라우팅 필요)
+> 다음 실행 단위: Slice 4 — Wrap Local Persistence (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 2 complete | validation + pure lifecycle + XState projection |
+| Runtime implementation | Slice 3 complete | validation + lifecycle + notebook setup/recovery |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | Complete | Slice 2 — Pure Observer Lifecycle Machine |
-| Next slice | Planned | Slice 3 — Notebook Setup과 Language Binding |
+| Current slice | Complete | Slice 3 — Notebook Setup과 Language Binding |
+| Next slice | Planned | Slice 4 — Wrap Local Persistence |
 
 ### 현재 branch checkpoint
 
@@ -109,7 +109,8 @@ feature/observer
 ├─ cf0ac38 docs(observer): define v0.1 implementation plan
 ├─ a45c1ac feat(observer): validate Markdown profile records
 ├─ 192a634 feat(observer): validate notebook graph integrity
-└─ Slice 2 landing: pure lifecycle와 XState projection
+├─ 84febc2 feat(observer): add pure lifecycle machine
+└─ Slice 3 landing: notebook setup, selection, recovery, language binding
 ```
 
 ---
@@ -514,7 +515,7 @@ Transcript의 legal lifecycle만 표현하며 notebook/persistence 구현을 포
 
 ## Slice 3 — Notebook Setup과 Language Binding
 
-**Status:** Planned
+**Status:** Complete
 
 ### Claim
 
@@ -543,17 +544,41 @@ notebook migration
 ### Evidence
 
 ```text
-new folder setup
-existing valid notebook open
-invalid/corrupt manifest rejection
-OPEN episode 중 notebook switch rejection
-episode 언어 고정
-기존 문서 언어 rewrite 없음
+Manifest/layout boundary: src/notebook.ts
+Atomic single-file publication: src/atomic-file.ts
+Selection persistence: src/notebook-selection-store.ts
+Setup/recovery collaboration: src/notebook-service.ts
+Lifecycle notebook-selected event: src/lifecycle.ts
+Notebook setup focused tests: 24/24
+Lifecycle focused tests: 37/37
+Observer package tests: 95/95
+TypeScript diagnostics: 0
+Type assertions (`as`): 0
 ```
+
+검증된 동작:
+
+```text
+새 folder와 기존 folder setup
+strict observer-notebook/v1 manifest
+stable notebook UUID + canonical absolute root
+fresh service에서 selected notebook recovery
+missing/corrupt/unsupported manifest rejection
+malformed/null selection과 stale path/ID 구분
+OPEN/REVIEWING 중 다른 ID 또는 같은 ID·다른 path switch 거부
+ko/en notebook default와 episode language snapshot 분리
+기존 Markdown exact bytes와 status read-only 보존
+records/*.md를 Slice 1 decoder/graph validator로 검증
+selection publication 실패 후 selected state 미주장
+```
+
+v1 layout은 `<root>/.observer/notebook.json`과 direct regular `records/*.md`다. Record filename은 canonical record ID가 아니며, nested/symlink/non-Markdown record entry는 silent drop 없이 layout error다. Selection file 위치는 caller가 absolute path로 주입하므로 cwd나 숨은 global default를 사용하지 않는다.
+
+Manifest initial create는 no-replace이고 manifest/selection update는 같은 directory의 temporary file을 rename하는 atomic visible replacement다. fsync 기반 crash durability, concurrent writer coordination, cross-file atomicity는 주장하지 않는다.
 
 ### Stop
 
-Knowledge record를 쓰지 않고 notebook identity와 language만 안정적으로 복구하는 상태.
+Knowledge record를 쓰지 않고 notebook identity와 language만 안정적으로 복구하는 상태. 충족됨.
 
 ---
 
@@ -993,4 +1018,10 @@ Stop:
 - Replay 순서는 branch별 finite total order이며 merge/concurrency/global dedupe를 소유하지 않는다.
 - `validated` local-save receipt의 진실성은 Slice 4 producer boundary가 소유한다.
 - XState의 `setup<ObserverState, ObserverMachineEvent>` explicit generic으로 `as` 단언을 피한다.
+- Slice 3 notebook identity는 strict manifest의 `notebook-<UUID v4>`이고 path와 독립적이다.
+- selected target은 notebook ID와 canonical absolute root를 함께 보존해 copy/move drift를 탐지한다.
+- Selection persistence location은 caller가 명시적으로 주입하며 cwd/global fallback을 두지 않는다.
+- Notebook default language와 current episode snapshot은 별도 owner이며 default update가 열린 episode나 기존 Markdown을 바꾸지 않는다.
+- Open/select/status는 direct `records/*.md`를 Slice 1 validator로 검증하고 validation policy를 복제하지 않는다.
+- Manifest create, selection save, language update는 single-file atomic visibility만 보장하며 fsync/concurrent writer/cross-file atomicity는 보류한다.
 ```

@@ -97,6 +97,11 @@ export interface ActivationChangedEvent
 	readonly enabled: boolean;
 }
 
+export interface NotebookSelectedEvent
+	extends ObserverEventBase<"notebook-selected"> {
+	readonly notebookId: string;
+}
+
 export interface MemoReconciledEvent
 	extends ObserverEventBase<"memo-reconciled"> {
 	readonly revisionId: string;
@@ -124,6 +129,7 @@ export type ObserverEvent =
 	| ActivationChangedEvent
 	| EpisodeOpenedEvent
 	| MemoReconciledEvent
+	| NotebookSelectedEvent
 	| WrapCancelledEvent
 	| WrapCommittedEvent
 	| WrapProposedEvent;
@@ -150,6 +156,7 @@ export type ObserverTransitionRejection =
 	| "episode.id-reused"
 	| "memo.episode-open-required"
 	| "memo.revision-duplicate"
+	| "notebook.live-switch"
 	| "notebook.mismatch"
 	| "wrap.episode-open-required"
 	| "wrap.proposal-mismatch"
@@ -324,6 +331,29 @@ function normalizeActivationChanged(
 	};
 }
 
+function normalizeNotebookSelected(
+	value: Readonly<Record<string, unknown>>,
+): ObserverEventDecodeResult {
+	if (
+		!hasExactKeys(value, ["protocol", "kind", "notebookId"]) ||
+		!isIdentifier(value.notebookId)
+	) {
+		return decodeFailure(
+			"event.shape",
+			"/",
+			"notebook-selected requires one bounded notebook ID.",
+		);
+	}
+	return {
+		ok: true,
+		event: {
+			protocol: OBSERVER_PROTOCOL,
+			kind: "notebook-selected",
+			notebookId: value.notebookId,
+		},
+	};
+}
+
 function normalizeMemoReconciled(
 	value: Readonly<Record<string, unknown>>,
 ): ObserverEventDecodeResult {
@@ -457,6 +487,8 @@ export function normalizeObserverEvent(
 			return normalizeEpisodeOpened(value);
 		case "activation-changed":
 			return normalizeActivationChanged(value);
+		case "notebook-selected":
+			return normalizeNotebookSelected(value);
 		case "memo-reconciled":
 			return normalizeMemoReconciled(value);
 		case "wrap-proposed":
@@ -554,6 +586,26 @@ function applyActivationChanged(
 		selectedNotebookId: state.episode.core.notebookId,
 		episode: state.episode,
 	});
+}
+
+function applyNotebookSelected(
+	state: ObserverState,
+	event: NotebookSelectedEvent,
+): ObserverEventApplication {
+	if (
+		state.episode.status === "open" ||
+		state.episode.status === "reviewing-wrap"
+	) {
+		const liveNotebookId =
+			state.selectedNotebookId ?? state.episode.core.notebookId;
+		if (liveNotebookId !== event.notebookId) {
+			return rejected(state, "notebook.live-switch");
+		}
+	}
+	if (state.selectedNotebookId === event.notebookId) {
+		return accepted(state, state);
+	}
+	return accepted(state, { ...state, selectedNotebookId: event.notebookId });
 }
 
 function applyMemoReconciled(
@@ -675,6 +727,8 @@ export function applyObserverEvent(
 			return applyEpisodeOpened(state, event);
 		case "activation-changed":
 			return applyActivationChanged(state, event);
+		case "notebook-selected":
+			return applyNotebookSelected(state, event);
 		case "memo-reconciled":
 			return applyMemoReconciled(state, event);
 		case "wrap-proposed":

@@ -38,7 +38,7 @@ assert.deepEqual(manifest.dependencies, {
 	xstate: "5.32.5",
 	yaml: "^2.9.0",
 });
-assert.equal("pi" in manifest, false, "Slice 2 must not expose a Pi extension");
+assert.equal("pi" in manifest, false, "Slice 3 must not expose a Pi extension");
 
 const schema = await readJson("schemas/observer-record.v1.schema.json");
 assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");

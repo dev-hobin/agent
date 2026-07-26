@@ -70,6 +70,14 @@ function activationChanged(enabled: boolean): ObserverEvent {
 	});
 }
 
+function notebookSelected(notebookId: string): ObserverEvent {
+	return requireEvent({
+		protocol: OBSERVER_PROTOCOL,
+		kind: "notebook-selected",
+		notebookId,
+	});
+}
+
 function memoReconciled(revisionId = "revision-1"): ObserverEvent {
 	return requireEvent({
 		protocol: OBSERVER_PROTOCOL,
@@ -142,6 +150,14 @@ const validRawEvents: readonly (readonly [string, unknown])[] = [
 			protocol: OBSERVER_PROTOCOL,
 			kind: "activation-changed",
 			enabled: true,
+		},
+	],
+	[
+		"notebook-selected",
+		{
+			protocol: OBSERVER_PROTOCOL,
+			kind: "notebook-selected",
+			notebookId: "notebook-main",
 		},
 	],
 	[
@@ -359,6 +375,33 @@ describe("Observer lifecycle transitions", () => {
 			activationChanged(true),
 			"activation.episode-required",
 		);
+	});
+
+	test("selects notebooks only outside live work or for an exact live identity", () => {
+		let state = applied(initialObserverState(), notebookSelected("notebook-main"));
+		assert.equal(state.selectedNotebookId, "notebook-main");
+		state = applied(state, episodeOpened());
+		const stutter = applyObserverEvent(
+			state,
+			notebookSelected("notebook-main"),
+		);
+		assert.equal(stutter.applied, true);
+		if (!stutter.applied) assert.fail("Expected notebook selection stutter");
+		assert.equal(stutter.changed, false);
+		rejected(
+			state,
+			notebookSelected("notebook-other"),
+			"notebook.live-switch",
+		);
+		const settled = applied(
+			applied(state, wrapProposed()),
+			wrapCommitted(),
+		);
+		const switched = applied(
+			settled,
+			notebookSelected("notebook-other"),
+		);
+		assert.equal(switched.selectedNotebookId, "notebook-other");
 	});
 
 	test("rejects episode replacement while work is open", () => {
