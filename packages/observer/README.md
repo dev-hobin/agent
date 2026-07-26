@@ -6,7 +6,7 @@ Observer is intended to provide a local-first observation mode that follows stan
 
 ## Status
 
-This package is private and under spec-first implementation. Slice 3 adds explicit local notebook setup, strict manifest and graph-validated open, persistent selection recovery, and ko/en episode language binding. Knowledge-record publication and Pi integration are not implemented yet.
+This package is private and under spec-first implementation. Slice 4 adds approved create/update wrap batches, final-graph preflight, staged rollback publication, fresh-read receipts, and durable-first lifecycle settlement. Pi command integration is not implemented yet.
 
 ## Documentation
 

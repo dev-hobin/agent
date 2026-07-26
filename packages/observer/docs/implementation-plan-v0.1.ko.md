@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 4 — Wrap Local Persistence (재라우팅 필요)
+> 다음 실행 단위: Slice 5 — Pi Commands와 Branch Replay (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 3 complete | validation + lifecycle + notebook setup/recovery |
+| Runtime implementation | Slice 4 complete | validation + lifecycle + notebook + durable wrap |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | Complete | Slice 3 — Notebook Setup과 Language Binding |
-| Next slice | Planned | Slice 4 — Wrap Local Persistence |
+| Current slice | Complete | Slice 4 — Wrap Local Persistence |
+| Next slice | Planned | Slice 5 — Pi Commands와 Branch Replay |
 
 ### 현재 branch checkpoint
 
@@ -110,7 +110,8 @@ feature/observer
 ├─ a45c1ac feat(observer): validate Markdown profile records
 ├─ 192a634 feat(observer): validate notebook graph integrity
 ├─ 84febc2 feat(observer): add pure lifecycle machine
-└─ Slice 3 landing: notebook setup, selection, recovery, language binding
+├─ c93e4f9 feat(observer): add notebook setup and recovery
+└─ Slice 4 landing: prepared-wrap durable publication
 ```
 
 ---
@@ -584,7 +585,7 @@ Knowledge record를 쓰지 않고 notebook identity와 language만 안정적으�
 
 ## Slice 4 — Wrap Local Persistence
 
-**Status:** Planned
+**Status:** Complete
 
 ### Claim
 
@@ -617,24 +618,53 @@ Graph/vector projection
 ### Evidence
 
 ```text
-valid proposal 저장 성공
-validation failure에서 filesystem/session 부분 mutation 없음
-write failure에서 wrap-committed 없음
-save receipt IDs와 실제 files 일치
-fresh process에서 같은 record graph 복구
-Mode OFF + Episode SETTLED는 save 성공 후에만 발생
+Exact content hash: src/content-hash.ts
+Exact notebook inventory: src/notebook.ts
+Prepared/approval profile: src/wrap-profile.ts
+Pure E/B/F preflight: src/wrap-preflight.ts
+Stage/publish/rollback: src/wrap-transaction.ts
+Durable-first coordinator: src/wrap-service.ts
+Wrap focused tests: 11/11
+Observer package tests: 106/106
+TypeScript diagnostics: 0
+Type assertions (`as`): 0
 ```
+
+검증된 동작:
+
+```text
+approved create의 exact Markdown save + fresh reopen
+exact SHA-256 update와 기존 path 보존
+update Memo + create Zettel의 final graph validation
+approved empty batch
+approval/proposal/notebook/root/language mismatch의 zero-write rejection
+duplicate/create collision/update missing/stale/invalid graph의 preflight rejection
+non-target inventory drift의 first-write 이전 rejection
+stage/publish/readback fault의 reverse rollback
+unknown concurrent bytes를 덮지 않는 recovery-required
+receipt ID/path/hash와 fresh files 일치
+receipt 검증 후에만 SETTLED + OFF
+duplicate settled commit과 active transaction overlap 거부
+```
+
+Create는 decoded stable ID에서 `records/<id>.md`를 만들고, update는 existing path와 exact-byte SHA-256 precondition을 보존한다. Batch B만이 아니라 existing E에 B를 치환한 final F 전체를 Slice 1 validator로 검증한다.
+
+Transaction은 `.observer/transactions/active/`에 stage와 update before-image를 모두 준비한 뒤 snapshot을 다시 검사하고 deterministic order로 publish한다. Expected failure에서는 reverse rollback을 시도한다. Rollback 대상 bytes가 planned next hash와 다르면 외부 edit를 파괴하지 않고 `recovery-required`를 반환한다.
+
+보장 범위는 validation-before-write, stage-all, expected-failure rollback, fresh-read receipt, durable-first lifecycle ordering이다. fsync/power-loss durability, 모든 crash 시나리오, concurrent external editor 보존, 자동 crash recovery는 주장하지 않는다.
 
 ### Stop
 
-Prepared data로 최초 local durable vertical slice가 증명된 상태.
+Prepared data로 최초 local durable vertical slice가 증명된 상태. 충족됨.
 
-### Slice 4에서 해결할 설계 질문
+### Slice 4 설계 결정
 
 ```text
-create/update batch의 최소 atomicity 전략
-manual edit와 기존 record revision 정책
-예상된 write failure와 process crash guarantee 경계
+[x] create/update batch: explicit operation, stable ID, update path preservation
+[x] manual edit policy: exact-byte SHA-256 mismatch 시 overwrite 없이 거부
+[x] expected write failure: safe reverse rollback 후 retry 가능
+[x] rollback precondition mismatch: recovery-required, 자동 retry 금지
+[x] process crash: lifecycle commit을 주장하지 않으며 universal atomicity는 보류
 ```
 
 ---
@@ -1024,4 +1054,11 @@ Stop:
 - Notebook default language와 current episode snapshot은 별도 owner이며 default update가 열린 episode나 기존 Markdown을 바꾸지 않는다.
 - Open/select/status는 direct `records/*.md`를 Slice 1 validator로 검증하고 validation policy를 복제하지 않는다.
 - Manifest create, selection save, language update는 single-file atomic visibility만 보장하며 fsync/concurrent writer/cross-file atomicity는 보류한다.
+- Slice 4는 exact reviewed Markdown을 저장하며 decoded record를 다시 encode하지 않는다.
+- Update는 existing path를 유지하고 approved exact-byte SHA-256이 현재 bytes와 일치할 때만 허용한다.
+- Wrap preflight는 batch만이 아니라 existing E와 proposed B의 final union F를 검증한다.
+- Transaction은 stage-all + drift check + deterministic publish + reverse rollback을 소유한다.
+- Receipt는 fresh readback 후 실제 ID/path/hash에서 만들며 그 뒤에만 `wrap-committed`를 적용한다.
+- Rollback 대상이 planned next bytes와 다르면 외부 edit를 덮지 않고 recovery-required로 멈춘다.
+- Crash-fsync, concurrent writer, delete/rename/merge, generalized transaction은 v0.1 Slice 4 보장 밖이다.
 ```

@@ -10,7 +10,9 @@ import {
 import { isAbsolute, join } from "node:path";
 
 import { atomicCreateTextFile, atomicReplaceTextFile } from "./atomic-file.ts";
+import { sha256Text } from "./content-hash.ts";
 import type {
+	DecodedObserverDocument,
 	MarkdownInput,
 	ObserverDiagnostic,
 } from "./markdown-profile.ts";
@@ -40,6 +42,14 @@ export interface NotebookHandle {
 	readonly manifestPath: string;
 	readonly manifest: NotebookManifest;
 	readonly recordCount: number;
+}
+
+export interface NotebookInventoryEntry {
+	readonly path: string;
+	readonly relativePath: string;
+	readonly content: string;
+	readonly sha256: string;
+	readonly document: DecodedObserverDocument;
 }
 
 export type NotebookIssueCode =
@@ -347,8 +357,11 @@ async function readRecordInputs(recordsDir: string): Promise<MarkdownInput[]> {
 	return inputs;
 }
 
-async function validatedRecordCount(recordsDir: string): Promise<number> {
-	const validation = validateObserverNotebook(await readRecordInputs(recordsDir));
+async function validatedInventory(
+	recordsDir: string,
+): Promise<readonly NotebookInventoryEntry[]> {
+	const inputs = await readRecordInputs(recordsDir);
+	const validation = validateObserverNotebook(inputs);
 	if (!validation.ok) {
 		throwNotebookIssue(
 			issue(
@@ -359,7 +372,32 @@ async function validatedRecordCount(recordsDir: string): Promise<number> {
 			),
 		);
 	}
-	return validation.records.length;
+	const documentByPath = new Map(
+		validation.records.map((document) => [document.path, document]),
+	);
+	return inputs.map((input) => {
+		const document = documentByPath.get(input.path);
+		if (!document) {
+			fail(
+				"notebook.records-invalid",
+				input.path,
+				"Validated notebook record is missing from the decoded inventory.",
+			);
+		}
+		const name = input.path.slice(recordsDir.length + 1);
+		return {
+			path: input.path,
+			relativePath: `${OBSERVER_RECORDS_DIRECTORY}/${name}`,
+			content: input.content,
+			sha256: sha256Text(input.content),
+			document,
+		};
+	});
+}
+
+async function validatedRecordCount(recordsDir: string): Promise<number> {
+	const inventory = await validatedInventory(recordsDir);
+	return inventory.length;
 }
 
 async function openNotebookOrThrow(root: string): Promise<NotebookHandle> {
@@ -410,6 +448,20 @@ export async function openNotebook(
 		return { ok: true, value: await openNotebookOrThrow(root) };
 	} catch (error) {
 		return operationFailure(error, root, "Failed to open Observer notebook.");
+	}
+}
+
+export async function readNotebookInventory(
+	notebook: NotebookHandle,
+): Promise<NotebookResult<readonly NotebookInventoryEntry[]>> {
+	try {
+		return { ok: true, value: await validatedInventory(notebook.recordsDir) };
+	} catch (error) {
+		return operationFailure(
+			error,
+			notebook.recordsDir,
+			"Failed to read Observer notebook inventory.",
+		);
 	}
 }
 
