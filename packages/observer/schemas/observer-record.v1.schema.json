@@ -1,0 +1,389 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hobin:observer:record:v1",
+  "title": "Observer Markdown Record v1 frontmatter",
+  "type": "object",
+  "required": [
+    "observer_schema",
+    "observer_type",
+    "observer_status",
+    "id",
+    "title",
+    "lang",
+    "created",
+    "modified",
+    "tags",
+    "aliases",
+    "sources",
+    "lineage",
+    "relations"
+  ],
+  "properties": {
+    "observer_schema": {
+      "const": "observer-record/v1"
+    },
+    "observer_type": {
+      "enum": ["source", "inquiry", "memo", "zettel"]
+    },
+    "observer_status": {
+      "type": "string"
+    },
+    "id": {
+      "$ref": "#/$defs/recordId"
+    },
+    "title": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "lang": {
+      "type": "string",
+      "format": "bcp47"
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "modified": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sourceRef"
+      }
+    },
+    "lineage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/lineageRef"
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/semanticRelation"
+      }
+    },
+    "source_kind": {
+      "enum": ["external-material", "direct-observation"]
+    },
+    "external": {
+      "$ref": "#/$defs/externalMaterial"
+    },
+    "observation": {
+      "$ref": "#/$defs/directObservation"
+    },
+    "inquiry": {
+      "$ref": "#/$defs/inquiryFacts"
+    }
+  },
+  "propertyNames": {
+    "anyOf": [
+      {
+        "enum": ["observer_schema", "observer_type", "observer_status"]
+      },
+      {
+        "not": {
+          "pattern": "^observer_"
+        }
+      }
+    ]
+  },
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "observer_type": {
+            "const": "source"
+          }
+        },
+        "required": ["observer_type"]
+      },
+      "then": {
+        "required": ["source_kind"],
+        "properties": {
+          "observer_status": {
+            "enum": ["available", "unavailable", "superseded"]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source_kind": {
+                  "const": "external-material"
+                }
+              },
+              "required": ["source_kind"]
+            },
+            "then": {
+              "required": ["external"],
+              "not": {
+                "properties": {
+                  "observation": true
+                },
+                "required": ["observation"]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source_kind": {
+                  "const": "direct-observation"
+                }
+              },
+              "required": ["source_kind"]
+            },
+            "then": {
+              "required": ["observation"],
+              "not": {
+                "properties": {
+                  "external": true
+                },
+                "required": ["external"]
+              }
+            }
+          }
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "properties": {
+                "source_kind": true
+              },
+              "required": ["source_kind"]
+            },
+            {
+              "properties": {
+                "external": true
+              },
+              "required": ["external"]
+            },
+            {
+              "properties": {
+                "observation": true
+              },
+              "required": ["observation"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "observer_type": {
+            "const": "inquiry"
+          }
+        },
+        "required": ["observer_type"]
+      },
+      "then": {
+        "required": ["inquiry"],
+        "properties": {
+          "observer_status": {
+            "enum": ["open", "dormant", "resolved", "retired"]
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "properties": {
+            "inquiry": true
+          },
+          "required": ["inquiry"]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "observer_type": {
+            "const": "memo"
+          }
+        },
+        "required": ["observer_type"]
+      },
+      "then": {
+        "properties": {
+          "observer_status": {
+            "enum": ["incubating", "promoted", "superseded", "retired"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "observer_type": {
+            "const": "zettel"
+          }
+        },
+        "required": ["observer_type"]
+      },
+      "then": {
+        "properties": {
+          "observer_status": {
+            "enum": ["mature", "superseded", "retired"]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "recordId": {
+      "type": "string",
+      "pattern": "^(source|inquiry|memo|zettel)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sourceId": {
+      "type": "string",
+      "pattern": "^source-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sourceRef": {
+      "type": "object",
+      "required": ["record", "role"],
+      "properties": {
+        "record": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "locator": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "role": {
+          "enum": ["supports", "challenges", "context", "example"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "lineageRef": {
+      "type": "object",
+      "required": ["type", "target"],
+      "properties": {
+        "type": {
+          "enum": [
+            "derived_from",
+            "promoted_from",
+            "merged_from",
+            "split_from",
+            "supersedes"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/recordId"
+        }
+      },
+      "additionalProperties": false
+    },
+    "semanticRelation": {
+      "type": "object",
+      "required": ["type", "target"],
+      "properties": {
+        "type": {
+          "enum": [
+            "supports",
+            "contradicts",
+            "refines",
+            "extends",
+            "applies_to",
+            "distinguishes",
+            "alternative_to",
+            "related"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/recordId"
+        }
+      },
+      "additionalProperties": false
+    },
+    "externalMaterial": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "revision": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "retrieval_context": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "additionalProperties": false
+    },
+    "directObservation": {
+      "type": "object",
+      "required": [
+        "observed_at",
+        "observed_by",
+        "fact",
+        "conditions",
+        "interpretation_boundary"
+      ],
+      "properties": {
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "observed_by": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "fact": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "conditions": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "interpretation_boundary": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "additionalProperties": false
+    },
+    "inquiryFacts": {
+      "type": "object",
+      "required": ["origin", "original", "current"],
+      "properties": {
+        "origin": {
+          "enum": ["user", "observer"]
+        },
+        "original": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "current": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "revision_reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

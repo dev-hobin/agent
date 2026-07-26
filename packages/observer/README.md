@@ -6,7 +6,7 @@ Observer is intended to provide a local-first observation mode that follows stan
 
 ## Status
 
-This package is private and contains no runtime implementation yet. The product specification is accepted, and implementation proceeds one documented slice at a time.
+This package is private and under spec-first implementation. Slice 1 Phase A validates individual Observer Markdown Profile v1 records in memory; notebook-wide graph validation and Pi integration are not implemented yet.
 
 ## Documentation
 

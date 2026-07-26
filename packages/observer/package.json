@@ -20,11 +20,21 @@
     "url": "https://github.com/dev-hobin/agent/issues"
   },
   "files": [
+    "src",
+    "schemas",
     "docs",
     "README.md",
     "LICENSE"
   ],
   "engines": {
     "node": ">=22.19.0"
+  },
+  "scripts": {
+    "check": "node scripts/check-package.mjs && node --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "yaml": "^2.9.0"
   }
 }

@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 1 — Markdown Profile Fixtures와 Validation
+> 다음 실행 단위: Slice 1 — Phase B Notebook Graph Validation (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -94,20 +94,20 @@ Golden Path와 Non-goals
 | 항목 | 상태 | Evidence |
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
-| Package scaffold | Complete | private `@hobin/observer@0.0.0`, docs-only package |
-| Runtime implementation | Not started | extensions, schemas, tests 없음 |
+| Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
+| Runtime implementation | Phase A complete | schema + in-memory record decoder + local fixtures |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | Next | Slice 1 — fixtures and validation |
+| Current slice | In progress | Slice 1 — Phase B graph validation remains |
 
 ### 현재 branch checkpoint
 
 ```text
 feature/observer
-└─ c7a6165 chore(observer): scaffold spec-first package
+├─ c7a6165 chore(observer): scaffold spec-first package
+├─ cf0ac38 docs(observer): define v0.1 implementation plan
+└─ Phase A landing: Observer Markdown Profile v1 record validation
 ```
-
-이 계획 commit 이후 다음 prompt에서 `/develop on`을 활성화한다.
 
 ---
 
@@ -346,7 +346,7 @@ Runtime code, dependency, schema, test를 추가하지 않은 docs-only baseline
 
 ## Slice 1 — Markdown Profile Fixtures와 Validation
 
-**Status:** Next
+**Status:** In progress
 
 ### Claim
 
@@ -402,19 +402,35 @@ manual file order와 filesystem order에 결과가 의존하지 않음
 unknown field/version 정책이 명시됨
 ```
 
+### Current evidence — Phase A stable landing
+
+```text
+JSON Schema 2020-12: schemas/observer-record.v1.schema.json
+Pure decoder: src/markdown-profile.ts
+Valid record fixtures: 5
+Local invalid fixtures: 13
+Focused tests: 19/19
+TypeScript diagnostics: 0
+Type assertions (`as`): 0
+```
+
+Phase A는 external/direct Source, Inquiry, Memo, Zettel을 decode하고 Markdown envelope, schema, ID prefix, timestamp order, inquiry revision reason을 검증한다. Filesystem과 notebook graph는 아직 다루지 않는다.
+
 ### Stop
 
 Validator가 승인된 fixture contract만 보호하고 writer나 generalized ontology를 포함하지 않는 상태.
 
-### Slice 1에서 해결할 설계 질문
+### Slice 1 설계 결정
 
 ```text
-Source locator의 정확한 nested YAML shape
-JSON Schema draft/version
-unknown frontmatter field 보존/거부 정책
-relation target type 제약
-fixture namespace와 ID format
+[x] Source locator: optional non-empty human-readable string
+[x] JSON Schema: 2020-12, observer-record/v1
+[x] Unknown field: unprefixed top-level 보존, unknown observer_* 거부
+[x] Relation endpoint/multiplicity policy: accepted G1–G9 model
+[x] Fixture ID: type-prefixed lowercase RFC 4122 UUID v4
 ```
+
+다음 movement는 Phase A 결과만 입력으로 받는 notebook graph validator와 one-mutation fixtures다. 실행 전 Developer reroute가 필요하다.
 
 ---
 
@@ -939,4 +955,7 @@ Stop:
 - Slice 1은 schema/graph fixture validation으로 시작한다.
 - Runtime orchestration은 validation과 lifecycle이 각각 독립적으로 증명된 뒤 연결한다.
 - docs는 각 stable landing에서 code와 함께 갱신한다.
+- Untrusted Markdown을 TypeScript domain value로 연결할 때 `as` 타입 단언을 사용하지 않는다.
+- Runtime validator의 type guard와 discriminated union narrowing이 성공 경로의 타입을 보장해야 한다.
+- Phase A는 JSON Schema 2020-12 + YAML envelope decoder로 구현하고 filesystem을 소유하지 않는다.
 ```
