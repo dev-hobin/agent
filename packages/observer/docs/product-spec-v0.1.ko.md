@@ -1,0 +1,1106 @@
+# Observer v0.1 제품 명세
+
+> 상태: 제품 계약 초안 — 구현 전 검토용  
+> 범위: 사용자 경험, 상태 모델, 로컬 기록, Zettelkasten 승격 및 검증 계약  
+> 제외: 구현 언어, Pi extension API, JSON Schema 코드, graph DB, vector DB, Git 자동화
+
+---
+
+## 1. 문서의 목적
+
+이 문서는 Observer가 무엇을 만들고 어떻게 사용되어야 하는지를 구현보다 먼저 고정한다.
+
+Observer의 이전 시도는 원전 감사와 많은 기술적 증거를 남겼지만, 사용자가 실제로 경험할 Golden Path와 제품의 성공 조건을 고정하기 전에 persistence, transaction, validation, retrieval을 고도화했다. 이 문서는 같은 실패를 반복하지 않기 위한 구현 차단 조건이다.
+
+다음 질문에 이 문서 하나로 답할 수 있어야 한다.
+
+```text
+누가, 언제 Observer를 켜는가?
+Observer가 켜지면 무엇을 관찰하는가?
+가설은 어떻게 생성되고 검증되고 다시 활성화되는가?
+memo와 wrap은 무엇을 하는가?
+무엇이 언제 로컬 기록이 되는가?
+어떤 기록이 Zettel로 승격되는가?
+다음 세션에서는 어떻게 이어지는가?
+Observer가 하지 않는 일은 무엇인가?
+```
+
+---
+
+## 2. 제품 약속
+
+> Observer는 사용자가 자료를 읽고 학습하거나 분석하는 동안 Pi에 별도의 관찰 관점을 활성화한다. Observer는 자료와 사용자–에이전트의 작업 흐름을 source-faithful하게 관찰하고, 여러 가설–검증 루프를 장기간 추적하며, 중요한 반례·새 가설·방향 전환만 알린다. 사용자가 `memo`를 요청하면 아직 Zettel로 승격되지 않은 통찰을 현재까지의 관련 컨텍스트로 재조정하고, `wrap`을 요청하면 저장 계획을 검토받은 뒤 성숙한 지식과 미결 탐구를 사용자가 소유한 로컬 Markdown 기록으로 남긴다.
+
+Observer는 지식관리 데이터베이스가 아니라 다음의 결합이다.
+
+```text
+지속되는 관찰 관점
++ 병렬적인 가설–검증 루프
++ 필요할 때만 사용하는 thinking tools
++ 재조정 가능한 Memo
++ 성숙한 Zettel 승격
++ 자동 재진입 가능한 standing inquiry
+```
+
+---
+
+## 3. 원전으로부터 가져오는 책임
+
+세 원전은 하나의 공동 architecture를 제시하지 않는다. Observer는 각 원전에서 서로 다른 책임을 가져와 재구성한다.
+
+```text
+사도시마 요헤이
+→ 질문, 가설, 관찰, 어긋남, 갱신의 탐구 순환
+
+Root-Bernstein 부부
+→ 상황에 따라 선택적으로 사용하는 thinking-tool repertoire
+
+Sönke Ahrens
+→ 자료, 기여, 관계, 미결 질문, 재진입 가능한 장기 기록
+```
+
+이를 다음처럼 잘못 번역하지 않는다.
+
+```text
+사도시마 → 복잡한 상태 머신 전체를 요구함
+Root-Bernstein → 모든 사고도구를 실행하는 13단계 pipeline
+Ahrens → Observer가 Git과 검색 DB까지 소유하는 notebook engine
+```
+
+Thinking tool은 내부적으로 필요할 때만 사용하며, 사용자가 따라야 할 필수 pipeline이 아니다.
+
+---
+
+## 4. 주 사용자와 사용 장면
+
+### 4.1 주 사용자
+
+자료를 읽고 학습·연구·분석하면서 다음을 원하는 사용자다.
+
+- 지금 떠오른 가설을 잃지 않고 계속 검증하고 싶다.
+- 하나의 자료에 갇히지 않고 다른 자료가 기존 가설을 수정하게 하고 싶다.
+- 매 순간 완성된 문서를 쓰느라 학습 흐름을 끊고 싶지 않다.
+- 충분히 성숙한 지식만 재사용 가능한 형태로 남기고 싶다.
+- 다음 세션에서 과거 context ID를 직접 찾지 않고 이어가고 싶다.
+
+### 4.2 Sidecar 사용
+
+```text
+Observer ON
+→ technical-reading 또는 다른 학습 작업 수행
+→ Observer가 자료와 상호작용을 함께 관찰
+→ 중요한 변화만 알림
+→ memo로 중간 재조정
+→ 계속 학습
+→ wrap으로 최종 검토·로컬 저장·종료
+```
+
+### 4.3 One-shot 사용
+
+```text
+Observer OFF
+→ “이 자료를 Observer 관점으로 봐줘”
+→ 해당 요청 동안 scoped observation 수행
+→ 기존 standing inquiry를 실제 working state에서 업데이트
+→ 요청한 결과 반환
+→ 지속 관찰 모드는 OFF 유지
+→ 이후 memo 또는 wrap에서 누적 결과 재조정·저장
+```
+
+One-shot은 단순한 read-only 분석이 아니다. 관련 가설과 Memo의 pending revision을 실제 working state에 남긴다. 다만 `wrap` 승인 전에는 장기 Zettel 기록으로 승격하지 않는다.
+
+---
+
+## 5. 핵심 용어
+
+### Observer Mode
+
+현재 대화와 작업을 지속적으로 관찰할지 나타내는 활성 상태다.
+
+```text
+OFF ↔ ON
+```
+
+### Observation Episode
+
+관찰, 가설, Memo가 쌓이는 하나의 작업 구간이다. Mode와 독립적이다.
+
+```text
+EMPTY → OPEN → WRAP PROPOSAL → SETTLED
+```
+
+다음 상태가 가능하다.
+
+```text
+Mode: OFF
+Episode: OPEN
+```
+
+예: Observer를 잠시 껐거나, One-shot 결과가 쌓였지만 아직 wrap하지 않은 상태.
+
+### Standing Inquiry
+
+여러 세션과 여러 자료를 가로질러 살아 있는 하나의 가설–검증 루프다. 사용자가 context ID를 수동으로 선택하지 않아도 새 자료와 관련되면 자동으로 foreground에 들어온다.
+
+### Foreground Inquiry
+
+현재 자료와 관련성이 확인되어 전체 컨텍스트가 일시적으로 활성화된 standing inquiry다. Runtime 상태이며 Markdown lifecycle status는 아니다.
+
+### Memo
+
+현재 관찰에서 놓치지 않을 가치가 있지만 아직 장기 지식으로 확정되지 않은 분석적 중간 기록이다. Memo는 새 증거에 따라 수정, 병합, 분리, 보류, 철회, 승격될 수 있다.
+
+### Zettel
+
+하나의 중심 생각을 독립적으로 이해하고 다른 자료·지식과 조합할 수 있게 만든 성숙한 기록이다. Zettel은 직접 Source reference를 가진다.
+
+### Source
+
+판단이나 가설에 영향을 준, 다시 식별할 수 있는 증거의 기원이다.
+
+```text
+external-material
+→ 책, 논문, 웹페이지, 코드, 영상, 데이터셋 등
+
+direct-observation
+→ 사용자가 직접 본 현상, 수행한 실험, 반복해서 발견한 패턴
+```
+
+사용자 가설 자체는 Source가 아니다.
+
+---
+
+## 6. 사용자 명령과 스크립트
+
+### `/observe setup`
+
+최초 notebook 위치와 기본 Markdown 언어를 설정한다.
+
+```text
+입력
+- 사용자가 소유한 로컬 folder
+- 기본 언어: ko 또는 en
+
+결과
+- notebook 선택
+- 다음 세션에도 설정 유지
+- Git 저장소 생성 없음
+```
+
+### `/observe on`
+
+Observer의 지속 관찰을 활성화한다.
+
+```text
+- 선택된 notebook과 episode 언어 확인
+- 열린 episode가 있으면 재개
+- 없으면 새 episode 생성
+- standing inquiry compact index 복구
+- Hybrid 개입 정책 활성화
+```
+
+### `/observe off`
+
+지속 관찰만 비활성화한다.
+
+```text
+- Zettel 승격 없음
+- wrap 없음
+- 열린 episode 유지
+- working state는 recovery 가능하게 보존
+```
+
+### `/observe memo`
+
+현재 episode와 관련 standing inquiry에 연결된 모든 미승격 Memo를 현재까지의 관련 컨텍스트로 재검토·재조정한다.
+
+```text
+가능한 처리
+- 신규 Memo 생성
+- 기존 Memo 수정
+- 중복 병합
+- 혼합된 생각 분리
+- 반례로 보류
+- 철회 또는 supersede
+- Zettel 승격 준비 표시
+
+효과
+- compact receipt 표시
+- 장기 Zettel 저장 없음
+- Git 작업 없음
+- Mode 상태 변경 없음
+```
+
+`memo`는 Mode가 OFF여도 열린 episode에 적용할 수 있다.
+
+### `/observe wrap`
+
+현재 observation episode를 의미적으로 마무리한다.
+
+```text
+1. 마지막 memo 이후 관찰을 포함해 최종 reconciliation
+2. Zettel 승격 후보 결정
+3. Incubating Memo와 Standing Inquiry 정리
+4. 저장 위치와 언어를 포함한 계획 표시
+5. 사용자 확인 또는 수정 대기
+6. 승인된 계획을 로컬 기록으로 저장
+7. episode를 SETTLED로 전환
+8. Observer Mode를 OFF로 전환
+```
+
+사용자가 승인하기 전에는 저장하거나 끄지 않는다. 사용자가 취소하면 episode와 Mode 상태를 유지한다.
+
+### `/observe status`
+
+최소한 다음을 보여준다.
+
+```text
+Observer Mode
+Episode 상태
+Notebook 위치
+Episode 출력 언어
+Pending Memo 수
+Open Inquiry 수
+Zettel 후보 수
+Notebook validation health
+```
+
+### `/observe settings`
+
+Notebook과 기본 언어를 확인·변경한다.
+
+- 여러 notebook이 존재할 수 있다.
+- 한 시점에는 하나만 선택한다.
+- 열린 episode에 pending work가 있으면 notebook을 조용히 변경할 수 없다.
+- Notebook 언어 변경은 기본적으로 다음 episode부터 적용한다.
+
+---
+
+## 7. 상태 모델
+
+### 7.1 Mode와 Episode의 직교 상태
+
+```text
+                 /observe on
+Mode OFF ─────────────────────────→ Mode ON
+Mode OFF ←───────────────────────── Mode ON
+                 /observe off
+
+Episode EMPTY
+    │ on 또는 one-shot
+    ▼
+Episode OPEN
+    │ memo 0..N회
+    ▼
+Episode OPEN
+    │ wrap
+    ▼
+WRAP PROPOSAL
+    ├─ 취소/수정 미완료 → Episode OPEN
+    └─ 승인·저장 완료   → Episode SETTLED + Mode OFF
+```
+
+### 7.2 Compaction 안전성
+
+```text
+Observer가 활성 상태이거나 episode가 열려 있음
+→ Pi context compaction 발생
+→ working hypothesis와 Memo 후보가 사라지지 않음
+→ 사용자 의사 없이 Zettel로 자동 승격하지 않음
+```
+
+자동 recovery persistence와 장기 knowledge persistence는 다르다.
+
+```text
+automatic recovery
+= 손실 방지용 provisional working state
+
+wrap persistence
+= 사용자가 승인한 로컬 장기 기록
+```
+
+---
+
+## 8. Hybrid 개입 정책
+
+Observer는 기본적으로 조용히 관찰한다.
+
+### 즉시 알리는 경우
+
+- 기존 가설의 핵심을 흔드는 반례
+- 새로운 독립 가설의 출현
+- 탐구 방향이 크게 바뀌는 revision
+- 사용자나 메인 에이전트가 중요한 어긋남을 놓친 경우
+- Thinking tool 결과가 현재 판단을 실질적으로 바꾼 경우
+
+### 내부에 누적하는 경우
+
+- 기존 가설을 단순히 반복 지지하는 증거
+- 표현만 조금 정교하게 만드는 변화
+- 아직 중요성이 불분명한 연상
+- Memo나 wrap에서 함께 보는 편이 좋은 작은 변화
+
+사용자는 일반적인 발전 상황을 `memo`와 `wrap`에서 확인한다.
+
+---
+
+## 9. Source-first 관찰과 관련성 재활성화
+
+기존 가설이 새 자료를 왜곡하지 않도록 순서를 고정한다.
+
+```text
+1. 자료가 실제로 말하는 내용을 먼저 복원
+2. standing inquiry compact index와 관련성 비교
+3. 관련 후보만 full context로 hydrate
+4. 지지·반박·수정·경계·무관함을 판정
+5. 관련 inquiry가 없으면 새 가설 후보를 열 수 있음
+```
+
+기존 inquiry는 의무적 해석 프레임이 아니라 검증 대기 중인 관점 후보다.
+
+```text
+Source A ─┬→ Inquiry H1
+          └→ Inquiry H2
+
+Source B ───→ Inquiry H1
+
+Source C ─┬→ Inquiry H2
+          └→ 새 Inquiry H3
+```
+
+사용자는 기본 흐름에서 `load inquiry-123` 같은 명령을 사용하지 않는다.
+
+---
+
+## 10. 사용자 가설 처리
+
+사용자가 명시적으로 가설을 제안하면 즉시 working state에 등록한다.
+
+```text
+“내 가설은…”
+“혹시 … 아닐까?”
+“이걸 가설로 추적해 줘.”
+```
+
+### 보존할 것
+
+- 사용자가 처음 표현한 원문
+- 현재 revision
+- 가설을 촉발한 자료와 문맥
+- 사용자 제안인지 Observer 제안인지에 대한 origin
+- 지지·반박·경계 증거
+- revision 이유
+
+### 구분할 것
+
+```text
+Source claim
+= 자료가 실제로 주장한 것
+
+User hypothesis
+= 사용자가 자료를 보고 추론한 것
+
+Observer hypothesis
+= Observer가 관찰에서 추가로 제안한 것
+```
+
+Observer는 사용자 가설을 조용히 덮어쓰지 않는다.
+
+```text
+original hypothesis
+→ evidence
+→ current revision
+→ revision reason
+```
+
+가설이 틀렸다는 이유로 조용히 삭제하지 않는다. 반박된 가설에서 이동 가능한 지식이 생기면 Zettel 후보가 될 수 있다.
+
+---
+
+## 11. Memo reconciliation 계약
+
+`memo`는 새로운 메모 하나를 단순 추가하는 명령이 아니다.
+
+```text
+MemoSet'
+  = reconcile(
+      현재 episode의 미승격 Memo,
+      관련 standing inquiry의 incubating Memo,
+      새 관찰,
+      가설 revisions,
+      반례,
+      새 관계
+    )
+```
+
+### 범위
+
+- 현재 open episode
+- 현재 episode와 관련된 standing inquiry
+- 해당 inquiry에 연결된 incubating Memo
+
+관련 없는 모든 과거 Memo를 매번 전부 읽지 않는다.
+
+### 반복 안정성
+
+새 증거가 없는데 `memo`를 반복 호출해도 같은 내용의 Memo가 계속 복제되면 안 된다.
+
+### Memo receipt 예시
+
+```text
+Memo pass 2
+
+검토 범위
+- 현재 episode
+- 관련 standing inquiry 2개
+- 미승격 Memo 6개
+
+재조정
+- 신규: 1
+- 수정: 2
+- 병합: 1
+- 보류: 1
+- Zettel 승격 준비: 2
+
+Observer remains ON/OFF (기존 Mode 유지)
+```
+
+---
+
+## 12. Wrap 계약
+
+Wrap은 단순한 `save`나 `close`가 아니다.
+
+```text
+최종 의미 정리
++ 승격 판단
++ 사용자 검토
++ 로컬 저장
++ episode 종료
++ Observer OFF
+```
+
+### Wrap proposal 필수 정보
+
+```text
+저장할 notebook 위치
+문서 생성 언어
+관찰한 Source
+새 Zettel 후보
+정교화할 기존 Zettel
+Incubating으로 유지할 Memo
+Standing으로 유지할 Inquiry
+Retire 또는 supersede할 항목과 이유
+```
+
+### Wrap 승인
+
+사용자는 다음을 할 수 있다.
+
+- 제안 전체 승인
+- 특정 Zettel 후보를 Memo로 되돌림
+- 특정 Memo를 Zettel로 승격하도록 추가 검토 요청
+- 특정 항목 retire 취소
+- Wrap 전체 취소
+
+승인 후에만 로컬 파일을 변경한다.
+
+### Wrap 완료 receipt
+
+```text
+Observation wrapped
+
+Saved locally
+- Zettel: N
+- Incubating Memo: N
+- Standing Inquiry: N
+- Source: N
+
+Git commit/push: 수행하지 않음
+Observer: OFF
+Episode: SETTLED
+```
+
+---
+
+## 13. 기록의 생명주기
+
+### Source
+
+```text
+available
+unavailable
+superseded
+```
+
+`source_kind`:
+
+```text
+external-material
+direct-observation
+```
+
+### Inquiry
+
+```text
+open
+dormant
+resolved
+retired
+```
+
+Inquiry record 하나는 지속 가능한 하나의 가설–검증 루프를 나타낸다. 병렬 가설은 여러 Inquiry record로 표현한다.
+
+### Memo
+
+```text
+working (recovery state, 아직 장기 record 아님)
+→ incubating
+→ promoted | superseded | retired
+```
+
+Wrap에서 미성숙하다는 이유만으로 폐기하지 않는다. 가능성이 있는 Memo는 incubating으로 보존한다.
+
+### Zettel
+
+```text
+mature
+superseded
+retired
+```
+
+Draft Zettel은 만들지 않는다. 승격 전 상태는 Memo다.
+
+---
+
+## 14. 직접 관찰과 외부 자료
+
+### External Material Source
+
+다음 중 식별 가능한 정보를 보존한다.
+
+```text
+source_uri
+revision/edition
+content hash
+retrieval context
+```
+
+### Direct Observation Source
+
+최소한 다음을 보존한다.
+
+```text
+observed_at
+observed_by
+관찰한 사실
+관찰 조건
+관찰과 해석의 경계
+```
+
+### 직접 관찰과 가설의 차이
+
+```text
+직접 관찰
+“완성된 Markdown을 반복 작성할 때 읽기 흐름이 세 번 끊겼다.”
+
+사용자 가설
+“매번 영속화하는 것이 학습을 방해하는 원인일 것이다.”
+```
+
+첫 번째는 Source가 될 수 있다. 두 번째는 Inquiry에서 검증해야 한다.
+
+---
+
+## 15. Local-first와 책임 경계
+
+### Observer가 소유하는 것
+
+- 관찰과 가설–검증 루프
+- Memo reconciliation
+- Zettel 승격 판단
+- Source·lineage·relation 보존
+- 사용자가 선택한 로컬 notebook에 기록
+- 다음 세션의 재진입
+
+### Observer가 소유하지 않는 것
+
+```text
+git init
+git status
+git add
+git commit
+git push
+GitHub 인증
+branch/PR 관리
+원격 백업
+동기화 충돌 해결
+```
+
+Observer는 notebook이 Git 저장소인지 알 필요가 없다.
+
+```text
+Observer
+→ 무엇을 어떤 로컬 지식으로 남길 것인가
+
+사용자 또는 외부 도구
+→ 그 파일을 어떻게 버전 관리·백업·동기화할 것인가
+```
+
+Observer는 “로컬 저장 완료”만 보장한다. 원격 백업이나 다른 기기 복구를 보장하지 않는다.
+
+---
+
+## 16. Notebook과 언어
+
+### Notebook 위치
+
+- 사용자가 명시적으로 선택한다.
+- 현재 작업 디렉터리나 숨겨진 기본 위치를 조용히 사용하지 않는다.
+- 기존 폴더 또는 새 폴더를 선택할 수 있다.
+- 여러 notebook이 존재할 수 있지만 한 시점에는 하나만 선택한다.
+- 열린 episode 도중 notebook을 변경하지 않는다.
+
+### 생성 언어
+
+초기 설정은 다음을 제공한다.
+
+```text
+ko
+en
+```
+
+- Notebook별 기본 생성 언어를 가진다.
+- Episode가 열릴 때 출력 언어를 고정하고 wrap까지 유지한다.
+- 특정 문서에 대한 명시적 언어 override는 허용한다.
+- 기존 문서를 수정할 때는 해당 문서의 기존 언어를 유지한다.
+- Source의 실제 언어는 ko/en 이외의 BCP 47 tag도 허용한다.
+- 원문 인용, 원제, 코드, API, 경로, record ID는 번역하지 않는다.
+
+---
+
+## 17. Observer Markdown Profile v1 — 제품 수준 결정
+
+### 17.1 Compatibility Core
+
+주요 Markdown/Zettelkasten 도구의 공통 관행과 맞추는 필드다.
+
+```yaml
+id: zettel-<stable-id>
+title: Capture는 이후 판단 가능성을 보존한다
+lang: ko
+created: 2026-07-27T10:00:00Z
+modified: 2026-07-27T10:00:00Z
+tags:
+  - note-taking
+aliases:
+  - 재진입 가능한 기록
+```
+
+### 17.2 Observer Extension
+
+```yaml
+observer_schema: observer-record/v1
+observer_type: zettel
+observer_status: mature
+
+sources:
+  - record: source-<stable-id>
+    locator: "p. 44–46"
+    role: supports
+
+lineage:
+  - type: promoted_from
+    target: memo-<stable-id>
+
+relations:
+  - type: extends
+    target: zettel-<stable-id>
+```
+
+Nested YAML을 허용한다. Obsidian Properties UI가 모든 nested field를 완전히 표현하지 못하더라도 YAML 원문을 보존할 수 있으며, Observer가 의미와 검증을 소유한다.
+
+### 17.3 Identity
+
+```text
+Stable ID는 filename, title, Git SHA, DB row, vector ID와 독립적이다.
+```
+
+### 17.4 Source influence
+
+초기 role:
+
+```text
+supports
+challenges
+context
+example
+```
+
+### 17.5 Process lineage
+
+초기 type:
+
+```text
+derived_from
+promoted_from
+merged_from
+split_from
+supersedes
+```
+
+### 17.6 Semantic relation
+
+초기 type:
+
+```text
+supports
+contradicts
+refines
+extends
+applies_to
+distinguishes
+alternative_to
+related
+```
+
+새 relation은 실제 반복 사례가 생긴 뒤 profile version으로 추가한다.
+
+---
+
+## 18. Zettel 승격 기준
+
+Zettel은 다음을 만족해야 한다.
+
+```text
+- 중심 생각이 하나다.
+- Source와 근거를 직접 추적할 수 있다.
+- 원문 전체 없이 이해할 수 있다.
+- 특정 자료의 단순 요약을 넘어 다른 상황으로 이동 가능하다.
+- 적용 조건이나 경계가 드러난다.
+- 핵심 의미를 뒤집을 미해결 반례가 없다.
+```
+
+통과하지 못한 기록은 오류가 아니라 incubating Memo다.
+
+### 반드시 직접 Source reference를 가진다
+
+- 외부 자료를 직접 참조할 수 있다.
+- 사용자의 직접 관찰을 Source record로 만들 수 있다.
+- 사용자 가설 자체를 Source로 사용해서는 안 된다.
+
+---
+
+## 19. 검증 계약
+
+### 19.1 구조 검증
+
+기계적으로 확인한다.
+
+```text
+- UTF-8 Markdown
+- 첫 YAML frontmatter
+- 지원하는 schema version
+- type과 ID prefix 일치
+- 필수 필드 존재
+- BCP 47 lang
+- timestamp 형식
+- type별 status
+- tags/aliases 자료형
+- H1과 비어 있지 않은 body
+```
+
+### 19.2 Graph integrity 검증
+
+Notebook 전체에서 확인한다.
+
+```text
+- ID uniqueness
+- sources.record가 실제 Source를 가리킴
+- lineage target 존재
+- relation target 존재
+- 허용된 edge type
+- 중복 relation 없음
+- 자기 자신을 향한 relation 없음
+- Memo가 Source 또는 Inquiry lineage 없이 고립되지 않음
+- Zettel이 직접 Source reference를 가짐
+- promoted Memo와 Zettel의 lineage 연결
+```
+
+### 19.3 의미적 검증
+
+모델 또는 사용자가 판단한다.
+
+```text
+- 실제로 하나의 생각인가?
+- 독립적으로 이해 가능한가?
+- 단순 요약이 아닌가?
+- 이동 가능한가?
+- 근거와 경계가 충분한가?
+```
+
+구조 validator가 의미적 품질까지 증명한다고 주장하지 않는다.
+
+### 19.4 검증 시점
+
+```text
+- wrap proposal 생성 전
+- 사용자 승인 후 실제 저장 직전
+- notebook을 열거나 선택할 때
+- standing inquiry를 재진입할 때
+- status에서 notebook health를 요청할 때
+```
+
+Manual edit도 동일한 decoder와 graph validator를 통과해야 한다.
+
+### 19.5 저장 원칙
+
+Wrap batch 중 하나라도 무효라면 일부 파일만 저장하지 않는다.
+
+```text
+모두 유효 → 로컬 저장
+하나라도 무효 → 저장 없음 + 수정 가능한 설명
+```
+
+---
+
+## 20. Graph·Backlink·Tag·Vector 확장 계약
+
+```text
+Markdown records
+        │
+        ├─ relations ─────────→ Graph edges
+        ├─ sources ───────────→ Provenance edges
+        ├─ lineage ───────────→ Process graph
+        ├─ tags ──────────────→ Tag index 또는 tag nodes
+        ├─ Markdown links ────→ Backlinks
+        └─ title/body/lang ───→ Vector embedding
+```
+
+다음은 모두 projection이다.
+
+```text
+Graph DB
+Backlink index
+Tag index
+Vector DB
+Search DB
+Embedding cache
+```
+
+삭제해도 Markdown에서 다시 만들 수 있어야 한다. Projection은 record identity나 relation truth의 기준이 아니다.
+
+향후 graph export의 의미 표준으로 다음을 참고할 수 있다.
+
+- RDF: stable node와 typed edge
+- PROV-O: lineage와 provenance
+- Web Annotation: source locator와 selector
+- SHACL: projected graph shape validation
+
+v0.1 core에 graph DB나 RDF runtime을 넣지 않는다.
+
+---
+
+## 21. Golden Path Acceptance
+
+### 21.1 최초 설정과 Sidecar
+
+```text
+/observe setup
+→ notebook 위치 선택
+→ ko/en 선택
+
+/observe on
+→ standing inquiry 복구
+→ technical-reading 수행
+→ 사용자 가설 등록
+→ Hybrid 중요 변화 알림
+→ /observe memo
+→ 계속 학습
+→ /observe wrap
+→ 저장 계획 검토
+→ 사용자 승인
+→ Source/Memo/Inquiry/Zettel 로컬 저장
+→ Observer OFF
+```
+
+### 21.2 Off/On 재개
+
+```text
+Observer ON + Episode OPEN
+→ /observe off
+→ Mode OFF, Episode OPEN 유지
+→ 새 세션
+→ /observe on
+→ 같은 episode와 pending context 재개
+```
+
+### 21.3 One-shot
+
+```text
+Observer OFF
+→ 자료를 Observer 관점으로 요청
+→ scoped observation
+→ 관련 standing inquiry pending revision
+→ Mode OFF 유지
+→ 여러 one-shot 누적 가능
+→ Mode OFF 상태에서도 memo 가능
+→ wrap 승인 후 로컬 저장
+```
+
+### 21.4 Fresh-session re-entry
+
+```text
+이전 episode wrap 완료
+→ 새 Pi 세션
+→ /observe on
+→ compact standing inquiry index 복구
+→ 새 자료 관찰
+→ 관련 inquiry와 incubating Memo 자동 foreground
+→ 가설 검증 계속
+```
+
+### 21.5 Compaction
+
+```text
+긴 관찰 중 Pi compaction
+→ 사용자가 별도 checkpoint를 기억하지 않아도 working state 보존
+→ 자동 Zettel 승격 없음
+→ 다음 memo에서 compaction 이전 관찰 포함
+```
+
+---
+
+## 22. 명시적 Non-goals
+
+v0.1에 포함하지 않는다.
+
+```text
+Git init/commit/push
+GitHub adapter
+Graph DB
+Vector DB
+Semantic retrieval backend
+Graph view UI
+Backlink UI
+Tag browser UI
+Subagent architecture
+Background worker concurrency
+모든 thinking tool을 강제하는 pipeline
+모든 관찰 turn의 Markdown 저장
+Compaction 시 자동 Zettel 승격
+사용자가 record ID를 직접 골라 context를 복구하는 기본 흐름
+프로젝트/출판/협업 workflow
+원격 sync 또는 backup
+```
+
+Subagent는 제3자 관찰 관점을 구현할 후보지만 v0.1 설계와 구현에서 제외한다. 제품 계약은 main agent 내부 구현으로도 만족할 수 있어야 한다.
+
+---
+
+## 23. 구현 전 Gate
+
+다음이 승인되기 전에는 코드를 작성하지 않는다.
+
+```text
+[ ] 이 제품 약속이 사용자가 기대한 Observer를 설명한다.
+[ ] Sidecar transcript의 사용감이 맞다.
+[ ] One-shot transcript의 부작용이 맞다.
+[ ] on/off/memo/wrap의 effect가 구분된다.
+[ ] Mode와 Episode의 독립 상태가 이해된다.
+[ ] Memo와 Zettel의 생명주기가 맞다.
+[ ] 직접 관찰과 사용자 가설이 구분된다.
+[ ] Wrap이 무엇을 저장하고 무엇을 묻는지 맞다.
+[ ] Notebook 위치와 언어 설정 방식이 맞다.
+[ ] Local-first와 Git 비책임 경계가 맞다.
+[ ] Markdown Profile의 record 종류와 relation 분리가 맞다.
+[ ] Non-goals가 충분히 좁다.
+```
+
+---
+
+## 24. 승인 후의 작은 구현 순서
+
+전체 architecture를 한 번에 만들지 않는다.
+
+```text
+1. Product Spec 승인
+2. 정상/거부 Markdown fixture 확정
+3. JSON Schema 작성
+4. Notebook graph validation rules 작성
+5. Fixture decoder + validator
+6. Wrap proposal → 승인 → atomic local save
+7. Fresh session에서 standing inquiry 복구
+8. Setup/status와 notebook/language binding
+9. on/off episode state
+10. memo reconciliation의 최소 transcript
+11. one-shot transcript
+12. 실제 Pi RPC Golden Path dogfood
+```
+
+각 단계는 Golden Path의 막힘 하나만 해결한다. Graph DB, vector DB, Git, subagent는 이 순서에 추가하지 않는다.
+
+---
+
+## 25. 아직 기술 규격으로 내려야 할 항목
+
+제품 의미는 이 문서에서 검토하되 다음은 승인 후 별도 기술 artifact로 만든다.
+
+```text
+- 정확한 UUID 형식
+- 실제 folder layout과 filename convention
+- JSON Schema 파일
+- Graph validation rule 목록과 오류 형식
+- Source locator의 세부 표현
+- Atomic wrap transaction 방식
+- Pi compaction recovery 구현
+- Existing Markdown manual edit 처리
+- 실제 Pi extension에서 다른 skill output을 관찰하는 방법
+```
+
+이 항목은 제품 계약을 바꾸지 않는 범위에서만 설계한다. 제품 의미를 바꿔야 한다면 구현을 중단하고 이 문서를 먼저 수정한다.
+
+---
+
+## 26. 조사 근거
+
+### Zettelkasten/Markdown 관행
+
+- zk YAML frontmatter: `title`, `date`, `modified`, `tags`/`keywords`, `aliases`, arbitrary metadata
+  - https://zk-org.github.io/zk/notes/note-frontmatter.html
+- Zettlr YAML/Pandoc metadata와 Zettelkasten ID/link 관행
+  - https://docs.zettlr.com/en/editor/yaml-frontmatter/
+  - https://docs.zettlr.com/en/pkms/zkn-method/
+- Obsidian Properties, Markdown link/wikilink, backlinks
+  - https://obsidian.md/help/properties
+  - https://obsidian.md/help/links
+  - https://obsidian.md/help/plugins/backlinks
+- Quartz frontmatter compatibility
+  - https://quartz.jzhao.xyz/plugins/Frontmatter
+
+### Graph와 provenance 표준
+
+- RDF 1.1 Concepts
+  - https://www.w3.org/TR/rdf11-concepts/
+- PROV-O
+  - https://www.w3.org/TR/prov-o/
+- Web Annotation Data Model
+  - https://www.w3.org/TR/annotation-model/
+- SHACL
+  - https://www.w3.org/TR/shacl/
+- SKOS
+  - https://www.w3.org/TR/skos-reference/
+
+### Observer 원전 책임
+
+- 사도시마 요헤이 공식 공개 자료 감사
+- Robert Root-Bernstein, Michèle Root-Bernstein, *Sparks of Genius*
+- Sönke Ahrens, *How to Take Smart Notes*, Second Edition
+
+세 원전 감사의 세부 evidence는 기존 `archive/observer-v0.1`에 보존되어 있다.
+
+---
+
+## 27. 한 문장 확인
+
+> 사용자는 Observer를 켜고 자신의 학습을 계속한다. Observer는 자료와 상호작용 속에서 여러 가설을 조용히 추적하고 중요한 변화만 알린다. 사용자가 `memo`를 호출하면 미성숙한 생각들을 현재까지의 관련 컨텍스트로 재조정하고, `wrap`을 호출하면 저장 계획을 보여준 뒤 승인된 Source·Inquiry·Memo·Zettel을 선택한 로컬 notebook에 저장하고 관찰을 끝낸다. 다음 세션에서는 새 자료가 관련될 때 미결 가설이 자동으로 다시 활성화된다.

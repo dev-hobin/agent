@@ -1,0 +1,30 @@
+{
+  "name": "@hobin/observer",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A local-first observation mode for durable inquiry, memo reconciliation, and Zettelkasten promotion in Pi.",
+  "type": "module",
+  "keywords": ["pi-package", "pi", "observer", "zettelkasten", "inquiry"],
+  "license": "MIT",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dev-hobin/agent.git",
+    "directory": "packages/observer"
+  },
+  "homepage": "https://github.com/dev-hobin/agent/tree/main/packages/observer#readme",
+  "bugs": {
+    "url": "https://github.com/dev-hobin/agent/issues"
+  },
+  "files": [
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}
