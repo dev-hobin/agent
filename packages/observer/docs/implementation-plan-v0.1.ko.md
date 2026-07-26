@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 5 — Pi Commands와 Branch Replay (재라우팅 필요)
+> 다음 실행 단위: Slice 6 — Memo Reconciliation (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 4 complete | validation + lifecycle + notebook + durable wrap |
+| Runtime implementation | Slice 5 complete | validation + lifecycle + notebook + durable wrap + Pi commands/replay |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | Complete | Slice 4 — Wrap Local Persistence |
-| Next slice | Planned | Slice 5 — Pi Commands와 Branch Replay |
+| Current slice | Complete | Slice 5 — Pi Commands와 Branch Replay |
+| Next slice | Planned | Slice 6 — Memo Reconciliation |
 
 ### 현재 branch checkpoint
 
@@ -111,7 +111,8 @@ feature/observer
 ├─ 192a634 feat(observer): validate notebook graph integrity
 ├─ 84febc2 feat(observer): add pure lifecycle machine
 ├─ c93e4f9 feat(observer): add notebook setup and recovery
-└─ Slice 4 landing: prepared-wrap durable publication
+├─ b3640f4 feat(observer): persist approved wrap batches
+└─ Slice 5 landing: Pi commands, branch replay, and wrap acknowledgment
 ```
 
 ---
@@ -671,7 +672,7 @@ Prepared data로 최초 local durable vertical slice가 증명된 상태. 충족
 
 ## Slice 5 — Pi Commands와 Branch Replay
 
-**Status:** Planned
+**Status:** Complete
 
 ### Claim
 
@@ -703,17 +704,60 @@ One-shot semantic analysis
 ### Evidence
 
 ```text
-Pi RPC command smoke
-fresh process replay
-branch fork isolation
-off/on OPEN episode 재개
-compaction 전후 state continuity
-packed package discovery
+Strict branch entry/replay: src/pi-session.ts
+Command grammar/coordinator: src/observer-command.ts, src/observer-controller.ts
+Korean status/footer: src/observer-status.ts
+Post-save acknowledgment recovery: src/wrap-acknowledgment.ts
+Pi adapter: extensions/observer.ts
+Focused branch/controller/Pi tests: 23/23
+Observer package tests: 129/129
+Offline Pi 0.80.10 RPC smoke: setup/status/on/off passed
+Pack dry-run: 25 intended files
+TypeScript diagnostics: 0
+Type assertions (`as`): 0
 ```
+
+검증된 동작:
+
+```text
+explicit setup root + ko/en, next-process selection recovery
+EMPTY/SETTLED에서 새 episode open, OPEN/REVIEWING resume
+off가 Mode만 끄고 OPEN episode를 보존
+malformed Observer-owned branch entry에서 fail-closed mutation block
+prepared handoff → proposal → approval attempt → local save/readback → commit entry
+wrap decline에서 canonical record write 없음
+save 완료/session acknowledgment 전 gap의 exact-final recovery
+before-state 자동 write 금지, mixed/active state recovery-required
+same-file ancestry, persisted restart, extracted branch isolation
+compaction entry 전후 lifecycle stutter
+status의 notebook/replay/persistence/prepared health와 정직한 미집계 semantic counts
+package `/observe` discovery와 extension shutdown status cleanup
+```
+
+Pi branch 기준 데이터는 `getBranch()` ancestry의 `observer.lifecycle`, `observer.prepared-wrap`, `observer.wrap-attempt` custom entry다. Compaction summary나 LLM context는 lifecycle 기준 데이터가 아니다. Observer-owned entry decode/transition issue가 하나라도 있으면 status 외 mutation을 진행하지 않는다.
+
+Selection metadata는 `getAgentDir()/observer/selection.json`에 저장하며 `PI_CODING_AGENT_DIR` override를 따른다. 이 agent-state 경로는 notebook default가 아니다. Notebook root와 ko/en은 setup에서 명시적으로 받는다.
+
+Prepared proposal identity는 strict normalized handoff의 SHA-256이다. 승인 시 attempt entry를 filesystem effect보다 먼저 append하고, fresh receipt 뒤에만 committed entry를 append한다. Restart에서 matching attempt, no active transaction, exact approved final bytes, valid full graph가 모두 확인될 때만 acknowledgment를 복원한다.
+
+보장 범위는 persisted Pi session의 current-branch replay다. Ephemeral session은 현재 process만 보장하며 status에 표시한다. Active transaction 자동 repair, corrupt Pi JSONL repair, concurrent command queue, semantic proposal generation은 Slice 5 밖이다. RPC는 setup/status/on/off를 실제 Pi에서 수행했고, prepared wrap의 decline/approve/recovery는 같은 command controller와 real notebook service integration으로 수행했다.
 
 ### Stop
 
-실제 Pi command lifecycle과 local persistence가 연결되지만 semantic observation은 아직 없는 상태.
+실제 Pi command lifecycle과 local persistence가 연결되지만 semantic observation은 아직 없는 상태. 충족됨.
+
+### Slice 5 설계 결정
+
+```text
+[x] current branch ancestry만 replay하며 sibling branch를 합성하지 않음
+[x] malformed owned entry를 건너뛰지 않고 mutation을 차단
+[x] compaction은 lifecycle stutter이며 summary를 state로 사용하지 않음
+[x] setup은 explicit absolute root와 ko/en을 요구
+[x] duplicate on/off와 exact prepared entry는 append-free/idempotent stutter
+[x] prepared approval attempt를 local write보다 먼저 기록
+[x] exact final readback만 post-save acknowledgment로 복구
+[x] Memo/Hybrid/one-shot/complex TUI는 다음 slice로 보류
+```
 
 ---
 
@@ -1061,4 +1105,13 @@ Stop:
 - Receipt는 fresh readback 후 실제 ID/path/hash에서 만들며 그 뒤에만 `wrap-committed`를 적용한다.
 - Rollback 대상이 planned next bytes와 다르면 외부 edit를 덮지 않고 recovery-required로 멈춘다.
 - Crash-fsync, concurrent writer, delete/rename/merge, generalized transaction은 v0.1 Slice 4 보장 밖이다.
+- Slice 5 session state는 Pi current branch의 versioned custom entry를 strict decode/fold한 결과다.
+- Observer-owned malformed/reordered entry는 fail-closed issue이며 status 외 mutation을 차단한다.
+- Prepared proposal은 normalized payload SHA-256으로 attempt와 결합하며 Pi entry ID를 domain identity로 사용하지 않는다.
+- Wrap ordering은 prepared → proposed → approved attempt → local save/readback → committed → UI success다.
+- Post-save/pre-ack recovery는 no-active-marker + exact approved final bytes + valid full graph를 모두 요구한다.
+- `getAgentDir()/observer/selection.json`은 user-selected notebook root를 기억하는 agent state이며 notebook default가 아니다.
+- Compaction summary는 Observer state 기준 데이터가 아니며 full branch ancestry replay가 continuity를 소유한다.
+- Ephemeral Pi session은 process restart continuity를 주장하지 않고 status에 limitation을 표시한다.
+- Pi core는 extension peer dependency이고 lifecycle/notebook/wrap/controller domain modules은 Pi에 의존하지 않는다.
 ```

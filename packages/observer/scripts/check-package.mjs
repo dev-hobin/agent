@@ -22,6 +22,7 @@ assert.equal(manifest.name, "@hobin/observer");
 assert.equal(manifest.version, "0.0.0");
 assert.equal(manifest.private, true);
 assert.deepEqual(manifest.files, [
+	"extensions",
 	"src",
 	"schemas",
 	"docs",
@@ -32,13 +33,19 @@ assert.equal(
 	manifest.scripts.check,
 	"node scripts/check-package.mjs && node --test tests/*.test.ts",
 );
+assert.equal(manifest.scripts.eval, "node scripts/eval-rpc.mjs");
 assert.deepEqual(manifest.dependencies, {
 	ajv: "^8.17.1",
 	"ajv-formats": "^3.0.1",
 	xstate: "5.32.5",
 	yaml: "^2.9.0",
 });
-assert.equal("pi" in manifest, false, "Slice 4 must not expose a Pi extension");
+assert.deepEqual(manifest.pi, {
+	extensions: ["./extensions/observer.ts"],
+});
+assert.deepEqual(manifest.peerDependencies, {
+	"@earendil-works/pi-coding-agent": "*",
+});
 
 const schema = await readJson("schemas/observer-record.v1.schema.json");
 assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");

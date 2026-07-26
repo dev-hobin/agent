@@ -26,6 +26,7 @@
     "url": "https://github.com/dev-hobin/agent/issues"
   },
   "files": [
+    "extensions",
     "src",
     "schemas",
     "docs",
@@ -36,7 +37,14 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check": "node scripts/check-package.mjs && node --test tests/*.test.ts"
+    "check": "node scripts/check-package.mjs && node --test tests/*.test.ts",
+    "eval": "node scripts/eval-rpc.mjs"
+  },
+  "pi": {
+    "extensions": ["./extensions/observer.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
   },
   "dependencies": {
     "ajv": "^8.17.1",

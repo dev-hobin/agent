@@ -47,6 +47,9 @@ importers:
 
   packages/observer:
     dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 0.80.10(ws@8.21.1)(zod@4.4.3)
       ajv:
         specifier: ^8.17.1
         version: 8.20.0

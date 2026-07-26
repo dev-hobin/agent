@@ -6,7 +6,7 @@ Observer is intended to provide a local-first observation mode that follows stan
 
 ## Status
 
-This package is private and under spec-first implementation. Slice 4 adds approved create/update wrap batches, final-graph preflight, staged rollback publication, fresh-read receipts, and durable-first lifecycle settlement. Pi command integration is not implemented yet.
+This package is private and under spec-first implementation. Slice 5 adds the `/observe` setup/status/on/off/wrap command surface, current-branch Pi session replay, compaction continuity, Korean status projection, prepared-wrap approval ordering, and exact post-save acknowledgment recovery. Memo reconciliation and semantic observation are not implemented yet.
 
 ## Documentation
 

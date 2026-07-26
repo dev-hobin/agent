@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+	lstat,
 	mkdir,
 	readFile,
 	rm,
@@ -47,6 +48,11 @@ export interface WrapTransactionIssue {
 	readonly recordId?: string;
 }
 
+export type WrapTransactionActivity =
+	| { readonly status: "inactive" }
+	| { readonly status: "active" }
+	| { readonly status: "unknown"; readonly message: string };
+
 export type WrapTransactionVerification<Value> =
 	| { readonly ok: true; readonly value: Value }
 	| { readonly ok: false; readonly message: string };
@@ -64,6 +70,34 @@ interface StagedEntry {
 interface FailureContext {
 	code: WrapTransactionIssueCode;
 	recordId?: string;
+}
+
+export function wrapTransactionActivePath(notebookRoot: string): string {
+	return join(
+		notebookRoot,
+		OBSERVER_MANIFEST_DIRECTORY,
+		"transactions",
+		"active",
+	);
+}
+
+export async function inspectWrapTransactionActivity(
+	notebookRoot: string,
+): Promise<WrapTransactionActivity> {
+	const activePath = wrapTransactionActivePath(notebookRoot);
+	try {
+		await lstat(activePath);
+		return { status: "active" };
+	} catch (error) {
+		if (errorCode(error) === "ENOENT") return { status: "inactive" };
+		return {
+			status: "unknown",
+			message:
+				error instanceof Error
+					? error.message
+					: "Failed to inspect wrap transaction activity.",
+		};
+	}
 }
 
 function errorCode(value: unknown): string | undefined {
@@ -262,7 +296,7 @@ export async function executeWrapTransaction<Value>(input: {
 		OBSERVER_MANIFEST_DIRECTORY,
 		"transactions",
 	);
-	const activePath = join(transactionRoot, "active");
+	const activePath = wrapTransactionActivePath(input.plan.notebook.root);
 	const transactionId = `transaction-${randomUUID()}`;
 	let acquired = false;
 	let published: WrapPublicationEntry[] = [];
