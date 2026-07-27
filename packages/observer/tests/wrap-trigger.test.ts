@@ -241,13 +241,20 @@ describe("pure Wrap request and preparation context", () => {
 		assert.equal(guide.locked_target.proposal_id, PROPOSAL_ID);
 		assert.equal(guide.observed_sources[0]?.read_id, SOURCE_READ_ID);
 		assert.equal(guide.inventory.length, 6);
-		assert.deepEqual(Object.keys(guide).slice(0, 5), [
+		assert.deepEqual(Object.keys(guide).slice(0, 6), [
 			"protocol",
 			"request",
 			"locked_target",
 			"required_records",
 			"submission_contract",
+			"record_authoring_rules",
 		]);
+		assert.equal(
+			guide.record_authoring_rules.some((rule) =>
+				rule.includes("inquiry.revision_reason"),
+			),
+			true,
+		);
 		assert.deepEqual(guide.required_records, [
 			{
 				record_id: SOURCE_ID,

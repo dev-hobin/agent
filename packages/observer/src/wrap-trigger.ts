@@ -133,6 +133,7 @@ export interface WrapPreparationGuide {
 			"episode_language",
 		];
 	};
+	readonly record_authoring_rules: readonly string[];
 	readonly markdown_profile: "observer-record/v1";
 }
 
@@ -682,6 +683,14 @@ export function buildWrapPreparationGuide(
 			],
 			locked_fields: ["proposal_id", "notebook_id", "root", "episode_language"],
 		},
+		record_authoring_rules: [
+			"Submit each record as one complete Observer Markdown document, not a patch or excerpt.",
+			"Frontmatter id and observer_type must match required_records; use inventory Markdown as the update base and preserve created.",
+			"Set modified to an RFC 3339 timestamp that is not earlier than created; quote YAML strings when punctuation could change YAML meaning.",
+			"If inquiry.current differs from inquiry.original, include a non-empty inquiry.revision_reason in the inquiry mapping.",
+			"An incubating Memo remains observer_status=incubating and retains its derived_from Inquiry lineage unless the proposal explicitly changes disposition consistently.",
+			"Every Zettel must contain at least one direct one-hop sources entry whose target is a Source record.",
+		],
 		observed_sources: context.observedSources,
 		working: context.working,
 		inventory: context.inventory,
