@@ -101,6 +101,12 @@ export interface MemoPreparationGuide {
 		};
 		readonly dispositions: readonly [];
 	};
+	readonly submission_seed: {
+		readonly evidence: readonly [];
+		readonly hypothesis_outcomes: readonly [];
+		readonly memo_outcomes: readonly [];
+		readonly dispositions: readonly [];
+	};
 }
 
 export type MemoPreparationGuideResult =
@@ -512,6 +518,12 @@ export function buildObservationMemoPreparationGuide(input: {
 					hypothesis_outcomes: [],
 					memo_outcomes: [],
 				},
+				dispositions: [],
+			},
+			submission_seed: {
+				evidence: [],
+				hypothesis_outcomes: [],
+				memo_outcomes: [],
 				dispositions: [],
 			},
 		},

@@ -25,9 +25,9 @@ export function observerSidecarContext(
 				`request_id=${pendingMemo.requestId}`,
 				`observation_ids=${pendingMemo.observationIds.join(",")}`,
 				"Call observer_sidecar action memo-scope with this exact request ID.",
-				"The memo-scope result includes memo_preparation.instruction_seed; copy every seeded/locked field unchanged and fill its semantic arrays.",
-				"Give every required_coverage hypothesis and Memo exactly one matching outcome, and every requested Observation one integrated/kept disposition.",
-				"Use only listed evidence_sources for source-linked evidence, then call memo-prepare with the same request ID; only completion may claim application.",
+				"The memo-scope result includes producer-owned locked fields and memo_preparation.submission_seed.",
+				"Call memo-prepare with the same request ID and one submission containing only evidence, hypothesis_outcomes, memo_outcomes, and dispositions; never resend or nest locked fields.",
+				"Give every required_coverage hypothesis and Memo exactly one matching outcome, every requested Observation one disposition, and use only listed evidence_sources; only completion may claim application.",
 				"</observer-memo-request>",
 			].join("\n")
 		: null;

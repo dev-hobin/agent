@@ -2,8 +2,6 @@ import { Type } from "typebox";
 
 const UUID_V4 =
 	"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
-const SHA256 = "[0-9a-f]{64}";
-
 function stableId(prefix: string) {
 	return Type.String({ pattern: `^${prefix}-${UUID_V4}$` });
 }
@@ -14,7 +12,6 @@ const nullableInquiryId = Type.Union([Type.Null(), stableId("inquiry")]);
 const evidenceId = stableId("evidence");
 const inquiryId = stableId("inquiry");
 const memoId = stableId("memo");
-const memoPassId = stableId("memo-pass");
 const memoRequestId = stableId("memo-request");
 const memoRevisionId = stableId("memo-revision");
 
@@ -135,22 +132,6 @@ export const memoOutcomeSchema = Type.Union([
 	),
 ]);
 
-const preparedMemoPassSchema = Type.Object(
-	{
-		observer_memo_pass: Type.Literal("observer.prepared-memo-pass/v1"),
-		pass_id: memoPassId,
-		episode_id: Type.String(),
-		base_revision_id: nullableString,
-		basis_digest: Type.String({ pattern: `^${SHA256}$` }),
-		related_inquiry_ids: Type.Array(inquiryId),
-		instruction_id: memoRequestId,
-		evidence: Type.Array(memoEvidenceItemSchema),
-		hypothesis_outcomes: Type.Array(hypothesisOutcomeSchema),
-		memo_outcomes: Type.Array(memoOutcomeSchema),
-	},
-	{ additionalProperties: false },
-);
-
 const observationDispositionSchema = Type.Object(
 	{
 		observation_id: stableId("observation"),
@@ -168,12 +149,11 @@ export const memoPrepareActionSchema = Type.Object(
 		observer_action: Type.Literal("observer-sidecar/v1"),
 		action: Type.Literal("memo-prepare"),
 		request_id: memoRequestId,
-		instruction: Type.Object(
+		submission: Type.Object(
 			{
-				observer_memo_instruction: Type.Literal("observer.memo-instruction/v1"),
-				request_id: memoRequestId,
-				request_digest: Type.String({ pattern: `^${SHA256}$` }),
-				pass: preparedMemoPassSchema,
+				evidence: Type.Array(memoEvidenceItemSchema),
+				hypothesis_outcomes: Type.Array(hypothesisOutcomeSchema),
+				memo_outcomes: Type.Array(memoOutcomeSchema),
 				dispositions: Type.Array(observationDispositionSchema),
 			},
 			{ additionalProperties: false },

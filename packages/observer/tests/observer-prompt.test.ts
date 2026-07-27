@@ -156,7 +156,8 @@ describe("Observer hidden Sidecar context", () => {
 			/memo-request-00000000-0000-4000-8000-000000000023/u,
 		);
 		assert.match(context ?? "", /action memo-scope/u);
-		assert.match(context ?? "", /instruction_seed/u);
+		assert.match(context ?? "", /submission_seed/u);
+		assert.match(context ?? "", /never resend or nest locked fields/u);
 		assert.match(context ?? "", /required_coverage/u);
 		assert.doesNotMatch(context ?? "", /<observer-sidecar>/u);
 	});

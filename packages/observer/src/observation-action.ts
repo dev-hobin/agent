@@ -87,10 +87,17 @@ export interface MemoScopeAction extends SidecarActionBase {
 	readonly requestId: MemoRequestId;
 }
 
+export interface MemoSemanticSubmission {
+	readonly evidence: readonly unknown[];
+	readonly hypothesisOutcomes: readonly unknown[];
+	readonly memoOutcomes: readonly unknown[];
+	readonly dispositions: readonly unknown[];
+}
+
 export interface MemoPrepareAction extends SidecarActionBase {
 	readonly action: "memo-prepare";
 	readonly requestId: MemoRequestId;
-	readonly instruction: Readonly<Record<string, unknown>>;
+	readonly submission: MemoSemanticSubmission;
 }
 
 export type ObservationAction =
@@ -501,13 +508,26 @@ function parseMemoPrepare(
 			"observer_action",
 			"action",
 			"request_id",
-			"instruction",
+			"submission",
+		]) ||
+		!isObject(value.submission) ||
+		!hasExactKeys(value.submission, [
+			"evidence",
+			"hypothesis_outcomes",
+			"memo_outcomes",
+			"dispositions",
 		])
 	) {
 		return failure("/", "Memo-prepare action has invalid fields.");
 	}
 	const requestId = decodeMemoRequestId(value.request_id);
-	if (!requestId || !isObject(value.instruction)) {
+	if (
+		!requestId ||
+		!Array.isArray(value.submission.evidence) ||
+		!Array.isArray(value.submission.hypothesis_outcomes) ||
+		!Array.isArray(value.submission.memo_outcomes) ||
+		!Array.isArray(value.submission.dispositions)
+	) {
 		return failure("/", "Memo-prepare action has invalid values.");
 	}
 	return {
@@ -516,7 +536,12 @@ function parseMemoPrepare(
 			protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
 			action: "memo-prepare",
 			requestId,
-			instruction: value.instruction,
+			submission: {
+				evidence: value.submission.evidence,
+				hypothesisOutcomes: value.submission.hypothesis_outcomes,
+				memoOutcomes: value.submission.memo_outcomes,
+				dispositions: value.submission.dispositions,
+			},
 		}),
 	};
 }

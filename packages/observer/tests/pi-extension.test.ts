@@ -236,7 +236,7 @@ test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {
 	assert.equal(value.claims[0]?.locator, null);
 });
 
-test("describes every exact Memo outcome and rejects contextual ID drift", () => {
+test("describes every Memo outcome and rejects locked-field injection", () => {
 	const evidenceId = "evidence-00000000-0000-4000-8000-000000000093";
 	const inquiryId = "inquiry-00000000-0000-4000-8000-000000000094";
 	const memoId = "memo-00000000-0000-4000-8000-000000000095";
@@ -309,29 +309,17 @@ test("describes every exact Memo outcome and rejects contextual ID drift", () =>
 		observer_action: "observer-sidecar/v1",
 		action: "memo-prepare",
 		request_id: "memo-request-00000000-0000-4000-8000-000000000091",
-		instruction: {
-			observer_memo_instruction: "observer.memo-instruction/v1",
-			request_id: "memo-request-00000000-0000-4000-8000-000000000091",
-			request_digest: "0".repeat(64),
-			pass: {
-				observer_memo_pass: "observer.prepared-memo-pass/v1",
-				pass_id: "memo-pass-00000000-0000-4000-8000-000000000091",
-				episode_id: episodeId,
-				base_revision_id: null,
-				basis_digest: "1".repeat(64),
-				related_inquiry_ids: [inquiryId],
-				instruction_id: "memo-request-00000000-0000-4000-8000-000000000091",
-				evidence: [
-					{
-						evidence_id: evidenceId,
-						kind: "source-claim",
-						source_id: null,
-						summary: "Schema evidence",
-					},
-				],
-				hypothesis_outcomes: hypothesisOutcomes,
-				memo_outcomes: memoOutcomes,
-			},
+		submission: {
+			evidence: [
+				{
+					evidence_id: evidenceId,
+					kind: "source-claim",
+					source_id: null,
+					summary: "Schema evidence",
+				},
+			],
+			hypothesis_outcomes: hypothesisOutcomes,
+			memo_outcomes: memoOutcomes,
 			dispositions: [
 				{
 					observation_id: "observation-00000000-0000-4000-8000-000000000098",
@@ -346,15 +334,13 @@ test("describes every exact Memo outcome and rejects contextual ID drift", () =>
 	};
 	Value.Convert(memoPrepareActionSchema, action);
 	assert.equal(Value.Check(memoPrepareActionSchema, action), true);
-	assert.equal(action.instruction.pass.base_revision_id, null);
-	assert.equal(action.instruction.pass.evidence[0]?.source_id, null);
-	const wrongPass = structuredClone(action);
-	wrongPass.instruction.pass.pass_id =
-		"pass-00000000-0000-4000-8000-000000000091";
-	assert.equal(Value.Check(memoPrepareActionSchema, wrongPass), false);
-	const nullInstruction = structuredClone(action);
-	Reflect.set(nullInstruction.instruction.pass, "instruction_id", null);
-	assert.equal(Value.Check(memoPrepareActionSchema, nullInstruction), false);
+	assert.equal(action.submission.evidence[0]?.source_id, null);
+	const wrongRequest = structuredClone(action);
+	wrongRequest.request_id = "request-00000000-0000-4000-8000-000000000091";
+	assert.equal(Value.Check(memoPrepareActionSchema, wrongRequest), false);
+	const lockedOverride = structuredClone(action);
+	Reflect.set(lockedOverride, "instruction", {});
+	assert.equal(Value.Check(memoPrepareActionSchema, lockedOverride), false);
 });
 
 test("maps domain and installation rejection to actual tool errors", () => {

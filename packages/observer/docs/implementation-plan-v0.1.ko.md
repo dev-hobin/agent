@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — exact guide/schema로 bounded real-provider memo-prepare 재검증 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — semantic-only memo-prepare로 bounded real-provider 재검증 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + ingress compatibility + exact model-facing Memo contract |
+| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + ingress compatibility + semantic-only Memo submission |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | exact guide/schema로 bounded real-provider Memo rerun |
+| Next movement | Planned | semantic-only submission으로 bounded real-provider Memo rerun |
 
 ### 현재 branch checkpoint
 
@@ -126,7 +126,9 @@ feature/observer
 ├─ 273e98a style(observer): format sidecar ingress repair
 ├─ 4cc82e7 feat(observer): project memo preparation guide
 ├─ 94de94d style(observer): format memo preparation guide
-└─ Slice 7 landing F-2: exact model-facing Memo contract
+├─ f236cbf feat(observer): expose exact memo preparation contract
+├─ 7a970bd style(observer): format memo tool contract
+└─ Slice 7 landing F-3: semantic-only Memo submission
 ```
 
 ---
@@ -1156,7 +1158,40 @@ packed artifact contract
 wrap 후 fresh-session standing Inquiry re-entry
 ```
 
-Landing 7F-2는 schema가 semantic pass를 증명한다고 주장하지 않는다. Schema는 model에게 admitted raw shape와 exact locked seed를 제공하고, fresh scope에 대한 contextual decoder가 effect 전 completeness/reference/basis를 다시 확립한다.
+Landing 7F-2 bounded rerun에서 model은 locked basis와 semantic outcome 내용을 정확히 개선했지만 세 번 모두 `dispositions`를 `instruction.pass` 안에 중첩했다. Full instruction 복사 자체가 producer-owned representation을 model에 불필요하게 맡긴다는 새 failure evidence가 됐다.
+
+### Landing 7F-3 — Semantic-only Memo submission
+
+```text
+[x] memo-prepare raw action을 request_id + submission 한 단계로 축소
+[x] submission은 evidence/hypothesis_outcomes/memo_outcomes/dispositions만 허용
+[x] locked request/pass fields는 fresh MemoPreparationGuide에서 controller가 조립
+[x] raw outer submission은 array shape만 refine하고 semantic truth를 주장하지 않음
+[x] assembled unknown instruction을 contextual decoder가 다시 complete refinement
+[x] caller의 instruction/locked field injection은 effect 전 거부
+[x] malformed semantic submission은 instruction entry 0
+[x] hidden prompt와 submission_seed가 같은 one-level shape를 지시
+```
+
+Verifier evidence:
+
+```text
+Observer: 167/167
+Focused action/controller/schema/prompt: 20/20
+TypeScript LSP: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+bounded real-provider semantic-only memo-prepare 재검증
+memo → continue → wrap approval/save/ack transcript
+packed artifact contract
+wrap 후 fresh-session standing Inquiry re-entry
+```
+
+Landing 7F-3은 model의 semantic 선택을 자동화하지 않는다. Model은 semantic arrays만 제안하고, producer는 locked representation을 소유하며, contextual decoder가 effect 전 최종 경계를 유지한다.
 
 ---
 

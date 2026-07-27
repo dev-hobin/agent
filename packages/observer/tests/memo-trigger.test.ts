@@ -314,6 +314,12 @@ describe("pure Observation Memo trigger", () => {
 			hypotheses: [],
 			memos: [],
 		});
+		assert.deepEqual(first.value.submission_seed, {
+			evidence: [],
+			hypothesis_outcomes: [],
+			memo_outcomes: [],
+			dispositions: [],
+		});
 		assert.deepEqual(first.value.evidence_sources, [
 			{
 				source_id: SOURCE_ID,

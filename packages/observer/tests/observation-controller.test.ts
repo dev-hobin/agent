@@ -630,17 +630,35 @@ describe("Observation staged controller", () => {
 						},
 					],
 				};
+				const submission = {
+					evidence: instruction.pass.evidence,
+					hypothesis_outcomes: instruction.pass.hypothesis_outcomes,
+					memo_outcomes: instruction.pass.memo_outcomes,
+					dispositions: instruction.dispositions,
+				};
 				const beforeMalformed = port.entries.length;
 				const malformedPreparation = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
 						action: "memo-prepare",
 						request_id: requested.request.requestId,
-						instruction: { ...instruction, dispositions: [] },
+						submission: { ...submission, dispositions: [] },
 					},
 					port,
 				);
 				assert.equal(malformedPreparation.ok, false);
+				assert.equal(port.entries.length, beforeMalformed);
+				const attemptedLockedOverride = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-prepare",
+						request_id: requested.request.requestId,
+						submission,
+						instruction,
+					},
+					port,
+				);
+				assert.equal(attemptedLockedOverride.ok, false);
 				assert.equal(port.entries.length, beforeMalformed);
 				port.failNextInstructionAppend = true;
 				const failedInstructionAppend = await controller.execute(
@@ -648,7 +666,7 @@ describe("Observation staged controller", () => {
 						observer_action: "observer-sidecar/v1",
 						action: "memo-prepare",
 						request_id: requested.request.requestId,
-						instruction,
+						submission,
 					},
 					port,
 				);
@@ -660,7 +678,7 @@ describe("Observation staged controller", () => {
 						observer_action: "observer-sidecar/v1",
 						action: "memo-prepare",
 						request_id: requested.request.requestId,
-						instruction,
+						submission,
 					},
 					port,
 				);
@@ -672,7 +690,7 @@ describe("Observation staged controller", () => {
 						observer_action: "observer-sidecar/v1",
 						action: "memo-prepare",
 						request_id: requested.request.requestId,
-						instruction,
+						submission,
 					},
 					port,
 				);
@@ -706,7 +724,7 @@ describe("Observation staged controller", () => {
 						observer_action: "observer-sidecar/v1",
 						action: "memo-prepare",
 						request_id: requested.request.requestId,
-						instruction,
+						submission,
 					},
 					port,
 				);

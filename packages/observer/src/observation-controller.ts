@@ -800,8 +800,24 @@ async function decodeMemoPreparation(input: {
 		requestId: input.action.requestId,
 	});
 	if (!context.ok) return context.issue.message;
+	const guide = buildObservationMemoPreparationGuide({
+		context: context.value,
+		observation: branch.observation,
+		memo: branch.memo,
+	});
+	if (!guide.ok) return guide.issue.message;
+	const seed = guide.value.instruction_seed;
 	const decoded = decodePreparedObservationMemoInstruction({
-		value: input.action.instruction,
+		value: {
+			...seed,
+			pass: {
+				...seed.pass,
+				evidence: input.action.submission.evidence,
+				hypothesis_outcomes: input.action.submission.hypothesisOutcomes,
+				memo_outcomes: input.action.submission.memoOutcomes,
+			},
+			dispositions: input.action.submission.dispositions,
+		},
 		context: context.value,
 	});
 	return decoded.ok
