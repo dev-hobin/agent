@@ -1,12 +1,12 @@
 # Observer v0.1 구현 계획
 
-> 상태: Observer v0.1 Golden Path verified
+> 상태: Observer v0.1 Golden Path verified; npm 0.1.0 release candidate preparation
 >
 > 기준 제품 명세: [`product-spec-v0.1.ko.md`](product-spec-v0.1.ko.md)
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: 없음 — 추가 작업은 새 scope 판단이 필요함
+> 다음 실행 단위: public release candidate consumer matrix와 source integration; publish 전 security disposition 필요
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -99,7 +99,8 @@ Golden Path와 Non-goals
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | Complete | Slices 0–9 Golden Path verified |
-| Next movement | Not scheduled | new scope requires a fresh product/developer judgment |
+| Release preparation | In progress | public 0.1.0 contract landed; consumer/source/security gates remain |
+| Next movement | Requires routing | current 0.1.0 fresh-consumer matrix, then integrated-main verification |
 
 ### 현재 branch checkpoint
 
@@ -158,7 +159,9 @@ feature/observer
 ├─ 5089081 fix(observer): explain one-shot hydration order
 ├─ a7e101c style(observer): format one-shot runtime tests
 ├─ 4851293 docs(observer): close one-shot golden path
-└─ Slice 9 landing: current-head v0.1 evidence matrix
+├─ 14123c6 docs(observer): complete v0.1 golden path
+├─ f7f166c chore(observer): prepare public package contract
+└─ post-v0.1 landing: consumer guide and release procedure
 ```
 
 ---
@@ -1927,6 +1930,57 @@ final closure commit differs from evidence head only in README/implementation-pl
 제품 명세의 Golden Path를 증명했으므로 여기서 멈춘다. 새로운 backend나 편의 기능을 추가하지 않는다.
 
 **Slices 0–9 Status: Complete**
+
+---
+
+## Post-v0.1 — Public npm Release Preparation
+
+**Status:** In progress; candidate preparation only, not published
+
+### Completed
+
+```text
+f7f166c public @hobin/observer@0.1.0 manifest
+public access + bounded Pi/TypeBox peers
+package/lock/test propagation
+clean-tree prepublish gate
+exact 41-file npm allowlist
+Pi 0.79.10 strict peer rejection
+public consumer README
+maintainer RELEASE procedure
+```
+
+### Current compatibility evidence
+
+| Case | Result |
+| --- | --- |
+| Pi 0.79.10 | wildcard manifest installed but runtime failed; bounded 0.1.0 peer now rejects under strict resolution |
+| Pi 0.80.10 | prior fresh packed RPC pass |
+| Pi 0.81.1 + Node 22.22.2 + TypeBox 1.3.8 | fresh packed RPC pass |
+| Pi 0.82.1 | prior fresh packed discovery/RPC pass |
+| npm public dry-run | prepublish gate runs; terminal report is 0.1.0/public/latest/41 files |
+
+### Remaining before publication
+
+```text
+current 0.1.0 tarball fresh-consumer RPC on Pi 0.80.10 / 0.81.1 / 0.82.1
+current fresh-process durable re-entry if runtime/source provenance changes
+rebase/merge current origin/main and rerun exact release gates
+explicit permission before Git push
+confirm repository/homepage source path
+resolve or explicitly accept the upstream Pi high advisory
+explicit permission before npm publish
+registry readback + fresh installed-package RPC
+release tag only after successful readback and explicit push permission
+```
+
+Current security gate: supported fresh consumers resolve Pi's
+`brace-expansion@5.0.7`, which npm reports as a high-severity denial-of-service
+advisory. Observer does not own that transitive dependency. Candidate preparation
+may continue, but publication requires a patched consumer audit or explicit
+release-owner acceptance.
+
+No push or npm publication has occurred.
 
 ---
 
