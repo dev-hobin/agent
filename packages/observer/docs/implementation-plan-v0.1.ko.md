@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — semantic-only memo-prepare로 bounded real-provider 재검증 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — source-bearing install repair 후 bounded real-provider 재검증 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + ingress compatibility + semantic-only Memo submission |
+| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + semantic-only submission + source-bearing install validation |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | semantic-only submission으로 bounded real-provider Memo rerun |
+| Next movement | Planned | source-bearing install repair 후 bounded real-provider Memo rerun |
 
 ### 현재 branch checkpoint
 
@@ -128,7 +128,8 @@ feature/observer
 ├─ 94de94d style(observer): format memo preparation guide
 ├─ f236cbf feat(observer): expose exact memo preparation contract
 ├─ 7a970bd style(observer): format memo tool contract
-└─ Slice 7 landing F-3: semantic-only Memo submission
+├─ af4e088 fix(observer): accept semantic-only memo submissions
+└─ Slice 7 landing F-4: replay request-related source basis at install
 ```
 
 ---
@@ -1192,6 +1193,39 @@ wrap 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7F-3은 model의 semantic 선택을 자동화하지 않는다. Model은 semantic arrays만 제안하고, producer는 locked representation을 소유하며, contextual decoder가 effect 전 최종 경계를 유지한다.
+
+7F-3 bounded rerun에서 model은 첫 시도에 exact one-level semantic submission을 생성했고 instruction append까지 통과했다. 이어 prepared-pass installer가 `workingSourceBases: []`로 scope를 다시 구성해 `Prepared Memo pass has a stale or mismatched basis`로 실패했다. 이는 model failure가 아니라 preparation/installation scope reconstruction 불일치였다.
+
+### Landing 7F-4 — Source-bearing install basis replay
+
+```text
+[x] prepared-pass installer가 current branch Observation history를 strict replay
+[x] instruction_id를 exact pending Memo request로 refine
+[x] preparation과 같은 hydrateObservationMemoContext owner를 재사용
+[x] request-related WorkingSource만 Memo scope basis에 포함
+[x] Observation replay/context failure는 prepared append 전 거부
+[x] source-empty manual prepared pass의 기존 경로 유지
+[x] source-bearing Memo integration이 instruction → prepared → applied → ack 완주
+```
+
+Verifier evidence:
+
+```text
+Focused trigger/observation/lifecycle controllers: 22/22
+TypeScript LSP: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+bounded real-provider source-bearing rerun
+memo → continue → wrap approval/save/ack transcript
+packed artifact contract
+wrap 후 fresh-session standing Inquiry re-entry
+```
+
+Landing 7F-4는 branch replay durability나 concurrent instance를 새로 주장하지 않는다. 현재 Pi branch ancestry 안에서 preparation과 installation이 동일한 request-scoped basis owner를 사용한다는 범위만 닫는다.
 
 ---
 

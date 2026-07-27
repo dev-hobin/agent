@@ -13,6 +13,7 @@ import {
 	type MemoPassId,
 } from "./memo-profile.ts";
 import {
+	decodeMemoRequestId,
 	observationMemoRequestDigest,
 	prepareObservationEvent,
 	type MemoRequestId,
@@ -21,7 +22,8 @@ import {
 	type SemanticObservationRecordedEvent,
 	type SourceClaim,
 } from "./observation-profile.ts";
-import type { ObservationSessionSnapshot } from "./observation-session.ts";
+import { reconstructObservationSession, type ObservationSessionSnapshot } from "./observation-session.ts";
+import type { PiBranchEntryLike } from "./pi-session.ts";
 
 const OBSERVATION_MEMO_CONTEXT_MARKER = Symbol("observer.memo-context");
 
@@ -352,6 +354,36 @@ function isIssue(
 	value: readonly WorkingSourceBasis[] | MemoTriggerIssue,
 ): value is MemoTriggerIssue {
 	return !Array.isArray(value);
+}
+
+export function hydratePreparedObservationMemoContext(input: {
+	readonly entries: readonly PiBranchEntryLike[];
+	readonly memo: MemoSessionSnapshot;
+	readonly inventory: readonly NotebookInventoryEntry[];
+	readonly instructionId: string;
+}): ObservationMemoContextResult {
+	const requestId = decodeMemoRequestId(input.instructionId);
+	if (!requestId) {
+		return failure(
+			"memo-trigger.scope",
+			"Memo instruction ID is not a valid request ID.",
+			input.instructionId,
+		);
+	}
+	const observation = reconstructObservationSession(input.entries);
+	const replayIssue = observation.issues[0];
+	if (replayIssue) {
+		return failure(
+			"memo-trigger.history",
+			`Observation replay failed: ${replayIssue.code}.`,
+		);
+	}
+	return hydrateObservationMemoContext({
+		observation,
+		memo: input.memo,
+		inventory: input.inventory,
+		requestId,
+	});
 }
 
 export function hydrateObservationMemoContext(input: {

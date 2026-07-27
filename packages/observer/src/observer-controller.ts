@@ -17,6 +17,7 @@ import {
 	type PreparedMemoPass,
 } from "./memo-profile.ts";
 import { hydrateMemoScope, reconcileMemoPass } from "./memo-reconciliation.ts";
+import { hydratePreparedObservationMemoContext } from "./memo-trigger.ts";
 import {
 	encodeAppliedMemoPass,
 	memoAcknowledgmentEvent,
@@ -676,35 +677,51 @@ async function memoCommand(input: {
 	return undefined;
 }
 
-async function validatePreparedMemo(
-	pass: PreparedMemoPass,
-	snapshot: ObserverPiSnapshot,
-	memo: MemoSessionSnapshot,
-	notebooks: NotebookService,
-): Promise<string | null> {
+async function validatePreparedMemo(input: {
+	readonly pass: PreparedMemoPass;
+	readonly snapshot: ObserverPiSnapshot;
+	readonly memo: MemoSessionSnapshot;
+	readonly entries: readonly PiBranchEntryLike[];
+	readonly notebooks: NotebookService;
+}): Promise<string | null> {
 	if (
-		snapshot.state.episode.status !== "open" ||
-		pass.episodeId !== snapshot.state.episode.core.episodeId ||
-		pass.baseRevisionId !== memo.state.revisionId
+		input.snapshot.state.episode.status !== "open" ||
+		input.pass.episodeId !== input.snapshot.state.episode.core.episodeId ||
+		input.pass.baseRevisionId !== input.memo.state.revisionId
 	) {
 		return "Prepared Memo pass가 현재 열린 Episode/revision과 일치하지 않습니다.";
 	}
-	const recovered = await notebooks.recover(snapshot.state);
+	const recovered = await input.notebooks.recover(input.snapshot.state);
 	if (!recovered.ok) return `Notebook 복구 실패: ${recovered.issue.message}`;
 	const inventory = await readNotebookInventory(recovered.value.notebook);
 	if (!inventory.ok) return `Notebook 읽기 실패: ${inventory.issue.message}`;
-	const scope = hydrateMemoScope({
-		lifecycle: snapshot.state,
-		working: memo.state,
-		inventory: inventory.value,
-		relatedInquiryIds: pass.relatedInquiryIds,
-		workingSourceBases: [],
-	});
-	if (!scope.ok) return `Memo scope 구성 실패: ${scope.issue.message}`;
+	let scope;
+	if (input.pass.instructionId) {
+		const context = hydratePreparedObservationMemoContext({
+			entries: input.entries,
+			memo: input.memo,
+			inventory: inventory.value,
+			instructionId: input.pass.instructionId,
+		});
+		if (!context.ok)
+			return `Memo request scope 구성 실패: ${context.issue.message}`;
+		scope = context.value.memoScope;
+	} else {
+		const hydrated = hydrateMemoScope({
+			lifecycle: input.snapshot.state,
+			working: input.memo.state,
+			inventory: inventory.value,
+			relatedInquiryIds: input.pass.relatedInquiryIds,
+			workingSourceBases: [],
+		});
+		if (!hydrated.ok)
+			return `Memo scope 구성 실패: ${hydrated.issue.message}`;
+		scope = hydrated.value;
+	}
 	const validated = reconcileMemoPass({
-		state: memo.state,
-		scope: scope.value,
-		pass,
+		state: input.memo.state,
+		scope,
+		pass: input.pass,
 		ids: {
 			revisionId() {
 				return "memo-working-revision-00000000-0000-4000-8000-000000000000";
@@ -905,12 +922,13 @@ async function installPreparedMemoCommand(input: {
 		);
 		return false;
 	}
-	const invalid = await validatePreparedMemo(
-		decoded.value,
-		synchronized.snapshot,
-		synchronized.memo,
-		input.notebooks,
-	);
+	const invalid = await validatePreparedMemo({
+		pass: decoded.value,
+		snapshot: synchronized.snapshot,
+		memo: synchronized.memo,
+		entries: input.port.branchEntries(),
+		notebooks: input.notebooks,
+	});
 	if (invalid) {
 		input.port.notify(invalid, "error");
 		return false;

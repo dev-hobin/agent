@@ -45,6 +45,7 @@ const BASELINE = join(
 	"baseline",
 );
 const DURABLE_INQUIRY = "inquiry-00000000-0000-4000-8000-000000000003";
+const DURABLE_MEMO = "memo-00000000-0000-4000-8000-000000000004";
 
 class FakePort implements ObservationCommandPort {
 	readonly entries: PiBranchEntryLike[] = [];
@@ -483,6 +484,55 @@ describe("Observation staged controller", () => {
 	test("prepares, installs, applies, and acknowledges Memo while OFF without notebook writes", async () => {
 		await withSandbox(
 			async ({ sandbox, controller, lifecycleController, port }) => {
+				const sourceCandidate = controller.capture(
+					{
+						origin: {
+							kind: "tool-result",
+							tool_call_id: "tool-memo-source",
+							tool_name: "read",
+						},
+						text: "Immediate notes can preserve retrieval cues.",
+						capturedAt: "2026-08-01T10:02:00.000Z",
+					},
+					port,
+				);
+				if (!sourceCandidate.ok || !sourceCandidate.candidate)
+					assert.fail("Expected source candidate");
+				const sourceRead = await controller.execute(
+					externalSourceAction(sourceCandidate.candidate.candidateId),
+					port,
+				);
+				if (!sourceRead.ok || sourceRead.action !== "source-read")
+					assert.fail(sourceRead.ok ? "Expected source read" : sourceRead.message);
+				const sourceHydration = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "hydrate",
+						read_id: sourceRead.read.readId,
+						index_digest: sourceRead.index.digest,
+						inquiry_ids: [DURABLE_INQUIRY],
+					},
+					port,
+				);
+				if (!sourceHydration.ok || sourceHydration.action !== "hydrate")
+					assert.fail("Expected source hydration");
+				const sourceObservation = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "record",
+						read_id: sourceRead.read.readId,
+						hydration_id: sourceHydration.hydration.hydrationId,
+						related_inquiry_ids: [DURABLE_INQUIRY],
+						stance: "challenges",
+						movement: "minor-refinement",
+						rationale: "Immediate notes refine the cost boundary.",
+						observer_hypothesis: null,
+					},
+					port,
+				);
+				if (!sourceObservation.ok || sourceObservation.action !== "record")
+					assert.fail("Expected source observation");
+
 				const captured = controller.capture(
 					{
 						origin: { kind: "user-input", input_source: "interactive" },
@@ -573,13 +623,18 @@ describe("Observation staged controller", () => {
 				}
 				assert.deepEqual(
 					scoped.context.observations.map((item) => item.observationId),
-					[registeredHypothesis.observationId],
+					[
+						sourceObservation.observation.observationId,
+						registeredHypothesis.observationId,
+					].toSorted(),
 				);
-				assert.equal(scoped.context.memoScope.relatedInquiryIds.length, 0);
+				assert.deepEqual(scoped.context.memoScope.relatedInquiryIds, [
+					DURABLE_INQUIRY,
+				]);
 				const payload = JSON.parse(observationToolText(scoped));
 				assert.equal(payload.request_id, requested.request.requestId);
 				assert.equal(payload.request_digest, requested.request.requestDigest);
-				assert.equal(payload.observations.length, 1);
+				assert.equal(payload.observations.length, 2);
 				assert.deepEqual(payload.memo_preparation, scoped.guide);
 				assert.equal(
 					scoped.guide.instruction_seed.pass.instruction_id,
@@ -601,8 +656,17 @@ describe("Observation staged controller", () => {
 						basis_digest: scoped.context.memoScope.basisDigest,
 						related_inquiry_ids: scoped.context.memoScope.relatedInquiryIds,
 						instruction_id: requested.request.requestId,
-						evidence: [],
+						evidence: [
+							{
+								evidence_id:
+									"evidence-00000000-0000-4000-8000-000000000601",
+								kind: "source-claim",
+								source_id: sourceRead.read.source.sourceId,
+								summary: "Immediate notes can preserve retrieval cues.",
+							},
+						],
 						hypothesis_outcomes: [
+							{ kind: "keep", inquiry_id: DURABLE_INQUIRY },
 							{
 								kind: "create",
 								hypothesis: {
@@ -616,9 +680,22 @@ describe("Observation staged controller", () => {
 								},
 							},
 						],
-						memo_outcomes: [],
+						memo_outcomes: [
+							{ kind: "keep-incubating", memo_id: DURABLE_MEMO },
+						],
 					},
 					dispositions: [
+						{
+							observation_id: sourceObservation.observation.observationId,
+							decision: "integrated",
+							hypothesis_inquiry_ids: [DURABLE_INQUIRY],
+							memo_ids: [DURABLE_MEMO],
+							evidence_ids: [
+								"evidence-00000000-0000-4000-8000-000000000601",
+							],
+							rationale:
+								"The source evidence refines the durable inquiry boundary.",
+						},
 						{
 							observation_id: registeredHypothesis.observationId,
 							decision: "integrated",
