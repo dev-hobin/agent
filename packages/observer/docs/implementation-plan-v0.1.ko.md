@@ -1472,6 +1472,8 @@ next source-read after fresh process surfaces Standing Inquiry re-entry
 
 Landing 7G-3의 required coverage는 각 observed Source, current working Inquiry, current working Memo ID를 정확히 한 proposed record로 표현하게 한다. Promotion candidate는 같은 Memo record의 durable disposition과 필요 시 추가 Zettel record로 표현할 수 있으며, 추가 records도 기존 Markdown/graph preflight를 통과해야 한다. Live provider reliability와 semantic truth는 아직 주장하지 않는다.
 
+첫 bounded continuation은 unchanged-current Hypothesis revise가 instruction append 뒤 install에서 거부되어 request를 poison하는 기존 Memo ordering gap을 노출했다. `79f5be6 fix(observer): validate memo before instruction`은 exact request-bound `MemoScope`에서 `reconcileMemoPass`를 instruction effect 전에 dry-run하고 install/apply revalidation을 유지한다. 두 번째 run은 Memo completion을 통과했으며, Wrap 단계에서 repeated wrap-scope 후 prepare 없이 종료되는 다음 live guidance gap을 남겼다.
+
 ---
 
 ## Slice 8 — One-shot Golden Path
