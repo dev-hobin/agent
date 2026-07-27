@@ -763,9 +763,8 @@ describe("Observation staged controller", () => {
 				assert.equal(preparedIndex < appliedIndex, true);
 				assert.equal(appliedIndex < acknowledgmentIndex, true);
 				assert.equal(
-					customTypes.filter(
-						(type) => type === OBSERVER_MEMO_INSTRUCTION_ENTRY,
-					).length,
+					customTypes.filter((type) => type === OBSERVER_MEMO_INSTRUCTION_ENTRY)
+						.length,
 					1,
 				);
 				assert.equal(

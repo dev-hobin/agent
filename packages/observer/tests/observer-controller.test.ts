@@ -82,7 +82,10 @@ class FakePort implements ObserverCommandPort {
 	}
 
 	appendEntry(customType: string, data: unknown): void {
-		if (this.failMemoAppliedAppend && customType === OBSERVER_APPLIED_MEMO_ENTRY) {
+		if (
+			this.failMemoAppliedAppend &&
+			customType === OBSERVER_APPLIED_MEMO_ENTRY
+		) {
 			this.failMemoAppliedAppend = false;
 			throw new Error("Injected Memo applied append failure");
 		}
