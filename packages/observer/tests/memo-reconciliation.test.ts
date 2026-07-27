@@ -272,11 +272,9 @@ describe("pure Memo reconciliation", () => {
 			memos: [],
 		});
 
-		const durableScope = requireScope(
-			initial,
-			await baselineInventory(),
-			[INQUIRY_ID],
-		);
+		const durableScope = requireScope(initial, await baselineInventory(), [
+			INQUIRY_ID,
+		]);
 		const durable = describeMemoReconciliationCoverage(initial, durableScope);
 		assert.deepEqual(
 			durable.hypotheses.map((value) => value.inquiryId),

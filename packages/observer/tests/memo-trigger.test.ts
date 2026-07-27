@@ -309,10 +309,7 @@ describe("pure Observation Memo trigger", () => {
 			first.value.instruction_seed.request_digest,
 			scenario.context.request.requestDigest,
 		);
-		assert.equal(
-			first.value.instruction_seed.pass.instruction_id,
-			REQUEST_ID,
-		);
+		assert.equal(first.value.instruction_seed.pass.instruction_id, REQUEST_ID);
 		assert.deepEqual(first.value.required_coverage, {
 			hypotheses: [],
 			memos: [],

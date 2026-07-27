@@ -560,7 +560,11 @@ export function describeMemoReconciliationCoverage(
 					!scope.existingRecordIds.includes(value.inquiryId)),
 		)
 		.toSorted((left, right) => left.inquiryId.localeCompare(right.inquiryId));
-	const memos = overlayById(state.memos, scope.durableMemos, (value) => value.memoId)
+	const memos = overlayById(
+		state.memos,
+		scope.durableMemos,
+		(value) => value.memoId,
+	)
 		.filter(
 			(value) =>
 				value.episodeId === scope.episodeId &&
