@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: public release candidate consumer matrix와 source integration; publish 전 security disposition 필요
+> 다음 실행 단위: latest origin/main integration → exact release re-verification → authorized main push/readback
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -99,8 +99,9 @@ Golden Path와 Non-goals
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | Complete | Slices 0–9 Golden Path verified |
-| Release preparation | In progress | public 0.1.0 contract landed; consumer/source/security gates remain |
-| Next movement | Requires routing | current 0.1.0 fresh-consumer matrix, then integrated-main verification |
+| Release preparation | In progress | public 0.1.0 contract/docs/matrix complete; source integration remains |
+| Publication policy | Prepare only | main push authorized; npm publish not authorized while upstream audit is high |
+| Next movement | Requires routing | latest origin/main integration and exact pushed-source verification |
 
 ### 현재 branch checkpoint
 
@@ -1948,39 +1949,48 @@ exact 41-file npm allowlist
 Pi 0.79.10 strict peer rejection
 public consumer README
 maintainer RELEASE procedure
+38ad835 exact 0.1.0 fresh-consumer evidence head
+Pi 0.80.10 / 0.81.1 / 0.82.1 installed RPC matrix
+prepare-only security disposition
 ```
 
 ### Current compatibility evidence
 
 | Case | Result |
 | --- | --- |
-| Pi 0.79.10 | wildcard manifest installed but runtime failed; bounded 0.1.0 peer now rejects under strict resolution |
-| Pi 0.80.10 | prior fresh packed RPC pass |
-| Pi 0.81.1 + Node 22.22.2 + TypeBox 1.3.8 | fresh packed RPC pass |
-| Pi 0.82.1 | prior fresh packed discovery/RPC pass |
+| Exact tarball | head `38ad835`; SHA-256 `18cf2f02e9c8991ad350d414109186288f09c67a472de6ea2d22cd5b2f0289fc`; 41 files |
+| Pi 0.79.10 | bounded 0.1.0 peer rejects under strict resolution before runtime |
+| Pi 0.80.10 | exact 0.1.0 tarball fresh installed RPC pass |
+| Pi 0.81.1 | exact 0.1.0 tarball fresh installed RPC pass |
+| Pi 0.82.1 | exact 0.1.0 tarball fresh installed RPC pass |
+| Runtime floor | Node 22.22.2; npm-resolved TypeBox 1.3.8 for all three supported runs |
 | npm public dry-run | prepublish gate runs; terminal report is 0.1.0/public/latest/41 files |
 
 ### Remaining before publication
 
 ```text
-current 0.1.0 tarball fresh-consumer RPC on Pi 0.80.10 / 0.81.1 / 0.82.1
-current fresh-process durable re-entry if runtime/source provenance changes
-rebase/merge current origin/main and rerun exact release gates
-explicit permission before Git push
+fetch and integrate latest origin/main
+rerun release:check and exact source/package verification on the integrated commit
+push main using the user's explicit authorization and read back origin/main
 confirm repository/homepage source path
-resolve or explicitly accept the upstream Pi high advisory
-explicit permission before npm publish
-registry readback + fresh installed-package RPC
-release tag only after successful readback and explicit push permission
+wait for an official Pi package whose shrinkwrap installs brace-expansion 5.0.8+
+keep npm publish forbidden under the selected prepare-only policy
+if publication is authorized later: registry readback + fresh installed-package RPC
+release tag only after successful npm readback and explicit tag-push permission
 ```
 
 Current security gate: supported fresh consumers resolve Pi's
 `brace-expansion@5.0.7`, which npm reports as a high-severity denial-of-service
-advisory. Observer does not own that transitive dependency. Candidate preparation
-may continue, but publication requires a patched consumer audit or explicit
-release-owner acceptance.
+advisory. Observer does not own that transitive dependency. Pi 0.82.1 and current
+upstream main both pin 5.0.7 in the coding-agent npm shrinkwrap; downstream root
+overrides, update, and audit-fix do not replace that nested node. The owner-level
+remedy is a new official Pi package generated with `brace-expansion@5.0.8+`
+inside its root lock, install lock, and published shrinkwrap. Upstream issue
+[#7090](https://github.com/earendil-works/pi/issues/7090) records the exact
+request; its automated closure is workflow state, not remediation.
 
-No push or npm publication has occurred.
+The user selected **prepare-only**. Main integration and push are authorized;
+npm publication is not. No push or npm publication has occurred yet.
 
 ---
 
