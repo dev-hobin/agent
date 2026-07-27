@@ -1,12 +1,12 @@
 # Observer v0.1 구현 계획
 
-> 상태: 승인된 실행 기준선
+> 상태: Observer v0.1 Golden Path verified
 >
 > 기준 제품 명세: [`product-spec-v0.1.ko.md`](product-spec-v0.1.ko.md)
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 9 — v0.1 Golden Path Verification (재라우팅 필요)
+> 다음 실행 단위: 없음 — 추가 작업은 새 scope 판단이 필요함
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -98,8 +98,8 @@ Golden Path와 Non-goals
 | Runtime implementation | Slice 8 complete | bounded Pi One-shot → Memo → approved Wrap complete |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | In progress | Slice 9 — v0.1 Golden Path Verification |
-| Next movement | Requires routing | full Golden Path evidence matrix and fresh packed checks |
+| Current slice | Complete | Slices 0–9 Golden Path verified |
+| Next movement | Not scheduled | new scope requires a fresh product/developer judgment |
 
 ### 현재 branch checkpoint
 
@@ -157,7 +157,8 @@ feature/observer
 ├─ 3997346 feat(observer): wire one-shot Pi actions
 ├─ 5089081 fix(observer): explain one-shot hydration order
 ├─ a7e101c style(observer): format one-shot runtime tests
-└─ Slice 8 landing A-8: bounded Pi One-shot → Memo → approved Wrap
+├─ 4851293 docs(observer): close one-shot golden path
+└─ Slice 9 landing: current-head v0.1 evidence matrix
 ```
 
 ---
@@ -197,6 +198,8 @@ Observer OFF
 ```
 
 통과한 unit test 수나 구현된 endpoint 수만으로 v0.1 완료를 주장하지 않는다.
+
+Evidence head `4851293`에서 두 Golden Path, current tarball re-entry, fresh npm consumer, dual Pi discovery, compaction replay, durable Wrap ordering, invalid Markdown rejection을 함께 확인했으므로 이 완료 조건은 충족됐다. 이후 closure 변경은 이 문서와 README에만 한정한다.
 
 ---
 
@@ -1870,7 +1873,7 @@ or concurrent/multi-instance safety.
 
 ## Slice 9 — v0.1 Golden Path Verification
 
-**Status:** In progress
+**Status:** Complete
 
 ### Claim
 
@@ -1878,22 +1881,52 @@ or concurrent/multi-instance safety.
 
 ### Evidence matrix
 
+| Row | Result | Current evidence |
+| --- | --- | --- |
+| workspace package checks | Pass | Observer 188/188 |
+| LSP/type boundary | Pass | 51 files clean; TypeScript assertion-expression 0 |
+| packed npm tarball | Pass | evidence head `4851293`; 41 runtime files, 0 tests, SHA-256 `5ce087a59abe73aa16e5cdc0112208767f2c52768313b270c70c4b02bd4d4946` |
+| fresh npm consumer | Pass | local tarball install + Pi 0.80.10 RPC; consumer removed |
+| Pi discovery | Pass | repository Pi 0.80.10 and global Pi 0.82.1 RPC |
+| fresh notebook setup | Pass | isolated manifest/selection creation in both RPC smokes |
+| Sidecar | Supported | bounded full Sidecar flow + current packed source/hydrate/record + regression suite |
+| One-shot | Pass | exact real-provider start→read→hydrate→record→finish→Memo→approved Wrap |
+| compaction continuity | Pass | current replay-focused 24/24 |
+| Wrap local save | Pass | bytes unchanged through Memo; approved Wrap updated two records and created one Source |
+| fresh-process re-entry | Pass | current tarball, two `--no-session` processes, preserved selection, durable Inquiry marker |
+| manual Markdown failure | Pass | `markdown.h1.missing`, record phase, graph not evaluated |
+
+### Current artifacts
+
 ```text
-workspace package checks
-packed npm tarball contents
-Pi 0.82.1 RPC discovery
-fresh notebook setup
-Sidecar transcript
-One-shot transcript
-compaction continuity
-wrap local save
-fresh process standing inquiry re-entry
-manual Markdown validation failure
+/tmp/observer-slice9-pack.json
+/tmp/observer-slice9-pack/hobin-observer-0.0.0.tgz
+/tmp/observer-slice9-npm-install.log
+/tmp/observer-slice9-npm-rpc.log
+/tmp/observer-global-0821-rpc.log
+/tmp/observer-slice9-packed-reentry.mjs
+/tmp/observer-slice9-packed-reentry-transcript.json
+/tmp/observer-live-one-shot-transcript.json
+/tmp/observer-live-wrap-transcript.json
+```
+
+### Residuals and non-claims
+
+```text
+provider reliability or classification rate
+model semantic truth
+crash/power-loss durability
+concurrent or multi-instance execution
+remote sync, Git, graph DB, or vector DB ownership
+49 nonblocking structural/lint warnings from the full project lens
+final closure commit differs from evidence head only in README/implementation-plan docs
 ```
 
 ### Stop
 
-제품 명세의 Golden Path를 증명한 뒤 멈춘다. 새로운 backend나 편의 기능을 추가하지 않는다.
+제품 명세의 Golden Path를 증명했으므로 여기서 멈춘다. 새로운 backend나 편의 기능을 추가하지 않는다.
+
+**Slices 0–9 Status: Complete**
 
 ---
 
