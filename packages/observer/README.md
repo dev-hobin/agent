@@ -6,7 +6,7 @@ Observer is intended to provide a local-first observation mode that follows stan
 
 ## Status
 
-This package is private and under spec-first implementation. Slice 7 is in progress: the current landing adds a pure branch-local observation ledger, source-first candidate/read/hydrate/record staging, a deterministic Standing Inquiry index, hidden ON-mode guidance, and one sequential `observer_sidecar` Pi tool. Minor observations accumulate silently; major observations are appended and replay-confirmed before a Hybrid alert. Notebook Markdown remains unchanged until the existing explicit Memo/wrap boundaries; semantic Memo-pass triggering and the complete Sidecar wrap/re-entry transcript remain deferred.
+This package is private and under spec-first implementation. Slice 7 is in progress: the package now has a pure branch-local observation ledger, source-first candidate/read/hydrate/record staging, a deterministic Standing Inquiry index, hidden ON-mode guidance, and one sequential `observer_sidecar` Pi tool. It also has the pure Memo-trigger contract: exact all-eligible request snapshots, request-scoped Source/Inquiry hydration, complete parser-refined Observation dispositions, and branch-local instruction replay. Minor observations accumulate silently; major observations alert only after append/replay confirmation. Pi command/tool integration for Memo instructions and the complete Sidecar wrap/re-entry transcript remain deferred.
 
 ## Documentation
 

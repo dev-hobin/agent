@@ -27,6 +27,7 @@ import { decodeObserverMarkdown } from "../src/markdown-profile.ts";
 import {
 	decodeObservationEvent,
 	encodeObservationEvent,
+	observationMemoRequestDigest,
 	prepareObservationEvent,
 	OBSERVER_OBSERVATION_ENTRY,
 	type CandidateCapturedEvent,
@@ -215,6 +216,12 @@ function workingTrace(): {
 		original: "기록 시점이 재진입 비용을 바꾼다.",
 		context: "사용자가 명시적으로 추적을 요청했다.",
 	});
+	if (
+		semantic.kind !== "semantic-observation-recorded" ||
+		userHypothesis.kind !== "user-hypothesis-recorded"
+	) {
+		assert.fail("Expected semantic and user-hypothesis events");
+	}
 	const request = requireWorkingEvent({
 		observer_observation: "observer-observation/v1",
 		kind: "memo-requested",
@@ -222,7 +229,11 @@ function workingTrace(): {
 		request_id: REQUEST_ID,
 		base_memo_revision_id: null,
 		observation_ids: [OBSERVATION_MAJOR, OBSERVATION_USER],
-		request_digest: sha256Text(`${OBSERVATION_MAJOR}:${OBSERVATION_USER}`),
+		request_digest: observationMemoRequestDigest({
+			episodeId: EPISODE_ID,
+			baseMemoRevisionId: null,
+			observations: [semantic, userHypothesis],
+		}),
 	});
 	const events = [
 		userCandidate,

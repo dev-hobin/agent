@@ -153,6 +153,32 @@ export interface ObservationMemoRequestedEvent extends ObservationEventBase {
 	readonly requestDigest: string;
 }
 
+export type MemoRequestObservation =
+	| SemanticObservationRecordedEvent
+	| UserHypothesisRecordedEvent;
+
+export function observationMemoRequestDigest(input: {
+	readonly episodeId: string;
+	readonly baseMemoRevisionId: string | null;
+	readonly observations: readonly MemoRequestObservation[];
+}): string {
+	const observations = input.observations
+		.map((observation) => ({
+			observation_id: observation.observationId,
+			event_digest: observation.digest,
+		}))
+		.toSorted((left, right) =>
+			left.observation_id.localeCompare(right.observation_id),
+		);
+	return sha256Text(
+		JSON.stringify({
+			episode_id: input.episodeId,
+			base_memo_revision_id: input.baseMemoRevisionId,
+			observations,
+		}),
+	);
+}
+
 export type ObservationEvent =
 	| CandidateCapturedEvent
 	| SourceReadRecordedEvent

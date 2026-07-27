@@ -11,6 +11,7 @@ import type { InquiryId } from "./memo-profile.ts";
 import {
 	decodeObservationEvent,
 	encodeObservationEvent,
+	observationMemoRequestDigest,
 	OBSERVER_OBSERVATION_ENTRY,
 	type CandidateCapturedEvent,
 	type CandidateId,
@@ -61,6 +62,7 @@ export interface ObservationSessionSnapshot {
 	readonly observations: readonly SemanticObservationRecordedEvent[];
 	readonly userHypotheses: readonly UserHypothesisRecordedEvent[];
 	readonly memoRequests: readonly ObservationMemoRequestedEvent[];
+	readonly pendingMemoRequest: ObservationMemoRequestedEvent | null;
 	readonly pendingHypotheses: readonly PendingObservationHypothesis[];
 	readonly consumedObservationIds: readonly ObservationId[];
 	readonly unconsumedObservationIds: readonly ObservationId[];
@@ -301,24 +303,46 @@ function applyMemoRequest(input: {
 	readonly event: ObservationMemoRequestedEvent;
 	readonly index: number;
 	readonly lifecycle: ObserverState;
-	readonly availableObservationIds: ReadonlySet<ObservationId>;
+	readonly observations: ReadonlyMap<ObservationId, SemanticObservationRecordedEvent>;
+	readonly userHypotheses: ReadonlyMap<ObservationId, UserHypothesisRecordedEvent>;
 	readonly requestedObservationIds: ReadonlySet<ObservationId>;
+	readonly currentMemoRevisionId: string | null;
 	readonly memoRequests: Map<MemoRequestId, ObservationMemoRequestedEvent>;
 	readonly issues: ObservationSessionIssue[];
 }): void {
+	const available = new Map<
+		ObservationId,
+		SemanticObservationRecordedEvent | UserHypothesisRecordedEvent
+	>([...input.observations, ...input.userHypotheses]);
+	const requestObservations = input.event.observationIds.flatMap((id) => {
+		const observation = available.get(id);
+		return observation ? [observation] : [];
+	});
+	const sortedIds = input.event.observationIds.toSorted((left, right) =>
+		left.localeCompare(right),
+	);
+	const eligibleIds = [...available.keys()]
+		.filter((id) => !input.requestedObservationIds.has(id))
+		.toSorted((left, right) => left.localeCompare(right));
 	if (
 		!hasLiveEpisode(input.lifecycle, input.event.episodeId, false) ||
-		input.event.observationIds.some(
-			(id) =>
-				!input.availableObservationIds.has(id) ||
-				input.requestedObservationIds.has(id),
-		)
+		input.event.baseMemoRevisionId !== input.currentMemoRevisionId ||
+		requestObservations.length !== input.event.observationIds.length ||
+		!sameStrings(input.event.observationIds, sortedIds) ||
+		!sameStrings(input.event.observationIds, eligibleIds) ||
+		input.event.observationIds.some((id) => input.requestedObservationIds.has(id)) ||
+		input.event.requestDigest !==
+			observationMemoRequestDigest({
+				episodeId: input.event.episodeId,
+				baseMemoRevisionId: input.event.baseMemoRevisionId,
+				observations: requestObservations,
+			})
 	) {
 		issue(
 			input.issues,
 			input.index,
 			"observation-session.order",
-			"Memo request contains unavailable or already requested observations.",
+			"Memo request has stale, unavailable, reused, unsorted, or mismatched observations.",
 		);
 		return;
 	}
@@ -377,6 +401,7 @@ export function reconstructObservationSession(
 	>();
 	const userHypotheses = new Map<ObservationId, UserHypothesisRecordedEvent>();
 	const memoRequests = new Map<MemoRequestId, ObservationMemoRequestedEvent>();
+	const requestIndices = new Map<MemoRequestId, number>();
 	const usedCandidateIds = new Set<CandidateId>();
 	const observedReadIds = new Set<SourceReadId>();
 
@@ -446,10 +471,6 @@ export function reconstructObservationSession(
 			);
 			continue;
 		}
-		const availableObservationIds = new Set<ObservationId>([
-			...observations.keys(),
-			...userHypotheses.keys(),
-		]);
 		const requestedObservationIds = new Set(
 			[...memoRequests.values()].flatMap((request) => request.observationIds),
 		);
@@ -511,8 +532,12 @@ export function reconstructObservationSession(
 					event: decoded.value,
 					index,
 					lifecycle,
-					availableObservationIds,
+					observations,
+					userHypotheses,
 					requestedObservationIds,
+					currentMemoRevisionId: reconstructMemoSession(
+						entries.slice(0, index),
+					).state.revisionId,
 					memoRequests,
 					issues,
 				});
@@ -520,7 +545,12 @@ export function reconstructObservationSession(
 			default:
 				assertNever(decoded.value);
 		}
-		if (issues.at(-1)?.index !== index) signatures.set(identity, signature);
+		if (issues.at(-1)?.index !== index) {
+			signatures.set(identity, signature);
+			if (decoded.value.kind === "memo-requested") {
+				requestIndices.set(decoded.value.requestId, index);
+			}
+		}
 	}
 
 	const memo = reconstructMemoSession(entries);
@@ -529,6 +559,18 @@ export function reconstructObservationSession(
 			pass.instructionId ? [pass.instructionId] : [],
 		),
 	);
+	const pendingMemoRequests = [...memoRequests.values()]
+		.filter((request) => !consumedRequestIds.has(request.requestId))
+		.toSorted((left, right) => left.requestId.localeCompare(right.requestId));
+	if (pendingMemoRequests.length > 1) {
+		const conflicting = pendingMemoRequests[1];
+		issue(
+			issues,
+			conflicting ? (requestIndices.get(conflicting.requestId) ?? entries.length) : entries.length,
+			"observation-session.conflict",
+			"Only one unacknowledged Memo request may exist.",
+		);
+	}
 	const consumedObservationIds = new Set<ObservationId>(
 		[...memoRequests.values()].flatMap((request) =>
 			consumedRequestIds.has(request.requestId) ? request.observationIds : [],
@@ -591,6 +633,7 @@ export function reconstructObservationSession(
 		observations: observationValues,
 		userHypotheses: userValues,
 		memoRequests: sortById(memoRequests.values(), (value) => value.requestId),
+		pendingMemoRequest: pendingMemoRequests[0] ?? null,
 		pendingHypotheses,
 		consumedObservationIds: [...consumedObservationIds].toSorted(
 			(left, right) => left.localeCompare(right),

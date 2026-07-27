@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — Observation에서 prepared Memo pass로 이어지는 semantic trigger (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — pure Memo trigger를 `/observe memo`와 `observer_sidecar`에 연결 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + lifecycle + notebook + durable wrap + Pi commands/replay + Memo reconciliation + Sidecar observation ledger/controller |
+| Runtime implementation | Slice 7 in progress | validation + lifecycle + notebook + durable wrap + Pi commands/replay + Memo reconciliation + Sidecar observation ledger/controller + pure Memo trigger/instruction replay |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | Observation에서 prepared Memo pass로 이어지는 semantic trigger와 실제 transcript |
+| Next movement | Planned | pure Memo trigger의 Pi command/tool 연결과 실제 transcript |
 
 ### 현재 branch checkpoint
 
@@ -114,7 +114,9 @@ feature/observer
 ├─ b3640f4 feat(observer): persist approved wrap batches
 ├─ 6b92a94 feat(observer): integrate Pi command lifecycle
 ├─ 5f3042d feat(observer): reconcile working memos
-└─ Slice 7 landing A: pure observation ledger + sequential Pi Sidecar controller
+├─ dc9fdb6 feat(observer): add source-first sidecar ledger
+├─ fbd3e62 style(observer): format memo and session sources
+└─ Slice 7 landing B: pure Memo request/context/instruction contract
 ```
 
 ---
@@ -932,7 +934,45 @@ packed artifact에서 observer_sidecar staged contract 확인
 wrap 후 fresh-session standing Inquiry re-entry
 ```
 
-Landing 7A는 visible candidate를 source-first로 판정하고 중요한 변화만 append 후 알리는 경계까지 닫는다. Durable Memo/Zettel 저장과 Episode settlement는 여전히 기존 `/observe memo`와 `/observe wrap`의 명시적 경계를 통과해야 한다. 다음 movement는 이 ledger를 complete prepared Memo pass와 실제 Golden Path transcript에 연결할지 현재 evidence에서 다시 판단한 뒤 시작한다.
+Landing 7A는 visible candidate를 source-first로 판정하고 중요한 변화만 append 후 알리는 경계까지 닫는다. Durable Memo/Zettel 저장과 Episode settlement는 여전히 기존 `/observe memo`와 `/observe wrap`의 명시적 경계를 통과해야 한다.
+
+### Landing 7B — Pure Memo request/context/instruction contract
+
+```text
+[x] `/observe memo`용 exact all-eligible request planner
+[x] OPEN Episode에서 Mode와 독립적인 one-pending-request policy
+[x] episode/base revision/ordered Observation event digest를 묶는 request digest
+[x] pending retry stutter와 later Observation next-batch 분리
+[x] request subset에서만 Related Inquiry와 WorkingSource basis hydrate
+[x] unknown nested pass를 parser-refined PreparedMemoPass로 전환
+[x] 모든 requested Observation에 정확히 하나의 persisted disposition 요구
+[x] pass에 없는 Memo/Hypothesis/Evidence reference 거부
+[x] user/Observer hypothesis의 exact Inquiry outcome reference 요구
+[x] request → instruction branch replay, exact duplicate stutter, conflict/reorder/fork fail-closed
+[x] no Pi hook, no notebook write, no Git, no background worker
+```
+
+Verifier evidence:
+
+```text
+Observer: 158/158
+Focused Memo trigger + Observation/Memo session: 13/13
+Package TypeScript LSP: clean
+Current-turn lens diagnostics: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+`/observe memo` request append/replay와 nontruth Pi agent trigger
+`observer_sidecar memo-scope` / `memo-prepare` sequential action
+instruction → prepared → applied → acknowledgment failure recovery
+memo → continue → wrap 실제 Sidecar transcript
+packed artifact contract와 fresh-session re-entry
+```
+
+Landing 7B는 raw semantic preparation이 complete Observation disposition과 exact request/scope를 보존하는 refined instruction이 되는 pure 경계를 닫는다. 아직 command/tool effect를 연결하지 않았으므로 full Sidecar Golden Path를 주장하지 않는다. 다음 movement는 이 pure contract를 기존 Memo controller에 연결할지 현재 evidence에서 다시 판단한 뒤 시작한다.
 
 ---
 
