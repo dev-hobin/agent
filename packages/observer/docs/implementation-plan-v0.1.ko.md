@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 8 — One-shot meaning/surface 재라우팅
+> 다음 실행 단위: Slice 8 — OPEN/OFF lifecycle capability collaboration (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 complete | Sidecar observation + Memo + approved durable Wrap + packed re-entry |
+| Runtime implementation | Slice 8 in progress | Sidecar Golden Path complete + pure One-shot request/completion protocol |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | Complete | Slice 7 — Sidecar Golden Path |
-| Next movement | Requires routing | Slice 8 — One-shot Golden Path |
+| Current slice | In progress | Slice 8 — One-shot Golden Path |
+| Next movement | Requires routing | OPEN/OFF lifecycle capability collaboration |
 
 ### 현재 branch checkpoint
 
@@ -146,7 +146,8 @@ feature/observer
 ├─ 63f9925 style(observer): format wrap handoff prompt
 ├─ 3a8d65b fix(observer): explain wrap markdown rules
 ├─ 23e0b7f docs(observer): record live wrap completion
-└─ Slice 7 landing G-4: packed fresh-process re-entry
+├─ b6aca1b docs(observer): close sidecar golden path
+└─ Slice 8 landing A-1: pure One-shot trigger/session protocol
 ```
 
 ---
@@ -1554,7 +1555,7 @@ packed fresh process: persisted selection/notebook → new OPEN Episode
 
 ## Slice 8 — One-shot Golden Path
 
-**Status:** Planned
+**Status:** In progress
 
 ### Claim
 
@@ -1577,6 +1578,53 @@ Mode OFF에서 memo/wrap
 ### Stop
 
 Sidecar와 One-shot이 같은 state, record, persistence model을 사용하고 서로 다른 별도 architecture를 만들지 않는 상태.
+
+### Landing 8A-1 — pure One-shot trigger/session protocol
+
+```text
+[x] inline-user-message | retrieved-tool-results exact sum
+[x] strict one-shot-start action shape + latest user digest refinement
+[x] opaque OneShotIntent with producer-owned request ID and exact text
+[x] request event stores material meaning without treating instruction as Source
+[x] request/completion codec + current-branch replay
+[x] duplicate stutter, identity conflict, overlap, reorder fail-closed
+[x] completion requires every request candidate → SourceRead → Observation
+[x] at least one semantic Observation required
+[x] no lifecycle, candidate, prompt, Pi, Markdown effect
+```
+
+Verifier evidence:
+
+```text
+One-shot focused: 4/4
+Observer: 176/176
+LSP: 49 files clean
+Pi-lens changed files: clean
+Packed files: 39
+Packed tests: 0
+TypeScript assertion-expression scan: 0
+```
+
+Design correction before implementation:
+
+```text
+automatic exact-user candidate
+→ rejected for path/URL instructions that are not Source material
+→ start material is now an exact sum
+   inline-user-message: exact user text becomes future candidate
+   retrieved-tool-results: waits for future request-linked tool result
+```
+
+Remaining Slice 8 work:
+
+```text
+OPEN/OFF lifecycle capability (never activation=true)
+request-before-inline-candidate append/recovery
+OFF pending-request tool-result capture
+candidate/read ancestry authorization for source-read/hydrate/record
+one-shot-finish Pi action and compact receipt
+bounded One-shot → memo → wrap transcript
+```
 
 ---
 
