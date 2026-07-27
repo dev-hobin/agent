@@ -9,6 +9,7 @@ workflow.
 
 A source idea belongs where its observable job is performed:
 
+- scope-bound existing-code diagnosis and consultation synthesis go to `doctor`, while each underlying judgment remains with its focused owner;
 - product meaning and change pressure go to `specify`;
 - cases, rules, contracts, and transitions go to `model`;
 - implementable boundaries and collaborations go to `sketch`;
@@ -20,7 +21,10 @@ A source idea belongs where its observable job is performed:
 - already-justified mutation goes to the `implementation` route.
 
 No source implies a mandatory route order. Several leaves may use different
-parts of the same source because they answer different questions.
+parts of the same source because they answer different questions. Doctor does
+not become a new source owner: it dispositions those questions inside one claim
+boundary, hands triggered consultations to their existing owners, and
+synthesizes the resulting evidence without copying sibling references.
 
 ## Runtime Reference Quality
 
@@ -98,11 +102,14 @@ repository-only maintenance evidence.
 
 Source fidelity is necessary but not sufficient. After individual audits, the
 package must reorganize durable insights around source-independent judgment
-spines, split independent questions, and remove shadow ownership. The current
+spines, split independent questions, and remove shadow ownership. The base
 synthesis and retired-document map are recorded in
 [`source-audits/cross-source-judgment-integration-2026-07-24.md`](./source-audits/cross-source-judgment-integration-2026-07-24.md).
-Historical audit hashes attest their post-repair snapshots; the integration audit
-attests the later synthesized document set.
+The later evidence-preserving-boundary addition and its integration decision are
+recorded in
+[`source-audits/parse-dont-validate-2019-11-05.md`](./source-audits/parse-dont-validate-2019-11-05.md).
+Historical audit hashes attest their audited snapshots; each later integration
+record attests only the document set and source addition it names.
 
 ## Audited Source Pins
 
@@ -114,6 +121,7 @@ attests the later synthesized document set.
 | *Logic for Programmers* | version 0.14.0, 2026-05-04; [official Leanpub page](https://leanpub.com/logic); exact companion commit [`6ec1070`](https://github.com/logicforprogrammers/book-assets/commit/6ec1070d304fb92c537f5510f8d938054fb5899d) | [`source-audits/logic-for-programmers-v0.14.0-2026-05-04.md`](./source-audits/logic-for-programmers-v0.14.0-2026-05-04.md), all 204 PDF pages read in order with visual inspection and exact companion-source comparison | references retain source-independent artifacts and PDF chapter/page provenance; recorded beta markers, invalid laws, code/formula defects, and runtime mismatches are excluded; repository recovery, production migration, telemetry, rollout, replay, and resource protocols are Developer adaptations; local PDF is not packaged |
 | *Elements of Clojure* | Leanpub edition published 2019-02-11, 121 physical pages; [official Leanpub page](https://leanpub.com/elementsofclojure); public [first-printing manuscript](https://elementsofclojure.com/manuscript/elements_of_clojure.pdf), January 2019, 120 physical pages | [`source-audits/elements-of-clojure-leanpub-2019-02-11.md`](./source-audits/elements-of-clojure-leanpub-2019-02-11.md), both authorized PDFs read in full and visually inspected; substantive prose equivalence checked across pagination and layout | references retain source-independent judgments and public-manuscript section/page provenance; confirmed Clojure examples, interval/domain defects, incomplete algebra, broad proof/model rhetoric, and system-protocol overreach are excluded or qualified; cancellation, idempotency, durable recovery, production capacity, telemetry, rollout, and migration protocols are Developer adaptations; local PDFs are not packaged |
 | *Tidy First?* | First Edition, Second Release, 2025-12-12, ISBN 978-1-098-15124-9, 125 physical PDF pages; official [O'Reilly catalog](https://www.oreilly.com/library/view/tidy-first/9781098151232/) and [errata](https://www.oreilly.com/catalog/errata.csp?isbn=9781098151249) | [`source-audits/tidy-first-first-edition-second-release-2025-12-12.md`](./source-audits/tidy-first-first-edition-second-release-2025-12-12.md), all 125 pages read in order and visually inspected; authorized 13-page first-release retail preview and three corrected errata cross-checked | references retain source-independent observation, timing, and mutation artifacts with printed chapter/page provenance; option pricing, absolute safety, integration/deployment equivalence, universal clustering, Constantine's Equivalence, and unqualified reversibility/coupling claims are excluded or narrowed; production telemetry, migration, rollout, and recovery remain Developer adaptations; local PDFs are not packaged |
+| “Parse, don’t validate” | canonical article by Alexis King, published 2019-11-05, [official page](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) | [`source-audits/parse-dont-validate-2019-11-05.md`](./source-audits/parse-dont-validate-2019-11-05.md), canonical article read in full including footnotes; retrieved HTML hash and source qualifications recorded | runtime guidance retains the source-independent evidence-preserving-boundary method and ordinary bibliographic provenance; Haskell APIs, maximal type machinery, blanket cast bans, and unaudited secondary-source claims are excluded; construction-path, trusted-compiler-gap, effect-order, compatibility, and adversarial-evaluation surfaces are Developer adaptations |
 
 A source pin is provenance, not a runtime route. `reference-policy.json` still
 selects only the reference set needed for the observable question.
@@ -132,6 +140,7 @@ selects only the reference set needed for the observable question.
 | *99 Bottles of OOP*, ch. 5-8 | responsibility separation, messages, type transitions, polymorphism, dependency direction, object creation at the edge, factory tradeoffs | `sketch` | `model`, `schedule`; `abstraction-review` judges shaped candidates |
 | *99 Bottles of OOP*, ch. 9 | unit boundaries, context independence, role verification, obsolete-test removal | `verify` | `sketch` |
 | *How to Design Programs*, living build 9.2.0.3 | information/data interpretation; function versus program recipes; structural template inventory; composition and model refinement; generated-problem preservation and progress; accumulator invariants and ownership; claim-relative examples, numeric/cost boundaries, and post-green design inspection | `sketch` | `model`, `verify`, `signal`; `abstraction-review` only reviews resulting candidates |
+| “Parse, don’t validate,” 2019-11-05 | less-structured to more-structured parsing; refined values that preserve learned information; precise representations; early proof placement; parsing/execution separation; shotgun-parsing diagnosis; abstract-type and smart-constructor fallback | `sketch/evidence-preserving-boundary` | `model` owns admitted values and lost abilities; implementation declares invariant handling; `verify` audits construction, bypass, and effect order |
 | *Structure and Interpretation of Computer Programs*, [ch. 1](https://mitp-content-server.mit.edu/books/content/sectbyfn/books_pres_0/6515/sicp.zip/full-text/book/book-Z-H-9.html#%_chap_1)-[2](https://mitp-content-server.mit.edu/books/content/sectbyfn/books_pres_0/6515/sicp.zip/full-text/book/book-Z-H-13.html#%_chap_2) | procedural abstraction, procedure/process shape, higher-order composition, data abstraction and laws, closure, conventional interfaces, multiple representations | `sketch` | `model`; `abstraction-review` judges existing boundary promises |
 | *Structure and Interpretation of Computer Programs*, [ch. 3](https://mitp-content-server.mit.edu/books/content/sectbyfn/books_pres_0/6515/sicp.zip/full-text/book/book-Z-H-19.html#%_chap_3) | state, identity, aliasing, mutation graphs, concurrency histories, event order, streams, demand/memoization, constraint propagation | `model`, `sketch` | `verify`; candidate review is downstream |
 | *Structure and Interpretation of Computer Programs*, [ch. 4](https://mitp-content-server.mit.edu/books/content/sectbyfn/books_pres_0/6515/sicp.zip/full-text/book/book-Z-H-25.html#%_chap_4)-[5](https://mitp-content-server.mit.edu/books/content/sectbyfn/books_pres_0/6515/sicp.zip/full-text/book/book-Z-H-30.html#%_chap_5) | language/evaluator boundaries; demand, search, multiplicity, negation, and rollback; control/continuation and tail-space guarantees; calling conventions, effect/liveness summaries, storage roots/identity, compilation assumptions, and interpreted/compiled compatibility | `model`, `sketch` | imported only when a real DSL, interpreter, compiler, search engine, or runtime boundary exists |
@@ -172,6 +181,10 @@ task. The following remain contextual:
   its financial-option analogy, directional sketches, Pareto/power-law rhetoric,
   absolute-safety language, and cost equivalences do not establish quantitative
   production or business claims.
+- “Parse, don’t validate” does not require Haskell-shaped APIs, maximal type
+  machinery, one whole-program parsing pass, or a blanket token ban on every cast
+  syntax. It requires an owned transition whose success preserves the learned
+  invariant in the representation consumed by dependent code.
 
 These exclusions prevent a respected source from becoming a framework-shaped
 answer imposed on unrelated product work.

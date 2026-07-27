@@ -26,7 +26,7 @@ Separate independently falsifiable claims:
 - user or caller behavior;
 - forbidden and boundary cases;
 - data multiplicity and preservation;
-- type or API contract;
+- type or API contract, including raw-to-refined construction and re-entry paths;
 - state transition and history;
 - representation or ownership boundary;
 - source/version compatibility;
@@ -102,10 +102,17 @@ calibrations by failure mechanism rather than by book.
 | database schema behavior is preserved | row content matches | labels or function-valued predicates changed | inspect schema and execute predicates/integrity checks |
 | temporal implementation is correct | each enum state is reachable | stale or duplicate event commits twice | ordered trace with stale, retry, duplicate, and concurrency |
 | abstraction is safe | public tests pass | callers still depend on fields, load order, or hidden default | leak search, fake variant, and real caller rewrite |
+| domain type carries its invariant | happy input passes and typecheck is green | validation returns no refined value, then a cast/assertion claims the domain type | inspect every construction path; require parser/smart-constructor success to return the domain value |
+| invalid input cannot affect domain state | negative parser test passes | a write, send, mutation, or partial update happens before parsing completes | effect-order integration check with invalid and partially valid input |
+| construction boundary is closed | public parser tests pass | raw constructor, ORM hydration, test factory, or legacy adapter bypasses the parser | constructor/export/re-entry search plus a direct-bypass type or runtime check |
 | package/source compatibility holds | workspace tests pass | packed artifact or installed version lacks changed files | inspect tarball/fresh install and bind provenance |
 
 A verifier for one row does not support another. In particular, location,
 residual, representation, and downstream tolerances are not interchangeable.
+A typecheck proves only that the program follows the declared types; an
+unchecked narrowing operation can make a false declaration typecheck. Pair
+compile-time evidence with construction-path and boundary evidence whenever the
+type itself is part of the claim.
 
 ## Formal And Search Result Boundaries
 
@@ -165,6 +172,10 @@ Unverified claims and residual risk:
 
 ## Source Trace
 
+- Alexis King, “Parse, don’t validate,” published November 5, 2019, for the
+  distinction between a check that discards information and a parser that
+  returns a refined value, plus the parsing-before-execution boundary. The
+  construction-path and effect-order verifier rows are Developer adaptations.
 - Hillel Wayne, *Logic for Programmers*, v0.14.0:
   Chapters 3-6 and 9-11, pp. 23-155, for logical/runtime preservation, partial
   specifications, generated properties, proof limits, bounded models, and solver

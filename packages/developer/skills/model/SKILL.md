@@ -78,8 +78,12 @@ states, transitions, or policy decisions invalidate the model.
 5. Select one specialized model only when contract, relation, time, exhaustive
    evidence, or search has an independent artifact and stop condition.
 6. State the ability lost and guarantee gained by the chosen representation.
-7. Place each guarantee at the appropriate type, boundary, validation, test,
-   property, proof, model check, or human decision.
+7. Place each guarantee at the appropriate type, boundary, parser, constructor,
+   database constraint, test, property, proof, model check, or human decision.
+   A validation result that carries no refined value and an unchecked assertion,
+   cast, non-null claim, or typed deserialization target cannot own a
+   representable-state guarantee. When raw and admitted domains differ, require
+   an evidence-bearing transition without designing its API.
 8. Derive counterexamples and verification targets without designing the API.
 
 ## Missing Evidence

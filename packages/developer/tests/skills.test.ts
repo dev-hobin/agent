@@ -20,6 +20,7 @@ const skillsRoot = join(packageRoot, "skills");
 const expected = [
 	"abstraction-review",
 	"adversarial-eval",
+	"doctor",
 	"model",
 	"naming-judgment",
 	"schedule",
@@ -50,6 +51,8 @@ test("every skill defines an inspection surface suited to its judgment", async (
 	const expectedSurfaces: Record<string, RegExp> = {
 		"abstraction-review": /review card or table/,
 		"adversarial-eval": /escalation ladder as an ordered matrix/,
+		doctor:
+			/Doctor scope and actual coverage[\s\S]*consultation ledger[\s\S]*treatment plan/,
 		model: /case, decision, or truth table/,
 		"naming-judgment": /rename map as the primary inspection surface/,
 		schedule: /compact timing matrix/,
@@ -69,6 +72,34 @@ test("every skill defines an inspection surface suited to its judgment", async (
 			`${name} should expose an inspectable output surface`,
 		);
 	}
+});
+
+test("Doctor bounds claims, dispositions every owner skill, and delegates routed references", async () => {
+	const source = await readFile(join(skillsRoot, "doctor", "SKILL.md"), "utf8");
+	for (const owner of expected.filter((name) => name !== "doctor")) {
+		assert.ok(
+			source.includes(`| \`${owner}\` |`),
+			`Doctor must disposition ${owner}`,
+		);
+	}
+	assert.match(source, /requested \/ inspected \/ claim scope/i);
+	assert.match(source, /thorough-within-scope/);
+	assert.match(
+		source,
+		/route\s+every triggered distinct consultation[\s\S]*every reference-policy route[\s\S]*every co-required reference/i,
+	);
+	assert.match(source, /must not read sibling skill\s+references/i);
+	assert.match(
+		source,
+		/treat-now[\s\S]*prepare-next[\s\S]*observe[\s\S]*leave-alone/,
+	);
+
+	const doctor = loadSkillsFromDir({
+		dir: skillsRoot,
+		source: "@hobin/developer",
+	}).skills.find((skill) => skill.name === "doctor")!;
+	assert.deepEqual(await skillReferencePaths(doctor), []);
+	assert.deepEqual((await loadSkillReferencePolicy(doctor)).routes, []);
 });
 
 test("inherits Pi's recursive discovery, YAML parsing, and directory-name policy", async () => {
@@ -111,6 +142,17 @@ test("lists and loads direct skill references with content provenance", async ()
 		"references/data-driven-design.md",
 		"references/data-shape-template-catalog.md",
 	]);
+	const evidenceBoundaryRoute = policy.routes.find(
+		(route) => route.id === "evidence-preserving-boundary",
+	);
+	assert.deepEqual(evidenceBoundaryRoute?.references, [
+		"references/evidence-preserving-boundaries.md",
+	]);
+	assert.match(
+		evidenceBoundaryRoute?.question ?? "",
+		/less-trusted|domain value/i,
+	);
+	assert.match(evidenceBoundaryRoute?.stop ?? "", /unchecked narrowing/i);
 	assert.match(
 		policy.exemption?.when ?? "",
 		/no routed judgment has an independent artifact/i,
@@ -123,6 +165,23 @@ test("lists and loads direct skill references with content provenance", async ()
 	assert.equal(loaded.contentSha256.length, 64);
 	assert.match(loaded.content, /The Six-Artifact Recipe/);
 	assert.match(loaded.sourceTrace, /How to Design Programs/);
+	const evidenceBoundary = await loadSkillReference(
+		sketch,
+		"references/evidence-preserving-boundaries.md",
+	);
+	assert.match(
+		evidenceBoundary.content,
+		/Values\(Domain\) ⊆ Values\(Raw\) ⊆ Values\(External\)/,
+	);
+	assert.match(
+		evidenceBoundary.content,
+		/narrowest honest representation the caller can\s+already supply/i,
+	);
+	assert.match(
+		evidenceBoundary.content,
+		/Less trusted does not imply less typed/,
+	);
+	assert.doesNotMatch(evidenceBoundary.content, /UnknownInput/);
 	await assert.rejects(
 		loadSkillReference(sketch, "../model/references/problem-modeling.md"),
 		/direct skill-relative path/,

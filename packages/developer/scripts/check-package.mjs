@@ -22,6 +22,7 @@ async function readJson(path) {
 const expectedSkills = [
 	"abstraction-review",
 	"adversarial-eval",
+	"doctor",
 	"model",
 	"naming-judgment",
 	"schedule",
@@ -34,7 +35,7 @@ const expectedSkills = [
 
 const manifest = await readJson(join(root, "package.json"));
 assert.equal(manifest.name, "@hobin/developer");
-assert.equal(manifest.version, "0.1.10");
+assert.equal(manifest.version, "0.1.13");
 assert.deepEqual(manifest.pi.extensions, ["./extensions/developer.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
 assert.match(manifest.scripts["eval:live"], /eval-live\.mjs --transport rpc/);
@@ -128,6 +129,7 @@ const requiredReferences = [
 	"skills/sketch/references/earned-abstraction.md",
 	"skills/sketch/references/generative-recursion.md",
 	"skills/sketch/references/accumulator-invariants.md",
+	"skills/sketch/references/evidence-preserving-boundaries.md",
 	"skills/sketch/references/design-levels-and-boundaries.md",
 	"skills/sketch/references/representation-barriers.md",
 	"skills/sketch/references/closure-and-conventional-interfaces.md",
@@ -180,6 +182,7 @@ const referenceCatalog = {
 		"references/earned-abstraction.md",
 		"references/generative-recursion.md",
 		"references/accumulator-invariants.md",
+		"references/evidence-preserving-boundaries.md",
 		"references/design-levels-and-boundaries.md",
 		"references/representation-barriers.md",
 		"references/closure-and-conventional-interfaces.md",
@@ -198,6 +201,7 @@ const referenceCatalog = {
 };
 
 const descriptionTriggers = {
+	doctor: /bounded existing codebase scope.*improvement plan/i,
 	model: /condition space.*contracts.*replacement/i,
 	"naming-judgment": /domain meaning.*effect-hiding/i,
 	schedule: /behavior-versus-structure separation/i,
@@ -316,6 +320,8 @@ const referenceAnchors = {
 		/## Structural Or Generated[\s\S]*## Machine, Numeric, Random, And Search Progress[\s\S]*## Stop And Separation/,
 	"skills/sketch/references/accumulator-invariants.md":
 		/## Pressure Before Parameter[\s\S]*## Three Obligations[\s\S]*## Stop And Separation/,
+	"skills/sketch/references/evidence-preserving-boundaries.md":
+		/## Information Must Survive The Check[\s\S]*## Construction And Escape Audit[\s\S]*## Stop And Separation/,
 	"skills/sketch/references/design-levels-and-boundaries.md":
 		/## Boundary Spine[\s\S]*## Select One Specialized Judgment[\s\S]*## Stop And Separation/,
 	"skills/sketch/references/process-shape-and-resources.md":
@@ -422,6 +428,8 @@ for (const fixture of evalFixtures) {
 	}
 }
 for (const fixtureId of [
+	"doctor-unscoped-orientation",
+	"doctor-thorough-bounded-codebase",
 	"implementation-stable-landing-paused",
 	"agent-before-implementation-evidence-gate",
 ]) {
@@ -431,6 +439,7 @@ for (const fixtureId of [
 	);
 }
 const evalJson = await readFile(join(root, "scripts/eval-json.mjs"), "utf8");
+const evalRpc = await readFile(join(root, "scripts/eval-rpc.mjs"), "utf8");
 const evalEventMonitor = await readFile(
 	join(root, "scripts/eval-event-monitor.mjs"),
 	"utf8",
@@ -444,6 +453,11 @@ assert.match(
 );
 assert.match(evalEventMonitor, /createFixtureBudgetMonitor/);
 assert.match(evalEventMonitor, /createJsonlDecoder/);
+assert.match(
+	evalRpc,
+	/value\.type !== "message_update"/,
+	"RPC eval traces must drop cumulative token updates before long Doctor runs",
+);
 assert.match(evalLive, /summarizeTrialObservations/);
 
 const scheduleReference = await readFile(
@@ -468,6 +482,7 @@ const markdownDocuments = [
 	"REFERENCE_ROUTING.md",
 	"SOURCES.md",
 	"source-audits/cross-source-judgment-integration-2026-07-24.md",
+	"source-audits/parse-dont-validate-2019-11-05.md",
 	"extensions/references/behavior-preserving-structural-change.md",
 ];
 for (const documentPath of markdownDocuments) {

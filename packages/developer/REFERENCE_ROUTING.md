@@ -198,9 +198,10 @@ separation behavior, and pass-but-wrong cases.
 
 | Skill | Policy routes | Shape |
 | --- | --- | --- |
+| `doctor` | none | scope, preservation baseline, universal lens disposition, consultation ledger, diagnosis, and treatment order; owner skills select and apply their own references |
 | `abstraction-review` | `candidate-contract-review`, `failed-candidate-check`, `candidate-calibration` | review, failure localization, or promise-based calibration; no shadow construction |
 | `model` | `condition-space`, `contract-replacement`, `relational-constraints`, `temporal-behavior`, `proof-obligation`, `solver-result-boundary`, `logic-query-semantics`, `planning-model` | one model artifact per uncertainty and stop condition |
-| `sketch` | `data-driven-design`, `data-shape-template`, `composition-by-wishes`, `earned-abstraction`, `generative-recursion`, `accumulator-invariant`, `design-levels`, `representation-barrier`, `closure-interface`, `process-resources`, `state-history-order`, `generic-dispatch`, `meaning-preserving-conversion`, `language-semantics`, `runtime-compilation`, `responsibility-collaboration`, `variation-role`, `type-transition`, `selection-creation` | one implementable design question per route, with route-local common kernels only where required |
+| `sketch` | `data-driven-design`, `data-shape-template`, `composition-by-wishes`, `earned-abstraction`, `generative-recursion`, `accumulator-invariant`, `evidence-preserving-boundary`, `design-levels`, `representation-barrier`, `closure-interface`, `process-resources`, `state-history-order`, `generic-dispatch`, `meaning-preserving-conversion`, `language-semantics`, `runtime-compilation`, `responsibility-collaboration`, `variation-role`, `type-transition`, `selection-creation` | one implementable design question per route, with route-local common kernels only where required |
 | `signal` | `behavior-preserving-movement` | singleton |
 | `schedule` | `structural-timing-tradeoff` | singleton |
 | `naming-judgment` | `domain-sense-boundary` | singleton |
@@ -208,6 +209,14 @@ separation behavior, and pass-but-wrong cases.
 | `specify` | none | no packaged reference |
 | `visualize` | none | no packaged reference |
 | `adversarial-eval` | none | no packaged reference |
+
+Doctor does not aggregate sibling reference files into its own policy. In a
+thorough Doctor review it dispositions every available skill, closes the Doctor
+triage route, and hands each triggered question to its owner skill. The owner
+route then applies this contract to every independently triggered policy route
+and co-required reference set before Doctor synthesizes the recorded judgments.
+This makes all references eligible without loading unrelated methods or losing
+route-local provenance.
 
 The implementation execution profile under `extensions/references/` is selected
 by `execution_profile`, not by skill reference routing, and remains a separate

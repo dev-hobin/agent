@@ -50,10 +50,15 @@ sketch must be inspectable as an implementation shape, not only narrated in
 paragraphs. Produce:
 
 1. a compact case/check table;
-2. concrete data or state definitions;
+2. concrete data or state definitions, including raw and refined forms when an
+   input's provenance is broader than the accepted domain;
 3. wishful top-level code, pseudocode, or an interaction skeleton in a fenced
    code block;
 4. a wished-interface table with contract, owner, hidden detail, and stop check;
+   when raw and refined forms differ, show the parser or smart constructor whose
+   input preserves the narrowest honest representation already established for
+   callers, whose success returns the refined value, and whose failure precedes
+   dependent effects;
 5. a small ordered implementation queue and explicitly deferred abstractions;
 6. an ASCII flow, relation map, state transition, or boundary diagram whenever
    two or more components, states, or collaborations are materially related.
@@ -78,7 +83,10 @@ routing to the caller.
 
 Finish when the first implementation item is small enough to execute and check,
 and non-local or invariant-bearing candidates are explicit rather than silently
-assumed. `resolved` is not valid for a prose-only sketch: the output must show
+assumed. If broader, external, persisted, legacy, or otherwise less-trusted data
+enters the surface, `resolved` also requires an evidence-preserving transition to
+the domain representation; validation followed by an assertion is not such a
+transition. `resolved` is not valid for a prose-only sketch: the output must show
 the code or interaction skeleton and the checks that make the first item
 executable. Revisit when implementation evidence breaks the ownership or
 data-flow assumptions.
@@ -87,7 +95,11 @@ data-flow assumptions.
 
 1. Choose the strongest available source of intent and state its confidence.
 2. State the design unit's purpose in the user's language.
-3. Derive relevant data or state definitions and their ownership pressure.
+3. Derive relevant data or state definitions and their ownership pressure. Mark
+   provenance and the raw-to-refined boundary whenever callers cannot already
+   supply an invariant-carrying value. Preserve structure established by prior
+   boundaries instead of widening it merely to check it again; less trusted does
+   not imply less typed. Treat unchecked narrowing as no evidence.
 4. List representative cases before choosing code shape.
 5. Name each independently unresolved design question and select only its routed
    extension; keep disputed meaning in `model`.

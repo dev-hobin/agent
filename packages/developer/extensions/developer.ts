@@ -53,6 +53,7 @@ import {
 	applyDeveloperEvent,
 	canApplyDeveloperEvent,
 	developerSnapshot,
+	formatInvariantHandling,
 	initialState,
 	normalizeDeveloperEvent,
 	parseChoiceResponseSpec,
@@ -62,6 +63,8 @@ import {
 	type ChoiceResponseSpec,
 	type DeveloperState,
 	type ImplementationProfile,
+	type ImplementationStepContract,
+	type InvariantHandling,
 	type FocusEvent,
 	type JudgmentEvent,
 	type PendingQuestion,
@@ -214,6 +217,55 @@ interface ChoiceResponseSpecInput {
 	kind: "choice-form";
 	fields: ChoiceResponseFieldInput[];
 }
+
+type InvariantHandlingWireField =
+	| "reason"
+	| "raw_representation"
+	| "refined_representation"
+	| "producer"
+	| "failure"
+	| "first_effect"
+	| "assertion"
+	| "established_by"
+	| "limitation"
+	| "containment"
+	| "verification";
+
+const INVARIANT_FIELDS_BY_KIND = {
+	"not-applicable": ["reason"],
+	"evidence-preserving-boundary": [
+		"raw_representation",
+		"refined_representation",
+		"producer",
+		"failure",
+		"first_effect",
+	],
+	"trusted-compiler-gap": [
+		"assertion",
+		"established_by",
+		"limitation",
+		"containment",
+		"verification",
+	],
+} as const satisfies Record<
+	InvariantHandling["kind"],
+	readonly InvariantHandlingWireField[]
+>;
+
+interface ParsedSkillRouteMode {
+	kind: "skill";
+	target: string;
+}
+
+interface ParsedImplementationRouteMode {
+	kind: "implementation";
+	target: "implementation";
+	implementationStep: ImplementationStepContract;
+	consideredAlternatives: RouteAlternative[];
+	executionProfile: ImplementationProfile;
+}
+
+type ParsedRouteMode = ParsedSkillRouteMode | ParsedImplementationRouteMode;
 
 interface OpenQuestionInput {
 	question: string;
@@ -460,9 +512,14 @@ function protocolPrompt(
 		"Developer protocol is active.",
 		"- Use the default topology as a conditional backbone, not a rigid lifecycle: clarify meaning when needed -> model consequential cases -> sketch the first implementation surface for new behavior or signal the smallest structural movement in existing code -> execute one implementation step -> verify current claims.",
 		"- Adapt away from that topology when evidence makes a stage not applicable, but never jump directly from a resolved model to mutation: use sketch for feature implementation or signal for existing-code structural movement first.",
+		"- Route doctor only for an explicitly requested scope-bound diagnosis and improvement plan across several judgment kinds; it is not a mandatory prelude, pull-request review, environment check, or synonym for ordinary implementation.",
+		"- A thorough Doctor review is broad and shallow before it is narrow and deep: establish requested, inspected, and claim scope; disposition every other available Developer skill with evidence; close Doctor triage; route every triggered distinct consultation to its owning skill; let that owner select and apply every triggered policy route and co-required reference; then return to Doctor to synthesize diagnosis and treatment order. Doctor must not load sibling references or flatten their methods into one checklist.",
+		"- While Doctor consultations remain, keep one agent-owned before-completion synthesis question and update its remaining consultation evidence after each owner judgment; do not open one pending question per lens. Resolve it only in the final Doctor synthesis route.",
 		"- Route by the requested work product, not keywords: use sketch to create an original caller-facing interface, representation boundary, ownership map, or collaboration; use abstraction-review only when a concrete candidate surface already exists to keep/revise/split/reject/defer; use model first only when unresolved cases, rules, or policy can materially change that surface.",
 		`- Call ${ROUTE_TOOL} for exactly one concrete judgment or one green-to-green implementation movement.`,
-		"- Use target=implementation only when the next local movement, stable landing, and narrow verification are already justified; otherwise choose the focused skill whose scope fits the current question.",
+		"- Use target=implementation only when the next local movement, stable landing, narrow verification, and invariant handling are already justified; otherwise choose the focused skill whose scope fits the current question.",
+		"- Invariant gate: an unchecked assertion, cast, non-null claim, ignored conversion result, or typed deserialization target is not evidence that broader, external, persisted, legacy, or otherwise less-trusted input satisfies a domain invariant. Parse or construct a refined value whose success carries the learned information before dependent effects; validation followed by narrowing does not satisfy this gate.",
+		"- Every implementation route must classify invariant handling as not applicable, an evidence-preserving boundary, or a trusted compiler gap. A trusted compiler gap is valid only after a complete check or trusted contract already established the fact, the language cannot retain it, the unsafe operation is isolated to one owner, and a falsifier is named. Encountering a missing boundary requires sketch, not an implementation assertion.",
 		"- An implementation step has one observable difference and one structural or behavioral purpose. Stop when its failure is locally explainable and the repository is green, pausable, and reviewable.",
 		"- For implementation structural work intended to preserve behavior, set execution_profile=behavior-preserving-structure; omit the field for other implementation actions and every skill route.",
 		`- Follow the routed method, then close the route with ${JUDGMENT_TOOL}. After every implementation stable landing, route again from the new evidence before selecting another movement.`,
@@ -511,6 +568,11 @@ function protocolPrompt(
 		lines.push(
 			`Active route: ${state.activeRoute.routeId} · ${state.activeRoute.target} · ${state.activeRoute.question}`,
 		);
+		if (state.activeRoute.implementationStep) {
+			lines.push(
+				`Active invariant handling: ${formatInvariantHandling(state.activeRoute.implementationStep.invariantHandling)}. Stop and route sketch instead of mutating if this declaration is contradicted by the code.`,
+			);
+		}
 		if (state.activeRoute.methodLocation) {
 			lines.push(
 				`Active skill location: ${state.activeRoute.methodLocation}. Read it again if compaction or a later turn no longer contains the full instructions.`,
@@ -825,78 +887,258 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 		{ additionalProperties: false },
 	);
-	const RouteParams = Type.Union([
-		Type.Object(
-			{
-				...SharedRouteParams,
-				target: Type.String({
-					minLength: 1,
-					maxLength: 64,
-					pattern: "^(?!implementation$)[a-z0-9]+(?:-[a-z0-9]+)*$",
+	// Keep tool parameters as directly described objects. Pi's Google-compatible
+	// contract does not support Type.Union/Type.Literal tool schemas.
+	const optionalInvariantText = (description: string) =>
+		Type.Optional(
+			Type.String({
+				minLength: 1,
+				maxLength: MAX_EVIDENCE_CHARS,
+				description,
+			}),
+		);
+	const InvariantHandlingParam = Type.Object(
+		{
+			kind: StringEnum(
+				[
+					"not-applicable",
+					"evidence-preserving-boundary",
+					"trusted-compiler-gap",
+				] as const,
+				{
 					description:
-						"Exact skill name from the current Available Developer skills list",
-				}),
-			},
-			{
-				additionalProperties: false,
-				description: "Route one question to a Developer skill",
-			},
-		),
-		Type.Object(
-			{
-				...SharedRouteParams,
-				target: Type.Literal("implementation", {
-					description:
-						"Use Pi implementation tools for an already-justified action",
-				}),
-				movement: Type.String({
+						"Classification that determines which companion fields are required",
+				},
+			),
+			reason: optionalInvariantText(
+				"Required for not-applicable: why the movement does not construct or narrow invariant-bearing data",
+			),
+			raw_representation: optionalInvariantText(
+				"Required for evidence-preserving-boundary: broader or less-trusted input representation",
+			),
+			refined_representation: optionalInvariantText(
+				"Required for evidence-preserving-boundary: invariant-carrying result representation",
+			),
+			producer: optionalInvariantText(
+				"Required for evidence-preserving-boundary: parser, refinement function, or smart constructor whose success returns the refined value",
+			),
+			failure: optionalInvariantText(
+				"Required for evidence-preserving-boundary: explicit refinement failure result",
+			),
+			first_effect: optionalInvariantText(
+				"Required for evidence-preserving-boundary: first dependent domain effect allowed only after successful refinement",
+			),
+			assertion: optionalInvariantText(
+				"Required for trusted-compiler-gap: the fact the language cannot retain",
+			),
+			established_by: optionalInvariantText(
+				"Required for trusted-compiler-gap: complete check or trusted runtime contract that already established the fact",
+			),
+			limitation: optionalInvariantText(
+				"Required for trusted-compiler-gap: why ordinary language narrowing cannot retain the established fact",
+			),
+			containment: optionalInvariantText(
+				"Required for trusted-compiler-gap: single parser or constructor owner containing the gap",
+			),
+			verification: optionalInvariantText(
+				"Required for trusted-compiler-gap: falsifier for the claimed prior evidence and containment",
+			),
+		},
+		{
+			additionalProperties: false,
+			description:
+				"Implementation invariant declaration. Supply only the companion fields required by the selected kind.",
+		},
+	);
+	const RouteParams = Type.Object(
+		{
+			...SharedRouteParams,
+			target: Type.String({
+				minLength: 1,
+				maxLength: 64,
+				pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+				description:
+					"Exact skill name from the current Available Developer skills list, or implementation",
+			}),
+			movement: Type.Optional(
+				Type.String({
 					minLength: 1,
 					maxLength: MAX_QUESTION_CHARS,
 					description:
-						"One locally explainable behavioral or structural movement; not a multi-step implementation queue",
+						"Required only for target=implementation: one locally explainable behavioral or structural movement",
 				}),
-				stop_condition: Type.String({
+			),
+			stop_condition: Type.Optional(
+				Type.String({
 					minLength: 1,
 					maxLength: MAX_QUESTION_CHARS,
 					description:
-						"The green, pausable, reviewable stable landing that ends this implementation route",
+						"Required only for target=implementation: the green, pausable, reviewable stable landing",
 				}),
-				verification: Type.String({
+			),
+			verification: Type.Optional(
+				Type.String({
 					minLength: 1,
 					maxLength: MAX_EVIDENCE_CHARS,
 					description:
-						"The narrowest check that can catch the likely break in this movement",
+						"Required only for target=implementation: the narrowest check that can catch the likely break",
 				}),
-				alternatives_considered: Type.Optional(
-					Type.Array(RouteAlternativeParam, {
-						maxItems: 6,
-						description:
-							"On a reroute after implementation, the plausible skill routes reconsidered and why each is unnecessary now",
-					}),
+			),
+			invariant_handling: Type.Optional(InvariantHandlingParam),
+			alternatives_considered: Type.Optional(
+				Type.Array(RouteAlternativeParam, {
+					maxItems: 6,
+					description:
+						"For target=implementation reroutes: plausible skill routes reconsidered and why each is unnecessary now",
+				}),
+			),
+			execution_profile: Type.Optional(
+				StringEnum(["behavior-preserving-structure"] as const, {
+					description:
+						"For target=implementation structural work: load the focused behavior-preserving protocol",
+				}),
+			),
+		},
+		{
+			additionalProperties: false,
+			description:
+				"Route one question to a Developer skill or one already-justified implementation action",
+		},
+	);
+	type RouteWireInput = Static<typeof RouteParams>;
+	type InvariantHandlingWireInput = NonNullable<
+		RouteWireInput["invariant_handling"]
+	>;
+
+	const requiredTrimmedText = (
+		value: string | undefined,
+		error: string,
+	): string => {
+		if (!value?.trim()) fail(error);
+		return value.trim();
+	};
+	const requiredInvariantField = (
+		input: InvariantHandlingWireInput,
+		field: InvariantHandlingWireField,
+	): string =>
+		requiredTrimmedText(
+			input[field],
+			`invariant_handling.${field} is required for kind=${input.kind}.`,
+		);
+	const parseInvariantHandling = (
+		input: InvariantHandlingWireInput | undefined,
+	): InvariantHandling => {
+		if (!input) {
+			fail("target=implementation requires an invariant_handling object.");
+		}
+		const requiredFields = INVARIANT_FIELDS_BY_KIND[input.kind];
+		if (!requiredFields) {
+			fail(`Unsupported invariant_handling kind: ${String(input.kind)}`);
+		}
+		const allowedFields = new Set<string>(["kind", ...requiredFields]);
+		const misplacedFields = Object.keys(input).filter(
+			(field) => !allowedFields.has(field),
+		);
+		if (misplacedFields.length > 0) {
+			fail(
+				`invariant_handling kind=${input.kind} does not accept: ${misplacedFields.join(", ")}.`,
+			);
+		}
+		if (input.kind === "not-applicable") {
+			return {
+				kind: input.kind,
+				reason: requiredInvariantField(input, "reason"),
+			};
+		}
+		if (input.kind === "evidence-preserving-boundary") {
+			return {
+				kind: input.kind,
+				rawRepresentation: requiredInvariantField(input, "raw_representation"),
+				refinedRepresentation: requiredInvariantField(
+					input,
+					"refined_representation",
 				),
-				execution_profile: Type.Optional(
-					Type.Literal("behavior-preserving-structure", {
-						description:
-							"Load the focused structural-mutation protocol; omit for ordinary implementation action",
-					}),
+				producer: requiredInvariantField(input, "producer"),
+				failure: requiredInvariantField(input, "failure"),
+				firstEffect: requiredInvariantField(input, "first_effect"),
+			};
+		}
+		return {
+			kind: input.kind,
+			assertion: requiredInvariantField(input, "assertion"),
+			establishedBy: requiredInvariantField(input, "established_by"),
+			limitation: requiredInvariantField(input, "limitation"),
+			containment: requiredInvariantField(input, "containment"),
+			verification: requiredInvariantField(input, "verification"),
+		};
+	};
+	const parseConsideredAlternatives = (
+		input: RouteWireInput["alternatives_considered"],
+	): RouteAlternative[] =>
+		(input ?? []).map((alternative, index) => ({
+			target: requiredTrimmedText(
+				alternative.target,
+				`alternatives_considered[${index}].target is required.`,
+			),
+			reason: requiredTrimmedText(
+				alternative.reason,
+				`alternatives_considered[${index}].reason is required.`,
+			),
+		}));
+	const parseRouteMode = (input: RouteWireInput): ParsedRouteMode => {
+		if (input.target !== "implementation") {
+			const implementationOnlyFields = [
+				"movement",
+				"stop_condition",
+				"verification",
+				"invariant_handling",
+				"alternatives_considered",
+				"execution_profile",
+			] as const;
+			const misplacedFields = implementationOnlyFields.filter(
+				(field) => input[field] !== undefined,
+			);
+			if (misplacedFields.length > 0) {
+				fail(
+					`${misplacedFields.join(", ")} ${misplacedFields.length === 1 ? "is" : "are"} valid only when target=implementation.`,
+				);
+			}
+			return { kind: "skill", target: input.target };
+		}
+		return {
+			kind: "implementation",
+			target: input.target,
+			implementationStep: {
+				movement: requiredTrimmedText(
+					input.movement,
+					"target=implementation requires non-empty movement.",
 				),
+				stopCondition: requiredTrimmedText(
+					input.stop_condition,
+					"target=implementation requires non-empty stop_condition.",
+				),
+				verification: requiredTrimmedText(
+					input.verification,
+					"target=implementation requires non-empty verification.",
+				),
+				invariantHandling: parseInvariantHandling(input.invariant_handling),
 			},
-			{
-				additionalProperties: false,
-				description: "Route one already-justified implementation action",
-			},
-		),
-	]);
+			consideredAlternatives: parseConsideredAlternatives(
+				input.alternatives_considered,
+			),
+			executionProfile: input.execution_profile ?? "ordinary",
+		};
+	};
 
 	pi.registerTool({
 		name: ROUTE_TOOL,
 		label: "Developer Route Question",
 		description:
-			"Route one concrete judgment or one green-to-green implementation movement. Route by work product: sketch creates an original design surface, abstraction-review judges an already-shaped candidate, and model settles unresolved conditions before design. Then use implementation stable landings and verify before completion.",
+			"Route one concrete judgment or one green-to-green implementation movement. Route by work product: doctor coordinates an explicitly requested scope-bound existing-code diagnosis, sketch creates an original design surface, abstraction-review judges an already-shaped candidate, and model settles unresolved conditions before design. Implementation must declare how invariant-bearing values are constructed without unchecked narrowing. Then use stable landings and verify before completion.",
 		promptSnippet: "Choose how to handle one development question",
 		promptGuidelines: [
 			`Call ${ROUTE_TOOL} only when there is no active Developer route.`,
-			`Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; choose sketch for an original interface or boundary, abstraction-review only for an already-shaped candidate, and model only for unresolved condition space. target=implementation requires one movement, one stable landing, and one narrow verification.`,
+			`Use ${ROUTE_TOOL} with the most focused skill supported by current evidence; choose doctor only for an explicit scope-bound existing-code diagnosis and improvement plan, choose sketch for an original interface or boundary, abstraction-review only for an already-shaped candidate, and model only for unresolved condition space. target=implementation requires one movement, one stable landing, one narrow verification, and a truthful invariant_handling declaration. Validation followed by an assertion is not an evidence-preserving boundary.`,
 			`When ${ROUTE_TOOL} follows an implementation judgment with another implementation route, cite the previous landing in known_evidence and record plausible skill routes in alternatives_considered instead of selecting implementation by momentum.`,
 			`After a resolved model, use sketch for first feature implementation framing or signal for existing-code structural movement before implementation mutation.`,
 		],
@@ -915,6 +1157,7 @@ export default async function developer(pi: ExtensionAPI) {
 					`Route ${state.activeRoute.routeId} is still active. Record its judgment before routing another question.`,
 				);
 			}
+			const routeMode = parseRouteMode(params);
 			routeOpening = true;
 
 			try {
@@ -936,7 +1179,19 @@ export default async function developer(pi: ExtensionAPI) {
 					fail(`Unknown pending question ID: ${targetQuestionId}`);
 				}
 
-				const target = params.target;
+				const target = routeMode.target;
+				const implementationStep =
+					routeMode.kind === "implementation"
+						? routeMode.implementationStep
+						: undefined;
+				const consideredAlternatives =
+					routeMode.kind === "implementation"
+						? routeMode.consideredAlternatives
+						: [];
+				const executionProfile =
+					routeMode.kind === "implementation"
+						? routeMode.executionProfile
+						: undefined;
 				const implementationBlockers = state.pendingQuestions.filter(
 					(pending) => pending.gate === "before-implementation",
 				);
@@ -953,13 +1208,6 @@ export default async function developer(pi: ExtensionAPI) {
 				const knownEvidence = (params.known_evidence ?? [])
 					.map((item) => item.trim())
 					.filter(Boolean);
-				const consideredAlternatives: RouteAlternative[] =
-					target === "implementation" && "alternatives_considered" in params
-						? (params.alternatives_considered ?? []).map((alternative) => ({
-								target: alternative.target.trim(),
-								reason: alternative.reason.trim(),
-							}))
-						: [];
 				for (const alternative of consideredAlternatives) {
 					if (!availableSkills.has(alternative.target)) {
 						fail(
@@ -1007,19 +1255,6 @@ export default async function developer(pi: ExtensionAPI) {
 						`Developer skill ${target} is unavailable or disabled in the current Pi resource configuration.`,
 					);
 				}
-				const requestedExecutionProfile =
-					"execution_profile" in params ? params.execution_profile : undefined;
-				if (
-					target !== "implementation" &&
-					requestedExecutionProfile !== undefined
-				) {
-					fail("execution_profile is valid only when target=implementation.");
-				}
-				const executionProfile: ImplementationProfile | undefined =
-					target === "implementation"
-						? (requestedExecutionProfile ?? "ordinary")
-						: undefined;
-
 				const availableReferences = skill
 					? await skillReferencePaths(skill)
 					: [];
@@ -1041,26 +1276,12 @@ export default async function developer(pi: ExtensionAPI) {
 						"# Implementation action",
 						"",
 						"The next local action is already justified. Keep this route open while using Pi implementation tools and collecting evidence.",
+						"",
+						"## Invariant gate",
+						"",
+						"Follow the route's invariant-handling declaration. Broader or less-trusted input must become an invariant-carrying value through a parser, refinement function, or smart constructor before dependent effects. Validation followed by an assertion, cast, non-null claim, ignored conversion result, or typed decode is not evidence. If the declared handling is incomplete, stop without mutation and route sketch. Keep any trusted compiler gap isolated to its declared owner and verify its prior evidence and containment.",
 					].join("\n");
 				}
-
-				const implementationStep =
-					target === "implementation"
-						? {
-								movement: ("movement" in params
-									? params.movement
-									: question
-								).trim(),
-								stopCondition: ("stop_condition" in params
-									? params.stop_condition
-									: "Reach a green, pausable, reviewable stable landing."
-								).trim(),
-								verification: ("verification" in params
-									? params.verification
-									: "Run the narrowest relevant check and inspect the resulting diff or output."
-								).trim(),
-							}
-						: undefined;
 
 				const event: RouteEvent = {
 					protocol: PROTOCOL,
@@ -1096,6 +1317,7 @@ export default async function developer(pi: ExtensionAPI) {
 								`Movement: ${implementationStep.movement}`,
 								`Stable landing: ${implementationStep.stopCondition}`,
 								`Narrow verification: ${implementationStep.verification}`,
+								`Invariant handling: ${formatInvariantHandling(implementationStep.invariantHandling)}`,
 								"Stop this implementation route at that landing, record the evidence, and route again before another movement.",
 							]
 						: []),
@@ -1109,6 +1331,11 @@ export default async function developer(pi: ExtensionAPI) {
 					...(skill && event.availableReferences.length > 0
 						? [
 								`Reference contract: choose policy routes by observable trigger, use ${REFERENCE_TOOL} for every reference in each selected route's co-required set, and provide reference_basis for every loaded path; use reference_exemption only when no policy route applies.`,
+							]
+						: []),
+					...(skill && event.availableReferences.length === 0
+						? [
+								"Reference contract: this skill has no packaged references; omit both reference_basis and reference_exemption from its judgment.",
 							]
 						: []),
 					`Known evidence: ${event.knownEvidence.length > 0 ? event.knownEvidence.join(" | ") : "none"}`,
@@ -1173,7 +1400,8 @@ export default async function developer(pi: ExtensionAPI) {
 					context.lastComponent,
 				);
 			}
-			const event = result.details as RouteEvent | undefined;
+			const normalized = normalizeDeveloperEvent(result.details);
+			const event = normalized?.kind === "route" ? normalized : undefined;
 			let text = theme.fg("success", `routed ${routeRenderText(event)}`);
 			if (expanded && event) {
 				text += `\n${detailLine(theme, "route", event.routeId, "text")}`;
@@ -1207,6 +1435,7 @@ export default async function developer(pi: ExtensionAPI) {
 					text += `\n${detailLine(theme, "movement", event.implementationStep.movement, "text")}`;
 					text += `\n${detailLine(theme, "landing", event.implementationStep.stopCondition)}`;
 					text += `\n${detailLine(theme, "verify", event.implementationStep.verification)}`;
+					text += `\n${detailLine(theme, "invariant", formatInvariantHandling(event.implementationStep.invariantHandling))}`;
 				}
 			}
 			if (!expanded && event)
@@ -1382,7 +1611,9 @@ export default async function developer(pi: ExtensionAPI) {
 					context.lastComponent,
 				);
 			}
-			const event = result.details as ReferenceLoadEvent | undefined;
+			const normalized = normalizeDeveloperEvent(result.details);
+			const event =
+				normalized?.kind === "reference-load" ? normalized : undefined;
 			let text = theme.fg(
 				"success",
 				`loaded ${event?.path ?? "Developer reference"}`,
@@ -1619,7 +1850,7 @@ export default async function developer(pi: ExtensionAPI) {
 		promptGuidelines: [
 			`Use ${JUDGMENT_TOOL} with the exact active Developer route ID.`,
 			`Use ${JUDGMENT_TOOL} result as Markdown and preserve the routed skill's inspectable tables, diagrams, matrices, timelines, and code blocks instead of reducing them to prose.`,
-			`For a resolved skill route with available references, use ${JUDGMENT_TOOL} reference_basis to connect each relied-on ${REFERENCE_TOOL} load to its trigger, applied rule, and resulting artifact, or use reference_exemption when no reference is relevant. Never provide both.`,
+			`For a resolved skill route with available references, use ${JUDGMENT_TOOL} reference_basis to connect each relied-on ${REFERENCE_TOOL} load to its trigger, applied rule, and resulting artifact, or use reference_exemption when no reference is relevant. Never provide both. For a skill with no packaged references, omit both fields.`,
 			`Use ${JUDGMENT_TOOL} open_questions with resolution_owner, gate, and resolution_criteria. User-owned gated questions require explanatory context before controls; for finite required decisions, add a choice-form response_spec with one field per decision. Use question_updates whenever current evidence settles or changes any existing pending question.`,
 			`Do not use ${JUDGMENT_TOOL} with resolved, not-applicable, or blocked status without at least one concrete basis.`,
 		],
@@ -2011,7 +2242,8 @@ export default async function developer(pi: ExtensionAPI) {
 					context.lastComponent,
 				);
 			}
-			const event = result.details as JudgmentEvent | undefined;
+			const normalized = normalizeDeveloperEvent(result.details);
+			const event = normalized?.kind === "judgment" ? normalized : undefined;
 			const summary = judgmentRenderText(event);
 			let text =
 				event?.status === "resolved"

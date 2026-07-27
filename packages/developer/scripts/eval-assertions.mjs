@@ -259,6 +259,50 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 		);
 	}
 
+	if (fixture.requiresDoctorSynthesis) {
+		const finalRoute = routes.at(-1);
+		const finalRouteIndex = finalRoute
+			? executions.indexOf(finalRoute)
+			: -1;
+		assert.ok(
+			routes.filter((event) => event.args.target === "doctor").length >= 2,
+			`${fixture.id}: Doctor did not return for final synthesis`,
+		);
+		assert.equal(
+			finalRoute?.args.target,
+			"doctor",
+			`${fixture.id}: the final route was not Doctor synthesis`,
+		);
+		assert.ok(
+			routes
+				.slice(1, -1)
+				.some(
+					(event) =>
+						event.args.target !== "doctor" &&
+						event.args.target !== "implementation",
+				),
+			`${fixture.id}: Doctor did not delegate any owner-skill consultation`,
+		);
+		const finalJudgment = executions
+			.slice(finalRouteIndex + 1)
+			.find((event) => event.toolName === JUDGMENT_TOOL);
+		assert.ok(
+			finalJudgment,
+			`${fixture.id}: final Doctor route has no recorded synthesis judgment`,
+		);
+		const synthesis = String(finalJudgment.args.result ?? "").toLocaleLowerCase();
+		for (const [label, alternatives] of [
+			["consultation ledger", ["consultation", "consult", "협진"]],
+			["diagnosis", ["diagnos", "진단"]],
+			["treatment plan", ["treat", "처방", "개선 계획"]],
+		]) {
+			assert.ok(
+				alternatives.some((term) => synthesis.includes(term)),
+				`${fixture.id}: final Doctor synthesis omitted ${label}`,
+			);
+		}
+	}
+
 	if (fixture.mutationRequiresImplementationRoute) {
 		const mutationIndex = executions.findIndex((event) =>
 			["edit", "write"].includes(event.toolName),

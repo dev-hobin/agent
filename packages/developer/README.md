@@ -7,7 +7,7 @@ Use it when a task may hide product rules, consequential cases, ownership,
 compatibility, structural timing, or pass-but-wrong verification. Developer:
 
 - turns consequential uncertainty into explicit questions;
-- routes Pi to one of ten focused judgment skills;
+- routes Pi to one of eleven focused judgment skills;
 - loads deeper references only when an observable trigger calls for them;
 - keeps implementation, unresolved questions, and verification evidence visible
   on the current session branch.
@@ -70,6 +70,19 @@ The tests pass after this cache rewrite.
 Check what they do not prove before calling it done.
 ```
 
+For a scope-bound existing-code diagnosis and improvement plan, ask for Doctor
+explicitly and name a path, flow, boundary, package, or subsystem when you can:
+
+```text
+Run a thorough Doctor review of the checkout request-to-persistence flow.
+Preserve current external behavior, consult every triggered Developer judgment,
+and produce a now/next/observe/leave-alone plan without modifying files.
+```
+
+When no useful scope is supplied, Doctor performs a cheap orientation pass and
+proposes one. It distinguishes requested, inspected, and claim scope rather than
+presenting a repository sample as an exhaustive review.
+
 ## Why Developer
 
 Ordinary coding requests often contain decisions that look like implementation
@@ -84,7 +97,10 @@ details but are actually product, model, boundary, or evidence questions.
 | Branches lose rationale | Evidence replays with its branch |
 
 Developer coordinates judgment; Pi still reads, edits, runs, and tests the
-product with its normal tools.
+product with its normal tools. Across those judgments, an unchecked assertion,
+cast, non-null claim, or typed decode is never treated as evidence that a domain
+invariant holds: broader input must cross an owned parser or smart-constructor
+boundary whose success returns the refined value.
 
 ## How it works
 
@@ -115,9 +131,11 @@ and the plausible judgment routes add no useful information.
 
 | Need | Developer helps Pi… |
 | --- | --- |
+| Diagnose existing code | Bound the review, preserve behavior, consult triggered judgments, and order justified improvements |
 | Clarify a feature | Separate meaning, constraints, examples, and blockers |
 | Model behavior | Enumerate cases, contracts, transitions, and guarantees |
 | Shape code | Expose data, interfaces, collaboration, state, and checks |
+| Refine input safely | Turn broader input into invariant-carrying domain values before dependent effects |
 | Inspect a design | Identify structural movement and model-code mismatch |
 | Review an abstraction | Keep, revise, split, reject, or defer the candidate |
 | Time a refactor | Separate behavior work and judge the cost of delay |
@@ -133,6 +151,7 @@ directly with `/skill:<name>`.
 
 | Skill | Helps decide |
 | --- | --- |
+| `doctor` | What a bounded existing-code scope must preserve, treat, observe, or leave alone |
 | `specify` | Product meaning, scope, invariants, and blockers |
 | `model` | Cases, contracts, transitions, guarantees, and checks |
 | `sketch` | Data, interfaces, collaboration, flow, state, and code shape |
@@ -147,6 +166,14 @@ directly with `/skill:<name>`.
 Each skill produces an artifact suited to its question instead of defaulting to
 undifferentiated prose. Simple judgments remain compact when prose is genuinely
 clearer.
+
+Doctor is an explicit coordination workflow, not the default front door for
+ordinary tasks. It first makes a broad, shallow disposition of every available
+Developer judgment lens inside a declared scope. It then closes so each
+triggered question can run through its owning skill and all reference-policy
+routes supported by observable evidence. A final Doctor route synthesizes those
+owner judgments into a treatment plan; Doctor never reads sibling references or
+replaces their methods with one giant checklist.
 
 ## Commands
 

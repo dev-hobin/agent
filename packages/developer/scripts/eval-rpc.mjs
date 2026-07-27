@@ -123,7 +123,10 @@ let nextId = 1;
 
 const decoder = createJsonlDecoder({
 	onValue(value) {
-		events.push(value);
+		// Streaming updates repeat the cumulative partial message and can make a
+		// long, multi-consultation Doctor trace grow quadratically. Final message
+		// and tool events retain the evidence needed by assertions and diagnostics.
+		if (value.type !== "message_update") events.push(value);
 		if (value.type === "response" && value.id) {
 			responses.set(value.id, value);
 			const resolve = waiters.get(value.id);
@@ -228,7 +231,11 @@ try {
 	const packageSkills = allLoadedSkills.filter((entry) =>
 		String(entry.sourceInfo?.path ?? "").startsWith(skills),
 	);
-	assert.equal(packageSkills.length, 10);
+	assert.equal(packageSkills.length, 11);
+	assert.equal(
+		packageSkills.some((entry) => entry.name === "skill:doctor"),
+		true,
+	);
 	assert.equal(
 		packageSkills.some((entry) => entry.name === "develop"),
 		false,

@@ -134,8 +134,10 @@ to remain aligned.
 
 For every important rule, name the cheapest trustworthy owner and evidence target:
 
-- type for representable-state restrictions;
-- constructor or runtime validation for hostile input;
+- type or abstract representation for representable-state restrictions, but only
+  when every construction path establishes the restriction;
+- parser or smart constructor for hostile or broader input, returning the
+  invariant-carrying value or explicit failure rather than discarding the check;
 - contract for caller/callee meaning;
 - database constraint for persisted relational facts;
 - state transition owner for history-sensitive rules;
@@ -144,7 +146,11 @@ For every important rule, name the cheapest trustworthy owner and evidence targe
 - model, solver, or proof for bounded exhaustive relationships;
 - human decision for policy.
 
-An unchecked statement may guide design, but it is not evidence.
+An unchecked statement may guide design, but it is not evidence. Validation that
+returns only success, `Unit`, or `Bool` cannot by itself place a guarantee at a
+stronger type, and an assertion, cast, non-null claim, ignored conversion result,
+or typed deserialization target does not repair that gap. Record the required
+raw-to-refined transition and hand its concrete caller surface to `sketch`.
 
 ## Model Artifact
 
@@ -177,6 +183,10 @@ Separate rather than expanding this reference when:
 
 ## Source Trace
 
+- Alexis King, “Parse, don’t validate,” published November 5, 2019, for the
+  distinction between checks that discard learned information and fallible
+  transitions that return a refined representation. Concrete parser and
+  smart-constructor surfaces remain owned by `sketch`.
 - Hillel Wayne, *Logic for Programmers*, v0.14.0, 2026-05-04:
   Chapters 2-4, pp. 5-46, for predicates, quantifiers, ability/guarantee,
   specifications, and logic/runtime boundaries. Recorded beta defects are

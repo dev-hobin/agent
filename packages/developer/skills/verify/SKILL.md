@@ -74,8 +74,11 @@ after code changes, new evidence, changed claims, or source-provenance changes.
 1. Extract the exact claims from the request, accepted decisions, implementation
    report, invariant, or model.
 2. Attach concrete evidence to each claim and classify its strength.
-3. Check constraints, forbidden cases, transitions, callers, and abstraction
-   stop checks when they are part of the claim.
+3. Check constraints, forbidden cases, transitions, callers, abstraction stop
+   checks, and every construction or re-entry path for invariant-carrying values
+   when they are part of the claim. Validation followed by an assertion, a
+   public raw constructor, unchecked deserialization, or a domain effect before
+   parsing is a pass-but-wrong shape, not type evidence.
 4. Distinguish verifier execution from verifier relevance.
 5. Ask what wrong implementation could still pass and name its concrete shape.
 6. Narrow any passing claim that is broader than its evidence.

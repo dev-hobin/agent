@@ -863,6 +863,88 @@
     "maxRoutes": 2
   },
   {
+    "id": "evidence-preserving-input-boundary",
+    "request": "src/refinement.ts를 읽되 파일은 수정하지 마라. validateOrder(input); return input as Order 형태가 검사에서 얻은 정보를 버리고 있다는 전제에서 unknown 입력이 invariant-carrying Order로 바뀌는 원래 설계 표면을 sketch해라. raw/refined representation, parser 또는 smart-constructor success/failure contract, single construction owner, first effect boundary, constructor/legacy/test escape audit, trusted compiler gap 여부와 negative/bypass/effect-order checks를 제시해라. generic service abstraction이나 단순 assertion wrapper를 만들지 마라.",
+    "admissibleFirstTargets": ["sketch"],
+    "preferredFirstTargets": ["sketch"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["unknown", "raw"],
+      ["Order", "refined"],
+      ["parse", "parser", "smart constructor"],
+      ["assertion", "cast", "단언"],
+      ["effect", "persistOrder"]
+    ],
+    "expectedReferenceRoutes": ["evidence-preserving-boundary"],
+    "expectedReferenceReads": [
+      "skills/sketch/references/evidence-preserving-boundaries.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "unchecked-narrowing-pass-but-wrong",
+    "request": "src/refinement.ts의 decodeOrder가 typecheck와 happy-path test를 통과한다는 완료 주장을 Developer verify의 claim/evidence/relevance matrix로 검토하되 파일은 수정하지 마라. validateOrder 뒤의 input as Order, lineIds element 누락 검사, public construction/re-entry path, persistOrder effect order를 각각 claim row로 나누고 plausible wrong shape와 distinguishing check를 붙여 Domain invariant가 실제로 보존되는지 판단해라. 별도 adversarial evaluation workflow는 설계하지 마라.",
+    "admissibleFirstTargets": ["verify", "sketch", "model"],
+    "preferredFirstTargets": ["verify"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["validateOrder"],
+      ["assertion", "cast", "단언"],
+      ["lineIds"],
+      ["construction", "constructor", "생성"],
+      ["effect", "persistOrder"]
+    ],
+    "expectedReferenceRoutes": ["claim-evidence-gap"],
+    "expectedReferenceReads": [
+      "skills/verify/references/verifier-selection-and-pass-but-wrong.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 2
+  },
+  {
+    "id": "doctor-unscoped-orientation",
+    "request": "파일을 수정하지 말고 이 프로젝트를 Doctor로 봐줘. 사용자가 진단 범위를 지정하지 않은 회귀 평가이므로 repository 전체를 깊게 진단하거나 owner-skill consultation을 시작하지 마라. 값싼 orientation pass만 수행해 현재 요청, manifest/subsystem/entrypoint, 테스트 또는 실패, dependency/effect 증거를 근거로 가장 작은 가치 있는 proposed scope 하나를 제시하고 requested/selected/inspected/claim scope, included/excluded, depth, evidence budget, scope expansion 조건을 명시해라. 전체 repository 건강성 결론을 내리지 말고 Doctor judgment를 needs-evidence로 기록한 뒤 멈춰라.",
+    "admissibleFirstTargets": ["doctor"],
+    "preferredFirstTargets": ["doctor"],
+    "allowedOutcomes": ["pending"],
+    "requiredJudgmentConcepts": [
+      ["orientation"],
+      ["proposed scope", "selected scope", "제안 범위"],
+      ["inspected scope", "검토 범위"],
+      ["claim scope", "claim boundary", "주장 범위"],
+      ["excluded", "제외"],
+      ["evidence budget", "증거 예산"]
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 1,
+    "maxToolCalls": 20
+  },
+  {
+    "id": "doctor-thorough-bounded-codebase",
+    "request": "파일을 수정하지 마라. src/refinement.ts의 unknown 입력부터 persistOrder effect까지를 runtime-flow scope로, 관련 테스트와 직접 caller만 collaborators로 포함해 thorough-within-scope Doctor 진단을 수행해라. requested/selected/inspected/claim scope와 제외 범위, 보존 기준선을 먼저 명시하고 Doctor를 제외한 모든 available Developer skill lens에 evidence-backed disposition을 남겨라. triggered consultation은 Doctor route 안에서 흉내 내지 말고 owner skill로 순차 route하여 해당 skill에서 실제 trigger가 있는 모든 reference-policy route와 co-required reference를 적용한 뒤 Doctor로 돌아와 consultation ledger, diagnosis, treat-now/prepare-next/observe/leave-alone plan, first handoff를 종합해라. 전체 repository를 진단했다고 주장하지 마라.",
+    "admissibleFirstTargets": ["doctor"],
+    "preferredFirstTargets": ["doctor"],
+    "allowedOutcomes": ["pending", "settled-unchanged"],
+    "requiredJudgmentConcepts": [
+      ["requested scope", "requested target", "요청 범위"],
+      ["inspected scope", "검토 범위"],
+      ["claim scope", "claim boundary", "주장 범위"],
+      ["preservation", "preserve", "보존"],
+      ["consultation"],
+      ["treat-now"],
+      ["leave-alone"]
+    ],
+    "expectedReferenceReads": [
+      "skills/sketch/references/evidence-preserving-boundaries.md",
+      "skills/verify/references/verifier-selection-and-pass-but-wrong.md"
+    ],
+    "requiresDoctorSynthesis": true,
+    "mustRecordJudgment": true,
+    "maxRoutes": 14,
+    "maxToolCalls": 96
+  },
+  {
     "id": "implementation-stable-landing-paused",
     "request": "이 요청은 pausable handoff 회귀 평가다. src/contracts.ts를 확인하고 export const PAUSED_EVAL_MARKER = \"stable-landing\" 하나만 추가해라. 변경이 정당화되면 implementation route에서 이 한 movement를 수행하고 status=resolved, open_questions=[]인 implementation judgment를 기록한 직후 멈춰라. 테스트를 실행하거나 verify route를 열거나 완료를 주장하지 마라. 검증 미실행은 새 질문으로 표현하지 말고 machine의 rerouting checkpoint와 verification debt로만 남겨 그대로 handoff해라.",
     "admissibleFirstTargets": [
