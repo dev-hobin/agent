@@ -30,7 +30,9 @@ export const OBSERVER_MEMO_INSTRUCTION_PROTOCOL: "observer.memo-instruction/v1" 
 	"observer.memo-instruction/v1";
 export const OBSERVER_MEMO_INSTRUCTION_ENTRY = "observer.memo-instruction";
 
-const STORED_MEMO_INSTRUCTION_MARKER = Symbol("observer.stored-memo-instruction");
+const STORED_MEMO_INSTRUCTION_MARKER = Symbol(
+	"observer.stored-memo-instruction",
+);
 const PREPARED_MEMO_INSTRUCTION_MARKER = Symbol(
 	"observer.prepared-memo-instruction",
 );
@@ -252,7 +254,9 @@ function parseDispositions(
 	for (const [index, candidate] of value.entries()) {
 		const disposition = parseDisposition(candidate, index);
 		if (isInstructionFailure(disposition)) return disposition;
-		if (result.some((item) => item.observationId === disposition.observationId)) {
+		if (
+			result.some((item) => item.observationId === disposition.observationId)
+		) {
 			return failure(
 				"memo-instruction.coverage",
 				`/dispositions/${index}/observation_id`,
@@ -270,7 +274,9 @@ function parseDispositions(
 function hypothesisIds(pass: PreparedMemoPass): ReadonlySet<InquiryId> {
 	return new Set(
 		pass.hypothesisOutcomes.map((outcome) =>
-			outcome.kind === "create" ? outcome.hypothesis.inquiryId : outcome.inquiryId,
+			outcome.kind === "create"
+				? outcome.hypothesis.inquiryId
+				: outcome.inquiryId,
 		),
 	);
 }
@@ -604,12 +610,10 @@ function requestMatchesInstruction(input: {
 		[
 			...input.observation.observations,
 			...input.observation.userHypotheses,
-		].map(
-			(value): readonly [ObservationId, (typeof value)] => [
-				value.observationId,
-				value,
-			],
-		),
+		].map((value): readonly [ObservationId, typeof value] => [
+			value.observationId,
+			value,
+		]),
 	);
 	const dispositions = new Map(
 		input.instruction.dispositions.map(

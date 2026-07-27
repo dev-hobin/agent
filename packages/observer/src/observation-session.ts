@@ -303,8 +303,14 @@ function applyMemoRequest(input: {
 	readonly event: ObservationMemoRequestedEvent;
 	readonly index: number;
 	readonly lifecycle: ObserverState;
-	readonly observations: ReadonlyMap<ObservationId, SemanticObservationRecordedEvent>;
-	readonly userHypotheses: ReadonlyMap<ObservationId, UserHypothesisRecordedEvent>;
+	readonly observations: ReadonlyMap<
+		ObservationId,
+		SemanticObservationRecordedEvent
+	>;
+	readonly userHypotheses: ReadonlyMap<
+		ObservationId,
+		UserHypothesisRecordedEvent
+	>;
 	readonly requestedObservationIds: ReadonlySet<ObservationId>;
 	readonly currentMemoRevisionId: string | null;
 	readonly memoRequests: Map<MemoRequestId, ObservationMemoRequestedEvent>;
@@ -330,7 +336,9 @@ function applyMemoRequest(input: {
 		requestObservations.length !== input.event.observationIds.length ||
 		!sameStrings(input.event.observationIds, sortedIds) ||
 		!sameStrings(input.event.observationIds, eligibleIds) ||
-		input.event.observationIds.some((id) => input.requestedObservationIds.has(id)) ||
+		input.event.observationIds.some((id) =>
+			input.requestedObservationIds.has(id),
+		) ||
 		input.event.requestDigest !==
 			observationMemoRequestDigest({
 				episodeId: input.event.episodeId,
@@ -535,9 +543,8 @@ export function reconstructObservationSession(
 					observations,
 					userHypotheses,
 					requestedObservationIds,
-					currentMemoRevisionId: reconstructMemoSession(
-						entries.slice(0, index),
-					).state.revisionId,
+					currentMemoRevisionId: reconstructMemoSession(entries.slice(0, index))
+						.state.revisionId,
 					memoRequests,
 					issues,
 				});
@@ -566,7 +573,9 @@ export function reconstructObservationSession(
 		const conflicting = pendingMemoRequests[1];
 		issue(
 			issues,
-			conflicting ? (requestIndices.get(conflicting.requestId) ?? entries.length) : entries.length,
+			conflicting
+				? (requestIndices.get(conflicting.requestId) ?? entries.length)
+				: entries.length,
 			"observation-session.conflict",
 			"Only one unacknowledged Memo request may exist.",
 		);

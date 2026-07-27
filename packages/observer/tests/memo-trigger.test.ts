@@ -44,8 +44,7 @@ const TOOL_CANDIDATE = "candidate-00000000-0000-4000-8000-000000000503";
 const READ_ID = "source-read-00000000-0000-4000-8000-000000000504";
 const SOURCE_ID = "source-00000000-0000-4000-8000-000000000505";
 const SEMANTIC_ID = "observation-00000000-0000-4000-8000-000000000506";
-const USER_OBSERVATION_ID =
-	"observation-00000000-0000-4000-8000-000000000507";
+const USER_OBSERVATION_ID = "observation-00000000-0000-4000-8000-000000000507";
 const USER_INQUIRY_ID = "inquiry-00000000-0000-4000-8000-000000000508";
 const EVIDENCE_ID = "evidence-00000000-0000-4000-8000-000000000509";
 const PASS_ID = "memo-pass-00000000-0000-4000-8000-000000000510";
@@ -294,11 +293,11 @@ describe("pure Observation Memo trigger", () => {
 			SEMANTIC_ID,
 			USER_OBSERVATION_ID,
 		]);
-		const requested = [
-			...base.entries,
-			observationEntry(append.value.request),
-		];
-		const resume = plan(requested, "memo-request-00000000-0000-4000-8000-000000000599");
+		const requested = [...base.entries, observationEntry(append.value.request)];
+		const resume = plan(
+			requested,
+			"memo-request-00000000-0000-4000-8000-000000000599",
+		);
 		if (!resume.ok || resume.value.kind !== "resume") {
 			assert.fail(resume.ok ? "Expected resume" : resume.issue.message);
 		}
@@ -391,7 +390,8 @@ describe("pure Observation Memo trigger", () => {
 	test("rejects stale request digests and two unacknowledged requests while exact duplicates stutter", () => {
 		const base = baseEntries();
 		const append = plan(base.entries);
-		if (!append.ok || append.value.kind !== "append") assert.fail("Expected request");
+		if (!append.ok || append.value.kind !== "append")
+			assert.fail("Expected request");
 		const exactEntry = observationEntry(append.value.request);
 		const duplicate = reconstructObservationSession([
 			...base.entries,
@@ -510,7 +510,8 @@ describe("pure Observation Memo trigger", () => {
 			context: scenario.context,
 		});
 		assert.equal(missing.ok, false);
-		if (!missing.ok) assert.equal(missing.issue.code, "memo-instruction.coverage");
+		if (!missing.ok)
+			assert.equal(missing.issue.code, "memo-instruction.coverage");
 
 		const absentReference = decodePreparedObservationMemoInstruction({
 			value: instructionRaw(scenario.context, {
@@ -520,9 +521,7 @@ describe("pure Observation Memo trigger", () => {
 						decision: "integrated",
 						hypothesis_inquiry_ids: [],
 						memo_ids: [],
-						evidence_ids: [
-							"evidence-00000000-0000-4000-8000-000000000999",
-						],
+						evidence_ids: ["evidence-00000000-0000-4000-8000-000000000999"],
 						rationale: "References absent evidence.",
 					},
 					{

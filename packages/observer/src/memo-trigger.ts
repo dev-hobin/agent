@@ -235,16 +235,15 @@ function relatedInquiryIds(input: {
 	const durable = standingInquiryIds(input.inventory);
 	const working = new Set(
 		input.memo.state.hypotheses.flatMap((hypothesis) =>
-			hypothesis.episodeId === input.episodeId
-				? [hypothesis.inquiryId]
-				: [],
+			hypothesis.episodeId === input.episodeId ? [hypothesis.inquiryId] : [],
 		),
 	);
 	const related = input.observations.flatMap((observation) => {
 		if (observation.kind === "semantic-observation-recorded") {
 			return observation.relatedInquiryIds;
 		}
-		return durable.has(observation.inquiryId) || working.has(observation.inquiryId)
+		return durable.has(observation.inquiryId) ||
+			working.has(observation.inquiryId)
 			? [observation.inquiryId]
 			: [];
 	});
@@ -282,10 +281,7 @@ function requestWorkingSourceBases(
 			sha256: read.digest,
 		};
 		const prior = bases.get(basis.sourceId);
-		if (
-			prior &&
-			(prior.path !== basis.path || prior.sha256 !== basis.sha256)
-		) {
+		if (prior && (prior.path !== basis.path || prior.sha256 !== basis.sha256)) {
 			return {
 				code: "memo-trigger.scope",
 				message: "One Source ID resolves to conflicting request bases.",
@@ -357,7 +353,8 @@ export function hydrateObservationMemoContext(input: {
 		input.observation,
 		observations,
 	);
-	if (isIssue(workingSourceBases)) return { ok: false, issue: workingSourceBases };
+	if (isIssue(workingSourceBases))
+		return { ok: false, issue: workingSourceBases };
 	const related = relatedInquiryIds({
 		observations,
 		inventory: input.inventory,
