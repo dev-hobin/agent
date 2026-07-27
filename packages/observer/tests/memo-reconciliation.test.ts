@@ -18,6 +18,7 @@ import {
 	type PreparedMemoPass,
 } from "../src/memo-profile.ts";
 import {
+	describeMemoReconciliationCoverage,
 	hydrateMemoScope,
 	initialMemoWorkingState,
 	reconcileMemoPass,
@@ -263,6 +264,50 @@ describe("prepared Memo pass profile", () => {
 });
 
 describe("pure Memo reconciliation", () => {
+	test("describes empty, durable, and current working coverage exactly", async () => {
+		const initial = initialMemoWorkingState();
+		const emptyScope = requireScope(initial, [], []);
+		assert.deepEqual(describeMemoReconciliationCoverage(initial, emptyScope), {
+			hypotheses: [],
+			memos: [],
+		});
+
+		const durableScope = requireScope(
+			initial,
+			await baselineInventory(),
+			[INQUIRY_ID],
+		);
+		const durable = describeMemoReconciliationCoverage(initial, durableScope);
+		assert.deepEqual(
+			durable.hypotheses.map((value) => value.inquiryId),
+			[INQUIRY_ID],
+		);
+		assert.deepEqual(
+			durable.memos.map((value) => value.memoId),
+			[DURABLE_MEMO],
+		);
+
+		const created = requireReconciled({
+			state: initial,
+			scope: emptyScope,
+			pass: initialCreationPass(initial, emptyScope),
+			seed: "coverage",
+		});
+		const workingScope = requireScope(created.state, [], []);
+		const working = describeMemoReconciliationCoverage(
+			created.state,
+			workingScope,
+		);
+		assert.deepEqual(
+			working.hypotheses.map((value) => value.inquiryId),
+			[NEW_INQUIRY],
+		);
+		assert.deepEqual(
+			working.memos.map((value) => value.memoId),
+			[MEMO_A, MEMO_B],
+		);
+	});
+
 	test("accepts an explicit empty pass without touching durable files", () => {
 		const state = initialMemoWorkingState();
 		const scope = requireScope(state, [], []);

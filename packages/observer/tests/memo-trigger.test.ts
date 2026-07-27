@@ -12,6 +12,7 @@ import {
 } from "../src/memo-instruction.ts";
 import { reconstructMemoSession } from "../src/memo-session.ts";
 import {
+	buildObservationMemoPreparationGuide,
 	hydrateObservationMemoContext,
 	planObservationMemoRequest,
 	type ObservationMemoContext,
@@ -279,6 +280,53 @@ function instructionRaw(
 }
 
 describe("pure Observation Memo trigger", () => {
+	test("builds a deterministic request-bound preparation guide", () => {
+		const scenario = requestedScenario();
+		const observation = reconstructObservationSession(scenario.entries);
+		const memo = reconstructMemoSession(scenario.entries);
+		const first = buildObservationMemoPreparationGuide({
+			context: scenario.context,
+			observation,
+			memo,
+		});
+		const retry = buildObservationMemoPreparationGuide({
+			context: scenario.context,
+			observation,
+			memo,
+		});
+		if (!first.ok) assert.fail(first.issue.message);
+		if (!retry.ok) assert.fail(retry.issue.message);
+		assert.deepEqual(first.value, retry.value);
+		assert.deepEqual(first.value.request.observation_ids, [
+			SEMANTIC_ID,
+			USER_OBSERVATION_ID,
+		]);
+		assert.equal(
+			first.value.instruction_seed.pass.pass_id,
+			"memo-pass-00000000-0000-4000-8000-000000000501",
+		);
+		assert.equal(
+			first.value.instruction_seed.request_digest,
+			scenario.context.request.requestDigest,
+		);
+		assert.equal(
+			first.value.instruction_seed.pass.instruction_id,
+			REQUEST_ID,
+		);
+		assert.deepEqual(first.value.required_coverage, {
+			hypotheses: [],
+			memos: [],
+		});
+		assert.deepEqual(first.value.evidence_sources, [
+			{
+				source_id: SOURCE_ID,
+				title: "Bounded source",
+				faithful_summary: "The source reports one bounded condition.",
+				claims: [{ text: "One bounded condition.", locator: "result" }],
+			},
+		]);
+	});
+
 	test("plans one exact all-eligible request, resumes it, and leaves later observations for the next batch", () => {
 		const emptyEntries = baseEntries().entries.slice(0, 2);
 		const empty = plan(emptyEntries);

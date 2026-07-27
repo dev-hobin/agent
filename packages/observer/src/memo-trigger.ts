@@ -1,11 +1,17 @@
 import type { NotebookInventoryEntry } from "./notebook.ts";
 import {
+	describeMemoReconciliationCoverage,
 	hydrateMemoScope,
+	type MemoReconciliationCoverage,
 	type MemoScopeSnapshot,
 	type WorkingSourceBasis,
 } from "./memo-reconciliation.ts";
 import type { MemoSessionSnapshot } from "./memo-session.ts";
-import type { InquiryId } from "./memo-profile.ts";
+import {
+	decodeMemoPassId,
+	type InquiryId,
+	type MemoPassId,
+} from "./memo-profile.ts";
 import {
 	observationMemoRequestDigest,
 	prepareObservationEvent,
@@ -13,6 +19,7 @@ import {
 	type MemoRequestObservation,
 	type ObservationMemoRequestedEvent,
 	type SemanticObservationRecordedEvent,
+	type SourceClaim,
 } from "./observation-profile.ts";
 import type { ObservationSessionSnapshot } from "./observation-session.ts";
 
@@ -58,6 +65,46 @@ export interface ObservationMemoContext {
 
 export type ObservationMemoContextResult =
 	| { readonly ok: true; readonly value: ObservationMemoContext }
+	| { readonly ok: false; readonly issue: MemoTriggerIssue };
+
+export interface MemoPreparationEvidenceSource {
+	readonly source_id: string;
+	readonly title: string;
+	readonly faithful_summary: string;
+	readonly claims: readonly SourceClaim[];
+}
+
+export interface MemoPreparationGuide {
+	readonly protocol: "observer.memo-preparation/v1";
+	readonly request: {
+		readonly request_id: MemoRequestId;
+		readonly request_digest: string;
+		readonly observation_ids: readonly string[];
+	};
+	readonly required_coverage: MemoReconciliationCoverage;
+	readonly evidence_sources: readonly MemoPreparationEvidenceSource[];
+	readonly instruction_seed: {
+		readonly observer_memo_instruction: "observer.memo-instruction/v1";
+		readonly request_id: MemoRequestId;
+		readonly request_digest: string;
+		readonly pass: {
+			readonly observer_memo_pass: "observer.prepared-memo-pass/v1";
+			readonly pass_id: MemoPassId;
+			readonly episode_id: string;
+			readonly base_revision_id: string | null;
+			readonly basis_digest: string;
+			readonly related_inquiry_ids: readonly InquiryId[];
+			readonly instruction_id: MemoRequestId;
+			readonly evidence: readonly [];
+			readonly hypothesis_outcomes: readonly [];
+			readonly memo_outcomes: readonly [];
+		};
+		readonly dispositions: readonly [];
+	};
+}
+
+export type MemoPreparationGuideResult =
+	| { readonly ok: true; readonly value: MemoPreparationGuide }
 	| { readonly ok: false; readonly issue: MemoTriggerIssue };
 
 function failure(
@@ -388,6 +435,85 @@ export function hydrateObservationMemoContext(input: {
 			observations,
 			memoScope: scope.value,
 			[OBSERVATION_MEMO_CONTEXT_MARKER]: true,
+		},
+	};
+}
+
+function memoPassIdForRequest(requestId: MemoRequestId): MemoPassId | null {
+	const suffix = requestId.slice("memo-request-".length);
+	return decodeMemoPassId(`memo-pass-${suffix}`);
+}
+
+export function buildObservationMemoPreparationGuide(input: {
+	readonly context: ObservationMemoContext;
+	readonly observation: ObservationSessionSnapshot;
+	readonly memo: MemoSessionSnapshot;
+}): MemoPreparationGuideResult {
+	const passId = memoPassIdForRequest(input.context.request.requestId);
+	if (!passId) {
+		return failure(
+			"memo-trigger.scope",
+			"Memo request identity cannot produce a Memo pass identity.",
+			input.context.request.requestId,
+		);
+	}
+	const sourceReadsById = new Map(
+		input.observation.sourceReads.map((read) => [read.readId, read]),
+	);
+	const sources = new Map<string, MemoPreparationEvidenceSource>();
+	for (const observation of input.context.observations) {
+		if (observation.kind !== "semantic-observation-recorded") continue;
+		const read = sourceReadsById.get(observation.readId);
+		if (!read || read.episodeId !== input.context.request.episodeId) {
+			return failure(
+				"memo-trigger.scope",
+				"Requested Observation is missing its SourceRead context.",
+				observation.observationId,
+			);
+		}
+		sources.set(read.source.sourceId, {
+			source_id: read.source.sourceId,
+			title: read.source.title,
+			faithful_summary: read.faithfulSummary,
+			claims: read.claims,
+		});
+	}
+	const request = input.context.request;
+	const scope = input.context.memoScope;
+	return {
+		ok: true,
+		value: {
+			protocol: "observer.memo-preparation/v1",
+			request: {
+				request_id: request.requestId,
+				request_digest: request.requestDigest,
+				observation_ids: request.observationIds,
+			},
+			required_coverage: describeMemoReconciliationCoverage(
+				input.memo.state,
+				scope,
+			),
+			evidence_sources: [...sources.values()].toSorted((left, right) =>
+				left.source_id.localeCompare(right.source_id),
+			),
+			instruction_seed: {
+				observer_memo_instruction: "observer.memo-instruction/v1",
+				request_id: request.requestId,
+				request_digest: request.requestDigest,
+				pass: {
+					observer_memo_pass: "observer.prepared-memo-pass/v1",
+					pass_id: passId,
+					episode_id: request.episodeId,
+					base_revision_id: request.baseMemoRevisionId,
+					basis_digest: scope.basisDigest,
+					related_inquiry_ids: scope.relatedInquiryIds,
+					instruction_id: request.requestId,
+					evidence: [],
+					hypothesis_outcomes: [],
+					memo_outcomes: [],
+				},
+				dispositions: [],
+			},
 		},
 	};
 }

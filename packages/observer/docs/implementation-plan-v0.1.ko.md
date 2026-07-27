@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — repaired ingress로 actual Pi/model-driven transcript를 한 번 bounded 재검증 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — MemoPreparationGuide를 exact TypeBox schema와 live memo-scope response에 연결 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + lifecycle + notebook + durable wrap + Sidecar ledger/request/scope + strict Memo instruction/install/apply/ack + Pi ingress compatibility |
+| Runtime implementation | Slice 7 in progress | validation + lifecycle + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + ingress compatibility + pure Memo preparation guide |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | repaired ingress의 bounded real-provider rerun 뒤 wrap/fresh-session re-entry |
+| Next movement | Planned | exact TypeBox outcome schema + live guide response 뒤 bounded memo rerun |
 
 ### 현재 branch checkpoint
 
@@ -122,7 +122,9 @@ feature/observer
 ├─ c6da53f style(observer): format memo trigger sources
 ├─ 3d366e7 feat(observer): apply staged memo instructions
 ├─ cfae6f7 style(observer): format memo preparation tests
-└─ Slice 7 landing E: Pi ingress null/error compatibility repair
+├─ b42e9f9 fix(observer): preserve sidecar null semantics
+├─ 273e98a style(observer): format sidecar ingress repair
+└─ Slice 7 landing F-1: pure Memo preparation guide
 ```
 
 ---
@@ -1084,7 +1086,40 @@ packed artifact contract
 wrap 후 fresh-session standing Inquiry re-entry
 ```
 
-Landing 7E는 live transcript success를 주장하지 않는다. 실제 실패에서 확인한 coercion과 error-channel 결함만 닫고, real-provider rerun은 별도 evidence movement로 유지한다.
+Landing 7E 뒤 bounded real-provider rerun은 `source-read → hydrate → record → memo-scope`까지 통과했다. `memo-prepare`에서는 exact request digest, locked identities, complete outcome/evidence shape가 model-facing contract에 없어서 actual tool error로 멈췄다.
+
+### Landing 7F-1 — Pure Memo preparation guide
+
+```text
+[x] reconciliation과 동일한 durable/working overlay coverage query
+[x] hypothesis/Memo exact current coverage를 project 함수도 공동 사용
+[x] refined request UUID에서 deterministic `memo-pass-<same UUID>` 구성
+[x] request ID/digest/base/basis/related IDs/instruction ID locked seed
+[x] requested semantic Observation에 연결된 SourceRead claims만 evidence source로 projection
+[x] baseline/empty/working/retry deterministic tests
+[x] 아직 Pi response와 TypeBox outcome schema는 변경하지 않음
+```
+
+Verifier evidence:
+
+```text
+Observer: 166/166
+Focused Memo reconciliation/trigger/session: 18/18
+TypeScript LSP: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+explicit Evidence/Hypothesis/Memo outcome TypeBox schema
+memo-scope response에 request digest + MemoPreparationGuide 노출
+schema/parser conformance tests
+bounded real-provider memo-prepare 재검증
+wrap approval/save/ack + fresh-session re-entry
+```
+
+Landing 7F-1은 model이 선택할 semantic outcome을 자동 생성하지 않는다. Exact basis와 available scope만 deterministic projection하고 strict contextual decoder를 semantic authority로 유지한다.
 
 ---
 

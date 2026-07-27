@@ -134,6 +134,11 @@ export type MemoReconciliationResult =
 	  }
 	| { readonly ok: false; readonly issue: MemoReconciliationIssue };
 
+export interface MemoReconciliationCoverage {
+	readonly hypotheses: readonly WorkingHypothesis[];
+	readonly memos: readonly WorkingMemo[];
+}
+
 export interface MemoReconciliationIds {
 	revisionId(): string;
 	receiptId(): `memo-receipt-${string}`;
@@ -539,6 +544,32 @@ function overlayById<Value>(
 	return [...values.values()];
 }
 
+export function describeMemoReconciliationCoverage(
+	state: MemoWorkingState,
+	scope: MemoScopeSnapshot,
+): MemoReconciliationCoverage {
+	const hypotheses = overlayById(
+		state.hypotheses,
+		scope.durableHypotheses,
+		(value) => value.inquiryId,
+	)
+		.filter(
+			(value) =>
+				value.episodeId === scope.episodeId &&
+				(scope.relatedInquiryIds.includes(value.inquiryId) ||
+					!scope.existingRecordIds.includes(value.inquiryId)),
+		)
+		.toSorted((left, right) => left.inquiryId.localeCompare(right.inquiryId));
+	const memos = overlayById(state.memos, scope.durableMemos, (value) => value.memoId)
+		.filter(
+			(value) =>
+				value.episodeId === scope.episodeId &&
+				value.disposition !== "superseded",
+		)
+		.toSorted((left, right) => left.memoId.localeCompare(right.memoId));
+	return { hypotheses, memos };
+}
+
 function knownEvidence(
 	state: MemoWorkingState,
 	pass: PreparedMemoPass,
@@ -620,13 +651,11 @@ function projectHypotheses(input: {
 		(value) => value.inquiryId,
 	);
 	const byId = new Map(hypotheses.map((value) => [value.inquiryId, value]));
-	const scoped = hypotheses.filter(
-		(value) =>
-			value.episodeId === input.scope.episodeId &&
-			(input.scope.relatedInquiryIds.includes(value.inquiryId) ||
-				!input.scope.existingRecordIds.includes(value.inquiryId)),
+	const coverage = new Map(
+		describeMemoReconciliationCoverage(input.state, input.scope).hypotheses.map(
+			(value) => [value.inquiryId, 0],
+		),
 	);
-	const coverage = new Map(scoped.map((value) => [value.inquiryId, 0]));
 	for (const outcome of input.pass.hypothesisOutcomes) {
 		if (outcome.kind === "create") {
 			const hypothesis = outcome.hypothesis;
@@ -776,12 +805,11 @@ function projectMemos(input: {
 		(value) => value.memoId,
 	);
 	const byId = new Map(memos.map((value) => [value.memoId, value]));
-	const liveScope = memos.filter(
-		(value) =>
-			value.episodeId === input.scope.episodeId &&
-			value.disposition !== "superseded",
+	const coverage = new Map(
+		describeMemoReconciliationCoverage(input.state, input.scope).memos.map(
+			(value) => [value.memoId, 0],
+		),
 	);
-	const coverage = new Map(liveScope.map((value) => [value.memoId, 0]));
 	for (const outcome of input.pass.memoOutcomes) {
 		for (const id of outcomeTargetIds(outcome)) {
 			if (!coverage.has(id)) {
