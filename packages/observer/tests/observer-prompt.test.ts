@@ -197,8 +197,14 @@ describe("Observer hidden Sidecar context", () => {
 		assert.equal(context?.includes(request.requestId), true);
 		assert.match(context ?? "", /action wrap-scope/u);
 		assert.match(context ?? "", /exactly once unless it returns an error/u);
-		assert.match(context ?? "", /After a successful scope, do not call wrap-scope again/u);
-		assert.match(context ?? "", /submit only request_id, summary, and records/u);
+		assert.match(
+			context ?? "",
+			/After a successful scope, do not call wrap-scope again/u,
+		);
+		assert.match(
+			context ?? "",
+			/submit only request_id, summary, and records/u,
+		);
 		assert.equal(context?.includes(request.proposalId), false);
 		assert.equal(context?.includes(request.root), false);
 	});
