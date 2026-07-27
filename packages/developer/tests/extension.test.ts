@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import { validateToolArguments } from "@earendil-works/pi-ai";
 import {
 	initTheme,
 	loadSkillsFromDir,
@@ -33,6 +34,17 @@ const loadedLeaves = loadSkillsFromDir({
 }).skills;
 
 initTheme(undefined, false);
+
+const TEST_IMPLEMENTATION_CONTRACT = {
+	movement: "Apply one bounded test movement",
+	stop_condition: "The focused test is green and the route is reviewable",
+	verification: "Run the focused test",
+	invariant_handling: {
+		kind: "not-applicable",
+		reason:
+			"The protocol behavior under test does not construct or narrow invariant-bearing domain data",
+	},
+} as const;
 
 interface HarnessBranchEntry {
 	type?: string;
@@ -71,7 +83,28 @@ function createHarness() {
 			handlers.set(name, [...(handlers.get(name) ?? []), handler]);
 		},
 		registerTool(tool: any) {
-			tools.set(tool.name, tool);
+			// Direct harness calls bypass Pi's schema validation, so implementation
+			// fixtures receive the public contract unless a test overrides a field.
+			const registeredTool =
+				tool.name === ROUTE_TOOL
+					? {
+							...tool,
+							execute(
+								toolCallId: string,
+								params: Record<string, unknown>,
+								...rest: unknown[]
+							) {
+								return tool.execute(
+									toolCallId,
+									params?.target === "implementation"
+										? { ...TEST_IMPLEMENTATION_CONTRACT, ...params }
+										: params,
+									...rest,
+								);
+							},
+						}
+					: tool;
+			tools.set(tool.name, registeredTool);
 			activeTools.push(tool.name);
 		},
 		registerCommand(name: string, command: any) {
@@ -844,43 +877,143 @@ test("implementation profiles load only the protocol selected for that action", 
 	assert.match(structural.content[0].text, /99 Bottles of OOP/);
 });
 
-test("route schema exposes execution profiles and invariant handling only on the implementation branch", async () => {
+test("route schema exposes provider-compatible object properties without union-only fields", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
-	const schema = harness.tools.get(ROUTE_TOOL).parameters;
-	assert.equal(schema.anyOf.length, 2);
+	const route = harness.tools.get(ROUTE_TOOL);
+	const schema = route.parameters;
+	assert.equal(schema.type, "object");
+	assert.equal(schema.additionalProperties, false);
+	assert.equal(schema.anyOf, undefined);
+	assert.deepEqual(schema.required.sort(), ["question", "reason", "target"]);
 
-	const skillBranch = schema.anyOf.find(
-		(branch: any) => branch.properties.target.pattern,
+	const invariantHandling = schema.properties.invariant_handling;
+	assert.equal(invariantHandling.type, "object");
+	assert.equal(invariantHandling.anyOf, undefined);
+	assert.deepEqual(invariantHandling.properties.kind.enum, [
+		"not-applicable",
+		"evidence-preserving-boundary",
+		"trusted-compiler-gap",
+	]);
+	assert.ok(invariantHandling.required.includes("kind"));
+	assert.ok(invariantHandling.properties.reason);
+	assert.ok(invariantHandling.properties.raw_representation);
+	assert.ok(invariantHandling.properties.assertion);
+	assert.deepEqual(schema.properties.execution_profile.enum, [
+		"behavior-preserving-structure",
+	]);
+
+	const incompatibleKeywords: string[] = [];
+	const inspect = (value: unknown, path = "parameters") => {
+		if (!value || typeof value !== "object") return;
+		for (const [key, nested] of Object.entries(value)) {
+			if (key === "anyOf" || key === "oneOf" || key === "const") {
+				incompatibleKeywords.push(`${path}.${key}`);
+			}
+			inspect(nested, `${path}.${key}`);
+		}
+	};
+	inspect(schema);
+	assert.deepEqual(incompatibleKeywords, []);
+
+	const objectArguments = {
+		...TEST_IMPLEMENTATION_CONTRACT,
+		question: "Apply the justified local change",
+		target: "implementation",
+		reason: "The movement is explicit",
+	};
+	const validated = validateToolArguments(route, {
+		type: "toolCall",
+		id: "object-invariant",
+		name: ROUTE_TOOL,
+		arguments: objectArguments,
+	});
+	assert.deepEqual(
+		validated.invariant_handling,
+		TEST_IMPLEMENTATION_CONTRACT.invariant_handling,
 	);
-	const implementationBranch = schema.anyOf.find(
-		(branch: any) => branch.properties.target.const === "implementation",
+	assert.throws(
+		() =>
+			validateToolArguments(route, {
+				type: "toolCall",
+				id: "string-invariant",
+				name: ROUTE_TOOL,
+				arguments: {
+					...objectArguments,
+					invariant_handling: JSON.stringify(
+						TEST_IMPLEMENTATION_CONTRACT.invariant_handling,
+					),
+				},
+			}),
+		/invariant_handling/,
 	);
-	assert.ok(skillBranch);
-	assert.ok(implementationBranch);
-	assert.equal(skillBranch.additionalProperties, false);
-	assert.equal(skillBranch.properties.execution_profile, undefined);
-	assert.equal(implementationBranch.additionalProperties, false);
-	assert.ok(implementationBranch.required.includes("movement"));
-	assert.ok(implementationBranch.required.includes("stop_condition"));
-	assert.ok(implementationBranch.required.includes("verification"));
-	assert.ok(implementationBranch.required.includes("invariant_handling"));
-	assert.equal(
-		implementationBranch.properties.invariant_handling.anyOf.length,
-		3,
+});
+
+test("route runtime enforces target-specific fields after flattening the public schema", async () => {
+	const harness = await startHarness();
+	const route = harness.tools.get(ROUTE_TOOL);
+	await assert.rejects(
+		route.execute(
+			"missing-invariant",
+			{
+				...TEST_IMPLEMENTATION_CONTRACT,
+				question: "Apply the justified local change",
+				target: "implementation",
+				reason: "The movement is explicit",
+				invariant_handling: undefined,
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		),
+		/requires an invariant_handling object/,
+	);
+	await assert.rejects(
+		route.execute(
+			"incomplete-invariant",
+			{
+				...TEST_IMPLEMENTATION_CONTRACT,
+				question: "Apply the justified local change",
+				target: "implementation",
+				reason: "The movement is explicit",
+				invariant_handling: { kind: "not-applicable" },
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		),
+		/invariant_handling\.reason is required/,
+	);
+	await assert.rejects(
+		route.execute(
+			"skill-with-implementation-fields",
+			{
+				question: "What does the product require?",
+				target: "specify",
+				reason: "Meaning remains unresolved",
+				movement: "Change the product code",
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		),
+		/movement is valid only when target=implementation/,
+	);
+	const accepted = await route.execute(
+		"object-invariant",
+		{
+			...TEST_IMPLEMENTATION_CONTRACT,
+			question: "Apply the justified local change",
+			target: "implementation",
+			reason: "The movement is explicit",
+		},
+		undefined,
+		undefined,
+		harness.ctx,
 	);
 	assert.deepEqual(
-		implementationBranch.properties.invariant_handling.anyOf.map(
-			(branch: any) => branch.properties.kind.const,
-		),
-		["not-applicable", "evidence-preserving-boundary", "trusted-compiler-gap"],
-	);
-	assert.ok(implementationBranch.properties.alternatives_considered);
-	assert.equal(skillBranch.properties.invariant_handling, undefined);
-	assert.equal(skillBranch.properties.alternatives_considered, undefined);
-	assert.equal(
-		implementationBranch.properties.execution_profile.const,
-		"behavior-preserving-structure",
+		accepted.details.implementationStep.invariantHandling,
+		TEST_IMPLEMENTATION_CONTRACT.invariant_handling,
 	);
 });
 

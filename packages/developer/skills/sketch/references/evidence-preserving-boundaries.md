@@ -34,6 +34,34 @@ construct Domain through public raw fields
 A type assertion, cast, non-null assertion, ignored conversion result, or typed
 deserialization target is not evidence that an invariant holds.
 
+## Preserve Prior Representation Evidence
+
+Trust, provenance, and representation precision are separate facts. Input can be
+external or less trusted while still having a specific structure established by
+an earlier decoder, protocol, constructor, or type. Do not widen that structure
+to a top type merely to check it again.
+
+For representations ordered by the values they admit:
+
+```text
+Values(Domain) ⊆ Values(Raw) ⊆ Values(External)
+
+establish : External -> Result<Raw, EstablishError>
+parse     : Raw      -> Result<Domain, ParseError>
+execute   : Domain   -> Effect<Result>
+```
+
+The input type of `parse` is the narrowest honest representation the caller can
+already supply at that boundary. If an earlier transition established `Raw`,
+accepting `External` instead discards evidence and repeats that transition. A
+single operation may legitimately combine `establish` and `parse` when it owns
+the actual external edge, but that does not justify exposing the broader type to
+callers that already hold `Raw`.
+
+Use a maximally broad input type only when the caller genuinely has no stronger
+representation. Less trusted does not imply less typed, and parsing does not
+require erasing information before refinement.
+
 ## Draw The Refinement Boundary
 
 Derive this pipeline before choosing library syntax:
@@ -91,15 +119,24 @@ boundary that constructs it.
 ## Wished Interface
 
 Use the target language's ordinary result and error conventions. The important
-shape is that success carries `Domain`:
+shape is that the parser accepts the representation already known at its caller
+boundary and success carries the stronger result:
 
 ```text
-parseOrder : UnknownInput -> Result<Order, OrderInputError>
-placeOrder : Order -> Effect<PlacementResult>
+parseNonEmpty : List<Item> -> Result<NonEmpty<Item>, EmptyInput>
+process       : NonEmpty<Item> -> Effect<ProcessResult>
 
-handle(input):
-  order <- parseOrder(input)
-  placeOrder(order)
+handle(items: List<Item>):
+  nonEmpty <- parseNonEmpty(items)
+  process(nonEmpty)
+```
+
+When no prior transition has established `List<Item>`, add or combine the actual
+external decoding edge explicitly:
+
+```text
+decodeItems : External -> Result<List<Item>, DecodeError>
+parseNonEmpty : List<Item> -> Result<NonEmpty<Item>, EmptyInput>
 ```
 
 Throwing at an application edge, returning an option/either/result, or using a
@@ -107,7 +144,9 @@ checked constructor can all be valid. A predicate or assertion function can also
 preserve information when the language genuinely narrows the checked value in
 the only scope where it is consumed. What is not valid is checking one value and
 then separately claiming a stronger type without a compiler-visible or
-abstraction-visible connection.
+abstraction-visible connection. It is also not valid to erase a representation
+already established for the caller and present the repeated structural check as
+new domain evidence.
 
 ## Construction And Escape Audit
 
@@ -164,6 +203,8 @@ by that phase's representation.
 
 ```text
 Raw representation and provenance:
+Representation guarantee already established before this boundary:
+Why the parser input is the narrowest honest caller contract:
 Refined domain representation:
 Invariant gained and ability lost:
 Parser/smart-constructor signature:
@@ -179,8 +220,9 @@ Negative, bypass, and effect-order checks:
 
 Stop when every core construction path either produces the refined domain value
 through the declared parser/constructor or fails explicitly, invalid input is
-rejected before the domain effect that depends on it, and no unchecked narrowing
-or public raw constructor claims the invariant.
+rejected before the domain effect that depends on it, no unchecked narrowing or
+public raw constructor claims the invariant, and the parser input preserves every
+representation guarantee established by prior boundaries.
 
 Return to `model` when the admitted values or failure policy are disputed. Use
 `representation-barrier` when alternate internal representations and public laws
@@ -195,6 +237,7 @@ when old and new boundary compatibility remains unsettled.
   parsing and shotgun-parsing discussion, practical duplicate-key example, and
   guidance on precise datatypes, proof placement, multi-pass parsing,
   denormalization, abstract datatypes, and bounded exceptions.
-- The construction-path audit, trusted-compiler-gap record, effect-order check,
-  repository compatibility paths, and language-neutral assertion taxonomy are
-  Developer adaptations of that source's type-driven design argument.
+- The prior-representation evidence rule, construction-path audit,
+  trusted-compiler-gap record, effect-order check, repository compatibility
+  paths, and language-neutral assertion taxonomy are Developer adaptations of
+  that source's type-driven design argument.

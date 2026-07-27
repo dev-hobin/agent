@@ -69,11 +69,11 @@
     {
       "id": "evidence-preserving-boundary",
       "question": "How does less-trusted or less-structured input become a domain value that carries the established invariant?",
-      "trigger": "External, serialized, persisted, legacy, foreign, unknown, nullable, or overly broad input must become an accepted domain value; checks are repeated, return no refined value, occur after effects, or are followed by an assertion, cast, non-null claim, unchecked decode, or public raw construction.",
-      "method_step": "derive raw provenance, refined representation, parser or smart-constructor success/failure, construction owner, first-effect boundary, escape audit, and any bounded compiler gap",
+      "trigger": "External, serialized, persisted, legacy, foreign, genuinely unknown at the current boundary, nullable, or overly broad input must become an accepted domain value; checks are repeated, return no refined value, occur after effects, or are followed by an assertion, cast, non-null claim, unchecked decode, or public raw construction.",
+      "method_step": "derive raw provenance, the narrowest honest representation already established for callers, refined representation, parser or smart-constructor success/failure, construction owner, first-effect boundary, escape audit, and any bounded compiler gap",
       "references": ["references/evidence-preserving-boundaries.md"],
-      "artifacts": ["a raw-to-refined boundary pipeline", "a parser/smart-constructor and failure contract", "a construction/escape, effect-order, and trusted-compiler-gap audit"],
-      "stop": "Every core construction path returns the invariant-carrying representation or explicit failure before dependent effects, with no unchecked narrowing or public raw-constructor bypass.",
+      "artifacts": ["a raw-to-refined boundary pipeline that preserves prior representation evidence", "a parser/smart-constructor and failure contract", "a construction/escape, effect-order, and trusted-compiler-gap audit"],
+      "stop": "Every core construction path returns the invariant-carrying representation or explicit failure before dependent effects, with no discarded prior representation evidence, unchecked narrowing, or public raw-constructor bypass.",
       "separate_when": "Admitted values or failure policy are disputed, alternate representations/public laws are independently consequential, a valid domain event changes type, or old/new compatibility remains unsettled."
     },
     {

@@ -56,7 +56,9 @@ paragraphs. Produce:
    code block;
 4. a wished-interface table with contract, owner, hidden detail, and stop check;
    when raw and refined forms differ, show the parser or smart constructor whose
-   success returns the refined value and whose failure precedes dependent effects;
+   input preserves the narrowest honest representation already established for
+   callers, whose success returns the refined value, and whose failure precedes
+   dependent effects;
 5. a small ordered implementation queue and explicitly deferred abstractions;
 6. an ASCII flow, relation map, state transition, or boundary diagram whenever
    two or more components, states, or collaborations are materially related.
@@ -95,7 +97,9 @@ data-flow assumptions.
 2. State the design unit's purpose in the user's language.
 3. Derive relevant data or state definitions and their ownership pressure. Mark
    provenance and the raw-to-refined boundary whenever callers cannot already
-   supply an invariant-carrying value. Treat unchecked narrowing as no evidence.
+   supply an invariant-carrying value. Preserve structure established by prior
+   boundaries instead of widening it merely to check it again; less trusted does
+   not imply less typed. Treat unchecked narrowing as no evidence.
 4. List representative cases before choosing code shape.
 5. Name each independently unresolved design question and select only its routed
    extension; keep disputed meaning in `model`.

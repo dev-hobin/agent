@@ -63,6 +63,7 @@ import {
 	type ChoiceResponseSpec,
 	type DeveloperState,
 	type ImplementationProfile,
+	type ImplementationStepContract,
 	type InvariantHandling,
 	type FocusEvent,
 	type JudgmentEvent,
@@ -217,58 +218,54 @@ interface ChoiceResponseSpecInput {
 	fields: ChoiceResponseFieldInput[];
 }
 
-type InvariantHandlingInput =
-	| {
-			kind: "not-applicable";
-			reason: string;
-	  }
-	| {
-			kind: "evidence-preserving-boundary";
-			raw_representation: string;
-			refined_representation: string;
-			producer: string;
-			failure: string;
-			first_effect: string;
-	  }
-	| {
-			kind: "trusted-compiler-gap";
-			assertion: string;
-			established_by: string;
-			limitation: string;
-			containment: string;
-			verification: string;
-	  };
+type InvariantHandlingWireField =
+	| "reason"
+	| "raw_representation"
+	| "refined_representation"
+	| "producer"
+	| "failure"
+	| "first_effect"
+	| "assertion"
+	| "established_by"
+	| "limitation"
+	| "containment"
+	| "verification";
 
-function invariantHandlingFromInput(
-	input: InvariantHandlingInput | undefined,
-): InvariantHandling {
-	if (!input) {
-		return {
-			kind: "not-applicable",
-			reason:
-				"Legacy direct tool execution omitted the now-required invariant-handling declaration.",
-		};
-	}
-	if (input.kind === "not-applicable") return input;
-	if (input.kind === "evidence-preserving-boundary") {
-		return {
-			kind: input.kind,
-			rawRepresentation: input.raw_representation,
-			refinedRepresentation: input.refined_representation,
-			producer: input.producer,
-			failure: input.failure,
-			firstEffect: input.first_effect,
-		};
-	}
-	return {
-		kind: input.kind,
-		assertion: input.assertion,
-		establishedBy: input.established_by,
-		limitation: input.limitation,
-		containment: input.containment,
-		verification: input.verification,
-	};
+const INVARIANT_FIELDS_BY_KIND = {
+	"not-applicable": ["reason"],
+	"evidence-preserving-boundary": [
+		"raw_representation",
+		"refined_representation",
+		"producer",
+		"failure",
+		"first_effect",
+	],
+	"trusted-compiler-gap": [
+		"assertion",
+		"established_by",
+		"limitation",
+		"containment",
+		"verification",
+	],
+} as const satisfies Record<
+	InvariantHandling["kind"],
+	readonly InvariantHandlingWireField[]
+>;
+
+interface ParsedSkillRouteMode {
+	kind: "skill";
+	target: string;
 }
+
+interface ParsedImplementationRouteMode {
+	kind: "implementation";
+	target: "implementation";
+	implementationStep: ImplementationStepContract;
+	consideredAlternatives: RouteAlternative[];
+	executionProfile: ImplementationProfile;
+}
+
+type ParsedRouteMode = ParsedSkillRouteMode | ParsedImplementationRouteMode;
 
 interface OpenQuestionInput {
 	question: string;
@@ -890,146 +887,248 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 		{ additionalProperties: false },
 	);
-	const InvariantHandlingParam = Type.Union([
-		Type.Object(
-			{
-				kind: Type.Literal("not-applicable"),
-				reason: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
+	// Keep tool parameters as directly described objects. Pi's Google-compatible
+	// contract does not support Type.Union/Type.Literal tool schemas.
+	const optionalInvariantText = (description: string) =>
+		Type.Optional(
+			Type.String({
+				minLength: 1,
+				maxLength: MAX_EVIDENCE_CHARS,
+				description,
+			}),
+		);
+	const InvariantHandlingParam = Type.Object(
+		{
+			kind: StringEnum(
+				[
+					"not-applicable",
+					"evidence-preserving-boundary",
+					"trusted-compiler-gap",
+				] as const,
+				{
 					description:
-						"Why this movement neither creates nor narrows broader or less-trusted data into an invariant-carrying value",
-				}),
-			},
-			{ additionalProperties: false },
-		),
-		Type.Object(
-			{
-				kind: Type.Literal("evidence-preserving-boundary"),
-				raw_representation: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
-				}),
-				refined_representation: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
-				}),
-				producer: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
-					description:
-						"Parser, refinement function, or smart constructor whose success returns the refined value",
-				}),
-				failure: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
-				}),
-				first_effect: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
-					description:
-						"First dependent domain effect allowed only after successful refinement",
-				}),
-			},
-			{ additionalProperties: false },
-		),
-		Type.Object(
-			{
-				kind: Type.Literal("trusted-compiler-gap"),
-				assertion: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
-				}),
-				established_by: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
-					description:
-						"Complete check or trusted runtime contract that already established the asserted fact",
-				}),
-				limitation: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
-					description:
-						"Why ordinary language narrowing cannot retain the established fact",
-				}),
-				containment: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
-					description: "Single parser or constructor owner containing the gap",
-				}),
-				verification: Type.String({
-					minLength: 1,
-					maxLength: MAX_EVIDENCE_CHARS,
-					description:
-						"Falsifier for the claimed prior evidence and containment",
-				}),
-			},
-			{ additionalProperties: false },
-		),
-	]);
-	const RouteParams = Type.Union([
-		Type.Object(
-			{
-				...SharedRouteParams,
-				target: Type.String({
-					minLength: 1,
-					maxLength: 64,
-					pattern: "^(?!implementation$)[a-z0-9]+(?:-[a-z0-9]+)*$",
-					description:
-						"Exact skill name from the current Available Developer skills list",
-				}),
-			},
-			{
-				additionalProperties: false,
-				description: "Route one question to a Developer skill",
-			},
-		),
-		Type.Object(
-			{
-				...SharedRouteParams,
-				target: Type.Literal("implementation", {
-					description:
-						"Use Pi implementation tools for an already-justified action",
-				}),
-				movement: Type.String({
+						"Classification that determines which companion fields are required",
+				},
+			),
+			reason: optionalInvariantText(
+				"Required for not-applicable: why the movement does not construct or narrow invariant-bearing data",
+			),
+			raw_representation: optionalInvariantText(
+				"Required for evidence-preserving-boundary: broader or less-trusted input representation",
+			),
+			refined_representation: optionalInvariantText(
+				"Required for evidence-preserving-boundary: invariant-carrying result representation",
+			),
+			producer: optionalInvariantText(
+				"Required for evidence-preserving-boundary: parser, refinement function, or smart constructor whose success returns the refined value",
+			),
+			failure: optionalInvariantText(
+				"Required for evidence-preserving-boundary: explicit refinement failure result",
+			),
+			first_effect: optionalInvariantText(
+				"Required for evidence-preserving-boundary: first dependent domain effect allowed only after successful refinement",
+			),
+			assertion: optionalInvariantText(
+				"Required for trusted-compiler-gap: the fact the language cannot retain",
+			),
+			established_by: optionalInvariantText(
+				"Required for trusted-compiler-gap: complete check or trusted runtime contract that already established the fact",
+			),
+			limitation: optionalInvariantText(
+				"Required for trusted-compiler-gap: why ordinary language narrowing cannot retain the established fact",
+			),
+			containment: optionalInvariantText(
+				"Required for trusted-compiler-gap: single parser or constructor owner containing the gap",
+			),
+			verification: optionalInvariantText(
+				"Required for trusted-compiler-gap: falsifier for the claimed prior evidence and containment",
+			),
+		},
+		{
+			additionalProperties: false,
+			description:
+				"Implementation invariant declaration. Supply only the companion fields required by the selected kind.",
+		},
+	);
+	const RouteParams = Type.Object(
+		{
+			...SharedRouteParams,
+			target: Type.String({
+				minLength: 1,
+				maxLength: 64,
+				pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+				description:
+					"Exact skill name from the current Available Developer skills list, or implementation",
+			}),
+			movement: Type.Optional(
+				Type.String({
 					minLength: 1,
 					maxLength: MAX_QUESTION_CHARS,
 					description:
-						"One locally explainable behavioral or structural movement; not a multi-step implementation queue",
+						"Required only for target=implementation: one locally explainable behavioral or structural movement",
 				}),
-				stop_condition: Type.String({
+			),
+			stop_condition: Type.Optional(
+				Type.String({
 					minLength: 1,
 					maxLength: MAX_QUESTION_CHARS,
 					description:
-						"The green, pausable, reviewable stable landing that ends this implementation route",
+						"Required only for target=implementation: the green, pausable, reviewable stable landing",
 				}),
-				verification: Type.String({
+			),
+			verification: Type.Optional(
+				Type.String({
 					minLength: 1,
 					maxLength: MAX_EVIDENCE_CHARS,
 					description:
-						"The narrowest check that can catch the likely break in this movement",
+						"Required only for target=implementation: the narrowest check that can catch the likely break",
 				}),
-				invariant_handling: InvariantHandlingParam,
-				alternatives_considered: Type.Optional(
-					Type.Array(RouteAlternativeParam, {
-						maxItems: 6,
-						description:
-							"On a reroute after implementation, the plausible skill routes reconsidered and why each is unnecessary now",
-					}),
+			),
+			invariant_handling: Type.Optional(InvariantHandlingParam),
+			alternatives_considered: Type.Optional(
+				Type.Array(RouteAlternativeParam, {
+					maxItems: 6,
+					description:
+						"For target=implementation reroutes: plausible skill routes reconsidered and why each is unnecessary now",
+				}),
+			),
+			execution_profile: Type.Optional(
+				StringEnum(["behavior-preserving-structure"] as const, {
+					description:
+						"For target=implementation structural work: load the focused behavior-preserving protocol",
+				}),
+			),
+		},
+		{
+			additionalProperties: false,
+			description:
+				"Route one question to a Developer skill or one already-justified implementation action",
+		},
+	);
+	type RouteWireInput = Static<typeof RouteParams>;
+	type InvariantHandlingWireInput = NonNullable<
+		RouteWireInput["invariant_handling"]
+	>;
+
+	const requiredTrimmedText = (
+		value: string | undefined,
+		error: string,
+	): string => {
+		if (!value?.trim()) fail(error);
+		return value.trim();
+	};
+	const requiredInvariantField = (
+		input: InvariantHandlingWireInput,
+		field: InvariantHandlingWireField,
+	): string =>
+		requiredTrimmedText(
+			input[field],
+			`invariant_handling.${field} is required for kind=${input.kind}.`,
+		);
+	const parseInvariantHandling = (
+		input: InvariantHandlingWireInput | undefined,
+	): InvariantHandling => {
+		if (!input) {
+			fail("target=implementation requires an invariant_handling object.");
+		}
+		const requiredFields = INVARIANT_FIELDS_BY_KIND[input.kind];
+		if (!requiredFields) {
+			fail(`Unsupported invariant_handling kind: ${String(input.kind)}`);
+		}
+		const allowedFields = new Set<string>(["kind", ...requiredFields]);
+		const misplacedFields = Object.keys(input).filter(
+			(field) => !allowedFields.has(field),
+		);
+		if (misplacedFields.length > 0) {
+			fail(
+				`invariant_handling kind=${input.kind} does not accept: ${misplacedFields.join(", ")}.`,
+			);
+		}
+		if (input.kind === "not-applicable") {
+			return {
+				kind: input.kind,
+				reason: requiredInvariantField(input, "reason"),
+			};
+		}
+		if (input.kind === "evidence-preserving-boundary") {
+			return {
+				kind: input.kind,
+				rawRepresentation: requiredInvariantField(input, "raw_representation"),
+				refinedRepresentation: requiredInvariantField(
+					input,
+					"refined_representation",
 				),
-				execution_profile: Type.Optional(
-					Type.Literal("behavior-preserving-structure", {
-						description:
-							"Load the focused structural-mutation protocol; omit for ordinary implementation action",
-					}),
+				producer: requiredInvariantField(input, "producer"),
+				failure: requiredInvariantField(input, "failure"),
+				firstEffect: requiredInvariantField(input, "first_effect"),
+			};
+		}
+		return {
+			kind: input.kind,
+			assertion: requiredInvariantField(input, "assertion"),
+			establishedBy: requiredInvariantField(input, "established_by"),
+			limitation: requiredInvariantField(input, "limitation"),
+			containment: requiredInvariantField(input, "containment"),
+			verification: requiredInvariantField(input, "verification"),
+		};
+	};
+	const parseConsideredAlternatives = (
+		input: RouteWireInput["alternatives_considered"],
+	): RouteAlternative[] =>
+		(input ?? []).map((alternative, index) => ({
+			target: requiredTrimmedText(
+				alternative.target,
+				`alternatives_considered[${index}].target is required.`,
+			),
+			reason: requiredTrimmedText(
+				alternative.reason,
+				`alternatives_considered[${index}].reason is required.`,
+			),
+		}));
+	const parseRouteMode = (input: RouteWireInput): ParsedRouteMode => {
+		if (input.target !== "implementation") {
+			const implementationOnlyFields = [
+				"movement",
+				"stop_condition",
+				"verification",
+				"invariant_handling",
+				"alternatives_considered",
+				"execution_profile",
+			] as const;
+			const misplacedFields = implementationOnlyFields.filter(
+				(field) => input[field] !== undefined,
+			);
+			if (misplacedFields.length > 0) {
+				fail(
+					`${misplacedFields.join(", ")} ${misplacedFields.length === 1 ? "is" : "are"} valid only when target=implementation.`,
+				);
+			}
+			return { kind: "skill", target: input.target };
+		}
+		return {
+			kind: "implementation",
+			target: input.target,
+			implementationStep: {
+				movement: requiredTrimmedText(
+					input.movement,
+					"target=implementation requires non-empty movement.",
 				),
+				stopCondition: requiredTrimmedText(
+					input.stop_condition,
+					"target=implementation requires non-empty stop_condition.",
+				),
+				verification: requiredTrimmedText(
+					input.verification,
+					"target=implementation requires non-empty verification.",
+				),
+				invariantHandling: parseInvariantHandling(input.invariant_handling),
 			},
-			{
-				additionalProperties: false,
-				description: "Route one already-justified implementation action",
-			},
-		),
-	]);
+			consideredAlternatives: parseConsideredAlternatives(
+				input.alternatives_considered,
+			),
+			executionProfile: input.execution_profile ?? "ordinary",
+		};
+	};
 
 	pi.registerTool({
 		name: ROUTE_TOOL,
@@ -1058,6 +1157,7 @@ export default async function developer(pi: ExtensionAPI) {
 					`Route ${state.activeRoute.routeId} is still active. Record its judgment before routing another question.`,
 				);
 			}
+			const routeMode = parseRouteMode(params);
 			routeOpening = true;
 
 			try {
@@ -1079,7 +1179,19 @@ export default async function developer(pi: ExtensionAPI) {
 					fail(`Unknown pending question ID: ${targetQuestionId}`);
 				}
 
-				const target = params.target;
+				const target = routeMode.target;
+				const implementationStep =
+					routeMode.kind === "implementation"
+						? routeMode.implementationStep
+						: undefined;
+				const consideredAlternatives =
+					routeMode.kind === "implementation"
+						? routeMode.consideredAlternatives
+						: [];
+				const executionProfile =
+					routeMode.kind === "implementation"
+						? routeMode.executionProfile
+						: undefined;
 				const implementationBlockers = state.pendingQuestions.filter(
 					(pending) => pending.gate === "before-implementation",
 				);
@@ -1096,13 +1208,6 @@ export default async function developer(pi: ExtensionAPI) {
 				const knownEvidence = (params.known_evidence ?? [])
 					.map((item) => item.trim())
 					.filter(Boolean);
-				const consideredAlternatives: RouteAlternative[] =
-					target === "implementation" && "alternatives_considered" in params
-						? (params.alternatives_considered ?? []).map((alternative) => ({
-								target: alternative.target.trim(),
-								reason: alternative.reason.trim(),
-							}))
-						: [];
 				for (const alternative of consideredAlternatives) {
 					if (!availableSkills.has(alternative.target)) {
 						fail(
@@ -1150,19 +1255,6 @@ export default async function developer(pi: ExtensionAPI) {
 						`Developer skill ${target} is unavailable or disabled in the current Pi resource configuration.`,
 					);
 				}
-				const requestedExecutionProfile =
-					"execution_profile" in params ? params.execution_profile : undefined;
-				if (
-					target !== "implementation" &&
-					requestedExecutionProfile !== undefined
-				) {
-					fail("execution_profile is valid only when target=implementation.");
-				}
-				const executionProfile: ImplementationProfile | undefined =
-					target === "implementation"
-						? (requestedExecutionProfile ?? "ordinary")
-						: undefined;
-
 				const availableReferences = skill
 					? await skillReferencePaths(skill)
 					: [];
@@ -1190,29 +1282,6 @@ export default async function developer(pi: ExtensionAPI) {
 						"Follow the route's invariant-handling declaration. Broader or less-trusted input must become an invariant-carrying value through a parser, refinement function, or smart constructor before dependent effects. Validation followed by an assertion, cast, non-null claim, ignored conversion result, or typed decode is not evidence. If the declared handling is incomplete, stop without mutation and route sketch. Keep any trusted compiler gap isolated to its declared owner and verify its prior evidence and containment.",
 					].join("\n");
 				}
-
-				const implementationStep =
-					target === "implementation"
-						? {
-								movement: ("movement" in params
-									? params.movement
-									: question
-								).trim(),
-								stopCondition: ("stop_condition" in params
-									? params.stop_condition
-									: "Reach a green, pausable, reviewable stable landing."
-								).trim(),
-								verification: ("verification" in params
-									? params.verification
-									: "Run the narrowest relevant check and inspect the resulting diff or output."
-								).trim(),
-								invariantHandling: invariantHandlingFromInput(
-									"invariant_handling" in params
-										? params.invariant_handling
-										: undefined,
-								),
-							}
-						: undefined;
 
 				const event: RouteEvent = {
 					protocol: PROTOCOL,

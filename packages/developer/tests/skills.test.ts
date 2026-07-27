@@ -165,6 +165,23 @@ test("lists and loads direct skill references with content provenance", async ()
 	assert.equal(loaded.contentSha256.length, 64);
 	assert.match(loaded.content, /The Six-Artifact Recipe/);
 	assert.match(loaded.sourceTrace, /How to Design Programs/);
+	const evidenceBoundary = await loadSkillReference(
+		sketch,
+		"references/evidence-preserving-boundaries.md",
+	);
+	assert.match(
+		evidenceBoundary.content,
+		/Values\(Domain\) ⊆ Values\(Raw\) ⊆ Values\(External\)/,
+	);
+	assert.match(
+		evidenceBoundary.content,
+		/narrowest honest representation the caller can\s+already supply/i,
+	);
+	assert.match(
+		evidenceBoundary.content,
+		/Less trusted does not imply less typed/,
+	);
+	assert.doesNotMatch(evidenceBoundary.content, /UnknownInput/);
 	await assert.rejects(
 		loadSkillReference(sketch, "../model/references/problem-modeling.md"),
 		/direct skill-relative path/,
