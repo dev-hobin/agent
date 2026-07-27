@@ -293,7 +293,10 @@ test("routes Wrap request before trigger and delegates prepared review", async (
 		request_id: request.requestId,
 	};
 	assert.equal(Value.Check(wrapScopeActionSchema, scope), true);
-	assert.equal(Value.Check(wrapScopeActionSchema, { ...scope, extra: true }), false);
+	assert.equal(
+		Value.Check(wrapScopeActionSchema, { ...scope, extra: true }),
+		false,
+	);
 });
 
 test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {

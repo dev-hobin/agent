@@ -1004,7 +1004,9 @@ describe("Observation staged controller", () => {
 					port,
 				);
 				if (!wrapScoped.ok || wrapScoped.action !== "wrap-scope")
-					assert.fail(wrapScoped.ok ? "Expected Wrap scope" : wrapScoped.message);
+					assert.fail(
+						wrapScoped.ok ? "Expected Wrap scope" : wrapScoped.message,
+					);
 				assert.equal(
 					wrapScoped.guide.locked_target.proposal_id,
 					wrapRequested.request.proposalId,

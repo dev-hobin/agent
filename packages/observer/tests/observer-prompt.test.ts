@@ -174,8 +174,7 @@ describe("Observer hidden Sidecar context", () => {
 		const request: WrapRequestEvent = {
 			protocol: "observer.wrap-request/v1",
 			kind: "wrap-requested",
-			requestId:
-				"wrap-request-00000000-0000-4000-8000-000000000024",
+			requestId: "wrap-request-00000000-0000-4000-8000-000000000024",
 			proposalId: "proposal-00000000-0000-4000-8000-000000000025",
 			requestDigest:
 				"0000000000000000000000000000000000000000000000000000000000000026",
