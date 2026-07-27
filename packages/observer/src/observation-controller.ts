@@ -8,6 +8,7 @@ import {
 	type PreparedObservationMemoInstruction,
 } from "./memo-instruction.ts";
 import { reconstructMemoSession } from "./memo-session.ts";
+import { reconcileMemoPass } from "./memo-reconciliation.ts";
 import type { InquiryId, SourceId } from "./memo-profile.ts";
 import {
 	readNotebookInventory,
@@ -1040,9 +1041,23 @@ async function decodeMemoPreparation(input: {
 		},
 		context: context.value,
 	});
-	return decoded.ok
+	if (!decoded.ok) return decoded.issue.message;
+	const reconciled = reconcileMemoPass({
+		state: branch.memo.state,
+		scope: context.value.memoScope,
+		pass: decoded.value.pass,
+		ids: {
+			revisionId() {
+				return "memo-working-revision-00000000-0000-4000-8000-000000000000";
+			},
+			receiptId(): `memo-receipt-${string}` {
+				return "memo-receipt-00000000-0000-4000-8000-000000000000";
+			},
+		},
+	});
+	return reconciled.ok
 		? { instruction: decoded.value, priorSession }
-		: decoded.issue.message;
+		: `Memo instruction domain validation failed: ${reconciled.issue.message}`;
 }
 
 async function memoPrepare(input: {

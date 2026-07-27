@@ -810,6 +810,45 @@ describe("Observation staged controller", () => {
 					dispositions: instruction.dispositions,
 				};
 				const beforeMalformed = port.entries.length;
+				const noOpHypothesisRevision = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-prepare",
+						request_id: requested.request.requestId,
+						submission: {
+							...submission,
+							hypothesis_outcomes: [
+								{
+									kind: "revise",
+									inquiry_id: DURABLE_INQUIRY,
+									current: "Frequent durable writing may disrupt learning.",
+									revision_reason:
+										"A reason without changed current text must fail before append.",
+									evidence_ids: [
+										"evidence-00000000-0000-4000-8000-000000000601",
+									],
+								},
+								...instruction.pass.hypothesis_outcomes.slice(1),
+							],
+						},
+					},
+					port,
+				);
+				assert.equal(noOpHypothesisRevision.ok, false);
+				if (!noOpHypothesisRevision.ok)
+					assert.match(
+						noOpHypothesisRevision.message,
+						/Hypothesis revision must change current text/u,
+					);
+				assert.equal(port.entries.length, beforeMalformed);
+				assert.equal(
+					port.entries.some(
+						(entry) =>
+							entry.type === "custom" &&
+							entry.customType === OBSERVER_MEMO_INSTRUCTION_ENTRY,
+					),
+					false,
+				);
 				const legacyRevise = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
