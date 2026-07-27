@@ -1789,10 +1789,36 @@ Pack: 41 runtime files, 0 tests; both One-shot runtime modules present
 Pi 0.80.10 RPC smoke: package discovery/setup/status/on/memo/off passed
 ```
 
+### Landing 8A-7R1 — OFF hydration guidance repair
+
+```text
+[x] bounded provider trace classified and started One-shot correctly
+[x] URI-bearing inline material reached linked SourceRead
+[x] one attempt recovered to hydrate → record → finish
+[x] repeated record failures exposed missing OFF-only hydration guidance
+[x] pending context now states both legal record paths explicitly
+    - related Inquiry IDs → hydrate first → exact hydration_id
+    - no hydration → hydration_id=null + related_inquiry_ids=[]
+[x] guidance still omits exact source/user text and leaves Mode OFF
+```
+
+Verifier evidence:
+
+```text
+Focused context/adapter/Pi schema: 26/26
+Observer: 188/188
+LSP: 51 files clean
+TypeScript assertion-expression scan: 0
+Diagnostic transcripts:
+  /tmp/observer-live-one-shot-first-failure.json
+  /tmp/observer-live-one-shot-second-bound-failure.json
+  /tmp/observer-live-one-shot-transcript.json
+```
+
 Remaining Slice 8 work:
 
 ```text
-bounded Pi One-shot → memo → wrap transcript
+rerun bounded Pi One-shot → memo → wrap transcript after guidance repair
 ```
 
 ---

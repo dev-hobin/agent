@@ -583,6 +583,15 @@ describe("Observation staged controller", () => {
 			});
 			assert.match(guidance ?? "", new RegExp(started.requestId, "u"));
 			assert.match(guidance ?? "", /retrieved-tool-results/u);
+			assert.match(
+				guidance ?? "",
+				/related_inquiry_ids.*first call hydrate/u,
+			);
+			assert.match(
+				guidance ?? "",
+				/hydration_id=null and related_inquiry_ids=\[\]/u,
+			);
+			assert.match(guidance ?? "", /exactly one semantic Observation/u);
 			assert.doesNotMatch(guidance ?? "", new RegExp(text, "u"));
 		});
 	});

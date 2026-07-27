@@ -52,7 +52,9 @@ function failure(message: string): OneShotCommandResult {
 	return { ok: false, message };
 }
 
-export function oneShotCommandAction(value: unknown): OneShotCommandAction | null {
+export function oneShotCommandAction(
+	value: unknown,
+): OneShotCommandAction | null {
 	if (typeof value !== "object" || value === null || Array.isArray(value))
 		return null;
 	const action = Reflect.get(value, "action");
@@ -66,7 +68,9 @@ function pendingStartIssue(input: {
 		readonly userMessageDigest: string;
 		readonly material: "inline-user-message" | "retrieved-tool-results";
 	};
-	readonly pending: ReturnType<typeof reconstructOneShotSession>["pendingRequest"];
+	readonly pending: ReturnType<
+		typeof reconstructOneShotSession
+	>["pendingRequest"];
 	readonly pi: ReturnType<typeof reconstructObserverPiState>;
 }): string | null {
 	const pending = input.pending;
@@ -192,7 +196,9 @@ export function oneShotCommandText(
 
 export function oneShotContext(input: {
 	readonly latestUser: LatestUserMessage | null;
-	readonly entries: readonly Parameters<typeof reconstructOneShotSession>[0][number][];
+	readonly entries: readonly Parameters<
+		typeof reconstructOneShotSession
+	>[0][number][];
 }): string | null {
 	const session = reconstructOneShotSession(input.entries);
 	const issue = session.issues[0];
@@ -205,7 +211,10 @@ export function oneShotContext(input: {
 			`request_id: ${pending.requestId}`,
 			`material: ${pending.material}`,
 			"Do not call one-shot-start again unless retrying the exact failed start.",
-			"After request-linked SourceRead and semantic Observation coverage, call one-shot-finish with only this request_id.",
+			"Call source-read for the request-linked candidate; it returns a compact StandingIndex and index digest.",
+			"If record will use any related_inquiry_ids, first call hydrate for those IDs with this read_id and index_digest, then pass the returned exact hydration_id to record.",
+			"If no hydration is needed, record must use hydration_id=null and related_inquiry_ids=[].",
+			"After exactly one semantic Observation covers each request-linked SourceRead, call one-shot-finish with only this request_id.",
 		].join("\n");
 	if (!input.latestUser) return null;
 	return [
