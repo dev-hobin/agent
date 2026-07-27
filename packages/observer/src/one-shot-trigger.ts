@@ -22,6 +22,12 @@ export interface OneShotStartAction {
 	readonly material: OneShotMaterial;
 }
 
+export interface OneShotFinishAction {
+	readonly observerAction: typeof OBSERVER_ONE_SHOT_ACTION_PROTOCOL;
+	readonly action: "one-shot-finish";
+	readonly requestId: OneShotRequestId;
+}
+
 export interface LatestUserMessage {
 	readonly text: string;
 	readonly inputSource: "interactive" | "rpc";
@@ -190,6 +196,29 @@ export function decodeOneShotStartAction(
 			material: parsedMaterial,
 		},
 	};
+}
+
+export function decodeOneShotFinishAction(
+	value: unknown,
+): OneShotResult<OneShotFinishAction> {
+	if (
+		!isObject(value) ||
+		!hasExactKeys(value, ["observer_action", "action", "request_id"]) ||
+		value.observer_action !== OBSERVER_ONE_SHOT_ACTION_PROTOCOL ||
+		value.action !== "one-shot-finish"
+	)
+		return failure("one-shot.action", "One-shot finish has invalid fields.");
+	const requestId = decodeOneShotRequestId(value.request_id);
+	return requestId
+		? {
+				ok: true,
+				value: {
+					observerAction: OBSERVER_ONE_SHOT_ACTION_PROTOCOL,
+					action: "one-shot-finish",
+					requestId,
+				},
+			}
+		: failure("one-shot.action", "One-shot finish has an invalid request ID.");
 }
 
 export function refineOneShotIntent(input: {
@@ -468,7 +497,9 @@ export function pendingOneShotRequestBefore(input: {
 	readonly episodeId: string;
 }): OneShotRequestedEvent | null {
 	if (!Number.isSafeInteger(input.index) || input.index < 0) return null;
-	const session = reconstructOneShotSession(input.entries.slice(0, input.index));
+	const session = reconstructOneShotSession(
+		input.entries.slice(0, input.index),
+	);
 	if (session.issues.length > 0) return null;
 	const pending = session.pendingRequest;
 	return pending?.requestId === input.requestId &&
@@ -599,6 +630,32 @@ function coveredObservationIds(
 			);
 }
 
+interface OneShotCompletionContext {
+	readonly requestId: OneShotRequestId;
+	readonly completed: OneShotCompletedEvent | undefined;
+}
+
+function oneShotCompletionContext(input: {
+	readonly requestId: unknown;
+	readonly episodeId: string;
+	readonly session: OneShotSession;
+}): OneShotCompletionContext | null {
+	const requestId = decodeOneShotRequestId(input.requestId);
+	if (!requestId) return null;
+	const pending = input.session.pendingRequest;
+	if (pending)
+		return pending.requestId === requestId &&
+			pending.episodeId === input.episodeId
+			? { requestId, completed: undefined }
+			: null;
+	const completed = input.session.completions.find(
+		(event) => event.requestId === requestId,
+	);
+	return completed?.episodeId === input.episodeId
+		? { requestId, completed }
+		: null;
+}
+
 export function planOneShotCompletion(
 	input: {
 		readonly requestId: unknown;
@@ -611,37 +668,36 @@ export function planOneShotCompletion(
 			"one-shot.history",
 			"One-shot history must be repaired before completion.",
 		);
-	const requestId = decodeOneShotRequestId(input.requestId);
-	const pending = input.session.pendingRequest;
-	if (
-		!requestId ||
-		!pending ||
-		pending.requestId !== requestId ||
-		pending.episodeId !== input.episodeId
-	)
+	const context = oneShotCompletionContext(input);
+	if (!context)
 		return failure(
 			"one-shot.pending",
-			"One-shot completion requires the exact pending request.",
+			"One-shot completion requires the exact current request.",
 		);
+	const { requestId, completed } = context;
 	const candidates = uniqueCandidateIds(input.candidates);
 	if (!candidates.ok) return candidates;
 	const reads = coveredReads(candidates.value, input.sourceReads);
 	if (!reads.ok) return reads;
 	const observations = coveredObservationIds(reads.value, input.observations);
 	if (!observations.ok) return observations;
-	return {
-		ok: true,
-		value: {
-			protocol: OBSERVER_ONE_SHOT_PROTOCOL,
-			kind: "one-shot-completed",
+	const planned: OneShotCompletedEvent = {
+		protocol: OBSERVER_ONE_SHOT_PROTOCOL,
+		kind: "one-shot-completed",
+		requestId,
+		episodeId: input.episodeId,
+		observationIds: observations.value,
+		digest: completionDigest({
 			requestId,
 			episodeId: input.episodeId,
 			observationIds: observations.value,
-			digest: completionDigest({
-				requestId,
-				episodeId: input.episodeId,
-				observationIds: observations.value,
-			}),
-		},
+		}),
 	};
+	if (completed && !sameEvent(completed, planned))
+		return failure(
+			"one-shot.conflict",
+			"Persisted One-shot completion does not match current coverage.",
+			requestId,
+		);
+	return { ok: true, value: completed ?? planned };
 }

@@ -41,6 +41,7 @@ import {
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
 import {
+	decodeOneShotFinishAction,
 	OBSERVER_ONE_SHOT_ENTRY,
 	refineOneShotIntent,
 	type OneShotIntent,
@@ -467,7 +468,10 @@ describe("Observation staged controller", () => {
 			if (!started.ok) assert.fail(started.message);
 			assert.equal(started.status, "inline-captured");
 			assert.equal(started.candidate.text, text);
-			assert.equal(started.candidate.oneShotRequestId, started.request.requestId);
+			assert.equal(
+				started.candidate.oneShotRequestId,
+				started.request.requestId,
+			);
 			assert.deepEqual(started.candidate.origin, {
 				kind: "user-input",
 				inputSource: "interactive",
@@ -603,7 +607,10 @@ describe("Observation staged controller", () => {
 			if (!captured.ok) assert.fail(captured.message);
 			assert.equal(captured.status, "captured");
 			if (!captured.candidate) assert.fail("Expected retrieved candidate");
-			assert.equal(captured.candidate.oneShotRequestId, started.request.requestId);
+			assert.equal(
+				captured.candidate.oneShotRequestId,
+				started.request.requestId,
+			);
 			assert.deepEqual(captured.candidate.origin, {
 				kind: "tool-result",
 				toolCallId: "tool-call-retrieved-1",
@@ -613,6 +620,15 @@ describe("Observation staged controller", () => {
 			assert.equal(replayed.issues.length, 0);
 			assert.equal(replayed.lifecycle.mode, "off");
 			assert.equal(replayed.candidates.length, 1);
+			const finishAction = decodeOneShotFinishAction({
+				observer_action: "observer-sidecar/v1",
+				action: "one-shot-finish",
+				request_id: started.request.requestId,
+			});
+			if (!finishAction.ok) assert.fail(finishAction.issue.message);
+			const beforeIncomplete = port.entries.length;
+			assert.equal(controller.finishOneShot(finishAction.value, port).ok, false);
+			assert.equal(port.entries.length, beforeIncomplete);
 			const read = await controller.execute(
 				externalSourceAction(captured.candidate.candidateId),
 				port,
@@ -631,7 +647,9 @@ describe("Observation staged controller", () => {
 				port,
 			);
 			if (!hydrated.ok || hydrated.action !== "hydrate")
-				assert.fail(hydrated.ok ? "Expected One-shot hydration" : hydrated.message);
+				assert.fail(
+					hydrated.ok ? "Expected One-shot hydration" : hydrated.message,
+				);
 			const recorded = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
@@ -647,13 +665,38 @@ describe("Observation staged controller", () => {
 				port,
 			);
 			if (!recorded.ok || recorded.action !== "record")
-				assert.fail(recorded.ok ? "Expected One-shot record" : recorded.message);
+				assert.fail(
+					recorded.ok ? "Expected One-shot record" : recorded.message,
+				);
 			const completedChain = reconstructObservationSession(port.entries);
 			assert.equal(completedChain.issues.length, 0);
 			assert.equal(completedChain.lifecycle.mode, "off");
 			assert.equal(completedChain.sourceReads.length, 1);
 			assert.equal(completedChain.hydrations.length, 1);
 			assert.equal(completedChain.observations.length, 1);
+			port.failNextOneShotAppend = true;
+			assert.equal(controller.finishOneShot(finishAction.value, port).ok, false);
+			port.dropNextOneShotAppend = true;
+			assert.equal(controller.finishOneShot(finishAction.value, port).ok, false);
+			const finished = controller.finishOneShot(finishAction.value, port);
+			if (!finished.ok) assert.fail(finished.message);
+			assert.equal(finished.status, "completed");
+			assert.deepEqual(finished.completion.observationIds, [
+				recorded.observation.observationId,
+			]);
+			const resumed = controller.finishOneShot(finishAction.value, port);
+			if (!resumed.ok) assert.fail(resumed.message);
+			assert.equal(resumed.status, "resumed");
+			assert.deepEqual(resumed.completion, finished.completion);
+			assert.equal(
+				port.entries.filter(
+					(entry) => entry.customType === OBSERVER_ONE_SHOT_ENTRY,
+				).length,
+				2,
+			);
+			const afterFinish = reconstructObservationSession(port.entries);
+			assert.equal(afterFinish.lifecycle.mode, "off");
+			assert.equal(afterFinish.lifecycle.episode.status, "open");
 		});
 	});
 
@@ -671,7 +714,8 @@ describe("Observation staged controller", () => {
 				},
 				port,
 			);
-			if (!sidecar.ok || !sidecar.candidate) assert.fail("Expected Sidecar candidate");
+			if (!sidecar.ok || !sidecar.candidate)
+				assert.fail("Expected Sidecar candidate");
 			await lifecycleController.command("off", port);
 			const intent = oneShotIntent({
 				text: "새 자료를 조회해 관찰해 줘.",
@@ -700,7 +744,8 @@ describe("Observation staged controller", () => {
 				},
 				port,
 			);
-			if (!linked.ok || !linked.candidate) assert.fail("Expected linked candidate");
+			if (!linked.ok || !linked.candidate)
+				assert.fail("Expected linked candidate");
 			const beforeRead = port.entries.length;
 			const mixed = await controller.execute(
 				{
@@ -731,12 +776,14 @@ describe("Observation staged controller", () => {
 				},
 				port,
 			);
-			if (!captured.ok || !captured.candidate) assert.fail("Expected candidate");
+			if (!captured.ok || !captured.candidate)
+				assert.fail("Expected candidate");
 			const read = await controller.execute(
 				externalSourceAction(captured.candidate.candidateId),
 				port,
 			);
-			if (!read.ok || read.action !== "source-read") assert.fail("Expected read");
+			if (!read.ok || read.action !== "source-read")
+				assert.fail("Expected read");
 			assert.equal(read.read.oneShotRequestId, undefined);
 			await lifecycleController.command("off", port);
 			const before = port.entries.length;

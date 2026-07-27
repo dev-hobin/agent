@@ -1737,10 +1737,33 @@ Pi-lens new parse/fan-out warnings: cleared
 TypeScript assertion-expression scan: 0
 ```
 
+### Landing 8A-6 — replay-safe internal completion
+
+```text
+[x] strict one-shot-finish raw decoder returns a refined request identity
+[x] exact linked candidate/read/Observation coverage is required
+[x] completion append is followed by exact replay confirmation
+[x] append throw/drop returns failure without a receipt
+[x] exact retry after a persisted completion returns resumed without duplication
+[x] changed coverage cannot reuse a persisted completion
+[x] Mode remains OFF and Episode remains OPEN
+[x] no Pi action registration, prompt/context, or Markdown effect
+```
+
+Verifier evidence:
+
+```text
+Focused One-shot/controller/session: 19/19
+Observer: 184/184
+LSP: 49 files clean
+Pi-lens new completion-planner complexity warning: cleared
+TypeScript assertion-expression scan: 0
+```
+
 Remaining Slice 8 work:
 
 ```text
-Pi one-shot-start/one-shot-finish actions and compact receipt
+Pi one-shot-start/one-shot-finish actions and compact receipts
 bounded One-shot → memo → wrap transcript
 ```
 

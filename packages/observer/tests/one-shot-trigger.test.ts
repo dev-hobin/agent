@@ -4,6 +4,7 @@ import { describe, test } from "node:test";
 import { sha256Text } from "../src/content-hash.ts";
 import {
 	decodeOneShotEvent,
+	decodeOneShotFinishAction,
 	decodeOneShotStartAction,
 	encodeOneShotEvent,
 	OBSERVER_ONE_SHOT_ENTRY,
@@ -130,6 +131,30 @@ describe("pure One-shot trigger and session", () => {
 			}).ok,
 			false,
 		);
+		assert.deepEqual(
+			decodeOneShotFinishAction({
+				observer_action: "observer-sidecar/v1",
+				action: "one-shot-finish",
+				request_id: REQUEST_ID,
+			}),
+			{
+				ok: true,
+				value: {
+					observerAction: "observer-sidecar/v1",
+					action: "one-shot-finish",
+					requestId: REQUEST_ID,
+				},
+			},
+		);
+		assert.equal(
+			decodeOneShotFinishAction({
+				observer_action: "observer-sidecar/v1",
+				action: "one-shot-finish",
+				request_id: REQUEST_ID,
+				extra: true,
+			}).ok,
+			false,
+		);
 	});
 
 	test("plans, replays, resumes, and serializes one exact request", () => {
@@ -223,6 +248,24 @@ describe("pure One-shot trigger and session", () => {
 			ok: true,
 			value: planned.value,
 		});
+		const completedSession = reconstructOneShotSession([
+			custom(encodeOneShotEvent(request)),
+			custom(encodeOneShotEvent(planned.value)),
+		]);
+		const resumed = planOneShotCompletion({ ...base, session: completedSession });
+		if (!resumed.ok) assert.fail(resumed.issue.message);
+		assert.deepEqual(resumed.value, planned.value);
+		assert.equal(
+			planOneShotCompletion({
+				...base,
+				session: completedSession,
+				observations: [
+					{ observationId: OBSERVATION_A, readId: READ_A },
+					{ observationId: OBSERVATION_A, readId: READ_B },
+				],
+			}).ok,
+			false,
+		);
 	});
 
 	test("fails closed for reordered, conflicting, and malformed history", () => {

@@ -68,8 +68,11 @@ import {
 import {
 	encodeOneShotEvent,
 	OBSERVER_ONE_SHOT_ENTRY,
+	planOneShotCompletion,
 	planOneShotRequest,
 	reconstructOneShotSession,
+	type OneShotCompletedEvent,
+	type OneShotFinishAction,
 	type OneShotIntent,
 	type OneShotRequestedEvent,
 } from "./one-shot-trigger.ts";
@@ -117,6 +120,14 @@ export type CandidateCaptureResult =
 			readonly ok: true;
 			readonly status: "captured" | "ignored";
 			readonly candidate: CandidateCapturedEvent | null;
+	  }
+	| { readonly ok: false; readonly message: string };
+
+export type OneShotFinishControllerResult =
+	| {
+			readonly ok: true;
+			readonly status: "completed" | "resumed";
+			readonly completion: OneShotCompletedEvent;
 	  }
 	| { readonly ok: false; readonly message: string };
 
@@ -221,6 +232,10 @@ export type MemoRequestControllerResult =
 	| { readonly ok: false; readonly message: string };
 
 export interface ObservationController {
+	finishOneShot(
+		action: OneShotFinishAction,
+		port: ObservationCommandPort,
+	): OneShotFinishControllerResult;
 	startOneShot(
 		value: {
 			readonly intent: OneShotIntent;
@@ -402,6 +417,28 @@ function appendOneShotRequest(
 		: "One-shot request가 replay에서 확인되지 않았습니다.";
 }
 
+function appendOneShotCompletion(
+	port: ObservationCommandPort,
+	completion: OneShotCompletedEvent,
+): OneShotCompletedEvent | string {
+	try {
+		port.appendEntry(OBSERVER_ONE_SHOT_ENTRY, encodeOneShotEvent(completion));
+	} catch (error) {
+		return `One-shot completion 기록 실패: ${error instanceof Error ? error.message : String(error)}`;
+	}
+	const replayed = reconstructOneShotSession(port.branchEntries());
+	const issue = replayed.issues[0];
+	if (issue) return `One-shot completion replay 실패: ${issue.code}.`;
+	const confirmed = replayed.completions.find(
+		(event) => event.requestId === completion.requestId,
+	);
+	return confirmed &&
+		JSON.stringify(encodeOneShotEvent(confirmed)) ===
+			JSON.stringify(encodeOneShotEvent(completion))
+		? confirmed
+		: "One-shot completion이 replay에서 확인되지 않았습니다.";
+}
+
 function oneShotAttemptIssue(input: {
 	readonly intent: OneShotIntent;
 	readonly episode: OneShotEpisodeCapability;
@@ -528,6 +565,53 @@ function startOneShot(input: {
 				request,
 				candidate: prepared,
 			};
+}
+
+function finishOneShot(input: {
+	readonly action: OneShotFinishAction;
+	readonly port: ObservationCommandPort;
+}): OneShotFinishControllerResult {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	const episode = branch.pi.state.episode;
+	if (branch.pi.state.mode !== "off" || episode.status !== "open")
+		return {
+			ok: false,
+			message:
+				"One-shot completion requires Mode OFF and an OPEN Episode without Wrap review.",
+		};
+	const candidates = branch.observation.candidates.flatMap((candidate) =>
+		candidate.oneShotRequestId === input.action.requestId
+			? [{ candidateId: candidate.candidateId }]
+			: [],
+	);
+	const sourceReads = branch.observation.sourceReads.flatMap((read) =>
+		read.oneShotRequestId === input.action.requestId
+			? [{ readId: read.readId, candidateIds: read.candidateIds }]
+			: [],
+	);
+	const observations = branch.observation.observations.map((observation) => ({
+		observationId: observation.observationId,
+		readId: observation.readId,
+	}));
+	const planned = planOneShotCompletion({
+		requestId: input.action.requestId,
+		episodeId: episode.core.episodeId,
+		session: branch.oneShot,
+		candidates,
+		sourceReads,
+		observations,
+	});
+	if (!planned.ok) return { ok: false, message: planned.issue.message };
+	const persisted = branch.oneShot.completions.find(
+		(completion) => completion.requestId === input.action.requestId,
+	);
+	if (persisted)
+		return { ok: true, status: "resumed", completion: planned.value };
+	const appended = appendOneShotCompletion(input.port, planned.value);
+	return typeof appended === "string"
+		? { ok: false, message: appended }
+		: { ok: true, status: "completed", completion: appended };
 }
 
 function encodeOrigin(origin: unknown): unknown {
@@ -681,7 +765,8 @@ async function sourceRead(input: {
 	if (!activeEpisode(branch) && ancestry.kind !== "one-shot")
 		return {
 			ok: false,
-			message: "Source-read에는 Mode ON 또는 exact One-shot ancestry가 필요합니다.",
+			message:
+				"Source-read에는 Mode ON 또는 exact One-shot ancestry가 필요합니다.",
 		};
 	const usedCandidateIds = new Set(
 		branch.observation.sourceReads.flatMap((read) => read.candidateIds),
@@ -724,7 +809,10 @@ async function hydrate(input: {
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	const episode = branch.pi.state.episode;
 	if (episode.status !== "open")
-		return { ok: false, message: "Inquiry hydration에는 open Episode가 필요합니다." };
+		return {
+			ok: false,
+			message: "Inquiry hydration에는 open Episode가 필요합니다.",
+		};
 	const read = branch.observation.sourceReads.find(
 		(item) => item.readId === input.action.readId,
 	);
@@ -737,7 +825,8 @@ async function hydrate(input: {
 	if (!branchReadAuthorized(branch, read))
 		return {
 			ok: false,
-			message: "Hydration에는 Mode ON 또는 exact One-shot read ancestry가 필요합니다.",
+			message:
+				"Hydration에는 Mode ON 또는 exact One-shot read ancestry가 필요합니다.",
 		};
 	const inventory = await inventoryFor(branch, input.notebooks);
 	if (!isInventory(inventory)) return { ok: false, message: inventory };
@@ -816,7 +905,10 @@ async function record(input: {
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	const episode = branch.pi.state.episode;
 	if (episode.status !== "open")
-		return { ok: false, message: "Observation 기록에는 open Episode가 필요합니다." };
+		return {
+			ok: false,
+			message: "Observation 기록에는 open Episode가 필요합니다.",
+		};
 	const read = branch.observation.sourceReads.find(
 		(item) => item.readId === input.action.readId,
 	);
@@ -1516,6 +1608,9 @@ export function createObservationController(
 		selectionStore: dependencies.selectionStore,
 	});
 	return {
+		finishOneShot(action, port) {
+			return finishOneShot({ action, port });
+		},
 		startOneShot(value, port) {
 			return startOneShot({ value, port, ids: dependencies.ids });
 		},
