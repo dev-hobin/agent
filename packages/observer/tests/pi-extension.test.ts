@@ -6,7 +6,9 @@ import { test } from "node:test";
 
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
-import observerExtension from "../extensions/observer.ts";
+import observerExtension, {
+	textFromContent,
+} from "../extensions/observer.ts";
 import {
 	OBSERVER_PROTOCOL,
 	type ObserverEvent,
@@ -97,8 +99,29 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 	});
 	assert.deepEqual(manifest.peerDependencies, {
 		"@earendil-works/pi-coding-agent": "*",
+		typebox: "*",
 	});
 	assert.equal(manifest.files.includes("extensions"), true);
+	const source = await readFile(
+		join(import.meta.dirname, "..", "extensions", "observer.ts"),
+		"utf8",
+	);
+	assert.match(source, /name: OBSERVER_TOOL_NAME/u);
+	assert.match(source, /executionMode: "sequential"/u);
+	assert.match(source, /pi\.on\("tool_result"/u);
+	assert.match(source, /event\.toolName === OBSERVER_TOOL_NAME/u);
+	assert.match(source, /pi\.on\("context"/u);
+});
+
+test("reads tool-result text without altering the original result", () => {
+	const content = [
+		{ type: "text", text: "first" },
+		{ type: "image", data: "untouched", mimeType: "image/png" },
+		{ type: "text", text: "second" },
+	];
+	const before = structuredClone(content);
+	assert.equal(textFromContent(content), "first\nsecond");
+	assert.deepEqual(content, before);
 });
 
 test("replays persisted restart, compaction, and extracted branch ancestry", async () => {

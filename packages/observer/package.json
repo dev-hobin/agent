@@ -44,7 +44,8 @@
     "extensions": ["./extensions/observer.ts"]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
   },
   "dependencies": {
     "ajv": "^8.17.1",

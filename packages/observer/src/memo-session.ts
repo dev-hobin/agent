@@ -61,8 +61,17 @@ export interface MemoSessionIssue {
 }
 
 export interface PendingMemoAcknowledgment {
+	readonly passId: string;
+	readonly instructionId: string | null;
 	readonly revisionId: string;
 	readonly receipt: MemoPassReceipt;
+}
+
+export interface AcknowledgedMemoPass {
+	readonly passId: string;
+	readonly instructionId: string | null;
+	readonly revisionId: string;
+	readonly receiptId: string;
 }
 
 export interface MemoSessionSnapshot {
@@ -70,6 +79,7 @@ export interface MemoSessionSnapshot {
 	readonly lifecycle: ObserverState;
 	readonly prepared: PreparedMemoPass | null;
 	readonly pendingAcknowledgment: PendingMemoAcknowledgment | null;
+	readonly acknowledgedPasses: readonly AcknowledgedMemoPass[];
 	readonly issues: readonly MemoSessionIssue[];
 }
 
@@ -93,7 +103,10 @@ function hasExactKeys(
 	expected: readonly string[],
 ): boolean {
 	const keys = Object.keys(value);
-	return keys.length === expected.length && keys.every((key) => expected.includes(key));
+	return (
+		keys.length === expected.length &&
+		keys.every((key) => expected.includes(key))
+	);
 }
 
 function boundedText(value: unknown, maximum = MAX_TEXT): string | null {
@@ -159,9 +172,12 @@ function decodeRecordId(value: unknown): string | null {
 	);
 }
 
-function decodeDurableBase(value: unknown): WorkingMemo["durableBase"] | undefined {
+function decodeDurableBase(
+	value: unknown,
+): WorkingMemo["durableBase"] | undefined {
 	if (value === null) return null;
-	if (!isObject(value) || !hasExactKeys(value, ["path", "sha256"])) return undefined;
+	if (!isObject(value) || !hasExactKeys(value, ["path", "sha256"]))
+		return undefined;
 	const path = boundedText(value.path);
 	if (!path || !isSha256(value.sha256)) return undefined;
 	return { path, sha256: value.sha256 };
@@ -255,7 +271,9 @@ function decodeWorkingHypothesis(value: unknown): WorkingHypothesis | null {
 	const original = boundedText(value.original);
 	const current = boundedText(value.current);
 	const revisionReason =
-		value.revision_reason === null ? null : boundedText(value.revision_reason, 4_000);
+		value.revision_reason === null
+			? null
+			: boundedText(value.revision_reason, 4_000);
 	const evidenceIds = decodeIdArray(value.evidence_ids, decodeEvidenceId);
 	if (
 		!inquiryId ||
@@ -327,7 +345,10 @@ function decodeMemoScope(value: unknown): MemoScopeSnapshot | null {
 		return null;
 	}
 	const episodeId = boundedText(value.episode_id, 300);
-	const relatedInquiryIds = decodeIdArray(value.related_inquiry_ids, decodeInquiryId);
+	const relatedInquiryIds = decodeIdArray(
+		value.related_inquiry_ids,
+		decodeInquiryId,
+	);
 	const durableMemos = decodeArray(value.durable_memos, decodeWorkingMemo);
 	const durableHypotheses = decodeArray(
 		value.durable_hypotheses,
@@ -429,14 +450,20 @@ function nonnegativeInteger(value: unknown): number | null {
 function decodeReceiptScope(value: unknown): MemoReceiptScope | null {
 	if (
 		!isObject(value) ||
-		!hasExactKeys(value, ["episode_memos", "standing_inquiries", "durable_memos"])
+		!hasExactKeys(value, [
+			"episode_memos",
+			"standing_inquiries",
+			"durable_memos",
+		])
 	) {
 		return null;
 	}
 	const episodeMemos = nonnegativeInteger(value.episode_memos);
 	const standingInquiries = nonnegativeInteger(value.standing_inquiries);
 	const durableMemos = nonnegativeInteger(value.durable_memos);
-	return episodeMemos === null || standingInquiries === null || durableMemos === null
+	return episodeMemos === null ||
+		standingInquiries === null ||
+		durableMemos === null
 		? null
 		: { episodeMemos, standingInquiries, durableMemos };
 }
@@ -501,7 +528,14 @@ function decodeReceipt(value: unknown): MemoPassReceipt | null {
 	const scope = decodeReceiptScope(value.scope);
 	const changes = decodeReceiptChanges(value.changes);
 	const summary = boundedText(value.summary, 4_000);
-	if (!decodedReceiptId || !passId || !decodedRevisionId || !scope || !changes || !summary) {
+	if (
+		!decodedReceiptId ||
+		!passId ||
+		!decodedRevisionId ||
+		!scope ||
+		!changes ||
+		!summary
+	) {
 		return null;
 	}
 	return {
@@ -602,14 +636,20 @@ export function decodeAppliedMemoPass(
 		},
 	});
 	if (!reconciled.ok) {
-		return { ok: false, message: `Applied Memo entry cannot replay: ${reconciled.issue.code}.` };
+		return {
+			ok: false,
+			message: `Applied Memo entry cannot replay: ${reconciled.issue.code}.`,
+		};
 	}
 	if (
 		nextRevisionId !== receipt.revisionId ||
 		pass.value.passId !== receipt.passId ||
 		!sameJson(reconciled.value.receipt, receipt)
 	) {
-		return { ok: false, message: "Applied Memo receipt does not match replayed state." };
+		return {
+			ok: false,
+			message: "Applied Memo receipt does not match replayed state.",
+		};
 	}
 	return {
 		ok: true,
@@ -645,7 +685,10 @@ function issue(
 	issues.push({ index, code, message });
 }
 
-function matchingPrepared(left: PreparedMemoPass, right: PreparedMemoPass): boolean {
+function matchingPrepared(
+	left: PreparedMemoPass,
+	right: PreparedMemoPass,
+): boolean {
 	return left.passId === right.passId && left.digest === right.digest;
 }
 
@@ -682,6 +725,7 @@ export function reconstructMemoSession(
 	let lifecycle = initialObserverState();
 	let prepared: PreparedMemoPass | null = null;
 	let pendingAcknowledgment: PendingMemoAcknowledgment | null = null;
+	const acknowledgedPasses: AcknowledgedMemoPass[] = [];
 	const issues: MemoSessionIssue[] = [];
 	const appliedSignatures = new Map<string, string>();
 	for (const [index, entry] of entries.entries()) {
@@ -689,7 +733,12 @@ export function reconstructMemoSession(
 		if (entry.customType === OBSERVER_LIFECYCLE_ENTRY) {
 			const decoded = normalizeObserverEvent(entry.data);
 			if (!decoded.ok) {
-				issue(issues, index, "memo-session.lifecycle", "Lifecycle entry is malformed.");
+				issue(
+					issues,
+					index,
+					"memo-session.lifecycle",
+					"Lifecycle entry is malformed.",
+				);
 				continue;
 			}
 			if (decoded.event.kind === "memo-reconciled") {
@@ -717,13 +766,26 @@ export function reconstructMemoSession(
 				continue;
 			}
 			lifecycle = applied.state;
-			if (decoded.event.kind === "memo-reconciled") pendingAcknowledgment = null;
+			if (decoded.event.kind === "memo-reconciled" && pendingAcknowledgment) {
+				acknowledgedPasses.push({
+					passId: pendingAcknowledgment.passId,
+					instructionId: pendingAcknowledgment.instructionId,
+					revisionId: pendingAcknowledgment.revisionId,
+					receiptId: pendingAcknowledgment.receipt.receiptId,
+				});
+				pendingAcknowledgment = null;
+			}
 			continue;
 		}
 		if (entry.customType === OBSERVER_PREPARED_MEMO_ENTRY) {
 			const decoded = decodePreparedMemoPass(entry.data);
 			if (!decoded.ok) {
-				issue(issues, index, "memo-session.malformed", "Prepared Memo entry is malformed.");
+				issue(
+					issues,
+					index,
+					"memo-session.malformed",
+					"Prepared Memo entry is malformed.",
+				);
 				continue;
 			}
 			if (
@@ -748,7 +810,12 @@ export function reconstructMemoSession(
 			}
 			if (prepared) {
 				if (!matchingPrepared(prepared, decoded.value)) {
-					issue(issues, index, "memo-session.conflict", "Prepared Memo entries conflict.");
+					issue(
+						issues,
+						index,
+						"memo-session.conflict",
+						"Prepared Memo entries conflict.",
+					);
 				}
 				continue;
 			}
@@ -763,13 +830,23 @@ export function reconstructMemoSession(
 				if (pass.ok) passIdentity = pass.value;
 			}
 			if (!passIdentity) {
-				issue(issues, index, "memo-session.malformed", "Applied Memo entry is malformed.");
+				issue(
+					issues,
+					index,
+					"memo-session.malformed",
+					"Applied Memo entry is malformed.",
+				);
 				continue;
 			}
 			const priorSignature = appliedSignatures.get(passIdentity.passId);
 			if (priorSignature) {
 				if (priorSignature !== currentSignature) {
-					issue(issues, index, "memo-session.conflict", "Applied Memo entries conflict.");
+					issue(
+						issues,
+						index,
+						"memo-session.conflict",
+						"Applied Memo entries conflict.",
+					);
 				}
 				continue;
 			}
@@ -790,11 +867,20 @@ export function reconstructMemoSession(
 			state = decoded.value.state;
 			prepared = null;
 			pendingAcknowledgment = {
+				passId: decoded.value.pass.passId,
+				instructionId: decoded.value.pass.instructionId,
 				revisionId: decoded.value.receipt.revisionId,
 				receipt: decoded.value.receipt,
 			};
 			appliedSignatures.set(passIdentity.passId, currentSignature);
 		}
 	}
-	return { state, lifecycle, prepared, pendingAcknowledgment, issues };
+	return {
+		state,
+		lifecycle,
+		prepared,
+		pendingAcknowledgment,
+		acknowledgedPasses,
+		issues,
+	};
 }

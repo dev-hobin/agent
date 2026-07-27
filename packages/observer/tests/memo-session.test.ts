@@ -38,8 +38,7 @@ const EPISODE_ID = "episode-session-memo";
 const PASS_ID = "memo-pass-00000000-0000-4000-8000-000000000101";
 const REVISION_ID =
 	"memo-working-revision-00000000-0000-4000-8000-000000000102";
-const RECEIPT_ID =
-	"memo-receipt-00000000-0000-4000-8000-000000000103";
+const RECEIPT_ID = "memo-receipt-00000000-0000-4000-8000-000000000103";
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -101,6 +100,7 @@ function sessionFixture(): {
 		working: state,
 		inventory: [],
 		relatedInquiryIds: [],
+		workingSourceBases: [],
 	});
 	if (!scopeResult.ok) assert.fail(JSON.stringify(scopeResult.issue));
 	const pass = prepared(scopeResult.value);
@@ -119,12 +119,17 @@ function sessionFixture(): {
 	});
 	if (!reconciled.ok) assert.fail(JSON.stringify(reconciled.issue));
 	const pending: PendingMemoAcknowledgment = {
+		passId: pass.passId,
+		instructionId: pass.instructionId,
 		revisionId: REVISION_ID,
 		receipt: reconciled.value.receipt,
 	};
 	return {
 		open: custom(OBSERVER_LIFECYCLE_ENTRY, openedEvent()),
-		prepared: custom(OBSERVER_PREPARED_MEMO_ENTRY, encodePreparedMemoEntry(pass)),
+		prepared: custom(
+			OBSERVER_PREPARED_MEMO_ENTRY,
+			encodePreparedMemoEntry(pass),
+		),
 		applied: custom(
 			OBSERVER_APPLIED_MEMO_ENTRY,
 			encodeAppliedMemoPass({
@@ -144,7 +149,10 @@ function sessionFixture(): {
 describe("Memo current-branch session replay", () => {
 	test("replays prepared, applied, and compact acknowledgment in required order", () => {
 		const fixture = sessionFixture();
-		const preparedOnly = reconstructMemoSession([fixture.open, fixture.prepared]);
+		const preparedOnly = reconstructMemoSession([
+			fixture.open,
+			fixture.prepared,
+		]);
 		assert.equal(preparedOnly.issues.length, 0);
 		assert.equal(preparedOnly.prepared?.passId, PASS_ID);
 		assert.equal(preparedOnly.state.passes, 0);
@@ -159,7 +167,8 @@ describe("Memo current-branch session replay", () => {
 		assert.equal(applied.state.passes, 1);
 		assert.equal(applied.pendingAcknowledgment?.receipt.receiptId, RECEIPT_ID);
 		assert.equal(applied.lifecycle.episode.status, "open");
-		if (applied.lifecycle.episode.status !== "open") assert.fail("Expected open episode");
+		if (applied.lifecycle.episode.status !== "open")
+			assert.fail("Expected open episode");
 		assert.equal(applied.lifecycle.episode.lastMemo, null);
 
 		const acknowledged = reconstructMemoSession([
@@ -171,8 +180,12 @@ describe("Memo current-branch session replay", () => {
 		assert.equal(acknowledged.issues.length, 0);
 		assert.equal(acknowledged.pendingAcknowledgment, null);
 		assert.equal(acknowledged.lifecycle.episode.status, "open");
-		if (acknowledged.lifecycle.episode.status !== "open") assert.fail("Expected open episode");
-		assert.equal(acknowledged.lifecycle.episode.lastMemo?.revisionId, REVISION_ID);
+		if (acknowledged.lifecycle.episode.status !== "open")
+			assert.fail("Expected open episode");
+		assert.equal(
+			acknowledged.lifecycle.episode.lastMemo?.revisionId,
+			REVISION_ID,
+		);
 	});
 
 	test("treats exact duplicate prepared/applied entries idempotently", () => {

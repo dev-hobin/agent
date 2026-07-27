@@ -36,10 +36,8 @@ const FIXTURES = join(
 	"baseline",
 );
 const EPISODE_ID = "episode-memo-1";
-const INQUIRY_ID: InquiryId =
-	"inquiry-00000000-0000-4000-8000-000000000003";
-const NEW_INQUIRY: InquiryId =
-	"inquiry-00000000-0000-4000-8000-000000000031";
+const INQUIRY_ID: InquiryId = "inquiry-00000000-0000-4000-8000-000000000003";
+const NEW_INQUIRY: InquiryId = "inquiry-00000000-0000-4000-8000-000000000031";
 const DURABLE_MEMO = "memo-00000000-0000-4000-8000-000000000004";
 const MEMO_A = "memo-00000000-0000-4000-8000-000000000032";
 const MEMO_B = "memo-00000000-0000-4000-8000-000000000033";
@@ -93,6 +91,7 @@ function requireScope(
 		working,
 		inventory,
 		relatedInquiryIds,
+		workingSourceBases: [],
 	});
 	if (!result.ok) assert.fail(JSON.stringify(result.issue));
 	return result.value;
@@ -202,7 +201,9 @@ function initialCreationPass(
 			scope,
 			state,
 			passId: "memo-pass-00000000-0000-4000-8000-000000000051",
-			evidence: [evidence(EVIDENCE_A, "Observed interruption and re-entry costs.")],
+			evidence: [
+				evidence(EVIDENCE_A, "Observed interruption and re-entry costs."),
+			],
 			hypothesisOutcomes: [
 				{ kind: "create", hypothesis: hypothesisDraft(NEW_INQUIRY) },
 			],
@@ -275,7 +276,10 @@ describe("pure Memo reconciliation", () => {
 		const result = requireReconciled({ state, scope, pass, seed: "empty" });
 		assert.equal(result.state.passes, 1);
 		assert.deepEqual(result.state.memos, []);
-		assert.equal(result.receipt.summary, "신규 0 · 수정 0 · 병합 0 · incubating 0 · 승격 후보 0 · 가설 수정 0");
+		assert.equal(
+			result.receipt.summary,
+			"신규 0 · 수정 0 · 병합 0 · incubating 0 · 승격 후보 0 · 가설 수정 0",
+		);
 	});
 
 	test("creates two working Memos and preserves a user hypothesis origin/original", () => {
@@ -296,13 +300,103 @@ describe("pure Memo reconciliation", () => {
 		assert.equal(result.receipt.changes.created, 2);
 	});
 
+	test("allows evidence-empty user registration but requires WorkingSource evidence for Observer hypotheses", () => {
+		const state = initialMemoWorkingState();
+		const sourceId = "source-00000000-0000-4000-8000-000000000081";
+		const evidenceId = "evidence-00000000-0000-4000-8000-000000000082";
+		const observerInquiry = "inquiry-00000000-0000-4000-8000-000000000083";
+		const scopeResult = hydrateMemoScope({
+			lifecycle: openLifecycle(),
+			working: state,
+			inventory: [],
+			relatedInquiryIds: [],
+			workingSourceBases: [
+				{
+					sourceId,
+					path: "session:observer/source-read-81",
+					sha256: sha256Text("working source 81"),
+				},
+			],
+		});
+		if (!scopeResult.ok) assert.fail(JSON.stringify(scopeResult.issue));
+		const observerPass = requirePass(
+			preparedRaw({
+				scope: scopeResult.value,
+				state,
+				passId: "memo-pass-00000000-0000-4000-8000-000000000084",
+				evidence: [
+					{
+						evidence_id: evidenceId,
+						kind: "source-claim",
+						source_id: sourceId,
+						summary: "The source supports a new Observer hypothesis.",
+					},
+				],
+				hypothesisOutcomes: [
+					{
+						kind: "create",
+						hypothesis: {
+							inquiry_id: observerInquiry,
+							episode_id: EPISODE_ID,
+							origin: "observer",
+							original: "Capture timing changes re-entry cost.",
+							current: "Capture timing changes re-entry cost.",
+							revision_reason: null,
+							evidence_ids: [evidenceId],
+						},
+					},
+				],
+			}),
+		);
+		const accepted = requireReconciled({
+			state,
+			scope: scopeResult.value,
+			pass: observerPass,
+			seed: "working-source",
+		});
+		assert.equal(accepted.state.hypotheses[0]?.origin, "observer");
+
+		const noEvidence = requirePass(
+			preparedRaw({
+				scope: scopeResult.value,
+				state,
+				passId: "memo-pass-00000000-0000-4000-8000-000000000085",
+				hypothesisOutcomes: [
+					{
+						kind: "create",
+						hypothesis: {
+							inquiry_id: observerInquiry,
+							episode_id: EPISODE_ID,
+							origin: "observer",
+							original: "Unsupported Observer hypothesis.",
+							current: "Unsupported Observer hypothesis.",
+							revision_reason: null,
+							evidence_ids: [],
+						},
+					},
+				],
+			}),
+		);
+		const rejected = reconcileMemoPass({
+			state,
+			scope: scopeResult.value,
+			pass: noEvidence,
+			ids: ids("observer-no-evidence"),
+		});
+		assert.equal(rejected.ok, false);
+		if (rejected.ok) assert.fail("Expected Observer evidence rejection");
+		assert.equal(rejected.issue.code, "memo-reconcile.evidence");
+	});
+
 	test("hydrates only explicitly related standing Inquiry/Memo records and marks a candidate", async () => {
 		const inventory = await baselineInventory();
 		const state = initialMemoWorkingState();
 		const unrelated = requireScope(state, inventory, []);
 		assert.equal(unrelated.durableMemos.length, 0);
 		const scope = requireScope(state, inventory, [INQUIRY_ID]);
-		const reversedScope = requireScope(state, inventory.toReversed(), [INQUIRY_ID]);
+		const reversedScope = requireScope(state, inventory.toReversed(), [
+			INQUIRY_ID,
+		]);
 		assert.equal(scope.durableMemos.length, 1);
 		assert.equal(scope.basisDigest, reversedScope.basisDigest);
 		const pass = requirePass(
@@ -310,12 +404,15 @@ describe("pure Memo reconciliation", () => {
 				scope,
 				state,
 				passId: "memo-pass-00000000-0000-4000-8000-000000000064",
-				evidence: [evidence(EVIDENCE_A, "A counterexample changed confidence.")],
+				evidence: [
+					evidence(EVIDENCE_A, "A counterexample changed confidence."),
+				],
 				hypothesisOutcomes: [
 					{
 						kind: "revise",
 						inquiry_id: INQUIRY_ID,
-						current: "Frequent durable writing disrupts learning only at poorly chosen boundaries.",
+						current:
+							"Frequent durable writing disrupts learning only at poorly chosen boundaries.",
 						revision_reason: "The observed counterexample narrowed the claim.",
 						evidence_ids: [EVIDENCE_A],
 					},
@@ -357,7 +454,8 @@ describe("pure Memo reconciliation", () => {
 			revision: {
 				revision_id: "memo-revision-00000000-0000-4000-8000-000000000072",
 				title: "Measured re-entry cost",
-				content: "Interruption creates a measurable and recoverable re-entry cost.",
+				content:
+					"Interruption creates a measurable and recoverable re-entry cost.",
 				evidence_ids: [EVIDENCE_B],
 				reason: "New evidence bounded the original contribution.",
 			},
@@ -417,7 +515,9 @@ describe("pure Memo reconciliation", () => {
 				scope,
 				state: first.state,
 				passId: "memo-pass-00000000-0000-4000-8000-000000000065",
-				evidence: [evidence(EVIDENCE_B, "The two contributions share one mechanism.")],
+				evidence: [
+					evidence(EVIDENCE_B, "The two contributions share one mechanism."),
+				],
 				hypothesisOutcomes: [{ kind: "keep", inquiry_id: NEW_INQUIRY }],
 				memoOutcomes: [
 					{
@@ -439,7 +539,9 @@ describe("pure Memo reconciliation", () => {
 			pass,
 			seed: "merge",
 		});
-		const target = result.state.memos.find((memo) => memo.memoId === MEMO_MERGED);
+		const target = result.state.memos.find(
+			(memo) => memo.memoId === MEMO_MERGED,
+		);
 		const sources = result.state.memos.filter(
 			(memo) => memo.memoId === MEMO_A || memo.memoId === MEMO_B,
 		);
@@ -535,7 +637,8 @@ describe("pure Memo reconciliation", () => {
 			ids: ids("duplicate"),
 		});
 		assert.equal(duplicateResult.ok, false);
-		if (duplicateResult.ok) assert.fail("Expected duplicate semantic key rejection");
+		if (duplicateResult.ok)
+			assert.fail("Expected duplicate semantic key rejection");
 		assert.equal(duplicateResult.issue.code, "memo-reconcile.duplicate");
 		assert.deepEqual(first.state, before);
 	});

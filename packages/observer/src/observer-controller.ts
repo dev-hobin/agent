@@ -599,6 +599,7 @@ async function memoCommand(input: {
 		working: input.memo.state,
 		inventory: inventory.value,
 		relatedInquiryIds: input.memo.prepared.relatedInquiryIds,
+		workingSourceBases: [],
 	});
 	if (!scope.ok) {
 		input.port.notify(`Memo scope 구성 실패: ${scope.issue.message}`, "error");
@@ -685,6 +686,7 @@ async function validatePreparedMemo(
 		working: memo.state,
 		inventory: inventory.value,
 		relatedInquiryIds: pass.relatedInquiryIds,
+		workingSourceBases: [],
 	});
 	if (!scope.ok) return `Memo scope 구성 실패: ${scope.issue.message}`;
 	const validated = reconcileMemoPass({

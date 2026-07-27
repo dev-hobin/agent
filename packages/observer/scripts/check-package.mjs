@@ -45,6 +45,7 @@ assert.deepEqual(manifest.pi, {
 });
 assert.deepEqual(manifest.peerDependencies, {
 	"@earendil-works/pi-coding-agent": "*",
+	typebox: "*",
 });
 
 const schema = await readJson("schemas/observer-record.v1.schema.json");

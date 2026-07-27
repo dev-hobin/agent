@@ -1,10 +1,7 @@
-import { sha256Text } from "./content-hash.ts";
+import { isSha256, sha256Text } from "./content-hash.ts";
 import type { ObserverState } from "./lifecycle.ts";
 import type { NotebookInventoryEntry } from "./notebook.ts";
-import {
-	decodeInquiryId,
-	isPreparedMemoPass,
-} from "./memo-profile.ts";
+import { decodeInquiryId, isPreparedMemoPass } from "./memo-profile.ts";
 import type {
 	EvidenceId,
 	EvidenceItem,
@@ -84,6 +81,12 @@ export interface MemoWorkingState {
 
 export interface MemoScopeRecordBasis {
 	readonly recordId: string;
+	readonly path: string;
+	readonly sha256: string;
+}
+
+export interface WorkingSourceBasis {
+	readonly sourceId: SourceId;
 	readonly path: string;
 	readonly sha256: string;
 }
@@ -331,14 +334,21 @@ export function memoScopeBasisMatches(
 	scope: MemoScopeSnapshot,
 ): boolean {
 	if (
-		!sameStrings(scope.relatedInquiryIds, uniqueSorted(scope.relatedInquiryIds)) ||
-		!sameStrings(scope.existingRecordIds, uniqueSorted(scope.existingRecordIds)) ||
+		!sameStrings(
+			scope.relatedInquiryIds,
+			uniqueSorted(scope.relatedInquiryIds),
+		) ||
+		!sameStrings(
+			scope.existingRecordIds,
+			uniqueSorted(scope.existingRecordIds),
+		) ||
 		!sameStrings(scope.sourceIds, uniqueSorted(scope.sourceIds)) ||
 		scope.durableMemos.some(
 			(memo, index) =>
 				index > 0 &&
-				(scope.durableMemos[index - 1]?.memoId ?? "").localeCompare(memo.memoId) >=
-					0,
+				(scope.durableMemos[index - 1]?.memoId ?? "").localeCompare(
+					memo.memoId,
+				) >= 0,
 		) ||
 		scope.durableHypotheses.some(
 			(hypothesis, index) =>
@@ -377,6 +387,7 @@ export function hydrateMemoScope(input: {
 	readonly working: MemoWorkingState;
 	readonly inventory: readonly NotebookInventoryEntry[];
 	readonly relatedInquiryIds: readonly InquiryId[];
+	readonly workingSourceBases: readonly WorkingSourceBasis[];
 }): MemoScopeResult {
 	if (input.lifecycle.episode.status !== "open") {
 		return failure(
@@ -389,6 +400,23 @@ export function hydrateMemoScope(input: {
 		return failure(
 			"memo-reconcile.duplicate",
 			"Related Inquiry IDs must be unique.",
+		);
+	}
+	const workingSourceIds = input.workingSourceBases.map(
+		(basis) => basis.sourceId,
+	);
+	if (
+		new Set(workingSourceIds).size !== workingSourceIds.length ||
+		input.workingSourceBases.some(
+			(basis) =>
+				basis.path.length === 0 ||
+				basis.path !== basis.path.trim() ||
+				!isSha256(basis.sha256),
+		)
+	) {
+		return failure(
+			"memo-reconcile.scope",
+			"Working Source bases must be unique and valid.",
 		);
 	}
 	const episodeId = input.lifecycle.episode.core.episodeId;
@@ -439,13 +467,19 @@ export function hydrateMemoScope(input: {
 	const normalizedHypotheses = durableHypotheses.toSorted((left, right) =>
 		left.inquiryId.localeCompare(right.inquiryId),
 	);
+	const durableRecordIds = new Set(existingRecordIds);
+	const allSourceIds = uniqueSorted([...sourceIds, ...workingSourceIds]);
+	const allRecordIds = uniqueSorted([
+		...existingRecordIds,
+		...workingSourceIds,
+	]);
 	const basisRecordIds = new Set<string>([
-		...sourceIds,
+		...allSourceIds,
 		...relatedInquiryIds,
 		...durableMemos.map((memo) => memo.memoId),
 	]);
-	const basisRecords = input.inventory
-		.flatMap((entry) =>
+	const basisRecords = [
+		...input.inventory.flatMap((entry) =>
 			basisRecordIds.has(entry.document.record.id)
 				? [
 						{
@@ -455,8 +489,19 @@ export function hydrateMemoScope(input: {
 						},
 					]
 				: [],
-		)
-		.toSorted((left, right) => left.recordId.localeCompare(right.recordId));
+		),
+		...input.workingSourceBases.flatMap((basis) =>
+			durableRecordIds.has(basis.sourceId)
+				? []
+				: [
+						{
+							recordId: basis.sourceId,
+							path: basis.path,
+							sha256: basis.sha256,
+						},
+					],
+		),
+	].toSorted((left, right) => left.recordId.localeCompare(right.recordId));
 	return {
 		ok: true,
 		value: {
@@ -465,8 +510,8 @@ export function hydrateMemoScope(input: {
 			relatedInquiryIds,
 			durableMemos,
 			durableHypotheses: normalizedHypotheses,
-			existingRecordIds: uniqueSorted(existingRecordIds),
-			sourceIds: uniqueSorted(sourceIds),
+			existingRecordIds: allRecordIds,
+			sourceIds: allSourceIds,
 			basisRecords,
 			basisDigest: scopeBasis({
 				state: input.working,
@@ -474,8 +519,8 @@ export function hydrateMemoScope(input: {
 				relatedInquiryIds,
 				durableMemos,
 				durableHypotheses: normalizedHypotheses,
-				existingRecordIds: uniqueSorted(existingRecordIds),
-				sourceIds: uniqueSorted(sourceIds),
+				existingRecordIds: allRecordIds,
+				sourceIds: allSourceIds,
 				basisRecords,
 			}),
 		},
@@ -534,19 +579,32 @@ function isFailure(
 	return "ok" in value;
 }
 
+function knownEvidenceOnly(
+	ids: readonly EvidenceId[],
+	known: ReadonlySet<string>,
+	relatedId: string,
+): ReconciliationFailure | null {
+	return ids.some((id) => !known.has(id))
+		? failure(
+				"memo-reconcile.evidence",
+				"An outcome references unknown evidence.",
+				relatedId,
+			)
+		: null;
+}
+
 function requireEvidence(
 	ids: readonly EvidenceId[],
 	known: ReadonlySet<string>,
 	relatedId: string,
 ): ReconciliationFailure | null {
-	if (ids.length === 0 || ids.some((id) => !known.has(id))) {
-		return failure(
-			"memo-reconcile.evidence",
-			"A changing outcome requires known evidence.",
-			relatedId,
-		);
-	}
-	return null;
+	return ids.length === 0
+		? failure(
+				"memo-reconcile.evidence",
+				"A changing outcome requires known evidence.",
+				relatedId,
+			)
+		: knownEvidenceOnly(ids, known, relatedId);
 }
 
 function projectHypotheses(input: {
@@ -583,19 +641,19 @@ function projectHypotheses(input: {
 					hypothesis.inquiryId,
 				);
 			}
-			if (
-				requireEvidence(
-					hypothesis.evidenceIds,
-					input.knownEvidence,
-					hypothesis.inquiryId,
-				)
-			) {
-				return failure(
-					"memo-reconcile.evidence",
-					"Created hypothesis requires known evidence.",
-					hypothesis.inquiryId,
-				);
-			}
+			const evidenceIssue =
+				hypothesis.origin === "observer"
+					? requireEvidence(
+							hypothesis.evidenceIds,
+							input.knownEvidence,
+							hypothesis.inquiryId,
+						)
+					: knownEvidenceOnly(
+							hypothesis.evidenceIds,
+							input.knownEvidence,
+							hypothesis.inquiryId,
+						);
+			if (evidenceIssue) return evidenceIssue;
 			byId.set(hypothesis.inquiryId, hypothesis);
 			continue;
 		}

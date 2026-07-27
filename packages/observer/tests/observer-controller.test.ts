@@ -246,6 +246,7 @@ async function emptyPreparedMemoPass(input: {
 		working: memo.state,
 		inventory,
 		relatedInquiryIds: [],
+		workingSourceBases: [],
 	});
 	if (!scope.ok) assert.fail(JSON.stringify(scope.issue));
 	return {

@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — Sidecar Golden Path (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — Observation에서 prepared Memo pass로 이어지는 semantic trigger (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 5 complete | validation + lifecycle + notebook + durable wrap + Pi commands/replay |
+| Runtime implementation | Slice 7 in progress | validation + lifecycle + notebook + durable wrap + Pi commands/replay + Memo reconciliation + Sidecar observation ledger/controller |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | Complete | Slice 5 — Pi Commands와 Branch Replay |
-| Next slice | Planned | Slice 6 — Memo Reconciliation |
+| Current slice | In progress | Slice 7 — Sidecar Golden Path |
+| Next movement | Planned | Observation에서 prepared Memo pass로 이어지는 semantic trigger와 실제 transcript |
 
 ### 현재 branch checkpoint
 
@@ -112,7 +112,9 @@ feature/observer
 ├─ 84febc2 feat(observer): add pure lifecycle machine
 ├─ c93e4f9 feat(observer): add notebook setup and recovery
 ├─ b3640f4 feat(observer): persist approved wrap batches
-└─ Slice 5 landing: Pi commands, branch replay, and wrap acknowledgment
+├─ 6b92a94 feat(observer): integrate Pi command lifecycle
+├─ 5f3042d feat(observer): reconcile working memos
+└─ Slice 7 landing A: pure observation ledger + sequential Pi Sidecar controller
 ```
 
 ---
@@ -858,7 +860,7 @@ Slice 6의 Claim과 Stop은 prepared semantic input 경계에서 충족됐다. �
 
 ## Slice 7 — Sidecar Golden Path
 
-**Status:** Planned
+**Status:** In progress
 
 ### Claim
 
@@ -892,6 +894,45 @@ hidden chain-of-thought 접근
 ### Stop
 
 한 자료에서 시작해 다른 자료로 standing inquiry가 재활성화되고 wrap 후 fresh session에서 이어지는 상태.
+
+### Landing 7A — Observation ledger와 sequential Sidecar controller
+
+```text
+[x] visible user/main-agent/tool result를 current OPEN+ON Episode candidate로 append
+[x] Observer 자체 tool/control과 OFF input은 무시
+[x] source-read 전 Standing Inquiry 내용을 노출하지 않는 source-first 순서
+[x] deterministic StandingIndex를 반환한 뒤 선택한 Inquiry만 hydrate
+[x] strict action decoder와 action-specific semantic preflight
+[x] candidate → source-read → hydrate → observation/user-H branch replay
+[x] minor/support/uncertain observation은 silent accumulation
+[x] major counterexample/new hypothesis/direction change/missed mismatch만 Hybrid alert
+[x] observation append와 replay 확인 뒤에만 alert/tool success 허용
+[x] malformed/unknown/stale/duplicate action은 append-free로 거부 또는 stutter
+[x] user hypothesis origin/original과 acknowledged Memo consumption 보존
+[x] hidden Sidecar context와 sequential `observer_sidecar` Pi tool 연결
+[x] notebook Markdown, Git, subagent, background worker를 변경하지 않음
+```
+
+Verifier evidence:
+
+```text
+Observer: 154/154
+Focused observation controller/prompt/session: 10/10
+Pi 0.80.10 RPC package discovery: pass
+TypeScript LSP: clean
+Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+Observation batch에서 complete prepared Memo pass를 생성·설치하는 semantic trigger
+memo → continue → wrap 실제 Sidecar transcript
+packed artifact에서 observer_sidecar staged contract 확인
+wrap 후 fresh-session standing Inquiry re-entry
+```
+
+Landing 7A는 visible candidate를 source-first로 판정하고 중요한 변화만 append 후 알리는 경계까지 닫는다. Durable Memo/Zettel 저장과 Episode settlement는 여전히 기존 `/observe memo`와 `/observe wrap`의 명시적 경계를 통과해야 한다. 다음 movement는 이 ledger를 complete prepared Memo pass와 실제 Golden Path transcript에 연결할지 현재 evidence에서 다시 판단한 뒤 시작한다.
 
 ---
 

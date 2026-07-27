@@ -6,7 +6,7 @@ Observer is intended to provide a local-first observation mode that follows stan
 
 ## Status
 
-This package is private and under spec-first implementation. Slice 6 adds strict prepared Memo-pass decoding, scoped and atomic Memo/Hypothesis reconciliation, current-branch working-state replay, `/observe memo`, Korean receipts and status counts, and exact applied-entry acknowledgment recovery. Memo reconciliation is read-only with respect to notebook Markdown; source-first semantic observation and Hybrid intervention remain deferred to Slice 7.
+This package is private and under spec-first implementation. Slice 7 is in progress: the current landing adds a pure branch-local observation ledger, source-first candidate/read/hydrate/record staging, a deterministic Standing Inquiry index, hidden ON-mode guidance, and one sequential `observer_sidecar` Pi tool. Minor observations accumulate silently; major observations are appended and replay-confirmed before a Hybrid alert. Notebook Markdown remains unchanged until the existing explicit Memo/wrap boundaries; semantic Memo-pass triggering and the complete Sidecar wrap/re-entry transcript remain deferred.
 
 ## Documentation
 
