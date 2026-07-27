@@ -71,9 +71,7 @@ function requested(intent: OneShotIntent): OneShotRequestedEvent {
 	return planned.value.request;
 }
 
-function complete(
-	request: OneShotRequestedEvent,
-): OneShotCompletedEvent {
+function complete(request: OneShotRequestedEvent): OneShotCompletedEvent {
 	const entries = [custom(encodeOneShotEvent(request))];
 	const planned = planOneShotCompletion({
 		requestId: request.requestId,
@@ -81,9 +79,7 @@ function complete(
 		session: reconstructOneShotSession(entries),
 		candidates: [{ candidateId: CANDIDATE_A }],
 		sourceReads: [{ readId: READ_A, candidateIds: [CANDIDATE_A] }],
-		observations: [
-			{ observationId: OBSERVATION_A, readId: READ_A },
-		],
+		observations: [{ observationId: OBSERVATION_A, readId: READ_A }],
 	});
 	if (!planned.ok) assert.fail(planned.issue.message);
 	return planned.value;
@@ -169,7 +165,11 @@ describe("pure One-shot trigger and session", () => {
 		assert.equal(resumed.value.request.requestId, REQUEST_ID);
 
 		const overlap = planOneShotRequest({
-			intent: refine(RETRIEVED_TEXT, "retrieved-tool-results", OTHER_REQUEST_ID),
+			intent: refine(
+				RETRIEVED_TEXT,
+				"retrieved-tool-results",
+				OTHER_REQUEST_ID,
+			),
 			episodeId: EPISODE_ID,
 			session,
 		});
@@ -188,10 +188,7 @@ describe("pure One-shot trigger and session", () => {
 			requestId: request.requestId,
 			episodeId: request.episodeId,
 			session,
-			candidates: [
-				{ candidateId: CANDIDATE_A },
-				{ candidateId: CANDIDATE_B },
-			],
+			candidates: [{ candidateId: CANDIDATE_A }, { candidateId: CANDIDATE_B }],
 			sourceReads: [
 				{ readId: READ_A, candidateIds: [CANDIDATE_A] },
 				{ readId: READ_B, candidateIds: [CANDIDATE_B] },
@@ -201,10 +198,7 @@ describe("pure One-shot trigger and session", () => {
 				{ observationId: OBSERVATION_B, readId: READ_B },
 			],
 		};
-		assert.equal(
-			planOneShotCompletion({ ...base, candidates: [] }).ok,
-			false,
-		);
+		assert.equal(planOneShotCompletion({ ...base, candidates: [] }).ok, false);
 		assert.equal(
 			planOneShotCompletion({
 				...base,
@@ -215,9 +209,7 @@ describe("pure One-shot trigger and session", () => {
 		assert.equal(
 			planOneShotCompletion({
 				...base,
-				observations: [
-					{ observationId: OBSERVATION_A, readId: READ_A },
-				],
+				observations: [{ observationId: OBSERVATION_A, readId: READ_A }],
 			}).ok,
 			false,
 		);

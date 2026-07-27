@@ -318,18 +318,12 @@ function decodeCompleted(
 			"digest",
 		])
 	)
-		return failure(
-			"one-shot.shape",
-			"One-shot completion has invalid fields.",
-		);
+		return failure("one-shot.shape", "One-shot completion has invalid fields.");
 	const requestId = decodeOneShotRequestId(value.request_id);
 	const episodeId = nonempty(value.episode_id);
 	const observationIds = parseObservationIds(value.observation_ids);
 	if (!requestId || !episodeId || !observationIds || !isSha256(value.digest))
-		return failure(
-			"one-shot.shape",
-			"One-shot completion has invalid values.",
-		);
+		return failure("one-shot.shape", "One-shot completion has invalid values.");
 	const expected = completionDigest({ requestId, episodeId, observationIds });
 	if (expected !== value.digest)
 		return failure(
@@ -364,7 +358,10 @@ export function decodeOneShotEvent(
 }
 
 function sameEvent(left: OneShotEvent, right: OneShotEvent): boolean {
-	return JSON.stringify(encodeOneShotEvent(left)) === JSON.stringify(encodeOneShotEvent(right));
+	return (
+		JSON.stringify(encodeOneShotEvent(left)) ===
+		JSON.stringify(encodeOneShotEvent(right))
+	);
 }
 
 interface MutableOneShotReplay {
