@@ -252,7 +252,10 @@ describe("pure One-shot trigger and session", () => {
 			custom(encodeOneShotEvent(request)),
 			custom(encodeOneShotEvent(planned.value)),
 		]);
-		const resumed = planOneShotCompletion({ ...base, session: completedSession });
+		const resumed = planOneShotCompletion({
+			...base,
+			session: completedSession,
+		});
 		if (!resumed.ok) assert.fail(resumed.issue.message);
 		assert.deepEqual(resumed.value, planned.value);
 		assert.equal(

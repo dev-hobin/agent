@@ -1,6 +1,4 @@
-import type {
-	ObservationController,
-} from "../src/observation-controller.ts";
+import type { ObservationController } from "../src/observation-controller.ts";
 import type { ObserverController } from "../src/observer-controller.ts";
 import {
 	executeOneShotFinish,
