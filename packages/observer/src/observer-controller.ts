@@ -44,6 +44,7 @@ import {
 	type NotebookInventoryEntry,
 } from "./notebook.ts";
 import type { NotebookSelectionStore } from "./notebook-selection-store.ts";
+import type { OneShotIntent, OneShotRequestId } from "./one-shot-trigger.ts";
 import {
 	observerStatusView,
 	renderMemoPassReceipt,
@@ -92,6 +93,26 @@ export interface ObserverControllerIds {
 	memoReceiptId(): `memo-receipt-${string}`;
 }
 
+const ONE_SHOT_EPISODE_CAPABILITY = Symbol(
+	"observer.one-shot-episode-capability",
+);
+
+export interface OneShotEpisodeCapability {
+	readonly [ONE_SHOT_EPISODE_CAPABILITY]: true;
+	readonly requestId: OneShotRequestId;
+	readonly episodeId: string;
+	readonly notebookId: string;
+	readonly lang: "ko" | "en";
+}
+
+export type OneShotEpisodeResult =
+	| {
+			readonly ok: true;
+			readonly status: "opened" | "resumed";
+			readonly value: OneShotEpisodeCapability;
+	  }
+	| { readonly ok: false; readonly message: string };
+
 export interface ObserverController {
 	bind(port: ObserverCommandPort): Promise<void>;
 	refresh(port: ObserverCommandPort): Promise<void>;
@@ -101,6 +122,10 @@ export interface ObserverController {
 		value: unknown,
 		port: ObserverCommandPort,
 	): Promise<boolean>;
+	ensureOneShotEpisode(
+		intent: OneShotIntent,
+		port: ObserverCommandPort,
+	): Promise<OneShotEpisodeResult>;
 	unbind(): void;
 }
 
@@ -447,6 +472,130 @@ async function setupCommand(
 		`Observer notebook을 선택했습니다: ${setup.value.notebook.root} (${command.lang})`,
 		"info",
 	);
+}
+
+type OneShotLifecycleAppendResult =
+	| { readonly ok: true; readonly snapshot: ObserverPiSnapshot }
+	| { readonly ok: false; readonly message: string };
+
+function appendOneShotLifecycle(input: {
+	readonly port: ObserverCommandPort;
+	readonly snapshot: ObserverPiSnapshot;
+	readonly event: ObserverEvent;
+	readonly label: string;
+}): OneShotLifecycleAppendResult {
+	try {
+		const snapshot = appendLifecycle(input.port, input.snapshot, input.event);
+		return snapshot
+			? { ok: true, snapshot }
+			: {
+					ok: false,
+					message: `${input.label}을 replay에서 확인하지 못했습니다.`,
+				};
+	} catch (error) {
+		return {
+			ok: false,
+			message: `${input.label} 기록 실패: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
+}
+
+function oneShotSynchronizationIssue(input: {
+	readonly synchronized: SynchronizationResult;
+	readonly port: ObserverCommandPort;
+	readonly operationalIssue?: string;
+}): string | null {
+	if (
+		notifyReplayIssue(input.synchronized.snapshot, input.port) ||
+		notifyMemoReplayIssue(input.synchronized.memo, input.port)
+	)
+		return "Observer branch history를 확인해야 합니다.";
+	const issue = input.operationalIssue ?? input.synchronized.operationalIssue;
+	if (issue) return `Observer 복구가 필요합니다: ${issue}`;
+	if (input.synchronized.snapshot.state.mode !== "off")
+		return "One-shot은 Observer Mode가 OFF일 때만 시작할 수 있습니다.";
+	return input.synchronized.snapshot.state.episode.status === "reviewing-wrap"
+		? "Wrap proposal 검토 중에는 One-shot을 시작할 수 없습니다."
+		: null;
+}
+
+async function ensureOneShotEpisodeCommand(input: {
+	readonly intent: OneShotIntent;
+	readonly port: ObserverCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObserverControllerIds;
+	readonly operationalIssue?: string;
+}): Promise<OneShotEpisodeResult> {
+	const synchronized = await synchronize(
+		input.port,
+		input.notebooks,
+		input.ids,
+	);
+	const synchronizationIssue = oneShotSynchronizationIssue({
+		synchronized,
+		port: input.port,
+		...(input.operationalIssue
+			? { operationalIssue: input.operationalIssue }
+			: {}),
+	});
+	if (synchronizationIssue) return { ok: false, message: synchronizationIssue };
+	const recovered = await input.notebooks.recover(synchronized.snapshot.state);
+	if (!recovered.ok)
+		return {
+			ok: false,
+			message: `One-shot notebook 복구 실패: ${recovered.issue.message}`,
+		};
+	let current = synchronized.snapshot;
+	let status: "opened" | "resumed" = "resumed";
+	const notebookId = recovered.value.notebook.manifest.notebook_id;
+	if (current.state.selectedNotebookId !== notebookId) {
+		const selected = appendOneShotLifecycle({
+			port: input.port,
+			snapshot: current,
+			event: notebookSelected(notebookId),
+			label: "One-shot notebook selection",
+		});
+		if (!selected.ok) return selected;
+		current = selected.snapshot;
+	}
+	if (
+		current.state.episode.status === "empty" ||
+		current.state.episode.status === "settled"
+	) {
+		const opened = appendOneShotLifecycle({
+			port: input.port,
+			snapshot: current,
+			event: episodeOpened({
+				episodeId: input.ids.episodeId(),
+				notebookId,
+				lang: recovered.value.notebook.manifest.default_language,
+			}),
+			label: "One-shot Episode open",
+		});
+		if (!opened.ok) return opened;
+		current = opened.snapshot;
+		status = "opened";
+	}
+	if (
+		current.state.mode !== "off" ||
+		current.state.episode.status !== "open" ||
+		current.state.episode.core.notebookId !== notebookId
+	)
+		return {
+			ok: false,
+			message: "One-shot OPEN/OFF lifecycle capability를 확립하지 못했습니다.",
+		};
+	return {
+		ok: true,
+		status,
+		value: {
+			[ONE_SHOT_EPISODE_CAPABILITY]: true,
+			requestId: input.intent.requestId,
+			episodeId: current.state.episode.core.episodeId,
+			notebookId,
+			lang: current.state.episode.core.lang,
+		},
+	};
 }
 
 async function onCommand(
@@ -1035,6 +1184,15 @@ export function createObserverController(
 				port,
 				notebooks,
 				ids: dependencies.ids,
+			});
+		},
+		ensureOneShotEpisode(intent, port) {
+			return ensureOneShotEpisodeCommand({
+				intent,
+				port,
+				notebooks,
+				ids: dependencies.ids,
+				...(operationalIssue ? { operationalIssue } : {}),
 			});
 		},
 		unbind() {

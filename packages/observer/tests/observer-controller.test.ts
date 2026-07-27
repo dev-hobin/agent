@@ -6,6 +6,10 @@ import { describe, test } from "node:test";
 
 import { sha256Text } from "../src/content-hash.ts";
 import {
+	refineOneShotIntent,
+	type OneShotIntent,
+} from "../src/one-shot-trigger.ts";
+import {
 	createObserverController,
 	type ObserverCommandPort,
 	type ObserverControllerIds,
@@ -72,6 +76,8 @@ class FakePort implements ObserverCommandPort {
 	failCommitAppend = false;
 	failMemoAppliedAppend = false;
 	failMemoAcknowledgmentAppend = false;
+	failOneShotOpenAppend = false;
+	dropOneShotOpenAppend = false;
 
 	branchEntries(): readonly PiBranchEntryLike[] {
 		return this.entries;
@@ -82,6 +88,24 @@ class FakePort implements ObserverCommandPort {
 	}
 
 	appendEntry(customType: string, data: unknown): void {
+		if (
+			customType === OBSERVER_LIFECYCLE_ENTRY &&
+			isObject(data) &&
+			data.kind === "episode-opened" &&
+			this.failOneShotOpenAppend
+		) {
+			this.failOneShotOpenAppend = false;
+			throw new Error("Injected One-shot Episode append failure");
+		}
+		if (
+			customType === OBSERVER_LIFECYCLE_ENTRY &&
+			isObject(data) &&
+			data.kind === "episode-opened" &&
+			this.dropOneShotOpenAppend
+		) {
+			this.dropOneShotOpenAppend = false;
+			return;
+		}
 		if (
 			this.failMemoAppliedAppend &&
 			customType === OBSERVER_APPLIED_MEMO_ENTRY
@@ -129,6 +153,23 @@ class FakePort implements ObserverCommandPort {
 	setStatus(text: string | undefined): void {
 		this.statuses.push(text);
 	}
+}
+
+function oneShotIntent(
+	text = "이 자료를 Observer 관점으로 봐줘.",
+): OneShotIntent {
+	const refined = refineOneShotIntent({
+		value: {
+			observer_action: "observer-sidecar/v1",
+			action: "one-shot-start",
+			user_message_digest: sha256Text(text),
+			material: { kind: "retrieved-tool-results" },
+		},
+		latestUser: { text, inputSource: "interactive" },
+		requestId: "one-shot-00000000-0000-4000-8000-000000000901",
+	});
+	if (!refined.ok) assert.fail(refined.issue.message);
+	return refined.value;
 }
 
 function deterministicIds(): ObserverControllerIds {
@@ -333,6 +374,101 @@ describe("Observer command controller", () => {
 				port.statuses.at(-1) ?? "",
 				/Observer · 켜짐 · 열림 · 정상/u,
 			);
+		});
+	});
+
+	test("opens and reuses an OFF One-shot Episode without activation", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "one-shot notebook");
+			await controller.command(`setup en ${root}`, port);
+			const before = reconstructObserverPiState(port.entries);
+			assert.equal(before.state.mode, "off");
+			assert.equal(before.state.episode.status, "empty");
+
+			const opened = await controller.ensureOneShotEpisode(
+				oneShotIntent(),
+				port,
+			);
+			if (!opened.ok) assert.fail(opened.message);
+			assert.equal(opened.status, "opened");
+			assert.equal(opened.value.requestId, oneShotIntent().requestId);
+			const snapshot = reconstructObserverPiState(port.entries);
+			assert.equal(snapshot.state.mode, "off");
+			assert.equal(snapshot.state.episode.status, "open");
+			assert.equal(
+				port.entries.some(
+					(entry) =>
+						entry.customType === OBSERVER_LIFECYCLE_ENTRY &&
+						isObject(entry.data) &&
+						entry.data.kind === "activation-changed" &&
+						entry.data.enabled === true,
+				),
+				false,
+			);
+
+			const count = port.entries.length;
+			const resumed = await controller.ensureOneShotEpisode(
+				oneShotIntent(),
+				port,
+			);
+			if (!resumed.ok) assert.fail(resumed.message);
+			assert.equal(resumed.status, "resumed");
+			assert.equal(resumed.value.episodeId, opened.value.episodeId);
+			assert.equal(port.entries.length, count);
+
+			await controller.command("on", port);
+			const beforeRejected = port.entries.length;
+			const rejected = await controller.ensureOneShotEpisode(
+				oneShotIntent(),
+				port,
+			);
+			assert.equal(rejected.ok, false);
+			assert.equal(port.entries.length, beforeRejected);
+		});
+	});
+
+	test("returns no One-shot capability across Episode append throw/drop gaps", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			await controller.command(
+				`setup en ${join(sandbox, "one-shot recovery notebook")}`,
+				port,
+			);
+			port.failOneShotOpenAppend = true;
+			const thrown = await controller.ensureOneShotEpisode(
+				oneShotIntent(),
+				port,
+			);
+			assert.equal(thrown.ok, false);
+			assert.equal(
+				reconstructObserverPiState(port.entries).state.episode.status,
+				"empty",
+			);
+			port.dropOneShotOpenAppend = true;
+			const dropped = await controller.ensureOneShotEpisode(
+				oneShotIntent(),
+				port,
+			);
+			assert.equal(dropped.ok, false);
+			assert.equal(
+				reconstructObserverPiState(port.entries).state.episode.status,
+				"empty",
+			);
+			const recovered = await controller.ensureOneShotEpisode(
+				oneShotIntent(),
+				port,
+			);
+			assert.equal(recovered.ok, true);
+			if (recovered.ok) assert.equal(recovered.status, "opened");
 		});
 	});
 
@@ -601,6 +737,15 @@ describe("Observer command controller", () => {
 				await readFile(join(root, "records", `${CREATED_SOURCE}.md`), "utf8"),
 				markdown,
 			);
+			const reopened = await controller.ensureOneShotEpisode(
+				oneShotIntent("저장된 자료를 다시 Observer 관점으로 봐줘."),
+				port,
+			);
+			if (!reopened.ok) assert.fail(reopened.message);
+			assert.equal(reopened.status, "opened");
+			const oneShotState = reconstructObserverPiState(port.entries);
+			assert.equal(oneShotState.state.mode, "off");
+			assert.equal(oneShotState.state.episode.status, "open");
 		});
 	});
 

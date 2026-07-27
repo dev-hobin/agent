@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 8 — OPEN/OFF lifecycle capability collaboration (재라우팅 필요)
+> 다음 실행 단위: Slice 8 — one-shot-requested append/replay + material handoff (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 8 in progress | Sidecar Golden Path complete + pure One-shot request/completion protocol |
+| Runtime implementation | Slice 8 in progress | Sidecar complete + pure One-shot protocol + OPEN/OFF Episode capability |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 8 — One-shot Golden Path |
-| Next movement | Requires routing | OPEN/OFF lifecycle capability collaboration |
+| Next movement | Requires routing | request-before-inline-candidate append/recovery |
 
 ### 현재 branch checkpoint
 
@@ -147,7 +147,9 @@ feature/observer
 ├─ 3a8d65b fix(observer): explain wrap markdown rules
 ├─ 23e0b7f docs(observer): record live wrap completion
 ├─ b6aca1b docs(observer): close sidecar golden path
-└─ Slice 8 landing A-1: pure One-shot trigger/session protocol
+├─ 95cf2a2 feat(observer): define pure one-shot protocol
+├─ 93787d7 style(observer): format one-shot protocol
+└─ Slice 8 landing A-2: OPEN/OFF lifecycle capability
 ```
 
 ---
@@ -1615,10 +1617,44 @@ automatic exact-user candidate
    retrieved-tool-results: waits for future request-linked tool result
 ```
 
+### Landing 8A-2 — OPEN/OFF lifecycle capability
+
+```text
+[x] lifecycle owner consumes only refined OneShotIntent
+[x] selected notebook recovery precedes lifecycle effects
+[x] EMPTY/SETTLED opens a new Episode; OPEN reuses exact Episode
+[x] replay-confirmed OFF + OPEN returns opaque OneShotEpisodeCapability
+[x] capability binds request, Episode, notebook, and language identity
+[x] Mode ON, wrap review, malformed replay, recovery mismatch fail closed
+[x] append throw/drop returns no capability and remains retryable
+[x] activation-changed(true) is never appended
+[x] no one-shot request, candidate, prompt, Pi, or Markdown effect
+```
+
+Verifier evidence:
+
+```text
+Observer controller + One-shot focused: 19/19
+Observer: 178/178
+LSP: 49 files clean
+Pi-lens new lifecycle complexity: cleared
+Packed files: 39
+Packed tests: 0
+TypeScript assertion-expression scan: 0
+```
+
+Known structural residual:
+
+```text
+observer-controller.ts now directly imports 16 modules (threshold 15).
+This coordination-module pressure is explicit; behavior-preserving splitting is
+not folded into the One-shot lifecycle movement. Existing memoCommand complexity
+warning also remains pre-existing.
+```
+
 Remaining Slice 8 work:
 
 ```text
-OPEN/OFF lifecycle capability (never activation=true)
 request-before-inline-candidate append/recovery
 OFF pending-request tool-result capture
 candidate/read ancestry authorization for source-read/hydrate/record
