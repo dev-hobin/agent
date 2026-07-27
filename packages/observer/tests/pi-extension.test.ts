@@ -233,7 +233,8 @@ test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {
 
 test("maps domain and installation rejection to actual tool errors", () => {
 	assert.throws(
-		() => requireObservationToolSuccess({ ok: false, message: "domain failed" }),
+		() =>
+			requireObservationToolSuccess({ ok: false, message: "domain failed" }),
 		/domain failed/u,
 	);
 	assert.throws(

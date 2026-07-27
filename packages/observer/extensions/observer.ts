@@ -486,29 +486,29 @@ export default function observerExtension(pi: ExtensionAPI): void {
 			if (result.action === "memo-prepare") {
 				const completion = requireMemoPreparationSuccess(
 					await completeMemoPreparation(result.instruction, {
-					install(value) {
-						return controller.installPreparedMemo(value, port);
-					},
-					apply() {
-						return controller.command("memo", port);
-					},
-					completed(requestId) {
-						const snapshot = reconstructObservationSession(
-							ctx.sessionManager.getBranch(),
-						);
-						const request = snapshot.memoRequests.find(
-							(item) => item.requestId === requestId,
-						);
-						return (
-							snapshot.issues.length === 0 &&
-							request !== undefined &&
-							request.observationIds.every((id) =>
-								snapshot.consumedObservationIds.includes(id),
-							)
-						);
-					},
-				}),
-			);
+						install(value) {
+							return controller.installPreparedMemo(value, port);
+						},
+						apply() {
+							return controller.command("memo", port);
+						},
+						completed(requestId) {
+							const snapshot = reconstructObservationSession(
+								ctx.sessionManager.getBranch(),
+							);
+							const request = snapshot.memoRequests.find(
+								(item) => item.requestId === requestId,
+							);
+							return (
+								snapshot.issues.length === 0 &&
+								request !== undefined &&
+								request.observationIds.every((id) =>
+									snapshot.consumedObservationIds.includes(id),
+								)
+							);
+						},
+					}),
+				);
 				return {
 					content: [{ type: "text", text: JSON.stringify(completion) }],
 					details: { preparation: result, completion },
