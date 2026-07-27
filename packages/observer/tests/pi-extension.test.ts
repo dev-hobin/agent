@@ -294,10 +294,7 @@ test("describes every exact Memo outcome and rejects contextual ID drift", () =>
 		},
 		{
 			kind: "merge",
-			source_ids: [
-				memoId,
-				"memo-00000000-0000-4000-8000-000000000096",
-			],
+			source_ids: [memoId, "memo-00000000-0000-4000-8000-000000000096"],
 			target: memo,
 		},
 		{ kind: "create", memo },
@@ -323,8 +320,7 @@ test("describes every exact Memo outcome and rejects contextual ID drift", () =>
 				base_revision_id: null,
 				basis_digest: "1".repeat(64),
 				related_inquiry_ids: [inquiryId],
-				instruction_id:
-					"memo-request-00000000-0000-4000-8000-000000000091",
+				instruction_id: "memo-request-00000000-0000-4000-8000-000000000091",
 				evidence: [
 					{
 						evidence_id: evidenceId,
@@ -338,8 +334,7 @@ test("describes every exact Memo outcome and rejects contextual ID drift", () =>
 			},
 			dispositions: [
 				{
-					observation_id:
-						"observation-00000000-0000-4000-8000-000000000098",
+					observation_id: "observation-00000000-0000-4000-8000-000000000098",
 					decision: "integrated",
 					hypothesis_inquiry_ids: [inquiryId],
 					memo_ids: [memoId],

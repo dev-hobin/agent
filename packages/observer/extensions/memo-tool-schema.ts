@@ -154,10 +154,7 @@ const preparedMemoPassSchema = Type.Object(
 const observationDispositionSchema = Type.Object(
 	{
 		observation_id: stableId("observation"),
-		decision: Type.Union([
-			Type.Literal("integrated"),
-			Type.Literal("kept"),
-		]),
+		decision: Type.Union([Type.Literal("integrated"), Type.Literal("kept")]),
 		hypothesis_inquiry_ids: Type.Array(inquiryId),
 		memo_ids: Type.Array(memoId),
 		evidence_ids: Type.Array(evidenceId),
@@ -173,9 +170,7 @@ export const memoPrepareActionSchema = Type.Object(
 		request_id: memoRequestId,
 		instruction: Type.Object(
 			{
-				observer_memo_instruction: Type.Literal(
-					"observer.memo-instruction/v1",
-				),
+				observer_memo_instruction: Type.Literal("observer.memo-instruction/v1"),
 				request_id: memoRequestId,
 				request_digest: Type.String({ pattern: `^${SHA256}$` }),
 				pass: preparedMemoPassSchema,
