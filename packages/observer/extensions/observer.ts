@@ -210,7 +210,9 @@ function assertNever(value: never): never {
 	throw new Error(`Unhandled Observer result: ${String(value)}`);
 }
 
-export function observationToolText(result: ObservationControllerResult): string {
+export function observationToolText(
+	result: ObservationControllerResult,
+): string {
 	if (!result.ok) {
 		return JSON.stringify({ ok: false, message: result.message });
 	}

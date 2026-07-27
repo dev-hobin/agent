@@ -166,17 +166,40 @@ function replayedEvent(
 ): ObservationEvent | null {
 	switch (event.kind) {
 		case "candidate-captured":
-			return snapshot.candidates.find((item) => item.candidateId === event.candidateId) ?? null;
+			return (
+				snapshot.candidates.find(
+					(item) => item.candidateId === event.candidateId,
+				) ?? null
+			);
 		case "source-read-recorded":
-			return snapshot.sourceReads.find((item) => item.readId === event.readId) ?? null;
+			return (
+				snapshot.sourceReads.find((item) => item.readId === event.readId) ??
+				null
+			);
 		case "inquiry-hydrated":
-			return snapshot.hydrations.find((item) => item.hydrationId === event.hydrationId) ?? null;
+			return (
+				snapshot.hydrations.find(
+					(item) => item.hydrationId === event.hydrationId,
+				) ?? null
+			);
 		case "semantic-observation-recorded":
-			return snapshot.observations.find((item) => item.observationId === event.observationId) ?? null;
+			return (
+				snapshot.observations.find(
+					(item) => item.observationId === event.observationId,
+				) ?? null
+			);
 		case "user-hypothesis-recorded":
-			return snapshot.userHypotheses.find((item) => item.observationId === event.observationId) ?? null;
+			return (
+				snapshot.userHypotheses.find(
+					(item) => item.observationId === event.observationId,
+				) ?? null
+			);
 		case "memo-requested":
-			return snapshot.memoRequests.find((item) => item.requestId === event.requestId) ?? null;
+			return (
+				snapshot.memoRequests.find(
+					(item) => item.requestId === event.requestId,
+				) ?? null
+			);
 		default:
 			return assertNever(event);
 	}
@@ -196,7 +219,8 @@ function appendEvent(
 	if (first) return `Observer working entry replay 실패: ${first.code}.`;
 	const confirmed = replayedEvent(replayed, event);
 	return confirmed &&
-		JSON.stringify(encodeObservationEvent(confirmed)) === JSON.stringify(encodeObservationEvent(event))
+		JSON.stringify(encodeObservationEvent(confirmed)) ===
+			JSON.stringify(encodeObservationEvent(event))
 		? replayed
 		: "Observer working entry가 replay에서 확인되지 않았습니다.";
 }
@@ -293,7 +317,9 @@ async function sourceRead(input: {
 	const usedCandidateIds = new Set(
 		branch.observation.sourceReads.flatMap((read) => read.candidateIds),
 	);
-	if (candidates.some((candidate) => usedCandidateIds.has(candidate.candidateId))) {
+	if (
+		candidates.some((candidate) => usedCandidateIds.has(candidate.candidateId))
+	) {
 		return { ok: false, message: "이미 SourceRead에 사용된 candidate입니다." };
 	}
 	const inventory = await inventoryFor(branch, input.notebooks);
@@ -379,7 +405,9 @@ async function hydrate(input: {
 			item.readId === input.action.readId &&
 			item.indexDigest === input.action.indexDigest &&
 			item.inquiryIds.length === input.action.inquiryIds.length &&
-			item.inquiryIds.every((id, position) => id === input.action.inquiryIds[position]),
+			item.inquiryIds.every(
+				(id, position) => id === input.action.inquiryIds[position],
+			),
 	);
 	if (existing) {
 		return {
@@ -449,7 +477,10 @@ async function record(input: {
 			(item) => item.readId === input.action.readId,
 		)
 	) {
-		return { ok: false, message: "해당 SourceRead에는 이미 Observation이 있습니다." };
+		return {
+			ok: false,
+			message: "해당 SourceRead에는 이미 Observation이 있습니다.",
+		};
 	}
 	if (input.action.hydrationId) {
 		const hydration = branch.observation.hydrations.find(

@@ -257,7 +257,10 @@ describe("Observation staged controller", () => {
 			assert.equal(hydrated.context.inquiries.length, 1);
 			assert.equal(hydrated.context.memos.length, 1);
 			const hydrationPayload = JSON.parse(observationToolText(hydrated));
-			assert.equal(hydrationPayload.hydration_id, hydrated.hydration.hydrationId);
+			assert.equal(
+				hydrationPayload.hydration_id,
+				hydrated.hydration.hydrationId,
+			);
 			assert.equal(hydrationPayload.standing_context.inquiries.length, 1);
 			const beforeDuplicateHydration = port.entries.length;
 			const duplicateHydration = await controller.execute(

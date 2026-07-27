@@ -88,8 +88,14 @@ describe("Observer hidden Sidecar context", () => {
 			),
 			captured_at: "2026-08-01T12:00:00.000Z",
 		});
-		assert.equal(observerSidecarContext([...lifecycle(false), entry(candidate)]), null);
-		const context = observerSidecarContext([...lifecycle(true), entry(candidate)]);
+		assert.equal(
+			observerSidecarContext([...lifecycle(false), entry(candidate)]),
+			null,
+		);
+		const context = observerSidecarContext([
+			...lifecycle(true),
+			entry(candidate),
+		]);
 		assert.match(context ?? "", /source meaning faithfully/u);
 		assert.match(context ?? "", new RegExp(CANDIDATE_ID, "u"));
 		assert.doesNotMatch(context ?? "", /Standing Inquiry title/u);
@@ -110,7 +116,8 @@ describe("Observer hidden Sidecar context", () => {
 			content_hash: sha256Text("Source result"),
 			captured_at: "2026-08-01T12:00:00.000Z",
 		});
-		if (candidate.kind !== "candidate-captured") assert.fail("Expected candidate");
+		if (candidate.kind !== "candidate-captured")
+			assert.fail("Expected candidate");
 		const read = event({
 			observer_observation: "observer-observation/v1",
 			kind: "source-read-recorded",

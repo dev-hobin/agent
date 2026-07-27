@@ -6,9 +6,7 @@ import { test } from "node:test";
 
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
-import observerExtension, {
-	textFromContent,
-} from "../extensions/observer.ts";
+import observerExtension, { textFromContent } from "../extensions/observer.ts";
 import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
