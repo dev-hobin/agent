@@ -1,7 +1,6 @@
 {
   "name": "@hobin/observer",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "A local-first observation mode for durable inquiry, memo reconciliation, and Zettelkasten promotion in Pi.",
   "type": "module",
   "keywords": [
@@ -25,6 +24,9 @@
   "bugs": {
     "url": "https://github.com/dev-hobin/agent/issues"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "extensions",
     "src",
@@ -38,14 +40,16 @@
   },
   "scripts": {
     "check": "node scripts/check-package.mjs && node --test tests/*.test.ts",
-    "eval": "node scripts/eval-rpc.mjs"
+    "eval": "node scripts/eval-rpc.mjs",
+    "release:check": "npm run check && node scripts/check-release.mjs",
+    "prepublishOnly": "npm run release:check"
   },
   "pi": {
     "extensions": ["./extensions/observer.ts"]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*",
-    "typebox": "*"
+    "@earendil-works/pi-coding-agent": ">=0.80.10 <0.83.0",
+    "typebox": "^1.3.6"
   },
   "dependencies": {
     "ajv": "^8.17.1",

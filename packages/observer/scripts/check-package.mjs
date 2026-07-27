@@ -19,8 +19,9 @@ async function readJson(relativePath) {
 
 const manifest = await readJson("package.json");
 assert.equal(manifest.name, "@hobin/observer");
-assert.equal(manifest.version, "0.0.0");
-assert.equal(manifest.private, true);
+assert.equal(manifest.version, "0.1.0");
+assert.equal(manifest.private, undefined);
+assert.deepEqual(manifest.publishConfig, { access: "public" });
 assert.deepEqual(manifest.files, [
 	"extensions",
 	"src",
@@ -34,6 +35,11 @@ assert.equal(
 	"node scripts/check-package.mjs && node --test tests/*.test.ts",
 );
 assert.equal(manifest.scripts.eval, "node scripts/eval-rpc.mjs");
+assert.equal(
+	manifest.scripts["release:check"],
+	"npm run check && node scripts/check-release.mjs",
+);
+assert.equal(manifest.scripts.prepublishOnly, "npm run release:check");
 assert.deepEqual(manifest.dependencies, {
 	ajv: "^8.17.1",
 	"ajv-formats": "^3.0.1",
@@ -44,8 +50,8 @@ assert.deepEqual(manifest.pi, {
 	extensions: ["./extensions/observer.ts"],
 });
 assert.deepEqual(manifest.peerDependencies, {
-	"@earendil-works/pi-coding-agent": "*",
-	typebox: "*",
+	"@earendil-works/pi-coding-agent": ">=0.80.10 <0.83.0",
+	typebox: "^1.3.6",
 });
 
 const schema = await readJson("schemas/observer-record.v1.schema.json");

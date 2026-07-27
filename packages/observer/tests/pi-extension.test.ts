@@ -117,8 +117,8 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 		extensions: ["./extensions/observer.ts"],
 	});
 	assert.deepEqual(manifest.peerDependencies, {
-		"@earendil-works/pi-coding-agent": "*",
-		typebox: "*",
+		"@earendil-works/pi-coding-agent": ">=0.80.10 <0.83.0",
+		typebox: "^1.3.6",
 	});
 	assert.equal(manifest.files.includes("extensions"), true);
 	const [source, schemaSource] = await Promise.all([
