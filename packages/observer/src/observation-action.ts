@@ -3,9 +3,11 @@ import { decodeInquiryId, type InquiryId } from "./memo-profile.ts";
 import {
 	decodeCandidateId,
 	decodeHydrationId,
+	decodeMemoRequestId,
 	decodeSourceReadId,
 	type CandidateId,
 	type HydrationId,
+	type MemoRequestId,
 	type ObservationMovement,
 	type ObservationStance,
 	type SourceClaim,
@@ -80,11 +82,17 @@ export interface RegisterUserHypothesisAction extends SidecarActionBase {
 	readonly context: string;
 }
 
+export interface MemoScopeAction extends SidecarActionBase {
+	readonly action: "memo-scope";
+	readonly requestId: MemoRequestId;
+}
+
 export type ObservationAction =
 	| SourceReadAction
 	| HydrateAction
 	| RecordObservationAction
-	| RegisterUserHypothesisAction;
+	| RegisterUserHypothesisAction
+	| MemoScopeAction;
 
 export interface ObservationActionIssue {
 	readonly code: "observation-action.object" | "observation-action.shape";
@@ -320,6 +328,12 @@ function markUserHypothesis(
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
+function markMemoScope(
+	value: Omit<MemoScopeAction, typeof OBSERVATION_ACTION_MARKER>,
+): MemoScopeAction {
+	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
+}
+
 function parseSourceRead(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
@@ -447,6 +461,25 @@ function parseRecord(
 	};
 }
 
+function parseMemoScope(
+	value: Readonly<Record<string, unknown>>,
+): ObservationActionResult {
+	if (!hasExactKeys(value, ["observer_action", "action", "request_id"])) {
+		return failure("/", "Memo-scope action has invalid fields.");
+	}
+	const requestId = decodeMemoRequestId(value.request_id);
+	return requestId
+		? {
+				ok: true,
+				value: markMemoScope({
+					protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
+					action: "memo-scope",
+					requestId,
+				}),
+			}
+		: failure("/request_id", "Memo-scope request ID is invalid.");
+}
+
 function parseUserHypothesis(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
@@ -517,6 +550,8 @@ export function decodeObservationAction(
 			return parseRecord(value);
 		case "user-hypothesis":
 			return parseUserHypothesis(value);
+		case "memo-scope":
+			return parseMemoScope(value);
 		default:
 			return failure("/action", "Observer Sidecar action is unknown.");
 	}

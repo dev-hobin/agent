@@ -14,11 +14,22 @@ export function observerSidecarContext(
 	const session = reconstructObservationSession(entries);
 	if (
 		session.issues.length > 0 ||
-		session.lifecycle.mode !== "on" ||
 		session.lifecycle.episode.status !== "open"
 	) {
 		return null;
 	}
+	const pendingMemo = session.pendingMemoRequest;
+	const memoContext = pendingMemo
+		? [
+				"<observer-memo-request>",
+				`request_id=${pendingMemo.requestId}`,
+				`observation_ids=${pendingMemo.observationIds.join(",")}`,
+				"Call observer_sidecar action memo-scope with this exact request ID.",
+				"Use the returned request-only context for semantic preparation, but do not claim the Memo pass is applied yet.",
+				"</observer-memo-request>",
+			].join("\n")
+		: null;
+	if (session.lifecycle.mode !== "on") return memoContext;
 	const usedCandidateIds = new Set(
 		session.sourceReads.flatMap((read) => read.candidateIds),
 	);
@@ -49,6 +60,7 @@ export function observerSidecarContext(
 			: `- ${read.readId}: source-read complete; StandingIndex digest=${read.indexDigest}`;
 	});
 	return [
+		...(memoContext ? [memoContext, ""] : []),
 		"<observer-sidecar>",
 		"Observer Mode is ON for the current OPEN episode.",
 		"Use the sequential observer_sidecar tool only for the staged protocol below.",

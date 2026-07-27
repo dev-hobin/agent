@@ -5,6 +5,7 @@ import { sha256Text } from "../src/content-hash.ts";
 import { OBSERVER_PROTOCOL } from "../src/lifecycle.ts";
 import {
 	encodeObservationEvent,
+	observationMemoRequestDigest,
 	OBSERVER_OBSERVATION_ENTRY,
 	prepareObservationEvent,
 	type ObservationEvent,
@@ -21,6 +22,18 @@ const READ_ID = "source-read-00000000-0000-4000-8000-000000000001";
 const SOURCE_ID = "source-00000000-0000-4000-8000-000000000001";
 const EMPTY_INDEX_DIGEST =
 	"1ad0ce7b19aa65f512ef4407092c282b55456fc59d8bb96ba5fabd778e7bf87b";
+
+function activation(enabled: boolean): PiBranchEntryLike {
+	return {
+		type: "custom",
+		customType: OBSERVER_LIFECYCLE_ENTRY,
+		data: {
+			protocol: OBSERVER_PROTOCOL,
+			kind: "activation-changed",
+			enabled,
+		},
+	};
+}
 
 function lifecycle(enabled: boolean): PiBranchEntryLike[] {
 	return [
@@ -44,15 +57,7 @@ function lifecycle(enabled: boolean): PiBranchEntryLike[] {
 				lang: "en",
 			},
 		},
-		{
-			type: "custom",
-			customType: OBSERVER_LIFECYCLE_ENTRY,
-			data: {
-				protocol: OBSERVER_PROTOCOL,
-				kind: "activation-changed",
-				enabled,
-			},
-		},
+		activation(enabled),
 	];
 }
 
@@ -99,6 +104,59 @@ describe("Observer hidden Sidecar context", () => {
 		assert.match(context ?? "", /source meaning faithfully/u);
 		assert.match(context ?? "", new RegExp(CANDIDATE_ID, "u"));
 		assert.doesNotMatch(context ?? "", /Standing Inquiry title/u);
+	});
+
+	test("projects a pending Memo request even when Mode is OFF", () => {
+		const candidate = event({
+			observer_observation: "observer-observation/v1",
+			kind: "candidate-captured",
+			episode_id: "episode-prompt-1",
+			candidate_id: CANDIDATE_ID,
+			origin: { kind: "user-input", input_source: "interactive" },
+			text: "A user hypothesis",
+			content_hash: sha256Text("A user hypothesis"),
+			captured_at: "2026-08-01T12:00:00.000Z",
+		});
+		const hypothesis = event({
+			observer_observation: "observer-observation/v1",
+			kind: "user-hypothesis-recorded",
+			episode_id: "episode-prompt-1",
+			observation_id: "observation-00000000-0000-4000-8000-000000000021",
+			candidate_id: CANDIDATE_ID,
+			inquiry_id: "inquiry-00000000-0000-4000-8000-000000000022",
+			original: "A user hypothesis",
+			context: "Explicit user proposal",
+		});
+		if (hypothesis.kind !== "user-hypothesis-recorded") {
+			assert.fail("Expected user hypothesis");
+		}
+		const request = event({
+			observer_observation: "observer-observation/v1",
+			kind: "memo-requested",
+			episode_id: "episode-prompt-1",
+			request_id: "memo-request-00000000-0000-4000-8000-000000000023",
+			base_memo_revision_id: null,
+			observation_ids: [hypothesis.observationId],
+			request_digest: observationMemoRequestDigest({
+				episodeId: "episode-prompt-1",
+				baseMemoRevisionId: null,
+				observations: [hypothesis],
+			}),
+		});
+		const context = observerSidecarContext([
+			...lifecycle(true),
+			entry(candidate),
+			entry(hypothesis),
+			entry(request),
+			activation(false),
+		]);
+		assert.match(context ?? "", /<observer-memo-request>/u);
+		assert.match(
+			context ?? "",
+			/memo-request-00000000-0000-4000-8000-000000000023/u,
+		);
+		assert.match(context ?? "", /action memo-scope/u);
+		assert.doesNotMatch(context ?? "", /<observer-sidecar>/u);
 	});
 
 	test("moves a consumed candidate to the pending read stage", () => {

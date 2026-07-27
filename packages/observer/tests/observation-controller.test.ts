@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -75,6 +75,7 @@ function deterministicIds(): ObservationControllerIds {
 	let observation = 0;
 	let source = 0;
 	let inquiry = 0;
+	let memoRequest = 0;
 	function suffix(value: number): string {
 		return String(value).padStart(12, "0");
 	}
@@ -102,6 +103,10 @@ function deterministicIds(): ObservationControllerIds {
 		inquiryId(): `inquiry-${string}` {
 			inquiry += 1;
 			return `inquiry-00000000-0000-4000-8000-${suffix(inquiry)}`;
+		},
+		memoRequestId(): `memo-request-${string}` {
+			memoRequest += 1;
+			return `memo-request-00000000-0000-4000-8000-${suffix(memoRequest)}`;
 		},
 	};
 }
@@ -395,6 +400,116 @@ describe("Observation staged controller", () => {
 			assert.equal(port.notifications.length, 1);
 			assert.equal(port.notifications[0]?.type, "warning");
 			assert.match(port.notifications[0]?.message ?? "", /Observer 중요 변화/u);
+		});
+	});
+
+	test("requests and hydrates Memo scope while OFF without notebook writes", async () => {
+		await withSandbox(async ({ sandbox, controller, port }) => {
+			const captured = controller.capture(
+				{
+					origin: { kind: "user-input", input_source: "interactive" },
+					text: "재진입 비용은 기록 시점에 따라 달라진다.",
+					capturedAt: "2026-08-01T10:03:00.000Z",
+				},
+				port,
+			);
+			if (!captured.ok || !captured.candidate)
+				assert.fail("Expected candidate");
+			const registered = await controller.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "user-hypothesis",
+					candidate_id: captured.candidate.candidateId,
+					existing_inquiry_id: null,
+					original: "재진입 비용은 기록 시점에 따라 달라진다.",
+					context: "사용자가 명시적으로 추적을 요청했다.",
+				},
+				port,
+			);
+			assert.equal(registered.ok, true);
+			port.entries.push({
+				type: "custom",
+				customType: OBSERVER_LIFECYCLE_ENTRY,
+				data: {
+					protocol: OBSERVER_PROTOCOL,
+					kind: "activation-changed",
+					enabled: false,
+				},
+			});
+			const notebookPath = join(sandbox, "notebook", "records", "inquiry.md");
+			const beforeNotebook = await readFile(notebookPath, "utf8");
+			const beforeFailed = port.entries.length;
+			port.failNextObservationAppend = true;
+			const failed = controller.requestMemo(port);
+			assert.equal(failed.ok, false);
+			assert.equal(port.entries.length, beforeFailed);
+
+			const requested = controller.requestMemo(port);
+			if (!requested.ok || requested.status !== "requested") {
+				assert.fail(requested.ok ? "Expected request" : requested.message);
+			}
+			const afterRequest = port.entries.length;
+			const resumed = controller.requestMemo(port);
+			assert.equal(resumed.ok, true);
+			if (resumed.ok) assert.equal(resumed.status, "resumed");
+			assert.equal(port.entries.length, afterRequest);
+
+			const malformed = await controller.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "memo-scope",
+					request_id: requested.request.requestId,
+					extra: true,
+				},
+				port,
+			);
+			assert.equal(malformed.ok, false);
+			assert.equal(port.entries.length, afterRequest);
+
+			const unknown = await controller.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "memo-scope",
+					request_id: "memo-request-00000000-0000-4000-8000-000000000999",
+				},
+				port,
+			);
+			assert.equal(unknown.ok, false);
+			assert.equal(port.entries.length, afterRequest);
+
+			const scoped = await controller.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "memo-scope",
+					request_id: requested.request.requestId,
+				},
+				port,
+			);
+			if (!scoped.ok || scoped.action !== "memo-scope") {
+				assert.fail(scoped.ok ? "Expected Memo scope" : scoped.message);
+			}
+			assert.deepEqual(
+				scoped.context.observations.map((item) => item.observationId),
+				[
+					registered.ok && registered.action === "user-hypothesis"
+						? registered.hypothesis.observationId
+						: "missing",
+				],
+			);
+			assert.equal(scoped.context.memoScope.relatedInquiryIds.length, 0);
+			const payload = JSON.parse(observationToolText(scoped));
+			assert.equal(payload.request_id, requested.request.requestId);
+			assert.equal(payload.observations.length, 1);
+			assert.equal(
+				port.entries.some(
+					(entry) =>
+						entry.type === "custom" &&
+						(entry.customType === "observer.prepared-memo" ||
+							entry.customType === "observer.applied-memo"),
+				),
+				false,
+			);
+			assert.equal(await readFile(notebookPath, "utf8"), beforeNotebook);
 		});
 	});
 

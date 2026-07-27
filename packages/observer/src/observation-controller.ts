@@ -8,8 +8,14 @@ import {
 } from "./notebook-service.ts";
 import type { NotebookSelectionStore } from "./notebook-selection-store.ts";
 import {
+	hydrateObservationMemoContext,
+	planObservationMemoRequest,
+	type ObservationMemoContext,
+} from "./memo-trigger.ts";
+import {
 	decodeObservationAction,
 	type HydrateAction,
+	type MemoScopeAction,
 	type RecordObservationAction,
 	type RegisterUserHypothesisAction,
 	type SourceReadAction,
@@ -22,6 +28,7 @@ import {
 	type CandidateCapturedEvent,
 	type InquiryHydratedEvent,
 	type ObservationEvent,
+	type ObservationMemoRequestedEvent,
 	type SemanticObservationRecordedEvent,
 	type SourceReadRecordedEvent,
 	type UserHypothesisRecordedEvent,
@@ -56,6 +63,7 @@ export interface ObservationControllerIds {
 	observationId(): `observation-${string}`;
 	sourceId(): SourceId;
 	inquiryId(): InquiryId;
+	memoRequestId(): `memo-request-${string}`;
 }
 
 export type CandidateCaptureResult =
@@ -93,6 +101,27 @@ export type ObservationControllerResult =
 			readonly message: string;
 			readonly hypothesis: UserHypothesisRecordedEvent;
 	  }
+	| {
+			readonly ok: true;
+			readonly action: "memo-scope";
+			readonly message: string;
+			readonly context: ObservationMemoContext;
+	  }
+	| { readonly ok: false; readonly message: string };
+
+export type MemoRequestControllerResult =
+	| {
+			readonly ok: true;
+			readonly status: "delegate" | "none";
+			readonly message: string;
+			readonly request: null;
+	  }
+	| {
+			readonly ok: true;
+			readonly status: "requested" | "resumed";
+			readonly message: string;
+			readonly request: ObservationMemoRequestedEvent;
+	  }
 	| { readonly ok: false; readonly message: string };
 
 export interface ObservationController {
@@ -108,6 +137,7 @@ export interface ObservationController {
 		value: unknown,
 		port: ObservationCommandPort,
 	): Promise<ObservationControllerResult>;
+	requestMemo(port: ObservationCommandPort): MemoRequestControllerResult;
 }
 
 interface ControllerDependencies {
@@ -623,6 +653,96 @@ async function userHypothesis(input: {
 	};
 }
 
+function requestMemo(input: {
+	readonly port: ObservationCommandPort;
+	readonly ids: ObservationControllerIds;
+}): MemoRequestControllerResult {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	if (branch.memo.prepared || branch.memo.pendingAcknowledgment) {
+		const pendingRequestId = branch.observation.pendingMemoRequest?.requestId;
+		const instructionId =
+			branch.memo.prepared?.instructionId ??
+			branch.memo.pendingAcknowledgment?.instructionId;
+		if (pendingRequestId && instructionId !== pendingRequestId) {
+			return {
+				ok: false,
+				message:
+					"Pending Observation request와 다른 Memo pass는 적용할 수 없습니다.",
+			};
+		}
+		return {
+			ok: true,
+			status: "delegate",
+			message: "기존 Memo pass를 적용하거나 복구합니다.",
+			request: null,
+		};
+	}
+	const planned = planObservationMemoRequest({
+		observation: branch.observation,
+		memo: branch.memo,
+		requestId: input.ids.memoRequestId(),
+	});
+	if (!planned.ok) return { ok: false, message: planned.issue.message };
+	switch (planned.value.kind) {
+		case "none":
+			return {
+				ok: true,
+				status: "none",
+				message: "새 prepared reconciliation이 없습니다.",
+				request: null,
+			};
+		case "resume":
+			return {
+				ok: true,
+				status: "resumed",
+				message: `기존 Memo request를 재개합니다: ${planned.value.request.requestId}`,
+				request: planned.value.request,
+			};
+		case "append": {
+			const appended = appendEvent(input.port, planned.value.request);
+			return typeof appended === "string"
+				? { ok: false, message: appended }
+				: {
+						ok: true,
+						status: "requested",
+						message: `Memo request를 기록했습니다: ${planned.value.request.requestId}`,
+						request: planned.value.request,
+					};
+		}
+		default:
+			return assertNever(planned.value);
+	}
+}
+
+async function memoScope(input: {
+	readonly action: MemoScopeAction;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+}): Promise<ObservationControllerResult> {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	if (branch.pi.state.episode.status !== "open") {
+		return { ok: false, message: "Memo scope에는 열린 Episode가 필요합니다." };
+	}
+	const inventory = await inventoryFor(branch, input.notebooks);
+	if (!isInventory(inventory)) return { ok: false, message: inventory };
+	const context = hydrateObservationMemoContext({
+		observation: branch.observation,
+		memo: branch.memo,
+		inventory,
+		requestId: input.action.requestId,
+	});
+	return context.ok
+		? {
+				ok: true,
+				action: "memo-scope",
+				message: `Memo request scope 활성화: ${context.value.request.requestId}`,
+				context: context.value,
+			}
+		: { ok: false, message: context.issue.message };
+}
+
 export function createObservationController(
 	dependencies: ControllerDependencies,
 ): ObservationController {
@@ -630,6 +750,9 @@ export function createObservationController(
 		selectionStore: dependencies.selectionStore,
 	});
 	return {
+		requestMemo(port) {
+			return requestMemo({ port, ids: dependencies.ids });
+		},
 		capture(value, port) {
 			const branch = liveBranch(port);
 			if (!isLiveBranch(branch)) return { ok: false, message: branch };
@@ -687,6 +810,12 @@ export function createObservationController(
 						port,
 						notebooks,
 						ids: dependencies.ids,
+					});
+				case "memo-scope":
+					return memoScope({
+						action: decoded.value,
+						port,
+						notebooks,
 					});
 				default:
 					return Promise.resolve(assertNever(decoded.value));

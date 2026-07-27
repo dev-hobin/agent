@@ -6,8 +6,12 @@ import { test } from "node:test";
 
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
-import observerExtension, { textFromContent } from "../extensions/observer.ts";
+import observerExtension, {
+	routeMemoCommand,
+	textFromContent,
+} from "../extensions/observer.ts";
 import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
+import { prepareObservationEvent } from "../src/observation-profile.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
 	reconstructObserverPiState,
@@ -105,7 +109,100 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 	assert.match(source, /executionMode: "sequential"/u);
 	assert.match(source, /pi\.on\("tool_result"/u);
 	assert.match(source, /event\.toolName === OBSERVER_TOOL_NAME/u);
+	assert.match(source, /action: Type\.Literal\("memo-scope"\)/u);
+	assert.match(source, /parsed\.command\.kind !== "memo"/u);
 	assert.match(source, /pi\.on\("context"/u);
+	const requestIndex = source.indexOf("observation.requestMemo(port)");
+	const triggerIndex = source.indexOf("pi.sendMessage(", requestIndex);
+	assert.equal(requestIndex >= 0, true);
+	assert.equal(triggerIndex > requestIndex, true);
+});
+
+test("routes Memo request before trigger and delegates no-op without triggering", async () => {
+	const prepared = prepareObservationEvent({
+		observer_observation: "observer-observation/v1",
+		kind: "memo-requested",
+		episode_id: "episode-extension-memo",
+		request_id: "memo-request-00000000-0000-4000-8000-000000000041",
+		base_memo_revision_id: null,
+		observation_ids: ["observation-00000000-0000-4000-8000-000000000042"],
+		request_digest:
+			"0000000000000000000000000000000000000000000000000000000000000043",
+	});
+	if (!prepared.ok || prepared.value.kind !== "memo-requested") {
+		assert.fail("Expected Memo request event");
+	}
+	const request = prepared.value;
+	const trace: string[] = [];
+	const handled = await routeMemoCommand("memo", {
+		request() {
+			trace.push("request");
+			return {
+				ok: true,
+				status: "requested",
+				message: "requested",
+				request,
+			};
+		},
+		async delegate() {
+			trace.push("delegate");
+		},
+		trigger() {
+			trace.push("trigger");
+		},
+		notify(_message, type) {
+			trace.push(`notify:${type}`);
+		},
+	});
+	assert.equal(handled, true);
+	assert.deepEqual(trace, ["request", "trigger", "notify:info"]);
+
+	trace.length = 0;
+	await routeMemoCommand("memo", {
+		request() {
+			trace.push("request");
+			return {
+				ok: true,
+				status: "none",
+				message: "none",
+				request: null,
+			};
+		},
+		async delegate() {
+			trace.push("delegate");
+		},
+		trigger() {
+			trace.push("trigger");
+		},
+		notify(_message, type) {
+			trace.push(`notify:${type}`);
+		},
+	});
+	assert.deepEqual(trace, ["request", "delegate"]);
+
+	trace.length = 0;
+	await routeMemoCommand("memo", {
+		request() {
+			trace.push("request");
+			return {
+				ok: true,
+				status: "resumed",
+				message: "resumed",
+				request,
+			};
+		},
+		async delegate() {
+			trace.push("delegate");
+		},
+		trigger() {
+			trace.push("trigger");
+			throw new Error("injected trigger failure");
+		},
+		notify(_message, type) {
+			trace.push(`notify:${type}`);
+		},
+	});
+	assert.deepEqual(trace, ["request", "trigger", "notify:warning"]);
 });
 
 test("reads tool-result text without altering the original result", () => {

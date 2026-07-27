@@ -16,10 +16,13 @@ import {
 } from "../src/observer-controller.ts";
 import {
 	createObservationController,
+	type MemoRequestControllerResult,
 	type ObservationControllerIds,
 	type ObservationControllerResult,
 } from "../src/observation-controller.ts";
+import type { ObservationMemoRequestedEvent } from "../src/observation-profile.ts";
 import { observerSidecarContext } from "../src/observer-prompt.ts";
+import { parseObserveCommand } from "../src/observer-command.ts";
 import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
 
 const OBSERVER_STATUS_KEY = "observer";
@@ -122,6 +125,14 @@ const observerSidecarParameters = Type.Union([
 		},
 		{ additionalProperties: false },
 	),
+	Type.Object(
+		{
+			observer_action: Type.Literal("observer-sidecar/v1"),
+			action: Type.Literal("memo-scope"),
+			request_id: Type.String(),
+		},
+		{ additionalProperties: false },
+	),
 ]);
 
 function systemIds(): ObserverControllerIds {
@@ -163,6 +174,9 @@ function systemObservationIds(): ObservationControllerIds {
 		},
 		inquiryId(): `inquiry-${string}` {
 			return `inquiry-${randomUUID()}`;
+		},
+		memoRequestId(): `memo-request-${string}` {
+			return `memo-request-${randomUUID()}`;
 		},
 	};
 }
@@ -245,6 +259,14 @@ export function observationToolText(
 				observation_id: result.hypothesis.observationId,
 				inquiry_id: result.hypothesis.inquiryId,
 			});
+		case "memo-scope":
+			return JSON.stringify({
+				ok: true,
+				message: result.message,
+				request_id: result.context.request.requestId,
+				observations: result.context.observations,
+				memo_scope: result.context.memoScope,
+			});
 		default:
 			return assertNever(result);
 	}
@@ -255,6 +277,44 @@ function reportCaptureFailure(
 	ctx: ExtensionContext,
 ): void {
 	if (!result.ok) ctx.ui.notify(result.message, "error");
+}
+
+export interface MemoCommandEffects {
+	request(): MemoRequestControllerResult;
+	delegate(): Promise<void>;
+	trigger(request: ObservationMemoRequestedEvent): void;
+	notify(message: string, type: "info" | "warning" | "error"): void;
+}
+
+export async function routeMemoCommand(
+	args: string,
+	effects: MemoCommandEffects,
+): Promise<boolean> {
+	const parsed = parseObserveCommand(args);
+	if (!parsed.ok || parsed.command.kind !== "memo") return false;
+	const requested = effects.request();
+	if (!requested.ok) {
+		effects.notify(requested.message, "error");
+		return true;
+	}
+	if (requested.status === "delegate" || requested.status === "none") {
+		await effects.delegate();
+		return true;
+	}
+	if (!requested.request) {
+		effects.notify("Memo request identity를 확인할 수 없습니다.", "error");
+		return true;
+	}
+	try {
+		effects.trigger(requested.request);
+		effects.notify(requested.message, "info");
+	} catch (error) {
+		effects.notify(
+			`Memo request는 기록됐지만 agent trigger에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`,
+			"warning",
+		);
+	}
+	return true;
 }
 
 export default function observerExtension(pi: ExtensionAPI): void {
@@ -275,9 +335,9 @@ export default function observerExtension(pi: ExtensionAPI): void {
 		name: OBSERVER_TOOL_NAME,
 		label: "Observer Sidecar",
 		description:
-			"Stage source-faithful Observer work. Use source-read before seeing the compact StandingIndex, hydrate only related Inquiry IDs, then record; use user-hypothesis for an explicit user proposal.",
+			"Stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement or a user hypothesis, and use memo-scope only for the exact pending /observe memo request.",
 		promptSnippet:
-			"Stage source-first Sidecar observations when Observer context says Mode is ON.",
+			"Stage source-first Sidecar observations and hydrate exact pending Memo requests.",
 		parameters: observerSidecarParameters,
 		executionMode: "sequential",
 		async execute(...execution) {
@@ -295,7 +355,35 @@ export default function observerExtension(pi: ExtensionAPI): void {
 		description: "Observer 설정, 상태, on/off, memo, wrap lifecycle 제어",
 		getArgumentCompletions: completeObserveArgs,
 		async handler(args, ctx) {
-			await controller.command(args, commandPort(pi, ctx));
+			const port = commandPort(pi, ctx);
+			const handled = await routeMemoCommand(args, {
+				request() {
+					return observation.requestMemo(port);
+				},
+				delegate() {
+					return controller.command(args, port);
+				},
+				trigger(request) {
+					pi.sendMessage(
+						{
+							customType: "observer.memo-trigger",
+							content: [
+								"Observer Memo request is pending.",
+								`request_id=${request.requestId}`,
+								"Call observer_sidecar with action memo-scope for this request.",
+							].join("\n"),
+							display: false,
+							details: {
+								requestId: request.requestId,
+								requestDigest: request.requestDigest,
+							},
+						},
+						{ deliverAs: "followUp", triggerTurn: true },
+					);
+				},
+				notify: ctx.ui.notify.bind(ctx.ui),
+			});
+			if (!handled) await controller.command(args, port);
 		},
 	});
 

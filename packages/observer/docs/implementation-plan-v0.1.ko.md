@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — pure Memo trigger를 `/observe memo`와 `observer_sidecar`에 연결 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — `memo-prepare`를 instruction → prepared → applied → acknowledgment에 연결 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -99,7 +99,7 @@ Golden Path와 Non-goals
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | pure Memo trigger의 Pi command/tool 연결과 실제 transcript |
+| Next movement | Planned | live `memo-prepare` install/apply/ack 연결과 실제 transcript |
 
 ### 현재 branch checkpoint
 
@@ -116,7 +116,9 @@ feature/observer
 ├─ 5f3042d feat(observer): reconcile working memos
 ├─ dc9fdb6 feat(observer): add source-first sidecar ledger
 ├─ fbd3e62 style(observer): format memo and session sources
-└─ Slice 7 landing B: pure Memo request/context/instruction contract
+├─ a34734e feat(observer): add pure memo trigger
+├─ c52125f style(observer): format sidecar sources
+└─ Slice 7 landing C: `/observe memo` request trigger + `memo-scope`
 ```
 
 ---
@@ -972,7 +974,46 @@ memo → continue → wrap 실제 Sidecar transcript
 packed artifact contract와 fresh-session re-entry
 ```
 
-Landing 7B는 raw semantic preparation이 complete Observation disposition과 exact request/scope를 보존하는 refined instruction이 되는 pure 경계를 닫는다. 아직 command/tool effect를 연결하지 않았으므로 full Sidecar Golden Path를 주장하지 않는다. 다음 movement는 이 pure contract를 기존 Memo controller에 연결할지 현재 evidence에서 다시 판단한 뒤 시작한다.
+Landing 7B는 raw semantic preparation이 complete Observation disposition과 exact request/scope를 보존하는 refined instruction이 되는 pure 경계를 닫는다.
+
+### Landing 7C — `/observe memo` request trigger와 `memo-scope`
+
+```text
+[x] strict `memo-scope` Sidecar action과 TypeBox tool variant
+[x] `/observe memo`가 prepared/pending apply path를 기존 controller로 delegate
+[x] eligible Observation이 있으면 exact request append + replay confirmation
+[x] exact retry는 request append 없이 같은 request resume
+[x] request 확인 뒤에만 nontruth `pi.sendMessage` trigger
+[x] trigger failure 뒤에도 request truth를 보존해 command retry 가능
+[x] Mode OFF + Episode OPEN에서도 pending Memo request와 hidden context 유지
+[x] `memo-scope`가 request-only Observation/MemoScope를 tool content로 반환
+[x] unknown/extra/stale request action은 append-free fail-closed
+[x] request/scope 전후 notebook Markdown exact equality
+[x] 이 landing에서는 prepared/applied Memo entry를 생성하지 않음
+```
+
+Verifier evidence:
+
+```text
+Observer: 161/161
+Focused request/scope/controller/prompt/extension: 16/16
+Pi 0.80.10 RPC setup/status/on/memo-empty/off: pass
+Package TypeScript LSP: clean
+Current-turn lens diagnostics: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+strict `memo-prepare` Sidecar action
+instruction append/replay → prepared install → Memo apply → acknowledgment
+instruction/prepared/apply/ack crash-gap recovery
+memo → continue → wrap 실제 Sidecar transcript
+packed artifact contract와 fresh-session re-entry
+```
+
+Landing 7C는 command가 semantic request를 durable-in-session truth로 만든 뒤 request-only context를 agent에 제공하는 순서까지 닫는다. Semantic preparation 제출과 Memo 적용은 아직 연결하지 않았으므로 `/observe memo` completion을 주장하지 않는다. 다음 movement는 parser-refined instruction을 기존 Slice 6 apply/ack 경계에 연결할지 현재 evidence에서 다시 판단한 뒤 시작한다.
 
 ---
 
