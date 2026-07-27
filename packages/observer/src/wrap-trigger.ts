@@ -4,13 +4,8 @@ import { sha256Text, isSha256 } from "./content-hash.ts";
 import { normalizeObserverEvent } from "./lifecycle.ts";
 import type { MemoWorkingState } from "./memo-reconciliation.ts";
 import type { MemoSessionSnapshot } from "./memo-session.ts";
-import type {
-	NotebookHandle,
-	NotebookInventoryEntry,
-} from "./notebook.ts";
-import type {
-	ObservationSessionSnapshot,
-} from "./observation-session.ts";
+import type { NotebookHandle, NotebookInventoryEntry } from "./notebook.ts";
+import type { ObservationSessionSnapshot } from "./observation-session.ts";
 import type { PiBranchEntryLike } from "./pi-session.ts";
 
 export const OBSERVER_WRAP_REQUEST_ENTRY = "observer.wrap-request";
@@ -159,9 +154,7 @@ function parseStrings(value: unknown): readonly string[] | null {
 		!Array.isArray(value) ||
 		value.some(
 			(item) =>
-				typeof item !== "string" ||
-				item.length === 0 ||
-				item !== item.trim(),
+				typeof item !== "string" || item.length === 0 || item !== item.trim(),
 		)
 	)
 		return null;
@@ -461,7 +454,10 @@ export function planWrapRequest(input: {
 	if (invalid) return { ok: false, issue: invalid };
 	const episode = input.observation.lifecycle.episode;
 	if (episode.status !== "open")
-		return failure("wrap-request.state", "Wrap request requires an open Episode.");
+		return failure(
+			"wrap-request.state",
+			"Wrap request requires an open Episode.",
+		);
 	const digest = requestDigest(input);
 	const sourceReadIds = input.observation.sourceReads
 		.map((read) => read.readId)
@@ -513,7 +509,9 @@ export function hydrateWrapPreparationContext(input: {
 }): WrapPreparationContextResult {
 	const invalid = currentFailure(input);
 	if (invalid) return { ok: false, issue: invalid };
-	if (input.requestSession.pendingRequest?.requestId !== input.request.requestId)
+	if (
+		input.requestSession.pendingRequest?.requestId !== input.request.requestId
+	)
 		return failure(
 			"wrap-request.state",
 			"Wrap context requires the exact pending request.",

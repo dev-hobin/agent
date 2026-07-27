@@ -33,11 +33,9 @@ import {
 
 const NOTEBOOK_ID = "notebook-00000000-0000-4000-8000-000000000701";
 const EPISODE_ID = "episode-wrap-pure";
-const REQUEST_ID =
-	"wrap-request-00000000-0000-4000-8000-000000000702";
+const REQUEST_ID = "wrap-request-00000000-0000-4000-8000-000000000702";
 const PROPOSAL_ID = "proposal-00000000-0000-4000-8000-000000000703";
-const SOURCE_READ_ID =
-	"source-read-00000000-0000-4000-8000-000000000704";
+const SOURCE_READ_ID = "source-read-00000000-0000-4000-8000-000000000704";
 const SOURCE_ID = "source-00000000-0000-4000-8000-000000000705";
 const FIXTURE_ROOT = join(
 	import.meta.dirname,
@@ -118,9 +116,7 @@ function sourceRead(): SourceReadRecordedEvent {
 		kind: "source-read-recorded",
 		episode_id: EPISODE_ID,
 		read_id: SOURCE_READ_ID,
-		candidate_ids: [
-			"candidate-00000000-0000-4000-8000-000000000706",
-		],
+		candidate_ids: ["candidate-00000000-0000-4000-8000-000000000706"],
 		source: {
 			kind: "external-material",
 			source_id: SOURCE_ID,
@@ -174,10 +170,7 @@ describe("pure Wrap request and preparation context", () => {
 			ok: true,
 			value: planned.value.request,
 		});
-		assert.equal(
-			decodeWrapRequestEvent({ ...encoded, extra: true }).ok,
-			false,
-		);
+		assert.equal(decodeWrapRequestEvent({ ...encoded, extra: true }).ok, false);
 
 		const requestedEntries = [
 			...entries,
@@ -188,8 +181,7 @@ describe("pure Wrap request and preparation context", () => {
 			...requested,
 			inventory: records,
 			notebook: notebook(),
-			requestId:
-				"wrap-request-00000000-0000-4000-8000-000000000799",
+			requestId: "wrap-request-00000000-0000-4000-8000-000000000799",
 			proposalId: "proposal-00000000-0000-4000-8000-000000000799",
 		});
 		if (!resumed.ok) assert.fail(resumed.issue.message);
