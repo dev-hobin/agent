@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 8 — SourceRead/hydrate/record One-shot ancestry (재라우팅 필요)
+> 다음 실행 단위: Slice 8 — Pi One-shot start/finish wiring + compact receipt (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 8 in progress | One-shot request + inline/retrieved candidate capture complete |
+| Runtime implementation | Slice 8 in progress | One-shot OPEN/OFF observation chain complete below Pi wiring |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 8 — One-shot Golden Path |
-| Next movement | Requires routing | candidate/read ancestry authorization for SourceRead/hydrate/record |
+| Next movement | Requires routing | Pi One-shot start/finish actions and compact receipt |
 
 ### 현재 branch checkpoint
 
@@ -151,7 +151,8 @@ feature/observer
 ├─ 93787d7 style(observer): format one-shot protocol
 ├─ 778a288 feat(observer): open one-shot lifecycle episodes
 ├─ 4b68c23 feat(observer): start one-shot observation requests
-└─ Slice 8 landing A-4: OFF retrieved tool-result capture
+├─ e3a9bc5 feat(observer): capture one-shot tool results
+└─ Slice 8 landing A-5: request-linked observation chain
 ```
 
 ---
@@ -1711,11 +1712,35 @@ LSP changed files: clean
 TypeScript assertion-expression scan: 0
 ```
 
+### Landing 8A-5 — request-linked observation chain
+
+```text
+[x] SourceRead carries optional producer-owned oneShotRequestId ancestry
+[x] exact same-request nonempty candidate set is required
+[x] mixed Sidecar/One-shot or different-request candidates are rejected
+[x] linked SourceRead requires exact pending request prefix
+[x] hydrate and semantic record inherit ancestry only through accepted SourceRead
+[x] request → candidates → SourceRead → hydrate → Observation works while OFF
+[x] unlinked Sidecar read cannot continue after Mode turns OFF
+[x] old Sidecar SourceRead bytes/digests remain valid
+[x] malformed optional request ID is rejected by the profile decoder
+[x] no user-hypothesis, completion, prompt, Pi, or Markdown effect
+```
+
+Verifier evidence:
+
+```text
+Focused profile/session/controller/One-shot: 19/19
+Observer: 184/184
+LSP: 49 files clean
+Pi-lens new parse/fan-out warnings: cleared
+TypeScript assertion-expression scan: 0
+```
+
 Remaining Slice 8 work:
 
 ```text
-candidate/read ancestry authorization for source-read/hydrate/record
-one-shot-finish Pi action and compact receipt
+Pi one-shot-start/one-shot-finish actions and compact receipt
 bounded One-shot → memo → wrap transcript
 ```
 

@@ -112,6 +112,7 @@ export interface SourceReadRecordedEvent extends ObservationEventBase {
 	readonly candidateDigest: string;
 	readonly indexDigest: string;
 	readonly indexInquiryIds: readonly InquiryId[];
+	readonly oneShotRequestId?: OneShotRequestId;
 }
 
 export interface InquiryHydratedEvent extends ObservationEventBase {
@@ -636,6 +637,18 @@ function finishMemoRequest(
 	};
 }
 
+type ParsedOneShotLink =
+	| { readonly kind: "unlinked" }
+	| { readonly kind: "linked"; readonly requestId: OneShotRequestId };
+
+function parseOptionalOneShotLink(
+	value: Readonly<Record<string, unknown>>,
+): ParsedOneShotLink | null {
+	if (!("one_shot_request_id" in value)) return { kind: "unlinked" };
+	const requestId = decodeOneShotRequestId(value.one_shot_request_id);
+	return requestId ? { kind: "linked", requestId } : null;
+}
+
 function parseCandidate(
 	value: Readonly<Record<string, unknown>>,
 	persisted: boolean,
@@ -705,20 +718,25 @@ function parseSourceRead(
 	value: Readonly<Record<string, unknown>>,
 	persisted: boolean,
 ): EventResult<SourceReadRecordedEvent> {
+	const sourceReadKeys = [
+		"read_id",
+		"candidate_ids",
+		"source",
+		"faithful_summary",
+		"claims",
+		"candidate_digest",
+		"index_digest",
+		"index_inquiry_ids",
+	];
+	const oneShotLink = parseOptionalOneShotLink(value);
 	if (
+		!oneShotLink ||
 		!hasExactKeys(
 			value,
 			baseKeys(
-				[
-					"read_id",
-					"candidate_ids",
-					"source",
-					"faithful_summary",
-					"claims",
-					"candidate_digest",
-					"index_digest",
-					"index_inquiry_ids",
-				],
+				oneShotLink.kind === "linked"
+					? [...sourceReadKeys, "one_shot_request_id"]
+					: sourceReadKeys,
 				persisted,
 			),
 		)
@@ -771,6 +789,9 @@ function parseSourceRead(
 		candidateDigest: value.candidate_digest,
 		indexDigest: value.index_digest,
 		indexInquiryIds,
+		...(oneShotLink.kind === "linked"
+			? { oneShotRequestId: oneShotLink.requestId }
+			: {}),
 	});
 }
 
@@ -1153,6 +1174,9 @@ function eventPayload(event: ObservationEvent): Record<string, unknown> {
 				candidate_digest: event.candidateDigest,
 				index_digest: event.indexDigest,
 				index_inquiry_ids: event.indexInquiryIds,
+				...(event.oneShotRequestId
+					? { one_shot_request_id: event.oneShotRequestId }
+					: {}),
 			};
 		case "inquiry-hydrated":
 			return {

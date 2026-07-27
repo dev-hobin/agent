@@ -54,6 +54,7 @@ import {
 	type UserHypothesisRecordedEvent,
 } from "./observation-profile.ts";
 import {
+	deriveReadAncestry,
 	observationCandidateDigest,
 	reconstructObservationSession,
 	type ObservationSessionSnapshot,
@@ -255,6 +256,7 @@ interface LiveWorkingBranch {
 	readonly pi: ObserverPiSnapshot;
 	readonly memo: ReturnType<typeof reconstructMemoSession>;
 	readonly observation: ObservationSessionSnapshot;
+	readonly oneShot: ReturnType<typeof reconstructOneShotSession>;
 }
 
 function assertNever(value: never): never {
@@ -266,11 +268,15 @@ function liveBranch(port: ObservationCommandPort): LiveWorkingBranch | string {
 	const pi = reconstructObserverPiState(entries);
 	const memo = reconstructMemoSession(entries);
 	const observation = reconstructObservationSession(entries);
+	const oneShot = reconstructOneShotSession(entries);
 	const firstIssue =
-		pi.issues[0]?.code ?? memo.issues[0]?.code ?? observation.issues[0]?.code;
+		pi.issues[0]?.code ??
+		memo.issues[0]?.code ??
+		observation.issues[0]?.code ??
+		oneShot.issues[0]?.code;
 	return firstIssue
 		? `Observer working history를 확인해야 합니다: ${firstIssue}.`
-		: { pi, memo, observation };
+		: { pi, memo, observation, oneShot };
 }
 
 function isLiveBranch(
@@ -282,6 +288,19 @@ function isLiveBranch(
 function activeEpisode(branch: LiveWorkingBranch): boolean {
 	return (
 		branch.pi.state.mode === "on" && branch.pi.state.episode.status === "open"
+	);
+}
+
+function branchReadAuthorized(
+	branch: LiveWorkingBranch,
+	read: SourceReadRecordedEvent,
+): boolean {
+	if (!read.oneShotRequestId) return activeEpisode(branch);
+	return (
+		branch.pi.state.episode.status === "open" &&
+		branch.pi.state.episode.core.episodeId === read.episodeId &&
+		branch.oneShot.pendingRequest?.requestId === read.oneShotRequestId &&
+		branch.oneShot.pendingRequest.episodeId === read.episodeId
 	);
 }
 
@@ -587,6 +606,44 @@ function currentIndex(input: {
 	});
 }
 
+function prepareSourceRead(input: {
+	readonly action: SourceReadAction;
+	readonly ids: ObservationControllerIds;
+	readonly candidates: readonly CandidateCapturedEvent[];
+	readonly index: StandingIndex;
+	readonly episodeId: string;
+	readonly ancestry: ReturnType<typeof deriveReadAncestry>;
+}): SourceReadRecordedEvent | string {
+	const prepared = refinedEvent(
+		{
+			observer_observation: "observer-observation/v1",
+			kind: "source-read-recorded",
+			episode_id: input.episodeId,
+			read_id: input.ids.sourceReadId(),
+			candidate_ids: input.action.candidateIds,
+			source: sourceDraft(input.action.source, input.ids.sourceId()),
+			faithful_summary: input.action.faithfulSummary,
+			claims: input.action.claims.map((claim) => ({
+				text: claim.text,
+				locator: claim.locator,
+			})),
+			candidate_digest: observationCandidateDigest(input.candidates),
+			index_digest: input.index.digest,
+			index_inquiry_ids: input.index.inquiries.map(
+				(inquiry) => inquiry.inquiryId,
+			),
+			...(input.ancestry.kind === "one-shot"
+				? { one_shot_request_id: input.ancestry.requestId }
+				: {}),
+		},
+		"source-read-recorded",
+	);
+	if (typeof prepared === "string") return prepared;
+	return prepared.kind === "source-read-recorded"
+		? prepared
+		: "Source-read event refinement failed.";
+}
+
 async function sourceRead(input: {
 	readonly action: SourceReadAction;
 	readonly port: ObservationCommandPort;
@@ -595,11 +652,9 @@ async function sourceRead(input: {
 }): Promise<ObservationControllerResult> {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
-	if (!activeEpisode(branch) || branch.pi.state.episode.status !== "open") {
-		return {
-			ok: false,
-			message: "Source-read에는 활성화된 open Episode가 필요합니다.",
-		};
+	const episode = branch.pi.state.episode;
+	if (episode.status !== "open") {
+		return { ok: false, message: "Source-read에는 open Episode가 필요합니다." };
 	}
 	const candidates = input.action.candidateIds.flatMap((candidateId) => {
 		const candidate = branch.observation.candidates.find(
@@ -613,6 +668,21 @@ async function sourceRead(input: {
 			message: "Source-read candidate를 current branch에서 찾지 못했습니다.",
 		};
 	}
+	const ancestry = deriveReadAncestry({
+		candidates,
+		pendingRequest: branch.oneShot.pendingRequest,
+		episodeId: episode.core.episodeId,
+	});
+	if (ancestry.kind === "invalid")
+		return {
+			ok: false,
+			message: "Source-read candidate의 One-shot ancestry가 일치하지 않습니다.",
+		};
+	if (!activeEpisode(branch) && ancestry.kind !== "one-shot")
+		return {
+			ok: false,
+			message: "Source-read에는 Mode ON 또는 exact One-shot ancestry가 필요합니다.",
+		};
 	const usedCandidateIds = new Set(
 		branch.observation.sourceReads.flatMap((read) => read.candidateIds),
 	);
@@ -624,29 +694,15 @@ async function sourceRead(input: {
 	const inventory = await inventoryFor(branch, input.notebooks);
 	if (!isInventory(inventory)) return { ok: false, message: inventory };
 	const index = currentIndex({ branch, inventory });
-	const prepared = refinedEvent(
-		{
-			observer_observation: "observer-observation/v1",
-			kind: "source-read-recorded",
-			episode_id: branch.pi.state.episode.core.episodeId,
-			read_id: input.ids.sourceReadId(),
-			candidate_ids: input.action.candidateIds,
-			source: sourceDraft(input.action.source, input.ids.sourceId()),
-			faithful_summary: input.action.faithfulSummary,
-			claims: input.action.claims.map((claim) => ({
-				text: claim.text,
-				locator: claim.locator,
-			})),
-			candidate_digest: observationCandidateDigest(candidates),
-			index_digest: index.digest,
-			index_inquiry_ids: index.inquiries.map((inquiry) => inquiry.inquiryId),
-		},
-		"source-read-recorded",
-	);
+	const prepared = prepareSourceRead({
+		action: input.action,
+		ids: input.ids,
+		candidates,
+		index,
+		episodeId: episode.core.episodeId,
+		ancestry,
+	});
 	if (typeof prepared === "string") return { ok: false, message: prepared };
-	if (prepared.kind !== "source-read-recorded") {
-		return { ok: false, message: "Source-read event refinement failed." };
-	}
 	const appended = appendEvent(input.port, prepared);
 	if (typeof appended === "string") return { ok: false, message: appended };
 	return {
@@ -666,12 +722,9 @@ async function hydrate(input: {
 }): Promise<ObservationControllerResult> {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
-	if (!activeEpisode(branch) || branch.pi.state.episode.status !== "open") {
-		return {
-			ok: false,
-			message: "Inquiry hydration에는 활성화된 open Episode가 필요합니다.",
-		};
-	}
+	const episode = branch.pi.state.episode;
+	if (episode.status !== "open")
+		return { ok: false, message: "Inquiry hydration에는 open Episode가 필요합니다." };
 	const read = branch.observation.sourceReads.find(
 		(item) => item.readId === input.action.readId,
 	);
@@ -681,6 +734,11 @@ async function hydrate(input: {
 			message: "Hydration target SourceRead/index가 현재 branch와 다릅니다.",
 		};
 	}
+	if (!branchReadAuthorized(branch, read))
+		return {
+			ok: false,
+			message: "Hydration에는 Mode ON 또는 exact One-shot read ancestry가 필요합니다.",
+		};
 	const inventory = await inventoryFor(branch, input.notebooks);
 	if (!isInventory(inventory)) return { ok: false, message: inventory };
 	const index = currentIndex({ branch, inventory });
@@ -696,7 +754,7 @@ async function hydrate(input: {
 		inventory,
 		memo: branch.memo.state,
 		observation: branch.observation,
-		episodeLanguage: branch.pi.state.episode.core.lang,
+		episodeLanguage: episode.core.lang,
 	});
 	if (!context.ok) return { ok: false, message: context.issue.message };
 	const existing = branch.observation.hydrations.find(
@@ -721,7 +779,7 @@ async function hydrate(input: {
 		{
 			observer_observation: "observer-observation/v1",
 			kind: "inquiry-hydrated",
-			episode_id: branch.pi.state.episode.core.episodeId,
+			episode_id: episode.core.episodeId,
 			hydration_id: input.ids.hydrationId(),
 			read_id: input.action.readId,
 			index_digest: input.action.indexDigest,
@@ -756,12 +814,9 @@ async function record(input: {
 }): Promise<ObservationControllerResult> {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
-	if (!activeEpisode(branch) || branch.pi.state.episode.status !== "open") {
-		return {
-			ok: false,
-			message: "Observation 기록에는 활성화된 open Episode가 필요합니다.",
-		};
-	}
+	const episode = branch.pi.state.episode;
+	if (episode.status !== "open")
+		return { ok: false, message: "Observation 기록에는 open Episode가 필요합니다." };
 	const read = branch.observation.sourceReads.find(
 		(item) => item.readId === input.action.readId,
 	);
@@ -771,6 +826,12 @@ async function record(input: {
 			message: "Observation SourceRead를 current branch에서 찾지 못했습니다.",
 		};
 	}
+	if (!branchReadAuthorized(branch, read))
+		return {
+			ok: false,
+			message:
+				"Observation에는 Mode ON 또는 exact One-shot read ancestry가 필요합니다.",
+		};
 	if (
 		branch.observation.observations.some(
 			(item) => item.readId === input.action.readId,
@@ -803,7 +864,7 @@ async function record(input: {
 		{
 			observer_observation: "observer-observation/v1",
 			kind: "semantic-observation-recorded",
-			episode_id: branch.pi.state.episode.core.episodeId,
+			episode_id: episode.core.episodeId,
 			observation_id: input.ids.observationId(),
 			read_id: input.action.readId,
 			hydration_id: input.action.hydrationId,
@@ -1331,10 +1392,7 @@ function pendingRetrievedCaptureRequest(input: {
 		input.branch.pi.state.episode.status !== "open"
 	)
 		return null;
-	const session = reconstructOneShotSession(input.port.branchEntries());
-	const issue = session.issues[0];
-	if (issue) return `One-shot request replay 실패: ${issue.code}.`;
-	const pending = session.pendingRequest;
+	const pending = input.branch.oneShot.pendingRequest;
 	return pending?.material === "retrieved-tool-results" &&
 		pending.episodeId === input.branch.pi.state.episode.core.episodeId
 		? pending

@@ -25,7 +25,11 @@ import {
 	type SourceReadRecordedEvent,
 	type UserHypothesisRecordedEvent,
 } from "./observation-profile.ts";
-import { pendingOneShotRequestBefore } from "./one-shot-trigger.ts";
+import {
+	pendingOneShotRequestBefore,
+	type OneShotRequestId,
+	type OneShotRequestedEvent,
+} from "./one-shot-trigger.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
 	type PiBranchEntryLike,
@@ -126,9 +130,52 @@ export function observationCandidateDigest(
 }
 
 function requiresActiveObservation(event: ObservationEvent): boolean {
+	return event.kind === "user-hypothesis-recorded";
+}
+
+export type ReadAncestry =
+	| { readonly kind: "unlinked" }
+	| { readonly kind: "one-shot"; readonly requestId: OneShotRequestId }
+	| { readonly kind: "invalid" };
+
+export function deriveReadAncestry(input: {
+	readonly candidates: readonly CandidateCapturedEvent[];
+	readonly pendingRequest: OneShotRequestedEvent | null;
+	readonly episodeId: string;
+}): ReadAncestry {
+	if (input.candidates.length === 0) return { kind: "invalid" };
+	const requestIds = input.candidates.flatMap((candidate) =>
+		candidate.oneShotRequestId ? [candidate.oneShotRequestId] : [],
+	);
+	if (requestIds.length === 0) return { kind: "unlinked" };
+	const requestId = requestIds[0];
+	if (
+		!requestId ||
+		requestIds.length !== input.candidates.length ||
+		requestIds.some((candidate) => candidate !== requestId) ||
+		input.pendingRequest?.requestId !== requestId ||
+		input.pendingRequest.episodeId !== input.episodeId
+	)
+		return { kind: "invalid" };
+	return { kind: "one-shot", requestId };
+}
+
+function readAuthorized(input: {
+	readonly lifecycle: ObserverState;
+	readonly read: SourceReadRecordedEvent;
+	readonly entries: readonly PiBranchEntryLike[];
+	readonly index: number;
+}): boolean {
+	if (!input.read.oneShotRequestId)
+		return hasLiveEpisode(input.lifecycle, input.read.episodeId, true);
 	return (
-		event.kind !== "memo-requested" &&
-		!(event.kind === "candidate-captured" && event.oneShotRequestId)
+		hasLiveEpisode(input.lifecycle, input.read.episodeId, false) &&
+		pendingOneShotRequestBefore({
+			entries: input.entries,
+			index: input.index,
+			requestId: input.read.oneShotRequestId,
+			episodeId: input.read.episodeId,
+		}) !== null
 	);
 }
 
@@ -161,10 +208,11 @@ function applyCandidate(input: {
 			}) !== null
 		: false;
 	if (
+		(input.event.oneShotRequestId && !oneShotAuthorized) ||
 		!hasLiveEpisode(
 			input.lifecycle,
 			input.event.episodeId,
-			!oneShotAuthorized,
+			!input.event.oneShotRequestId,
 		)
 	) {
 		issue(
@@ -184,25 +232,40 @@ function applySourceRead(input: {
 	readonly event: SourceReadRecordedEvent;
 	readonly index: number;
 	readonly lifecycle: ObserverState;
+	readonly entries: readonly PiBranchEntryLike[];
 	readonly candidates: ReadonlyMap<CandidateId, CandidateCapturedEvent>;
 	readonly usedCandidateIds: Set<CandidateId>;
 	readonly sourceReads: Map<SourceReadId, SourceReadRecordedEvent>;
 	readonly issues: ObservationSessionIssue[];
 }): void {
-	if (!hasLiveEpisode(input.lifecycle, input.event.episodeId, true)) {
-		issue(
-			input.issues,
-			input.index,
-			"observation-session.scope",
-			"Source read requires the current active episode.",
-		);
-		return;
-	}
 	const candidates = input.event.candidateIds.flatMap((id) => {
 		const candidate = input.candidates.get(id);
 		return candidate ? [candidate] : [];
 	});
+	const pendingRequest = input.event.oneShotRequestId
+		? pendingOneShotRequestBefore({
+				entries: input.entries,
+				index: input.index,
+				requestId: input.event.oneShotRequestId,
+				episodeId: input.event.episodeId,
+			})
+		: null;
+	const ancestry = deriveReadAncestry({
+		candidates,
+		pendingRequest,
+		episodeId: input.event.episodeId,
+	});
+	const ancestryMatches =
+		(ancestry.kind === "unlinked" && !input.event.oneShotRequestId) ||
+		(ancestry.kind === "one-shot" &&
+			ancestry.requestId === input.event.oneShotRequestId);
 	if (
+		!ancestryMatches ||
+		!hasLiveEpisode(
+			input.lifecycle,
+			input.event.episodeId,
+			ancestry.kind !== "one-shot",
+		) ||
 		candidates.length !== input.event.candidateIds.length ||
 		candidates.some(
 			(candidate) =>
@@ -228,14 +291,20 @@ function applyHydration(input: {
 	readonly event: InquiryHydratedEvent;
 	readonly index: number;
 	readonly lifecycle: ObserverState;
+	readonly entries: readonly PiBranchEntryLike[];
 	readonly sourceReads: ReadonlyMap<SourceReadId, SourceReadRecordedEvent>;
 	readonly hydrations: Map<string, InquiryHydratedEvent>;
 	readonly issues: ObservationSessionIssue[];
 }): void {
 	const read = input.sourceReads.get(input.event.readId);
 	if (
-		!hasLiveEpisode(input.lifecycle, input.event.episodeId, true) ||
 		!read ||
+		!readAuthorized({
+			lifecycle: input.lifecycle,
+			read,
+			entries: input.entries,
+			index: input.index,
+		}) ||
 		read.episodeId !== input.event.episodeId ||
 		read.indexDigest !== input.event.indexDigest ||
 		input.event.inquiryIds.some((id) => !read.indexInquiryIds.includes(id))
@@ -255,6 +324,7 @@ function applySemanticObservation(input: {
 	readonly event: SemanticObservationRecordedEvent;
 	readonly index: number;
 	readonly lifecycle: ObserverState;
+	readonly entries: readonly PiBranchEntryLike[];
 	readonly sourceReads: ReadonlyMap<SourceReadId, SourceReadRecordedEvent>;
 	readonly hydrations: ReadonlyMap<string, InquiryHydratedEvent>;
 	readonly observations: Map<ObservationId, SemanticObservationRecordedEvent>;
@@ -276,8 +346,13 @@ function applySemanticObservation(input: {
 			sameStrings(hydration.inquiryIds, input.event.relatedInquiryIds);
 	}
 	if (
-		!hasLiveEpisode(input.lifecycle, input.event.episodeId, true) ||
 		!read ||
+		!readAuthorized({
+			lifecycle: input.lifecycle,
+			read,
+			entries: input.entries,
+			index: input.index,
+		}) ||
 		read.episodeId !== input.event.episodeId ||
 		!hydrationMatches ||
 		input.observedReadIds.has(input.event.readId)
@@ -519,6 +594,7 @@ export function reconstructObservationSession(
 					event: decoded.value,
 					index,
 					lifecycle,
+					entries,
 					candidates,
 					usedCandidateIds,
 					sourceReads,
@@ -530,6 +606,7 @@ export function reconstructObservationSession(
 					event: decoded.value,
 					index,
 					lifecycle,
+					entries,
 					sourceReads,
 					hydrations,
 					issues,
@@ -540,6 +617,7 @@ export function reconstructObservationSession(
 					event: decoded.value,
 					index,
 					lifecycle,
+					entries,
 					sourceReads,
 					hydrations,
 					observations,

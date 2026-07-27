@@ -418,6 +418,24 @@ describe("Observation Profile v1", () => {
 		assert.equal(rejected.ok, false);
 		if (rejected.ok) assert.fail("Expected digest rejection");
 		assert.equal(rejected.issue.code, "observation-profile.digest");
+		const sourceRead = trace.events.find(
+			(event) => event.kind === "source-read-recorded",
+		);
+		if (!sourceRead) assert.fail("Expected SourceRead event");
+		const encodedRead = encodeObservationEvent(sourceRead);
+		if (
+			typeof encodedRead !== "object" ||
+			encodedRead === null ||
+			Array.isArray(encodedRead)
+		)
+			assert.fail("Expected encoded SourceRead object");
+		assert.equal(
+			decodeObservationEvent({
+				...encodedRead,
+				one_shot_request_id: "one-shot-invalid",
+			}).ok,
+			false,
+		);
 	});
 
 	test("rejects self-tool candidates and inconsistent observation branches", () => {
@@ -499,6 +517,16 @@ describe("Observation current-branch session", () => {
 		]);
 		assert.equal(reordered.candidates.length, 0);
 		assert.equal(reordered.issues[0]?.code, "observation-session.scope");
+		const activatedWithoutRequest = reconstructObservationSession([
+			lifecycle(opened()),
+			lifecycle(enabled()),
+			candidateEntry,
+		]);
+		assert.equal(activatedWithoutRequest.candidates.length, 0);
+		assert.equal(
+			activatedWithoutRequest.issues[0]?.code,
+			"observation-session.scope",
+		);
 		const unlinked = reconstructObservationSession([
 			lifecycle(opened()),
 			observationEntry(

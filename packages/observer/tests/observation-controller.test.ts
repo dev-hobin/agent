@@ -613,6 +613,160 @@ describe("Observation staged controller", () => {
 			assert.equal(replayed.issues.length, 0);
 			assert.equal(replayed.lifecycle.mode, "off");
 			assert.equal(replayed.candidates.length, 1);
+			const read = await controller.execute(
+				externalSourceAction(captured.candidate.candidateId),
+				port,
+			);
+			if (!read.ok || read.action !== "source-read")
+				assert.fail(read.ok ? "Expected One-shot read" : read.message);
+			assert.equal(read.read.oneShotRequestId, started.request.requestId);
+			const hydrated = await controller.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "hydrate",
+					read_id: read.read.readId,
+					index_digest: read.index.digest,
+					inquiry_ids: [DURABLE_INQUIRY],
+				},
+				port,
+			);
+			if (!hydrated.ok || hydrated.action !== "hydrate")
+				assert.fail(hydrated.ok ? "Expected One-shot hydration" : hydrated.message);
+			const recorded = await controller.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "record",
+					read_id: read.read.readId,
+					hydration_id: hydrated.hydration.hydrationId,
+					related_inquiry_ids: [DURABLE_INQUIRY],
+					stance: "challenges",
+					movement: "core-counterexample",
+					rationale: "Retrieved evidence changes the active One-shot inquiry.",
+					observer_hypothesis: null,
+				},
+				port,
+			);
+			if (!recorded.ok || recorded.action !== "record")
+				assert.fail(recorded.ok ? "Expected One-shot record" : recorded.message);
+			const completedChain = reconstructObservationSession(port.entries);
+			assert.equal(completedChain.issues.length, 0);
+			assert.equal(completedChain.lifecycle.mode, "off");
+			assert.equal(completedChain.sourceReads.length, 1);
+			assert.equal(completedChain.hydrations.length, 1);
+			assert.equal(completedChain.observations.length, 1);
+		});
+	});
+
+	test("rejects mixed Sidecar and One-shot candidate ancestry", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			const sidecar = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-sidecar-before-one-shot",
+						tool_name: "read",
+					},
+					text: "Earlier Sidecar material.",
+					capturedAt: "2026-08-01T10:08:00.000Z",
+				},
+				port,
+			);
+			if (!sidecar.ok || !sidecar.candidate) assert.fail("Expected Sidecar candidate");
+			await lifecycleController.command("off", port);
+			const intent = oneShotIntent({
+				text: "새 자료를 조회해 관찰해 줘.",
+				material: "retrieved-tool-results",
+				requestId: "one-shot-00000000-0000-4000-8000-000000000309",
+			});
+			const episode = await oneShotEpisode({
+				controller: lifecycleController,
+				port,
+				intent,
+			});
+			const started = controller.startOneShot(
+				{ intent, episode, capturedAt: "2026-08-01T10:09:00.000Z" },
+				port,
+			);
+			if (!started.ok) assert.fail(started.message);
+			const linked = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-one-shot-mixed",
+						tool_name: "read",
+					},
+					text: "Current One-shot material.",
+					capturedAt: "2026-08-01T10:10:00.000Z",
+				},
+				port,
+			);
+			if (!linked.ok || !linked.candidate) assert.fail("Expected linked candidate");
+			const beforeRead = port.entries.length;
+			const mixed = await controller.execute(
+				{
+					...externalSourceAction(sidecar.candidate.candidateId),
+					candidate_ids: [
+						sidecar.candidate.candidateId,
+						linked.candidate.candidateId,
+					],
+				},
+				port,
+			);
+			assert.equal(mixed.ok, false);
+			assert.equal(port.entries.length, beforeRead);
+		});
+	});
+
+	test("does not treat an unlinked Sidecar read as One-shot ancestry after off", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			const captured = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-sidecar-read",
+						tool_name: "read",
+					},
+					text: "Sidecar-only read material.",
+					capturedAt: "2026-08-01T10:11:00.000Z",
+				},
+				port,
+			);
+			if (!captured.ok || !captured.candidate) assert.fail("Expected candidate");
+			const read = await controller.execute(
+				externalSourceAction(captured.candidate.candidateId),
+				port,
+			);
+			if (!read.ok || read.action !== "source-read") assert.fail("Expected read");
+			assert.equal(read.read.oneShotRequestId, undefined);
+			await lifecycleController.command("off", port);
+			const before = port.entries.length;
+			const hydrate = await controller.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "hydrate",
+					read_id: read.read.readId,
+					index_digest: read.index.digest,
+					inquiry_ids: [DURABLE_INQUIRY],
+				},
+				port,
+			);
+			assert.equal(hydrate.ok, false);
+			const record = await controller.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "record",
+					read_id: read.read.readId,
+					hydration_id: null,
+					related_inquiry_ids: [],
+					stance: "neutral",
+					movement: "minor-refinement",
+					rationale: "This must remain Sidecar-only after Mode turns off.",
+					observer_hypothesis: null,
+				},
+				port,
+			);
+			assert.equal(record.ok, false);
+			assert.equal(port.entries.length, before);
 		});
 	});
 
