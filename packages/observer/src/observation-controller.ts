@@ -888,7 +888,9 @@ async function wrapContext(input: {
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	const workingSet = await notebookWorkingSetFor(branch, input.notebooks);
 	if (typeof workingSet === "string") return { ok: false, message: workingSet };
-	const requestSession = reconstructWrapRequestSession(input.port.branchEntries());
+	const requestSession = reconstructWrapRequestSession(
+		input.port.branchEntries(),
+	);
 	const request = requestSession.pendingRequest;
 	if (!request || request.requestId !== input.requestId)
 		return {

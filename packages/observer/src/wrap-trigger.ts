@@ -683,12 +683,7 @@ export function buildWrapPreparationGuide(
 				"expected_sha256",
 				"markdown",
 			],
-			locked_fields: [
-				"proposal_id",
-				"notebook_id",
-				"root",
-				"episode_language",
-			],
+			locked_fields: ["proposal_id", "notebook_id", "root", "episode_language"],
 		},
 		markdown_profile: "observer-record/v1",
 	};
@@ -716,7 +711,10 @@ export function prepareWrapHandoff(input: {
 			"wrap-request.submission",
 			`Wrap submission is invalid: ${decoded.issue.message}`,
 		);
-	const records = new Map<string, PreparedWrapHandoff["prepared"]["records"][number]>();
+	const records = new Map<
+		string,
+		PreparedWrapHandoff["prepared"]["records"][number]
+	>();
 	for (const record of decoded.value.prepared.records) {
 		if (records.has(record.record_id))
 			return failure(

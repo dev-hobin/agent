@@ -1098,9 +1098,7 @@ describe("Observation staged controller", () => {
 				);
 				assert.equal(await readFile(notebookPath, "utf8"), beforeNotebook);
 				const sourceId = sourceRead.read.source.sourceId;
-				function recordsFor(
-					guide: WrapPreparationGuide,
-				): readonly unknown[] {
+				function recordsFor(guide: WrapPreparationGuide): readonly unknown[] {
 					return guide.required_records.map((required) => {
 						if (required.operation === "update") {
 							const inventoryRecord = guide.inventory.find(
