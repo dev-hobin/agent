@@ -6,7 +6,7 @@ Observer is intended to provide a local-first observation mode that follows stan
 
 ## Status
 
-This package is private and under spec-first implementation. Slice 7 is in progress: the package has a branch-local observation ledger, source-first candidate/read/hydrate/record staging, a deterministic Standing Inquiry index, and one sequential `observer_sidecar` Pi tool. `/observe memo` now records and replay-confirms an exact request before sending a recoverable nontruth agent trigger; `memo-scope` returns only that request's read-only Observation, Source, Inquiry, and working Memo context even while Mode is OFF. Complete parser-refined Memo instructions already exist in the pure domain, but the live `memo-prepare` → prepared → applied → acknowledged collaboration and the complete wrap/re-entry transcript remain deferred.
+This package is private and under spec-first implementation. Slice 7 is in progress: the package has a branch-local observation ledger, source-first candidate/read/hydrate/record staging, a deterministic Standing Inquiry index, and one sequential `observer_sidecar` Pi tool. `/observe memo` records and replay-confirms an exact request before sending a recoverable nontruth agent trigger; `memo-scope` returns only that request's read-only context. Strict `memo-prepare` now refines and replay-confirms a complete instruction before delegating to the existing prepared → applied → acknowledged Memo path, with append-free retry across instruction/install/apply/ack gaps and no Markdown write. Actual model-driven staged execution plus the complete wrap/fresh-session re-entry transcript remain deferred.
 
 ## Documentation
 

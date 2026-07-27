@@ -20,6 +20,9 @@ import {
 	type ObservationControllerIds,
 	type ObservationControllerResult,
 } from "../src/observation-controller.ts";
+import type { PreparedObservationMemoInstruction } from "../src/memo-instruction.ts";
+import { encodePreparedMemoPass } from "../src/memo-profile.ts";
+import { reconstructObservationSession } from "../src/observation-session.ts";
 import type { ObservationMemoRequestedEvent } from "../src/observation-profile.ts";
 import { observerSidecarContext } from "../src/observer-prompt.ts";
 import { parseObserveCommand } from "../src/observer-command.ts";
@@ -130,6 +133,61 @@ const observerSidecarParameters = Type.Union([
 			observer_action: Type.Literal("observer-sidecar/v1"),
 			action: Type.Literal("memo-scope"),
 			request_id: Type.String(),
+		},
+		{ additionalProperties: false },
+	),
+	Type.Object(
+		{
+			observer_action: Type.Literal("observer-sidecar/v1"),
+			action: Type.Literal("memo-prepare"),
+			request_id: Type.String(),
+			instruction: Type.Object(
+				{
+					observer_memo_instruction: Type.Literal(
+						"observer.memo-instruction/v1",
+					),
+					request_id: Type.String(),
+					request_digest: Type.String(),
+					pass: Type.Object(
+						{
+							observer_memo_pass: Type.Literal(
+								"observer.prepared-memo-pass/v1",
+							),
+							pass_id: Type.String(),
+							episode_id: Type.String(),
+							base_revision_id: nullableString,
+							basis_digest: Type.String(),
+							related_inquiry_ids: Type.Array(Type.String()),
+							instruction_id: nullableString,
+							evidence: Type.Array(Type.Record(Type.String(), Type.Unknown())),
+							hypothesis_outcomes: Type.Array(
+								Type.Record(Type.String(), Type.Unknown()),
+							),
+							memo_outcomes: Type.Array(
+								Type.Record(Type.String(), Type.Unknown()),
+							),
+						},
+						{ additionalProperties: false },
+					),
+					dispositions: Type.Array(
+						Type.Object(
+							{
+								observation_id: Type.String(),
+								decision: Type.Union([
+									Type.Literal("integrated"),
+									Type.Literal("kept"),
+								]),
+								hypothesis_inquiry_ids: Type.Array(Type.String()),
+								memo_ids: Type.Array(Type.String()),
+								evidence_ids: Type.Array(Type.String()),
+								rationale: Type.String(),
+							},
+							{ additionalProperties: false },
+						),
+					),
+				},
+				{ additionalProperties: false },
+			),
 		},
 		{ additionalProperties: false },
 	),
@@ -267,6 +325,14 @@ export function observationToolText(
 				observations: result.context.observations,
 				memo_scope: result.context.memoScope,
 			});
+		case "memo-prepare":
+			return JSON.stringify({
+				ok: true,
+				message: result.message,
+				request_id: result.instruction.requestId,
+				instruction_digest: result.instruction.digest,
+				status: result.status,
+			});
 		default:
 			return assertNever(result);
 	}
@@ -277,6 +343,57 @@ function reportCaptureFailure(
 	ctx: ExtensionContext,
 ): void {
 	if (!result.ok) ctx.ui.notify(result.message, "error");
+}
+
+export type MemoPreparationCompletion =
+	| {
+			readonly ok: true;
+			readonly status: "completed" | "recovery-required";
+			readonly message: string;
+	  }
+	| { readonly ok: false; readonly message: string };
+
+export interface MemoPreparationEffects {
+	install(value: unknown): Promise<boolean>;
+	apply(): Promise<void>;
+	completed(requestId: string): boolean;
+}
+
+export async function completeMemoPreparation(
+	instruction: PreparedObservationMemoInstruction,
+	effects: MemoPreparationEffects,
+): Promise<MemoPreparationCompletion> {
+	try {
+		const installed = await effects.install(
+			encodePreparedMemoPass(instruction.pass),
+		);
+		if (!installed) {
+			return {
+				ok: false,
+				message:
+					"Memo instruction은 기록됐지만 prepared pass 설치에 실패했습니다.",
+			};
+		}
+		await effects.apply();
+		return effects.completed(instruction.requestId)
+			? {
+					ok: true,
+					status: "completed",
+					message: "Memo request를 적용하고 acknowledgment까지 확인했습니다.",
+				}
+			: {
+					ok: true,
+					status: "recovery-required",
+					message:
+						"Memo 적용이 완료되지 않았습니다. /observe memo로 복구할 수 있습니다.",
+				};
+	} catch (error) {
+		return {
+			ok: true,
+			status: "recovery-required",
+			message: `Memo 적용 중단: ${error instanceof Error ? error.message : String(error)}. /observe memo로 복구할 수 있습니다.`,
+		};
+	}
 }
 
 export interface MemoCommandEffects {
@@ -343,7 +460,37 @@ export default function observerExtension(pi: ExtensionAPI): void {
 		async execute(...execution) {
 			const [, params, , , ctx] = execution;
 			observerToolUsedInTurn = true;
-			const result = await observation.execute(params, commandPort(pi, ctx));
+			const port = commandPort(pi, ctx);
+			const result = await observation.execute(params, port);
+			if (result.ok && result.action === "memo-prepare") {
+				const completion = await completeMemoPreparation(result.instruction, {
+					install(value) {
+						return controller.installPreparedMemo(value, port);
+					},
+					apply() {
+						return controller.command("memo", port);
+					},
+					completed(requestId) {
+						const snapshot = reconstructObservationSession(
+							ctx.sessionManager.getBranch(),
+						);
+						const request = snapshot.memoRequests.find(
+							(item) => item.requestId === requestId,
+						);
+						return (
+							snapshot.issues.length === 0 &&
+							request !== undefined &&
+							request.observationIds.every((id) =>
+								snapshot.consumedObservationIds.includes(id),
+							)
+						);
+					},
+				});
+				return {
+					content: [{ type: "text", text: JSON.stringify(completion) }],
+					details: { preparation: result, completion },
+				};
+			}
 			return {
 				content: [{ type: "text", text: observationToolText(result) }],
 				details: result,

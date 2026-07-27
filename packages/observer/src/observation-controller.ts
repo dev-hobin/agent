@@ -1,4 +1,12 @@
 import { sha256Text } from "./content-hash.ts";
+import {
+	decodePreparedObservationMemoInstruction,
+	encodeObservationMemoInstruction,
+	OBSERVER_MEMO_INSTRUCTION_ENTRY,
+	reconstructMemoInstructionSession,
+	type MemoInstructionSessionSnapshot,
+	type PreparedObservationMemoInstruction,
+} from "./memo-instruction.ts";
 import { reconstructMemoSession } from "./memo-session.ts";
 import type { InquiryId, SourceId } from "./memo-profile.ts";
 import { readNotebookInventory } from "./notebook.ts";
@@ -15,7 +23,9 @@ import {
 import {
 	decodeObservationAction,
 	type HydrateAction,
+	type MemoPrepareAction,
 	type MemoScopeAction,
+	type ObservationAction,
 	type RecordObservationAction,
 	type RegisterUserHypothesisAction,
 	type SourceReadAction,
@@ -106,6 +116,13 @@ export type ObservationControllerResult =
 			readonly action: "memo-scope";
 			readonly message: string;
 			readonly context: ObservationMemoContext;
+	  }
+	| {
+			readonly ok: true;
+			readonly action: "memo-prepare";
+			readonly status: "prepared" | "resumed";
+			readonly message: string;
+			readonly instruction: PreparedObservationMemoInstruction;
 	  }
 	| { readonly ok: false; readonly message: string };
 
@@ -743,6 +760,126 @@ async function memoScope(input: {
 		: { ok: false, message: context.issue.message };
 }
 
+interface DecodedMemoPreparation {
+	readonly instruction: PreparedObservationMemoInstruction;
+	readonly priorSession: MemoInstructionSessionSnapshot;
+}
+
+async function decodeMemoPreparation(input: {
+	readonly action: MemoPrepareAction;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+}): Promise<DecodedMemoPreparation | string> {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return branch;
+	if (branch.pi.state.episode.status !== "open") {
+		return "Memo preparation에는 열린 Episode가 필요합니다.";
+	}
+	const priorSession = reconstructMemoInstructionSession(
+		input.port.branchEntries(),
+	);
+	if (priorSession.issues.length > 0) {
+		return `Memo instruction history를 확인해야 합니다: ${priorSession.issues[0]?.code}.`;
+	}
+	const inventory = await inventoryFor(branch, input.notebooks);
+	if (!isInventory(inventory)) return inventory;
+	const context = hydrateObservationMemoContext({
+		observation: branch.observation,
+		memo: branch.memo,
+		inventory,
+		requestId: input.action.requestId,
+	});
+	if (!context.ok) return context.issue.message;
+	const decoded = decodePreparedObservationMemoInstruction({
+		value: input.action.instruction,
+		context: context.value,
+	});
+	return decoded.ok
+		? { instruction: decoded.value, priorSession }
+		: decoded.issue.message;
+}
+
+async function memoPrepare(input: {
+	readonly action: MemoPrepareAction;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+}): Promise<ObservationControllerResult> {
+	const decoded = await decodeMemoPreparation(input);
+	if (typeof decoded === "string") return { ok: false, message: decoded };
+	const existing = decoded.priorSession.instructions.find(
+		(instruction) => instruction.requestId === input.action.requestId,
+	);
+	if (existing) {
+		return existing.digest === decoded.instruction.digest
+			? {
+					ok: true,
+					action: "memo-prepare",
+					status: "resumed",
+					message: `기존 Memo instruction을 재개합니다: ${existing.requestId}`,
+					instruction: decoded.instruction,
+				}
+			: {
+					ok: false,
+					message: "같은 Memo request의 instruction이 충돌합니다.",
+				};
+	}
+	try {
+		input.port.appendEntry(
+			OBSERVER_MEMO_INSTRUCTION_ENTRY,
+			encodeObservationMemoInstruction(decoded.instruction),
+		);
+	} catch (error) {
+		return {
+			ok: false,
+			message: `Memo instruction 기록 실패: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
+	const replayed = reconstructMemoInstructionSession(
+		input.port.branchEntries(),
+	);
+	const confirmed = replayed.instructions.find(
+		(instruction) => instruction.requestId === input.action.requestId,
+	);
+	if (
+		replayed.issues.length > 0 ||
+		!confirmed ||
+		confirmed.digest !== decoded.instruction.digest
+	) {
+		return {
+			ok: false,
+			message: replayed.issues[0]
+				? `Memo instruction replay 실패: ${replayed.issues[0].code}.`
+				: "Memo instruction이 replay에서 확인되지 않았습니다.",
+		};
+	}
+	return {
+		ok: true,
+		action: "memo-prepare",
+		status: "prepared",
+		message: `Memo instruction을 기록했습니다: ${confirmed.requestId}`,
+		instruction: decoded.instruction,
+	};
+}
+
+type MemoSidecarAction = MemoScopeAction | MemoPrepareAction;
+
+function isMemoSidecarAction(
+	action: ObservationAction,
+): action is MemoSidecarAction {
+	return action.action === "memo-scope" || action.action === "memo-prepare";
+}
+
+function executeMemoSidecarAction(input: {
+	readonly action: MemoSidecarAction;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+}): Promise<ObservationControllerResult> {
+	const { action, port, notebooks } = input;
+	return action.action === "memo-scope"
+		? memoScope({ action, port, notebooks })
+		: memoPrepare({ action, port, notebooks });
+}
+
 export function createObservationController(
 	dependencies: ControllerDependencies,
 ): ObservationController {
@@ -787,6 +924,13 @@ export function createObservationController(
 			if (!decoded.ok) {
 				return Promise.resolve({ ok: false, message: decoded.issue.message });
 			}
+			if (isMemoSidecarAction(decoded.value)) {
+				return executeMemoSidecarAction({
+					action: decoded.value,
+					port,
+					notebooks,
+				});
+			}
 			switch (decoded.value.action) {
 				case "source-read":
 					return sourceRead({
@@ -810,12 +954,6 @@ export function createObservationController(
 						port,
 						notebooks,
 						ids: dependencies.ids,
-					});
-				case "memo-scope":
-					return memoScope({
-						action: decoded.value,
-						port,
-						notebooks,
 					});
 				default:
 					return Promise.resolve(assertNever(decoded.value));

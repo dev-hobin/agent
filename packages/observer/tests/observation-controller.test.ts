@@ -4,8 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
-import { observationToolText } from "../extensions/observer.ts";
+import {
+	completeMemoPreparation,
+	observationToolText,
+} from "../extensions/observer.ts";
 import { initialObserverState, OBSERVER_PROTOCOL } from "../src/lifecycle.ts";
+import { OBSERVER_MEMO_INSTRUCTION_ENTRY } from "../src/memo-instruction.ts";
 import {
 	createNotebookService,
 	type NotebookService,
@@ -16,10 +20,20 @@ import {
 	type ObservationCommandPort,
 	type ObservationControllerIds,
 } from "../src/observation-controller.ts";
+import {
+	createObserverController,
+	type ObserverController,
+	type ObserverControllerIds,
+} from "../src/observer-controller.ts";
+import {
+	OBSERVER_APPLIED_MEMO_ENTRY,
+	OBSERVER_PREPARED_MEMO_ENTRY,
+} from "../src/memo-session.ts";
 import { OBSERVER_OBSERVATION_ENTRY } from "../src/observation-profile.ts";
 import { reconstructObservationSession } from "../src/observation-session.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
+	reconstructObserverPiState,
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
 
@@ -40,12 +54,28 @@ class FakePort implements ObservationCommandPort {
 	}> = [];
 	failNextObservationAppend = false;
 	dropNextObservationAppend = false;
+	failNextInstructionAppend = false;
+	dropNextInstructionAppend = false;
 
 	branchEntries(): readonly PiBranchEntryLike[] {
 		return this.entries;
 	}
 
 	appendEntry(customType: string, data: unknown): void {
+		if (
+			this.failNextInstructionAppend &&
+			customType === OBSERVER_MEMO_INSTRUCTION_ENTRY
+		) {
+			this.failNextInstructionAppend = false;
+			throw new Error("Injected Memo instruction append failure");
+		}
+		if (
+			this.dropNextInstructionAppend &&
+			customType === OBSERVER_MEMO_INSTRUCTION_ENTRY
+		) {
+			this.dropNextInstructionAppend = false;
+			return;
+		}
 		if (
 			this.failNextObservationAppend &&
 			customType === OBSERVER_OBSERVATION_ENTRY
@@ -66,6 +96,48 @@ class FakePort implements ObservationCommandPort {
 	notify(message: string, type: "info" | "warning" | "error" = "info"): void {
 		this.notifications.push({ message, type });
 	}
+
+	sessionFile(): string {
+		return "/tmp/observer-sidecar-session.jsonl";
+	}
+
+	input(): Promise<string | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	select(): Promise<string | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	confirm(): Promise<boolean> {
+		return Promise.resolve(true);
+	}
+
+	setStatus(): void {}
+}
+
+function lifecycleIds(): ObserverControllerIds {
+	let revision = 0;
+	let receipt = 0;
+	return {
+		episodeId() {
+			return "episode-unused";
+		},
+		attemptId() {
+			return "attempt-unused";
+		},
+		receiptId(): `receipt-${string}` {
+			return "receipt-00000000-0000-4000-8000-000000000001";
+		},
+		memoRevisionId() {
+			revision += 1;
+			return `memo-working-revision-00000000-0000-4000-8000-${String(revision).padStart(12, "0")}`;
+		},
+		memoReceiptId(): `memo-receipt-${string}` {
+			receipt += 1;
+			return `memo-receipt-00000000-0000-4000-8000-${String(receipt).padStart(12, "0")}`;
+		},
+	};
 }
 
 function deterministicIds(): ObservationControllerIds {
@@ -117,6 +189,7 @@ async function withSandbox(
 		readonly service: NotebookService;
 		readonly port: FakePort;
 		readonly controller: ReturnType<typeof createObservationController>;
+		readonly lifecycleController: ObserverController;
 	}) => Promise<void>,
 ): Promise<void> {
 	const sandbox = await mkdtemp(join(tmpdir(), "observer-sidecar-"));
@@ -170,7 +243,11 @@ async function withSandbox(
 			selectionStore,
 			ids: deterministicIds(),
 		});
-		await run({ sandbox, service, port, controller });
+		const lifecycleController = createObserverController({
+			selectionStore,
+			ids: lifecycleIds(),
+		});
+		await run({ sandbox, service, port, controller, lifecycleController });
 	} finally {
 		await rm(sandbox, { force: true, recursive: true });
 	}
@@ -403,114 +480,315 @@ describe("Observation staged controller", () => {
 		});
 	});
 
-	test("requests and hydrates Memo scope while OFF without notebook writes", async () => {
-		await withSandbox(async ({ sandbox, controller, port }) => {
-			const captured = controller.capture(
-				{
-					origin: { kind: "user-input", input_source: "interactive" },
-					text: "재진입 비용은 기록 시점에 따라 달라진다.",
-					capturedAt: "2026-08-01T10:03:00.000Z",
-				},
-				port,
-			);
-			if (!captured.ok || !captured.candidate)
-				assert.fail("Expected candidate");
-			const registered = await controller.execute(
-				{
-					observer_action: "observer-sidecar/v1",
-					action: "user-hypothesis",
-					candidate_id: captured.candidate.candidateId,
-					existing_inquiry_id: null,
-					original: "재진입 비용은 기록 시점에 따라 달라진다.",
-					context: "사용자가 명시적으로 추적을 요청했다.",
-				},
-				port,
-			);
-			assert.equal(registered.ok, true);
-			port.entries.push({
-				type: "custom",
-				customType: OBSERVER_LIFECYCLE_ENTRY,
-				data: {
-					protocol: OBSERVER_PROTOCOL,
-					kind: "activation-changed",
-					enabled: false,
-				},
-			});
-			const notebookPath = join(sandbox, "notebook", "records", "inquiry.md");
-			const beforeNotebook = await readFile(notebookPath, "utf8");
-			const beforeFailed = port.entries.length;
-			port.failNextObservationAppend = true;
-			const failed = controller.requestMemo(port);
-			assert.equal(failed.ok, false);
-			assert.equal(port.entries.length, beforeFailed);
+	test("prepares, installs, applies, and acknowledges Memo while OFF without notebook writes", async () => {
+		await withSandbox(
+			async ({ sandbox, controller, lifecycleController, port }) => {
+				const captured = controller.capture(
+					{
+						origin: { kind: "user-input", input_source: "interactive" },
+						text: "재진입 비용은 기록 시점에 따라 달라진다.",
+						capturedAt: "2026-08-01T10:03:00.000Z",
+					},
+					port,
+				);
+				if (!captured.ok || !captured.candidate)
+					assert.fail("Expected candidate");
+				const registered = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "user-hypothesis",
+						candidate_id: captured.candidate.candidateId,
+						existing_inquiry_id: null,
+						original: "재진입 비용은 기록 시점에 따라 달라진다.",
+						context: "사용자가 명시적으로 추적을 요청했다.",
+					},
+					port,
+				);
+				if (!registered.ok || registered.action !== "user-hypothesis") {
+					assert.fail(
+						registered.ok ? "Expected user hypothesis" : registered.message,
+					);
+				}
+				const registeredHypothesis = registered.hypothesis;
+				port.entries.push({
+					type: "custom",
+					customType: OBSERVER_LIFECYCLE_ENTRY,
+					data: {
+						protocol: OBSERVER_PROTOCOL,
+						kind: "activation-changed",
+						enabled: false,
+					},
+				});
+				const notebookPath = join(sandbox, "notebook", "records", "inquiry.md");
+				const beforeNotebook = await readFile(notebookPath, "utf8");
+				const beforeFailed = port.entries.length;
+				port.failNextObservationAppend = true;
+				const failed = controller.requestMemo(port);
+				assert.equal(failed.ok, false);
+				assert.equal(port.entries.length, beforeFailed);
 
-			const requested = controller.requestMemo(port);
-			if (!requested.ok || requested.status !== "requested") {
-				assert.fail(requested.ok ? "Expected request" : requested.message);
-			}
-			const afterRequest = port.entries.length;
-			const resumed = controller.requestMemo(port);
-			assert.equal(resumed.ok, true);
-			if (resumed.ok) assert.equal(resumed.status, "resumed");
-			assert.equal(port.entries.length, afterRequest);
+				const requested = controller.requestMemo(port);
+				if (!requested.ok || requested.status !== "requested") {
+					assert.fail(requested.ok ? "Expected request" : requested.message);
+				}
+				const afterRequest = port.entries.length;
+				const resumed = controller.requestMemo(port);
+				assert.equal(resumed.ok, true);
+				if (resumed.ok) assert.equal(resumed.status, "resumed");
+				assert.equal(port.entries.length, afterRequest);
 
-			const malformed = await controller.execute(
-				{
-					observer_action: "observer-sidecar/v1",
-					action: "memo-scope",
+				const malformed = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-scope",
+						request_id: requested.request.requestId,
+						extra: true,
+					},
+					port,
+				);
+				assert.equal(malformed.ok, false);
+				assert.equal(port.entries.length, afterRequest);
+
+				const unknown = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-scope",
+						request_id: "memo-request-00000000-0000-4000-8000-000000000999",
+					},
+					port,
+				);
+				assert.equal(unknown.ok, false);
+				assert.equal(port.entries.length, afterRequest);
+
+				const scoped = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-scope",
+						request_id: requested.request.requestId,
+					},
+					port,
+				);
+				if (!scoped.ok || scoped.action !== "memo-scope") {
+					assert.fail(scoped.ok ? "Expected Memo scope" : scoped.message);
+				}
+				assert.deepEqual(
+					scoped.context.observations.map((item) => item.observationId),
+					[registeredHypothesis.observationId],
+				);
+				assert.equal(scoped.context.memoScope.relatedInquiryIds.length, 0);
+				const payload = JSON.parse(observationToolText(scoped));
+				assert.equal(payload.request_id, requested.request.requestId);
+				assert.equal(payload.observations.length, 1);
+				const instruction = {
+					observer_memo_instruction: "observer.memo-instruction/v1",
 					request_id: requested.request.requestId,
-					extra: true,
-				},
-				port,
-			);
-			assert.equal(malformed.ok, false);
-			assert.equal(port.entries.length, afterRequest);
+					request_digest: requested.request.requestDigest,
+					pass: {
+						observer_memo_pass: "observer.prepared-memo-pass/v1",
+						pass_id: "memo-pass-00000000-0000-4000-8000-000000000601",
+						episode_id: requested.request.episodeId,
+						base_revision_id: requested.request.baseMemoRevisionId,
+						basis_digest: scoped.context.memoScope.basisDigest,
+						related_inquiry_ids: scoped.context.memoScope.relatedInquiryIds,
+						instruction_id: requested.request.requestId,
+						evidence: [],
+						hypothesis_outcomes: [
+							{
+								kind: "create",
+								hypothesis: {
+									inquiry_id: registeredHypothesis.inquiryId,
+									episode_id: requested.request.episodeId,
+									origin: "user",
+									original: registeredHypothesis.original,
+									current: registeredHypothesis.original,
+									revision_reason: null,
+									evidence_ids: [],
+								},
+							},
+						],
+						memo_outcomes: [],
+					},
+					dispositions: [
+						{
+							observation_id: registeredHypothesis.observationId,
+							decision: "integrated",
+							hypothesis_inquiry_ids: [registeredHypothesis.inquiryId],
+							memo_ids: [],
+							evidence_ids: [],
+							rationale:
+								"The explicit user hypothesis is registered unchanged.",
+						},
+					],
+				};
+				const beforeMalformed = port.entries.length;
+				const malformedPreparation = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-prepare",
+						request_id: requested.request.requestId,
+						instruction: { ...instruction, dispositions: [] },
+					},
+					port,
+				);
+				assert.equal(malformedPreparation.ok, false);
+				assert.equal(port.entries.length, beforeMalformed);
+				port.failNextInstructionAppend = true;
+				const failedInstructionAppend = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-prepare",
+						request_id: requested.request.requestId,
+						instruction,
+					},
+					port,
+				);
+				assert.equal(failedInstructionAppend.ok, false);
+				assert.equal(port.entries.length, beforeMalformed);
+				port.dropNextInstructionAppend = true;
+				const droppedInstructionAppend = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-prepare",
+						request_id: requested.request.requestId,
+						instruction,
+					},
+					port,
+				);
+				assert.equal(droppedInstructionAppend.ok, false);
+				assert.equal(port.entries.length, beforeMalformed);
 
-			const unknown = await controller.execute(
-				{
-					observer_action: "observer-sidecar/v1",
-					action: "memo-scope",
-					request_id: "memo-request-00000000-0000-4000-8000-000000000999",
-				},
-				port,
-			);
-			assert.equal(unknown.ok, false);
-			assert.equal(port.entries.length, afterRequest);
-
-			const scoped = await controller.execute(
-				{
-					observer_action: "observer-sidecar/v1",
-					action: "memo-scope",
-					request_id: requested.request.requestId,
-				},
-				port,
-			);
-			if (!scoped.ok || scoped.action !== "memo-scope") {
-				assert.fail(scoped.ok ? "Expected Memo scope" : scoped.message);
-			}
-			assert.deepEqual(
-				scoped.context.observations.map((item) => item.observationId),
-				[
-					registered.ok && registered.action === "user-hypothesis"
-						? registered.hypothesis.observationId
-						: "missing",
-				],
-			);
-			assert.equal(scoped.context.memoScope.relatedInquiryIds.length, 0);
-			const payload = JSON.parse(observationToolText(scoped));
-			assert.equal(payload.request_id, requested.request.requestId);
-			assert.equal(payload.observations.length, 1);
-			assert.equal(
-				port.entries.some(
+				const prepared = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-prepare",
+						request_id: requested.request.requestId,
+						instruction,
+					},
+					port,
+				);
+				if (!prepared.ok || prepared.action !== "memo-prepare") {
+					assert.fail(
+						prepared.ok ? "Expected Memo preparation" : prepared.message,
+					);
+				}
+				const instructionCount = port.entries.filter(
 					(entry) =>
 						entry.type === "custom" &&
-						(entry.customType === "observer.prepared-memo" ||
-							entry.customType === "observer.applied-memo"),
-				),
-				false,
-			);
-			assert.equal(await readFile(notebookPath, "utf8"), beforeNotebook);
-		});
+						entry.customType === OBSERVER_MEMO_INSTRUCTION_ENTRY,
+				).length;
+				const failedInstall = await completeMemoPreparation(
+					prepared.instruction,
+					{
+						install() {
+							return Promise.resolve(false);
+						},
+						apply() {
+							assert.fail("Apply must not run after failed install");
+						},
+						completed() {
+							return false;
+						},
+					},
+				);
+				assert.equal(failedInstall.ok, false);
+				const resumedPreparation = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-prepare",
+						request_id: requested.request.requestId,
+						instruction,
+					},
+					port,
+				);
+				if (
+					!resumedPreparation.ok ||
+					resumedPreparation.action !== "memo-prepare"
+				) {
+					assert.fail("Expected resumed Memo preparation");
+				}
+				assert.equal(resumedPreparation.status, "resumed");
+				assert.equal(
+					port.entries.filter(
+						(entry) =>
+							entry.type === "custom" &&
+							entry.customType === OBSERVER_MEMO_INSTRUCTION_ENTRY,
+					).length,
+					instructionCount,
+				);
+				const completion = await completeMemoPreparation(
+					resumedPreparation.instruction,
+					{
+						install(value) {
+							return lifecycleController.installPreparedMemo(value, port);
+						},
+						apply() {
+							return lifecycleController.command("memo", port);
+						},
+						completed(requestId) {
+							const snapshot = reconstructObservationSession(port.entries);
+							const memoRequest = snapshot.memoRequests.find(
+								(item) => item.requestId === requestId,
+							);
+							return (
+								memoRequest !== undefined &&
+								memoRequest.observationIds.every((id) =>
+									snapshot.consumedObservationIds.includes(id),
+								)
+							);
+						},
+					},
+				);
+				assert.deepEqual(completion, {
+					ok: true,
+					status: "completed",
+					message: "Memo request를 적용하고 acknowledgment까지 확인했습니다.",
+				});
+				const customTypes = port.entries.flatMap((entry) =>
+					entry.type === "custom" ? [entry.customType] : [],
+				);
+				const instructionIndex = customTypes.indexOf(
+					OBSERVER_MEMO_INSTRUCTION_ENTRY,
+				);
+				const preparedIndex = customTypes.indexOf(OBSERVER_PREPARED_MEMO_ENTRY);
+				const appliedIndex = customTypes.indexOf(OBSERVER_APPLIED_MEMO_ENTRY);
+				const acknowledgmentIndex = port.entries.findIndex(
+					(entry) =>
+						entry.type === "custom" &&
+						entry.customType === OBSERVER_LIFECYCLE_ENTRY &&
+						typeof entry.data === "object" &&
+						entry.data !== null &&
+						Reflect.get(entry.data, "kind") === "memo-reconciled",
+				);
+				assert.equal(instructionIndex < preparedIndex, true);
+				assert.equal(preparedIndex < appliedIndex, true);
+				assert.equal(appliedIndex < acknowledgmentIndex, true);
+				assert.equal(
+					customTypes.filter(
+						(type) => type === OBSERVER_MEMO_INSTRUCTION_ENTRY,
+					).length,
+					1,
+				);
+				assert.equal(
+					customTypes.filter((type) => type === OBSERVER_PREPARED_MEMO_ENTRY)
+						.length,
+					1,
+				);
+				assert.equal(
+					customTypes.filter((type) => type === OBSERVER_APPLIED_MEMO_ENTRY)
+						.length,
+					1,
+				);
+				assert.equal(
+					reconstructObservationSession(port.entries).pendingMemoRequest,
+					null,
+				);
+				assert.equal(
+					reconstructObserverPiState(port.entries).state.mode,
+					"off",
+				);
+				assert.equal(await readFile(notebookPath, "utf8"), beforeNotebook);
+			},
+		);
 	});
 
 	test("registers an explicit user hypothesis after append and ignores capture when off", async () => {

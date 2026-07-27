@@ -25,7 +25,8 @@ export function observerSidecarContext(
 				`request_id=${pendingMemo.requestId}`,
 				`observation_ids=${pendingMemo.observationIds.join(",")}`,
 				"Call observer_sidecar action memo-scope with this exact request ID.",
-				"Use the returned request-only context for semantic preparation, but do not claim the Memo pass is applied yet.",
+				"Use that request-only context to build one complete observer.memo-instruction/v1 value, then call memo-prepare with the same request ID.",
+				"Every requested Observation needs one integrated/kept disposition; only memo-prepare completion may claim the Memo pass was applied.",
 				"</observer-memo-request>",
 			].join("\n")
 		: null;

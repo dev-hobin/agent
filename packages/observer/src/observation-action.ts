@@ -87,12 +87,19 @@ export interface MemoScopeAction extends SidecarActionBase {
 	readonly requestId: MemoRequestId;
 }
 
+export interface MemoPrepareAction extends SidecarActionBase {
+	readonly action: "memo-prepare";
+	readonly requestId: MemoRequestId;
+	readonly instruction: Readonly<Record<string, unknown>>;
+}
+
 export type ObservationAction =
 	| SourceReadAction
 	| HydrateAction
 	| RecordObservationAction
 	| RegisterUserHypothesisAction
-	| MemoScopeAction;
+	| MemoScopeAction
+	| MemoPrepareAction;
 
 export interface ObservationActionIssue {
 	readonly code: "observation-action.object" | "observation-action.shape";
@@ -334,6 +341,12 @@ function markMemoScope(
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
+function markMemoPrepare(
+	value: Omit<MemoPrepareAction, typeof OBSERVATION_ACTION_MARKER>,
+): MemoPrepareAction {
+	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
+}
+
 function parseSourceRead(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
@@ -480,6 +493,34 @@ function parseMemoScope(
 		: failure("/request_id", "Memo-scope request ID is invalid.");
 }
 
+function parseMemoPrepare(
+	value: Readonly<Record<string, unknown>>,
+): ObservationActionResult {
+	if (
+		!hasExactKeys(value, [
+			"observer_action",
+			"action",
+			"request_id",
+			"instruction",
+		])
+	) {
+		return failure("/", "Memo-prepare action has invalid fields.");
+	}
+	const requestId = decodeMemoRequestId(value.request_id);
+	if (!requestId || !isObject(value.instruction)) {
+		return failure("/", "Memo-prepare action has invalid values.");
+	}
+	return {
+		ok: true,
+		value: markMemoPrepare({
+			protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
+			action: "memo-prepare",
+			requestId,
+			instruction: value.instruction,
+		}),
+	};
+}
+
 function parseUserHypothesis(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
@@ -552,6 +593,8 @@ export function decodeObservationAction(
 			return parseUserHypothesis(value);
 		case "memo-scope":
 			return parseMemoScope(value);
+		case "memo-prepare":
+			return parseMemoPrepare(value);
 		default:
 			return failure("/action", "Observer Sidecar action is unknown.");
 	}

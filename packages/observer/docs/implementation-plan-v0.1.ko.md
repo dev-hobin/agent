@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — `memo-prepare`를 instruction → prepared → applied → acknowledgment에 연결 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — 실제 Pi/model-driven memo transcript와 wrap/fresh-session re-entry 검증 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + lifecycle + notebook + durable wrap + Pi commands/replay + Memo reconciliation + Sidecar observation ledger/controller + pure Memo trigger/instruction replay |
+| Runtime implementation | Slice 7 in progress | validation + lifecycle + notebook + durable wrap + Pi commands/replay + Sidecar ledger/controller + request/scope + strict Memo instruction/install/apply/ack |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | live `memo-prepare` install/apply/ack 연결과 실제 transcript |
+| Next movement | Planned | 실제 Pi/model-driven staged Memo transcript와 wrap/fresh-session re-entry |
 
 ### 현재 branch checkpoint
 
@@ -118,7 +118,9 @@ feature/observer
 ├─ fbd3e62 style(observer): format memo and session sources
 ├─ a34734e feat(observer): add pure memo trigger
 ├─ c52125f style(observer): format sidecar sources
-└─ Slice 7 landing C: `/observe memo` request trigger + `memo-scope`
+├─ eb56b39 feat(observer): trigger staged memo scope
+├─ c6da53f style(observer): format memo trigger sources
+└─ Slice 7 landing D: strict `memo-prepare` install/apply/ack
 ```
 
 ---
@@ -1013,7 +1015,42 @@ memo → continue → wrap 실제 Sidecar transcript
 packed artifact contract와 fresh-session re-entry
 ```
 
-Landing 7C는 command가 semantic request를 durable-in-session truth로 만든 뒤 request-only context를 agent에 제공하는 순서까지 닫는다. Semantic preparation 제출과 Memo 적용은 아직 연결하지 않았으므로 `/observe memo` completion을 주장하지 않는다. 다음 movement는 parser-refined instruction을 기존 Slice 6 apply/ack 경계에 연결할지 현재 evidence에서 다시 판단한 뒤 시작한다.
+Landing 7C는 command가 semantic request를 durable-in-session truth로 만든 뒤 request-only context를 agent에 제공하는 순서까지 닫는다. Semantic preparation 제출과 Memo 적용은 아직 연결하지 않았으므로 `/observe memo` completion을 주장하지 않는다.
+
+### Landing 7D — strict `memo-prepare` install/apply/ack
+
+```text
+[x] exact `memo-prepare` outer action과 TypeBox tool variant
+[x] raw nested instruction을 live request-only context로 strict refinement
+[x] malformed/stale/incomplete/conflicting instruction은 effect 전 fail-closed
+[x] instruction append 뒤 current-branch replay exact confirmation
+[x] exact instruction retry는 append-free resume
+[x] replay-confirmed instruction만 PreparedMemoPass encoder/install 경계에 전달
+[x] install 성공 뒤에만 existing Memo apply/ack command 실행
+[x] instruction/install/apply/ack gap에서 duplicate 없이 `/observe memo` 복구
+[x] applied+acknowledged 뒤에만 requested Observation consumption
+[x] Mode OFF + Episode OPEN을 유지하고 notebook Markdown exact equality
+```
+
+Verifier evidence:
+
+```text
+Observer: 162/162
+Focused trigger/observation/main-controller/prompt/extension: 29/29
+TypeScript LSP: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+actual Pi/model-driven source-read → hydrate → record → memo-scope → memo-prepare transcript
+memo → continue → wrap approval/save/ack transcript
+packed artifact contract
+wrap 후 fresh-session standing Inquiry re-entry
+```
+
+Landing 7D의 지원 범위는 parser-refined instruction과 기존 Memo effect 경계의 실제 controller collaboration이다. Extension tool registration/package load와 empty RPC는 검증하지만 model이 schema를 따라 nonempty instruction을 생성하는 실제 transcript는 아직 주장하지 않는다.
 
 ---
 
@@ -1294,5 +1331,7 @@ Stop:
 - Memo effect ordering은 prepared → applied working event → compact lifecycle acknowledgment다.
 - Post-applied/pre-ack gap은 다음 bind에서 acknowledgment만 보충하고 pass를 재적용하지 않는다.
 - Exact duplicate/no-prepared memo는 append-free stutter고 malformed/stale/conflicting branch history는 fail-closed다.
-- `/observe memo`는 Mode/Episode와 durable Markdown을 변경하지 않으며 semantic pass 생성은 Slice 7로 보류한다.
+- `/observe memo` request는 exact Observation batch를 묶고 `memo-scope` → parser-refined `memo-prepare`만 기존 prepared → applied → acknowledgment 경계에 위임한다.
+- Memo instruction append/replay 전에는 prepared effect를 허용하지 않으며 exact retry와 install/apply/ack gap은 duplicate 없이 복구한다.
+- Memo completion은 Mode/Episode와 durable Markdown을 변경하지 않고 acknowledged request의 Observation만 consumed 처리한다.
 ```

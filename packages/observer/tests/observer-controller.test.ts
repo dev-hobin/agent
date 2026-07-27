@@ -70,6 +70,7 @@ class FakePort implements ObserverCommandPort {
 	readonly confirmations: boolean[] = [];
 	persistedSession = "/tmp/observer-session.jsonl";
 	failCommitAppend = false;
+	failMemoAppliedAppend = false;
 	failMemoAcknowledgmentAppend = false;
 
 	branchEntries(): readonly PiBranchEntryLike[] {
@@ -81,6 +82,10 @@ class FakePort implements ObserverCommandPort {
 	}
 
 	appendEntry(customType: string, data: unknown): void {
+		if (this.failMemoAppliedAppend && customType === OBSERVER_APPLIED_MEMO_ENTRY) {
+			this.failMemoAppliedAppend = false;
+			throw new Error("Injected Memo applied append failure");
+		}
 		if (
 			this.failMemoAcknowledgmentAppend &&
 			customType === OBSERVER_LIFECYCLE_ENTRY &&
@@ -421,6 +426,48 @@ describe("Observer command controller", () => {
 			assert.match(
 				port.notifications.at(-1)?.message ?? "",
 				/새 prepared reconciliation이 없습니다/u,
+			);
+		});
+	});
+
+	test("recovers a prepared-pass apply append gap without duplicate application", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "memo apply recovery notebook");
+			await setupAndTurnOn({ controller, port, root });
+			const prepared = await emptyPreparedMemoPass({
+				port,
+				root,
+				passId: "memo-pass-00000000-0000-4000-8000-000000000203",
+			});
+			assert.equal(await controller.installPreparedMemo(prepared, port), true);
+			port.failMemoAppliedAppend = true;
+			await controller.command("memo", port);
+			const interrupted = reconstructMemoSession(port.entries);
+			assert.equal(interrupted.state.passes, 0);
+			assert.notEqual(interrupted.prepared, null);
+			assert.equal(
+				port.entries.filter(
+					(entry) => entry.customType === OBSERVER_APPLIED_MEMO_ENTRY,
+				).length,
+				0,
+			);
+
+			await controller.command("memo", port);
+			const recovered = reconstructMemoSession(port.entries);
+			assert.equal(recovered.issues.length, 0);
+			assert.equal(recovered.state.passes, 1);
+			assert.equal(recovered.prepared, null);
+			assert.equal(recovered.pendingAcknowledgment, null);
+			assert.equal(
+				port.entries.filter(
+					(entry) => entry.customType === OBSERVER_APPLIED_MEMO_ENTRY,
+				).length,
+				1,
 			);
 		});
 	});
