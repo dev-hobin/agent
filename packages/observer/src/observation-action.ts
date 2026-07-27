@@ -182,12 +182,7 @@ function parseModelMemoOutcome(value: unknown): ModelMemoOutcome | null {
 					}
 				: null;
 		case "mark-promotion-candidate":
-			return hasExactKeys(value, [
-				"kind",
-				"memo_id",
-				"reason",
-				"evidence_ids",
-			])
+			return hasExactKeys(value, ["kind", "memo_id", "reason", "evidence_ids"])
 				? {
 						kind: value.kind,
 						memoId: value.memo_id,
@@ -642,9 +637,7 @@ function parseMemoPrepare(
 		return failure("/", "Memo-prepare action has invalid fields.");
 	}
 	const requestId = decodeMemoRequestId(value.request_id);
-	const memoOutcomes = parseModelMemoOutcomes(
-		value.submission.memo_outcomes,
-	);
+	const memoOutcomes = parseModelMemoOutcomes(value.submission.memo_outcomes);
 	if (
 		!requestId ||
 		!Array.isArray(value.submission.evidence) ||
