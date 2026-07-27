@@ -1,3 +1,5 @@
+import type { MemoPassReceipt } from "./memo-reconciliation.ts";
+import type { MemoSessionSnapshot } from "./memo-session.ts";
 import type { NotebookStatus } from "./notebook-service.ts";
 import type { ObserverPiSnapshot } from "./pi-session.ts";
 
@@ -14,6 +16,10 @@ export interface ObserverStatusView {
 	readonly replayHealth: string;
 	readonly sessionPersistence: "지속 세션" | "임시 세션";
 	readonly preparedWrap: string;
+	readonly preparedMemo: string;
+	readonly pendingMemos: string;
+	readonly openInquiries: string;
+	readonly zettelCandidates: string;
 	readonly operationalIssue?: string;
 }
 
@@ -55,6 +61,7 @@ function notebookView(status: NotebookStatus): {
 
 export function observerStatusView(input: {
 	readonly snapshot: ObserverPiSnapshot;
+	readonly memoSnapshot: MemoSessionSnapshot;
 	readonly notebookStatus: NotebookStatus;
 	readonly sessionFile: string | undefined;
 	readonly operationalIssue?: string;
@@ -69,13 +76,34 @@ export function observerStatusView(input: {
 			episode.status === "empty" ? "아직 고정되지 않음" : episode.core.lang,
 		notebookHealth: notebook.health,
 		replayHealth:
-			input.snapshot.issues.length === 0
+			input.snapshot.issues.length === 0 && input.memoSnapshot.issues.length === 0
 				? "정상"
-				: `오류 ${input.snapshot.issues.length}개`,
+				: `오류 ${input.snapshot.issues.length + input.memoSnapshot.issues.length}개`,
 		sessionPersistence: input.sessionFile ? "지속 세션" : "임시 세션",
 		preparedWrap: input.snapshot.prepared
 			? input.snapshot.prepared.handoff.prepared.proposal_id
 			: "없음",
+		preparedMemo: input.memoSnapshot.prepared?.passId ?? "없음",
+		pendingMemos:
+			input.memoSnapshot.state.passes === 0
+				? "아직 집계되지 않음"
+				: String(
+						input.memoSnapshot.state.memos.filter(
+							(memo) => memo.disposition !== "superseded",
+						).length,
+					),
+		openInquiries:
+			input.memoSnapshot.state.passes === 0
+				? "아직 집계되지 않음"
+				: String(input.memoSnapshot.state.hypotheses.length),
+		zettelCandidates:
+			input.memoSnapshot.state.passes === 0
+				? "아직 집계되지 않음"
+				: String(
+						input.memoSnapshot.state.memos.filter(
+							(memo) => memo.disposition === "promotion-candidate",
+						).length,
+					),
 		...(input.operationalIssue
 			? { operationalIssue: input.operationalIssue }
 			: {}),
@@ -92,17 +120,27 @@ export function renderObserverStatus(view: ObserverStatusView): string {
 		`세션 replay 상태: ${view.replayHealth}`,
 		`세션 저장: ${view.sessionPersistence}`,
 		`준비된 wrap: ${view.preparedWrap}`,
-		"Pending Memo 수: 아직 집계되지 않음 (Slice 6+)",
-		"Open Inquiry 수: 아직 집계되지 않음 (Slice 6+)",
-		"Zettel 후보 수: 아직 집계되지 않음 (Slice 6+)",
-		...(view.operationalIssue
-			? [`복구 필요: ${view.operationalIssue}`]
-			: []),
+		`준비된 Memo pass: ${view.preparedMemo}`,
+		`Pending Memo 수: ${view.pendingMemos}`,
+		`Open Inquiry 수: ${view.openInquiries}`,
+		`Zettel 후보 수: ${view.zettelCandidates}`,
+		...(view.operationalIssue ? [`복구 필요: ${view.operationalIssue}`] : []),
+	].join("\n");
+}
+
+export function renderMemoPassReceipt(receipt: MemoPassReceipt): string {
+	return [
+		`Memo reconciliation 완료: ${receipt.passId}`,
+		`작업 revision: ${receipt.revisionId}`,
+		`범위: episode Memo ${receipt.scope.episodeMemos} · standing Inquiry ${receipt.scope.standingInquiries} · durable Memo ${receipt.scope.durableMemos}`,
+		`변경: ${receipt.summary}`,
 	].join("\n");
 }
 
 export function renderObserverFooter(view: ObserverStatusView): string {
 	const healthy =
-		view.replayHealth === "정상" && !view.operationalIssue ? "정상" : "확인 필요";
+		view.replayHealth === "정상" && !view.operationalIssue
+			? "정상"
+			: "확인 필요";
 	return `Observer · ${view.mode} · ${view.episode} · ${healthy}`;
 }

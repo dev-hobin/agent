@@ -6,7 +6,7 @@ Observer is intended to provide a local-first observation mode that follows stan
 
 ## Status
 
-This package is private and under spec-first implementation. Slice 5 adds the `/observe` setup/status/on/off/wrap command surface, current-branch Pi session replay, compaction continuity, Korean status projection, prepared-wrap approval ordering, and exact post-save acknowledgment recovery. Memo reconciliation and semantic observation are not implemented yet.
+This package is private and under spec-first implementation. Slice 6 adds strict prepared Memo-pass decoding, scoped and atomic Memo/Hypothesis reconciliation, current-branch working-state replay, `/observe memo`, Korean receipts and status counts, and exact applied-entry acknowledgment recovery. Memo reconciliation is read-only with respect to notebook Markdown; source-first semantic observation and Hybrid intervention remain deferred to Slice 7.
 
 ## Documentation
 

@@ -113,7 +113,9 @@ try {
 	const onStart = events.length;
 	await prompt("/observe on");
 	assert.ok(
-		events.slice(onStart).some(
+		events
+			.slice(onStart)
+			.some(
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "setStatus" &&
@@ -125,7 +127,9 @@ try {
 	const statusStart = events.length;
 	await prompt("/observe status");
 	assert.ok(
-		events.slice(statusStart).some(
+		events
+			.slice(statusStart)
+			.some(
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "notify" &&
@@ -135,10 +139,36 @@ try {
 		"/observe status did not expose honest Korean status",
 	);
 
+	const memoEntriesBefore = await send({ type: "get_entries" });
+	assert.equal(memoEntriesBefore.success, true, memoEntriesBefore.error);
+	const memoStart = events.length;
+	await prompt("/observe memo");
+	const memoEntriesAfter = await send({ type: "get_entries" });
+	assert.equal(memoEntriesAfter.success, true, memoEntriesAfter.error);
+	assert.equal(
+		memoEntriesAfter.data.entries.length,
+		memoEntriesBefore.data.entries.length,
+		"/observe memo without a prepared pass appended a session entry",
+	);
+	assert.equal(memoEntriesAfter.data.leafId, memoEntriesBefore.data.leafId);
+	assert.ok(
+		events
+			.slice(memoStart)
+			.some(
+				(event) =>
+					event.type === "extension_ui_request" &&
+					event.method === "notify" &&
+					String(event.message).includes("새 prepared reconciliation이 없습니다"),
+			),
+		"/observe memo did not report the append-free no-prepared result",
+	);
+
 	const offStart = events.length;
 	await prompt("/observe off");
 	assert.ok(
-		events.slice(offStart).some(
+		events
+			.slice(offStart)
+			.some(
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "setStatus" &&
@@ -147,7 +177,7 @@ try {
 		"/observe off did not preserve the open episode",
 	);
 	process.stdout.write(
-		"Observer RPC smoke: package discovery, setup, status, on, and off passed on Pi 0.80.10\n",
+		"Observer RPC smoke: package discovery, setup, status, on, memo stutter, and off passed on Pi 0.80.10\n",
 	);
 } finally {
 	child.kill("SIGTERM");

@@ -23,7 +23,7 @@ export type ObserveCommand =
 	| { readonly kind: "on" }
 	| { readonly kind: "off" }
 	| { readonly kind: "wrap" }
-	| { readonly kind: "memo-unavailable" }
+	| { readonly kind: "memo" }
 	| { readonly kind: "settings-unavailable" };
 
 export type ObserveCommandParseResult =
@@ -95,7 +95,7 @@ export function parseObserveCommand(args: string): ObserveCommandParseResult {
 		case "wrap":
 			return noArguments(remainder, { kind: "wrap" });
 		case "memo":
-			return noArguments(remainder, { kind: "memo-unavailable" });
+			return noArguments(remainder, { kind: "memo" });
 		case "settings":
 			return noArguments(remainder, { kind: "settings-unavailable" });
 		default:
@@ -103,9 +103,9 @@ export function parseObserveCommand(args: string): ObserveCommandParseResult {
 	}
 }
 
-export function completeObserveArgs(prefix: string):
-	| Array<{ readonly value: string; readonly label: string }>
-	| null {
+export function completeObserveArgs(
+	prefix: string,
+): Array<{ readonly value: string; readonly label: string }> | null {
 	const normalized = prefix.trim();
 	if (normalized.includes(" ")) return null;
 	const matches = OBSERVE_ACTIONS.filter((action) =>

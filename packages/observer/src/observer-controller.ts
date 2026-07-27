@@ -12,6 +12,23 @@ import {
 	type WrapProposedEvent,
 } from "./lifecycle.ts";
 import {
+	decodePreparedMemoPass,
+	encodePreparedMemoPass,
+	type PreparedMemoPass,
+} from "./memo-profile.ts";
+import {
+	hydrateMemoScope,
+	reconcileMemoPass,
+} from "./memo-reconciliation.ts";
+import {
+	encodeAppliedMemoPass,
+	memoAcknowledgmentEvent,
+	OBSERVER_APPLIED_MEMO_ENTRY,
+	OBSERVER_PREPARED_MEMO_ENTRY,
+	reconstructMemoSession,
+	type MemoSessionSnapshot,
+} from "./memo-session.ts";
+import {
 	completeObserveArgs,
 	parseObserveCommand,
 	type ObserveCommand,
@@ -20,9 +37,11 @@ import {
 	createNotebookService,
 	type NotebookService,
 } from "./notebook-service.ts";
+import { readNotebookInventory } from "./notebook.ts";
 import type { NotebookSelectionStore } from "./notebook-selection-store.ts";
 import {
 	observerStatusView,
+	renderMemoPassReceipt,
 	renderObserverFooter,
 	renderObserverStatus,
 } from "./observer-status.ts";
@@ -64,16 +83,16 @@ export interface ObserverControllerIds {
 	episodeId(): string;
 	attemptId(): string;
 	receiptId(): `receipt-${string}`;
+	memoRevisionId(): string;
+	memoReceiptId(): `memo-receipt-${string}`;
 }
 
 export interface ObserverController {
 	bind(port: ObserverCommandPort): Promise<void>;
 	refresh(port: ObserverCommandPort): Promise<void>;
 	command(args: string, port: ObserverCommandPort): Promise<void>;
-	installPrepared(
-		value: unknown,
-		port: ObserverCommandPort,
-	): Promise<boolean>;
+	installPrepared(value: unknown, port: ObserverCommandPort): Promise<boolean>;
+	installPreparedMemo(value: unknown, port: ObserverCommandPort): Promise<boolean>;
 	unbind(): void;
 }
 
@@ -90,6 +109,7 @@ function assertNever(value: never): never {
 
 interface SynchronizationResult {
 	readonly snapshot: ObserverPiSnapshot;
+	readonly memo: MemoSessionSnapshot;
 	readonly operationalIssue?: string;
 }
 
@@ -175,6 +195,19 @@ function notifyReplayIssue(
 	return true;
 }
 
+function notifyMemoReplayIssue(
+	snapshot: MemoSessionSnapshot,
+	port: ObserverCommandPort,
+): boolean {
+	if (snapshot.issues.length === 0) return false;
+	const first = snapshot.issues[0];
+	port.notify(
+		`Observer Memo history를 확인해야 합니다: ${first?.code ?? "unknown"}.`,
+		"error",
+	);
+	return true;
+}
+
 function appendLifecycle(
 	port: ObserverCommandPort,
 	snapshot: ObserverPiSnapshot,
@@ -182,7 +215,10 @@ function appendLifecycle(
 ): ObserverPiSnapshot | null {
 	const projection = applyObserverEvent(snapshot.state, event);
 	if (!projection.applied) {
-		port.notify(`Observer 상태 전이가 거부되었습니다: ${projection.reason}.`, "error");
+		port.notify(
+			`Observer 상태 전이가 거부되었습니다: ${projection.reason}.`,
+			"error",
+		);
 		return null;
 	}
 	port.appendEntry(OBSERVER_LIFECYCLE_ENTRY, event);
@@ -257,9 +293,11 @@ async function refreshStatus(
 	operationalIssue?: string,
 ): Promise<void> {
 	const snapshot = reconstructObserverPiState(port.branchEntries());
+	const memoSnapshot = reconstructMemoSession(port.branchEntries());
 	const notebookStatus = await notebooks.status();
 	const view = observerStatusView({
 		snapshot,
+		memoSnapshot,
 		notebookStatus,
 		sessionFile: port.sessionFile(),
 		...(operationalIssue ? { operationalIssue } : {}),
@@ -273,9 +311,11 @@ async function showStatus(
 	operationalIssue?: string,
 ): Promise<void> {
 	const snapshot = reconstructObserverPiState(port.branchEntries());
+	const memoSnapshot = reconstructMemoSession(port.branchEntries());
 	const notebookStatus = await notebooks.status();
 	const view = observerStatusView({
 		snapshot,
+		memoSnapshot,
 		notebookStatus,
 		sessionFile: port.sessionFile(),
 		...(operationalIssue ? { operationalIssue } : {}),
@@ -313,24 +353,61 @@ async function synchronize(
 	ids: ObserverControllerIds,
 ): Promise<SynchronizationResult> {
 	let snapshot = reconstructObserverPiState(port.branchEntries());
-	if (snapshot.issues.length > 0) return { snapshot };
+	let memo = reconstructMemoSession(port.branchEntries());
+	if (snapshot.issues.length > 0 || memo.issues.length > 0) {
+		return { snapshot, memo };
+	}
 	const inspection = await acknowledgmentInspection(snapshot, notebooks, ids);
-	if (!inspection || inspection.status === "before") return { snapshot };
-	if (inspection.status === "final") {
+	if (inspection?.status === "final") {
 		const committed = appendLifecycle(
 			port,
 			snapshot,
 			wrapCommitted(inspection.receipt),
 		);
-		if (committed) snapshot = committed;
-		return committed
-			? { snapshot }
-			: {
+		if (!committed) {
+			return {
 					snapshot,
+				memo,
 					operationalIssue: "저장 완료 acknowledgment를 복구하지 못했습니다.",
 				};
 	}
-	return { snapshot, operationalIssue: inspection.message };
+		snapshot = committed;
+		memo = reconstructMemoSession(port.branchEntries());
+	} else if (inspection && inspection.status !== "before") {
+		return { snapshot, memo, operationalIssue: inspection.message };
+	}
+	if (memo.issues.length > 0 || !memo.pendingAcknowledgment) {
+		return { snapshot, memo };
+	}
+	try {
+		const acknowledged = appendLifecycle(
+			port,
+			snapshot,
+			memoAcknowledgmentEvent(memo.pendingAcknowledgment),
+		);
+		if (!acknowledged) {
+			return {
+				snapshot,
+				memo,
+				operationalIssue: "Memo acknowledgment를 복구하지 못했습니다.",
+			};
+		}
+		snapshot = acknowledged;
+		memo = reconstructMemoSession(port.branchEntries());
+		return memo.issues.length === 0 && !memo.pendingAcknowledgment
+			? { snapshot, memo }
+			: {
+					snapshot,
+					memo,
+					operationalIssue: "Memo acknowledgment 복구 결과를 확인해야 합니다.",
+				};
+	} catch (error) {
+		return {
+			snapshot,
+			memo,
+			operationalIssue: `Memo acknowledgment 기록 실패: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
 }
 
 async function setupCommand(
@@ -378,7 +455,11 @@ async function onCommand(
 	let current = snapshot;
 	const notebookId = recovered.value.notebook.manifest.notebook_id;
 	if (current.state.selectedNotebookId !== notebookId) {
-		const selected = appendLifecycle(port, current, notebookSelected(notebookId));
+		const selected = appendLifecycle(
+			port,
+			current,
+			notebookSelected(notebookId),
+		);
 		if (!selected) return;
 		current = selected;
 	}
@@ -475,11 +556,151 @@ async function wrapCommand(
 		port.notify(`Wrap 저장 실패: ${saved.issue.message}`, "error");
 		return;
 	}
-	if (!appendLifecycle(port, current, wrapCommitted(saved.value.receipt))) return;
+	if (!appendLifecycle(port, current, wrapCommitted(saved.value.receipt)))
+		return;
 	port.notify(
 		`Wrap 저장 완료: ${saved.value.receipt.records.length}개 record`,
 		"info",
 	);
+}
+
+async function memoCommand(input: {
+	readonly snapshot: ObserverPiSnapshot;
+	readonly memo: MemoSessionSnapshot;
+	readonly port: ObserverCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObserverControllerIds;
+}): Promise<string | undefined> {
+	if (!input.memo.prepared) {
+		input.port.notify(
+			input.memo.state.lastReceipt
+				? `새 prepared reconciliation이 없습니다.\n${renderMemoPassReceipt(input.memo.state.lastReceipt)}`
+				: "새 prepared reconciliation이 없습니다.",
+			"info",
+		);
+		return undefined;
+	}
+	if (input.snapshot.state.episode.status !== "open") {
+		input.port.notify("Memo reconciliation에는 열린 Episode가 필요합니다.", "warning");
+		return undefined;
+	}
+	const recovered = await input.notebooks.recover(input.snapshot.state);
+	if (!recovered.ok) {
+		input.port.notify(`Notebook 복구 실패: ${recovered.issue.message}`, "error");
+		return undefined;
+	}
+	const inventory = await readNotebookInventory(recovered.value.notebook);
+	if (!inventory.ok) {
+		input.port.notify(`Notebook 읽기 실패: ${inventory.issue.message}`, "error");
+		return undefined;
+	}
+	const scope = hydrateMemoScope({
+		lifecycle: input.snapshot.state,
+		working: input.memo.state,
+		inventory: inventory.value,
+		relatedInquiryIds: input.memo.prepared.relatedInquiryIds,
+	});
+	if (!scope.ok) {
+		input.port.notify(`Memo scope 구성 실패: ${scope.issue.message}`, "error");
+		return undefined;
+	}
+	const reconciled = reconcileMemoPass({
+		state: input.memo.state,
+		scope: scope.value,
+		pass: input.memo.prepared,
+		ids: {
+			revisionId: input.ids.memoRevisionId,
+			receiptId: input.ids.memoReceiptId,
+		},
+	});
+	if (!reconciled.ok) {
+		input.port.notify(`Memo reconciliation 거부: ${reconciled.issue.message}`, "error");
+		return undefined;
+	}
+	try {
+		input.port.appendEntry(
+			OBSERVER_APPLIED_MEMO_ENTRY,
+			encodeAppliedMemoPass({
+				pass: input.memo.prepared,
+				scope: scope.value,
+				receipt: reconciled.value.receipt,
+			}),
+		);
+	} catch (error) {
+		input.port.notify(
+			`Memo working entry 기록 실패: ${error instanceof Error ? error.message : String(error)}`,
+			"error",
+		);
+		return undefined;
+	}
+	const appliedMemo = reconstructMemoSession(input.port.branchEntries());
+	if (
+		notifyMemoReplayIssue(appliedMemo, input.port) ||
+		!appliedMemo.pendingAcknowledgment
+	) {
+		return "Memo working entry 결과를 확인해야 합니다.";
+	}
+	try {
+		const current = reconstructObserverPiState(input.port.branchEntries());
+		const acknowledged = appendLifecycle(
+			input.port,
+			current,
+			memoAcknowledgmentEvent(appliedMemo.pendingAcknowledgment),
+		);
+		if (!acknowledged) return "Memo acknowledgment를 기록하지 못했습니다.";
+	} catch (error) {
+		input.port.notify(
+			"Memo working state는 기록되었지만 lifecycle acknowledgment가 남았습니다. 다음 bind/명령에서 복구합니다.",
+			"warning",
+		);
+		return `Memo acknowledgment 기록 실패: ${error instanceof Error ? error.message : String(error)}`;
+	}
+	const completed = reconstructMemoSession(input.port.branchEntries());
+	if (completed.issues.length > 0 || completed.pendingAcknowledgment) {
+		return "Memo acknowledgment 결과를 확인해야 합니다.";
+	}
+	input.port.notify(renderMemoPassReceipt(reconciled.value.receipt), "info");
+	return undefined;
+}
+
+async function validatePreparedMemo(
+	pass: PreparedMemoPass,
+	snapshot: ObserverPiSnapshot,
+	memo: MemoSessionSnapshot,
+	notebooks: NotebookService,
+): Promise<string | null> {
+	if (
+		snapshot.state.episode.status !== "open" ||
+		pass.episodeId !== snapshot.state.episode.core.episodeId ||
+		pass.baseRevisionId !== memo.state.revisionId
+	) {
+		return "Prepared Memo pass가 현재 열린 Episode/revision과 일치하지 않습니다.";
+	}
+	const recovered = await notebooks.recover(snapshot.state);
+	if (!recovered.ok) return `Notebook 복구 실패: ${recovered.issue.message}`;
+	const inventory = await readNotebookInventory(recovered.value.notebook);
+	if (!inventory.ok) return `Notebook 읽기 실패: ${inventory.issue.message}`;
+	const scope = hydrateMemoScope({
+		lifecycle: snapshot.state,
+		working: memo.state,
+		inventory: inventory.value,
+		relatedInquiryIds: pass.relatedInquiryIds,
+	});
+	if (!scope.ok) return `Memo scope 구성 실패: ${scope.issue.message}`;
+	const validated = reconcileMemoPass({
+		state: memo.state,
+		scope: scope.value,
+		pass,
+		ids: {
+			revisionId() {
+				return "memo-working-revision-00000000-0000-4000-8000-000000000000";
+			},
+			receiptId(): `memo-receipt-${string}` {
+				return "memo-receipt-00000000-0000-4000-8000-000000000000";
+			},
+		},
+	});
+	return validated.ok ? null : `Memo pass 검증 실패: ${validated.issue.message}`;
 }
 
 async function executeObserverCommand(input: {
@@ -501,8 +722,12 @@ async function executeObserverCommand(input: {
 		input.notebooks,
 		input.ids,
 	);
-	const operationalIssue = synchronized.operationalIssue;
-	if (notifyReplayIssue(synchronized.snapshot, input.port) || operationalIssue) {
+	let operationalIssue = synchronized.operationalIssue;
+	if (
+		notifyReplayIssue(synchronized.snapshot, input.port) ||
+		notifyMemoReplayIssue(synchronized.memo, input.port) ||
+		operationalIssue
+	) {
 		if (operationalIssue) {
 			input.port.notify(
 				`Observer 복구가 필요합니다: ${operationalIssue}`,
@@ -540,8 +765,14 @@ async function executeObserverCommand(input: {
 				input.ids,
 			);
 			break;
-		case "memo-unavailable":
-			input.port.notify("Memo reconciliation은 Slice 6에서 제공됩니다.", "info");
+		case "memo":
+			operationalIssue = await memoCommand({
+				snapshot: synchronized.snapshot,
+				memo: synchronized.memo,
+				port: input.port,
+				notebooks: input.notebooks,
+				ids: input.ids,
+			});
 			break;
 		case "settings-unavailable":
 			input.port.notify(
@@ -605,11 +836,80 @@ async function installPreparedCommand(input: {
 	if (notifyReplayIssue(withPrepared, input.port)) return false;
 	if (!appendLifecycle(input.port, withPrepared, proposal)) return false;
 	input.port.notify("Wrap proposal을 검토할 준비가 되었습니다.", "info");
-	await refreshStatus(
-		input.port,
+	await refreshStatus(input.port, input.notebooks, input.operationalIssue);
+	return true;
+}
+
+async function installPreparedMemoCommand(input: {
+	readonly value: unknown;
+	readonly port: ObserverCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObserverControllerIds;
+}): Promise<boolean> {
+	const synchronized = await synchronize(input.port, input.notebooks, input.ids);
+	if (
+		notifyReplayIssue(synchronized.snapshot, input.port) ||
+		notifyMemoReplayIssue(synchronized.memo, input.port)
+	) {
+		return false;
+	}
+	if (synchronized.operationalIssue) {
+		input.port.notify(
+			`Observer 복구가 필요합니다: ${synchronized.operationalIssue}`,
+			"error",
+		);
+		return false;
+	}
+	const decoded = decodePreparedMemoPass(input.value);
+	if (!decoded.ok) {
+		input.port.notify(`Prepared Memo pass 거부: ${decoded.issue.message}`, "error");
+		return false;
+	}
+	if (synchronized.memo.prepared) {
+		if (
+			synchronized.memo.prepared.passId === decoded.value.passId &&
+			synchronized.memo.prepared.digest === decoded.value.digest
+		) {
+			input.port.notify("같은 prepared Memo pass가 이미 준비되어 있습니다.", "info");
+			return true;
+		}
+		input.port.notify("다른 prepared Memo pass가 이미 활성 상태입니다.", "error");
+		return false;
+	}
+	const invalid = await validatePreparedMemo(
+		decoded.value,
+		synchronized.snapshot,
+		synchronized.memo,
 		input.notebooks,
-		input.operationalIssue,
 	);
+	if (invalid) {
+		input.port.notify(invalid, "error");
+		return false;
+	}
+	try {
+		input.port.appendEntry(
+			OBSERVER_PREPARED_MEMO_ENTRY,
+			encodePreparedMemoPass(decoded.value),
+		);
+	} catch (error) {
+		input.port.notify(
+			`Prepared Memo pass 기록 실패: ${error instanceof Error ? error.message : String(error)}`,
+			"error",
+		);
+		return false;
+	}
+	const installed = reconstructMemoSession(input.port.branchEntries());
+	if (
+		notifyMemoReplayIssue(installed, input.port) ||
+		installed.prepared?.passId !== decoded.value.passId
+	) {
+		return false;
+	}
+	input.port.notify(
+		`Memo reconciliation 준비 완료: ${decoded.value.passId}`,
+		"info",
+	);
+	await refreshStatus(input.port, input.notebooks);
 	return true;
 }
 
@@ -625,11 +925,7 @@ export function createObserverController(
 	let operationalIssue: string | undefined;
 	return {
 		async bind(port) {
-			const synchronized = await synchronize(
-				port,
-				notebooks,
-				dependencies.ids,
-			);
+			const synchronized = await synchronize(port, notebooks, dependencies.ids);
 			operationalIssue = synchronized.operationalIssue;
 			await refreshStatus(port, notebooks, operationalIssue);
 		},
@@ -652,6 +948,14 @@ export function createObserverController(
 				port,
 				notebooks,
 				...(operationalIssue ? { operationalIssue } : {}),
+			});
+		},
+		installPreparedMemo(value, port) {
+			return installPreparedMemoCommand({
+				value,
+				port,
+				notebooks,
+				ids: dependencies.ids,
 			});
 		},
 		unbind() {

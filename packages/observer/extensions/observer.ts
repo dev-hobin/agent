@@ -28,6 +28,12 @@ function systemIds(): ObserverControllerIds {
 		receiptId(): `receipt-${string}` {
 			return `receipt-${randomUUID()}`;
 		},
+		memoRevisionId() {
+			return `memo-working-revision-${randomUUID()}`;
+		},
+		memoReceiptId(): `memo-receipt-${string}` {
+			return `memo-receipt-${randomUUID()}`;
+		},
 	};
 }
 
@@ -60,7 +66,7 @@ export default function observerExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("observe", {
-		description: "Observer 설정, 상태, on/off, wrap lifecycle 제어",
+		description: "Observer 설정, 상태, on/off, memo, wrap lifecycle 제어",
 		getArgumentCompletions: completeObserveArgs,
 		async handler(args, ctx) {
 			await controller.command(args, commandPort(pi, ctx));

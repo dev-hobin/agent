@@ -1,11 +1,5 @@
 import assert from "node:assert/strict";
-import {
-	mkdir,
-	mkdtemp,
-	readFile,
-	rm,
-	writeFile,
-} from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -20,12 +14,22 @@ import {
 	completeObserveArgs,
 	parseObserveCommand,
 } from "../src/observer-command.ts";
-import { decodeNotebookId, openNotebook } from "../src/notebook.ts";
+import {
+	decodeNotebookId,
+	openNotebook,
+	readNotebookInventory,
+} from "../src/notebook.ts";
 import { createNotebookService } from "../src/notebook-service.ts";
 import {
 	fileNotebookSelectionStore,
 	type NotebookSelectionStore,
 } from "../src/notebook-selection-store.ts";
+import { hydrateMemoScope } from "../src/memo-reconciliation.ts";
+import {
+	OBSERVER_APPLIED_MEMO_ENTRY,
+	OBSERVER_PREPARED_MEMO_ENTRY,
+	reconstructMemoSession,
+} from "../src/memo-session.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
 	OBSERVER_PREPARED_WRAP_PROTOCOL,
@@ -66,6 +70,7 @@ class FakePort implements ObserverCommandPort {
 	readonly confirmations: boolean[] = [];
 	persistedSession = "/tmp/observer-session.jsonl";
 	failCommitAppend = false;
+	failMemoAcknowledgmentAppend = false;
 
 	branchEntries(): readonly PiBranchEntryLike[] {
 		return this.entries;
@@ -76,6 +81,15 @@ class FakePort implements ObserverCommandPort {
 	}
 
 	appendEntry(customType: string, data: unknown): void {
+		if (
+			this.failMemoAcknowledgmentAppend &&
+			customType === OBSERVER_LIFECYCLE_ENTRY &&
+			isObject(data) &&
+			data.kind === "memo-reconciled"
+		) {
+			this.failMemoAcknowledgmentAppend = false;
+			throw new Error("Injected Memo acknowledgment append failure");
+		}
 		if (
 			this.failCommitAppend &&
 			customType === OBSERVER_LIFECYCLE_ENTRY &&
@@ -100,10 +114,7 @@ class FakePort implements ObserverCommandPort {
 		return this.confirmations.shift() ?? false;
 	}
 
-	notify(
-		message: string,
-		type: "info" | "warning" | "error" = "info",
-	): void {
+	notify(message: string, type: "info" | "warning" | "error" = "info"): void {
 		this.notifications.push({ message, type });
 	}
 
@@ -116,6 +127,8 @@ function deterministicIds(): ObserverControllerIds {
 	let episodes = 0;
 	let attempts = 0;
 	let receipts = 0;
+	let memoRevisions = 0;
+	let memoReceipts = 0;
 	return {
 		episodeId() {
 			episodes += 1;
@@ -128,6 +141,14 @@ function deterministicIds(): ObserverControllerIds {
 		receiptId(): `receipt-${string}` {
 			receipts += 1;
 			return `receipt-recovered-${receipts}`;
+		},
+		memoRevisionId() {
+			memoRevisions += 1;
+			return `memo-working-revision-00000000-0000-4000-8000-${String(memoRevisions).padStart(12, "0")}`;
+		},
+		memoReceiptId(): `memo-receipt-${string}` {
+			memoReceipts += 1;
+			return `memo-receipt-00000000-0000-4000-8000-${String(memoReceipts).padStart(12, "0")}`;
 		},
 	};
 }
@@ -208,6 +229,39 @@ async function setupAndTurnOn(input: {
 	return handoff({ notebookId, root: notebook.root });
 }
 
+async function emptyPreparedMemoPass(input: {
+	readonly port: FakePort;
+	readonly root: string;
+	readonly passId: string;
+}): Promise<Record<string, unknown>> {
+	const snapshot = reconstructObserverPiState(input.port.entries);
+	const memo = reconstructMemoSession(input.port.entries);
+	if (snapshot.state.episode.status !== "open") {
+		assert.fail("Expected open episode for Memo pass");
+	}
+	const notebook = requireNotebook(await openNotebook(input.root));
+	const inventory = requireNotebook(await readNotebookInventory(notebook));
+	const scope = hydrateMemoScope({
+		lifecycle: snapshot.state,
+		working: memo.state,
+		inventory,
+		relatedInquiryIds: [],
+	});
+	if (!scope.ok) assert.fail(JSON.stringify(scope.issue));
+	return {
+		observer_memo_pass: "observer.prepared-memo-pass/v1",
+		pass_id: input.passId,
+		episode_id: snapshot.state.episode.core.episodeId,
+		base_revision_id: memo.state.revisionId,
+		basis_digest: scope.value.basisDigest,
+		related_inquiry_ids: [],
+		instruction_id: null,
+		evidence: [],
+		hypothesis_outcomes: [],
+		memo_outcomes: [],
+	};
+}
+
 describe("Observer command parsing", () => {
 	test("parses exact actions and preserves a spaced absolute path", () => {
 		assert.deepEqual(parseObserveCommand(""), {
@@ -217,6 +271,10 @@ describe("Observer command parsing", () => {
 		assert.deepEqual(parseObserveCommand("setup ko /tmp/My Notes"), {
 			ok: true,
 			command: { kind: "setup", lang: "ko", root: "/tmp/My Notes" },
+		});
+		assert.deepEqual(parseObserveCommand("memo"), {
+			ok: true,
+			command: { kind: "memo" },
 		});
 		assert.equal(parseObserveCommand("on extra").ok, false);
 		assert.equal(parseObserveCommand("setup /tmp/missing-language").ok, false);
@@ -262,7 +320,10 @@ describe("Observer command controller", () => {
 			assert.equal(resumed.state.episode.status, "open");
 			if (resumed.state.episode.status !== "open") return;
 			assert.equal(resumed.state.episode.core.episodeId, episodeId);
-			assert.match(port.statuses.at(-1) ?? "", /Observer · 켜짐 · 열림 · 정상/u);
+			assert.match(
+				port.statuses.at(-1) ?? "",
+				/Observer · 켜짐 · 열림 · 정상/u,
+			);
 		});
 	});
 
@@ -295,7 +356,117 @@ describe("Observer command controller", () => {
 			assert.equal(port.entries.length, before);
 			const text = port.notifications.at(-1)?.message ?? "";
 			assert.match(text, /임시 세션/u);
-			assert.match(text, /아직 집계되지 않음 \(Slice 6\+\)/u);
+			assert.match(text, /Pending Memo 수: 아직 집계되지 않음/u);
+		});
+	});
+
+	test("applies a prepared Memo pass before lifecycle acknowledgment without Markdown writes", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "memo notebook");
+			await setupAndTurnOn({ controller, port, root });
+			const beforeNotebook = requireNotebook(await openNotebook(root));
+			const beforeInventory = requireNotebook(
+				await readNotebookInventory(beforeNotebook),
+			);
+			const prepared = await emptyPreparedMemoPass({
+				port,
+				root,
+				passId: "memo-pass-00000000-0000-4000-8000-000000000201",
+			});
+			assert.equal(await controller.installPreparedMemo(prepared, port), true);
+			await controller.command("memo", port);
+
+			const preparedIndex = port.entries.findIndex(
+				(entry) => entry.customType === OBSERVER_PREPARED_MEMO_ENTRY,
+			);
+			const appliedIndex = port.entries.findIndex(
+				(entry) => entry.customType === OBSERVER_APPLIED_MEMO_ENTRY,
+			);
+			const acknowledgmentIndex = port.entries.findIndex(
+				(entry) =>
+					entry.customType === OBSERVER_LIFECYCLE_ENTRY &&
+					isObject(entry.data) &&
+					entry.data.kind === "memo-reconciled",
+			);
+			assert.ok(preparedIndex >= 0);
+			assert.ok(appliedIndex > preparedIndex);
+			assert.ok(acknowledgmentIndex > appliedIndex);
+
+			const memo = reconstructMemoSession(port.entries);
+			assert.equal(memo.issues.length, 0);
+			assert.equal(memo.state.passes, 1);
+			assert.equal(memo.pendingAcknowledgment, null);
+			assert.equal(memo.lifecycle.mode, "on");
+			assert.equal(memo.lifecycle.episode.status, "open");
+			const afterNotebook = requireNotebook(await openNotebook(root));
+			const afterInventory = requireNotebook(
+				await readNotebookInventory(afterNotebook),
+			);
+			assert.deepEqual(afterInventory, beforeInventory);
+
+			await controller.command("status", port);
+			const status = port.notifications.at(-1)?.message ?? "";
+			assert.match(status, /Pending Memo 수: 0/u);
+			assert.match(status, /Open Inquiry 수: 0/u);
+			assert.match(status, /Zettel 후보 수: 0/u);
+			const entryCount = port.entries.length;
+			await controller.command("memo", port);
+			assert.equal(port.entries.length, entryCount);
+			assert.match(
+				port.notifications.at(-1)?.message ?? "",
+				/새 prepared reconciliation이 없습니다/u,
+			);
+		});
+	});
+
+	test("recovers a Memo applied-entry acknowledgment gap without reapplying", async () => {
+		await withSandbox(async (sandbox) => {
+			const store = selectionStore(sandbox);
+			const controller = createObserverController({
+				selectionStore: store,
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "memo recovery notebook");
+			await setupAndTurnOn({ controller, port, root });
+			const prepared = await emptyPreparedMemoPass({
+				port,
+				root,
+				passId: "memo-pass-00000000-0000-4000-8000-000000000202",
+			});
+			assert.equal(await controller.installPreparedMemo(prepared, port), true);
+			port.failMemoAcknowledgmentAppend = true;
+			await controller.command("memo", port);
+			const pending = reconstructMemoSession(port.entries);
+			assert.equal(pending.state.passes, 1);
+			assert.notEqual(pending.pendingAcknowledgment, null);
+			assert.equal(
+				port.entries.filter(
+					(entry) => entry.customType === OBSERVER_APPLIED_MEMO_ENTRY,
+				).length,
+				1,
+			);
+
+			const restarted = createObserverController({
+				selectionStore: store,
+				ids: deterministicIds(),
+			});
+			await restarted.bind(port);
+			const recovered = reconstructMemoSession(port.entries);
+			assert.equal(recovered.issues.length, 0);
+			assert.equal(recovered.pendingAcknowledgment, null);
+			assert.equal(recovered.state.passes, 1);
+			assert.equal(
+				port.entries.filter(
+					(entry) => entry.customType === OBSERVER_APPLIED_MEMO_ENTRY,
+				).length,
+				1,
+			);
 		});
 	});
 
@@ -386,7 +557,10 @@ describe("Observer command controller", () => {
 		await withSandbox(async (sandbox) => {
 			const store = selectionStore(sandbox);
 			const ids = deterministicIds();
-			const controller = createObserverController({ selectionStore: store, ids });
+			const controller = createObserverController({
+				selectionStore: store,
+				ids,
+			});
 			const port = new FakePort();
 			const root = join(sandbox, "notebook");
 			const markdown = await createdSource();
@@ -409,7 +583,10 @@ describe("Observer command controller", () => {
 			);
 			assert.equal(saved, markdown);
 
-			const restarted = createObserverController({ selectionStore: store, ids });
+			const restarted = createObserverController({
+				selectionStore: store,
+				ids,
+			});
 			await restarted.bind(port);
 			const recovered = reconstructObserverPiState(port.entries);
 			assert.equal(recovered.state.episode.status, "settled");

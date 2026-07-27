@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 6 — Memo Reconciliation (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — Sidecar Golden Path (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -763,7 +763,7 @@ Prepared proposal identity는 strict normalized handoff의 SHA-256이다. 승인
 
 ## Slice 6 — Memo Reconciliation
 
-**Status:** Planned
+**Status:** Complete
 
 ### Claim
 
@@ -792,16 +792,67 @@ promotion candidate
 ### Evidence
 
 ```text
-새 evidence가 없을 때 반복 memo가 duplicate를 만들지 않음
-current episode + related standing inquiries만 검토
-unrelated dormant Memo를 불러오지 않음
-Zettel file을 쓰지 않음
-compaction 이전 working context가 receipt에 반영됨
+[x] 새 prepared pass가 없을 때 반복 memo가 session entry를 추가하지 않음
+[x] current episode + 명시적으로 관련된 standing inquiry만 검토
+[x] unrelated durable Memo를 scope에 포함하지 않음
+[x] 모든 live scoped Memo/hypothesis에 정확히 한 outcome 요구
+[x] create/revise/keep/promotion-candidate/merge를 atomic하게 적용
+[x] 사용자 가설 origin/original을 revision 뒤에도 보존
+[x] merge source를 superseded history로 보존
+[x] stale basis, incomplete coverage, duplicate semantic key를 fail-closed 거부
+[x] Memo command 전후 notebook inventory bytes 불변
+[x] applied working entry 뒤 lifecycle acknowledgment 기록
+[x] acknowledgment append gap을 재적용 없이 다음 bind에서 복구
+[x] restart/fork/compaction을 current branch ancestry로 복원
 ```
+
+### Current evidence — Slice 6 stable landing
+
+```text
+Observer tests: 142/142
+Focused reconciliation/session/controller: 23/23
+Actual Pi 0.80.10 RPC: setup/status/on/memo-stutter/off 통과
+TypeScript LSP: Slice 6 files clean
+Observer TypeScript `as` token: 0
+```
+
+구현 surface:
+
+```text
+src/memo-profile.ts
+src/memo-reconciliation.ts
+src/memo-session.ts
+src/observer-command.ts
+src/observer-controller.ts
+src/observer-status.ts
+extensions/observer.ts
+```
+
+Prepared semantic pass는 strict unknown decoder와 `installPreparedMemo(...)` handoff를 통과한다. `/observe memo`는 notebook을 read-only hydrate하고, complete coverage·basis·provenance 검증 뒤 applied working custom entry를 먼저 기록한다. compact lifecycle `memo-reconciled` acknowledgment는 그 뒤에 기록되며, 두 effect 사이의 실패는 다음 bind에서 pass 재적용 없이 acknowledgment만 복구한다.
+
+Memo working state는 Pi current branch의 custom entry replay 결과다. Compaction summary는 기준 데이터가 아니고, fork는 전달된 ancestry만 복원한다. Durable Markdown Memo/Zettel 저장, source-first relevance 판단, semantic pass 생성, Hybrid 개입은 Slice 7 이후 책임이다.
 
 ### Stop
 
 대표 reconciliation cases와 product transcript가 일치하고 Zettel persistence가 발생하지 않는 상태.
+
+Slice 6의 Claim과 Stop은 prepared semantic input 경계에서 충족됐다. 다음 movement는 source-first observation과 Hybrid intervention을 실제 Sidecar Golden Path에 연결하는 Slice 7을 현재 evidence에서 다시 판단한 뒤 시작한다.
+
+### Slice 6 설계 결정
+
+```text
+[x] Working Memo/Hypothesis truth는 durable notebook이 아니라 Pi current branch가 소유
+[x] prepared → applied → lifecycle acknowledgment 순서
+[x] compact lifecycle receipt와 full applied working event 분리
+[x] durable incubating Memo는 명시적 related Inquiry scope에서만 read-only overlay
+[x] live scoped entity는 정확히 한 outcome을 가져야 함
+[x] merge는 새 target을 만들고 source를 superseded로 보존
+[x] user hypothesis origin/original 불변
+[x] exact pass duplicate/no-prepared retry는 append-free stutter
+[x] malformed/stale/conflicting pass와 history는 fail-closed
+[x] memo는 Mode/Episode와 notebook Markdown을 변경하지 않음
+[x] semantic pass 생성과 relevance 판단은 Slice 7로 보류
+```
 
 ---
 
@@ -1114,4 +1165,12 @@ Stop:
 - Compaction summary는 Observer state 기준 데이터가 아니며 full branch ancestry replay가 continuity를 소유한다.
 - Ephemeral Pi session은 process restart continuity를 주장하지 않고 status에 limitation을 표시한다.
 - Pi core는 extension peer dependency이고 lifecycle/notebook/wrap/controller domain modules은 Pi에 의존하지 않는다.
+- Slice 6 prepared pass는 strict exact-field decoder와 notebook/source byte-bound basis digest를 통과한다.
+- Working Memo/Hypothesis는 Pi current branch custom entry replay가 소유하고 notebook Markdown은 memo 중 read-only다.
+- Memo pass는 live scoped Memo/hypothesis 각각에 정확히 한 outcome을 요구하며 invalid batch를 전체 거부한다.
+- Applied Memo entry는 normalized pass와 exact scope를 보존하고 replay에서 pure reducer를 다시 적용해 receipt를 검증한다.
+- Memo effect ordering은 prepared → applied working event → compact lifecycle acknowledgment다.
+- Post-applied/pre-ack gap은 다음 bind에서 acknowledgment만 보충하고 pass를 재적용하지 않는다.
+- Exact duplicate/no-prepared memo는 append-free stutter고 malformed/stale/conflicting branch history는 fail-closed다.
+- `/observe memo`는 Mode/Episode와 durable Markdown을 변경하지 않으며 semantic pass 생성은 Slice 7로 보류한다.
 ```
