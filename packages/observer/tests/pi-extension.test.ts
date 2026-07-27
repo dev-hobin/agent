@@ -19,11 +19,14 @@ import {
 	hypothesisOutcomeSchema,
 	memoOutcomeSchema,
 	memoPrepareActionSchema,
+	oneShotFinishActionSchema,
+	oneShotStartActionSchema,
 	wrapPrepareActionSchema,
 	wrapScopeActionSchema,
 } from "../extensions/memo-tool-schema.ts";
 import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
 import { decodeObservationAction } from "../src/observation-action.ts";
+import { requireOneShotCommandSuccess } from "../src/one-shot-command.ts";
 import { prepareObservationEvent } from "../src/observation-profile.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
@@ -133,6 +136,8 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 	assert.match(source, /pi\.on\("tool_result"/u);
 	assert.match(source, /event\.toolName === OBSERVER_TOOL_NAME/u);
 	assert.match(schemaSource, /action: Type\.Literal\("memo-scope"\)/u);
+	assert.match(schemaSource, /action: Type\.Literal\("one-shot-start"\)/u);
+	assert.match(schemaSource, /action: Type\.Literal\("one-shot-finish"\)/u);
 	assert.match(source, /parsed\.command\.kind !== "memo"/u);
 	assert.match(source, /parsed\.command\.kind !== "wrap"/u);
 	assert.match(schemaSource, /wrapScopeActionSchema/u);
@@ -355,6 +360,35 @@ test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {
 	assert.equal(value.claims[0]?.locator, null);
 });
 
+test("describes strict One-shot start and finish model payloads", () => {
+	const start = {
+		observer_action: "observer-sidecar/v1",
+		action: "one-shot-start",
+		user_message_digest: "1".repeat(64),
+		material: { kind: "inline-user-message" },
+	};
+	const finish = {
+		observer_action: "observer-sidecar/v1",
+		action: "one-shot-finish",
+		request_id: "one-shot-00000000-0000-4000-8000-000000000092",
+	};
+	assert.equal(Value.Check(oneShotStartActionSchema, start), true);
+	assert.equal(
+		Value.Check(oneShotStartActionSchema, {
+			...start,
+			material: { kind: "inline-user-message", text: "not allowed" },
+		}),
+		false,
+	);
+	assert.equal(Value.Check(oneShotFinishActionSchema, finish), true);
+	assert.equal(
+		Value.Check(oneShotFinishActionSchema, { ...finish, digest: "locked" }),
+		false,
+	);
+	assert.equal(Value.Check(observerSidecarParameters, start), true);
+	assert.equal(Value.Check(observerSidecarParameters, finish), true);
+});
+
 test("describes every Memo outcome and rejects locked-field injection", () => {
 	const evidenceId = "evidence-00000000-0000-4000-8000-000000000093";
 	const inquiryId = "inquiry-00000000-0000-4000-8000-000000000094";
@@ -513,6 +547,14 @@ test("describes every Memo outcome and rejects locked-field injection", () => {
 });
 
 test("maps domain and installation rejection to actual tool errors", () => {
+	assert.throws(
+		() =>
+			requireOneShotCommandSuccess({
+				ok: false,
+				message: "one-shot failed",
+			}),
+		/one-shot failed/u,
+	);
 	assert.throws(
 		() =>
 			requireObservationToolSuccess({ ok: false, message: "domain failed" }),

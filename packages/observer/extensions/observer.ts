@@ -27,11 +27,16 @@ import {
 	reconstructObserverPiState,
 	type PreparedWrapHandoff,
 } from "../src/pi-session.ts";
-import { observerSidecarContext } from "../src/observer-prompt.ts";
 import { parseObserveCommand } from "../src/observer-command.ts";
 import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
 import type { WrapRequestEvent } from "../src/wrap-trigger.ts";
 import { observerSidecarParameters } from "./memo-tool-schema.ts";
+import {
+	observerTurnContext,
+	routeOneShotTool,
+	type ObserverOneShotIds,
+	type ObserverTurnState,
+} from "./one-shot-runtime.ts";
 
 const OBSERVER_STATUS_KEY = "observer";
 const OBSERVER_TOOL_NAME = "observer_sidecar";
@@ -54,6 +59,14 @@ function systemIds(): ObserverControllerIds {
 		},
 		memoReceiptId(): `memo-receipt-${string}` {
 			return `memo-receipt-${randomUUID()}`;
+		},
+	};
+}
+
+function systemOneShotIds(): ObserverOneShotIds {
+	return {
+		requestId(): `one-shot-${string}` {
+			return `one-shot-${randomUUID()}`;
 		},
 	};
 }
@@ -534,21 +547,36 @@ function registerObserverSidecarTool(input: {
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
 	readonly observation: ReturnType<typeof createObservationController>;
-	readonly markUsed: () => void;
+	readonly oneShotIds: ObserverOneShotIds;
+	readonly turnState: ObserverTurnState;
 }): void {
 	input.pi.registerTool({
 		name: OBSERVER_TOOL_NAME,
 		label: "Observer Sidecar",
 		description:
-			"Stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement or a user hypothesis, then complete exact Memo or Wrap requests from their locked scope before prepare.",
+			"Start or finish an exact One-shot request, or stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement or a user hypothesis, then complete exact Memo or Wrap requests from their locked scope before prepare.",
 		promptSnippet:
-			"Stage source-first observations and complete exact pending Memo or Wrap requests from their preparation guide.",
+			"Use model-owned One-shot classification only with the exact hidden digest; otherwise stage source-first observations and complete exact pending Memo or Wrap requests.",
 		parameters: observerSidecarParameters,
 		executionMode: "sequential",
 		async execute(...execution) {
 			const [, params, , , ctx] = execution;
-			input.markUsed();
+			input.turnState.toolUsed = true;
 			const port = commandPort(input.pi, ctx);
+			const oneShot = await routeOneShotTool({
+				value: params,
+				capturedAt: new Date().toISOString(),
+				port,
+				lifecycle: input.controller,
+				observation: input.observation,
+				ids: input.oneShotIds,
+				turnState: input.turnState,
+			});
+			if (oneShot)
+				return {
+					content: [{ type: "text", text: oneShot.text }],
+					details: oneShot.result,
+				};
 			const result = requireObservationToolSuccess(
 				await input.observation.execute(params, port),
 			);
@@ -608,15 +636,21 @@ function registerObserverEvents(input: {
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
 	readonly observation: ReturnType<typeof createObservationController>;
-	readonly turnState: { toolUsed: boolean };
+	readonly turnState: ObserverTurnState;
 }): void {
 	input.pi.on("input", (event, ctx) => {
 		if (
 			event.source === "extension" ||
 			event.text.trim().length === 0 ||
 			event.text.trimStart().startsWith("/observe")
-		)
+		) {
+			input.turnState.latestUser = null;
 			return;
+		}
+		input.turnState.latestUser = {
+			text: event.text,
+			inputSource: event.source,
+		};
 		reportCaptureFailure(
 			input.observation.capture(
 				{
@@ -653,7 +687,9 @@ function registerObserverEvents(input: {
 		input.turnState.toolUsed = false;
 	});
 	input.pi.on("turn_end", (event, ctx) => {
-		if (input.turnState.toolUsed) return;
+		const toolUsed = input.turnState.toolUsed;
+		input.turnState.latestUser = null;
+		if (toolUsed) return;
 		const text = textFromContent(Reflect.get(event.message, "content"));
 		if (!text) return;
 		reportCaptureFailure(
@@ -672,7 +708,10 @@ function registerObserverEvents(input: {
 		);
 	});
 	input.pi.on("context", (event, ctx) => {
-		const guidance = observerSidecarContext(ctx.sessionManager.getBranch());
+		const guidance = observerTurnContext({
+			turnState: input.turnState,
+			entries: ctx.sessionManager.getBranch(),
+		});
 		if (!guidance) return;
 		return {
 			messages: [
@@ -714,15 +753,17 @@ export default function observerExtension(pi: ExtensionAPI): void {
 		selectionStore,
 		ids: systemObservationIds(),
 	});
-	const turnState = { toolUsed: false };
+	const turnState: ObserverTurnState = {
+		toolUsed: false,
+		latestUser: null,
+	};
 
 	registerObserverSidecarTool({
 		pi,
 		controller,
 		observation,
-		markUsed() {
-			turnState.toolUsed = true;
-		},
+		oneShotIds: systemOneShotIds(),
+		turnState,
 	});
 
 	pi.registerCommand("observe", {

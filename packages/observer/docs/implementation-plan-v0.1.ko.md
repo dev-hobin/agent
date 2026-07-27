@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 8 — Pi One-shot start/finish wiring + compact receipt (재라우팅 필요)
+> 다음 실행 단위: Slice 8 — bounded Pi One-shot → Memo → Wrap transcript (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 8 in progress | One-shot OPEN/OFF observation chain complete below Pi wiring |
+| Runtime implementation | Slice 8 in progress | Pi-facing One-shot start/finish and internal observation chain complete |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 8 — One-shot Golden Path |
-| Next movement | Requires routing | Pi One-shot start/finish actions and compact receipt |
+| Next movement | Requires routing | bounded Pi One-shot → Memo → Wrap transcript |
 
 ### 현재 branch checkpoint
 
@@ -152,7 +152,9 @@ feature/observer
 ├─ 778a288 feat(observer): open one-shot lifecycle episodes
 ├─ 4b68c23 feat(observer): start one-shot observation requests
 ├─ e3a9bc5 feat(observer): capture one-shot tool results
-└─ Slice 8 landing A-5: request-linked observation chain
+├─ cf911ed feat(observer): authorize one-shot observation chains
+├─ 694923c feat(observer): finish one-shot observation requests
+└─ Slice 8 landing A-7: Pi start/finish wiring
 ```
 
 ---
@@ -1760,11 +1762,37 @@ Pi-lens new completion-planner complexity warning: cleared
 TypeScript assertion-expression scan: 0
 ```
 
+### Landing 8A-7 — Pi start/finish wiring
+
+```text
+[x] observer-sidecar TypeBox union exposes strict one-shot-start/finish variants
+[x] latest interactive/rpc user input is retained only for the active turn
+[x] hidden context provides exact SHA-256 without copying user text
+[x] model owns One-shot classification and material variant choice
+[x] producer generates or reuses the exact pending request ID
+[x] raw start refines before OPEN/OFF lifecycle effects
+[x] raw finish refines and verifies full coverage before completion append
+[x] start and finish return compact receipts through the existing tool
+[x] domain/replay/coverage failures travel as actual Pi tool errors
+[x] no activation event, slash command, background worker, or Markdown effect
+```
+
+Verifier evidence:
+
+```text
+Focused Pi adapter/schema/context/One-shot: 30/30
+Observer: 188/188
+LSP: 51 files clean
+Pi-lens new adapter import/fan-out warnings: cleared by runtime extraction
+TypeScript assertion-expression scan: 0
+Pack: 41 runtime files, 0 tests; both One-shot runtime modules present
+Pi 0.80.10 RPC smoke: package discovery/setup/status/on/memo/off passed
+```
+
 Remaining Slice 8 work:
 
 ```text
-Pi one-shot-start/one-shot-finish actions and compact receipts
-bounded One-shot → memo → wrap transcript
+bounded Pi One-shot → memo → wrap transcript
 ```
 
 ---

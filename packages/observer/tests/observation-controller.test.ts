@@ -9,8 +9,18 @@ import {
 	completeWrapPreparation,
 	observationToolText,
 } from "../extensions/observer.ts";
+import {
+	routeOneShotTool,
+	type ObserverTurnState,
+} from "../extensions/one-shot-runtime.ts";
 import { sha256Text } from "../src/content-hash.ts";
 import { initialObserverState, OBSERVER_PROTOCOL } from "../src/lifecycle.ts";
+import {
+	executeOneShotFinish,
+	executeOneShotStart,
+	oneShotCommandText,
+	oneShotContext,
+} from "../src/one-shot-command.ts";
 import { OBSERVER_MEMO_INSTRUCTION_ENTRY } from "../src/memo-instruction.ts";
 import {
 	createNotebookService,
@@ -41,7 +51,6 @@ import {
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
 import {
-	decodeOneShotFinishAction,
 	OBSERVER_ONE_SHOT_ENTRY,
 	refineOneShotIntent,
 	type OneShotIntent,
@@ -429,6 +438,223 @@ function externalSourceAction(candidateId: string): Record<string, unknown> {
 }
 
 describe("Observation staged controller", () => {
+	test("orchestrates strict raw inline start and exact retry without activation", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			const text = "이 문장을 Observer 관점으로 바로 관찰해 줘.";
+			const value = {
+				observer_action: "observer-sidecar/v1",
+				action: "one-shot-start",
+				user_message_digest: sha256Text(text),
+				material: { kind: "inline-user-message" },
+			};
+			let generated = 0;
+			const ids = {
+				requestId(): `one-shot-${string}` {
+					generated += 1;
+					return `one-shot-00000000-0000-4000-8000-${String(400 + generated).padStart(12, "0")}`;
+				},
+			};
+			const beforeModeRejection = port.entries.length;
+			assert.equal(
+				(
+					await executeOneShotStart({
+						value,
+						latestUser: { text, inputSource: "interactive" },
+						capturedAt: "2026-08-01T09:57:00.000Z",
+						port,
+						lifecycle: lifecycleController,
+						observation: controller,
+						ids,
+					})
+				).ok,
+				false,
+			);
+			assert.equal(port.entries.length, beforeModeRejection);
+			await lifecycleController.command("off", port);
+			const beforeDigestRejection = port.entries.length;
+			assert.equal(
+				(
+					await executeOneShotStart({
+						value: { ...value, user_message_digest: "0".repeat(64) },
+						latestUser: { text, inputSource: "interactive" },
+						capturedAt: "2026-08-01T09:58:00.000Z",
+						port,
+						lifecycle: lifecycleController,
+						observation: controller,
+						ids,
+					})
+				).ok,
+				false,
+			);
+			assert.equal(port.entries.length, beforeDigestRejection);
+			const activationCount = port.entries.filter(
+				(entry) =>
+					entry.customType === OBSERVER_LIFECYCLE_ENTRY &&
+					typeof entry.data === "object" &&
+					entry.data !== null &&
+					Reflect.get(entry.data, "kind") === "activation-changed" &&
+					Reflect.get(entry.data, "enabled") === true,
+			).length;
+			const started = await executeOneShotStart({
+				value,
+				latestUser: { text, inputSource: "interactive" },
+				capturedAt: "2026-08-01T09:59:00.000Z",
+				port,
+				lifecycle: lifecycleController,
+				observation: controller,
+				ids,
+			});
+			if (!started.ok || started.action !== "one-shot-start")
+				assert.fail(started.ok ? "Expected One-shot start" : started.message);
+			assert.equal(started.status, "inline-captured");
+			assert.ok(started.candidateId);
+			assert.deepEqual(JSON.parse(oneShotCommandText(started)), {
+				ok: true,
+				action: "one-shot-start",
+				status: "inline-captured",
+				request_id: started.requestId,
+				candidate_id: started.candidateId,
+				next_action: "source-read",
+			});
+			const afterStarted = port.entries.length;
+			const resumed = await executeOneShotStart({
+				value,
+				latestUser: { text, inputSource: "interactive" },
+				capturedAt: "2026-08-01T10:00:00.000Z",
+				port,
+				lifecycle: lifecycleController,
+				observation: controller,
+				ids,
+			});
+			if (!resumed.ok || resumed.action !== "one-shot-start")
+				assert.fail(resumed.ok ? "Expected resumed start" : resumed.message);
+			assert.equal(resumed.status, "inline-resumed");
+			assert.equal(resumed.requestId, started.requestId);
+			assert.equal(port.entries.length, afterStarted);
+			assert.equal(
+				port.entries.filter(
+					(entry) =>
+						entry.customType === OBSERVER_LIFECYCLE_ENTRY &&
+						typeof entry.data === "object" &&
+						entry.data !== null &&
+						Reflect.get(entry.data, "kind") === "activation-changed" &&
+						Reflect.get(entry.data, "enabled") === true,
+				).length,
+				activationCount,
+			);
+		});
+	});
+
+	test("orchestrates retrieved start and exposes only pending guidance", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			await lifecycleController.command("off", port);
+			const text = "이 파일을 읽고 관찰해 줘: /tmp/input.md";
+			const affordance = oneShotContext({
+				latestUser: { text, inputSource: "rpc" },
+				entries: port.entries,
+			});
+			assert.match(affordance ?? "", new RegExp(sha256Text(text), "u"));
+			assert.doesNotMatch(affordance ?? "", new RegExp(text, "u"));
+			const started = await executeOneShotStart({
+				value: {
+					observer_action: "observer-sidecar/v1",
+					action: "one-shot-start",
+					user_message_digest: sha256Text(text),
+					material: { kind: "retrieved-tool-results" },
+				},
+				latestUser: { text, inputSource: "rpc" },
+				capturedAt: "2026-08-01T10:00:00.000Z",
+				port,
+				lifecycle: lifecycleController,
+				observation: controller,
+				ids: {
+					requestId() {
+						return "one-shot-00000000-0000-4000-8000-000000000409";
+					},
+				},
+			});
+			if (!started.ok || started.action !== "one-shot-start")
+				assert.fail(started.ok ? "Expected retrieved start" : started.message);
+			assert.equal(started.status, "pending-retrieval");
+			assert.equal(started.candidateId, null);
+			const guidance = oneShotContext({
+				latestUser: { text, inputSource: "rpc" },
+				entries: port.entries,
+			});
+			assert.match(guidance ?? "", new RegExp(started.requestId, "u"));
+			assert.match(guidance ?? "", /retrieved-tool-results/u);
+			assert.doesNotMatch(guidance ?? "", new RegExp(text, "u"));
+		});
+	});
+
+	test("routes One-shot actions through the Pi runtime adapter as results or errors", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			await lifecycleController.command("off", port);
+			const text = "이 경계를 바로 관찰해 줘.";
+			const turnState: ObserverTurnState = {
+				toolUsed: true,
+				latestUser: { text, inputSource: "interactive" },
+			};
+			const routed = await routeOneShotTool({
+				value: {
+					observer_action: "observer-sidecar/v1",
+					action: "one-shot-start",
+					user_message_digest: sha256Text(text),
+					material: { kind: "inline-user-message" },
+				},
+				capturedAt: "2026-08-01T10:00:00.000Z",
+				port,
+				lifecycle: lifecycleController,
+				observation: controller,
+				ids: {
+					requestId() {
+						return "one-shot-00000000-0000-4000-8000-000000000410";
+					},
+				},
+				turnState,
+			});
+			if (!routed || routed.result.action !== "one-shot-start")
+				assert.fail("Expected routed One-shot start");
+			assert.match(routed.text, /"next_action":"source-read"/u);
+			assert.equal(
+				await routeOneShotTool({
+					value: { action: "not-one-shot" },
+					capturedAt: "2026-08-01T10:00:01.000Z",
+					port,
+					lifecycle: lifecycleController,
+					observation: controller,
+					ids: {
+						requestId() {
+							return "one-shot-00000000-0000-4000-8000-000000000411";
+						},
+					},
+					turnState,
+				}),
+				null,
+			);
+			await assert.rejects(
+				routeOneShotTool({
+					value: {
+						observer_action: "observer-sidecar/v1",
+						action: "one-shot-finish",
+						request_id: routed.result.requestId,
+					},
+					capturedAt: "2026-08-01T10:00:02.000Z",
+					port,
+					lifecycle: lifecycleController,
+					observation: controller,
+					ids: {
+						requestId() {
+							return "one-shot-00000000-0000-4000-8000-000000000412";
+						},
+					},
+					turnState,
+				}),
+				/SourceReads must contain/u,
+			);
+		});
+	});
+
 	test("appends One-shot request before one exact OFF inline candidate and resumes both", async () => {
 		await withSandbox(async ({ controller, lifecycleController, port }) => {
 			await lifecycleController.command("off", port);
@@ -620,14 +846,20 @@ describe("Observation staged controller", () => {
 			assert.equal(replayed.issues.length, 0);
 			assert.equal(replayed.lifecycle.mode, "off");
 			assert.equal(replayed.candidates.length, 1);
-			const finishAction = decodeOneShotFinishAction({
+			const finishValue = {
 				observer_action: "observer-sidecar/v1",
 				action: "one-shot-finish",
 				request_id: started.request.requestId,
-			});
-			if (!finishAction.ok) assert.fail(finishAction.issue.message);
+			};
 			const beforeIncomplete = port.entries.length;
-			assert.equal(controller.finishOneShot(finishAction.value, port).ok, false);
+			assert.equal(
+				executeOneShotFinish({
+					value: finishValue,
+					port,
+					observation: controller,
+				}).ok,
+				false,
+			);
 			assert.equal(port.entries.length, beforeIncomplete);
 			const read = await controller.execute(
 				externalSourceAction(captured.candidate.candidateId),
@@ -675,19 +907,51 @@ describe("Observation staged controller", () => {
 			assert.equal(completedChain.hydrations.length, 1);
 			assert.equal(completedChain.observations.length, 1);
 			port.failNextOneShotAppend = true;
-			assert.equal(controller.finishOneShot(finishAction.value, port).ok, false);
+			assert.equal(
+				executeOneShotFinish({
+					value: finishValue,
+					port,
+					observation: controller,
+				}).ok,
+				false,
+			);
 			port.dropNextOneShotAppend = true;
-			assert.equal(controller.finishOneShot(finishAction.value, port).ok, false);
-			const finished = controller.finishOneShot(finishAction.value, port);
+			assert.equal(
+				executeOneShotFinish({
+					value: finishValue,
+					port,
+					observation: controller,
+				}).ok,
+				false,
+			);
+			const finished = executeOneShotFinish({
+				value: finishValue,
+				port,
+				observation: controller,
+			});
 			if (!finished.ok) assert.fail(finished.message);
 			assert.equal(finished.status, "completed");
-			assert.deepEqual(finished.completion.observationIds, [
+			assert.deepEqual(finished.observationIds, [
 				recorded.observation.observationId,
 			]);
-			const resumed = controller.finishOneShot(finishAction.value, port);
+			assert.deepEqual(JSON.parse(oneShotCommandText(finished)), {
+				ok: true,
+				action: "one-shot-finish",
+				status: "completed",
+				request_id: started.request.requestId,
+				observation_ids: [recorded.observation.observationId],
+				completion_digest: finished.completionDigest,
+				lifecycle: { mode: "off", episode: "open" },
+			});
+			const resumed = executeOneShotFinish({
+				value: finishValue,
+				port,
+				observation: controller,
+			});
 			if (!resumed.ok) assert.fail(resumed.message);
 			assert.equal(resumed.status, "resumed");
-			assert.deepEqual(resumed.completion, finished.completion);
+			assert.equal(resumed.completionDigest, finished.completionDigest);
+			assert.deepEqual(resumed.observationIds, finished.observationIds);
 			assert.equal(
 				port.entries.filter(
 					(entry) => entry.customType === OBSERVER_ONE_SHOT_ENTRY,

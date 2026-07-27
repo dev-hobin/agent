@@ -14,6 +14,7 @@ const inquiryId = stableId("inquiry");
 const memoId = stableId("memo");
 const memoRequestId = stableId("memo-request");
 const wrapRequestId = stableId("wrap-request");
+const oneShotRequestId = stableId("one-shot");
 const memoRevisionId = stableId("memo-revision");
 
 export const memoEvidenceItemSchema = Type.Object(
@@ -240,7 +241,37 @@ const claimSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
+export const oneShotStartActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("one-shot-start"),
+		user_message_digest: Type.String({ pattern: "^[0-9a-f]{64}$" }),
+		material: Type.Union([
+			Type.Object(
+				{ kind: Type.Literal("inline-user-message") },
+				{ additionalProperties: false },
+			),
+			Type.Object(
+				{ kind: Type.Literal("retrieved-tool-results") },
+				{ additionalProperties: false },
+			),
+		]),
+	},
+	{ additionalProperties: false },
+);
+
+export const oneShotFinishActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("one-shot-finish"),
+		request_id: oneShotRequestId,
+	},
+	{ additionalProperties: false },
+);
+
 export const observerSidecarParameters = Type.Union([
+	oneShotStartActionSchema,
+	oneShotFinishActionSchema,
 	Type.Object(
 		{
 			observer_action: Type.Literal("observer-sidecar/v1"),
