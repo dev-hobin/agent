@@ -6,6 +6,7 @@ import { describe, test } from "node:test";
 
 import {
 	completeMemoPreparation,
+	completeWrapPreparation,
 	observationToolText,
 } from "../extensions/observer.ts";
 import { initialObserverState, OBSERVER_PROTOCOL } from "../src/lifecycle.ts";
@@ -40,6 +41,7 @@ import {
 import {
 	OBSERVER_WRAP_REQUEST_ENTRY,
 	reconstructWrapRequestSession,
+	type WrapPreparationGuide,
 } from "../src/wrap-trigger.ts";
 
 const BASELINE = join(
@@ -51,6 +53,71 @@ const BASELINE = join(
 );
 const DURABLE_INQUIRY = "inquiry-00000000-0000-4000-8000-000000000003";
 const DURABLE_MEMO = "memo-00000000-0000-4000-8000-000000000004";
+
+function wrappedSourceMarkdown(sourceId: string): string {
+	return `---
+observer_schema: observer-record/v1
+observer_type: source
+observer_status: available
+id: ${sourceId}
+title: Wrapped observation source
+lang: en
+created: "2026-08-01T10:05:00Z"
+modified: "2026-08-01T10:05:00Z"
+tags: []
+aliases: []
+sources: []
+lineage: []
+relations: []
+source_kind: external-material
+external:
+  uri: https://example.test/material
+---
+# Wrapped observation source
+
+Immediate notes can preserve retrieval cues.
+`;
+}
+
+function toolPayload(
+	result: Parameters<typeof observationToolText>[0],
+): ReturnType<typeof JSON.parse> {
+	try {
+		return JSON.parse(observationToolText(result));
+	} catch (error) {
+		assert.fail(
+			`Observer tool payload must be JSON: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+}
+
+function wrappedInquiryMarkdown(inquiryId: string, sourceId: string): string {
+	return `---
+observer_schema: observer-record/v1
+observer_type: inquiry
+observer_status: open
+id: ${inquiryId}
+title: Timing and re-entry inquiry
+lang: en
+created: "2026-08-01T10:05:00Z"
+modified: "2026-08-01T10:05:00Z"
+tags: []
+aliases: []
+sources:
+  - record: ${sourceId}
+    role: context
+lineage: []
+relations: []
+inquiry:
+  origin: user
+  original: 재진입 비용은 기록 시점에 따라 달라진다.
+  current: 재진입 비용은 기록 시점에 따라 달라진다.
+---
+# Timing and re-entry inquiry
+
+The explicit user hypothesis remains open for later inquiry.
+`;
+}
 
 class FakePort implements ObservationCommandPort {
 	readonly entries: PiBranchEntryLike[] = [];
@@ -64,6 +131,7 @@ class FakePort implements ObservationCommandPort {
 	dropNextInstructionAppend = false;
 	failNextWrapRequestAppend = false;
 	dropNextWrapRequestAppend = false;
+	confirmation = true;
 
 	branchEntries(): readonly PiBranchEntryLike[] {
 		return this.entries;
@@ -132,7 +200,7 @@ class FakePort implements ObservationCommandPort {
 	}
 
 	confirm(): Promise<boolean> {
-		return Promise.resolve(true);
+		return Promise.resolve(this.confirmation);
 	}
 
 	setStatus(): void {}
@@ -338,7 +406,7 @@ describe("Observation staged controller", () => {
 			}
 			assert.equal(port.entries.length, beforeReadEntries + 1);
 			assert.equal(read.index.inquiries[0]?.inquiryId, DURABLE_INQUIRY);
-			const readPayload = JSON.parse(observationToolText(read));
+			const readPayload = toolPayload(read);
 			assert.equal(readPayload.read_id, read.read.readId);
 			assert.equal(readPayload.standing_index.inquiries.length, 1);
 			assert.equal("source" in readPayload, false);
@@ -370,7 +438,7 @@ describe("Observation staged controller", () => {
 			}
 			assert.equal(hydrated.context.inquiries.length, 1);
 			assert.equal(hydrated.context.memos.length, 1);
-			const hydrationPayload = JSON.parse(observationToolText(hydrated));
+			const hydrationPayload = toolPayload(hydrated);
 			assert.equal(
 				hydrationPayload.hydration_id,
 				hydrated.hydration.hydrationId,
@@ -512,7 +580,7 @@ describe("Observation staged controller", () => {
 		});
 	});
 
-	test("prepares, installs, applies, and acknowledges Memo while OFF without notebook writes", async () => {
+	test("completes read-only Memo then approves and settles a required-record Wrap", async () => {
 		await withSandbox(
 			async ({ sandbox, controller, lifecycleController, port }) => {
 				const sourceCandidate = controller.capture(
@@ -664,7 +732,7 @@ describe("Observation staged controller", () => {
 				assert.deepEqual(scoped.context.memoScope.relatedInquiryIds, [
 					DURABLE_INQUIRY,
 				]);
-				const payload = JSON.parse(observationToolText(scoped));
+				const payload = toolPayload(scoped);
 				assert.equal(payload.request_id, requested.request.requestId);
 				assert.equal(payload.request_digest, requested.request.requestDigest);
 				assert.equal(payload.observations.length, 2);
@@ -1013,7 +1081,7 @@ describe("Observation staged controller", () => {
 				);
 				assert.equal(wrapScoped.guide.inventory.length, 6);
 				assert.equal(wrapScoped.guide.observed_sources.length, 1);
-				const wrapPayload = JSON.parse(observationToolText(wrapScoped));
+				const wrapPayload = toolPayload(wrapScoped);
 				assert.equal(wrapPayload.request_id, wrapRequested.request.requestId);
 				assert.deepEqual(wrapPayload.wrap_preparation, wrapScoped.guide);
 				assert.equal(
@@ -1029,6 +1097,193 @@ describe("Observation staged controller", () => {
 					false,
 				);
 				assert.equal(await readFile(notebookPath, "utf8"), beforeNotebook);
+				const sourceId = sourceRead.read.source.sourceId;
+				function recordsFor(
+					guide: WrapPreparationGuide,
+				): readonly unknown[] {
+					return guide.required_records.map((required) => {
+						if (required.operation === "update") {
+							const inventoryRecord = guide.inventory.find(
+								(record) => record.record_id === required.record_id,
+							);
+							if (!inventoryRecord || !required.expected_sha256)
+								assert.fail("Required update must have locked inventory");
+							return {
+								operation: "update",
+								record_id: required.record_id,
+								expected_sha256: required.expected_sha256,
+								markdown: inventoryRecord.markdown,
+							};
+						}
+						return {
+							operation: "create",
+							record_id: required.record_id,
+							markdown:
+								required.record_id === sourceId
+									? wrappedSourceMarkdown(sourceId)
+									: wrappedInquiryMarkdown(required.record_id, sourceId),
+						};
+					});
+				}
+				assert.deepEqual(
+					wrapScoped.guide.required_records.map((record) => record.record_id),
+					[
+						DURABLE_INQUIRY,
+						registeredHypothesis.inquiryId,
+						DURABLE_MEMO,
+						sourceId,
+					].toSorted(),
+				);
+				const beforeMalformedWrap = port.entries.length;
+				const missingCoverage = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "wrap-prepare",
+						request_id: wrapRequested.request.requestId,
+						summary: "Incomplete proposal",
+						records: [],
+					},
+					port,
+				);
+				assert.equal(missingCoverage.ok, false);
+				const lockedOverride = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "wrap-prepare",
+						request_id: wrapRequested.request.requestId,
+						summary: "Locked override",
+						records: recordsFor(wrapScoped.guide),
+						proposal_id: "proposal-00000000-0000-4000-8000-000000000999",
+					},
+					port,
+				);
+				assert.equal(lockedOverride.ok, false);
+				assert.equal(port.entries.length, beforeMalformedWrap);
+				const preparedWrap = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "wrap-prepare",
+						request_id: wrapRequested.request.requestId,
+						summary: "Persist one source and the reconciled inquiry state.",
+						records: recordsFor(wrapScoped.guide),
+					},
+					port,
+				);
+				if (!preparedWrap.ok || preparedWrap.action !== "wrap-prepare")
+					assert.fail(
+						preparedWrap.ok
+							? "Expected Wrap preparation"
+							: preparedWrap.message,
+					);
+				assert.equal(port.entries.length, beforeMalformedWrap);
+				const failedWrapInstall = await completeWrapPreparation(
+					preparedWrap.handoff,
+					{
+						install() {
+							return Promise.resolve(false);
+						},
+						apply() {
+							assert.fail("Wrap apply must not run after failed install");
+						},
+						status() {
+							return "recovery-required";
+						},
+					},
+				);
+				assert.equal(failedWrapInstall.ok, false);
+				assert.equal(port.entries.length, beforeMalformedWrap);
+				function completionStatus(
+					proposalId: string,
+				): "completed" | "cancelled" | "recovery-required" {
+					const snapshot = reconstructObserverPiState(port.entries);
+					if (snapshot.issues.length > 0) return "recovery-required";
+					if (
+						snapshot.state.episode.status === "settled" &&
+						snapshot.state.episode.committedWrap.proposalId === proposalId
+					)
+						return "completed";
+					return snapshot.state.episode.status === "open" &&
+						snapshot.prepared === null
+						? "cancelled"
+						: "recovery-required";
+				}
+				port.confirmation = false;
+				const cancelled = await completeWrapPreparation(preparedWrap.handoff, {
+					install(value) {
+						return lifecycleController.installPrepared(value, port);
+					},
+					apply() {
+						return lifecycleController.command("wrap", port);
+					},
+					status: completionStatus,
+				});
+				assert.equal(cancelled.ok, true);
+				if (cancelled.ok) assert.equal(cancelled.status, "cancelled");
+				assert.equal(
+					reconstructObserverPiState(port.entries).state.episode.status,
+					"open",
+				);
+				await assert.rejects(
+					readFile(join(sandbox, "notebook", "records", `${sourceId}.md`)),
+				);
+
+				port.confirmation = true;
+				const retryRequest = await controller.requestWrap(port);
+				if (!retryRequest.ok || !retryRequest.request)
+					assert.fail(
+						retryRequest.ok
+							? "Expected retry Wrap request"
+							: retryRequest.message,
+					);
+				const retryScope = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "wrap-scope",
+						request_id: retryRequest.request.requestId,
+					},
+					port,
+				);
+				if (!retryScope.ok || retryScope.action !== "wrap-scope")
+					assert.fail(
+						retryScope.ok ? "Expected retry Wrap scope" : retryScope.message,
+					);
+				const retryPrepared = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "wrap-prepare",
+						request_id: retryRequest.request.requestId,
+						summary: "Approved durable reconciliation.",
+						records: recordsFor(retryScope.guide),
+					},
+					port,
+				);
+				if (!retryPrepared.ok || retryPrepared.action !== "wrap-prepare")
+					assert.fail(
+						retryPrepared.ok
+							? "Expected retry Wrap preparation"
+							: retryPrepared.message,
+					);
+				const completed = await completeWrapPreparation(retryPrepared.handoff, {
+					install(value) {
+						return lifecycleController.installPrepared(value, port);
+					},
+					apply() {
+						return lifecycleController.command("wrap", port);
+					},
+					status: completionStatus,
+				});
+				assert.equal(completed.ok, true);
+				if (completed.ok) assert.equal(completed.status, "completed");
+				const settled = reconstructObserverPiState(port.entries);
+				assert.equal(settled.state.mode, "off");
+				assert.equal(settled.state.episode.status, "settled");
+				assert.match(
+					await readFile(
+						join(sandbox, "notebook", "records", `${sourceId}.md`),
+						"utf8",
+					),
+					/Immediate notes can preserve retrieval cues\./u,
+				);
 			},
 		);
 	});

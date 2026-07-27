@@ -6,8 +6,6 @@ import {
 	type ExtensionAPI,
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-
 import {
 	completeObserveArgs,
 	createObserverController,
@@ -25,126 +23,20 @@ import type { PreparedObservationMemoInstruction } from "../src/memo-instruction
 import { encodePreparedMemoPass } from "../src/memo-profile.ts";
 import { reconstructObservationSession } from "../src/observation-session.ts";
 import type { ObservationMemoRequestedEvent } from "../src/observation-profile.ts";
+import {
+	reconstructObserverPiState,
+	type PreparedWrapHandoff,
+} from "../src/pi-session.ts";
 import { observerSidecarContext } from "../src/observer-prompt.ts";
 import { parseObserveCommand } from "../src/observer-command.ts";
 import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
 import type { WrapRequestEvent } from "../src/wrap-trigger.ts";
-import {
-	memoPrepareActionSchema,
-	wrapScopeActionSchema,
-} from "./memo-tool-schema.ts";
+import { observerSidecarParameters } from "./memo-tool-schema.ts";
 
 const OBSERVER_STATUS_KEY = "observer";
 const OBSERVER_TOOL_NAME = "observer_sidecar";
 
-const nullableString = Type.Union([Type.Null(), Type.String()]);
-const sourceSchema = Type.Union([
-	Type.Object(
-		{
-			kind: Type.Literal("external-material"),
-			title: Type.String(),
-			lang: Type.String(),
-			uri: nullableString,
-			revision: nullableString,
-			content_hash: nullableString,
-			retrieval_context: nullableString,
-		},
-		{ additionalProperties: false },
-	),
-	Type.Object(
-		{
-			kind: Type.Literal("direct-observation"),
-			title: Type.String(),
-			lang: Type.String(),
-			observed_at: Type.String(),
-			observed_by: Type.String(),
-			fact: Type.String(),
-			conditions: Type.String(),
-			interpretation_boundary: Type.String(),
-		},
-		{ additionalProperties: false },
-	),
-]);
-const claimSchema = Type.Object(
-	{
-		text: Type.String(),
-		locator: nullableString,
-	},
-	{ additionalProperties: false },
-);
-export const observerSidecarParameters = Type.Union([
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("source-read"),
-			candidate_ids: Type.Array(Type.String()),
-			source: sourceSchema,
-			faithful_summary: Type.String(),
-			claims: Type.Array(claimSchema),
-		},
-		{ additionalProperties: false },
-	),
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("hydrate"),
-			read_id: Type.String(),
-			index_digest: Type.String(),
-			inquiry_ids: Type.Array(Type.String()),
-		},
-		{ additionalProperties: false },
-	),
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("record"),
-			read_id: Type.String(),
-			hydration_id: nullableString,
-			related_inquiry_ids: Type.Array(Type.String()),
-			stance: Type.Union([
-				Type.Literal("supports"),
-				Type.Literal("challenges"),
-				Type.Literal("refines"),
-				Type.Literal("boundary"),
-				Type.Literal("uncertain"),
-			]),
-			movement: Type.Union([
-				Type.Literal("repeated-support"),
-				Type.Literal("minor-refinement"),
-				Type.Literal("uncertain-association"),
-				Type.Literal("material-boundary-change"),
-				Type.Literal("core-counterexample"),
-				Type.Literal("independent-new-hypothesis"),
-				Type.Literal("major-direction-change"),
-				Type.Literal("missed-important-mismatch"),
-			]),
-			rationale: Type.String(),
-			observer_hypothesis: nullableString,
-		},
-		{ additionalProperties: false },
-	),
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("user-hypothesis"),
-			candidate_id: Type.String(),
-			existing_inquiry_id: nullableString,
-			original: Type.String(),
-			context: Type.String(),
-		},
-		{ additionalProperties: false },
-	),
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("memo-scope"),
-			request_id: Type.String(),
-		},
-		{ additionalProperties: false },
-	),
-	memoPrepareActionSchema,
-	wrapScopeActionSchema,
-]);
+export { observerSidecarParameters } from "./memo-tool-schema.ts";
 
 function systemIds(): ObserverControllerIds {
 	return {
@@ -294,6 +186,12 @@ export function observationToolText(
 				request_digest: result.context.request.requestDigest,
 				wrap_preparation: result.guide,
 			});
+		case "wrap-prepare":
+			return JSON.stringify({
+				ok: true,
+				message: result.message,
+				proposal_id: result.handoff.prepared.proposal_id,
+			});
 		case "memo-prepare":
 			return JSON.stringify({
 				ok: true,
@@ -363,6 +261,73 @@ export async function completeMemoPreparation(
 			message: `Memo 적용 중단: ${error instanceof Error ? error.message : String(error)}. /observe memo로 복구할 수 있습니다.`,
 		};
 	}
+}
+
+export type WrapPreparationCompletion =
+	| {
+			readonly ok: true;
+			readonly status: "completed" | "cancelled" | "recovery-required";
+			readonly proposalId: string;
+			readonly message: string;
+	  }
+	| { readonly ok: false; readonly message: string };
+
+export interface WrapPreparationEffects {
+	install(value: PreparedWrapHandoff): Promise<boolean>;
+	apply(): Promise<void>;
+	status(proposalId: string): "completed" | "cancelled" | "recovery-required";
+}
+
+function wrapCompletionMessage(
+	status: "completed" | "cancelled" | "recovery-required",
+): string {
+	switch (status) {
+		case "completed":
+			return "Wrap approval, local save, readback, and settlement를 확인했습니다.";
+		case "cancelled":
+			return "Wrap proposal을 취소했습니다. Episode는 열린 상태로 유지됩니다.";
+		case "recovery-required":
+			return "Wrap completion이 중단되었습니다. /observe wrap으로 복구할 수 있습니다.";
+		default:
+			return assertNever(status);
+	}
+}
+
+export async function completeWrapPreparation(
+	handoff: PreparedWrapHandoff,
+	effects: WrapPreparationEffects,
+): Promise<WrapPreparationCompletion> {
+	const proposalId = handoff.prepared.proposal_id;
+	try {
+		const installed = await effects.install(handoff);
+		if (!installed)
+			return {
+				ok: false,
+				message: "Prepared Wrap proposal 설치에 실패했습니다.",
+			};
+		await effects.apply();
+		const status = effects.status(proposalId);
+		return {
+			ok: true,
+			status,
+			proposalId,
+			message: wrapCompletionMessage(status),
+		};
+	} catch (error) {
+		return {
+			ok: true,
+			status: "recovery-required",
+			proposalId,
+			message: `Wrap completion 중단: ${error instanceof Error ? error.message : String(error)}. /observe wrap으로 복구할 수 있습니다.`,
+		};
+	}
+}
+
+export function requireWrapPreparationSuccess(
+	completion: WrapPreparationCompletion,
+): Exclude<WrapPreparationCompletion, { readonly ok: false }> {
+	if (!completion.ok) throw new Error(completion.message);
+	return completion;
 }
 
 type SuccessfulObservationControllerResult = Exclude<
@@ -526,58 +491,96 @@ async function handleObserveCommand(input: {
 	if (!wrapHandled) await input.controller.command(input.args, port);
 }
 
-export default function observerExtension(pi: ExtensionAPI): void {
-	const selectionStore = fileNotebookSelectionStore(
-		join(getAgentDir(), "observer", "selection.json"),
-	);
-	const controller = createObserverController({
-		selectionStore,
-		ids: systemIds(),
-	});
-	const observation = createObservationController({
-		selectionStore,
-		ids: systemObservationIds(),
-	});
-	let observerToolUsedInTurn = false;
+function wrapCompletionStatus(
+	entries: Parameters<typeof reconstructObserverPiState>[0],
+	proposalId: string,
+): "completed" | "cancelled" | "recovery-required" {
+	const snapshot = reconstructObserverPiState(entries);
+	if (snapshot.issues.length > 0) return "recovery-required";
+	if (
+		snapshot.state.episode.status === "settled" &&
+		snapshot.state.episode.committedWrap.proposalId === proposalId
+	)
+		return "completed";
+	if (snapshot.state.episode.status === "open" && snapshot.prepared === null)
+		return "cancelled";
+	return "recovery-required";
+}
 
-	pi.registerTool({
+function memoPreparationCompleted(
+	entries: Parameters<typeof reconstructObservationSession>[0],
+	requestId: string,
+): boolean {
+	const snapshot = reconstructObservationSession(entries);
+	const request = snapshot.memoRequests.find(
+		(item) => item.requestId === requestId,
+	);
+	return (
+		snapshot.issues.length === 0 &&
+		request !== undefined &&
+		request.observationIds.every((id) =>
+			snapshot.consumedObservationIds.includes(id),
+		)
+	);
+}
+
+function registerObserverSidecarTool(input: {
+	readonly pi: ExtensionAPI;
+	readonly controller: ReturnType<typeof createObserverController>;
+	readonly observation: ReturnType<typeof createObservationController>;
+	readonly markUsed: () => void;
+}): void {
+	input.pi.registerTool({
 		name: OBSERVER_TOOL_NAME,
 		label: "Observer Sidecar",
 		description:
-			"Stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement or a user hypothesis, then use memo-scope and its locked preparation seed before memo-prepare for the exact pending request.",
+			"Stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement or a user hypothesis, then complete exact Memo or Wrap requests from their locked scope before prepare.",
 		promptSnippet:
-			"Stage source-first Sidecar observations and complete exact pending Memo requests from their preparation seed.",
+			"Stage source-first observations and complete exact pending Memo or Wrap requests from their preparation guide.",
 		parameters: observerSidecarParameters,
 		executionMode: "sequential",
 		async execute(...execution) {
 			const [, params, , , ctx] = execution;
-			observerToolUsedInTurn = true;
-			const port = commandPort(pi, ctx);
+			input.markUsed();
+			const port = commandPort(input.pi, ctx);
 			const result = requireObservationToolSuccess(
-				await observation.execute(params, port),
+				await input.observation.execute(params, port),
 			);
+			if (result.action === "wrap-prepare") {
+				const completion = requireWrapPreparationSuccess(
+					await completeWrapPreparation(result.handoff, {
+						install(value) {
+							return input.controller.installPrepared(value, port);
+						},
+						apply() {
+							return input.controller.command("wrap", port);
+						},
+						status(proposalId) {
+							return wrapCompletionStatus(
+								ctx.sessionManager.getBranch(),
+								proposalId,
+							);
+						},
+					}),
+				);
+				return {
+					content: [{ type: "text", text: JSON.stringify(completion) }],
+					details: { preparation: result, completion },
+				};
+			}
 			if (result.action === "memo-prepare") {
 				const completion = requireMemoPreparationSuccess(
 					await completeMemoPreparation(result.instruction, {
 						install(value) {
-							return controller.installPreparedMemo(value, port);
+							return input.controller.installPreparedMemo(value, port);
 						},
 						apply() {
-							return controller.command("memo", port);
+							return input.controller.command("memo", port);
 						},
 						completed(requestId) {
-							const snapshot = reconstructObservationSession(
+							return memoPreparationCompleted(
 								ctx.sessionManager.getBranch(),
-							);
-							const request = snapshot.memoRequests.find(
-								(item) => item.requestId === requestId,
-							);
-							return (
-								snapshot.issues.length === 0 &&
-								request !== undefined &&
-								request.observationIds.every((id) =>
-									snapshot.consumedObservationIds.includes(id),
-								)
+								requestId,
 							);
 						},
 					}),
@@ -593,42 +596,39 @@ export default function observerExtension(pi: ExtensionAPI): void {
 			};
 		},
 	});
+}
 
-	pi.registerCommand("observe", {
-		description: "Observer 설정, 상태, on/off, memo, wrap lifecycle 제어",
-		getArgumentCompletions: completeObserveArgs,
-		handler(args, ctx) {
-			return handleObserveCommand({ args, ctx, pi, controller, observation });
-		},
-	});
-
-	pi.on("input", (event, ctx) => {
+function registerObserverEvents(input: {
+	readonly pi: ExtensionAPI;
+	readonly controller: ReturnType<typeof createObserverController>;
+	readonly observation: ReturnType<typeof createObservationController>;
+	readonly turnState: { toolUsed: boolean };
+}): void {
+	input.pi.on("input", (event, ctx) => {
 		if (
 			event.source === "extension" ||
 			event.text.trim().length === 0 ||
 			event.text.trimStart().startsWith("/observe")
-		) {
+		)
 			return;
-		}
 		reportCaptureFailure(
-			observation.capture(
+			input.observation.capture(
 				{
 					origin: { kind: "user-input", input_source: event.source },
 					text: event.text,
 					capturedAt: new Date().toISOString(),
 				},
-				commandPort(pi, ctx),
+				commandPort(input.pi, ctx),
 			),
 			ctx,
 		);
 	});
-
-	pi.on("tool_result", (event, ctx) => {
+	input.pi.on("tool_result", (event, ctx) => {
 		if (event.toolName === OBSERVER_TOOL_NAME) return;
 		const text = textFromContent(event.content);
 		if (!text) return;
 		reportCaptureFailure(
-			observation.capture(
+			input.observation.capture(
 				{
 					origin: {
 						kind: "tool-result",
@@ -638,22 +638,20 @@ export default function observerExtension(pi: ExtensionAPI): void {
 					text,
 					capturedAt: new Date().toISOString(),
 				},
-				commandPort(pi, ctx),
+				commandPort(input.pi, ctx),
 			),
 			ctx,
 		);
 	});
-
-	pi.on("turn_start", () => {
-		observerToolUsedInTurn = false;
+	input.pi.on("turn_start", () => {
+		input.turnState.toolUsed = false;
 	});
-
-	pi.on("turn_end", (event, ctx) => {
-		if (observerToolUsedInTurn) return;
+	input.pi.on("turn_end", (event, ctx) => {
+		if (input.turnState.toolUsed) return;
 		const text = textFromContent(Reflect.get(event.message, "content"));
 		if (!text) return;
 		reportCaptureFailure(
-			observation.capture(
+			input.observation.capture(
 				{
 					origin: {
 						kind: "assistant-result",
@@ -662,13 +660,12 @@ export default function observerExtension(pi: ExtensionAPI): void {
 					text,
 					capturedAt: new Date().toISOString(),
 				},
-				commandPort(pi, ctx),
+				commandPort(input.pi, ctx),
 			),
 			ctx,
 		);
 	});
-
-	pi.on("context", (event, ctx) => {
+	input.pi.on("context", (event, ctx) => {
 		const guidance = observerSidecarContext(ctx.sessionManager.getBranch());
 		if (!guidance) return;
 		return {
@@ -684,18 +681,51 @@ export default function observerExtension(pi: ExtensionAPI): void {
 			],
 		};
 	});
-
-	pi.on("session_start", async (_event, ctx) => {
-		await controller.bind(commandPort(pi, ctx));
+	input.pi.on("session_start", async (_event, ctx) => {
+		await input.controller.bind(commandPort(input.pi, ctx));
 	});
-	pi.on("session_tree", async (_event, ctx) => {
-		await controller.bind(commandPort(pi, ctx));
+	input.pi.on("session_tree", async (_event, ctx) => {
+		await input.controller.bind(commandPort(input.pi, ctx));
 	});
-	pi.on("session_compact", async (_event, ctx) => {
-		await controller.refresh(commandPort(pi, ctx));
+	input.pi.on("session_compact", async (_event, ctx) => {
+		await input.controller.refresh(commandPort(input.pi, ctx));
 	});
-	pi.on("session_shutdown", (_event, ctx) => {
-		controller.unbind();
+	input.pi.on("session_shutdown", (_event, ctx) => {
+		input.controller.unbind();
 		ctx.ui.setStatus(OBSERVER_STATUS_KEY, undefined);
 	});
+}
+
+export default function observerExtension(pi: ExtensionAPI): void {
+	const selectionStore = fileNotebookSelectionStore(
+		join(getAgentDir(), "observer", "selection.json"),
+	);
+	const controller = createObserverController({
+		selectionStore,
+		ids: systemIds(),
+	});
+	const observation = createObservationController({
+		selectionStore,
+		ids: systemObservationIds(),
+	});
+	const turnState = { toolUsed: false };
+
+	registerObserverSidecarTool({
+		pi,
+		controller,
+		observation,
+		markUsed() {
+			turnState.toolUsed = true;
+		},
+	});
+
+	pi.registerCommand("observe", {
+		description: "Observer 설정, 상태, on/off, memo, wrap lifecycle 제어",
+		getArgumentCompletions: completeObserveArgs,
+		handler(args, ctx) {
+			return handleObserveCommand({ args, ctx, pi, controller, observation });
+		},
+	});
+
+	registerObserverEvents({ pi, controller, observation, turnState });
 }

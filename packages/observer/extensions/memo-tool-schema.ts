@@ -158,6 +158,37 @@ export const wrapScopeActionSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
+const preparedRecordSchema = Type.Union([
+	Type.Object(
+		{
+			operation: Type.Literal("create"),
+			record_id: Type.String(),
+			markdown: Type.String(),
+		},
+		{ additionalProperties: false },
+	),
+	Type.Object(
+		{
+			operation: Type.Literal("update"),
+			record_id: Type.String(),
+			expected_sha256: Type.String({ pattern: "^[0-9a-f]{64}$" }),
+			markdown: Type.String(),
+		},
+		{ additionalProperties: false },
+	),
+]);
+
+export const wrapPrepareActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("wrap-prepare"),
+		request_id: wrapRequestId,
+		summary: Type.String(),
+		records: Type.Array(preparedRecordSchema),
+	},
+	{ additionalProperties: false },
+);
+
 export const memoPrepareActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
@@ -175,3 +206,111 @@ export const memoPrepareActionSchema = Type.Object(
 	},
 	{ additionalProperties: false },
 );
+
+const sourceSchema = Type.Union([
+	Type.Object(
+		{
+			kind: Type.Literal("external-material"),
+			title: Type.String(),
+			lang: Type.String(),
+			uri: nullableString,
+			revision: nullableString,
+			content_hash: nullableString,
+			retrieval_context: nullableString,
+		},
+		{ additionalProperties: false },
+	),
+	Type.Object(
+		{
+			kind: Type.Literal("direct-observation"),
+			title: Type.String(),
+			lang: Type.String(),
+			observed_at: Type.String(),
+			observed_by: Type.String(),
+			fact: Type.String(),
+			conditions: Type.String(),
+			interpretation_boundary: Type.String(),
+		},
+		{ additionalProperties: false },
+	),
+]);
+
+const claimSchema = Type.Object(
+	{ text: Type.String(), locator: nullableString },
+	{ additionalProperties: false },
+);
+
+export const observerSidecarParameters = Type.Union([
+	Type.Object(
+		{
+			observer_action: Type.Literal("observer-sidecar/v1"),
+			action: Type.Literal("source-read"),
+			candidate_ids: Type.Array(Type.String()),
+			source: sourceSchema,
+			faithful_summary: Type.String(),
+			claims: Type.Array(claimSchema),
+		},
+		{ additionalProperties: false },
+	),
+	Type.Object(
+		{
+			observer_action: Type.Literal("observer-sidecar/v1"),
+			action: Type.Literal("hydrate"),
+			read_id: Type.String(),
+			index_digest: Type.String(),
+			inquiry_ids: Type.Array(Type.String()),
+		},
+		{ additionalProperties: false },
+	),
+	Type.Object(
+		{
+			observer_action: Type.Literal("observer-sidecar/v1"),
+			action: Type.Literal("record"),
+			read_id: Type.String(),
+			hydration_id: nullableString,
+			related_inquiry_ids: Type.Array(Type.String()),
+			stance: Type.Union([
+				Type.Literal("supports"),
+				Type.Literal("challenges"),
+				Type.Literal("refines"),
+				Type.Literal("boundary"),
+				Type.Literal("uncertain"),
+			]),
+			movement: Type.Union([
+				Type.Literal("repeated-support"),
+				Type.Literal("minor-refinement"),
+				Type.Literal("uncertain-association"),
+				Type.Literal("material-boundary-change"),
+				Type.Literal("core-counterexample"),
+				Type.Literal("independent-new-hypothesis"),
+				Type.Literal("major-direction-change"),
+				Type.Literal("missed-important-mismatch"),
+			]),
+			rationale: Type.String(),
+			observer_hypothesis: nullableString,
+		},
+		{ additionalProperties: false },
+	),
+	Type.Object(
+		{
+			observer_action: Type.Literal("observer-sidecar/v1"),
+			action: Type.Literal("user-hypothesis"),
+			candidate_id: Type.String(),
+			existing_inquiry_id: nullableString,
+			original: Type.String(),
+			context: Type.String(),
+		},
+		{ additionalProperties: false },
+	),
+	Type.Object(
+		{
+			observer_action: Type.Literal("observer-sidecar/v1"),
+			action: Type.Literal("memo-scope"),
+			request_id: Type.String(),
+		},
+		{ additionalProperties: false },
+	),
+	memoPrepareActionSchema,
+	wrapScopeActionSchema,
+	wrapPrepareActionSchema,
+]);

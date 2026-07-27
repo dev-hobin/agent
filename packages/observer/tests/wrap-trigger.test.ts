@@ -28,6 +28,7 @@ import {
 	hydrateWrapPreparationContext,
 	OBSERVER_WRAP_REQUEST_ENTRY,
 	planWrapRequest,
+	prepareWrapHandoff,
 	reconstructWrapRequestSession,
 } from "../src/wrap-trigger.ts";
 
@@ -240,7 +241,49 @@ describe("pure Wrap request and preparation context", () => {
 		assert.equal(guide.locked_target.proposal_id, PROPOSAL_ID);
 		assert.equal(guide.observed_sources[0]?.read_id, SOURCE_READ_ID);
 		assert.equal(guide.inventory.length, 6);
+		assert.deepEqual(guide.required_records, [
+			{
+				record_id: SOURCE_ID,
+				observer_type: "source",
+				operation: "create",
+				expected_sha256: null,
+			},
+		]);
 		assert.deepEqual(buildWrapPreparationGuide(context.value), guide);
+
+		const prepared = prepareWrapHandoff({
+			context: context.value,
+			summary: "Persist observed source.",
+			records: [
+				{ operation: "create", record_id: SOURCE_ID, markdown: "draft" },
+			],
+		});
+		if (!prepared.ok) assert.fail(prepared.issue.message);
+		assert.equal(prepared.value.prepared.proposal_id, PROPOSAL_ID);
+		assert.equal(prepared.value.prepared.root, notebook().root);
+		assert.equal(
+			prepareWrapHandoff({
+				context: context.value,
+				summary: "Missing source.",
+				records: [],
+			}).ok,
+			false,
+		);
+		assert.equal(
+			prepareWrapHandoff({
+				context: context.value,
+				summary: "Wrong operation.",
+				records: [
+					{
+						operation: "update",
+						record_id: SOURCE_ID,
+						expected_sha256: sha256Text("wrong"),
+						markdown: "draft",
+					},
+				],
+			}).ok,
+			false,
+		);
 
 		const changedInventory = records.map((entry, index) =>
 			index === 0 ? { ...entry, sha256: sha256Text("changed") } : entry,

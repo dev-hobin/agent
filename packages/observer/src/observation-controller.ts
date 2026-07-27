@@ -33,6 +33,7 @@ import {
 	type MemoScopeAction,
 	type ObservationAction,
 	type WrapScopeAction,
+	type WrapPrepareAction,
 	type RecordObservationAction,
 	type RegisterUserHypothesisAction,
 	type SourceReadAction,
@@ -59,6 +60,7 @@ import {
 	reconstructObserverPiState,
 	type ObserverPiSnapshot,
 	type PiBranchEntryLike,
+	type PreparedWrapHandoff,
 } from "./pi-session.ts";
 import {
 	buildStandingIndex,
@@ -72,6 +74,7 @@ import {
 	hydrateWrapPreparationContext,
 	OBSERVER_WRAP_REQUEST_ENTRY,
 	planWrapRequest,
+	prepareWrapHandoff,
 	reconstructWrapRequestSession,
 	type WrapPreparationContext,
 	type WrapPreparationGuide,
@@ -146,6 +149,12 @@ export type ObservationControllerResult =
 			readonly message: string;
 			readonly context: WrapPreparationContext;
 			readonly guide: WrapPreparationGuide;
+	  }
+	| {
+			readonly ok: true;
+			readonly action: "wrap-prepare";
+			readonly message: string;
+			readonly handoff: PreparedWrapHandoff;
 	  }
 	| {
 			readonly ok: true;
@@ -867,25 +876,25 @@ async function requestWrap(input: {
 	};
 }
 
-async function wrapScope(input: {
-	readonly action: WrapScopeAction;
+async function wrapContext(input: {
+	readonly requestId: WrapRequestId;
 	readonly port: ObservationCommandPort;
 	readonly notebooks: NotebookService;
-}): Promise<ObservationControllerResult> {
+}): Promise<
+	| { readonly ok: true; readonly value: WrapPreparationContext }
+	| { readonly ok: false; readonly message: string }
+> {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	const workingSet = await notebookWorkingSetFor(branch, input.notebooks);
 	if (typeof workingSet === "string") return { ok: false, message: workingSet };
-	const requestSession = reconstructWrapRequestSession(
-		input.port.branchEntries(),
-	);
+	const requestSession = reconstructWrapRequestSession(input.port.branchEntries());
 	const request = requestSession.pendingRequest;
-	if (!request || request.requestId !== input.action.requestId) {
+	if (!request || request.requestId !== input.requestId)
 		return {
 			ok: false,
-			message: "Wrap scope에는 exact pending request가 필요합니다.",
+			message: "Wrap action에는 exact pending request가 필요합니다.",
 		};
-	}
 	const context = hydrateWrapPreparationContext({
 		request,
 		observation: branch.observation,
@@ -894,13 +903,53 @@ async function wrapScope(input: {
 		inventory: workingSet.inventory,
 		notebook: workingSet.notebook,
 	});
-	if (!context.ok) return { ok: false, message: context.issue.message };
+	return context.ok
+		? { ok: true, value: context.value }
+		: { ok: false, message: context.issue.message };
+}
+
+async function wrapScope(input: {
+	readonly action: WrapScopeAction;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+}): Promise<ObservationControllerResult> {
+	const context = await wrapContext({
+		requestId: input.action.requestId,
+		port: input.port,
+		notebooks: input.notebooks,
+	});
+	if (!context.ok) return context;
 	return {
 		ok: true,
 		action: "wrap-scope",
-		message: `Wrap request scope 활성화: ${request.requestId}`,
+		message: `Wrap request scope 활성화: ${input.action.requestId}`,
 		context: context.value,
 		guide: buildWrapPreparationGuide(context.value),
+	};
+}
+
+async function wrapPrepare(input: {
+	readonly action: WrapPrepareAction;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+}): Promise<ObservationControllerResult> {
+	const context = await wrapContext({
+		requestId: input.action.requestId,
+		port: input.port,
+		notebooks: input.notebooks,
+	});
+	if (!context.ok) return context;
+	const prepared = prepareWrapHandoff({
+		context: context.value,
+		summary: input.action.summary,
+		records: input.action.records,
+	});
+	if (!prepared.ok) return { ok: false, message: prepared.issue.message };
+	return {
+		ok: true,
+		action: "wrap-prepare",
+		message: `Wrap proposal 준비 완료: ${prepared.value.prepared.proposal_id}`,
+		handoff: prepared.value,
 	};
 }
 
@@ -1158,6 +1207,12 @@ function executeObservationAction(input: {
 			});
 		case "wrap-scope":
 			return wrapScope({
+				action: input.action,
+				port: input.port,
+				notebooks: input.notebooks,
+			});
+		case "wrap-prepare":
+			return wrapPrepare({
 				action: input.action,
 				port: input.port,
 				notebooks: input.notebooks,

@@ -93,6 +93,13 @@ export interface WrapScopeAction extends SidecarActionBase {
 	readonly requestId: WrapRequestId;
 }
 
+export interface WrapPrepareAction extends SidecarActionBase {
+	readonly action: "wrap-prepare";
+	readonly requestId: WrapRequestId;
+	readonly summary: string;
+	readonly records: readonly unknown[];
+}
+
 export interface MemoSemanticSubmission {
 	readonly evidence: readonly unknown[];
 	readonly hypothesisOutcomes: readonly unknown[];
@@ -138,7 +145,8 @@ export type ObservationAction =
 	| RegisterUserHypothesisAction
 	| MemoScopeAction
 	| MemoPrepareAction
-	| WrapScopeAction;
+	| WrapScopeAction
+	| WrapPrepareAction;
 
 export interface ObservationActionIssue {
 	readonly code: "observation-action.object" | "observation-action.shape";
@@ -477,6 +485,12 @@ function markWrapScope(
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
+function markWrapPrepare(
+	value: Omit<WrapPrepareAction, typeof OBSERVATION_ACTION_MARKER>,
+): WrapPrepareAction {
+	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
+}
+
 function markMemoPrepare(
 	value: Omit<MemoPrepareAction, typeof OBSERVATION_ACTION_MARKER>,
 ): MemoPrepareAction {
@@ -648,6 +662,40 @@ function parseWrapScope(
 		: failure("/request_id", "Wrap-scope request ID is invalid.");
 }
 
+function parseWrapPrepare(
+	value: Readonly<Record<string, unknown>>,
+): ObservationActionResult {
+	if (
+		!hasExactKeys(value, [
+			"observer_action",
+			"action",
+			"request_id",
+			"summary",
+			"records",
+		])
+	)
+		return failure("/", "Wrap-prepare action has invalid fields.");
+	const requestId = decodeWrapRequestId(value.request_id);
+	const summary = boundedText(value.summary, 4_000);
+	if (
+		!requestId ||
+		!summary ||
+		!Array.isArray(value.records) ||
+		value.records.length > MAX_ITEMS
+	)
+		return failure("/", "Wrap-prepare action has invalid values.");
+	return {
+		ok: true,
+		value: markWrapPrepare({
+			protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
+			action: "wrap-prepare",
+			requestId,
+			summary,
+			records: value.records,
+		}),
+	};
+}
+
 function parseMemoPrepare(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
@@ -771,6 +819,8 @@ export function decodeObservationAction(
 			return parseMemoPrepare(value);
 		case "wrap-scope":
 			return parseWrapScope(value);
+		case "wrap-prepare":
+			return parseWrapPrepare(value);
 		default:
 			return failure("/action", "Observer Sidecar action is unknown.");
 	}

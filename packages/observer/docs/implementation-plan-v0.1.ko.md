@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — semantic wrap-prepare → approval/save/ack wiring (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — bounded live Wrap → fresh-session re-entry (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + exact Wrap request/scope |
+| Runtime implementation | Slice 7 in progress | validation + Sidecar/Memo + required-record Wrap prepare/approval/save/settlement |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | semantic wrap-prepare + prepared install + user approval completion |
+| Next movement | Planned | bounded real-provider Wrap transcript + packed fresh-process re-entry |
 
 ### 현재 branch checkpoint
 
@@ -1435,6 +1435,42 @@ packed artifact + fresh-process Standing Inquiry re-entry
 ```
 
 Landing 7G-2는 Wrap proposal을 만들거나 승인하지 않는다. Request entry만 branch truth이며 wrap-scope는 read-only다. 다음 landing은 unknown model submission을 existing `decodePreparedWrapHandoff`로 refine한 뒤에만 prepared effect를 허용해야 한다.
+
+### Landing 7G-3 — semantic Wrap preparation and durable completion
+
+```text
+[x] strict wrap-prepare action + exact TypeBox model surface
+[x] submit-only request_id/summary/records; locked proposal/notebook/root/lang 비노출
+[x] fresh exact request/context recheck before handoff assembly
+[x] observed Source + current Inquiry + current Memo required-record coverage
+[x] create/update operation 및 expected SHA-256 lock
+[x] duplicate/missing/wrong-operation/wrong-digest fail-closed
+[x] producer-owned PreparedWrapHandoff assembly + existing strict decoder
+[x] prepared append 뒤 explicit Pi confirmation
+[x] decline → wrap-cancelled, Episode OPEN, notebook write 0
+[x] approve → preflight → local save → readback → wrap-committed
+[x] successful settlement → Episode SETTLED + Mode OFF
+[x] invalid/install failure before prepared effect
+```
+
+Verifier evidence:
+
+```text
+Focused Wrap/controller/extension/persistence: 44/44
+TypeScript LSP: 47 files clean
+Changed Observer TypeScript `as` token: 0
+Pi extension coordinator warnings introduced by G2/G3: removed
+```
+
+Remaining Slice 7 work:
+
+```text
+bounded Pi 0.80.10 real-provider continue→wrap transcript
+packed artifact + fresh Pi process persisted selection/notebook recovery
+next source-read after fresh process surfaces Standing Inquiry re-entry
+```
+
+Landing 7G-3의 required coverage는 각 observed Source, current working Inquiry, current working Memo ID를 정확히 한 proposed record로 표현하게 한다. Promotion candidate는 같은 Memo record의 durable disposition과 필요 시 추가 Zettel record로 표현할 수 있으며, 추가 records도 기존 Markdown/graph preflight를 통과해야 한다. Live provider reliability와 semantic truth는 아직 주장하지 않는다.
 
 ---
 

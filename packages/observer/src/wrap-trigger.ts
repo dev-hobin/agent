@@ -6,7 +6,13 @@ import type { MemoWorkingState } from "./memo-reconciliation.ts";
 import type { MemoSessionSnapshot } from "./memo-session.ts";
 import type { NotebookHandle, NotebookInventoryEntry } from "./notebook.ts";
 import type { ObservationSessionSnapshot } from "./observation-session.ts";
-import type { PiBranchEntryLike } from "./pi-session.ts";
+import {
+	decodePreparedWrapHandoff,
+	OBSERVER_PREPARED_WRAP_PROTOCOL,
+	type PiBranchEntryLike,
+	type PreparedWrapHandoff,
+} from "./pi-session.ts";
+import { OBSERVER_WRAP_SCHEMA } from "./wrap-profile.ts";
 
 export const OBSERVER_WRAP_REQUEST_ENTRY = "observer.wrap-request";
 export const OBSERVER_WRAP_REQUEST_PROTOCOL = "observer.wrap-request/v1";
@@ -37,7 +43,8 @@ export interface WrapRequestIssue {
 		| "wrap-request.conflict"
 		| "wrap-request.state"
 		| "wrap-request.pending"
-		| "wrap-request.stale";
+		| "wrap-request.stale"
+		| "wrap-request.submission";
 	readonly message: string;
 	readonly relatedId?: string;
 }
@@ -72,6 +79,13 @@ export interface WrapInventoryProjection {
 	readonly markdown: string;
 }
 
+export interface WrapRequiredRecord {
+	readonly record_id: string;
+	readonly observer_type: "source" | "inquiry" | "memo";
+	readonly operation: "create" | "update";
+	readonly expected_sha256: string | null;
+}
+
 export interface WrapPreparationContext {
 	readonly request: WrapRequestEvent;
 	readonly lockedTarget: {
@@ -83,6 +97,7 @@ export interface WrapPreparationContext {
 	readonly observedSources: readonly WrapSourceProjection[];
 	readonly working: MemoWorkingState;
 	readonly inventory: readonly WrapInventoryProjection[];
+	readonly requiredRecords: readonly WrapRequiredRecord[];
 }
 
 export interface WrapPreparationGuide {
@@ -96,11 +111,37 @@ export interface WrapPreparationGuide {
 	readonly observed_sources: readonly WrapSourceProjection[];
 	readonly working: MemoWorkingState;
 	readonly inventory: readonly WrapInventoryProjection[];
+	readonly required_records: readonly WrapRequiredRecord[];
+	readonly submission_contract: {
+		readonly action: "wrap-prepare";
+		readonly submit_only: readonly ["request_id", "summary", "records"];
+		readonly create_record_fields: readonly [
+			"operation",
+			"record_id",
+			"markdown",
+		];
+		readonly update_record_fields: readonly [
+			"operation",
+			"record_id",
+			"expected_sha256",
+			"markdown",
+		];
+		readonly locked_fields: readonly [
+			"proposal_id",
+			"notebook_id",
+			"root",
+			"episode_language",
+		];
+	};
 	readonly markdown_profile: "observer-record/v1";
 }
 
 export type WrapPreparationContextResult =
 	| { readonly ok: true; readonly value: WrapPreparationContext }
+	| { readonly ok: false; readonly issue: WrapRequestIssue };
+
+export type PreparedWrapHandoffResult =
+	| { readonly ok: true; readonly value: PreparedWrapHandoff }
 	| { readonly ok: false; readonly issue: WrapRequestIssue };
 
 const UUID_V4 =
@@ -378,6 +419,71 @@ function sourceProjection(
 		.toSorted((left, right) => left.read_id.localeCompare(right.read_id));
 }
 
+function requiredRecord(input: {
+	readonly recordId: string;
+	readonly observerType: WrapRequiredRecord["observer_type"];
+	readonly inventory: ReadonlyMap<string, WrapInventoryProjection>;
+}): WrapRequiredRecord {
+	const existing = input.inventory.get(input.recordId);
+	return existing
+		? {
+				record_id: input.recordId,
+				observer_type: input.observerType,
+				operation: "update",
+				expected_sha256: existing.sha256,
+			}
+		: {
+				record_id: input.recordId,
+				observer_type: input.observerType,
+				operation: "create",
+				expected_sha256: null,
+			};
+}
+
+function requiredRecords(input: {
+	readonly observation: ObservationSessionSnapshot;
+	readonly working: MemoWorkingState;
+	readonly inventory: readonly WrapInventoryProjection[];
+}): readonly WrapRequiredRecord[] {
+	const inventory = new Map(
+		input.inventory.map((entry) => [entry.record_id, entry]),
+	);
+	const required = new Map<string, WrapRequiredRecord>();
+	for (const read of input.observation.sourceReads) {
+		required.set(
+			read.source.sourceId,
+			requiredRecord({
+				recordId: read.source.sourceId,
+				observerType: "source",
+				inventory,
+			}),
+		);
+	}
+	for (const hypothesis of input.working.hypotheses) {
+		required.set(
+			hypothesis.inquiryId,
+			requiredRecord({
+				recordId: hypothesis.inquiryId,
+				observerType: "inquiry",
+				inventory,
+			}),
+		);
+	}
+	for (const memo of input.working.memos) {
+		required.set(
+			memo.memoId,
+			requiredRecord({
+				recordId: memo.memoId,
+				observerType: "memo",
+				inventory,
+			}),
+		);
+	}
+	return [...required.values()].toSorted((left, right) =>
+		left.record_id.localeCompare(right.record_id),
+	);
+}
+
 function requestDigest(input: {
 	readonly observation: ObservationSessionSnapshot;
 	readonly memo: MemoSessionSnapshot;
@@ -529,6 +635,7 @@ export function hydrateWrapPreparationContext(input: {
 			"Wrap request digest is stale.",
 			input.request.requestId,
 		);
+	const inventory = inventoryProjection(input.inventory);
 	return {
 		ok: true,
 		value: {
@@ -541,7 +648,12 @@ export function hydrateWrapPreparationContext(input: {
 			},
 			observedSources: sourceProjection(input.observation),
 			working: input.memo.state,
-			inventory: inventoryProjection(input.inventory),
+			inventory,
+			requiredRecords: requiredRecords({
+				observation: input.observation,
+				working: input.memo.state,
+				inventory,
+			}),
 		},
 	};
 }
@@ -560,6 +672,83 @@ export function buildWrapPreparationGuide(
 		observed_sources: context.observedSources,
 		working: context.working,
 		inventory: context.inventory,
+		required_records: context.requiredRecords,
+		submission_contract: {
+			action: "wrap-prepare",
+			submit_only: ["request_id", "summary", "records"],
+			create_record_fields: ["operation", "record_id", "markdown"],
+			update_record_fields: [
+				"operation",
+				"record_id",
+				"expected_sha256",
+				"markdown",
+			],
+			locked_fields: [
+				"proposal_id",
+				"notebook_id",
+				"root",
+				"episode_language",
+			],
+		},
 		markdown_profile: "observer-record/v1",
 	};
+}
+
+export function prepareWrapHandoff(input: {
+	readonly context: WrapPreparationContext;
+	readonly summary: unknown;
+	readonly records: unknown;
+}): PreparedWrapHandoffResult {
+	const decoded = decodePreparedWrapHandoff({
+		protocol: OBSERVER_PREPARED_WRAP_PROTOCOL,
+		summary: input.summary,
+		prepared: {
+			observer_wrap: OBSERVER_WRAP_SCHEMA,
+			proposal_id: input.context.lockedTarget.proposal_id,
+			notebook_id: input.context.lockedTarget.notebook_id,
+			root: input.context.lockedTarget.root,
+			episode_language: input.context.lockedTarget.episode_language,
+			records: input.records,
+		},
+	});
+	if (!decoded.ok)
+		return failure(
+			"wrap-request.submission",
+			`Wrap submission is invalid: ${decoded.issue.message}`,
+		);
+	const records = new Map<string, PreparedWrapHandoff["prepared"]["records"][number]>();
+	for (const record of decoded.value.prepared.records) {
+		if (records.has(record.record_id))
+			return failure(
+				"wrap-request.submission",
+				`Wrap submission repeats record ${record.record_id}.`,
+				record.record_id,
+			);
+		records.set(record.record_id, record);
+	}
+	for (const required of input.context.requiredRecords) {
+		const record = records.get(required.record_id);
+		if (!record)
+			return failure(
+				"wrap-request.submission",
+				`Wrap submission is missing required ${required.observer_type} record ${required.record_id}.`,
+				required.record_id,
+			);
+		if (record.operation !== required.operation)
+			return failure(
+				"wrap-request.submission",
+				`Wrap submission operation does not match required record ${required.record_id}.`,
+				required.record_id,
+			);
+		if (
+			record.operation === "update" &&
+			required.expected_sha256 !== record.expected_sha256
+		)
+			return failure(
+				"wrap-request.submission",
+				`Wrap submission expected digest does not match required record ${required.record_id}.`,
+				required.record_id,
+			);
+	}
+	return { ok: true, value: decoded.value };
 }

@@ -19,6 +19,7 @@ import {
 	hypothesisOutcomeSchema,
 	memoOutcomeSchema,
 	memoPrepareActionSchema,
+	wrapPrepareActionSchema,
 	wrapScopeActionSchema,
 } from "../extensions/memo-tool-schema.ts";
 import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
@@ -117,18 +118,25 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 		typebox: "*",
 	});
 	assert.equal(manifest.files.includes("extensions"), true);
-	const source = await readFile(
-		join(import.meta.dirname, "..", "extensions", "observer.ts"),
-		"utf8",
-	);
+	const [source, schemaSource] = await Promise.all([
+		readFile(
+			join(import.meta.dirname, "..", "extensions", "observer.ts"),
+			"utf8",
+		),
+		readFile(
+			join(import.meta.dirname, "..", "extensions", "memo-tool-schema.ts"),
+			"utf8",
+		),
+	]);
 	assert.match(source, /name: OBSERVER_TOOL_NAME/u);
 	assert.match(source, /executionMode: "sequential"/u);
 	assert.match(source, /pi\.on\("tool_result"/u);
 	assert.match(source, /event\.toolName === OBSERVER_TOOL_NAME/u);
-	assert.match(source, /action: Type\.Literal\("memo-scope"\)/u);
+	assert.match(schemaSource, /action: Type\.Literal\("memo-scope"\)/u);
 	assert.match(source, /parsed\.command\.kind !== "memo"/u);
 	assert.match(source, /parsed\.command\.kind !== "wrap"/u);
-	assert.match(source, /wrapScopeActionSchema/u);
+	assert.match(schemaSource, /wrapScopeActionSchema/u);
+	assert.match(schemaSource, /wrapPrepareActionSchema/u);
 	assert.match(source, /pi\.on\("context"/u);
 	const requestIndex = source.indexOf("observation.requestMemo(port)");
 	const triggerIndex = source.indexOf("pi.sendMessage(", requestIndex);
@@ -295,6 +303,32 @@ test("routes Wrap request before trigger and delegates prepared review", async (
 	assert.equal(Value.Check(wrapScopeActionSchema, scope), true);
 	assert.equal(
 		Value.Check(wrapScopeActionSchema, { ...scope, extra: true }),
+		false,
+	);
+	const prepare = {
+		observer_action: "observer-sidecar/v1",
+		action: "wrap-prepare",
+		request_id: request.requestId,
+		summary: "Prepare one required record.",
+		records: [
+			{
+				operation: "create",
+				record_id: "source-00000000-0000-4000-8000-000000000047",
+				markdown: "draft",
+			},
+		],
+	};
+	assert.equal(Value.Check(wrapPrepareActionSchema, prepare), true);
+	assert.equal(
+		Value.Check(wrapPrepareActionSchema, {
+			...prepare,
+			proposal_id: request.proposalId,
+		}),
+		false,
+	);
+	assert.equal(decodeObservationAction(prepare).ok, true);
+	assert.equal(
+		decodeObservationAction({ ...prepare, root: request.root }).ok,
 		false,
 	);
 });
