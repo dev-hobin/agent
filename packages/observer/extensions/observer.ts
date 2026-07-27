@@ -18,6 +18,7 @@ import {
 	createObservationController,
 	type MemoRequestControllerResult,
 	type ObservationControllerIds,
+	type WrapRequestControllerResult,
 	type ObservationControllerResult,
 } from "../src/observation-controller.ts";
 import type { PreparedObservationMemoInstruction } from "../src/memo-instruction.ts";
@@ -27,7 +28,11 @@ import type { ObservationMemoRequestedEvent } from "../src/observation-profile.t
 import { observerSidecarContext } from "../src/observer-prompt.ts";
 import { parseObserveCommand } from "../src/observer-command.ts";
 import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
-import { memoPrepareActionSchema } from "./memo-tool-schema.ts";
+import type { WrapRequestEvent } from "../src/wrap-trigger.ts";
+import {
+	memoPrepareActionSchema,
+	wrapScopeActionSchema,
+} from "./memo-tool-schema.ts";
 
 const OBSERVER_STATUS_KEY = "observer";
 const OBSERVER_TOOL_NAME = "observer_sidecar";
@@ -138,6 +143,7 @@ export const observerSidecarParameters = Type.Union([
 		{ additionalProperties: false },
 	),
 	memoPrepareActionSchema,
+	wrapScopeActionSchema,
 ]);
 
 function systemIds(): ObserverControllerIds {
@@ -182,6 +188,12 @@ function systemObservationIds(): ObservationControllerIds {
 		},
 		memoRequestId(): `memo-request-${string}` {
 			return `memo-request-${randomUUID()}`;
+		},
+		wrapRequestId(): `wrap-request-${string}` {
+			return `wrap-request-${randomUUID()}`;
+		},
+		wrapProposalId(): `proposal-${string}` {
+			return `proposal-${randomUUID()}`;
 		},
 	};
 }
@@ -273,6 +285,14 @@ export function observationToolText(
 				observations: result.context.observations,
 				memo_scope: result.context.memoScope,
 				memo_preparation: result.guide,
+			});
+		case "wrap-scope":
+			return JSON.stringify({
+				ok: true,
+				message: result.message,
+				request_id: result.context.request.requestId,
+				request_digest: result.context.request.requestDigest,
+				wrap_preparation: result.guide,
 			});
 		case "memo-prepare":
 			return JSON.stringify({
@@ -371,6 +391,44 @@ export interface MemoCommandEffects {
 	notify(message: string, type: "info" | "warning" | "error"): void;
 }
 
+export interface WrapCommandEffects {
+	request(): Promise<WrapRequestControllerResult>;
+	delegate(): Promise<void>;
+	trigger(request: WrapRequestEvent): void;
+	notify(message: string, type: "info" | "warning" | "error"): void;
+}
+
+export async function routeWrapCommand(
+	args: string,
+	effects: WrapCommandEffects,
+): Promise<boolean> {
+	const parsed = parseObserveCommand(args);
+	if (!parsed.ok || parsed.command.kind !== "wrap") return false;
+	const requested = await effects.request();
+	if (!requested.ok) {
+		effects.notify(requested.message, "error");
+		return true;
+	}
+	if (requested.status === "delegate") {
+		await effects.delegate();
+		return true;
+	}
+	if (!requested.request) {
+		effects.notify("Wrap request identity를 확인할 수 없습니다.", "error");
+		return true;
+	}
+	try {
+		effects.trigger(requested.request);
+		effects.notify(requested.message, "info");
+	} catch (error) {
+		effects.notify(
+			`Wrap request는 기록됐지만 agent trigger에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`,
+			"warning",
+		);
+	}
+	return true;
+}
+
 export async function routeMemoCommand(
 	args: string,
 	effects: MemoCommandEffects,
@@ -400,6 +458,72 @@ export async function routeMemoCommand(
 		);
 	}
 	return true;
+}
+
+async function handleObserveCommand(input: {
+	readonly args: string;
+	readonly ctx: ExtensionContext;
+	readonly pi: ExtensionAPI;
+	readonly controller: ReturnType<typeof createObserverController>;
+	readonly observation: ReturnType<typeof createObservationController>;
+}): Promise<void> {
+	const port = commandPort(input.pi, input.ctx);
+	const memoHandled = await routeMemoCommand(input.args, {
+		request() {
+			return input.observation.requestMemo(port);
+		},
+		delegate() {
+			return input.controller.command(input.args, port);
+		},
+		trigger(request) {
+			input.pi.sendMessage(
+				{
+					customType: "observer.memo-trigger",
+					content: [
+						"Observer Memo request is pending.",
+						`request_id=${request.requestId}`,
+						"Call observer_sidecar with action memo-scope for this request.",
+					].join("\n"),
+					display: false,
+					details: {
+						requestId: request.requestId,
+						requestDigest: request.requestDigest,
+					},
+				},
+				{ deliverAs: "followUp", triggerTurn: true },
+			);
+		},
+		notify: input.ctx.ui.notify.bind(input.ctx.ui),
+	});
+	if (memoHandled) return;
+	const wrapHandled = await routeWrapCommand(input.args, {
+		request() {
+			return input.observation.requestWrap(port);
+		},
+		delegate() {
+			return input.controller.command(input.args, port);
+		},
+		trigger(request) {
+			input.pi.sendMessage(
+				{
+					customType: "observer.wrap-trigger",
+					content: [
+						"Observer Wrap request is pending.",
+						`request_id=${request.requestId}`,
+						"Call observer_sidecar with action wrap-scope for this request.",
+					].join("\n"),
+					display: false,
+					details: {
+						requestId: request.requestId,
+						requestDigest: request.requestDigest,
+					},
+				},
+				{ deliverAs: "followUp", triggerTurn: true },
+			);
+		},
+		notify: input.ctx.ui.notify.bind(input.ctx.ui),
+	});
+	if (!wrapHandled) await input.controller.command(input.args, port);
 }
 
 export default function observerExtension(pi: ExtensionAPI): void {
@@ -473,36 +597,8 @@ export default function observerExtension(pi: ExtensionAPI): void {
 	pi.registerCommand("observe", {
 		description: "Observer 설정, 상태, on/off, memo, wrap lifecycle 제어",
 		getArgumentCompletions: completeObserveArgs,
-		async handler(args, ctx) {
-			const port = commandPort(pi, ctx);
-			const handled = await routeMemoCommand(args, {
-				request() {
-					return observation.requestMemo(port);
-				},
-				delegate() {
-					return controller.command(args, port);
-				},
-				trigger(request) {
-					pi.sendMessage(
-						{
-							customType: "observer.memo-trigger",
-							content: [
-								"Observer Memo request is pending.",
-								`request_id=${request.requestId}`,
-								"Call observer_sidecar with action memo-scope for this request.",
-							].join("\n"),
-							display: false,
-							details: {
-								requestId: request.requestId,
-								requestDigest: request.requestDigest,
-							},
-						},
-						{ deliverAs: "followUp", triggerTurn: true },
-					);
-				},
-				notify: ctx.ui.notify.bind(ctx.ui),
-			});
-			if (!handled) await controller.command(args, port);
+		handler(args, ctx) {
+			return handleObserveCommand({ args, ctx, pi, controller, observation });
 		},
 	});
 

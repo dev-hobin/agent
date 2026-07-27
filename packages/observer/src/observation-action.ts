@@ -13,6 +13,7 @@ import {
 	type SourceClaim,
 	type SourceReadId,
 } from "./observation-profile.ts";
+import { decodeWrapRequestId, type WrapRequestId } from "./wrap-trigger.ts";
 
 export const OBSERVER_SIDECAR_ACTION_PROTOCOL: "observer-sidecar/v1" =
 	"observer-sidecar/v1";
@@ -87,6 +88,11 @@ export interface MemoScopeAction extends SidecarActionBase {
 	readonly requestId: MemoRequestId;
 }
 
+export interface WrapScopeAction extends SidecarActionBase {
+	readonly action: "wrap-scope";
+	readonly requestId: WrapRequestId;
+}
+
 export interface MemoSemanticSubmission {
 	readonly evidence: readonly unknown[];
 	readonly hypothesisOutcomes: readonly unknown[];
@@ -131,7 +137,8 @@ export type ObservationAction =
 	| RecordObservationAction
 	| RegisterUserHypothesisAction
 	| MemoScopeAction
-	| MemoPrepareAction;
+	| MemoPrepareAction
+	| WrapScopeAction;
 
 export interface ObservationActionIssue {
 	readonly code: "observation-action.object" | "observation-action.shape";
@@ -464,6 +471,12 @@ function markMemoScope(
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
+function markWrapScope(
+	value: Omit<WrapScopeAction, typeof OBSERVATION_ACTION_MARKER>,
+): WrapScopeAction {
+	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
+}
+
 function markMemoPrepare(
 	value: Omit<MemoPrepareAction, typeof OBSERVATION_ACTION_MARKER>,
 ): MemoPrepareAction {
@@ -616,6 +629,25 @@ function parseMemoScope(
 		: failure("/request_id", "Memo-scope request ID is invalid.");
 }
 
+function parseWrapScope(
+	value: Readonly<Record<string, unknown>>,
+): ObservationActionResult {
+	if (!hasExactKeys(value, ["observer_action", "action", "request_id"])) {
+		return failure("/", "Wrap-scope action has invalid fields.");
+	}
+	const requestId = decodeWrapRequestId(value.request_id);
+	return requestId
+		? {
+				ok: true,
+				value: markWrapScope({
+					protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
+					action: "wrap-scope",
+					requestId,
+				}),
+			}
+		: failure("/request_id", "Wrap-scope request ID is invalid.");
+}
+
 function parseMemoPrepare(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
@@ -737,6 +769,8 @@ export function decodeObservationAction(
 			return parseMemoScope(value);
 		case "memo-prepare":
 			return parseMemoPrepare(value);
+		case "wrap-scope":
+			return parseWrapScope(value);
 		default:
 			return failure("/action", "Observer Sidecar action is unknown.");
 	}

@@ -16,6 +16,11 @@ import {
 	OBSERVER_LIFECYCLE_ENTRY,
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
+import {
+	encodeWrapRequestEvent,
+	OBSERVER_WRAP_REQUEST_ENTRY,
+	type WrapRequestEvent,
+} from "../src/wrap-trigger.ts";
 
 const CANDIDATE_ID = "candidate-00000000-0000-4000-8000-000000000001";
 const READ_ID = "source-read-00000000-0000-4000-8000-000000000001";
@@ -163,6 +168,38 @@ describe("Observer hidden Sidecar context", () => {
 		assert.match(context ?? "", /revise-promotion-candidate/u);
 		assert.match(context ?? "", /Never combine any revise kind/u);
 		assert.doesNotMatch(context ?? "", /<observer-sidecar>/u);
+	});
+
+	test("projects a pending Wrap request while OFF without exposing locked values", () => {
+		const request: WrapRequestEvent = {
+			protocol: "observer.wrap-request/v1",
+			kind: "wrap-requested",
+			requestId:
+				"wrap-request-00000000-0000-4000-8000-000000000024",
+			proposalId: "proposal-00000000-0000-4000-8000-000000000025",
+			requestDigest:
+				"0000000000000000000000000000000000000000000000000000000000000026",
+			episodeId: "episode-prompt-1",
+			notebookId: "notebook-00000000-0000-4000-8000-000000000001",
+			root: "/tmp/observer-prompt",
+			episodeLanguage: "en",
+			memoRevisionId: null,
+			sourceReadIds: [],
+		};
+		const context = observerSidecarContext([
+			...lifecycle(false),
+			{
+				type: "custom",
+				customType: OBSERVER_WRAP_REQUEST_ENTRY,
+				data: encodeWrapRequestEvent(request),
+			},
+		]);
+		assert.match(context ?? "", /<observer-wrap-request>/u);
+		assert.equal(context?.includes(request.requestId), true);
+		assert.match(context ?? "", /action wrap-scope/u);
+		assert.match(context ?? "", /does not expose wrap-prepare yet/u);
+		assert.equal(context?.includes(request.proposalId), false);
+		assert.equal(context?.includes(request.root), false);
 	});
 
 	test("moves a consumed candidate to the pending read stage", () => {

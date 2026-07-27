@@ -9,7 +9,11 @@ import {
 } from "./memo-instruction.ts";
 import { reconstructMemoSession } from "./memo-session.ts";
 import type { InquiryId, SourceId } from "./memo-profile.ts";
-import { readNotebookInventory } from "./notebook.ts";
+import {
+	readNotebookInventory,
+	type NotebookHandle,
+	type NotebookInventoryEntry,
+} from "./notebook.ts";
 import {
 	createNotebookService,
 	type NotebookService,
@@ -28,6 +32,7 @@ import {
 	type MemoPrepareAction,
 	type MemoScopeAction,
 	type ObservationAction,
+	type WrapScopeAction,
 	type RecordObservationAction,
 	type RegisterUserHypothesisAction,
 	type SourceReadAction,
@@ -61,6 +66,19 @@ import {
 	type StandingContext,
 	type StandingIndex,
 } from "./standing-index.ts";
+import {
+	buildWrapPreparationGuide,
+	encodeWrapRequestEvent,
+	hydrateWrapPreparationContext,
+	OBSERVER_WRAP_REQUEST_ENTRY,
+	planWrapRequest,
+	reconstructWrapRequestSession,
+	type WrapPreparationContext,
+	type WrapPreparationGuide,
+	type WrapRequestEvent,
+	type WrapRequestId,
+	type WrapProposalId,
+} from "./wrap-trigger.ts";
 
 export interface ObservationCommandPort {
 	branchEntries(): readonly PiBranchEntryLike[];
@@ -76,6 +94,8 @@ export interface ObservationControllerIds {
 	sourceId(): SourceId;
 	inquiryId(): InquiryId;
 	memoRequestId(): `memo-request-${string}`;
+	wrapRequestId(): WrapRequestId;
+	wrapProposalId(): WrapProposalId;
 }
 
 export type CandidateCaptureResult =
@@ -122,10 +142,32 @@ export type ObservationControllerResult =
 	  }
 	| {
 			readonly ok: true;
+			readonly action: "wrap-scope";
+			readonly message: string;
+			readonly context: WrapPreparationContext;
+			readonly guide: WrapPreparationGuide;
+	  }
+	| {
+			readonly ok: true;
 			readonly action: "memo-prepare";
 			readonly status: "prepared" | "resumed";
 			readonly message: string;
 			readonly instruction: PreparedObservationMemoInstruction;
+	  }
+	| { readonly ok: false; readonly message: string };
+
+export type WrapRequestControllerResult =
+	| {
+			readonly ok: true;
+			readonly status: "delegate";
+			readonly message: string;
+			readonly request: null;
+	  }
+	| {
+			readonly ok: true;
+			readonly status: "requested" | "resumed";
+			readonly message: string;
+			readonly request: WrapRequestEvent;
 	  }
 	| { readonly ok: false; readonly message: string };
 
@@ -158,6 +200,9 @@ export interface ObservationController {
 		port: ObservationCommandPort,
 	): Promise<ObservationControllerResult>;
 	requestMemo(port: ObservationCommandPort): MemoRequestControllerResult;
+	requestWrap(
+		port: ObservationCommandPort,
+	): Promise<WrapRequestControllerResult>;
 }
 
 interface ControllerDependencies {
@@ -309,21 +354,34 @@ function sourceDraft(source: WorkingSourceDraft, sourceId: SourceId): unknown {
 	}
 }
 
-async function inventoryFor(
+interface NotebookWorkingSet {
+	readonly notebook: NotebookHandle;
+	readonly inventory: readonly NotebookInventoryEntry[];
+}
+
+async function notebookWorkingSetFor(
 	branch: LiveWorkingBranch,
 	notebooks: NotebookService,
-): Promise<readonly import("./notebook.ts").NotebookInventoryEntry[] | string> {
+): Promise<NotebookWorkingSet | string> {
 	const recovered = await notebooks.recover(branch.pi.state);
 	if (!recovered.ok) return `Notebook 복구 실패: ${recovered.issue.message}`;
 	const inventory = await readNotebookInventory(recovered.value.notebook);
 	return inventory.ok
-		? inventory.value
+		? { notebook: recovered.value.notebook, inventory: inventory.value }
 		: `Notebook 읽기 실패: ${inventory.issue.message}`;
 }
 
+async function inventoryFor(
+	branch: LiveWorkingBranch,
+	notebooks: NotebookService,
+): Promise<readonly NotebookInventoryEntry[] | string> {
+	const workingSet = await notebookWorkingSetFor(branch, notebooks);
+	return typeof workingSet === "string" ? workingSet : workingSet.inventory;
+}
+
 function isInventory(
-	value: readonly import("./notebook.ts").NotebookInventoryEntry[] | string,
-): value is readonly import("./notebook.ts").NotebookInventoryEntry[] {
+	value: readonly NotebookInventoryEntry[] | string,
+): value is readonly NotebookInventoryEntry[] {
 	return typeof value !== "string";
 }
 
@@ -735,6 +793,117 @@ function requestMemo(input: {
 	}
 }
 
+async function requestWrap(input: {
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObservationControllerIds;
+}): Promise<WrapRequestControllerResult> {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	if (
+		branch.pi.prepared ||
+		branch.pi.state.episode.status === "reviewing-wrap"
+	) {
+		return {
+			ok: true,
+			status: "delegate",
+			message: "기존 Wrap proposal을 검토하거나 복구합니다.",
+			request: null,
+		};
+	}
+	const workingSet = await notebookWorkingSetFor(branch, input.notebooks);
+	if (typeof workingSet === "string") return { ok: false, message: workingSet };
+	const requestSession = reconstructWrapRequestSession(
+		input.port.branchEntries(),
+	);
+	const planned = planWrapRequest({
+		observation: branch.observation,
+		memo: branch.memo,
+		requestSession,
+		inventory: workingSet.inventory,
+		notebook: workingSet.notebook,
+		requestId: input.ids.wrapRequestId(),
+		proposalId: input.ids.wrapProposalId(),
+	});
+	if (!planned.ok) return { ok: false, message: planned.issue.message };
+	if (planned.value.kind === "resume") {
+		return {
+			ok: true,
+			status: "resumed",
+			message: `기존 Wrap request를 재개합니다: ${planned.value.request.requestId}`,
+			request: planned.value.request,
+		};
+	}
+	try {
+		input.port.appendEntry(
+			OBSERVER_WRAP_REQUEST_ENTRY,
+			encodeWrapRequestEvent(planned.value.request),
+		);
+	} catch (error) {
+		return {
+			ok: false,
+			message: `Wrap request 기록 실패: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
+	const replayed = reconstructWrapRequestSession(input.port.branchEntries());
+	const confirmed = replayed.pendingRequest;
+	if (
+		replayed.issues.length > 0 ||
+		confirmed?.requestId !== planned.value.request.requestId ||
+		confirmed.requestDigest !== planned.value.request.requestDigest
+	) {
+		return {
+			ok: false,
+			message: replayed.issues[0]
+				? `Wrap request replay 실패: ${replayed.issues[0].code}.`
+				: "Wrap request가 replay에서 확인되지 않았습니다.",
+		};
+	}
+	return {
+		ok: true,
+		status: "requested",
+		message: `Wrap request를 기록했습니다: ${confirmed.requestId}`,
+		request: confirmed,
+	};
+}
+
+async function wrapScope(input: {
+	readonly action: WrapScopeAction;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+}): Promise<ObservationControllerResult> {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	const workingSet = await notebookWorkingSetFor(branch, input.notebooks);
+	if (typeof workingSet === "string") return { ok: false, message: workingSet };
+	const requestSession = reconstructWrapRequestSession(
+		input.port.branchEntries(),
+	);
+	const request = requestSession.pendingRequest;
+	if (!request || request.requestId !== input.action.requestId) {
+		return {
+			ok: false,
+			message: "Wrap scope에는 exact pending request가 필요합니다.",
+		};
+	}
+	const context = hydrateWrapPreparationContext({
+		request,
+		observation: branch.observation,
+		memo: branch.memo,
+		requestSession,
+		inventory: workingSet.inventory,
+		notebook: workingSet.notebook,
+	});
+	if (!context.ok) return { ok: false, message: context.issue.message };
+	return {
+		ok: true,
+		action: "wrap-scope",
+		message: `Wrap request scope 활성화: ${request.requestId}`,
+		context: context.value,
+		guide: buildWrapPreparationGuide(context.value),
+	};
+}
+
 async function memoScope(input: {
 	readonly action: MemoScopeAction;
 	readonly port: ObservationCommandPort;
@@ -906,6 +1075,98 @@ function executeMemoSidecarAction(input: {
 		: memoPrepare({ action, port, notebooks });
 }
 
+function captureCandidate(input: {
+	readonly value: {
+		readonly origin: unknown;
+		readonly text: unknown;
+		readonly capturedAt: unknown;
+	};
+	readonly port: ObservationCommandPort;
+	readonly ids: ObservationControllerIds;
+}): CandidateCaptureResult {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	if (!activeEpisode(branch) || branch.pi.state.episode.status !== "open") {
+		return { ok: true, status: "ignored", candidate: null };
+	}
+	const prepared = refinedEvent(
+		{
+			observer_observation: "observer-observation/v1",
+			kind: "candidate-captured",
+			episode_id: branch.pi.state.episode.core.episodeId,
+			candidate_id: input.ids.candidateId(),
+			origin: encodeOrigin(input.value.origin),
+			text: input.value.text,
+			content_hash:
+				typeof input.value.text === "string"
+					? sha256Text(input.value.text)
+					: "",
+			captured_at: input.value.capturedAt,
+		},
+		"candidate-captured",
+	);
+	if (typeof prepared === "string") return { ok: false, message: prepared };
+	if (prepared.kind !== "candidate-captured") {
+		return { ok: false, message: "Candidate refinement failed." };
+	}
+	const appended = appendEvent(input.port, prepared);
+	return typeof appended === "string"
+		? { ok: false, message: appended }
+		: { ok: true, status: "captured", candidate: prepared };
+}
+
+function executeObservationAction(input: {
+	readonly action: ObservationAction;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObservationControllerIds;
+}): Promise<ObservationControllerResult> {
+	if (isMemoSidecarAction(input.action)) {
+		return executeMemoSidecarAction({
+			action: input.action,
+			port: input.port,
+			notebooks: input.notebooks,
+		});
+	}
+	switch (input.action.action) {
+		case "source-read":
+			return sourceRead({
+				action: input.action,
+				port: input.port,
+				notebooks: input.notebooks,
+				ids: input.ids,
+			});
+		case "hydrate":
+			return hydrate({
+				action: input.action,
+				port: input.port,
+				notebooks: input.notebooks,
+				ids: input.ids,
+			});
+		case "record":
+			return record({
+				action: input.action,
+				port: input.port,
+				ids: input.ids,
+			});
+		case "user-hypothesis":
+			return userHypothesis({
+				action: input.action,
+				port: input.port,
+				notebooks: input.notebooks,
+				ids: input.ids,
+			});
+		case "wrap-scope":
+			return wrapScope({
+				action: input.action,
+				port: input.port,
+				notebooks: input.notebooks,
+			});
+		default:
+			return Promise.resolve(assertNever(input.action));
+	}
+}
+
 export function createObservationController(
 	dependencies: ControllerDependencies,
 ): ObservationController {
@@ -913,77 +1174,25 @@ export function createObservationController(
 		selectionStore: dependencies.selectionStore,
 	});
 	return {
+		requestWrap(port) {
+			return requestWrap({ port, notebooks, ids: dependencies.ids });
+		},
 		requestMemo(port) {
 			return requestMemo({ port, ids: dependencies.ids });
 		},
 		capture(value, port) {
-			const branch = liveBranch(port);
-			if (!isLiveBranch(branch)) return { ok: false, message: branch };
-			if (!activeEpisode(branch) || branch.pi.state.episode.status !== "open") {
-				return { ok: true, status: "ignored", candidate: null };
-			}
-			const prepared = refinedEvent(
-				{
-					observer_observation: "observer-observation/v1",
-					kind: "candidate-captured",
-					episode_id: branch.pi.state.episode.core.episodeId,
-					candidate_id: dependencies.ids.candidateId(),
-					origin: encodeOrigin(value.origin),
-					text: value.text,
-					content_hash:
-						typeof value.text === "string" ? sha256Text(value.text) : "",
-					captured_at: value.capturedAt,
-				},
-				"candidate-captured",
-			);
-			if (typeof prepared === "string") return { ok: false, message: prepared };
-			if (prepared.kind !== "candidate-captured") {
-				return { ok: false, message: "Candidate refinement failed." };
-			}
-			const appended = appendEvent(port, prepared);
-			return typeof appended === "string"
-				? { ok: false, message: appended }
-				: { ok: true, status: "captured", candidate: prepared };
+			return captureCandidate({ value, port, ids: dependencies.ids });
 		},
 		execute(value, port) {
 			const decoded = decodeObservationAction(value);
-			if (!decoded.ok) {
-				return Promise.resolve({ ok: false, message: decoded.issue.message });
-			}
-			if (isMemoSidecarAction(decoded.value)) {
-				return executeMemoSidecarAction({
-					action: decoded.value,
-					port,
-					notebooks,
-				});
-			}
-			switch (decoded.value.action) {
-				case "source-read":
-					return sourceRead({
+			return decoded.ok
+				? executeObservationAction({
 						action: decoded.value,
 						port,
 						notebooks,
 						ids: dependencies.ids,
-					});
-				case "hydrate":
-					return hydrate({
-						action: decoded.value,
-						port,
-						notebooks,
-						ids: dependencies.ids,
-					});
-				case "record":
-					return record({ action: decoded.value, port, ids: dependencies.ids });
-				case "user-hypothesis":
-					return userHypothesis({
-						action: decoded.value,
-						port,
-						notebooks,
-						ids: dependencies.ids,
-					});
-				default:
-					return Promise.resolve(assertNever(decoded.value));
-			}
+					})
+				: Promise.resolve({ ok: false, message: decoded.issue.message });
 		},
 	};
 }

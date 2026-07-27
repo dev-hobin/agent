@@ -13,6 +13,7 @@ const evidenceId = stableId("evidence");
 const inquiryId = stableId("inquiry");
 const memoId = stableId("memo");
 const memoRequestId = stableId("memo-request");
+const wrapRequestId = stableId("wrap-request");
 const memoRevisionId = stableId("memo-revision");
 
 export const memoEvidenceItemSchema = Type.Object(
@@ -144,6 +145,15 @@ const observationDispositionSchema = Type.Object(
 		memo_ids: Type.Array(memoId),
 		evidence_ids: Type.Array(evidenceId),
 		rationale: Type.String(),
+	},
+	{ additionalProperties: false },
+);
+
+export const wrapScopeActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("wrap-scope"),
+		request_id: wrapRequestId,
 	},
 	{ additionalProperties: false },
 );

@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — pure Wrap request/context를 Pi command/tool에 wiring (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — semantic wrap-prepare → approval/save/ack wiring (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + semantic-only submission + explicit revise variants + source-bearing install/apply validation |
+| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + exact Wrap request/scope |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | `/observe wrap` request + wrap-scope/wrap-prepare Pi wiring |
+| Next movement | Planned | semantic wrap-prepare + prepared install + user approval completion |
 
 ### 현재 branch checkpoint
 
@@ -134,7 +134,9 @@ feature/observer
 ├─ 7dc10ce fix(observer): encode memo revise disposition
 ├─ ebe2aca style(observer): format memo outcome projection
 ├─ a18dc90 fix(observer): replay memo source basis at apply
-└─ Slice 7 landing G-1: pure Wrap request/context/guide
+├─ b8539f3 feat(observer): bind pure wrap requests
+├─ ce5f4e4 style(observer): format wrap request sources
+└─ Slice 7 landing G-2: Pi Wrap request + read-only scope
 ```
 
 ---
@@ -1399,6 +1401,40 @@ packed artifact + fresh-process Standing Inquiry re-entry
 ```
 
 Landing 7G-1은 model Markdown을 승인하거나 저장하지 않는다. 다음 Pi landing이 refined request event만 append하고, 기존 handoff decoder/preflight/graph validator를 effect 전 authority로 유지해야 한다.
+
+### Landing 7G-2 — Pi Wrap request and read-only scope
+
+```text
+[x] /observe wrap가 existing prepared review와 new/resumed request를 구분
+[x] refined observer.wrap-request append 후 exact replay 확인
+[x] append throw/drop과 stale/pending/conflict fail-closed
+[x] request 확인 뒤에만 nontruth observer.wrap-trigger follow-up
+[x] strict wrap-scope action + TypeBox variant
+[x] Wrap scope가 locked target/source/working/inventory guide 반환
+[x] Mode OFF + Episode OPEN에서도 hidden Wrap request context 유지
+[x] locked root/notebook/language/proposal/digest를 hidden prompt에서 비노출
+[x] no prepared wrap, no wrap-proposed lifecycle, no notebook write
+```
+
+Verifier evidence:
+
+```text
+Observer: 172/172
+Focused action/controller/prompt/extension/wrap: 20/20
+TypeScript LSP: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+wrap-prepare semantic schema/action + producer-owned handoff assembly
+prepared install → user approval/cancel → save/readback → wrap-committed recovery
+bounded real-provider wrap transcript
+packed artifact + fresh-process Standing Inquiry re-entry
+```
+
+Landing 7G-2는 Wrap proposal을 만들거나 승인하지 않는다. Request entry만 branch truth이며 wrap-scope는 read-only다. 다음 landing은 unknown model submission을 existing `decodePreparedWrapHandoff`로 refine한 뒤에만 prepared effect를 허용해야 한다.
 
 ---
 

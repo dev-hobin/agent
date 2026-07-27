@@ -1,5 +1,6 @@
 import { reconstructObservationSession } from "./observation-session.ts";
 import type { PiBranchEntryLike } from "./pi-session.ts";
+import { reconstructWrapRequestSession } from "./wrap-trigger.ts";
 
 const MAX_CONTEXT_CANDIDATES = 20;
 const MAX_EXCERPT = 500;
@@ -18,6 +19,8 @@ export function observerSidecarContext(
 	) {
 		return null;
 	}
+	const wrapSession = reconstructWrapRequestSession(entries);
+	if (wrapSession.issues.length > 0) return null;
 	const pendingMemo = session.pendingMemoRequest;
 	const memoContext = pendingMemo
 		? [
@@ -32,7 +35,23 @@ export function observerSidecarContext(
 				"</observer-memo-request>",
 			].join("\n")
 		: null;
-	if (session.lifecycle.mode !== "on") return memoContext;
+	const pendingWrap = wrapSession.pendingRequest;
+	const wrapContext = pendingWrap
+		? [
+				"<observer-wrap-request>",
+				`request_id=${pendingWrap.requestId}`,
+				"Call observer_sidecar action wrap-scope with this exact request ID.",
+				"The wrap-scope result is read-only and includes producer-owned locked target fields, current Memo working state, observed sources, and notebook inventory.",
+				"Do not invent or resend notebook root, notebook ID, episode language, proposal ID, or request digest.",
+				"This landing does not expose wrap-prepare yet; report the scope without claiming save or settlement.",
+				"</observer-wrap-request>",
+			].join("\n")
+		: null;
+	const requestContexts = [memoContext, wrapContext].filter(
+		(value): value is string => value !== null,
+	);
+	if (session.lifecycle.mode !== "on")
+		return requestContexts.length > 0 ? requestContexts.join("\n\n") : null;
 	const usedCandidateIds = new Set(
 		session.sourceReads.flatMap((read) => read.candidateIds),
 	);
@@ -63,7 +82,7 @@ export function observerSidecarContext(
 			: `- ${read.readId}: source-read complete; StandingIndex digest=${read.indexDigest}`;
 	});
 	return [
-		...(memoContext ? [memoContext, ""] : []),
+		...(requestContexts.length > 0 ? [requestContexts.join("\n\n"), ""] : []),
 		"<observer-sidecar>",
 		"Observer Mode is ON for the current OPEN episode.",
 		"Use the sequential observer_sidecar tool only for the staged protocol below.",

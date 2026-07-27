@@ -33,9 +33,14 @@ import { OBSERVER_OBSERVATION_ENTRY } from "../src/observation-profile.ts";
 import { reconstructObservationSession } from "../src/observation-session.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
+	OBSERVER_PREPARED_WRAP_ENTRY,
 	reconstructObserverPiState,
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
+import {
+	OBSERVER_WRAP_REQUEST_ENTRY,
+	reconstructWrapRequestSession,
+} from "../src/wrap-trigger.ts";
 
 const BASELINE = join(
 	import.meta.dirname,
@@ -57,12 +62,28 @@ class FakePort implements ObservationCommandPort {
 	dropNextObservationAppend = false;
 	failNextInstructionAppend = false;
 	dropNextInstructionAppend = false;
+	failNextWrapRequestAppend = false;
+	dropNextWrapRequestAppend = false;
 
 	branchEntries(): readonly PiBranchEntryLike[] {
 		return this.entries;
 	}
 
 	appendEntry(customType: string, data: unknown): void {
+		if (
+			this.failNextWrapRequestAppend &&
+			customType === OBSERVER_WRAP_REQUEST_ENTRY
+		) {
+			this.failNextWrapRequestAppend = false;
+			throw new Error("Injected Wrap request append failure");
+		}
+		if (
+			this.dropNextWrapRequestAppend &&
+			customType === OBSERVER_WRAP_REQUEST_ENTRY
+		) {
+			this.dropNextWrapRequestAppend = false;
+			return;
+		}
 		if (
 			this.failNextInstructionAppend &&
 			customType === OBSERVER_MEMO_INSTRUCTION_ENTRY
@@ -149,6 +170,8 @@ function deterministicIds(): ObservationControllerIds {
 	let source = 100;
 	let inquiry = 0;
 	let memoRequest = 0;
+	let wrapRequest = 0;
+	let wrapProposal = 0;
 	function suffix(value: number): string {
 		return String(value).padStart(12, "0");
 	}
@@ -180,6 +203,14 @@ function deterministicIds(): ObservationControllerIds {
 		memoRequestId(): `memo-request-${string}` {
 			memoRequest += 1;
 			return `memo-request-00000000-0000-4000-8000-${suffix(memoRequest)}`;
+		},
+		wrapRequestId(): `wrap-request-${string}` {
+			wrapRequest += 1;
+			return `wrap-request-00000000-0000-4000-8000-${suffix(wrapRequest)}`;
+		},
+		wrapProposalId(): `proposal-${string}` {
+			wrapProposal += 1;
+			return `proposal-00000000-0000-4000-8000-${suffix(wrapProposal)}`;
 		},
 	};
 }
@@ -934,6 +965,66 @@ describe("Observation staged controller", () => {
 				assert.equal(
 					reconstructObserverPiState(port.entries).state.mode,
 					"off",
+				);
+				const beforeWrapRequest = port.entries.length;
+				port.failNextWrapRequestAppend = true;
+				assert.equal((await controller.requestWrap(port)).ok, false);
+				assert.equal(port.entries.length, beforeWrapRequest);
+				port.dropNextWrapRequestAppend = true;
+				assert.equal((await controller.requestWrap(port)).ok, false);
+				assert.equal(port.entries.length, beforeWrapRequest);
+				const wrapRequested = await controller.requestWrap(port);
+				if (!wrapRequested.ok || !wrapRequested.request)
+					assert.fail(
+						wrapRequested.ok ? "Expected Wrap request" : wrapRequested.message,
+					);
+				assert.equal(wrapRequested.status, "requested");
+				const afterWrapRequest = port.entries.length;
+				const wrapResumed = await controller.requestWrap(port);
+				assert.equal(wrapResumed.ok, true);
+				if (wrapResumed.ok) assert.equal(wrapResumed.status, "resumed");
+				assert.equal(port.entries.length, afterWrapRequest);
+				const malformedWrapScope = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "wrap-scope",
+						request_id: wrapRequested.request.requestId,
+						extra: true,
+					},
+					port,
+				);
+				assert.equal(malformedWrapScope.ok, false);
+				assert.equal(port.entries.length, afterWrapRequest);
+				const wrapScoped = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "wrap-scope",
+						request_id: wrapRequested.request.requestId,
+					},
+					port,
+				);
+				if (!wrapScoped.ok || wrapScoped.action !== "wrap-scope")
+					assert.fail(wrapScoped.ok ? "Expected Wrap scope" : wrapScoped.message);
+				assert.equal(
+					wrapScoped.guide.locked_target.proposal_id,
+					wrapRequested.request.proposalId,
+				);
+				assert.equal(wrapScoped.guide.inventory.length, 6);
+				assert.equal(wrapScoped.guide.observed_sources.length, 1);
+				const wrapPayload = JSON.parse(observationToolText(wrapScoped));
+				assert.equal(wrapPayload.request_id, wrapRequested.request.requestId);
+				assert.deepEqual(wrapPayload.wrap_preparation, wrapScoped.guide);
+				assert.equal(
+					reconstructWrapRequestSession(port.entries).pendingRequest?.requestId,
+					wrapRequested.request.requestId,
+				);
+				assert.equal(
+					port.entries.some(
+						(entry) =>
+							entry.type === "custom" &&
+							entry.customType === OBSERVER_PREPARED_WRAP_ENTRY,
+					),
+					false,
 				);
 				assert.equal(await readFile(notebookPath, "utf8"), beforeNotebook);
 			},

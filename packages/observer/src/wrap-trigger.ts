@@ -136,7 +136,7 @@ function decodeUuidV4(value: unknown): string | null {
 	return typeof value === "string" && UUID_V4.test(value) ? value : null;
 }
 
-function decodeWrapRequestId(value: unknown): WrapRequestId | null {
+export function decodeWrapRequestId(value: unknown): WrapRequestId | null {
 	if (typeof value !== "string" || !value.startsWith("wrap-request-"))
 		return null;
 	const uuid = decodeUuidV4(value.slice("wrap-request-".length));

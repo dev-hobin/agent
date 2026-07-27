@@ -12,12 +12,14 @@ import observerExtension, {
 	requireMemoPreparationSuccess,
 	requireObservationToolSuccess,
 	routeMemoCommand,
+	routeWrapCommand,
 	textFromContent,
 } from "../extensions/observer.ts";
 import {
 	hypothesisOutcomeSchema,
 	memoOutcomeSchema,
 	memoPrepareActionSchema,
+	wrapScopeActionSchema,
 } from "../extensions/memo-tool-schema.ts";
 import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
 import { decodeObservationAction } from "../src/observation-action.ts";
@@ -26,6 +28,10 @@ import {
 	OBSERVER_LIFECYCLE_ENTRY,
 	reconstructObserverPiState,
 } from "../src/pi-session.ts";
+import {
+	decodeWrapRequestEvent,
+	type WrapRequestEvent,
+} from "../src/wrap-trigger.ts";
 
 const notebookId = "notebook-22222222-2222-4222-8222-222222222222";
 
@@ -121,6 +127,8 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 	assert.match(source, /event\.toolName === OBSERVER_TOOL_NAME/u);
 	assert.match(source, /action: Type\.Literal\("memo-scope"\)/u);
 	assert.match(source, /parsed\.command\.kind !== "memo"/u);
+	assert.match(source, /parsed\.command\.kind !== "wrap"/u);
+	assert.match(source, /wrapScopeActionSchema/u);
 	assert.match(source, /pi\.on\("context"/u);
 	const requestIndex = source.indexOf("observation.requestMemo(port)");
 	const triggerIndex = source.indexOf("pi.sendMessage(", requestIndex);
@@ -213,6 +221,79 @@ test("routes Memo request before trigger and delegates no-op without triggering"
 		},
 	});
 	assert.deepEqual(trace, ["request", "trigger", "notify:warning"]);
+});
+
+test("routes Wrap request before trigger and delegates prepared review", async () => {
+	const decoded = decodeWrapRequestEvent({
+		protocol: "observer.wrap-request/v1",
+		kind: "wrap-requested",
+		request_id: "wrap-request-00000000-0000-4000-8000-000000000044",
+		proposal_id: "proposal-00000000-0000-4000-8000-000000000045",
+		request_digest:
+			"0000000000000000000000000000000000000000000000000000000000000046",
+		episode_id: "episode-extension-wrap",
+		notebook_id: notebookId,
+		root: "/tmp/observer-extension-wrap",
+		episode_language: "en",
+		memo_revision_id: null,
+		source_read_ids: [],
+	});
+	if (!decoded.ok) assert.fail(decoded.issue.message);
+	const request: WrapRequestEvent = decoded.value;
+	const trace: string[] = [];
+	const handled = await routeWrapCommand("wrap", {
+		request() {
+			trace.push("request");
+			return Promise.resolve({
+				ok: true,
+				status: "requested",
+				message: "requested",
+				request,
+			});
+		},
+		async delegate() {
+			trace.push("delegate");
+		},
+		trigger() {
+			trace.push("trigger");
+		},
+		notify(_message, type) {
+			trace.push(`notify:${type}`);
+		},
+	});
+	assert.equal(handled, true);
+	assert.deepEqual(trace, ["request", "trigger", "notify:info"]);
+
+	trace.length = 0;
+	await routeWrapCommand("wrap", {
+		request() {
+			trace.push("request");
+			return Promise.resolve({
+				ok: true,
+				status: "delegate",
+				message: "delegate",
+				request: null,
+			});
+		},
+		async delegate() {
+			trace.push("delegate");
+		},
+		trigger() {
+			trace.push("trigger");
+		},
+		notify(_message, type) {
+			trace.push(`notify:${type}`);
+		},
+	});
+	assert.deepEqual(trace, ["request", "delegate"]);
+
+	const scope = {
+		observer_action: "observer-sidecar/v1",
+		action: "wrap-scope",
+		request_id: request.requestId,
+	};
+	assert.equal(Value.Check(wrapScopeActionSchema, scope), true);
+	assert.equal(Value.Check(wrapScopeActionSchema, { ...scope, extra: true }), false);
 });
 
 test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {
