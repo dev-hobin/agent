@@ -182,6 +182,12 @@ export function observationToolText(
 			return JSON.stringify({
 				ok: true,
 				message: result.message,
+				next_action: {
+					action: "wrap-prepare",
+					request_id: result.context.request.requestId,
+					submit_only: ["request_id", "summary", "records"],
+					do_not_repeat: "wrap-scope",
+				},
 				request_id: result.context.request.requestId,
 				request_digest: result.context.request.requestDigest,
 				wrap_preparation: result.guide,

@@ -40,10 +40,11 @@ export function observerSidecarContext(
 		? [
 				"<observer-wrap-request>",
 				`request_id=${pendingWrap.requestId}`,
-				"Call observer_sidecar action wrap-scope with this exact request ID.",
-				"The wrap-scope result is read-only and includes producer-owned locked target fields, current Memo working state, observed sources, and notebook inventory.",
+				"Call observer_sidecar action wrap-scope with this exact request ID exactly once unless it returns an error.",
+				"The successful wrap-scope result is read-only and returns next_action=wrap-prepare plus required records and the producer-owned locked target.",
+				"After a successful scope, do not call wrap-scope again. Follow next_action and submit only request_id, summary, and records.",
 				"Do not invent or resend notebook root, notebook ID, episode language, proposal ID, or request digest.",
-				"This landing does not expose wrap-prepare yet; report the scope without claiming save or settlement.",
+				"Only the wrap-prepare completion may claim cancellation, save, or settlement.",
 				"</observer-wrap-request>",
 			].join("\n")
 		: null;

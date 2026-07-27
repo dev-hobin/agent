@@ -1122,6 +1122,12 @@ describe("Observation staged controller", () => {
 				assert.equal(wrapScoped.guide.observed_sources.length, 1);
 				const wrapPayload = toolPayload(wrapScoped);
 				assert.equal(wrapPayload.request_id, wrapRequested.request.requestId);
+				assert.deepEqual(wrapPayload.next_action, {
+					action: "wrap-prepare",
+					request_id: wrapRequested.request.requestId,
+					submit_only: ["request_id", "summary", "records"],
+					do_not_repeat: "wrap-scope",
+				});
 				assert.deepEqual(wrapPayload.wrap_preparation, wrapScoped.guide);
 				assert.equal(
 					reconstructWrapRequestSession(port.entries).pendingRequest?.requestId,

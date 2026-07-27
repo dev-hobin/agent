@@ -669,9 +669,6 @@ export function buildWrapPreparationGuide(
 			memo_revision_id: context.request.memoRevisionId,
 		},
 		locked_target: context.lockedTarget,
-		observed_sources: context.observedSources,
-		working: context.working,
-		inventory: context.inventory,
 		required_records: context.requiredRecords,
 		submission_contract: {
 			action: "wrap-prepare",
@@ -685,6 +682,9 @@ export function buildWrapPreparationGuide(
 			],
 			locked_fields: ["proposal_id", "notebook_id", "root", "episode_language"],
 		},
+		observed_sources: context.observedSources,
+		working: context.working,
+		inventory: context.inventory,
 		markdown_profile: "observer-record/v1",
 	};
 }
