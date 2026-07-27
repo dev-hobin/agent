@@ -28,6 +28,7 @@ export function observerSidecarContext(
 				"The memo-scope result includes producer-owned locked fields and memo_preparation.submission_seed.",
 				"Call memo-prepare with the same request ID and one submission containing only evidence, hypothesis_outcomes, memo_outcomes, and dispositions; never resend or nest locked fields.",
 				"Give every required_coverage hypothesis and Memo exactly one matching outcome, every requested Observation one disposition, and use only listed evidence_sources; only completion may claim application.",
+				"For a Memo content revision choose exactly one explicit kind: revise-incubating or revise-promotion-candidate. Never combine any revise kind with keep-incubating for the same memo_id.",
 				"</observer-memo-request>",
 			].join("\n")
 		: null;

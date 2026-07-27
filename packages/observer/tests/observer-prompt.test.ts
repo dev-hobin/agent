@@ -159,6 +159,9 @@ describe("Observer hidden Sidecar context", () => {
 		assert.match(context ?? "", /submission_seed/u);
 		assert.match(context ?? "", /never resend or nest locked fields/u);
 		assert.match(context ?? "", /required_coverage/u);
+		assert.match(context ?? "", /revise-incubating/u);
+		assert.match(context ?? "", /revise-promotion-candidate/u);
+		assert.match(context ?? "", /Never combine any revise kind/u);
 		assert.doesNotMatch(context ?? "", /<observer-sidecar>/u);
 	});
 

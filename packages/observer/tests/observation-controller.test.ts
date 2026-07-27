@@ -711,6 +711,54 @@ describe("Observation staged controller", () => {
 					dispositions: instruction.dispositions,
 				};
 				const beforeMalformed = port.entries.length;
+				const legacyRevise = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-prepare",
+						request_id: requested.request.requestId,
+						submission: {
+							...submission,
+							memo_outcomes: [
+								{
+									kind: "revise",
+									memo_id: DURABLE_MEMO,
+									revision: {
+										revision_id:
+											"memo-revision-00000000-0000-4000-8000-000000000602",
+										title: "Legacy revise",
+										content: "Legacy raw shape must be rejected.",
+										evidence_ids: [],
+										reason: "Legacy fixture",
+									},
+									disposition: "incubating",
+								},
+							],
+						},
+					},
+					port,
+				);
+				assert.equal(legacyRevise.ok, false);
+				const additionalReviseField = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "memo-prepare",
+						request_id: requested.request.requestId,
+						submission: {
+							...submission,
+							memo_outcomes: [
+								{
+									kind: "revise-incubating",
+									memo_id: DURABLE_MEMO,
+									revision: {},
+									disposition: "incubating",
+								},
+							],
+						},
+					},
+					port,
+				);
+				assert.equal(additionalReviseField.ok, false);
+				assert.equal(port.entries.length, beforeMalformed);
 				const malformedPreparation = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",

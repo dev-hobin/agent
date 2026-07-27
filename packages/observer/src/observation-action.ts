@@ -94,6 +94,31 @@ export interface MemoSemanticSubmission {
 	readonly dispositions: readonly unknown[];
 }
 
+type ModelMemoOutcome =
+	| { readonly kind: "keep-incubating"; readonly memoId: unknown }
+	| {
+			readonly kind: "revise-incubating";
+			readonly memoId: unknown;
+			readonly revision: unknown;
+	  }
+	| {
+			readonly kind: "revise-promotion-candidate";
+			readonly memoId: unknown;
+			readonly revision: unknown;
+	  }
+	| {
+			readonly kind: "mark-promotion-candidate";
+			readonly memoId: unknown;
+			readonly reason: unknown;
+			readonly evidenceIds: unknown;
+	  }
+	| {
+			readonly kind: "merge";
+			readonly sourceIds: unknown;
+			readonly target: unknown;
+	  }
+	| { readonly kind: "create"; readonly memo: unknown };
+
 export interface MemoPrepareAction extends SidecarActionBase {
 	readonly action: "memo-prepare";
 	readonly requestId: MemoRequestId;
@@ -138,6 +163,102 @@ function failure(path: string, message: string): ObservationActionResult {
 		ok: false,
 		issue: { code: "observation-action.shape", path, message },
 	};
+}
+
+function parseModelMemoOutcome(value: unknown): ModelMemoOutcome | null {
+	if (!isObject(value) || typeof value.kind !== "string") return null;
+	switch (value.kind) {
+		case "keep-incubating":
+			return hasExactKeys(value, ["kind", "memo_id"])
+				? { kind: value.kind, memoId: value.memo_id }
+				: null;
+		case "revise-incubating":
+		case "revise-promotion-candidate":
+			return hasExactKeys(value, ["kind", "memo_id", "revision"])
+				? {
+						kind: value.kind,
+						memoId: value.memo_id,
+						revision: value.revision,
+					}
+				: null;
+		case "mark-promotion-candidate":
+			return hasExactKeys(value, [
+				"kind",
+				"memo_id",
+				"reason",
+				"evidence_ids",
+			])
+				? {
+						kind: value.kind,
+						memoId: value.memo_id,
+						reason: value.reason,
+						evidenceIds: value.evidence_ids,
+					}
+				: null;
+		case "merge":
+			return hasExactKeys(value, ["kind", "source_ids", "target"])
+				? {
+						kind: value.kind,
+						sourceIds: value.source_ids,
+						target: value.target,
+					}
+				: null;
+		case "create":
+			return hasExactKeys(value, ["kind", "memo"])
+				? { kind: value.kind, memo: value.memo }
+				: null;
+		default:
+			return null;
+	}
+}
+
+function lowerModelMemoOutcome(value: ModelMemoOutcome): unknown {
+	switch (value.kind) {
+		case "keep-incubating":
+			return { kind: value.kind, memo_id: value.memoId };
+		case "revise-incubating":
+			return {
+				kind: "revise",
+				memo_id: value.memoId,
+				revision: value.revision,
+				disposition: "incubating",
+			};
+		case "revise-promotion-candidate":
+			return {
+				kind: "revise",
+				memo_id: value.memoId,
+				revision: value.revision,
+				disposition: "promotion-candidate",
+			};
+		case "mark-promotion-candidate":
+			return {
+				kind: value.kind,
+				memo_id: value.memoId,
+				reason: value.reason,
+				evidence_ids: value.evidenceIds,
+			};
+		case "merge":
+			return {
+				kind: value.kind,
+				source_ids: value.sourceIds,
+				target: value.target,
+			};
+		case "create":
+			return { kind: value.kind, memo: value.memo };
+		default:
+			throw new Error("Unsupported model Memo outcome.");
+	}
+}
+
+function parseModelMemoOutcomes(value: unknown): readonly unknown[] | null {
+	if (!Array.isArray(value)) return null;
+	const outcomes: unknown[] = [];
+	for (const candidate of value) {
+		const parsed = parseModelMemoOutcome(candidate);
+		if (!parsed) return null;
+		outcomes.push(lowerModelMemoOutcome(parsed));
+	}
+	return outcomes;
 }
 
 function boundedText(value: unknown, maximum = MAX_TEXT): string | null {
@@ -521,11 +642,14 @@ function parseMemoPrepare(
 		return failure("/", "Memo-prepare action has invalid fields.");
 	}
 	const requestId = decodeMemoRequestId(value.request_id);
+	const memoOutcomes = parseModelMemoOutcomes(
+		value.submission.memo_outcomes,
+	);
 	if (
 		!requestId ||
 		!Array.isArray(value.submission.evidence) ||
 		!Array.isArray(value.submission.hypothesis_outcomes) ||
-		!Array.isArray(value.submission.memo_outcomes) ||
+		!memoOutcomes ||
 		!Array.isArray(value.submission.dispositions)
 	) {
 		return failure("/", "Memo-prepare action has invalid values.");
@@ -539,7 +663,7 @@ function parseMemoPrepare(
 			submission: {
 				evidence: value.submission.evidence,
 				hypothesisOutcomes: value.submission.hypothesis_outcomes,
-				memoOutcomes: value.submission.memo_outcomes,
+				memoOutcomes,
 				dispositions: value.submission.dispositions,
 			},
 		}),

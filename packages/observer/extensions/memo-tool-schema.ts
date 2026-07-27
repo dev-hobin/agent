@@ -99,13 +99,17 @@ export const memoOutcomeSchema = Type.Union([
 	),
 	Type.Object(
 		{
-			kind: Type.Literal("revise"),
+			kind: Type.Literal("revise-incubating"),
 			memo_id: memoId,
 			revision: memoRevisionDraftSchema,
-			disposition: Type.Union([
-				Type.Literal("incubating"),
-				Type.Literal("promotion-candidate"),
-			]),
+		},
+		{ additionalProperties: false },
+	),
+	Type.Object(
+		{
+			kind: Type.Literal("revise-promotion-candidate"),
+			memo_id: memoId,
+			revision: memoRevisionDraftSchema,
 		},
 		{ additionalProperties: false },
 	),

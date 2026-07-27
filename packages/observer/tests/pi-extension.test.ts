@@ -20,6 +20,7 @@ import {
 	memoPrepareActionSchema,
 } from "../extensions/memo-tool-schema.ts";
 import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
+import { decodeObservationAction } from "../src/observation-action.ts";
 import { prepareObservationEvent } from "../src/observation-profile.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
@@ -275,7 +276,7 @@ test("describes every Memo outcome and rejects locked-field injection", () => {
 	const memoOutcomes = [
 		{ kind: "keep-incubating", memo_id: memoId },
 		{
-			kind: "revise",
+			kind: "revise-incubating",
 			memo_id: memoId,
 			revision: {
 				revision_id: "memo-revision-00000000-0000-4000-8000-000000000096",
@@ -284,7 +285,17 @@ test("describes every Memo outcome and rejects locked-field injection", () => {
 				evidence_ids: [evidenceId],
 				reason: "New evidence",
 			},
-			disposition: "incubating",
+		},
+		{
+			kind: "revise-promotion-candidate",
+			memo_id: memoId,
+			revision: {
+				revision_id: "memo-revision-00000000-0000-4000-8000-000000000099",
+				title: "Promotion revision",
+				content: "Promotion candidate content",
+				evidence_ids: [evidenceId],
+				reason: "Promotion evidence",
+			},
 		},
 		{
 			kind: "mark-promotion-candidate",
@@ -335,6 +346,46 @@ test("describes every Memo outcome and rejects locked-field injection", () => {
 	Value.Convert(memoPrepareActionSchema, action);
 	assert.equal(Value.Check(memoPrepareActionSchema, action), true);
 	assert.equal(action.submission.evidence[0]?.source_id, null);
+	const decoded = decodeObservationAction(action);
+	if (!decoded.ok || decoded.value.action !== "memo-prepare")
+		assert.fail(decoded.ok ? "Expected Memo action" : decoded.issue.message);
+	assert.deepEqual(decoded.value.submission.memoOutcomes[1], {
+		kind: "revise",
+		memo_id: memoId,
+		revision: memoOutcomes[1]?.revision,
+		disposition: "incubating",
+	});
+	assert.deepEqual(decoded.value.submission.memoOutcomes[2], {
+		kind: "revise",
+		memo_id: memoId,
+		revision: memoOutcomes[2]?.revision,
+		disposition: "promotion-candidate",
+	});
+	const legacyRevise = {
+		...action,
+		submission: {
+			...action.submission,
+			memo_outcomes: [
+				{
+					kind: "revise",
+					memo_id: memoId,
+					revision: memoOutcomes[1]?.revision,
+					disposition: "incubating",
+				},
+			],
+		},
+	};
+	assert.equal(Value.Check(memoPrepareActionSchema, legacyRevise), false);
+	assert.equal(decodeObservationAction(legacyRevise).ok, false);
+	const additionalField = {
+		...action,
+		submission: {
+			...action.submission,
+			memo_outcomes: [{ ...memoOutcomes[1], disposition: "incubating" }],
+		},
+	};
+	assert.equal(Value.Check(memoPrepareActionSchema, additionalField), false);
+	assert.equal(decodeObservationAction(additionalField).ok, false);
 	const wrongRequest = structuredClone(action);
 	wrongRequest.request_id = "request-00000000-0000-4000-8000-000000000091";
 	assert.equal(Value.Check(memoPrepareActionSchema, wrongRequest), false);

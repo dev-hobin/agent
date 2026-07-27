@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — source-bearing install repair 후 bounded real-provider 재검증 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — explicit Memo revise variant로 bounded real-provider 재검증 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + semantic-only submission + source-bearing install validation |
+| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + semantic-only submission + explicit revise variants + source-bearing install validation |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | source-bearing install repair 후 bounded real-provider Memo rerun |
+| Next movement | Planned | explicit revise variant로 bounded real-provider Memo rerun |
 
 ### 현재 branch checkpoint
 
@@ -129,7 +129,9 @@ feature/observer
 ├─ f236cbf feat(observer): expose exact memo preparation contract
 ├─ 7a970bd style(observer): format memo tool contract
 ├─ af4e088 fix(observer): accept semantic-only memo submissions
-└─ Slice 7 landing F-4: replay request-related source basis at install
+├─ b3b7525 fix(observer): replay memo source basis at install
+├─ 40b6be0 style(observer): format memo install repair
+└─ Slice 7 landing F-5: encode Memo revise disposition in model variant
 ```
 
 ---
@@ -1226,6 +1228,50 @@ wrap 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7F-4는 branch replay durability나 concurrent instance를 새로 주장하지 않는다. 현재 Pi branch ancestry 안에서 preparation과 installation이 동일한 request-scoped basis owner를 사용한다는 범위만 닫는다.
+
+7F-4 이후 동일 fixture를 두 번 재실행했으나 provider는 rich Memo revision을 만들면서도 독립 outer field `disposition`을 매번 누락했다. 한 run은 같은 Memo에 revise와 keep-incubating도 동시에 제출했다. TypeBox union 오류가 관련 없는 다른 branch diagnostic부터 노출해 controller에는 도달하지 못했다.
+
+### Landing 7F-5 — Explicit model-facing Memo revise variants
+
+```text
+[x] model raw revise를 revise-incubating/revise-promotion-candidate로 분리
+[x] strict raw sum parser가 legacy revise/extra field를 effect 전 거부
+[x] total lowering이 기존 domain revise + disposition으로 변환
+[x] nested IDs/drafts/coverage/reference/basis는 contextual decoder가 계속 소유
+[x] domain MemoOutcome와 persisted instruction/session format은 변경 없음
+[x] hidden prompt가 exactly-one kind와 revise+keep 금지를 명시
+[x] 양쪽 revise lowering, legacy, additional field, zero-effect tests
+```
+
+Boundary:
+
+```text
+unknown provider outcome
+→ exact six-variant raw parser
+→ total domain-shape lowering
+→ fresh locked instruction assembly
+→ contextual domain decoder
+→ instruction append
+```
+
+Verifier evidence:
+
+```text
+Focused action/schema/controller/prompt/trigger: 20/20
+TypeScript LSP: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+bounded real-provider explicit-revise rerun
+memo → continue → wrap approval/save/ack transcript
+packed artifact contract
+wrap 후 fresh-session standing Inquiry re-entry
+```
+
+Landing 7F-5는 model semantic truth나 exact-one을 TypeBox로 증명하지 않는다. Disposition omission만 raw variant에서 불가능하게 만들고, duplicate/completeness 의미는 기존 contextual decoder가 계속 fail-closed한다.
 
 ---
 
