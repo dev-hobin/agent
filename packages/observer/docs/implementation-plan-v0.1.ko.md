@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 8 — bounded Pi One-shot → Memo → Wrap transcript (재라우팅 필요)
+> 다음 실행 단위: Slice 9 — v0.1 Golden Path Verification (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 8 in progress | Pi-facing One-shot start/finish and internal observation chain complete |
+| Runtime implementation | Slice 8 complete | bounded Pi One-shot → Memo → approved Wrap complete |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | In progress | Slice 8 — One-shot Golden Path |
-| Next movement | Requires routing | bounded Pi One-shot → Memo → Wrap transcript |
+| Current slice | In progress | Slice 9 — v0.1 Golden Path Verification |
+| Next movement | Requires routing | full Golden Path evidence matrix and fresh packed checks |
 
 ### 현재 branch checkpoint
 
@@ -154,7 +154,10 @@ feature/observer
 ├─ e3a9bc5 feat(observer): capture one-shot tool results
 ├─ cf911ed feat(observer): authorize one-shot observation chains
 ├─ 694923c feat(observer): finish one-shot observation requests
-└─ Slice 8 landing A-7: Pi start/finish wiring
+├─ 3997346 feat(observer): wire one-shot Pi actions
+├─ 5089081 fix(observer): explain one-shot hydration order
+├─ a7e101c style(observer): format one-shot runtime tests
+└─ Slice 8 landing A-8: bounded Pi One-shot → Memo → approved Wrap
 ```
 
 ---
@@ -1562,7 +1565,7 @@ packed fresh process: persisted selection/notebook → new OPEN Episode
 
 ## Slice 8 — One-shot Golden Path
 
-**Status:** In progress
+**Status:** Complete
 
 ### Claim
 
@@ -1812,20 +1815,62 @@ TypeScript assertion-expression scan: 0
 Diagnostic transcripts:
   /tmp/observer-live-one-shot-first-failure.json
   /tmp/observer-live-one-shot-second-bound-failure.json
-  /tmp/observer-live-one-shot-transcript.json
+  /tmp/observer-live-one-shot-third-pre-repair-failure.json
+  /tmp/observer-live-one-shot-post-repair-classification-failure.json
+  /tmp/observer-live-one-shot-post-repair-retrieval-failure.json
 ```
 
-Remaining Slice 8 work:
+### Landing 8A-8 — bounded live One-shot → Memo → Wrap completion
 
 ```text
-rerun bounded Pi One-shot → memo → wrap transcript after guidance repair
+[x] Pi 0.80.10 discovered the current package in an isolated config/workspace
+[x] real provider classified exact natural language as inline One-shot
+[x] exact five-call order: start → source-read → hydrate → record → finish
+[x] Mode stayed OFF; no activation event or bash occurred
+[x] same OPEN Episode continued into Memo and approved Wrap
+[x] Memo acknowledgment completed with notebook Markdown bytes unchanged
+[x] harness observed explicit Wrap confirmation and approved it
+[x] Wrap order reached requested → prepared → proposed → approved → committed
+[x] two durable records changed and one direct Source was created
+[x] sandbox was removed in finally; stderr was empty
 ```
+
+Final bounded evidence:
+
+```text
+/tmp/observer-live-one-shot-3997346.mjs
+/tmp/observer-live-one-shot-transcript.json
+Pi: 0.80.10
+provider/model: openai-codex / gpt-5.3-codex-spark
+source head: a7e101c
+result: pass
+```
+
+Retained diagnostic evidence:
+
+```text
+/tmp/observer-live-one-shot-first-failure.json
+/tmp/observer-live-one-shot-second-bound-failure.json
+/tmp/observer-live-one-shot-third-pre-repair-failure.json
+/tmp/observer-live-one-shot-post-repair-classification-failure.json
+/tmp/observer-live-one-shot-post-repair-retrieval-failure.json
+```
+
+Bounded claim only:
+
+```text
+This proves one finite real-provider completion for the exact source/version,
+not provider reliability, classification rate, semantic truth, crash durability,
+or concurrent/multi-instance safety.
+```
+
+**Slice 8 Status: Complete**
 
 ---
 
 ## Slice 9 — v0.1 Golden Path Verification
 
-**Status:** Planned
+**Status:** In progress
 
 ### Claim
 
