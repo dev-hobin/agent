@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — memo → continue → wrap 및 fresh-session re-entry 검증 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — pure Wrap request/context를 Pi command/tool에 wiring (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -99,7 +99,7 @@ Golden Path와 Non-goals
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | memo → continue → wrap approval/save/ack + fresh-session re-entry |
+| Next movement | Planned | `/observe wrap` request + wrap-scope/wrap-prepare Pi wiring |
 
 ### 현재 branch checkpoint
 
@@ -134,7 +134,7 @@ feature/observer
 ├─ 7dc10ce fix(observer): encode memo revise disposition
 ├─ ebe2aca style(observer): format memo outcome projection
 ├─ a18dc90 fix(observer): replay memo source basis at apply
-└─ Slice 7 landing F-7: bounded real-provider Memo completion evidence
+└─ Slice 7 landing G-1: pure Wrap request/context/guide
 ```
 
 ---
@@ -1354,6 +1354,51 @@ wrap 후 fresh-session standing Inquiry re-entry
 ```
 
 이 evidence는 한 bounded stochastic run의 실제 completion을 지지한다. Provider reliability rate, model semantic truth, crash/power-loss durability, concurrent/multi-instance 실행은 주장하지 않는다.
+
+### Landing 7G-1 — Pure Wrap request/context/guide
+
+```text
+[x] strict observer.wrap-request/v1 decode/encode
+[x] request ID + proposal ID + episode/Memo/source/inventory digest binding
+[x] current-branch request replay, exact duplicate stutter, conflict fail-closed
+[x] wrap-proposed/cancelled/committed proposal이 request를 consume
+[x] OPEN + no pending Memo/Observation guard
+[x] exact pending request resume와 stale state 거부
+[x] locked notebook/root/language/proposal target projection
+[x] observed SourceRead + Memo working state + full inventory guide
+[x] no Pi hook, no controller mutation, no notebook write
+```
+
+Order model:
+
+```text
+OPEN/no pending work
+→ wrap-requested
+→ exact wrap context
+→ future prepared handoff
+→ existing approval/save/commit core
+```
+
+Verifier evidence:
+
+```text
+Focused Wrap request/context/guide: 3/3
+TypeScript LSP: clean
+Lens: changed files clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+/observe wrap request append/replay + nontruth trigger
+observer_sidecar wrap-scope/wrap-prepare schema and producer assembly
+approval/save/ack recovery tests
+bounded real-provider wrap transcript
+packed artifact + fresh-process Standing Inquiry re-entry
+```
+
+Landing 7G-1은 model Markdown을 승인하거나 저장하지 않는다. 다음 Pi landing이 refined request event만 append하고, 기존 handoff decoder/preflight/graph validator를 effect 전 authority로 유지해야 한다.
 
 ---
 
