@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — apply scope replay repair 후 bounded real-provider 재검증 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — memo → continue → wrap 및 fresh-session re-entry 검증 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -99,7 +99,7 @@ Golden Path와 Non-goals
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | apply scope replay repair 후 bounded real-provider Memo rerun |
+| Next movement | Planned | memo → continue → wrap approval/save/ack + fresh-session re-entry |
 
 ### 현재 branch checkpoint
 
@@ -133,7 +133,8 @@ feature/observer
 ├─ 40b6be0 style(observer): format memo install repair
 ├─ 7dc10ce fix(observer): encode memo revise disposition
 ├─ ebe2aca style(observer): format memo outcome projection
-└─ Slice 7 landing F-6: replay request-related source basis at apply
+├─ a18dc90 fix(observer): replay memo source basis at apply
+└─ Slice 7 landing F-7: bounded real-provider Memo completion evidence
 ```
 
 ---
@@ -1306,6 +1307,53 @@ wrap 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7F-6은 apply effect 전에 같은 request-scoped basis를 재확립한다. Crash/power-loss durability나 concurrent instance를 새로 주장하지 않는다.
+
+### Landing 7F-7 — Bounded real-provider Memo completion evidence
+
+Target:
+
+```text
+Pi: 0.80.10
+provider/model: openai-codex / gpt-5.3-codex-spark
+HEAD: a18dc90
+fixture: /tmp/observer-live-eval-a18dc90.mjs
+transcript: /tmp/observer-live-eval-transcript.json
+```
+
+Observed trace:
+
+```text
+source-read → hydrate → semantic observation → off
+→ memo-request → memo-scope
+→ 2 malformed semantic attempts (zero instruction effect)
+→ revise-incubating submission
+→ observer.memo-instruction × 1
+→ observer.prepared-memo-pass × 1
+→ observer.memo-pass(applied) × 1
+→ memo-reconciled × 1
+→ completed
+```
+
+Assertions:
+
+```text
+[x] final memo-prepare result ok:true/status:completed
+[x] instruction < prepared < applied < memo-reconciled
+[x] each Memo entry exactly once
+[x] six notebook record digests before/after identical
+[x] Memo round bash calls 0
+[x] /tmp sandbox removed in finally
+```
+
+Remaining Slice 7 work:
+
+```text
+memo → continue → wrap approval/save/ack transcript
+packed artifact contract
+wrap 후 fresh-session standing Inquiry re-entry
+```
+
+이 evidence는 한 bounded stochastic run의 실제 completion을 지지한다. Provider reliability rate, model semantic truth, crash/power-loss durability, concurrent/multi-instance 실행은 주장하지 않는다.
 
 ---
 
