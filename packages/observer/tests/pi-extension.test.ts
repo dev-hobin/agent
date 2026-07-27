@@ -9,10 +9,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import observerExtension, {
 	textFromContent,
 } from "../extensions/observer.ts";
-import {
-	OBSERVER_PROTOCOL,
-	type ObserverEvent,
-} from "../src/lifecycle.ts";
+import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
 	reconstructObserverPiState,
@@ -140,10 +137,7 @@ test("replays persisted restart, compaction, and extracted branch ancestry", asy
 			onId,
 			25_000,
 		);
-		manager.appendCustomEntry(
-			OBSERVER_LIFECYCLE_ENTRY,
-			activation(false),
-		);
+		manager.appendCustomEntry(OBSERVER_LIFECYCLE_ENTRY, activation(false));
 		appendAssistantCheckpoint(manager, "Persist original session checkpoint.");
 
 		const sessionFile = manager.getSessionFile();
@@ -156,7 +150,10 @@ test("replays persisted restart, compaction, and extracted branch ancestry", asy
 
 		const branchFile = restarted.createBranchedSession(compactionId);
 		if (!branchFile) assert.fail("Expected extracted Pi branch session");
-		appendAssistantCheckpoint(restarted, "Persist extracted branch checkpoint.");
+		appendAssistantCheckpoint(
+			restarted,
+			"Persist extracted branch checkpoint.",
+		);
 		const branch = SessionManager.open(branchFile, sessionDir);
 		const branchState = reconstructObserverPiState(branch.getBranch());
 		assert.equal(branchState.state.mode, "on");

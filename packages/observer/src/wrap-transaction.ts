@@ -262,7 +262,9 @@ async function rollbackPublished(
 		await rollbackEntry(entry);
 	});
 	if (!(await verifySnapshot(plan))) {
-		throw new Error("Rollback did not restore the original notebook inventory.");
+		throw new Error(
+			"Rollback did not restore the original notebook inventory.",
+		);
 	}
 }
 

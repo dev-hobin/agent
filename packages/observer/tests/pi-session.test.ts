@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-	OBSERVER_PROTOCOL,
-	type ObserverEvent,
-} from "../src/lifecycle.ts";
+import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
 import {
 	decodeApprovedWrapAttempt,
 	decodePreparedWrapHandoff,
@@ -131,7 +128,11 @@ function attemptEntry(value: unknown = approvedAttempt()): PiBranchEntryLike {
 }
 
 function openBranch(): PiBranchEntryLike[] {
-	return [lifecycle(selected()), lifecycle(opened()), lifecycle(activation(true))];
+	return [
+		lifecycle(selected()),
+		lifecycle(opened()),
+		lifecycle(activation(true)),
+	];
 }
 
 test("strictly decodes prepared handoffs and approved attempts", () => {
@@ -139,7 +140,8 @@ test("strictly decodes prepared handoffs and approved attempts", () => {
 	assert.equal(accepted.ok, true);
 	const withExtra = decodePreparedWrapHandoff({ ...handoff(), extra: true });
 	assert.equal(withExtra.ok, false);
-	if (!withExtra.ok) assert.equal(withExtra.issue.code, "pi-entry.handoff.shape");
+	if (!withExtra.ok)
+		assert.equal(withExtra.issue.code, "pi-entry.handoff.shape");
 	const unsupported = decodePreparedWrapHandoff({
 		...handoff(),
 		protocol: "observer.pi-prepared-wrap/v2",
@@ -173,7 +175,10 @@ test("normalizes handoff field order before computing proposal identity", () => 
 	const decoded = decodePreparedWrapHandoff(reordered);
 	assert.equal(decoded.ok, true);
 	if (!decoded.ok) return;
-	assert.equal(preparedWrapDigest(decoded.value), preparedWrapDigest(handoff()));
+	assert.equal(
+		preparedWrapDigest(decoded.value),
+		preparedWrapDigest(handoff()),
+	);
 });
 
 test("replays a prepared approved commit and clears transient proposal state", () => {

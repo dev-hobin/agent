@@ -76,7 +76,8 @@ export function observerStatusView(input: {
 			episode.status === "empty" ? "아직 고정되지 않음" : episode.core.lang,
 		notebookHealth: notebook.health,
 		replayHealth:
-			input.snapshot.issues.length === 0 && input.memoSnapshot.issues.length === 0
+			input.snapshot.issues.length === 0 &&
+			input.memoSnapshot.issues.length === 0
 				? "정상"
 				: `오류 ${input.snapshot.issues.length + input.memoSnapshot.issues.length}개`,
 		sessionPersistence: input.sessionFile ? "지속 세션" : "임시 세션",

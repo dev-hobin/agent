@@ -6,18 +6,15 @@ import {
 	type ObserverEvent,
 	type ObserverState,
 } from "./lifecycle.ts";
-import {
-	decodePreparedWrap,
-	type PreparedWrap,
-} from "./wrap-profile.ts";
+import { decodePreparedWrap, type PreparedWrap } from "./wrap-profile.ts";
 
 export const OBSERVER_LIFECYCLE_ENTRY = "observer.lifecycle";
 export const OBSERVER_PREPARED_WRAP_ENTRY = "observer.prepared-wrap";
 export const OBSERVER_WRAP_ATTEMPT_ENTRY = "observer.wrap-attempt";
-export const OBSERVER_PREPARED_WRAP_PROTOCOL:
-	"observer.pi-prepared-wrap/v1" = "observer.pi-prepared-wrap/v1";
-export const OBSERVER_WRAP_ATTEMPT_PROTOCOL:
-	"observer.pi-wrap-attempt/v1" = "observer.pi-wrap-attempt/v1";
+export const OBSERVER_PREPARED_WRAP_PROTOCOL: "observer.pi-prepared-wrap/v1" =
+	"observer.pi-prepared-wrap/v1";
+export const OBSERVER_WRAP_ATTEMPT_PROTOCOL: "observer.pi-wrap-attempt/v1" =
+	"observer.pi-wrap-attempt/v1";
 
 const MAX_ID_LENGTH = 200;
 const MAX_SUMMARY_LENGTH = 4_000;
@@ -275,12 +272,18 @@ function lifecycleOrderIssue(
 		}
 	}
 	if (event.kind === "wrap-cancelled") {
-		if (!prepared || prepared.handoff.prepared.proposal_id !== event.proposalId) {
+		if (
+			!prepared ||
+			prepared.handoff.prepared.proposal_id !== event.proposalId
+		) {
 			return "Wrap cancellation does not match the prepared handoff.";
 		}
 	}
 	if (event.kind === "wrap-committed") {
-		if (!prepared || prepared.handoff.prepared.proposal_id !== event.proposalId) {
+		if (
+			!prepared ||
+			prepared.handoff.prepared.proposal_id !== event.proposalId
+		) {
 			return "Wrap commit does not match the prepared handoff.";
 		}
 		if (
@@ -356,8 +359,7 @@ function attemptMatchesReview(
 	return (
 		accumulator.state.episode.status === "reviewing-wrap" &&
 		accumulator.prepared !== null &&
-		attempt.proposalId ===
-			accumulator.prepared.handoff.prepared.proposal_id &&
+		attempt.proposalId === accumulator.prepared.handoff.prepared.proposal_id &&
 		attempt.preparedDigest === accumulator.prepared.digest
 	);
 }

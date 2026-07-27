@@ -23,9 +23,7 @@ export type WrapAcknowledgmentInspection =
 	| { readonly status: "invalid"; readonly message: string };
 
 export interface WrapAcknowledgmentDependencies {
-	readonly inspectActivity?: (
-		root: string,
-	) => Promise<WrapTransactionActivity>;
+	readonly inspectActivity?: (root: string) => Promise<WrapTransactionActivity>;
 	readonly receiptId: () => `receipt-${string}`;
 }
 
@@ -41,7 +39,8 @@ function finalMatches(
 	record: PreparedRecord,
 	existing: NotebookInventoryEntry | undefined,
 ): boolean {
-	if (!existing || existing.sha256 !== sha256Text(record.markdown)) return false;
+	if (!existing || existing.sha256 !== sha256Text(record.markdown))
+		return false;
 	if (record.operation === "update") return true;
 	return existing.relativePath === `records/${record.record_id}.md`;
 }

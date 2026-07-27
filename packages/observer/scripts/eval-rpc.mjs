@@ -116,11 +116,11 @@ try {
 		events
 			.slice(onStart)
 			.some(
-			(event) =>
-				event.type === "extension_ui_request" &&
-				event.method === "setStatus" &&
-				String(event.statusText).includes("켜짐 · 열림"),
-		),
+				(event) =>
+					event.type === "extension_ui_request" &&
+					event.method === "setStatus" &&
+					String(event.statusText).includes("켜짐 · 열림"),
+			),
 		"/observe on did not publish live status",
 	);
 
@@ -130,12 +130,12 @@ try {
 		events
 			.slice(statusStart)
 			.some(
-			(event) =>
-				event.type === "extension_ui_request" &&
-				event.method === "notify" &&
-				String(event.message).includes("Observer 모드: 켜짐") &&
-				String(event.message).includes("Pending Memo 수: 아직 집계되지 않음"),
-		),
+				(event) =>
+					event.type === "extension_ui_request" &&
+					event.method === "notify" &&
+					String(event.message).includes("Observer 모드: 켜짐") &&
+					String(event.message).includes("Pending Memo 수: 아직 집계되지 않음"),
+			),
 		"/observe status did not expose honest Korean status",
 	);
 
@@ -158,7 +158,9 @@ try {
 				(event) =>
 					event.type === "extension_ui_request" &&
 					event.method === "notify" &&
-					String(event.message).includes("새 prepared reconciliation이 없습니다"),
+					String(event.message).includes(
+						"새 prepared reconciliation이 없습니다",
+					),
 			),
 		"/observe memo did not report the append-free no-prepared result",
 	);
@@ -169,11 +171,11 @@ try {
 		events
 			.slice(offStart)
 			.some(
-			(event) =>
-				event.type === "extension_ui_request" &&
-				event.method === "setStatus" &&
-				String(event.statusText).includes("꺼짐 · 열림"),
-		),
+				(event) =>
+					event.type === "extension_ui_request" &&
+					event.method === "setStatus" &&
+					String(event.statusText).includes("꺼짐 · 열림"),
+			),
 		"/observe off did not preserve the open episode",
 	);
 	process.stdout.write(

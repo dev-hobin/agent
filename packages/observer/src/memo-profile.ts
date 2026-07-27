@@ -890,7 +890,9 @@ function encodeMemoOutcome(outcome: MemoOutcome): unknown {
 
 export function encodePreparedMemoPass(pass: PreparedMemoPass): unknown {
 	if (!isPreparedMemoPass(pass)) {
-		throw new Error("Prepared Memo pass must come from decodePreparedMemoPass().");
+		throw new Error(
+			"Prepared Memo pass must come from decodePreparedMemoPass().",
+		);
 	}
 	return {
 		observer_memo_pass: pass.protocol,

@@ -16,10 +16,7 @@ import {
 	encodePreparedMemoPass,
 	type PreparedMemoPass,
 } from "./memo-profile.ts";
-import {
-	hydrateMemoScope,
-	reconcileMemoPass,
-} from "./memo-reconciliation.ts";
+import { hydrateMemoScope, reconcileMemoPass } from "./memo-reconciliation.ts";
 import {
 	encodeAppliedMemoPass,
 	memoAcknowledgmentEvent,
@@ -92,7 +89,10 @@ export interface ObserverController {
 	refresh(port: ObserverCommandPort): Promise<void>;
 	command(args: string, port: ObserverCommandPort): Promise<void>;
 	installPrepared(value: unknown, port: ObserverCommandPort): Promise<boolean>;
-	installPreparedMemo(value: unknown, port: ObserverCommandPort): Promise<boolean>;
+	installPreparedMemo(
+		value: unknown,
+		port: ObserverCommandPort,
+	): Promise<boolean>;
 	unbind(): void;
 }
 
@@ -366,11 +366,11 @@ async function synchronize(
 		);
 		if (!committed) {
 			return {
-					snapshot,
+				snapshot,
 				memo,
-					operationalIssue: "저장 완료 acknowledgment를 복구하지 못했습니다.",
-				};
-	}
+				operationalIssue: "저장 완료 acknowledgment를 복구하지 못했습니다.",
+			};
+		}
 		snapshot = committed;
 		memo = reconstructMemoSession(port.branchEntries());
 	} else if (inspection && inspection.status !== "before") {
@@ -581,17 +581,26 @@ async function memoCommand(input: {
 		return undefined;
 	}
 	if (input.snapshot.state.episode.status !== "open") {
-		input.port.notify("Memo reconciliation에는 열린 Episode가 필요합니다.", "warning");
+		input.port.notify(
+			"Memo reconciliation에는 열린 Episode가 필요합니다.",
+			"warning",
+		);
 		return undefined;
 	}
 	const recovered = await input.notebooks.recover(input.snapshot.state);
 	if (!recovered.ok) {
-		input.port.notify(`Notebook 복구 실패: ${recovered.issue.message}`, "error");
+		input.port.notify(
+			`Notebook 복구 실패: ${recovered.issue.message}`,
+			"error",
+		);
 		return undefined;
 	}
 	const inventory = await readNotebookInventory(recovered.value.notebook);
 	if (!inventory.ok) {
-		input.port.notify(`Notebook 읽기 실패: ${inventory.issue.message}`, "error");
+		input.port.notify(
+			`Notebook 읽기 실패: ${inventory.issue.message}`,
+			"error",
+		);
 		return undefined;
 	}
 	const scope = hydrateMemoScope({
@@ -615,7 +624,10 @@ async function memoCommand(input: {
 		},
 	});
 	if (!reconciled.ok) {
-		input.port.notify(`Memo reconciliation 거부: ${reconciled.issue.message}`, "error");
+		input.port.notify(
+			`Memo reconciliation 거부: ${reconciled.issue.message}`,
+			"error",
+		);
 		return undefined;
 	}
 	try {
@@ -702,7 +714,9 @@ async function validatePreparedMemo(
 			},
 		},
 	});
-	return validated.ok ? null : `Memo pass 검증 실패: ${validated.issue.message}`;
+	return validated.ok
+		? null
+		: `Memo pass 검증 실패: ${validated.issue.message}`;
 }
 
 async function executeObserverCommand(input: {
@@ -848,7 +862,11 @@ async function installPreparedMemoCommand(input: {
 	readonly notebooks: NotebookService;
 	readonly ids: ObserverControllerIds;
 }): Promise<boolean> {
-	const synchronized = await synchronize(input.port, input.notebooks, input.ids);
+	const synchronized = await synchronize(
+		input.port,
+		input.notebooks,
+		input.ids,
+	);
 	if (
 		notifyReplayIssue(synchronized.snapshot, input.port) ||
 		notifyMemoReplayIssue(synchronized.memo, input.port)
@@ -864,7 +882,10 @@ async function installPreparedMemoCommand(input: {
 	}
 	const decoded = decodePreparedMemoPass(input.value);
 	if (!decoded.ok) {
-		input.port.notify(`Prepared Memo pass 거부: ${decoded.issue.message}`, "error");
+		input.port.notify(
+			`Prepared Memo pass 거부: ${decoded.issue.message}`,
+			"error",
+		);
 		return false;
 	}
 	if (synchronized.memo.prepared) {
@@ -872,10 +893,16 @@ async function installPreparedMemoCommand(input: {
 			synchronized.memo.prepared.passId === decoded.value.passId &&
 			synchronized.memo.prepared.digest === decoded.value.digest
 		) {
-			input.port.notify("같은 prepared Memo pass가 이미 준비되어 있습니다.", "info");
+			input.port.notify(
+				"같은 prepared Memo pass가 이미 준비되어 있습니다.",
+				"info",
+			);
 			return true;
 		}
-		input.port.notify("다른 prepared Memo pass가 이미 활성 상태입니다.", "error");
+		input.port.notify(
+			"다른 prepared Memo pass가 이미 활성 상태입니다.",
+			"error",
+		);
 		return false;
 	}
 	const invalid = await validatePreparedMemo(
