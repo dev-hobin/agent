@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — bounded live Wrap → fresh-session re-entry (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — packed fresh-process Standing Inquiry re-entry (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -99,7 +99,7 @@ Golden Path와 Non-goals
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | bounded real-provider Wrap transcript + packed fresh-process re-entry |
+| Next movement | Planned | packed artifact + fresh-process Standing Inquiry re-entry |
 
 ### 현재 branch checkpoint
 
@@ -1457,6 +1457,7 @@ Verifier evidence:
 
 ```text
 Focused Wrap/controller/extension/persistence: 44/44
+Pi 0.80.10 bounded continue→Memo→Wrap: pass
 TypeScript LSP: 47 files clean
 Changed Observer TypeScript `as` token: 0
 Pi extension coordinator warnings introduced by G2/G3: removed
@@ -1465,14 +1466,42 @@ Pi extension coordinator warnings introduced by G2/G3: removed
 Remaining Slice 7 work:
 
 ```text
-bounded Pi 0.80.10 real-provider continue→wrap transcript
 packed artifact + fresh Pi process persisted selection/notebook recovery
 next source-read after fresh process surfaces Standing Inquiry re-entry
 ```
 
 Landing 7G-3의 required coverage는 각 observed Source, current working Inquiry, current working Memo ID를 정확히 한 proposed record로 표현하게 한다. Promotion candidate는 같은 Memo record의 durable disposition과 필요 시 추가 Zettel record로 표현할 수 있으며, 추가 records도 기존 Markdown/graph preflight를 통과해야 한다. Live provider reliability와 semantic truth는 아직 주장하지 않는다.
 
-첫 bounded continuation은 unchanged-current Hypothesis revise가 instruction append 뒤 install에서 거부되어 request를 poison하는 기존 Memo ordering gap을 노출했다. `79f5be6 fix(observer): validate memo before instruction`은 exact request-bound `MemoScope`에서 `reconcileMemoPass`를 instruction effect 전에 dry-run하고 install/apply revalidation을 유지한다. 두 번째 run은 Memo completion을 통과했으며, Wrap 단계에서 repeated wrap-scope 후 prepare 없이 종료되는 다음 live guidance gap을 남겼다.
+첫 bounded continuation은 unchanged-current Hypothesis revise가 instruction append 뒤 install에서 거부되어 request를 poison하는 기존 Memo ordering gap을 노출했다. `79f5be6 fix(observer): validate memo before instruction`은 exact request-bound `MemoScope`에서 `reconcileMemoPass`를 instruction effect 전에 dry-run하고 install/apply revalidation을 유지한다. 두 번째 run은 Memo completion을 통과했으며, Wrap 단계에서 repeated wrap-scope 후 prepare 없이 종료되는 live guidance gap을 남겼다. `62b58eb`은 one-scope `next_action=wrap-prepare` handoff를 명시했고, 다음 run에서 드러난 Inquiry `revision_reason` authoring gap은 `3a8d65b`의 profile rule projection으로 보완했다.
+
+최종 bounded run:
+
+```text
+Pi: 0.80.10
+provider/model: openai-codex / gpt-5.3-codex-spark
+HEAD: 3a8d65b
+script: /tmp/observer-live-wrap-05e4917.mjs
+transcript: /tmp/observer-live-wrap-transcript.json
+
+source-read → hydrate → observation → off
+→ memo-scope → memo-prepare → prepared → applied → memo-reconciled
+→ wrap-request → wrap-scope × 1 → wrap-prepare × 1
+→ wrap-proposed → user confirm × 1 → approved attempt
+→ local save/readback → wrap-committed → SETTLED+OFF
+```
+
+Notebook evidence:
+
+```text
+before: 6 records
+post-Memo: same 6 names/digests
+post-Wrap: 7 records
+changed: inquiry.md, memo-incubating.md
+created: source-0b7fab8d-d616-49a0-bf35-b80649a0f7a5.md
+Wrap round bash calls: 0
+```
+
+이 evidence는 한 finite provider completion만 지지하며 model semantic truth나 provider reliability rate로 일반화하지 않는다.
 
 ---
 
