@@ -16,8 +16,10 @@ import {
 } from "./notebook-service.ts";
 import type { NotebookSelectionStore } from "./notebook-selection-store.ts";
 import {
+	buildObservationMemoPreparationGuide,
 	hydrateObservationMemoContext,
 	planObservationMemoRequest,
+	type MemoPreparationGuide,
 	type ObservationMemoContext,
 } from "./memo-trigger.ts";
 import {
@@ -116,6 +118,7 @@ export type ObservationControllerResult =
 			readonly action: "memo-scope";
 			readonly message: string;
 			readonly context: ObservationMemoContext;
+			readonly guide: MemoPreparationGuide;
 	  }
 	| {
 			readonly ok: true;
@@ -750,14 +753,21 @@ async function memoScope(input: {
 		inventory,
 		requestId: input.action.requestId,
 	});
-	return context.ok
+	if (!context.ok) return { ok: false, message: context.issue.message };
+	const guide = buildObservationMemoPreparationGuide({
+		context: context.value,
+		observation: branch.observation,
+		memo: branch.memo,
+	});
+	return guide.ok
 		? {
 				ok: true,
 				action: "memo-scope",
 				message: `Memo request scope 활성화: ${context.value.request.requestId}`,
 				context: context.value,
+				guide: guide.value,
 			}
-		: { ok: false, message: context.issue.message };
+		: { ok: false, message: guide.issue.message };
 }
 
 interface DecodedMemoPreparation {

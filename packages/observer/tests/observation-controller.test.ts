@@ -578,7 +578,17 @@ describe("Observation staged controller", () => {
 				assert.equal(scoped.context.memoScope.relatedInquiryIds.length, 0);
 				const payload = JSON.parse(observationToolText(scoped));
 				assert.equal(payload.request_id, requested.request.requestId);
+				assert.equal(payload.request_digest, requested.request.requestDigest);
 				assert.equal(payload.observations.length, 1);
+				assert.deepEqual(payload.memo_preparation, scoped.guide);
+				assert.equal(
+					scoped.guide.instruction_seed.pass.instruction_id,
+					requested.request.requestId,
+				);
+				assert.equal(
+					scoped.guide.instruction_seed.pass.pass_id,
+					requested.request.requestId.replace("memo-request-", "memo-pass-"),
+				);
 				const instruction = {
 					observer_memo_instruction: "observer.memo-instruction/v1",
 					request_id: requested.request.requestId,

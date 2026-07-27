@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — MemoPreparationGuide를 exact TypeBox schema와 live memo-scope response에 연결 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — exact guide/schema로 bounded real-provider memo-prepare 재검증 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + lifecycle + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + ingress compatibility + pure Memo preparation guide |
+| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + ingress compatibility + exact model-facing Memo contract |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | exact TypeBox outcome schema + live guide response 뒤 bounded memo rerun |
+| Next movement | Planned | exact guide/schema로 bounded real-provider Memo rerun |
 
 ### 현재 branch checkpoint
 
@@ -124,7 +124,9 @@ feature/observer
 ├─ cfae6f7 style(observer): format memo preparation tests
 ├─ b42e9f9 fix(observer): preserve sidecar null semantics
 ├─ 273e98a style(observer): format sidecar ingress repair
-└─ Slice 7 landing F-1: pure Memo preparation guide
+├─ 4cc82e7 feat(observer): project memo preparation guide
+├─ 94de94d style(observer): format memo preparation guide
+└─ Slice 7 landing F-2: exact model-facing Memo contract
 ```
 
 ---
@@ -1120,6 +1122,41 @@ wrap approval/save/ack + fresh-session re-entry
 ```
 
 Landing 7F-1은 model이 선택할 semantic outcome을 자동 생성하지 않는다. Exact basis와 available scope만 deterministic projection하고 strict contextual decoder를 semantic authority로 유지한다.
+
+### Landing 7F-2 — Exact model-facing Memo contract
+
+```text
+[x] memo-scope가 exact request_digest와 MemoPreparationGuide 반환
+[x] hidden guidance가 locked instruction_seed 복사와 exact coverage를 지시
+[x] stable ID마다 lowercase UUID-v4 TypeBox pattern
+[x] EvidenceItem exact schema와 Null-first source_id
+[x] Hypothesis outcome 3개 clause와 nested draft exact schema
+[x] Memo outcome 5개 clause와 nested draft/revision exact schema
+[x] contextual memo-prepare instruction_id는 nullable이 아닌 request ID
+[x] disposition exact schema
+[x] 모든 clause Value.Check, null conversion, wrong prefix/null instruction 거부
+[x] TypeBox success 뒤에도 contextual decoder가 유일한 semantic authority
+```
+
+Verifier evidence:
+
+```text
+Observer: 167/167
+Focused extension/memo-trigger/observation-controller/prompt: 20/20
+TypeScript LSP: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+bounded real-provider memo-prepare → install → applied → acknowledgment rerun
+memo → continue → wrap approval/save/ack transcript
+packed artifact contract
+wrap 후 fresh-session standing Inquiry re-entry
+```
+
+Landing 7F-2는 schema가 semantic pass를 증명한다고 주장하지 않는다. Schema는 model에게 admitted raw shape와 exact locked seed를 제공하고, fresh scope에 대한 contextual decoder가 effect 전 completeness/reference/basis를 다시 확립한다.
 
 ---
 

@@ -27,6 +27,7 @@ import type { ObservationMemoRequestedEvent } from "../src/observation-profile.t
 import { observerSidecarContext } from "../src/observer-prompt.ts";
 import { parseObserveCommand } from "../src/observer-command.ts";
 import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
+import { memoPrepareActionSchema } from "./memo-tool-schema.ts";
 
 const OBSERVER_STATUS_KEY = "observer";
 const OBSERVER_TOOL_NAME = "observer_sidecar";
@@ -136,61 +137,7 @@ export const observerSidecarParameters = Type.Union([
 		},
 		{ additionalProperties: false },
 	),
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("memo-prepare"),
-			request_id: Type.String(),
-			instruction: Type.Object(
-				{
-					observer_memo_instruction: Type.Literal(
-						"observer.memo-instruction/v1",
-					),
-					request_id: Type.String(),
-					request_digest: Type.String(),
-					pass: Type.Object(
-						{
-							observer_memo_pass: Type.Literal(
-								"observer.prepared-memo-pass/v1",
-							),
-							pass_id: Type.String(),
-							episode_id: Type.String(),
-							base_revision_id: nullableString,
-							basis_digest: Type.String(),
-							related_inquiry_ids: Type.Array(Type.String()),
-							instruction_id: nullableString,
-							evidence: Type.Array(Type.Record(Type.String(), Type.Unknown())),
-							hypothesis_outcomes: Type.Array(
-								Type.Record(Type.String(), Type.Unknown()),
-							),
-							memo_outcomes: Type.Array(
-								Type.Record(Type.String(), Type.Unknown()),
-							),
-						},
-						{ additionalProperties: false },
-					),
-					dispositions: Type.Array(
-						Type.Object(
-							{
-								observation_id: Type.String(),
-								decision: Type.Union([
-									Type.Literal("integrated"),
-									Type.Literal("kept"),
-								]),
-								hypothesis_inquiry_ids: Type.Array(Type.String()),
-								memo_ids: Type.Array(Type.String()),
-								evidence_ids: Type.Array(Type.String()),
-								rationale: Type.String(),
-							},
-							{ additionalProperties: false },
-						),
-					),
-				},
-				{ additionalProperties: false },
-			),
-		},
-		{ additionalProperties: false },
-	),
+	memoPrepareActionSchema,
 ]);
 
 function systemIds(): ObserverControllerIds {
@@ -322,8 +269,10 @@ export function observationToolText(
 				ok: true,
 				message: result.message,
 				request_id: result.context.request.requestId,
+				request_digest: result.context.request.requestDigest,
 				observations: result.context.observations,
 				memo_scope: result.context.memoScope,
+				memo_preparation: result.guide,
 			});
 		case "memo-prepare":
 			return JSON.stringify({
@@ -471,9 +420,9 @@ export default function observerExtension(pi: ExtensionAPI): void {
 		name: OBSERVER_TOOL_NAME,
 		label: "Observer Sidecar",
 		description:
-			"Stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement or a user hypothesis, and use memo-scope only for the exact pending /observe memo request.",
+			"Stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement or a user hypothesis, then use memo-scope and its locked preparation seed before memo-prepare for the exact pending request.",
 		promptSnippet:
-			"Stage source-first Sidecar observations and hydrate exact pending Memo requests.",
+			"Stage source-first Sidecar observations and complete exact pending Memo requests from their preparation seed.",
 		parameters: observerSidecarParameters,
 		executionMode: "sequential",
 		async execute(...execution) {

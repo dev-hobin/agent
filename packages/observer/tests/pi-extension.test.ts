@@ -14,6 +14,11 @@ import observerExtension, {
 	routeMemoCommand,
 	textFromContent,
 } from "../extensions/observer.ts";
+import {
+	hypothesisOutcomeSchema,
+	memoOutcomeSchema,
+	memoPrepareActionSchema,
+} from "../extensions/memo-tool-schema.ts";
 import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
 import { prepareObservationEvent } from "../src/observation-profile.ts";
 import {
@@ -229,6 +234,132 @@ test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {
 	};
 	Value.Convert(observerSidecarParameters, value);
 	assert.equal(value.claims[0]?.locator, null);
+});
+
+test("describes every exact Memo outcome and rejects contextual ID drift", () => {
+	const evidenceId = "evidence-00000000-0000-4000-8000-000000000093";
+	const inquiryId = "inquiry-00000000-0000-4000-8000-000000000094";
+	const memoId = "memo-00000000-0000-4000-8000-000000000095";
+	const episodeId = "episode-schema";
+	const hypothesis = {
+		inquiry_id: inquiryId,
+		episode_id: episodeId,
+		origin: "user",
+		original: "Original",
+		current: "Original",
+		revision_reason: null,
+		evidence_ids: [],
+	};
+	const memo = {
+		memo_id: "memo-00000000-0000-4000-8000-000000000097",
+		episode_id: episodeId,
+		title: "Schema Memo",
+		lang: "en",
+		content: "Schema content",
+		inquiry_ids: [inquiryId],
+		hypothesis_id: inquiryId,
+		evidence_ids: [evidenceId],
+		reason: "Schema fixture",
+	};
+	const hypothesisOutcomes = [
+		{ kind: "keep", inquiry_id: inquiryId },
+		{ kind: "create", hypothesis },
+		{
+			kind: "revise",
+			inquiry_id: inquiryId,
+			current: "Revised",
+			revision_reason: "New evidence",
+			evidence_ids: [evidenceId],
+		},
+	];
+	const memoOutcomes = [
+		{ kind: "keep-incubating", memo_id: memoId },
+		{
+			kind: "revise",
+			memo_id: memoId,
+			revision: {
+				revision_id: "memo-revision-00000000-0000-4000-8000-000000000096",
+				title: "Revised",
+				content: "Revised content",
+				evidence_ids: [evidenceId],
+				reason: "New evidence",
+			},
+			disposition: "incubating",
+		},
+		{
+			kind: "mark-promotion-candidate",
+			memo_id: memoId,
+			reason: "Enough evidence",
+			evidence_ids: [evidenceId],
+		},
+		{
+			kind: "merge",
+			source_ids: [
+				memoId,
+				"memo-00000000-0000-4000-8000-000000000096",
+			],
+			target: memo,
+		},
+		{ kind: "create", memo },
+	];
+	for (const outcome of hypothesisOutcomes) {
+		assert.equal(Value.Check(hypothesisOutcomeSchema, outcome), true);
+	}
+	for (const outcome of memoOutcomes) {
+		assert.equal(Value.Check(memoOutcomeSchema, outcome), true);
+	}
+	const action = {
+		observer_action: "observer-sidecar/v1",
+		action: "memo-prepare",
+		request_id: "memo-request-00000000-0000-4000-8000-000000000091",
+		instruction: {
+			observer_memo_instruction: "observer.memo-instruction/v1",
+			request_id: "memo-request-00000000-0000-4000-8000-000000000091",
+			request_digest: "0".repeat(64),
+			pass: {
+				observer_memo_pass: "observer.prepared-memo-pass/v1",
+				pass_id: "memo-pass-00000000-0000-4000-8000-000000000091",
+				episode_id: episodeId,
+				base_revision_id: null,
+				basis_digest: "1".repeat(64),
+				related_inquiry_ids: [inquiryId],
+				instruction_id:
+					"memo-request-00000000-0000-4000-8000-000000000091",
+				evidence: [
+					{
+						evidence_id: evidenceId,
+						kind: "source-claim",
+						source_id: null,
+						summary: "Schema evidence",
+					},
+				],
+				hypothesis_outcomes: hypothesisOutcomes,
+				memo_outcomes: memoOutcomes,
+			},
+			dispositions: [
+				{
+					observation_id:
+						"observation-00000000-0000-4000-8000-000000000098",
+					decision: "integrated",
+					hypothesis_inquiry_ids: [inquiryId],
+					memo_ids: [memoId],
+					evidence_ids: [evidenceId],
+					rationale: "Schema disposition",
+				},
+			],
+		},
+	};
+	Value.Convert(memoPrepareActionSchema, action);
+	assert.equal(Value.Check(memoPrepareActionSchema, action), true);
+	assert.equal(action.instruction.pass.base_revision_id, null);
+	assert.equal(action.instruction.pass.evidence[0]?.source_id, null);
+	const wrongPass = structuredClone(action);
+	wrongPass.instruction.pass.pass_id =
+		"pass-00000000-0000-4000-8000-000000000091";
+	assert.equal(Value.Check(memoPrepareActionSchema, wrongPass), false);
+	const nullInstruction = structuredClone(action);
+	Reflect.set(nullInstruction.instruction.pass, "instruction_id", null);
+	assert.equal(Value.Check(memoPrepareActionSchema, nullInstruction), false);
 });
 
 test("maps domain and installation rejection to actual tool errors", () => {
