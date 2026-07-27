@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — 실제 Pi/model-driven memo transcript와 wrap/fresh-session re-entry 검증 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — repaired ingress로 actual Pi/model-driven transcript를 한 번 bounded 재검증 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + lifecycle + notebook + durable wrap + Pi commands/replay + Sidecar ledger/controller + request/scope + strict Memo instruction/install/apply/ack |
+| Runtime implementation | Slice 7 in progress | validation + lifecycle + notebook + durable wrap + Sidecar ledger/request/scope + strict Memo instruction/install/apply/ack + Pi ingress compatibility |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | 실제 Pi/model-driven staged Memo transcript와 wrap/fresh-session re-entry |
+| Next movement | Planned | repaired ingress의 bounded real-provider rerun 뒤 wrap/fresh-session re-entry |
 
 ### 현재 branch checkpoint
 
@@ -120,7 +120,9 @@ feature/observer
 ├─ c52125f style(observer): format sidecar sources
 ├─ eb56b39 feat(observer): trigger staged memo scope
 ├─ c6da53f style(observer): format memo trigger sources
-└─ Slice 7 landing D: strict `memo-prepare` install/apply/ack
+├─ 3d366e7 feat(observer): apply staged memo instructions
+├─ cfae6f7 style(observer): format memo preparation tests
+└─ Slice 7 landing E: Pi ingress null/error compatibility repair
 ```
 
 ---
@@ -1051,6 +1053,38 @@ wrap 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7D의 지원 범위는 parser-refined instruction과 기존 Memo effect 경계의 실제 controller collaboration이다. Extension tool registration/package load와 empty RPC는 검증하지만 model이 schema를 따라 nonempty instruction을 생성하는 실제 transcript는 아직 주장하지 않는다.
+
+### Landing 7E — Pi ingress null/error compatibility repair
+
+실제 `openai-codex/gpt-5.3-codex-spark` live eval에서 provider의 `locator: null`이 Pi 0.80.10 `Value.Convert` 뒤 `""`로 바뀌어 strict decoder에 거부됐고, 그 거부가 `isError:false`로 전달돼 model retry가 증폭되는 pass-but-wrong failure를 발견했다.
+
+```text
+[x] shared nullable TypeBox schema를 Null-first union으로 변경
+[x] Pi 0.80.10 Value.Convert 뒤 explicit null 보존 regression test
+[x] strict domain/controller rejection을 throw해 actual tool error로 전달
+[x] prepared install failure도 successful JSON이 아닌 actual tool error로 전달
+[x] domain decoder, lifecycle, Memo semantics, Markdown write boundary는 변경하지 않음
+```
+
+Verifier evidence:
+
+```text
+Observer: 164/164
+Focused extension/action/controller: 15/15
+Package TypeScript LSP: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+repaired ingress로 actual source-read → hydrate → record → memo-scope → memo-prepare 재검증
+memo → continue → wrap approval/save/ack transcript
+packed artifact contract
+wrap 후 fresh-session standing Inquiry re-entry
+```
+
+Landing 7E는 live transcript success를 주장하지 않는다. 실제 실패에서 확인한 coercion과 error-channel 결함만 닫고, real-provider rerun은 별도 evidence movement로 유지한다.
 
 ---
 

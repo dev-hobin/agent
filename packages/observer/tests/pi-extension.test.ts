@@ -5,8 +5,12 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { Value } from "typebox/value";
 
 import observerExtension, {
+	observerSidecarParameters,
+	requireMemoPreparationSuccess,
+	requireObservationToolSuccess,
 	routeMemoCommand,
 	textFromContent,
 } from "../extensions/observer.ts";
@@ -203,6 +207,43 @@ test("routes Memo request before trigger and delegates no-op without triggering"
 		},
 	});
 	assert.deepEqual(trace, ["request", "trigger", "notify:warning"]);
+});
+
+test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {
+	const value = {
+		observer_action: "observer-sidecar/v1",
+		action: "source-read",
+		candidate_ids: ["candidate-00000000-0000-4000-8000-000000000091"],
+		source: {
+			kind: "direct-observation",
+			title: "Runtime conversion fixture",
+			lang: "en",
+			observed_at: "2026-07-27T03:45:00.000Z",
+			observed_by: "test",
+			fact: "Explicit null must remain explicit null.",
+			conditions: "Pi validates the registered TypeBox schema.",
+			interpretation_boundary: "This tests representation only.",
+		},
+		faithful_summary: "Explicit absence survives validation.",
+		claims: [{ text: "One claim.", locator: null }],
+	};
+	Value.Convert(observerSidecarParameters, value);
+	assert.equal(value.claims[0]?.locator, null);
+});
+
+test("maps domain and installation rejection to actual tool errors", () => {
+	assert.throws(
+		() => requireObservationToolSuccess({ ok: false, message: "domain failed" }),
+		/domain failed/u,
+	);
+	assert.throws(
+		() =>
+			requireMemoPreparationSuccess({
+				ok: false,
+				message: "install failed",
+			}),
+		/install failed/u,
+	);
 });
 
 test("reads tool-result text without altering the original result", () => {

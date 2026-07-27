@@ -31,7 +31,7 @@ import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
 const OBSERVER_STATUS_KEY = "observer";
 const OBSERVER_TOOL_NAME = "observer_sidecar";
 
-const nullableString = Type.Union([Type.String(), Type.Null()]);
+const nullableString = Type.Union([Type.Null(), Type.String()]);
 const sourceSchema = Type.Union([
 	Type.Object(
 		{
@@ -66,7 +66,7 @@ const claimSchema = Type.Object(
 	},
 	{ additionalProperties: false },
 );
-const observerSidecarParameters = Type.Union([
+export const observerSidecarParameters = Type.Union([
 	Type.Object(
 		{
 			observer_action: Type.Literal("observer-sidecar/v1"),
@@ -396,6 +396,25 @@ export async function completeMemoPreparation(
 	}
 }
 
+type SuccessfulObservationControllerResult = Exclude<
+	ObservationControllerResult,
+	{ readonly ok: false }
+>;
+
+export function requireObservationToolSuccess(
+	result: ObservationControllerResult,
+): SuccessfulObservationControllerResult {
+	if (!result.ok) throw new Error(result.message);
+	return result;
+}
+
+export function requireMemoPreparationSuccess(
+	completion: MemoPreparationCompletion,
+): Exclude<MemoPreparationCompletion, { readonly ok: false }> {
+	if (!completion.ok) throw new Error(completion.message);
+	return completion;
+}
+
 export interface MemoCommandEffects {
 	request(): MemoRequestControllerResult;
 	delegate(): Promise<void>;
@@ -461,9 +480,12 @@ export default function observerExtension(pi: ExtensionAPI): void {
 			const [, params, , , ctx] = execution;
 			observerToolUsedInTurn = true;
 			const port = commandPort(pi, ctx);
-			const result = await observation.execute(params, port);
-			if (result.ok && result.action === "memo-prepare") {
-				const completion = await completeMemoPreparation(result.instruction, {
+			const result = requireObservationToolSuccess(
+				await observation.execute(params, port),
+			);
+			if (result.action === "memo-prepare") {
+				const completion = requireMemoPreparationSuccess(
+					await completeMemoPreparation(result.instruction, {
 					install(value) {
 						return controller.installPreparedMemo(value, port);
 					},
@@ -485,7 +507,8 @@ export default function observerExtension(pi: ExtensionAPI): void {
 							)
 						);
 					},
-				});
+				}),
+			);
 				return {
 					content: [{ type: "text", text: JSON.stringify(completion) }],
 					details: { preparation: result, completion },
