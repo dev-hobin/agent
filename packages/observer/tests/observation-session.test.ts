@@ -44,6 +44,12 @@ import {
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
 import {
+	encodeOneShotEvent,
+	OBSERVER_ONE_SHOT_ENTRY,
+	OBSERVER_ONE_SHOT_PROTOCOL,
+	type OneShotRequestedEvent,
+} from "../src/one-shot-trigger.ts";
+import {
 	buildStandingIndex,
 	hydrateStandingContext,
 } from "../src/standing-index.ts";
@@ -56,6 +62,8 @@ const HYDRATION_ID = "hydration-00000000-0000-4000-8000-000000000304";
 const OBSERVATION_MAJOR = "observation-00000000-0000-4000-8000-000000000305";
 const OBSERVATION_USER = "observation-00000000-0000-4000-8000-000000000306";
 const REQUEST_ID = "memo-request-00000000-0000-4000-8000-000000000307";
+const ONE_SHOT_REQUEST_ID =
+	"one-shot-00000000-0000-4000-8000-000000000312";
 const SOURCE_ID = "source-00000000-0000-4000-8000-000000000308";
 const DURABLE_INQUIRY: InquiryId =
 	"inquiry-00000000-0000-4000-8000-000000000003";
@@ -118,6 +126,7 @@ function candidate(input: {
 	readonly candidateId: string;
 	readonly origin: unknown;
 	readonly text: string;
+	readonly oneShotRequestId?: string;
 }): CandidateCapturedEvent {
 	const event = requireWorkingEvent({
 		observer_observation: "observer-observation/v1",
@@ -128,6 +137,9 @@ function candidate(input: {
 		text: input.text,
 		content_hash: sha256Text(input.text),
 		captured_at: "2026-08-01T10:00:00.000Z",
+		...(input.oneShotRequestId
+			? { one_shot_request_id: input.oneShotRequestId }
+			: {}),
 	});
 	if (event.kind !== "candidate-captured")
 		assert.fail("Expected candidate event");
@@ -442,6 +454,65 @@ describe("Observation Profile v1", () => {
 });
 
 describe("Observation current-branch session", () => {
+	test("authorizes only request-linked candidates after an exact pending One-shot prefix", () => {
+		const request: OneShotRequestedEvent = {
+			protocol: OBSERVER_ONE_SHOT_PROTOCOL,
+			kind: "one-shot-requested",
+			requestId: ONE_SHOT_REQUEST_ID,
+			episodeId: EPISODE_ID,
+			userMessageDigest: sha256Text("inline material"),
+			material: "inline-user-message",
+		};
+		const linked = candidate({
+			candidateId: CANDIDATE_USER,
+			origin: { kind: "user-input", input_source: "interactive" },
+			text: "inline material",
+			oneShotRequestId: ONE_SHOT_REQUEST_ID,
+		});
+		const encoded = encodeObservationEvent(linked);
+		const decoded = decodeObservationEvent(encoded);
+		if (!decoded.ok) assert.fail(decoded.issue.message);
+		assert.equal(
+			decoded.value.kind === "candidate-captured"
+				? decoded.value.oneShotRequestId
+				: null,
+			ONE_SHOT_REQUEST_ID,
+		);
+		const requestEntry = custom(
+			OBSERVER_ONE_SHOT_ENTRY,
+			encodeOneShotEvent(request),
+		);
+		const candidateEntry = observationEntry(linked);
+		const authorized = reconstructObservationSession([
+			lifecycle(opened()),
+			requestEntry,
+			candidateEntry,
+		]);
+		assert.equal(authorized.lifecycle.mode, "off");
+		assert.equal(authorized.issues.length, 0);
+		assert.equal(authorized.candidates.length, 1);
+
+		const reordered = reconstructObservationSession([
+			lifecycle(opened()),
+			candidateEntry,
+			requestEntry,
+		]);
+		assert.equal(reordered.candidates.length, 0);
+		assert.equal(reordered.issues[0]?.code, "observation-session.scope");
+		const unlinked = reconstructObservationSession([
+			lifecycle(opened()),
+			observationEntry(
+				candidate({
+					candidateId: CANDIDATE_TOOL,
+					origin: { kind: "user-input", input_source: "interactive" },
+					text: "unlinked material",
+				}),
+			),
+		]);
+		assert.equal(unlinked.candidates.length, 0);
+		assert.equal(unlinked.issues[0]?.code, "observation-session.scope");
+	});
+
 	test("replays candidate-read-hydrate-observe-user-H-request and consumes only after Memo ack", () => {
 		const trace = workingTrace();
 		const pending = reconstructObservationSession(trace.entries);

@@ -9,6 +9,7 @@ import {
 	completeWrapPreparation,
 	observationToolText,
 } from "../extensions/observer.ts";
+import { sha256Text } from "../src/content-hash.ts";
 import { initialObserverState, OBSERVER_PROTOCOL } from "../src/lifecycle.ts";
 import { OBSERVER_MEMO_INSTRUCTION_ENTRY } from "../src/memo-instruction.ts";
 import {
@@ -25,6 +26,7 @@ import {
 	createObserverController,
 	type ObserverController,
 	type ObserverControllerIds,
+	type OneShotEpisodeCapability,
 } from "../src/observer-controller.ts";
 import {
 	OBSERVER_APPLIED_MEMO_ENTRY,
@@ -38,6 +40,11 @@ import {
 	reconstructObserverPiState,
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
+import {
+	OBSERVER_ONE_SHOT_ENTRY,
+	refineOneShotIntent,
+	type OneShotIntent,
+} from "../src/one-shot-trigger.ts";
 import {
 	OBSERVER_WRAP_REQUEST_ENTRY,
 	reconstructWrapRequestSession,
@@ -127,6 +134,8 @@ class FakePort implements ObservationCommandPort {
 	}> = [];
 	failNextObservationAppend = false;
 	dropNextObservationAppend = false;
+	failNextOneShotAppend = false;
+	dropNextOneShotAppend = false;
 	failNextInstructionAppend = false;
 	dropNextInstructionAppend = false;
 	failNextWrapRequestAppend = false;
@@ -138,6 +147,14 @@ class FakePort implements ObservationCommandPort {
 	}
 
 	appendEntry(customType: string, data: unknown): void {
+		if (this.failNextOneShotAppend && customType === OBSERVER_ONE_SHOT_ENTRY) {
+			this.failNextOneShotAppend = false;
+			throw new Error("Injected One-shot request append failure");
+		}
+		if (this.dropNextOneShotAppend && customType === OBSERVER_ONE_SHOT_ENTRY) {
+			this.dropNextOneShotAppend = false;
+			return;
+		}
 		if (
 			this.failNextWrapRequestAppend &&
 			customType === OBSERVER_WRAP_REQUEST_ENTRY
@@ -228,6 +245,38 @@ function lifecycleIds(): ObserverControllerIds {
 			return `memo-receipt-00000000-0000-4000-8000-${String(receipt).padStart(12, "0")}`;
 		},
 	};
+}
+
+function oneShotIntent(input: {
+	readonly text: string;
+	readonly material: "inline-user-message" | "retrieved-tool-results";
+	readonly requestId: `one-shot-${string}`;
+}): OneShotIntent {
+	const refined = refineOneShotIntent({
+		value: {
+			observer_action: "observer-sidecar/v1",
+			action: "one-shot-start",
+			user_message_digest: sha256Text(input.text),
+			material: { kind: input.material },
+		},
+		latestUser: { text: input.text, inputSource: "interactive" },
+		requestId: input.requestId,
+	});
+	if (!refined.ok) assert.fail(refined.issue.message);
+	return refined.value;
+}
+
+async function oneShotEpisode(input: {
+	readonly controller: ObserverController;
+	readonly port: FakePort;
+	readonly intent: OneShotIntent;
+}): Promise<OneShotEpisodeCapability> {
+	const ensured = await input.controller.ensureOneShotEpisode(
+		input.intent,
+		input.port,
+	);
+	if (!ensured.ok) assert.fail(ensured.message);
+	return ensured.value;
 }
 
 function deterministicIds(): ObservationControllerIds {
@@ -379,6 +428,204 @@ function externalSourceAction(candidateId: string): Record<string, unknown> {
 }
 
 describe("Observation staged controller", () => {
+	test("appends One-shot request before one exact OFF inline candidate and resumes both", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			await lifecycleController.command("off", port);
+			const text = "이 문장을 Observer 관점으로 바로 관찰해 줘.";
+			const firstIntent = oneShotIntent({
+				text,
+				material: "inline-user-message",
+				requestId: "one-shot-00000000-0000-4000-8000-000000000301",
+			});
+			const firstEpisode = await oneShotEpisode({
+				controller: lifecycleController,
+				port,
+				intent: firstIntent,
+			});
+			const beforeMismatch = port.entries.length;
+			const mismatched = controller.startOneShot(
+				{
+					intent: firstIntent,
+					episode: {
+						...firstEpisode,
+						userMessageDigest: sha256Text("different intent"),
+					},
+					capturedAt: "2026-08-01T09:59:00.000Z",
+				},
+				port,
+			);
+			assert.equal(mismatched.ok, false);
+			assert.equal(port.entries.length, beforeMismatch);
+			const started = controller.startOneShot(
+				{
+					intent: firstIntent,
+					episode: firstEpisode,
+					capturedAt: "2026-08-01T10:00:00.000Z",
+				},
+				port,
+			);
+			if (!started.ok) assert.fail(started.message);
+			assert.equal(started.status, "inline-captured");
+			assert.equal(started.candidate.text, text);
+			assert.equal(started.candidate.oneShotRequestId, started.request.requestId);
+			assert.deepEqual(started.candidate.origin, {
+				kind: "user-input",
+				inputSource: "interactive",
+			});
+			const requestIndex = port.entries.findIndex(
+				(entry) => entry.customType === OBSERVER_ONE_SHOT_ENTRY,
+			);
+			const candidateIndex = port.entries.findIndex(
+				(entry) => entry.customType === OBSERVER_OBSERVATION_ENTRY,
+			);
+			assert.ok(requestIndex >= 0);
+			assert.ok(candidateIndex > requestIndex);
+			const replayed = reconstructObservationSession(port.entries);
+			assert.equal(replayed.issues.length, 0);
+			assert.equal(replayed.lifecycle.mode, "off");
+			assert.equal(replayed.candidates.length, 1);
+
+			const retryIntent = oneShotIntent({
+				text,
+				material: "inline-user-message",
+				requestId: "one-shot-00000000-0000-4000-8000-000000000302",
+			});
+			const retryEpisode = await oneShotEpisode({
+				controller: lifecycleController,
+				port,
+				intent: retryIntent,
+			});
+			const count = port.entries.length;
+			const resumed = controller.startOneShot(
+				{
+					intent: retryIntent,
+					episode: retryEpisode,
+					capturedAt: "2026-08-01T10:01:00.000Z",
+				},
+				port,
+			);
+			if (!resumed.ok) assert.fail(resumed.message);
+			assert.equal(resumed.status, "inline-resumed");
+			assert.equal(resumed.request.requestId, started.request.requestId);
+			assert.equal(port.entries.length, count);
+		});
+	});
+
+	test("keeps retrieved One-shot pending without creating user-source material", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			await lifecycleController.command("off", port);
+			const intent = oneShotIntent({
+				text: "이 파일을 읽고 Observer 관점으로 관찰해 줘: /tmp/input.md",
+				material: "retrieved-tool-results",
+				requestId: "one-shot-00000000-0000-4000-8000-000000000303",
+			});
+			const episode = await oneShotEpisode({
+				controller: lifecycleController,
+				port,
+				intent,
+			});
+			const started = controller.startOneShot(
+				{
+					intent,
+					episode,
+					capturedAt: "2026-08-01T10:02:00.000Z",
+				},
+				port,
+			);
+			if (!started.ok) assert.fail(started.message);
+			assert.equal(started.status, "pending-retrieval");
+			assert.equal(
+				port.entries.filter(
+					(entry) => entry.customType === OBSERVER_OBSERVATION_ENTRY,
+				).length,
+				0,
+			);
+		});
+	});
+
+	test("recovers request and candidate append throw/drop gaps without duplicates", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			await lifecycleController.command("off", port);
+			const text = "재시도 경계를 관찰해 줘.";
+			async function attempt(request: number) {
+				const intent = oneShotIntent({
+					text,
+					material: "inline-user-message",
+					requestId: `one-shot-00000000-0000-4000-8000-${String(request).padStart(12, "0")}`,
+				});
+				return {
+					intent,
+					episode: await oneShotEpisode({
+						controller: lifecycleController,
+						port,
+						intent,
+					}),
+				};
+			}
+			port.failNextOneShotAppend = true;
+			const first = await attempt(304);
+			assert.equal(
+				controller.startOneShot(
+					{ ...first, capturedAt: "2026-08-01T10:03:00.000Z" },
+					port,
+				).ok,
+				false,
+			);
+			port.dropNextOneShotAppend = true;
+			const second = await attempt(305);
+			assert.equal(
+				controller.startOneShot(
+					{ ...second, capturedAt: "2026-08-01T10:04:00.000Z" },
+					port,
+				).ok,
+				false,
+			);
+			assert.equal(
+				port.entries.filter(
+					(entry) => entry.customType === OBSERVER_ONE_SHOT_ENTRY,
+				).length,
+				0,
+			);
+
+			port.failNextObservationAppend = true;
+			const third = await attempt(306);
+			assert.equal(
+				controller.startOneShot(
+					{ ...third, capturedAt: "2026-08-01T10:05:00.000Z" },
+					port,
+				).ok,
+				false,
+			);
+			port.dropNextObservationAppend = true;
+			const fourth = await attempt(307);
+			assert.equal(
+				controller.startOneShot(
+					{ ...fourth, capturedAt: "2026-08-01T10:06:00.000Z" },
+					port,
+				).ok,
+				false,
+			);
+			const fifth = await attempt(308);
+			const recovered = controller.startOneShot(
+				{ ...fifth, capturedAt: "2026-08-01T10:07:00.000Z" },
+				port,
+			);
+			assert.equal(recovered.ok, true);
+			assert.equal(
+				port.entries.filter(
+					(entry) => entry.customType === OBSERVER_ONE_SHOT_ENTRY,
+				).length,
+				1,
+			);
+			assert.equal(
+				port.entries.filter(
+					(entry) => entry.customType === OBSERVER_OBSERVATION_ENTRY,
+				).length,
+				1,
+			);
+		});
+	});
+
 	test("captures active candidates, returns index after source-read, and hydrates only standing IDs", async () => {
 		await withSandbox(async ({ controller, port }) => {
 			const captured = controller.capture(

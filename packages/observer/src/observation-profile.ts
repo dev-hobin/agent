@@ -5,6 +5,10 @@ import {
 	type InquiryId,
 	type SourceId,
 } from "./memo-profile.ts";
+import {
+	decodeOneShotRequestId,
+	type OneShotRequestId,
+} from "./one-shot-trigger.ts";
 
 export const OBSERVER_OBSERVATION_PROTOCOL: "observer-observation/v1" =
 	"observer-observation/v1";
@@ -95,6 +99,7 @@ export interface CandidateCapturedEvent extends ObservationEventBase {
 	readonly text: string;
 	readonly contentHash: string;
 	readonly capturedAt: string;
+	readonly oneShotRequestId?: OneShotRequestId;
 }
 
 export interface SourceReadRecordedEvent extends ObservationEventBase {
@@ -635,11 +640,21 @@ function parseCandidate(
 	value: Readonly<Record<string, unknown>>,
 	persisted: boolean,
 ): EventResult<CandidateCapturedEvent> {
+	const candidateKeys = [
+		"candidate_id",
+		"origin",
+		"text",
+		"content_hash",
+		"captured_at",
+	];
+	const oneShotLinked = "one_shot_request_id" in value;
 	if (
 		!hasExactKeys(
 			value,
 			baseKeys(
-				["candidate_id", "origin", "text", "content_hash", "captured_at"],
+				oneShotLinked
+					? [...candidateKeys, "one_shot_request_id"]
+					: candidateKeys,
 				persisted,
 			),
 		)
@@ -654,11 +669,15 @@ function parseCandidate(
 	const episodeId = boundedText(value.episode_id, 300);
 	const origin = parseCandidateOrigin(value.origin);
 	const text = boundedText(value.text);
+	const oneShotRequestId = oneShotLinked
+		? decodeOneShotRequestId(value.one_shot_request_id)
+		: null;
 	if (
 		!candidateId ||
 		!episodeId ||
 		!origin ||
 		!text ||
+		(oneShotLinked && !oneShotRequestId) ||
 		!isSha256(value.content_hash) ||
 		value.content_hash !== sha256Text(text) ||
 		!isTimestamp(value.captured_at)
@@ -678,6 +697,7 @@ function parseCandidate(
 		text,
 		contentHash: value.content_hash,
 		capturedAt: value.captured_at,
+		...(oneShotRequestId ? { oneShotRequestId } : {}),
 	});
 }
 
@@ -1113,6 +1133,9 @@ function eventPayload(event: ObservationEvent): Record<string, unknown> {
 				text: event.text,
 				content_hash: event.contentHash,
 				captured_at: event.capturedAt,
+				...(event.oneShotRequestId
+					? { one_shot_request_id: event.oneShotRequestId }
+					: {}),
 			};
 		case "source-read-recorded":
 			return {

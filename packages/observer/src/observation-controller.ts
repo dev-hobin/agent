@@ -20,6 +20,7 @@ import {
 	type NotebookService,
 } from "./notebook-service.ts";
 import type { NotebookSelectionStore } from "./notebook-selection-store.ts";
+import type { OneShotEpisodeCapability } from "./observer-controller.ts";
 import {
 	buildObservationMemoPreparationGuide,
 	hydrateObservationMemoContext,
@@ -64,6 +65,14 @@ import {
 	type PreparedWrapHandoff,
 } from "./pi-session.ts";
 import {
+	encodeOneShotEvent,
+	OBSERVER_ONE_SHOT_ENTRY,
+	planOneShotRequest,
+	reconstructOneShotSession,
+	type OneShotIntent,
+	type OneShotRequestedEvent,
+} from "./one-shot-trigger.ts";
+import {
 	buildStandingIndex,
 	hydrateStandingContext,
 	type StandingContext,
@@ -107,6 +116,20 @@ export type CandidateCaptureResult =
 			readonly ok: true;
 			readonly status: "captured" | "ignored";
 			readonly candidate: CandidateCapturedEvent | null;
+	  }
+	| { readonly ok: false; readonly message: string };
+
+export type OneShotStartControllerResult =
+	| {
+			readonly ok: true;
+			readonly status: "pending-retrieval";
+			readonly request: OneShotRequestedEvent;
+	  }
+	| {
+			readonly ok: true;
+			readonly status: "inline-captured" | "inline-resumed";
+			readonly request: OneShotRequestedEvent;
+			readonly candidate: CandidateCapturedEvent;
 	  }
 	| { readonly ok: false; readonly message: string };
 
@@ -197,6 +220,14 @@ export type MemoRequestControllerResult =
 	| { readonly ok: false; readonly message: string };
 
 export interface ObservationController {
+	startOneShot(
+		value: {
+			readonly intent: OneShotIntent;
+			readonly episode: OneShotEpisodeCapability;
+			readonly capturedAt: unknown;
+		},
+		port: ObservationCommandPort,
+	): OneShotStartControllerResult;
 	capture(
 		value: {
 			readonly origin: unknown;
@@ -328,6 +359,156 @@ function appendEvent(
 			JSON.stringify(encodeObservationEvent(event))
 		? replayed
 		: "Observer working entry가 replay에서 확인되지 않았습니다.";
+}
+
+function appendOneShotRequest(
+	port: ObservationCommandPort,
+	request: OneShotRequestedEvent,
+): OneShotRequestedEvent | string {
+	try {
+		port.appendEntry(OBSERVER_ONE_SHOT_ENTRY, encodeOneShotEvent(request));
+	} catch (error) {
+		return `One-shot request 기록 실패: ${error instanceof Error ? error.message : String(error)}`;
+	}
+	const replayed = reconstructOneShotSession(port.branchEntries());
+	const issue = replayed.issues[0];
+	if (issue) return `One-shot request replay 실패: ${issue.code}.`;
+	const confirmed = replayed.requests.find(
+		(event) => event.requestId === request.requestId,
+	);
+	return confirmed &&
+		JSON.stringify(encodeOneShotEvent(confirmed)) ===
+			JSON.stringify(encodeOneShotEvent(request))
+		? confirmed
+		: "One-shot request가 replay에서 확인되지 않았습니다.";
+}
+
+function oneShotAttemptIssue(input: {
+	readonly intent: OneShotIntent;
+	readonly episode: OneShotEpisodeCapability;
+	readonly branch: LiveWorkingBranch;
+}): string | null {
+	if (
+		input.episode.requestId !== input.intent.requestId ||
+		input.episode.userMessageDigest !== input.intent.userMessageDigest ||
+		input.episode.material !== input.intent.material ||
+		input.episode.inputSource !== input.intent.inputSource
+	)
+		return "One-shot intent와 Episode capability가 일치하지 않습니다.";
+	const lifecycle = input.branch.pi.state;
+	if (
+		lifecycle.mode !== "off" ||
+		lifecycle.episode.status !== "open" ||
+		lifecycle.episode.core.episodeId !== input.episode.episodeId ||
+		lifecycle.episode.core.notebookId !== input.episode.notebookId ||
+		lifecycle.episode.core.lang !== input.episode.lang
+	)
+		return "One-shot Episode capability가 현재 OPEN/OFF lifecycle과 일치하지 않습니다.";
+	return null;
+}
+
+function existingInlineCandidate(input: {
+	readonly request: OneShotRequestedEvent;
+	readonly intent: OneShotIntent;
+	readonly observation: ObservationSessionSnapshot;
+}): CandidateCapturedEvent | string | null {
+	const linked = input.observation.candidates.filter(
+		(candidate) => candidate.oneShotRequestId === input.request.requestId,
+	);
+	if (linked.length === 0) return null;
+	const candidate = linked[0];
+	if (
+		linked.length !== 1 ||
+		!candidate ||
+		candidate.episodeId !== input.request.episodeId ||
+		candidate.text !== input.intent.exactUserText ||
+		candidate.contentHash !== input.intent.userMessageDigest ||
+		candidate.origin.kind !== "user-input" ||
+		candidate.origin.inputSource !== input.intent.inputSource
+	)
+		return "One-shot inline candidate history가 exact intent와 충돌합니다.";
+	return candidate;
+}
+
+function startOneShot(input: {
+	readonly value: {
+		readonly intent: OneShotIntent;
+		readonly episode: OneShotEpisodeCapability;
+		readonly capturedAt: unknown;
+	};
+	readonly port: ObservationCommandPort;
+	readonly ids: ObservationControllerIds;
+}): OneShotStartControllerResult {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	const attemptIssue = oneShotAttemptIssue({
+		intent: input.value.intent,
+		episode: input.value.episode,
+		branch,
+	});
+	if (attemptIssue) return { ok: false, message: attemptIssue };
+	const plan = planOneShotRequest({
+		intent: input.value.intent,
+		episodeId: input.value.episode.episodeId,
+		session: reconstructOneShotSession(input.port.branchEntries()),
+	});
+	if (!plan.ok) return { ok: false, message: plan.issue.message };
+	const request =
+		plan.value.kind === "new"
+			? appendOneShotRequest(input.port, plan.value.request)
+			: plan.value.request;
+	if (typeof request === "string") return { ok: false, message: request };
+	if (input.value.intent.material === "retrieved-tool-results")
+		return { ok: true, status: "pending-retrieval", request };
+	const observation = reconstructObservationSession(input.port.branchEntries());
+	const observationIssue = observation.issues[0];
+	if (observationIssue)
+		return {
+			ok: false,
+			message: `One-shot candidate replay 실패: ${observationIssue.code}.`,
+		};
+	const existing = existingInlineCandidate({
+		request,
+		intent: input.value.intent,
+		observation,
+	});
+	if (typeof existing === "string") return { ok: false, message: existing };
+	if (existing)
+		return {
+			ok: true,
+			status: "inline-resumed",
+			request,
+			candidate: existing,
+		};
+	const prepared = refinedEvent(
+		{
+			observer_observation: "observer-observation/v1",
+			kind: "candidate-captured",
+			episode_id: request.episodeId,
+			candidate_id: input.ids.candidateId(),
+			origin: {
+				kind: "user-input",
+				input_source: input.value.intent.inputSource,
+			},
+			text: input.value.intent.exactUserText,
+			content_hash: input.value.intent.userMessageDigest,
+			captured_at: input.value.capturedAt,
+			one_shot_request_id: request.requestId,
+		},
+		"candidate-captured",
+	);
+	if (typeof prepared === "string") return { ok: false, message: prepared };
+	if (prepared.kind !== "candidate-captured")
+		return { ok: false, message: "One-shot candidate refinement failed." };
+	const appended = appendEvent(input.port, prepared);
+	return typeof appended === "string"
+		? { ok: false, message: appended }
+		: {
+				ok: true,
+				status: "inline-captured",
+				request,
+				candidate: prepared,
+			};
 }
 
 function encodeOrigin(origin: unknown): unknown {
@@ -1246,6 +1427,9 @@ export function createObservationController(
 		selectionStore: dependencies.selectionStore,
 	});
 	return {
+		startOneShot(value, port) {
+			return startOneShot({ value, port, ids: dependencies.ids });
+		},
 		requestWrap(port) {
 			return requestWrap({ port, notebooks, ids: dependencies.ids });
 		},

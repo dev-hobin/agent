@@ -25,6 +25,7 @@ import {
 	type SourceReadRecordedEvent,
 	type UserHypothesisRecordedEvent,
 } from "./observation-profile.ts";
+import { pendingOneShotRequestBefore } from "./one-shot-trigger.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
 	type PiBranchEntryLike,
@@ -125,7 +126,10 @@ export function observationCandidateDigest(
 }
 
 function requiresActiveObservation(event: ObservationEvent): boolean {
-	return event.kind !== "memo-requested";
+	return (
+		event.kind !== "memo-requested" &&
+		!(event.kind === "candidate-captured" && event.oneShotRequestId)
+	);
 }
 
 function hasLiveEpisode(
@@ -144,15 +148,32 @@ function applyCandidate(input: {
 	readonly event: CandidateCapturedEvent;
 	readonly index: number;
 	readonly lifecycle: ObserverState;
+	readonly entries: readonly PiBranchEntryLike[];
 	readonly candidates: Map<CandidateId, CandidateCapturedEvent>;
 	readonly issues: ObservationSessionIssue[];
 }): void {
-	if (!hasLiveEpisode(input.lifecycle, input.event.episodeId, true)) {
+	const oneShotAuthorized = input.event.oneShotRequestId
+		? pendingOneShotRequestBefore({
+				entries: input.entries,
+				index: input.index,
+				requestId: input.event.oneShotRequestId,
+				episodeId: input.event.episodeId,
+			}) !== null
+		: false;
+	if (
+		!hasLiveEpisode(
+			input.lifecycle,
+			input.event.episodeId,
+			!oneShotAuthorized,
+		)
+	) {
 		issue(
 			input.issues,
 			input.index,
 			"observation-session.scope",
-			"Candidate capture requires the current active episode.",
+			oneShotAuthorized
+				? "One-shot candidate requires its exact open Episode."
+				: "Candidate capture requires Mode ON or exact pending One-shot ancestry.",
 		);
 		return;
 	}
@@ -488,6 +509,7 @@ export function reconstructObservationSession(
 					event: decoded.value,
 					index,
 					lifecycle,
+					entries,
 					candidates,
 					issues,
 				});

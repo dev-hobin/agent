@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 8 — one-shot-requested append/replay + material handoff (재라우팅 필요)
+> 다음 실행 단위: Slice 8 — OFF pending-request tool-result capture (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 8 in progress | Sidecar complete + pure One-shot protocol + OPEN/OFF Episode capability |
+| Runtime implementation | Slice 8 in progress | One-shot OPEN/OFF request + inline capture complete |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 8 — One-shot Golden Path |
-| Next movement | Requires routing | request-before-inline-candidate append/recovery |
+| Next movement | Requires routing | OFF pending-request tool-result capture |
 
 ### 현재 branch checkpoint
 
@@ -149,7 +149,8 @@ feature/observer
 ├─ b6aca1b docs(observer): close sidecar golden path
 ├─ 95cf2a2 feat(observer): define pure one-shot protocol
 ├─ 93787d7 style(observer): format one-shot protocol
-└─ Slice 8 landing A-2: OPEN/OFF lifecycle capability
+├─ 778a288 feat(observer): open one-shot lifecycle episodes
+└─ Slice 8 landing A-3: request-before-inline-candidate
 ```
 
 ---
@@ -1652,10 +1653,43 @@ not folded into the One-shot lifecycle movement. Existing memoCommand complexity
 warning also remains pre-existing.
 ```
 
+### Landing 8A-3 — request-before-inline-candidate
+
+```text
+[x] ObservationController.startOneShot owns request/candidate collaboration
+[x] capability and intent identities are checked before request append
+[x] one-shot-requested append is replay-confirmed before any candidate
+[x] retrieved-tool-results stops pending without user-source contamination
+[x] inline-user-message appends exact text and input source once
+[x] candidate event digest carries optional exact oneShotRequestId ancestry
+[x] old Sidecar candidate bytes remain valid and continue to require Mode ON
+[x] OFF replay requires request-before-candidate pending prefix
+[x] request/candidate append throw/drop gaps remain retryable
+[x] retry with a new producer intent ID resumes the original request/candidate
+[x] no SourceRead/hydrate/record, completion, prompt, Pi, or Markdown effect
+```
+
+Verifier evidence:
+
+```text
+Focused One-shot/Observation/lifecycle: 32/32
+Observer: 182/182
+LSP changed files: clean
+TypeScript assertion-expression scan: 0
+```
+
+Known structural residual:
+
+```text
+observation-controller.ts now imports 17 modules (threshold 15) because the
+One-shot start collaborator crosses lifecycle proof and One-shot protocol.
+The existing Observation Session replay coordinator remains high-complexity and
+high-fan-out; neither concern was disguised as behavior work in this landing.
+```
+
 Remaining Slice 8 work:
 
 ```text
-request-before-inline-candidate append/recovery
 OFF pending-request tool-result capture
 candidate/read ancestry authorization for source-read/hydrate/record
 one-shot-finish Pi action and compact receipt

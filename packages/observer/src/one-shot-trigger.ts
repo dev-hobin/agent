@@ -461,6 +461,22 @@ export function reconstructOneShotSession(
 	};
 }
 
+export function pendingOneShotRequestBefore(input: {
+	readonly entries: readonly PiBranchEntryLike[];
+	readonly index: number;
+	readonly requestId: OneShotRequestId;
+	readonly episodeId: string;
+}): OneShotRequestedEvent | null {
+	if (!Number.isSafeInteger(input.index) || input.index < 0) return null;
+	const session = reconstructOneShotSession(input.entries.slice(0, input.index));
+	if (session.issues.length > 0) return null;
+	const pending = session.pendingRequest;
+	return pending?.requestId === input.requestId &&
+		pending.episodeId === input.episodeId
+		? pending
+		: null;
+}
+
 export function planOneShotRequest(input: {
 	readonly intent: OneShotIntent;
 	readonly episodeId: string;

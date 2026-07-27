@@ -100,6 +100,9 @@ const ONE_SHOT_EPISODE_CAPABILITY = Symbol(
 export interface OneShotEpisodeCapability {
 	readonly [ONE_SHOT_EPISODE_CAPABILITY]: true;
 	readonly requestId: OneShotRequestId;
+	readonly userMessageDigest: string;
+	readonly material: "inline-user-message" | "retrieved-tool-results";
+	readonly inputSource: "interactive" | "rpc";
 	readonly episodeId: string;
 	readonly notebookId: string;
 	readonly lang: "ko" | "en";
@@ -591,6 +594,9 @@ async function ensureOneShotEpisodeCommand(input: {
 		value: {
 			[ONE_SHOT_EPISODE_CAPABILITY]: true,
 			requestId: input.intent.requestId,
+			userMessageDigest: input.intent.userMessageDigest,
+			material: input.intent.material,
+			inputSource: input.intent.inputSource,
 			episodeId: current.state.episode.core.episodeId,
 			notebookId,
 			lang: current.state.episode.core.lang,
