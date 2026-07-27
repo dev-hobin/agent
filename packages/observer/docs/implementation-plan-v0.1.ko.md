@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 8 — OFF pending-request tool-result capture (재라우팅 필요)
+> 다음 실행 단위: Slice 8 — SourceRead/hydrate/record One-shot ancestry (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 8 in progress | One-shot OPEN/OFF request + inline capture complete |
+| Runtime implementation | Slice 8 in progress | One-shot request + inline/retrieved candidate capture complete |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 8 — One-shot Golden Path |
-| Next movement | Requires routing | OFF pending-request tool-result capture |
+| Next movement | Requires routing | candidate/read ancestry authorization for SourceRead/hydrate/record |
 
 ### 현재 branch checkpoint
 
@@ -150,7 +150,8 @@ feature/observer
 ├─ 95cf2a2 feat(observer): define pure one-shot protocol
 ├─ 93787d7 style(observer): format one-shot protocol
 ├─ 778a288 feat(observer): open one-shot lifecycle episodes
-└─ Slice 8 landing A-3: request-before-inline-candidate
+├─ 4b68c23 feat(observer): start one-shot observation requests
+└─ Slice 8 landing A-4: OFF retrieved tool-result capture
 ```
 
 ---
@@ -1687,10 +1688,32 @@ The existing Observation Session replay coordinator remains high-complexity and
 high-fan-out; neither concern was disguised as behavior work in this landing.
 ```
 
+### Landing 8A-4 — OFF retrieved tool-result capture
+
+```text
+[x] existing tool-result capture ingress detects exact pending One-shot request
+[x] only retrieved-tool-results requests authorize OFF automatic capture
+[x] captured tool result carries exact pending request ancestry
+[x] inline pending requests do not absorb later unrelated tool results
+[x] OFF user/assistant/no-pending inputs remain ignored
+[x] Mode ON Sidecar candidates remain unlinked
+[x] request and Episode identity are replay-confirmed before append
+[x] candidate append throw/drop returns failure and remains retryable
+[x] no SourceRead/hydrate/record, completion, prompt, Pi start, or Markdown effect
+```
+
+Verifier evidence:
+
+```text
+Focused Observation/session/extension: 22/22
+Observer: 182/182
+LSP changed files: clean
+TypeScript assertion-expression scan: 0
+```
+
 Remaining Slice 8 work:
 
 ```text
-OFF pending-request tool-result capture
 candidate/read ancestry authorization for source-read/hydrate/record
 one-shot-finish Pi action and compact receipt
 bounded One-shot → memo → wrap transcript

@@ -484,6 +484,22 @@ describe("Observation staged controller", () => {
 			assert.equal(replayed.issues.length, 0);
 			assert.equal(replayed.lifecycle.mode, "off");
 			assert.equal(replayed.candidates.length, 1);
+			const beforeUnrelatedTool = port.entries.length;
+			const unrelatedTool = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-inline-unrelated",
+						tool_name: "read",
+					},
+					text: "This result is unrelated to inline material.",
+					capturedAt: "2026-08-01T10:00:30.000Z",
+				},
+				port,
+			);
+			assert.equal(unrelatedTool.ok, true);
+			if (unrelatedTool.ok) assert.equal(unrelatedTool.status, "ignored");
+			assert.equal(port.entries.length, beforeUnrelatedTool);
 
 			const retryIntent = oneShotIntent({
 				text,
@@ -534,12 +550,69 @@ describe("Observation staged controller", () => {
 			);
 			if (!started.ok) assert.fail(started.message);
 			assert.equal(started.status, "pending-retrieval");
-			assert.equal(
-				port.entries.filter(
-					(entry) => entry.customType === OBSERVER_OBSERVATION_ENTRY,
-				).length,
-				0,
+			const unrelatedUser = controller.capture(
+				{
+					origin: { kind: "user-input", input_source: "interactive" },
+					text: "후속 사용자 입력은 retrieval 결과가 아니다.",
+					capturedAt: "2026-08-01T10:02:30.000Z",
+				},
+				port,
 			);
+			assert.equal(unrelatedUser.ok, true);
+			if (unrelatedUser.ok) assert.equal(unrelatedUser.status, "ignored");
+			port.failNextObservationAppend = true;
+			const failed = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-retrieved-1",
+						tool_name: "read",
+					},
+					text: "Exact retrieved source material.",
+					capturedAt: "2026-08-01T10:03:00.000Z",
+				},
+				port,
+			);
+			assert.equal(failed.ok, false);
+			port.dropNextObservationAppend = true;
+			const dropped = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-retrieved-1",
+						tool_name: "read",
+					},
+					text: "Exact retrieved source material.",
+					capturedAt: "2026-08-01T10:03:00.000Z",
+				},
+				port,
+			);
+			assert.equal(dropped.ok, false);
+			const captured = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-retrieved-1",
+						tool_name: "read",
+					},
+					text: "Exact retrieved source material.",
+					capturedAt: "2026-08-01T10:03:00.000Z",
+				},
+				port,
+			);
+			if (!captured.ok) assert.fail(captured.message);
+			assert.equal(captured.status, "captured");
+			if (!captured.candidate) assert.fail("Expected retrieved candidate");
+			assert.equal(captured.candidate.oneShotRequestId, started.request.requestId);
+			assert.deepEqual(captured.candidate.origin, {
+				kind: "tool-result",
+				toolCallId: "tool-call-retrieved-1",
+				toolName: "read",
+			});
+			const replayed = reconstructObservationSession(port.entries);
+			assert.equal(replayed.issues.length, 0);
+			assert.equal(replayed.lifecycle.mode, "off");
+			assert.equal(replayed.candidates.length, 1);
 		});
 	});
 
@@ -643,6 +716,7 @@ describe("Observation staged controller", () => {
 			if (!captured.ok || !captured.candidate) {
 				assert.fail(captured.ok ? "Expected candidate" : captured.message);
 			}
+			assert.equal(captured.candidate.oneShotRequestId, undefined);
 			const beforeReadEntries = port.entries.length;
 			const read = await controller.execute(
 				externalSourceAction(captured.candidate.candidateId),

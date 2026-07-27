@@ -1322,6 +1322,25 @@ function executeMemoSidecarAction(input: {
 		: memoPrepare({ action, port, notebooks });
 }
 
+function pendingRetrievedCaptureRequest(input: {
+	readonly branch: LiveWorkingBranch;
+	readonly port: ObservationCommandPort;
+}): OneShotRequestedEvent | string | null {
+	if (
+		input.branch.pi.state.mode !== "off" ||
+		input.branch.pi.state.episode.status !== "open"
+	)
+		return null;
+	const session = reconstructOneShotSession(input.port.branchEntries());
+	const issue = session.issues[0];
+	if (issue) return `One-shot request replay 실패: ${issue.code}.`;
+	const pending = session.pendingRequest;
+	return pending?.material === "retrieved-tool-results" &&
+		pending.episodeId === input.branch.pi.state.episode.core.episodeId
+		? pending
+		: null;
+}
+
 function captureCandidate(input: {
 	readonly value: {
 		readonly origin: unknown;
@@ -1333,9 +1352,16 @@ function captureCandidate(input: {
 }): CandidateCaptureResult {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
-	if (!activeEpisode(branch) || branch.pi.state.episode.status !== "open") {
+	const sidecarActive = activeEpisode(branch);
+	const oneShotRequest = sidecarActive
+		? null
+		: pendingRetrievedCaptureRequest({ branch, port: input.port });
+	if (typeof oneShotRequest === "string")
+		return { ok: false, message: oneShotRequest };
+	if (!sidecarActive && !oneShotRequest)
 		return { ok: true, status: "ignored", candidate: null };
-	}
+	if (branch.pi.state.episode.status !== "open")
+		return { ok: true, status: "ignored", candidate: null };
 	const prepared = refinedEvent(
 		{
 			observer_observation: "observer-observation/v1",
@@ -1349,6 +1375,9 @@ function captureCandidate(input: {
 					? sha256Text(input.value.text)
 					: "",
 			captured_at: input.value.capturedAt,
+			...(oneShotRequest
+				? { one_shot_request_id: oneShotRequest.requestId }
+				: {}),
 		},
 		"candidate-captured",
 	);
@@ -1356,6 +1385,8 @@ function captureCandidate(input: {
 	if (prepared.kind !== "candidate-captured") {
 		return { ok: false, message: "Candidate refinement failed." };
 	}
+	if (oneShotRequest && prepared.origin.kind !== "tool-result")
+		return { ok: true, status: "ignored", candidate: null };
 	const appended = appendEvent(input.port, prepared);
 	return typeof appended === "string"
 		? { ok: false, message: appended }
