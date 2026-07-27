@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — packed fresh-process Standing Inquiry re-entry (재라우팅 필요)
+> 다음 실행 단위: Slice 8 — One-shot meaning/surface 재라우팅
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + Sidecar/Memo + required-record Wrap prepare/approval/save/settlement |
+| Runtime implementation | Slice 7 complete | Sidecar observation + Memo + approved durable Wrap + packed re-entry |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
-| Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | packed artifact + fresh-process Standing Inquiry re-entry |
+| Current slice | Complete | Slice 7 — Sidecar Golden Path |
+| Next movement | Requires routing | Slice 8 — One-shot Golden Path |
 
 ### 현재 branch checkpoint
 
@@ -136,7 +136,17 @@ feature/observer
 ├─ a18dc90 fix(observer): replay memo source basis at apply
 ├─ b8539f3 feat(observer): bind pure wrap requests
 ├─ ce5f4e4 style(observer): format wrap request sources
-└─ Slice 7 landing G-2: Pi Wrap request + read-only scope
+├─ 1c4c44e feat(observer): expose wrap request scope
+├─ 8f78d2d style(observer): format wrap scope tests
+├─ c5f6634 feat(observer): complete approved wrap flow
+├─ 05e4917 style(observer): format wrap completion sources
+├─ 79f5be6 fix(observer): validate memo before instruction
+├─ f0ee01d docs(observer): record memo boundary repair
+├─ 62b58eb fix(observer): hand off wrap scope once
+├─ 63f9925 style(observer): format wrap handoff prompt
+├─ 3a8d65b fix(observer): explain wrap markdown rules
+├─ 23e0b7f docs(observer): record live wrap completion
+└─ Slice 7 landing G-4: packed fresh-process re-entry
 ```
 
 ---
@@ -1466,8 +1476,7 @@ Pi extension coordinator warnings introduced by G2/G3: removed
 Remaining Slice 7 work:
 
 ```text
-packed artifact + fresh Pi process persisted selection/notebook recovery
-next source-read after fresh process surfaces Standing Inquiry re-entry
+none — Landing G-4 closes the accepted Sidecar Golden Path boundary
 ```
 
 Landing 7G-3의 required coverage는 각 observed Source, current working Inquiry, current working Memo ID를 정확히 한 proposed record로 표현하게 한다. Promotion candidate는 같은 Memo record의 durable disposition과 필요 시 추가 Zettel record로 표현할 수 있으며, 추가 records도 기존 Markdown/graph preflight를 통과해야 한다. Live provider reliability와 semantic truth는 아직 주장하지 않는다.
@@ -1502,6 +1511,44 @@ Wrap round bash calls: 0
 ```
 
 이 evidence는 한 finite provider completion만 지지하며 model semantic truth나 provider reliability rate로 일반화하지 않는다.
+
+### Landing 7G-4 — packed fresh-process Standing Inquiry re-entry
+
+```text
+[x] HEAD 23e0b7f tarball을 fresh consumer node_modules에 extract
+[x] packed artifact runtime으로 process 1 explicit setup
+[x] persisted selection + local Markdown만 process boundary를 통과
+[x] 서로 다른 workspace의 Pi process 2, 둘 다 --no-session
+[x] selection bytes process 전후 동일
+[x] fresh /observe on → Mode ON + Episode OPEN
+[x] 다음 source-read StandingIndex에 exact durable Inquiry ID/current marker
+[x] hydrate/record가 같은 fresh process에서 후속 진행
+```
+
+Provenance:
+
+```text
+Pi: 0.80.10
+provider/model: openai-codex / gpt-5.3-codex-spark
+packed HEAD: 23e0b7f
+tarball: /tmp/observer-reentry-pack/hobin-observer-0.0.0.tgz
+script: /tmp/observer-packed-reentry.mjs
+transcript: /tmp/observer-packed-reentry-transcript.json
+process count: 2
+Pi session continuity: none (--no-session × 2)
+```
+
+Golden Path judgment:
+
+```text
+live provider: source → Memo → approved Wrap → save/readback → SETTLED+OFF
+packed fresh process: persisted selection/notebook → new OPEN Episode
+                    → next source-read exposes durable Standing Inquiry
+```
+
+두 bounded verifier의 합성은 Slice 7 Sidecar Golden Path를 지지한다. 동일 stochastic run의 universal reliability, crash/power-loss durability, concurrent instances, semantic truth는 계속 비주장 범위다.
+
+**Slice 7 Status: Complete**
 
 ---
 
