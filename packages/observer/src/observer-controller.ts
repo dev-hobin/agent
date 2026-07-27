@@ -16,7 +16,11 @@ import {
 	encodePreparedMemoPass,
 	type PreparedMemoPass,
 } from "./memo-profile.ts";
-import { hydrateMemoScope, reconcileMemoPass } from "./memo-reconciliation.ts";
+import {
+	hydrateMemoScope,
+	reconcileMemoPass,
+	type MemoScopeSnapshot,
+} from "./memo-reconciliation.ts";
 import { hydratePreparedObservationMemoContext } from "./memo-trigger.ts";
 import {
 	encodeAppliedMemoPass,
@@ -35,7 +39,10 @@ import {
 	createNotebookService,
 	type NotebookService,
 } from "./notebook-service.ts";
-import { readNotebookInventory } from "./notebook.ts";
+import {
+	readNotebookInventory,
+	type NotebookInventoryEntry,
+} from "./notebook.ts";
 import type { NotebookSelectionStore } from "./notebook-selection-store.ts";
 import {
 	observerStatusView,
@@ -604,15 +611,15 @@ async function memoCommand(input: {
 		);
 		return undefined;
 	}
-	const scope = hydrateMemoScope({
+	const scope = preparedMemoScope({
+		pass: input.memo.prepared,
 		lifecycle: input.snapshot.state,
-		working: input.memo.state,
+		memo: input.memo,
+		entries: input.port.branchEntries(),
 		inventory: inventory.value,
-		relatedInquiryIds: input.memo.prepared.relatedInquiryIds,
-		workingSourceBases: [],
 	});
 	if (!scope.ok) {
-		input.port.notify(`Memo scope 구성 실패: ${scope.issue.message}`, "error");
+		input.port.notify(scope.message, "error");
 		return undefined;
 	}
 	const reconciled = reconcileMemoPass({
@@ -677,6 +684,46 @@ async function memoCommand(input: {
 	return undefined;
 }
 
+type PreparedMemoScopeResult =
+	| { readonly ok: true; readonly value: MemoScopeSnapshot }
+	| { readonly ok: false; readonly message: string };
+
+function preparedMemoScope(input: {
+	readonly pass: PreparedMemoPass;
+	readonly lifecycle: ObserverPiSnapshot["state"];
+	readonly memo: MemoSessionSnapshot;
+	readonly entries: readonly PiBranchEntryLike[];
+	readonly inventory: readonly NotebookInventoryEntry[];
+}): PreparedMemoScopeResult {
+	if (input.pass.instructionId) {
+		const context = hydratePreparedObservationMemoContext({
+			entries: input.entries,
+			memo: input.memo,
+			inventory: input.inventory,
+			instructionId: input.pass.instructionId,
+		});
+		return context.ok
+			? { ok: true, value: context.value.memoScope }
+			: {
+					ok: false,
+					message: `Memo request scope 구성 실패: ${context.issue.message}`,
+				};
+	}
+	const hydrated = hydrateMemoScope({
+		lifecycle: input.lifecycle,
+		working: input.memo.state,
+		inventory: input.inventory,
+		relatedInquiryIds: input.pass.relatedInquiryIds,
+		workingSourceBases: [],
+	});
+	return hydrated.ok
+		? { ok: true, value: hydrated.value }
+		: {
+				ok: false,
+				message: `Memo scope 구성 실패: ${hydrated.issue.message}`,
+			};
+}
+
 async function validatePreparedMemo(input: {
 	readonly pass: PreparedMemoPass;
 	readonly snapshot: ObserverPiSnapshot;
@@ -695,31 +742,17 @@ async function validatePreparedMemo(input: {
 	if (!recovered.ok) return `Notebook 복구 실패: ${recovered.issue.message}`;
 	const inventory = await readNotebookInventory(recovered.value.notebook);
 	if (!inventory.ok) return `Notebook 읽기 실패: ${inventory.issue.message}`;
-	let scope;
-	if (input.pass.instructionId) {
-		const context = hydratePreparedObservationMemoContext({
-			entries: input.entries,
-			memo: input.memo,
-			inventory: inventory.value,
-			instructionId: input.pass.instructionId,
-		});
-		if (!context.ok)
-			return `Memo request scope 구성 실패: ${context.issue.message}`;
-		scope = context.value.memoScope;
-	} else {
-		const hydrated = hydrateMemoScope({
-			lifecycle: input.snapshot.state,
-			working: input.memo.state,
-			inventory: inventory.value,
-			relatedInquiryIds: input.pass.relatedInquiryIds,
-			workingSourceBases: [],
-		});
-		if (!hydrated.ok) return `Memo scope 구성 실패: ${hydrated.issue.message}`;
-		scope = hydrated.value;
-	}
+	const scope = preparedMemoScope({
+		pass: input.pass,
+		lifecycle: input.snapshot.state,
+		memo: input.memo,
+		entries: input.entries,
+		inventory: inventory.value,
+	});
+	if (!scope.ok) return scope.message;
 	const validated = reconcileMemoPass({
 		state: input.memo.state,
-		scope,
+		scope: scope.value,
 		pass: input.pass,
 		ids: {
 			revisionId() {

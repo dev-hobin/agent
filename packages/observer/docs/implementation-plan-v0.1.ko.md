@@ -6,7 +6,7 @@
 >
 > 작업 브랜치: `feature/observer`
 >
-> 다음 실행 단위: Slice 7 — explicit Memo revise variant로 bounded real-provider 재검증 (재라우팅 필요)
+> 다음 실행 단위: Slice 7 — apply scope replay repair 후 bounded real-provider 재검증 (재라우팅 필요)
 >
 > 실행 방식: `/develop on` 이후 한 slice씩 판단·구현·검증하고 stable landing에서 멈춘다.
 
@@ -95,11 +95,11 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + semantic-only submission + explicit revise variants + source-bearing install validation |
+| Runtime implementation | Slice 7 in progress | validation + durable wrap + Sidecar ledger/request/scope + strict Memo apply/ack + semantic-only submission + explicit revise variants + source-bearing install/apply validation |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | In progress | Slice 7 — Sidecar Golden Path |
-| Next movement | Planned | explicit revise variant로 bounded real-provider Memo rerun |
+| Next movement | Planned | apply scope replay repair 후 bounded real-provider Memo rerun |
 
 ### 현재 branch checkpoint
 
@@ -131,7 +131,9 @@ feature/observer
 ├─ af4e088 fix(observer): accept semantic-only memo submissions
 ├─ b3b7525 fix(observer): replay memo source basis at install
 ├─ 40b6be0 style(observer): format memo install repair
-└─ Slice 7 landing F-5: encode Memo revise disposition in model variant
+├─ 7dc10ce fix(observer): encode memo revise disposition
+├─ ebe2aca style(observer): format memo outcome projection
+└─ Slice 7 landing F-6: replay request-related source basis at apply
 ```
 
 ---
@@ -1272,6 +1274,38 @@ wrap 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7F-5는 model semantic truth나 exact-one을 TypeBox로 증명하지 않는다. Disposition omission만 raw variant에서 불가능하게 만들고, duplicate/completeness 의미는 기존 contextual decoder가 계속 fail-closed한다.
+
+7F-5 bounded rerun에서 provider는 첫 시도에 `revise-incubating`을 정확히 사용했고 instruction/prepared install까지 성공했다. 그러나 `/observe memo` apply revalidation이 별도 `workingSourceBases: []` 경로를 사용해 다시 stale basis로 실패했다. 기존 integration fixture의 WorkingSource ID가 durable Source ID와 우연히 같아 이 차이를 가리고 있었다.
+
+### Landing 7F-6 — Apply-time request scope replay
+
+```text
+[x] install/apply가 같은 preparedMemoScope owner를 사용
+[x] instruction-bearing pass는 exact pending-request context를 replay
+[x] instruction_id null manual pass는 source-empty fallback 유지
+[x] replay/context failure는 observer.memo-pass append 전 거부
+[x] integration WorkingSource ID를 durable fixture와 비충돌로 변경
+[x] non-colliding source-bearing pass가 instruction → prepared → applied → ack 완주
+```
+
+Verifier evidence:
+
+```text
+Focused Observation/controller: 17/17
+TypeScript LSP: clean
+Changed Observer TypeScript `as` token: 0
+```
+
+Remaining Slice 7 work:
+
+```text
+bounded real-provider apply-scope rerun
+memo → continue → wrap approval/save/ack transcript
+packed artifact contract
+wrap 후 fresh-session standing Inquiry re-entry
+```
+
+Landing 7F-6은 apply effect 전에 같은 request-scoped basis를 재확립한다. Crash/power-loss durability나 concurrent instance를 새로 주장하지 않는다.
 
 ---
 

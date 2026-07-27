@@ -146,7 +146,7 @@ function deterministicIds(): ObservationControllerIds {
 	let read = 0;
 	let hydration = 0;
 	let observation = 0;
-	let source = 0;
+	let source = 100;
 	let inquiry = 0;
 	let memoRequest = 0;
 	function suffix(value: number): string {
