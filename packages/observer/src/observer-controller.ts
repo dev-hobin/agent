@@ -714,8 +714,7 @@ async function validatePreparedMemo(input: {
 			relatedInquiryIds: input.pass.relatedInquiryIds,
 			workingSourceBases: [],
 		});
-		if (!hydrated.ok)
-			return `Memo scope 구성 실패: ${hydrated.issue.message}`;
+		if (!hydrated.ok) return `Memo scope 구성 실패: ${hydrated.issue.message}`;
 		scope = hydrated.value;
 	}
 	const validated = reconcileMemoPass({

@@ -503,7 +503,9 @@ describe("Observation staged controller", () => {
 					port,
 				);
 				if (!sourceRead.ok || sourceRead.action !== "source-read")
-					assert.fail(sourceRead.ok ? "Expected source read" : sourceRead.message);
+					assert.fail(
+						sourceRead.ok ? "Expected source read" : sourceRead.message,
+					);
 				const sourceHydration = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
@@ -658,8 +660,7 @@ describe("Observation staged controller", () => {
 						instruction_id: requested.request.requestId,
 						evidence: [
 							{
-								evidence_id:
-									"evidence-00000000-0000-4000-8000-000000000601",
+								evidence_id: "evidence-00000000-0000-4000-8000-000000000601",
 								kind: "source-claim",
 								source_id: sourceRead.read.source.sourceId,
 								summary: "Immediate notes can preserve retrieval cues.",
@@ -680,9 +681,7 @@ describe("Observation staged controller", () => {
 								},
 							},
 						],
-						memo_outcomes: [
-							{ kind: "keep-incubating", memo_id: DURABLE_MEMO },
-						],
+						memo_outcomes: [{ kind: "keep-incubating", memo_id: DURABLE_MEMO }],
 					},
 					dispositions: [
 						{
@@ -690,9 +689,7 @@ describe("Observation staged controller", () => {
 							decision: "integrated",
 							hypothesis_inquiry_ids: [DURABLE_INQUIRY],
 							memo_ids: [DURABLE_MEMO],
-							evidence_ids: [
-								"evidence-00000000-0000-4000-8000-000000000601",
-							],
+							evidence_ids: ["evidence-00000000-0000-4000-8000-000000000601"],
 							rationale:
 								"The source evidence refines the durable inquiry boundary.",
 						},

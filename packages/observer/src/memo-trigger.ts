@@ -22,7 +22,10 @@ import {
 	type SemanticObservationRecordedEvent,
 	type SourceClaim,
 } from "./observation-profile.ts";
-import { reconstructObservationSession, type ObservationSessionSnapshot } from "./observation-session.ts";
+import {
+	reconstructObservationSession,
+	type ObservationSessionSnapshot,
+} from "./observation-session.ts";
 import type { PiBranchEntryLike } from "./pi-session.ts";
 
 const OBSERVATION_MEMO_CONTEXT_MARKER = Symbol("observer.memo-context");
