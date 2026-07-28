@@ -15,6 +15,7 @@ const EXPECTED_FILES = [
 	"extensions/memo-tool-schema.ts",
 	"extensions/observer.ts",
 	"extensions/one-shot-runtime.ts",
+	"extensions/tui.ts",
 	"package.json",
 	"schemas/observer-record.v1.schema.json",
 	"src/atomic-file.ts",

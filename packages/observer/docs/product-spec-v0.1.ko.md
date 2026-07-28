@@ -176,14 +176,38 @@ direct-observation
 
 ## 6. 사용자 명령과 스크립트
 
+### `/observe`
+
+Pi TUI에서는 인자 없이 실행하면 현재 상태에 맞는 Observer 제어판을 연다.
+
+```text
+Notebook 미선택
+→ Notebook 설정, 기본 출력 언어, Observer 활성화, 상태 확인만 노출
+
+Episode OPEN
+→ Mode, Memo, Wrap, 고정 Notebook, 다음 Episode 언어, 상태를 노출
+
+Mode OFF + Notebook 준비됨
+→ One-shot 자연어 요청 초안을 추가로 제공
+```
+
+제어판은 새로운 lifecycle effect를 만들지 않고 아래의 기존 명령과 같은
+경계를 사용한다. 현재 상태에서 허용되지 않는 action은 기본 목록에 노출하지
+않는다. Mode와 기본 출력 언어 변경은 제어판을 닫았다 다시 열지 않고 같은
+surface에서 적용 결과를 갱신한다. TUI가 아닌 RPC/print/json mode에서 인자 없는 `/observe`는 기존처럼
+read-only status를 반환한다. `/observe settings`는 TUI에서 같은 제어판을 연다.
+
 ### `/observe setup`
 
-최초 notebook 위치와 기본 Markdown 언어를 설정한다.
+최초 Notebook 위치와 기본 출력 언어를 설정한다. TUI에서는 두 설정을
+별도 option으로 노출한다. Mode On/Off만 toggle로 취급한다. 기본 출력 언어는
+현재 선택을 미리 가리키는 `English (en)` / `Korean (ko)` 명시적 chooser로
+제공하며 Enter 때 다음 값으로 순환시키지 않는다.
 
 ```text
 입력
-- 사용자가 소유한 로컬 folder
-- 기본 언어: ko 또는 en
+- 사용자가 소유한 로컬 folder의 절대 경로 또는 Pi 현재 작업 디렉터리 기준 상대 경로
+- Memo와 Zettel Markdown의 기본 출력 언어: ko 또는 en
 
 결과
 - notebook 선택
@@ -271,7 +295,8 @@ Notebook validation health
 
 ### `/observe settings`
 
-Notebook과 기본 언어를 확인·변경한다.
+Notebook과 기본 출력 언어를 서로 구분된 option으로 확인·변경한다.
+기본 출력 언어는 Memo와 Zettel Markdown 생성 언어이며 TUI 표시 언어가 아니다.
 
 - 여러 notebook이 존재할 수 있다.
 - 한 시점에는 하나만 선택한다.
@@ -660,7 +685,9 @@ Observer는 “로컬 저장 완료”만 보장한다. 원격 백업이나 다�
 ### Notebook 위치
 
 - 사용자가 명시적으로 선택한다.
-- 현재 작업 디렉터리나 숨겨진 기본 위치를 조용히 사용하지 않는다.
+- 절대 경로와 상대 경로를 모두 받는다.
+- 상대 경로는 Pi의 현재 작업 디렉터리를 기준으로 절대 경로로 정규화한다.
+- 현재 작업 디렉터리나 숨겨진 기본 위치를 입력 없이 조용히 선택하지 않는다.
 - 기존 폴더 또는 새 폴더를 선택할 수 있다.
 - 여러 notebook이 존재할 수 있지만 한 시점에는 하나만 선택한다.
 - 열린 episode 도중 notebook을 변경하지 않는다.
@@ -674,7 +701,8 @@ ko
 en
 ```
 
-- Notebook별 기본 생성 언어를 가진다.
+- Notebook별 Memo·Zettel Markdown 기본 출력 언어를 가진다.
+- 이 설정은 TUI label, help, status의 표시 언어를 변경하지 않는다.
 - Episode가 열릴 때 출력 언어를 고정하고 wrap까지 유지한다.
 - 특정 문서에 대한 명시적 언어 override는 허용한다.
 - 기존 문서를 수정할 때는 해당 문서의 기존 언어를 유지한다.

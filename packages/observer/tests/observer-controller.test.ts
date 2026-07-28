@@ -63,6 +63,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 class FakePort implements ObserverCommandPort {
+	cwd = process.cwd();
 	readonly entries: PiBranchEntryLike[] = [];
 	readonly notifications: Array<{
 		readonly message: string;
@@ -313,7 +314,7 @@ async function emptyPreparedMemoPass(input: {
 }
 
 describe("Observer command parsing", () => {
-	test("parses exact actions and preserves a spaced absolute path", () => {
+	test("parses exact actions and preserves absolute or relative paths", () => {
 		assert.deepEqual(parseObserveCommand(""), {
 			ok: true,
 			command: { kind: "status" },
@@ -321,6 +322,10 @@ describe("Observer command parsing", () => {
 		assert.deepEqual(parseObserveCommand("setup ko /tmp/My Notes"), {
 			ok: true,
 			command: { kind: "setup", lang: "ko", root: "/tmp/My Notes" },
+		});
+		assert.deepEqual(parseObserveCommand("setup en ./Observer Notes"), {
+			ok: true,
+			command: { kind: "setup", lang: "en", root: "./Observer Notes" },
 		});
 		assert.deepEqual(parseObserveCommand("memo"), {
 			ok: true,
@@ -372,7 +377,7 @@ describe("Observer command controller", () => {
 			assert.equal(resumed.state.episode.core.episodeId, episodeId);
 			assert.match(
 				port.statuses.at(-1) ?? "",
-				/Observer · 켜짐 · 열림 · 정상/u,
+				/Observer · On · Open · Healthy/u,
 			);
 		});
 	});
@@ -472,6 +477,22 @@ describe("Observer command controller", () => {
 		});
 	});
 
+	test("resolves relative Notebook paths from Pi's working directory", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			port.cwd = sandbox;
+			await controller.command("setup en ./relative notebook", port);
+			const opened = requireNotebook(
+				await openNotebook(join(sandbox, "relative notebook")),
+			);
+			assert.equal(opened.manifest.default_language, "en");
+		});
+	});
+
 	test("supports interactive setup without applying hidden defaults", async () => {
 		await withSandbox(async (sandbox) => {
 			const controller = createObserverController({
@@ -488,6 +509,32 @@ describe("Observer command controller", () => {
 		});
 	});
 
+	test("changes only the next-episode language while a live episode stays fixed", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "language settings notebook");
+			await controller.command(`setup ko ${root}`, port);
+			await controller.command("on", port);
+
+			assert.equal(await controller.updateDefaultLanguage("en", port), true);
+			const opened = requireNotebook(await openNotebook(root));
+			assert.equal(opened.manifest.default_language, "en");
+			const view = await controller.inspect(port);
+			assert.equal(view.control.mode, "on");
+			assert.equal(view.control.episode, "open");
+			assert.equal(view.control.notebookDefaultLanguage, "en");
+			assert.equal(view.episodeLanguage, "ko");
+			assert.match(
+				port.notifications.at(-1)?.message ?? "",
+				/current Episode output remains ko/u,
+			);
+		});
+	});
+
 	test("reports honest status and does not mutate history", async () => {
 		await withSandbox(async (sandbox) => {
 			const controller = createObserverController({
@@ -500,8 +547,8 @@ describe("Observer command controller", () => {
 			await controller.command("status", port);
 			assert.equal(port.entries.length, before);
 			const text = port.notifications.at(-1)?.message ?? "";
-			assert.match(text, /임시 세션/u);
-			assert.match(text, /Pending Memo 수: 아직 집계되지 않음/u);
+			assert.match(text, /Ephemeral session/u);
+			assert.match(text, /Pending Memos: Not counted yet/u);
 		});
 	});
 
@@ -556,15 +603,15 @@ describe("Observer command controller", () => {
 
 			await controller.command("status", port);
 			const status = port.notifications.at(-1)?.message ?? "";
-			assert.match(status, /Pending Memo 수: 0/u);
-			assert.match(status, /Open Inquiry 수: 0/u);
-			assert.match(status, /Zettel 후보 수: 0/u);
+			assert.match(status, /Pending Memos: 0/u);
+			assert.match(status, /Open Inquiries: 0/u);
+			assert.match(status, /Zettel candidates: 0/u);
 			const entryCount = port.entries.length;
 			await controller.command("memo", port);
 			assert.equal(port.entries.length, entryCount);
 			assert.match(
 				port.notifications.at(-1)?.message ?? "",
-				/새 prepared reconciliation이 없습니다/u,
+				/There is no new prepared reconciliation/u,
 			);
 		});
 	});

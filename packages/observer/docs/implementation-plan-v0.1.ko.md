@@ -1934,6 +1934,51 @@ final closure commit differs from evidence head only in README/implementation-pl
 
 ---
 
+## Post-v0.1 — Pi-TUI Control Flow
+
+**Status:** Complete
+
+```text
+[x] TUI의 인자 없는 /observe와 /observe settings가 같은 control center를 엶
+[x] 현재 상태에서 legal한 Mode/Memo/Wrap/Notebook/language action만 단계적으로 노출
+[x] Notebook path는 절대 경로와 Pi cwd 기준 상대 경로를 모두 지원
+[x] 기본 출력 언어를 Notebook path와 분리된 option으로 노출하고 Memo/Zettel Markdown에만 적용
+[x] Mode On/Off만 toggle이며 언어는 현재 값을 preselect한 en/ko SelectList chooser로 제공
+[x] Mode와 언어 변경은 control center를 닫고 재개방하지 않고 in-place 반영
+[x] Notebook이 없는 On 요청은 explicit setup 뒤에만 activation
+[x] Mode OFF + ready Notebook에서만 One-shot editor 초안 제공
+[x] 기존 editor 내용은 confirm 없이 덮어쓰지 않음
+[x] default language 변경은 다음 Episode에만 적용하고 열린 Episode 언어를 보존
+[x] 상세 status panel은 내부 ID 대신 흐름, working set, health, recovery를 표시
+[x] footer는 compact state, widget은 active/paused/review/recovery일 때만 표시
+[x] TUI가 아닌 mode의 기존 command/RPC 동작 유지
+[x] 모든 surface가 terminal width를 넘지 않고 Esc/Enter로 복귀
+[x] 설정 완료 뒤 control center와 footer/widget이 새 상태로 즉시 재구성됨
+[x] TUI chrome은 영어로 유지하며 ko/en 출력 설정과 분리
+```
+
+Evidence:
+
+```text
+Observer package: 197/197
+TUI/controller/extension focused: 34/34
+Pi 0.80.10 RPC smoke: setup/status/on/memo-stutter/off pass
+Pi 0.82.1 PTY: in-place activation + explicit en/ko chooser pass
+TypeScript LSP: changed files clean
+```
+
+Textual의 command discovery, screen stack, state-dependent action, option list,
+focus, footer 패턴을 UX reference로 사용하되 구현은 Pi의 `SettingsList`,
+`SelectList`, `ctx.ui.custom`, `setStatus`, `setWidget` 경계만 사용한다. Pi의
+공식 preset/tools examples와 사용량이 큰 `pi-subagents`, 구조화 선택 UI를
+제공하는 `@juicesharp/rpiv-ask-user-question`, submenu 설정을 제공하는
+`@juanibiapina/pi-extension-settings`도 비교했다. 이들에서 boolean cycle과
+명시적 choice selector를 분리하고, 현재 선택을 preselect/mark하며, parent
+surface를 유지하는 패턴을 채택했다. Observer lifecycle, Markdown persistence,
+approval ordering은 변경하지 않는다.
+
+---
+
 ## Post-v0.1 — Public npm Release Preparation
 
 **Status:** In progress; candidate preparation only, not published
@@ -2019,6 +2064,7 @@ Green test는 claim과 연결될 때만 evidence로 사용한다.
 ### 현재 승인된 human surface
 
 ```text
+/observe
 /observe setup
 /observe status
 /observe settings

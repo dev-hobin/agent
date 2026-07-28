@@ -1,3 +1,4 @@
+import type { EpisodeLanguage } from "./lifecycle.ts";
 import type { MemoPassReceipt } from "./memo-reconciliation.ts";
 import type { MemoSessionSnapshot } from "./memo-session.ts";
 import type { NotebookStatus } from "./notebook-service.ts";
@@ -7,14 +8,26 @@ function assertNever(value: never): never {
 	throw new Error(`Unhandled Observer status value: ${String(value)}`);
 }
 
+export interface ObserverControlState {
+	readonly mode: ObserverPiSnapshot["state"]["mode"];
+	readonly episode: ObserverPiSnapshot["state"]["episode"]["status"];
+	readonly notebook: NotebookStatus["status"];
+	readonly notebookRoot?: string;
+	readonly notebookDefaultLanguage?: EpisodeLanguage;
+	readonly canChangeNotebook: boolean;
+	readonly canMemo: boolean;
+	readonly canWrap: boolean;
+}
+
 export interface ObserverStatusView {
-	readonly mode: "켜짐" | "꺼짐";
-	readonly episode: "비어 있음" | "열림" | "wrap 검토" | "정리됨";
+	readonly control: ObserverControlState;
+	readonly mode: "On" | "Off";
+	readonly episode: "Empty" | "Open" | "Wrap review" | "Settled";
 	readonly notebook: string;
 	readonly episodeLanguage: string;
 	readonly notebookHealth: string;
 	readonly replayHealth: string;
-	readonly sessionPersistence: "지속 세션" | "임시 세션";
+	readonly sessionPersistence: "Persistent session" | "Ephemeral session";
 	readonly preparedWrap: string;
 	readonly preparedMemo: string;
 	readonly pendingMemos: string;
@@ -28,13 +41,13 @@ function episodeLabel(
 ): ObserverStatusView["episode"] {
 	switch (status) {
 		case "empty":
-			return "비어 있음";
+			return "Empty";
 		case "open":
-			return "열림";
+			return "Open";
 		case "reviewing-wrap":
-			return "wrap 검토";
+			return "Wrap review";
 		case "settled":
-			return "정리됨";
+			return "Settled";
 		default:
 			return assertNever(status);
 	}
@@ -46,17 +59,45 @@ function notebookView(status: NotebookStatus): {
 } {
 	switch (status.status) {
 		case "unselected":
-			return { notebook: "선택되지 않음", health: "설정 필요" };
+			return { notebook: "Not selected", health: "Setup required" };
 		case "ready":
-			return { notebook: status.notebook.root, health: "정상" };
+			return { notebook: status.notebook.root, health: "Healthy" };
 		case "unhealthy":
 			return {
-				notebook: status.issue.path ?? "선택 정보 확인 필요",
+				notebook: status.issue.path ?? "Selection needs attention",
 				health: `${status.issue.code}: ${status.issue.message}`,
 			};
 		default:
 			return assertNever(status);
 	}
+}
+
+function observerControlState(
+	snapshot: ObserverPiSnapshot,
+	notebookStatus: NotebookStatus,
+): ObserverControlState {
+	const episode = snapshot.state.episode.status;
+	const liveEpisode = episode === "open" || episode === "reviewing-wrap";
+	const readyNotebook =
+		notebookStatus.status === "ready" ? notebookStatus.notebook : undefined;
+	return {
+		mode: snapshot.state.mode,
+		episode,
+		notebook: notebookStatus.status,
+		...(readyNotebook
+			? {
+					notebookRoot: readyNotebook.root,
+					notebookDefaultLanguage: readyNotebook.manifest.default_language,
+				}
+			: {}),
+		canChangeNotebook: !liveEpisode,
+		canMemo: episode === "open",
+		canWrap: liveEpisode,
+	};
+}
+
+function workingCount(passes: number, count: number): string {
+	return passes === 0 ? "Not counted yet" : String(count);
 }
 
 export function observerStatusView(input: {
@@ -68,43 +109,37 @@ export function observerStatusView(input: {
 }): ObserverStatusView {
 	const notebook = notebookView(input.notebookStatus);
 	const episode = input.snapshot.state.episode;
+	const working = input.memoSnapshot.state;
 	return {
-		mode: input.snapshot.state.mode === "on" ? "켜짐" : "꺼짐",
+		control: observerControlState(input.snapshot, input.notebookStatus),
+		mode: input.snapshot.state.mode === "on" ? "On" : "Off",
 		episode: episodeLabel(episode.status),
 		notebook: notebook.notebook,
 		episodeLanguage:
-			episode.status === "empty" ? "아직 고정되지 않음" : episode.core.lang,
+			episode.status === "empty" ? "Not fixed yet" : episode.core.lang,
 		notebookHealth: notebook.health,
 		replayHealth:
 			input.snapshot.issues.length === 0 &&
 			input.memoSnapshot.issues.length === 0
-				? "정상"
-				: `오류 ${input.snapshot.issues.length + input.memoSnapshot.issues.length}개`,
-		sessionPersistence: input.sessionFile ? "지속 세션" : "임시 세션",
+				? "Healthy"
+				: `${input.snapshot.issues.length + input.memoSnapshot.issues.length} errors`,
+		sessionPersistence: input.sessionFile
+			? "Persistent session"
+			: "Ephemeral session",
 		preparedWrap: input.snapshot.prepared
 			? input.snapshot.prepared.handoff.prepared.proposal_id
-			: "없음",
-		preparedMemo: input.memoSnapshot.prepared?.passId ?? "없음",
-		pendingMemos:
-			input.memoSnapshot.state.passes === 0
-				? "아직 집계되지 않음"
-				: String(
-						input.memoSnapshot.state.memos.filter(
-							(memo) => memo.disposition !== "superseded",
-						).length,
-					),
-		openInquiries:
-			input.memoSnapshot.state.passes === 0
-				? "아직 집계되지 않음"
-				: String(input.memoSnapshot.state.hypotheses.length),
-		zettelCandidates:
-			input.memoSnapshot.state.passes === 0
-				? "아직 집계되지 않음"
-				: String(
-						input.memoSnapshot.state.memos.filter(
-							(memo) => memo.disposition === "promotion-candidate",
-						).length,
-					),
+			: "None",
+		preparedMemo: input.memoSnapshot.prepared?.passId ?? "None",
+		pendingMemos: workingCount(
+			working.passes,
+			working.memos.filter((memo) => memo.disposition !== "superseded").length,
+		),
+		openInquiries: workingCount(working.passes, working.hypotheses.length),
+		zettelCandidates: workingCount(
+			working.passes,
+			working.memos.filter((memo) => memo.disposition === "promotion-candidate")
+				.length,
+		),
 		...(input.operationalIssue
 			? { operationalIssue: input.operationalIssue }
 			: {}),
@@ -113,35 +148,37 @@ export function observerStatusView(input: {
 
 export function renderObserverStatus(view: ObserverStatusView): string {
 	return [
-		`Observer 모드: ${view.mode}`,
-		`에피소드: ${view.episode}`,
-		`노트북: ${view.notebook}`,
-		`에피소드 출력 언어: ${view.episodeLanguage}`,
-		`노트북 상태: ${view.notebookHealth}`,
-		`세션 replay 상태: ${view.replayHealth}`,
-		`세션 저장: ${view.sessionPersistence}`,
-		`준비된 wrap: ${view.preparedWrap}`,
-		`준비된 Memo pass: ${view.preparedMemo}`,
-		`Pending Memo 수: ${view.pendingMemos}`,
-		`Open Inquiry 수: ${view.openInquiries}`,
-		`Zettel 후보 수: ${view.zettelCandidates}`,
-		...(view.operationalIssue ? [`복구 필요: ${view.operationalIssue}`] : []),
+		`Observer mode: ${view.mode}`,
+		`Episode: ${view.episode}`,
+		`Notebook: ${view.notebook}`,
+		`Episode output language: ${view.episodeLanguage}`,
+		`Notebook health: ${view.notebookHealth}`,
+		`Session replay health: ${view.replayHealth}`,
+		`Session persistence: ${view.sessionPersistence}`,
+		`Prepared Wrap: ${view.preparedWrap}`,
+		`Prepared Memo pass: ${view.preparedMemo}`,
+		`Pending Memos: ${view.pendingMemos}`,
+		`Open Inquiries: ${view.openInquiries}`,
+		`Zettel candidates: ${view.zettelCandidates}`,
+		...(view.operationalIssue
+			? [`Recovery required: ${view.operationalIssue}`]
+			: []),
 	].join("\n");
 }
 
 export function renderMemoPassReceipt(receipt: MemoPassReceipt): string {
 	return [
-		`Memo reconciliation 완료: ${receipt.passId}`,
-		`작업 revision: ${receipt.revisionId}`,
-		`범위: episode Memo ${receipt.scope.episodeMemos} · standing Inquiry ${receipt.scope.standingInquiries} · durable Memo ${receipt.scope.durableMemos}`,
-		`변경: ${receipt.summary}`,
+		`Memo reconciliation completed: ${receipt.passId}`,
+		`Working revision: ${receipt.revisionId}`,
+		`Scope: Episode Memos ${receipt.scope.episodeMemos} · standing Inquiries ${receipt.scope.standingInquiries} · durable Memos ${receipt.scope.durableMemos}`,
+		`Changes: ${receipt.summary}`,
 	].join("\n");
 }
 
 export function renderObserverFooter(view: ObserverStatusView): string {
 	const healthy =
-		view.replayHealth === "정상" && !view.operationalIssue
-			? "정상"
-			: "확인 필요";
+		view.replayHealth === "Healthy" && !view.operationalIssue
+			? "Healthy"
+			: "Needs attention";
 	return `Observer · ${view.mode} · ${view.episode} · ${healthy}`;
 }

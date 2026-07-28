@@ -1,5 +1,3 @@
-import { isAbsolute } from "node:path";
-
 import type { EpisodeLanguage } from "./lifecycle.ts";
 
 export const OBSERVE_ACTIONS = [
@@ -31,7 +29,7 @@ export type ObserveCommandParseResult =
 	| { readonly ok: false; readonly message: string };
 
 const USAGE =
-	"사용법: /observe setup <ko|en> <절대 경로> | status | on | off | wrap | memo | settings";
+	"Usage: /observe setup <ko|en> <path> | status | on | off | wrap | memo | settings";
 
 function success(command: ObserveCommand): ObserveCommandParseResult {
 	return { ok: true, command };
@@ -56,14 +54,8 @@ function actionAndRemainder(input: string): {
 function parseSetup(remainder: string): ObserveCommandParseResult {
 	if (!remainder) return success({ kind: "setup-prompt" });
 	const split = actionAndRemainder(remainder);
-	if (
-		(split.action !== "ko" && split.action !== "en") ||
-		!split.remainder ||
-		!isAbsolute(split.remainder)
-	) {
-		return failure(
-			"setup에는 ko 또는 en과 명시적인 notebook 절대 경로가 필요합니다.",
-		);
+	if ((split.action !== "ko" && split.action !== "en") || !split.remainder) {
+		return failure("setup requires ko or en and a notebook path.");
 	}
 	return success({
 		kind: "setup",
@@ -103,15 +95,31 @@ export function parseObserveCommand(args: string): ObserveCommandParseResult {
 	}
 }
 
-export function completeObserveArgs(
-	prefix: string,
-): Array<{ readonly value: string; readonly label: string }> | null {
+const OBSERVE_ACTION_DESCRIPTIONS: Readonly<Record<string, string>> = {
+	setup: "Create or select a Notebook (absolute or relative path)",
+	status: "Inspect Episode, working set, and Notebook health",
+	on: "Start or resume continuous Sidecar observation",
+	off: "Pause observation while preserving the Episode",
+	memo: "Reconcile working Memos and Inquiries",
+	wrap: "Prepare or review the save plan",
+	settings: "Open the Observer control center",
+};
+
+export function completeObserveArgs(prefix: string): Array<{
+	readonly value: string;
+	readonly label: string;
+	readonly description: string;
+}> | null {
 	const normalized = prefix.trim();
 	if (normalized.includes(" ")) return null;
 	const matches = OBSERVE_ACTIONS.filter((action) =>
 		action.startsWith(normalized),
 	);
 	return matches.length > 0
-		? matches.map((action) => ({ value: action, label: action }))
+		? matches.map((action) => ({
+				value: action,
+				label: action,
+				description: OBSERVE_ACTION_DESCRIPTIONS[action] ?? action,
+			}))
 		: null;
 }

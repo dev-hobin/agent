@@ -1,9 +1,10 @@
-import { isAbsolute } from "node:path";
+import { resolve } from "node:path";
 
 import {
 	applyObserverEvent,
 	OBSERVER_PROTOCOL,
 	type ActivationChangedEvent,
+	type EpisodeLanguage,
 	type EpisodeOpenedEvent,
 	type NotebookSelectedEvent,
 	type ObserverEvent,
@@ -50,6 +51,7 @@ import {
 	renderMemoPassReceipt,
 	renderObserverFooter,
 	renderObserverStatus,
+	type ObserverStatusView,
 } from "./observer-status.ts";
 import {
 	decodePreparedWrapHandoff,
@@ -75,6 +77,8 @@ import {
 import { createWrapService, type WrapService } from "./wrap-service.ts";
 
 export interface ObserverCommandPort {
+	/** Pi's current working directory. Relative Notebook paths resolve from here. */
+	readonly cwd?: string;
 	branchEntries(): readonly PiBranchEntryLike[];
 	sessionFile(): string | undefined;
 	appendEntry(customType: string, data: unknown): void;
@@ -119,6 +123,11 @@ export type OneShotEpisodeResult =
 export interface ObserverController {
 	bind(port: ObserverCommandPort): Promise<void>;
 	refresh(port: ObserverCommandPort): Promise<void>;
+	inspect(port: ObserverCommandPort): Promise<ObserverStatusView>;
+	updateDefaultLanguage(
+		language: EpisodeLanguage,
+		port: ObserverCommandPort,
+	): Promise<boolean>;
 	command(args: string, port: ObserverCommandPort): Promise<void>;
 	installPrepared(value: unknown, port: ObserverCommandPort): Promise<boolean>;
 	installPreparedMemo(
@@ -283,17 +292,20 @@ async function promptSetup(
 	port: ObserverCommandPort,
 ): Promise<ObserveCommand | null> {
 	const root = await port.input(
-		"Observer notebook 위치",
-		"사용자가 소유한 folder의 절대 경로",
+		"Observer Notebook path",
+		"Absolute, or relative to the current Pi working directory",
 	);
 	if (root === undefined) return null;
-	const language = await port.select("기본 Markdown 언어", ["ko", "en"]);
+	const language = await port.select("Default output language", ["en", "ko"]);
 	if (language === undefined) return null;
-	if (!isAbsolute(root) || (language !== "ko" && language !== "en")) {
-		port.notify("Notebook 절대 경로와 ko 또는 en이 필요합니다.", "warning");
+	if (!root.trim() || (language !== "ko" && language !== "en")) {
+		port.notify(
+			"A Notebook path and output language (en or ko) are required.",
+			"warning",
+		);
 		return null;
 	}
-	return { kind: "setup", root, lang: language };
+	return { kind: "setup", root: root.trim(), lang: language };
 }
 
 function resolveCommand(
@@ -317,10 +329,24 @@ function renderPreparedPlan(handoff: PreparedWrapHandoff): string {
 		handoff.summary,
 		"",
 		`Notebook: ${handoff.prepared.root}`,
-		`언어: ${handoff.prepared.episode_language}`,
-		`기록 수: ${handoff.prepared.records.length}`,
+		`Output language: ${handoff.prepared.episode_language}`,
+		`Records: ${handoff.prepared.records.length}`,
 		...operations,
 	].join("\n");
+}
+
+async function inspectStatus(
+	port: ObserverCommandPort,
+	notebooks: NotebookService,
+	operationalIssue?: string,
+): Promise<ObserverStatusView> {
+	return observerStatusView({
+		snapshot: reconstructObserverPiState(port.branchEntries()),
+		memoSnapshot: reconstructMemoSession(port.branchEntries()),
+		notebookStatus: await notebooks.status(),
+		sessionFile: port.sessionFile(),
+		...(operationalIssue ? { operationalIssue } : {}),
+	});
 }
 
 async function refreshStatus(
@@ -328,16 +354,7 @@ async function refreshStatus(
 	notebooks: NotebookService,
 	operationalIssue?: string,
 ): Promise<void> {
-	const snapshot = reconstructObserverPiState(port.branchEntries());
-	const memoSnapshot = reconstructMemoSession(port.branchEntries());
-	const notebookStatus = await notebooks.status();
-	const view = observerStatusView({
-		snapshot,
-		memoSnapshot,
-		notebookStatus,
-		sessionFile: port.sessionFile(),
-		...(operationalIssue ? { operationalIssue } : {}),
-	});
+	const view = await inspectStatus(port, notebooks, operationalIssue);
 	port.setStatus(renderObserverFooter(view));
 }
 
@@ -346,18 +363,56 @@ async function showStatus(
 	notebooks: NotebookService,
 	operationalIssue?: string,
 ): Promise<void> {
-	const snapshot = reconstructObserverPiState(port.branchEntries());
-	const memoSnapshot = reconstructMemoSession(port.branchEntries());
-	const notebookStatus = await notebooks.status();
-	const view = observerStatusView({
-		snapshot,
-		memoSnapshot,
-		notebookStatus,
-		sessionFile: port.sessionFile(),
-		...(operationalIssue ? { operationalIssue } : {}),
-	});
+	const view = await inspectStatus(port, notebooks, operationalIssue);
 	port.setStatus(renderObserverFooter(view));
 	port.notify(renderObserverStatus(view), "info");
+}
+
+async function updateDefaultLanguageCommand(input: {
+	readonly language: EpisodeLanguage;
+	readonly port: ObserverCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObserverControllerIds;
+	readonly operationalIssue?: string;
+}): Promise<boolean> {
+	const synchronized = await synchronize(
+		input.port,
+		input.notebooks,
+		input.ids,
+	);
+	if (
+		notifyReplayIssue(synchronized.snapshot, input.port) ||
+		notifyMemoReplayIssue(synchronized.memo, input.port) ||
+		synchronized.operationalIssue ||
+		input.operationalIssue
+	) {
+		const issue = synchronized.operationalIssue ?? input.operationalIssue;
+		if (issue)
+			input.port.notify(`Observer recovery is required: ${issue}`, "error");
+		return false;
+	}
+	const updated = await input.notebooks.updateDefaultLanguage({
+		state: synchronized.snapshot.state,
+		language: input.language,
+	});
+	if (!updated.ok) {
+		input.port.notify(
+			`Default output language update failed: ${updated.issue.message}`,
+			"error",
+		);
+		return false;
+	}
+	const episode = synchronized.snapshot.state.episode;
+	const preserved =
+		episode.status !== "empty" && episode.core.lang !== input.language
+			? ` The current Episode output remains ${episode.core.lang}.`
+			: "";
+	input.port.notify(
+		`Default Memo and Zettel output language set to ${input.language} for the next Episode.${preserved}`,
+		"info",
+	);
+	await refreshStatus(input.port, input.notebooks);
+	return true;
 }
 
 async function acknowledgmentInspection(
@@ -452,13 +507,14 @@ async function setupCommand(
 	port: ObserverCommandPort,
 	notebooks: NotebookService,
 ): Promise<void> {
+	const root = resolve(port.cwd ?? process.cwd(), command.root);
 	const setup = await notebooks.setup({
-		root: command.root,
+		root,
 		defaultLanguage: command.lang,
 		state: snapshot.state,
 	});
 	if (!setup.ok) {
-		port.notify(`Notebook setup 실패: ${setup.issue.message}`, "error");
+		port.notify(`Notebook setup failed: ${setup.issue.message}`, "error");
 		return;
 	}
 	if (
@@ -472,7 +528,7 @@ async function setupCommand(
 		);
 	}
 	port.notify(
-		`Observer notebook을 선택했습니다: ${setup.value.notebook.root} (${command.lang})`,
+		`Observer Notebook selected: ${setup.value.notebook.root} (default output: ${command.lang})`,
 		"info",
 	);
 }
@@ -612,7 +668,10 @@ async function onCommand(
 ): Promise<void> {
 	const recovered = await notebooks.recover(snapshot.state);
 	if (!recovered.ok) {
-		port.notify(`Observer on 실패: ${recovered.issue.message}`, "error");
+		port.notify(
+			`Failed to turn Observer on: ${recovered.issue.message}`,
+			"error",
+		);
 		return;
 	}
 	let current = snapshot;
@@ -646,7 +705,7 @@ async function onCommand(
 		const activated = appendLifecycle(port, current, activationChanged(true));
 		if (!activated) return;
 	}
-	port.notify("Observer를 켰습니다.", "info");
+	port.notify("Observer is on.", "info");
 }
 
 function offCommand(
@@ -654,11 +713,11 @@ function offCommand(
 	port: ObserverCommandPort,
 ): void {
 	if (snapshot.state.mode === "off") {
-		port.notify("Observer는 이미 꺼져 있습니다.", "info");
+		port.notify("Observer is already off.", "info");
 		return;
 	}
 	if (!appendLifecycle(port, snapshot, activationChanged(false))) return;
-	port.notify("Observer를 껐습니다. 열린 episode는 유지됩니다.", "info");
+	port.notify("Observer is off. The open Episode is preserved.", "info");
 }
 
 async function wrapCommand(
@@ -671,11 +730,11 @@ async function wrapCommand(
 		snapshot.state.episode.status !== "reviewing-wrap" ||
 		!snapshot.prepared
 	) {
-		port.notify("검토할 prepared wrap proposal이 없습니다.", "warning");
+		port.notify("There is no prepared Wrap proposal to review.", "warning");
 		return;
 	}
 	const approved = await port.confirm(
-		"Observer wrap 승인",
+		"Approve Observer Wrap",
 		renderPreparedPlan(snapshot.prepared.handoff),
 	);
 	if (!approved) {
@@ -684,14 +743,17 @@ async function wrapCommand(
 			snapshot,
 			wrapCancelled(snapshot.prepared.handoff.prepared.proposal_id),
 		);
-		port.notify("Wrap을 취소했습니다. Episode와 Mode를 유지합니다.", "info");
+		port.notify("Wrap cancelled. Episode and Mode are unchanged.", "info");
 		return;
 	}
 	let current = snapshot;
 	if (!current.attempt) {
 		const currentPrepared = current.prepared;
 		if (!currentPrepared) {
-			port.notify("승인할 prepared wrap을 찾지 못했습니다.", "error");
+			port.notify(
+				"The prepared Wrap for approval could not be found.",
+				"error",
+			);
 			return;
 		}
 		port.appendEntry(
@@ -703,7 +765,7 @@ async function wrapCommand(
 	}
 	const prepared = current.prepared?.handoff;
 	if (!prepared) {
-		port.notify("승인된 prepared wrap을 복구하지 못했습니다.", "error");
+		port.notify("The approved prepared Wrap could not be recovered.", "error");
 		return;
 	}
 	const saved = await wraps.commit({
@@ -716,13 +778,13 @@ async function wrapCommand(
 		},
 	});
 	if (!saved.ok) {
-		port.notify(`Wrap 저장 실패: ${saved.issue.message}`, "error");
+		port.notify(`Wrap save failed: ${saved.issue.message}`, "error");
 		return;
 	}
 	if (!appendLifecycle(port, current, wrapCommitted(saved.value.receipt)))
 		return;
 	port.notify(
-		`Wrap 저장 완료: ${saved.value.receipt.records.length}개 record`,
+		`Wrap saved: ${saved.value.receipt.records.length} records`,
 		"info",
 	);
 }
@@ -737,15 +799,15 @@ async function memoCommand(input: {
 	if (!input.memo.prepared) {
 		input.port.notify(
 			input.memo.state.lastReceipt
-				? `새 prepared reconciliation이 없습니다.\n${renderMemoPassReceipt(input.memo.state.lastReceipt)}`
-				: "새 prepared reconciliation이 없습니다.",
+				? `There is no new prepared reconciliation.\n${renderMemoPassReceipt(input.memo.state.lastReceipt)}`
+				: "There is no new prepared reconciliation.",
 			"info",
 		);
 		return undefined;
 	}
 	if (input.snapshot.state.episode.status !== "open") {
 		input.port.notify(
-			"Memo reconciliation에는 열린 Episode가 필요합니다.",
+			"Memo reconciliation requires an open Episode.",
 			"warning",
 		);
 		return undefined;
@@ -753,7 +815,7 @@ async function memoCommand(input: {
 	const recovered = await input.notebooks.recover(input.snapshot.state);
 	if (!recovered.ok) {
 		input.port.notify(
-			`Notebook 복구 실패: ${recovered.issue.message}`,
+			`Notebook recovery failed: ${recovered.issue.message}`,
 			"error",
 		);
 		return undefined;
@@ -761,7 +823,7 @@ async function memoCommand(input: {
 	const inventory = await readNotebookInventory(recovered.value.notebook);
 	if (!inventory.ok) {
 		input.port.notify(
-			`Notebook 읽기 실패: ${inventory.issue.message}`,
+			`Notebook read failed: ${inventory.issue.message}`,
 			"error",
 		);
 		return undefined;
@@ -788,7 +850,7 @@ async function memoCommand(input: {
 	});
 	if (!reconciled.ok) {
 		input.port.notify(
-			`Memo reconciliation 거부: ${reconciled.issue.message}`,
+			`Memo reconciliation rejected: ${reconciled.issue.message}`,
 			"error",
 		);
 		return undefined;
@@ -804,7 +866,7 @@ async function memoCommand(input: {
 		);
 	} catch (error) {
 		input.port.notify(
-			`Memo working entry 기록 실패: ${error instanceof Error ? error.message : String(error)}`,
+			`Failed to record the Memo working entry: ${error instanceof Error ? error.message : String(error)}`,
 			"error",
 		);
 		return undefined;
@@ -814,7 +876,7 @@ async function memoCommand(input: {
 		notifyMemoReplayIssue(appliedMemo, input.port) ||
 		!appliedMemo.pendingAcknowledgment
 	) {
-		return "Memo working entry 결과를 확인해야 합니다.";
+		return "The Memo working entry result needs attention.";
 	}
 	try {
 		const current = reconstructObserverPiState(input.port.branchEntries());
@@ -823,17 +885,17 @@ async function memoCommand(input: {
 			current,
 			memoAcknowledgmentEvent(appliedMemo.pendingAcknowledgment),
 		);
-		if (!acknowledged) return "Memo acknowledgment를 기록하지 못했습니다.";
+		if (!acknowledged) return "The Memo acknowledgment could not be recorded.";
 	} catch (error) {
 		input.port.notify(
-			"Memo working state는 기록되었지만 lifecycle acknowledgment가 남았습니다. 다음 bind/명령에서 복구합니다.",
+			"Memo working state was recorded, but lifecycle acknowledgment remains. The next bind or command will recover it.",
 			"warning",
 		);
-		return `Memo acknowledgment 기록 실패: ${error instanceof Error ? error.message : String(error)}`;
+		return `Failed to record the Memo acknowledgment: ${error instanceof Error ? error.message : String(error)}`;
 	}
 	const completed = reconstructMemoSession(input.port.branchEntries());
 	if (completed.issues.length > 0 || completed.pendingAcknowledgment) {
-		return "Memo acknowledgment 결과를 확인해야 합니다.";
+		return "The Memo acknowledgment result needs attention.";
 	}
 	input.port.notify(renderMemoPassReceipt(reconciled.value.receipt), "info");
 	return undefined;
@@ -1165,6 +1227,18 @@ export function createObserverController(
 		},
 		async refresh(port) {
 			await refreshStatus(port, notebooks, operationalIssue);
+		},
+		inspect(port) {
+			return inspectStatus(port, notebooks, operationalIssue);
+		},
+		updateDefaultLanguage(language, port) {
+			return updateDefaultLanguageCommand({
+				language,
+				port,
+				notebooks,
+				ids: dependencies.ids,
+				...(operationalIssue ? { operationalIssue } : {}),
+			});
 		},
 		async command(args, port) {
 			operationalIssue = await executeObserverCommand({

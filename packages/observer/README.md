@@ -25,29 +25,30 @@ pi -e npm:@hobin/observer
 
 Run `pi list` to confirm that the package is available.
 
-## Set up a notebook
+## Start in the control center
 
-Observer never chooses a notebook path for you. Supply an absolute path and the notebook language:
+In Pi's TUI, run `/observe` with no arguments. The keyboard-first control center shows only actions that are legal for the current Episode:
+
+```text
+/observe
+→ connect a Notebook
+→ turn Observer On
+→ work normally
+→ run Memo when you want a reconciliation
+→ run Wrap when you are ready to review and save
+```
+
+Use ↑/↓ and Enter to navigate; Esc always returns to Pi. The same surface exposes **Default output language** as a separate option, plus a detailed health view and a One-shot draft without requiring users to remember subcommands. Observer On/Off is a toggle; language is not. Enter on the language row opens an explicit `English (en)` / `Korean (ko)` chooser with the current choice preselected. On/Off and language changes update in place without closing and reopening the control center. The footer shows compact state, while a small widget appears only when an Episode needs attention or observation is active.
+
+Observer never chooses a Notebook path for you. Setup accepts either an absolute path or a path relative to Pi's current working directory, then initializes a new folder or adopts an existing one without rewriting unrelated files. Direct commands remain available:
 
 ```text
 /observe setup ko /Users/me/notes/observer
-```
-
-Use `en` for English records:
-
-```text
-/observe setup en /Users/me/notes/observer
-```
-
-Running `/observe setup` without arguments opens the interactive setup prompt. Observer can initialize a new folder or adopt an existing one without rewriting unrelated files.
-
-Check the selected notebook and current Mode/Episode state:
-
-```text
+/observe setup en ./notes/observer
 /observe status
 ```
 
-Do not move or replace the selected notebook while an Episode is open.
+`ko` and `en` select the language used when Observer writes Memo and Zettel Markdown; they do not change the control-center UI language. `/observe settings` opens the same control center. Changing the default output language during an open Episode affects the next Episode only. Do not move or replace the selected Notebook while an Episode is open.
 
 ## Sidecar workflow
 
@@ -103,8 +104,10 @@ Model/provider behavior is stochastic. Completion receipts prove one recorded re
 
 | Command | Effect |
 | --- | --- |
+| `/observe` | Open the TUI control center; show status outside TUI mode |
+| `/observe settings` | Open the TUI control center explicitly |
 | `/observe setup` | Open interactive notebook setup |
-| `/observe setup <ko\|en> <absolute path>` | Initialize or select an explicit notebook |
+| `/observe setup <ko\|en> <path>` | Initialize or select a Notebook; relative paths resolve from Pi's working directory |
 | `/observe status` | Show notebook, Mode, Episode, and recovery status |
 | `/observe on` | Enable Sidecar observation for the open Episode |
 | `/observe off` | Disable Sidecar observation without settling the Episode |

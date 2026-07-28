@@ -37,6 +37,14 @@ import {
 	type ObserverOneShotIds,
 	type ObserverTurnState,
 } from "./one-shot-runtime.ts";
+import {
+	OBSERVER_ONE_SHOT_DRAFT,
+	ObserverWidget,
+	renderObserverChromeStatus,
+	shouldShowObserverWidget,
+	showObserverControl,
+	showObserverStatus,
+} from "./tui.ts";
 
 const OBSERVER_STATUS_KEY = "observer";
 const OBSERVER_TOOL_NAME = "observer_sidecar";
@@ -110,6 +118,7 @@ function commandPort(
 	const sessionManager = ctx.sessionManager;
 	const ui = ctx.ui;
 	return {
+		cwd: ctx.cwd,
 		branchEntries: sessionManager.getBranch.bind(sessionManager),
 		sessionFile: sessionManager.getSessionFile.bind(sessionManager),
 		appendEntry: pi.appendEntry.bind(pi),
@@ -444,13 +453,52 @@ export async function routeMemoCommand(
 	return true;
 }
 
-async function handleObserveCommand(input: {
+interface ObserveCommandInput {
 	readonly args: string;
 	readonly ctx: ExtensionContext;
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
 	readonly observation: ReturnType<typeof createObservationController>;
+}
+
+export type ObserverCommandPresentation = "control" | "status" | "command";
+
+export function observerCommandPresentation(
+	args: string,
+	mode: ExtensionContext["mode"],
+): ObserverCommandPresentation {
+	if (mode !== "tui") return "command";
+	const normalized = args.trim();
+	if (!normalized || normalized === "settings") return "control";
+	if (normalized === "status") return "status";
+	return "command";
+}
+
+async function refreshObserverChrome(input: {
+	readonly ctx: ExtensionContext;
+	readonly pi: ExtensionAPI;
+	readonly controller: ReturnType<typeof createObserverController>;
 }): Promise<void> {
+	const port = commandPort(input.pi, input.ctx);
+	if (input.ctx.mode !== "tui") {
+		await input.controller.refresh(port);
+		return;
+	}
+	const view = await input.controller.inspect(port);
+	input.ctx.ui.setStatus(
+		OBSERVER_STATUS_KEY,
+		renderObserverChromeStatus(view, input.ctx.ui.theme),
+	);
+	input.ctx.ui.setWidget(
+		OBSERVER_STATUS_KEY,
+		shouldShowObserverWidget(view)
+			? (_tui, theme) => new ObserverWidget(view, theme)
+			: undefined,
+		{ placement: "belowEditor" },
+	);
+}
+
+async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 	const port = commandPort(input.pi, input.ctx);
 	const memoHandled = await routeMemoCommand(input.args, {
 		request() {
@@ -479,7 +527,10 @@ async function handleObserveCommand(input: {
 		},
 		notify: input.ctx.ui.notify.bind(input.ctx.ui),
 	});
-	if (memoHandled) return;
+	if (memoHandled) {
+		await refreshObserverChrome(input);
+		return;
+	}
 	const wrapHandled = await routeWrapCommand(input.args, {
 		request() {
 			return input.observation.requestWrap(port);
@@ -508,6 +559,136 @@ async function handleObserveCommand(input: {
 		notify: input.ctx.ui.notify.bind(input.ctx.ui),
 	});
 	if (!wrapHandled) await input.controller.command(input.args, port);
+	await refreshObserverChrome(input);
+}
+
+async function setOneShotDraft(ctx: ExtensionContext): Promise<boolean> {
+	const current = ctx.ui.getEditorText();
+	if (
+		current.trim() &&
+		!(await ctx.ui.confirm(
+			"Replace the editor with a One-shot draft?",
+			"The editor already contains text. Replacing it will discard that text.",
+		))
+	)
+		return false;
+	ctx.ui.setEditorText(OBSERVER_ONE_SHOT_DRAFT);
+	ctx.ui.notify(
+		"Paste the material or question below the draft, then send it.",
+		"info",
+	);
+	return true;
+}
+
+async function setupNotebookFromControl(
+	input: ObserveCommandInput,
+	port: ObserverCommandPort,
+	language: "ko" | "en",
+): Promise<boolean> {
+	const root = await input.ctx.ui.input(
+		"Observer Notebook path",
+		`Absolute, or relative to ${input.ctx.cwd}`,
+	);
+	if (root === undefined) return false;
+	if (!root.trim()) {
+		input.ctx.ui.notify("Enter a Notebook path.", "warning");
+		return false;
+	}
+	await input.controller.command(`setup ${language} ${root.trim()}`, port);
+	const view = await input.controller.inspect(port);
+	return view.control.notebook === "ready";
+}
+
+async function showObserverControlFlow(
+	input: ObserveCommandInput,
+): Promise<void> {
+	const port = commandPort(input.pi, input.ctx);
+	let pendingLanguage: "ko" | "en" = "en";
+	while (true) {
+		const view = await input.controller.inspect(port);
+		if (view.control.notebookDefaultLanguage)
+			pendingLanguage = view.control.notebookDefaultLanguage;
+		const action = await showObserverControl(input.ctx, view, pendingLanguage, {
+			async applyActivation(enabled) {
+				await input.controller.command(enabled ? "on" : "off", port);
+				await refreshObserverChrome(input);
+				return input.controller.inspect(port);
+			},
+			async applyLanguage(language) {
+				const current = await input.controller.inspect(port);
+				const applied =
+					current.control.notebook === "ready"
+						? await input.controller.updateDefaultLanguage(language, port)
+						: true;
+				if (applied) pendingLanguage = language;
+				await refreshObserverChrome(input);
+				return input.controller.inspect(port);
+			},
+			onError(error) {
+				input.ctx.ui.notify(
+					`Observer setting failed: ${error instanceof Error ? error.message : String(error)}`,
+					"error",
+				);
+			},
+		});
+		if (!action) return;
+		switch (action.kind) {
+			case "activation": {
+				if (action.enabled && view.control.notebook !== "ready") {
+					if (await setupNotebookFromControl(input, port, pendingLanguage))
+						await input.controller.command("on", port);
+				} else {
+					await input.controller.command(action.enabled ? "on" : "off", port);
+				}
+				await refreshObserverChrome(input);
+				break;
+			}
+			case "setup": {
+				await setupNotebookFromControl(input, port, pendingLanguage);
+				await refreshObserverChrome(input);
+				break;
+			}
+			case "language": {
+				pendingLanguage = action.language;
+				if (view.control.notebook === "ready")
+					await input.controller.updateDefaultLanguage(action.language, port);
+				await refreshObserverChrome(input);
+				break;
+			}
+			case "status":
+				await showObserverStatus(
+					input.ctx,
+					await input.controller.inspect(port),
+				);
+				break;
+			case "memo":
+			case "wrap":
+				await runObserverCommand({ ...input, args: action.kind });
+				return;
+			case "one-shot":
+				if (await setOneShotDraft(input.ctx)) return;
+				break;
+			default:
+				assertNever(action);
+		}
+	}
+}
+
+async function handleObserveCommand(input: ObserveCommandInput): Promise<void> {
+	const presentation = observerCommandPresentation(input.args, input.ctx.mode);
+	if (presentation === "control") {
+		await showObserverControlFlow(input);
+		return;
+	}
+	if (presentation === "status") {
+		const view = await input.controller.inspect(
+			commandPort(input.pi, input.ctx),
+		);
+		await refreshObserverChrome(input);
+		await showObserverStatus(input.ctx, view);
+		return;
+	}
+	await runObserverCommand(input);
 }
 
 function wrapCompletionStatus(
@@ -728,16 +909,23 @@ function registerObserverEvents(input: {
 	});
 	input.pi.on("session_start", async (_event, ctx) => {
 		await input.controller.bind(commandPort(input.pi, ctx));
+		await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("session_tree", async (_event, ctx) => {
 		await input.controller.bind(commandPort(input.pi, ctx));
+		await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("session_compact", async (_event, ctx) => {
-		await input.controller.refresh(commandPort(input.pi, ctx));
+		await refreshObserverChrome({ ...input, ctx });
+	});
+	input.pi.on("tool_execution_end", async (event, ctx) => {
+		if (event.toolName === OBSERVER_TOOL_NAME)
+			await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("session_shutdown", (_event, ctx) => {
 		input.controller.unbind();
 		ctx.ui.setStatus(OBSERVER_STATUS_KEY, undefined);
+		ctx.ui.setWidget(OBSERVER_STATUS_KEY, undefined);
 	});
 }
 
@@ -767,7 +955,8 @@ export default function observerExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("observe", {
-		description: "Observer 설정, 상태, on/off, memo, wrap lifecycle 제어",
+		description:
+			"Configure Observer and control status, on/off, Memo, and Wrap lifecycle",
 		getArgumentCompletions: completeObserveArgs,
 		handler(args, ctx) {
 			return handleObserveCommand({ args, ctx, pi, controller, observation });
