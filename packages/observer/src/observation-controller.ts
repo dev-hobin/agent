@@ -498,13 +498,12 @@ function materialReviewAttemptIssue(input: {
 		return "Material review intent와 Episode capability가 일치하지 않습니다.";
 	const lifecycle = input.branch.pi.state;
 	if (
-		lifecycle.mode !== "off" ||
 		lifecycle.episode.status !== "open" ||
 		lifecycle.episode.core.episodeId !== input.episode.episodeId ||
 		lifecycle.episode.core.notebookId !== input.episode.notebookId ||
 		lifecycle.episode.core.lang !== input.episode.lang
 	)
-		return "Material review Episode capability가 현재 OPEN/OFF lifecycle과 일치하지 않습니다.";
+		return "Material review Episode capability가 현재 OPEN lifecycle과 일치하지 않습니다.";
 	return null;
 }
 
@@ -623,11 +622,11 @@ function finishMaterialReview(input: {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	const episode = branch.pi.state.episode;
-	if (branch.pi.state.mode !== "off" || episode.status !== "open")
+	if (episode.status !== "open")
 		return {
 			ok: false,
 			message:
-				"Material review completion requires Mode OFF and an OPEN Episode without Review & Save review.",
+				"Material review completion requires an OPEN Episode without Review & Save review.",
 		};
 	const candidates = branch.observation.candidates.flatMap((candidate) =>
 		candidate.materialReviewRequestId === input.action.requestId

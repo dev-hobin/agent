@@ -444,7 +444,7 @@ function externalSourceAction(candidateId: string): Record<string, unknown> {
 }
 
 describe("Observation staged controller", () => {
-	test("orchestrates strict raw inline start and exact retry without activation", async () => {
+	test("orchestrates inline material review without changing active Mode", async () => {
 		await withSandbox(async ({ controller, lifecycleController, port }) => {
 			const text = "이 문장을 Observer 관점으로 바로 관찰해 줘.";
 			const value = {
@@ -460,23 +460,7 @@ describe("Observation staged controller", () => {
 					return `material-review-00000000-0000-4000-8000-${String(400 + generated).padStart(12, "0")}`;
 				},
 			};
-			const beforeModeRejection = port.entries.length;
-			assert.equal(
-				(
-					await executeMaterialReviewStart({
-						value,
-						latestUser: { text, inputSource: "interactive" },
-						capturedAt: "2026-08-01T09:57:00.000Z",
-						port,
-						lifecycle: lifecycleController,
-						observation: controller,
-						ids,
-					})
-				).ok,
-				false,
-			);
-			assert.equal(port.entries.length, beforeModeRejection);
-			await lifecycleController.command("off", port);
+			assert.equal(reconstructObserverPiState(port.entries).state.mode, "on");
 			const beforeDigestRejection = port.entries.length;
 			assert.equal(
 				(
@@ -516,6 +500,7 @@ describe("Observation staged controller", () => {
 				);
 			assert.equal(started.status, "inline-captured");
 			assert.ok(started.candidateId);
+			assert.equal(reconstructObserverPiState(port.entries).state.mode, "on");
 			assert.deepEqual(JSON.parse(materialReviewCommandText(started)), {
 				ok: true,
 				action: "material-review-start",
@@ -608,6 +593,7 @@ describe("Observation staged controller", () => {
 			const turnState: ObserverTurnState = {
 				toolUsed: true,
 				latestUser: { text, inputSource: "interactive" },
+				scriptedMaterialRequest: null,
 			};
 			const routed = await routeMaterialReviewTool({
 				value: {
@@ -959,7 +945,7 @@ describe("Observation staged controller", () => {
 				request_id: started.request.requestId,
 				observation_ids: [recorded.observation.observationId],
 				completion_digest: finished.completionDigest,
-				lifecycle: { mode: "off", episode: "open" },
+				lifecycle: { mode: "unchanged", episode: "open" },
 			});
 			const resumed = executeMaterialReviewFinish({
 				value: finishValue,

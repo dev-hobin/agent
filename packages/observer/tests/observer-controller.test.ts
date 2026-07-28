@@ -343,8 +343,12 @@ describe("Observer command parsing", () => {
 			["status"],
 		);
 		assert.deepEqual(
-			completeObserveArgs("hyp")?.map((item) => item.value),
-			["hypothesis"],
+			completeObserveArgs("add")?.map((item) => item.value),
+			["add-hypothesis"],
+		);
+		assert.deepEqual(
+			completeObserveArgs("mat")?.map((item) => item.value),
+			["material"],
 		);
 	});
 });
@@ -391,7 +395,7 @@ describe("Observer command controller", () => {
 		});
 	});
 
-	test("opens and reuses an OFF material review Episode without activation", async () => {
+	test("opens and reuses a material review Episode without changing Mode", async () => {
 		await withSandbox(async (sandbox) => {
 			const controller = createObserverController({
 				selectionStore: selectionStore(sandbox),
@@ -436,13 +440,16 @@ describe("Observer command controller", () => {
 			assert.equal(port.entries.length, count);
 
 			await controller.command("on", port);
-			const beforeRejected = port.entries.length;
-			const rejected = await controller.ensureMaterialReviewEpisode(
+			const beforeActiveResume = port.entries.length;
+			const active = await controller.ensureMaterialReviewEpisode(
 				materialReviewIntent(),
 				port,
 			);
-			assert.equal(rejected.ok, false);
-			assert.equal(port.entries.length, beforeRejected);
+			if (!active.ok) assert.fail(active.message);
+			assert.equal(active.status, "resumed");
+			assert.equal(active.value.episodeId, opened.value.episodeId);
+			assert.equal(reconstructObserverPiState(port.entries).state.mode, "on");
+			assert.equal(port.entries.length, beforeActiveResume);
 		});
 	});
 

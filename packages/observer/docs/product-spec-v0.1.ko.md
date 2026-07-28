@@ -99,7 +99,7 @@ Observer ON
 → Review & Save로 최종 검토·로컬 저장·종료
 ```
 
-### 4.3 Track a hypothesis 사용
+### 4.3 Add a hypothesis 사용
 
 ```text
 Observer ON 또는 OFF
@@ -119,12 +119,12 @@ Observer ON 또는 OFF
 ### 4.4 Observe material 사용
 
 ```text
-Observer OFF
-→ “이 자료를 Observer 관점으로 봐줘”
+Observer ON 또는 OFF
+→ `/observe material <자료 또는 retrieval 요청>`
 → 해당 요청 동안 scoped Observe material 수행
 → 기존 standing inquiry를 실제 working state에서 업데이트
 → 요청한 결과 반환
-→ 지속 관찰 모드는 OFF 유지
+→ 기존 Observer Mode 유지
 → 이후 memo 또는 Review & Save에서 누적 결과 재조정·저장
 ```
 
@@ -223,10 +223,8 @@ Notebook 미선택
 → Notebook 설정, 기본 출력 언어, Observer 활성화, 상태 확인만 노출
 
 Episode OPEN
-→ Mode, Memo, Review & Save, 고정 Notebook, 다음 Episode 언어, 상태를 노출
-
-Mode OFF + Notebook 준비됨
-→ Observe material 자연어 요청 초안을 추가로 제공
+→ Mode, Add a hypothesis, Observe material, Memo, Review & Save,
+  고정 Notebook, 다음 Episode 언어, 상태를 노출
 ```
 
 제어판은 새로운 lifecycle effect를 만들지 않고 아래의 기존 명령과 같은
@@ -298,6 +296,18 @@ Observer의 지속 관찰을 활성화한다.
 ```
 
 `memo`는 Mode가 OFF여도 열린 episode에 적용할 수 있다.
+
+### `/observe add-hypothesis <text>`
+
+사용자 가설 원문을 즉시 추가하고 선택적 `Context:`를 분리해 보존한다.
+Observer Mode와 무관하게 같은 OPEN Episode를 사용하며 최초 current-context
+review를 시작한다.
+
+### `/observe material <request>`
+
+inline 자료, 경로, URL 또는 retrieval 요청을 명시적인 Observe material turn으로
+전달한다. Observer Mode가 ON이면 ON, OFF이면 OFF로 유지하며, command 자체를
+Source evidence로 취급하지 않는다.
 
 ### `/observe save`
 
@@ -1025,11 +1035,11 @@ Observer ON + Episode OPEN
 → 같은 episode와 pending context 재개
 ```
 
-### 21.3 Track a hypothesis
+### 21.3 Add a hypothesis
 
 ```text
 Observer ON 또는 OFF
-→ /observe hypothesis <가설>
+→ /observe add-hypothesis <가설>
 → optional Context: <사용자 이유>
 → original + user context 즉시 보존
 → 현재 context lens review trigger
@@ -1041,11 +1051,11 @@ Observer ON 또는 OFF
 ### 21.4 Observe material
 
 ```text
-Observer OFF
-→ 자료를 Observer 관점으로 요청
+Observer ON 또는 OFF
+→ /observe material <자료 또는 retrieval 요청>
 → scoped Observe material
 → 관련 standing inquiry pending revision
-→ Mode OFF 유지
+→ 기존 Mode 유지
 → 여러 Observe material 요청 누적 가능
 → 완료된 hypothesis context review와 Observe material 결과를 memo에서 재조정
 → /observe save 승인 후 로컬 저장
@@ -1108,7 +1118,7 @@ Subagent는 제3자 관찰 관점을 구현할 후보지만 v0.1 설계와 구�
 ```text
 [x] 이 제품 약속이 사용자가 기대한 Observer를 설명한다.
 [x] Sidecar transcript의 사용감이 맞다.
-[x] Track a hypothesis가 원문과 user context를 보존하고 현재 context를 lens review한다.
+[x] Add a hypothesis가 원문과 user context를 보존하고 현재 context를 lens review한다.
 [x] Observe material transcript의 부작용이 맞다.
 [x] on/off/memo/Review & Save의 effect가 구분된다.
 [x] Mode와 Episode의 독립 상태가 이해된다.

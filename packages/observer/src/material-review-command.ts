@@ -84,11 +84,10 @@ function pendingStartIssue(input: {
 	)
 		return "Another material-review request is already pending.";
 	const episode = input.pi.state.episode;
-	return input.pi.state.mode === "off" &&
-		episode.status === "open" &&
+	return episode.status === "open" &&
 		episode.core.episodeId === pending.episodeId
 		? null
-		: "Pending material-review history does not match an OFF OPEN Episode.";
+		: "Pending material-review history does not match its OPEN Episode.";
 }
 
 /** Starts or resumes the public Observe material command flow. */
@@ -203,7 +202,7 @@ export function materialReviewCommandText(
 		request_id: result.requestId,
 		observation_ids: result.observationIds,
 		completion_digest: result.completionDigest,
-		lifecycle: { mode: "off", episode: "open" },
+		lifecycle: { mode: "unchanged", episode: "open" },
 	});
 }
 
@@ -232,7 +231,7 @@ export function materialReviewContext(input: {
 	if (!input.latestUser) return null;
 	return [
 		"Observer material-review classification is model-owned; do not start automatically.",
-		"If and only if the latest user asks to observe supplied or retrieved material without continuous mode, call observer_sidecar material-review-start.",
+		"If and only if the latest user explicitly asks to Observe material, call observer_sidecar material-review-start without changing Observer Mode.",
 		`exact_latest_user_sha256: ${sha256Text(input.latestUser.text)}`,
 		"Choose material.kind as inline-user-message only when the exact user text itself is evidence; choose retrieved-tool-results when requested paths, URLs, or tools must provide the evidence.",
 		"The instruction, path, or URL is not Source evidence.",

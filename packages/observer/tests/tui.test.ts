@@ -117,11 +117,12 @@ test("control items progressively disclose only legal work", () => {
 		activeItems.map((item) => item.id),
 		[
 			"activation",
-			"track-hypothesis",
+			"add-hypothesis",
 			"memo",
 			"review-save",
 			"notebook-status",
 			"language",
+			"observe-material",
 			"status",
 		],
 	);
@@ -131,8 +132,8 @@ test("control items progressively disclose only legal work", () => {
 	);
 	assert.match(observerNextStep(openView()), /Keep working normally/u);
 	assert.equal(
-		activeItems.find((item) => item.id === "track-hypothesis")?.label,
-		"Track a hypothesis",
+		activeItems.find((item) => item.id === "add-hypothesis")?.label,
+		"Add a hypothesis",
 	);
 	assert.equal(
 		activeItems.find((item) => item.id === "review-save")?.label,
@@ -147,8 +148,8 @@ test("control items progressively disclose only legal work", () => {
 		offItems.some((item) => item.id === "material-review"),
 		false,
 	);
-	assert.equal(OBSERVER_HYPOTHESIS_DRAFT, "/observe hypothesis ");
-	assert.match(OBSERVER_OBSERVE_MATERIAL_DRAFT, /Observe this material/u);
+	assert.equal(OBSERVER_HYPOTHESIS_DRAFT, "/observe add-hypothesis ");
+	assert.equal(OBSERVER_OBSERVE_MATERIAL_DRAFT, "/observe material ");
 
 	const reviewingBase = openView("off");
 	const reviewing: ObserverStatusView = {
@@ -163,8 +164,7 @@ test("control items progressively disclose only legal work", () => {
 	const reviewingItems = observerControlItems(reviewing);
 	assert.equal(
 		reviewingItems.some(
-			(item) =>
-				item.id === "track-hypothesis" || item.id === "observe-material",
+			(item) => item.id === "add-hypothesis" || item.id === "observe-material",
 		),
 		false,
 	);
@@ -182,10 +182,10 @@ test("control items progressively disclose only legal work", () => {
 		observerControlItems(pendingReview).some((item) => item.id === "memo"),
 		false,
 	);
-	assert.match(observerNextStep(pendingReview), /tracked hypothesis/u);
+	assert.match(observerNextStep(pendingReview), /added hypothesis/u);
 });
 
-test("control surface keeps hypothesis tracking distinct from material review", async () => {
+test("control surface keeps adding a hypothesis distinct from observing material", async () => {
 	async function choose(row: number): Promise<unknown> {
 		const ctx = {
 			ui: {
@@ -209,7 +209,7 @@ test("control surface keeps hypothesis tracking distinct from material review", 
 		return showObserverControl(ctx as never, openView("off"));
 	}
 
-	assert.deepEqual(await choose(1), { kind: "track-hypothesis" });
+	assert.deepEqual(await choose(1), { kind: "add-hypothesis" });
 	assert.deepEqual(await choose(6), { kind: "observe-material" });
 });
 
@@ -344,7 +344,7 @@ test("control surface returns a canonical activation action", async () => {
 	assert.match(rendered, /◆ Observer/);
 	assert.match(rendered, /Notebook\s+Setup required/);
 	assert.match(rendered, /Observer\s+Off/);
-	assert.doesNotMatch(rendered, /Track a hypothesis|Observe material/);
+	assert.doesNotMatch(rendered, /Add a hypothesis|Observe material/);
 	assert.ok(rendered.split("\n").every((line) => visibleWidth(line) <= 78));
 });
 

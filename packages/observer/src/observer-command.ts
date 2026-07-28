@@ -5,7 +5,8 @@ export const OBSERVE_ACTIONS = [
 	"status",
 	"on",
 	"off",
-	"hypothesis",
+	"add-hypothesis",
+	"material",
 	"memo",
 	"save",
 	"settings",
@@ -30,7 +31,7 @@ export type ObserveCommandParseResult =
 	| { readonly ok: false; readonly message: string };
 
 const USAGE =
-	"Usage: /observe setup <ko|en> <path> | status | on | off | hypothesis <text> | memo | save | settings";
+	"Usage: /observe setup <ko|en> <path> | status | on | off | add-hypothesis <text> | material <request> | memo | save | settings";
 
 function success(command: ObserveCommand): ObserveCommandParseResult {
 	return { ok: true, command };
@@ -101,7 +102,9 @@ const OBSERVE_ACTION_DESCRIPTIONS: Readonly<Record<string, string>> = {
 	status: "Inspect Episode, working set, and Notebook health",
 	on: "Start or resume continuous Sidecar observation",
 	off: "Pause observation while preserving the Episode",
-	hypothesis: "Track a hypothesis without enabling continuous observation",
+	"add-hypothesis": "Add a hypothesis and review current context through it",
+	material:
+		"Observe supplied or retrieved material without changing Observer Mode",
 	memo: "Reconcile working Memos and Inquiries",
 	save: "Review and save Notebook changes, then settle the Episode",
 	settings: "Open the Observer control center",

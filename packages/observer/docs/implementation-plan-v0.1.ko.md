@@ -1946,11 +1946,12 @@ final closure commit differs from evidence head only in README/implementation-pl
 [x] Mode On/Off만 toggle이며 언어는 현재 값을 preselect한 en/ko SelectList chooser로 제공
 [x] Mode와 언어 변경은 control center를 닫고 재개방하지 않고 in-place 반영
 [x] Notebook이 없는 On 요청은 explicit setup 뒤에만 activation
-[x] Track a hypothesis를 Observe material과 분리된 primary action으로 제공
+[x] Add a hypothesis를 Observe material과 분리된 primary action으로 제공
 [x] 가설 원문과 optional `Context:`를 즉시 보존하고 현재 Pi/Episode context lens review trigger
 [x] context review는 supports/challenges/mixed/insufficient-context, clues, missing info, Source IDs, boundary를 기록
 [x] pending hypothesis context review는 정확한 hypothesis ID로 재개하고 Memo를 선행 차단
-[x] Mode OFF + ready Notebook에서만 Observe material editor 초안 제공
+[x] Mode ON/OFF 모두에서 Observe material editor 초안을 제공하고 기존 Mode 유지
+[x] `/observe add-hypothesis <text>`와 `/observe material <request>` scriptable command 제공
 [x] 기존 단발 관찰 사용자/모델 표현과 action을 Observe material/material-review로 교체
 [x] Review & Save를 UI·command·model action의 유일한 public 표현으로 사용하고 `/observe save`를 command로 제공
 [x] `SaveService` public policy와 `WrapService` atomic persistence process를 인터페이스로 분리
@@ -1969,8 +1970,8 @@ final closure commit differs from evidence head only in README/implementation-pl
 Evidence:
 
 ```text
-Observer package: 203/203
-TUI/controller/extension focused: 38/38
+Observer package: 204/204
+TUI/controllers/extension focused: 52/52
 Pi 0.80.10 RPC smoke: setup/status/on/memo-stutter/off pass
 Pi 0.82.1 PTY: in-place activation + explicit en/ko chooser pass
 TypeScript LSP: changed files clean

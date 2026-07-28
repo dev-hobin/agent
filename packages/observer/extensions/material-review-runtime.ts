@@ -20,6 +20,26 @@ export type ObserverMaterialReviewIds = MaterialReviewCommandIds;
 export interface ObserverTurnState {
 	toolUsed: boolean;
 	latestUser: LatestUserMessage | null;
+	scriptedMaterialRequest: string | null;
+}
+
+export function acceptScriptedMaterialInput(input: {
+	readonly turnState: ObserverTurnState;
+	readonly source: string;
+	readonly text: string;
+	readonly inputSource: LatestUserMessage["inputSource"];
+}): boolean {
+	if (
+		input.source !== "extension" ||
+		input.turnState.scriptedMaterialRequest !== input.text
+	)
+		return false;
+	input.turnState.scriptedMaterialRequest = null;
+	input.turnState.latestUser = {
+		text: input.text,
+		inputSource: input.inputSource,
+	};
+	return true;
 }
 
 type SuccessfulMaterialReviewCommand = Exclude<

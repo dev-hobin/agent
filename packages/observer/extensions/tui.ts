@@ -23,16 +23,15 @@ import {
 import type { EpisodeLanguage } from "../src/lifecycle.ts";
 import type { ObserverStatusView } from "../src/observer-status.ts";
 
-export const OBSERVER_HYPOTHESIS_DRAFT = "/observe hypothesis ";
-export const OBSERVER_OBSERVE_MATERIAL_DRAFT =
-	"Observe this material with Observer without enabling continuous mode:\n";
+export const OBSERVER_HYPOTHESIS_DRAFT = "/observe add-hypothesis ";
+export const OBSERVER_OBSERVE_MATERIAL_DRAFT = "/observe material ";
 export type ObserverControlAction =
 	| { readonly kind: "activation"; readonly enabled: boolean }
 	| { readonly kind: "setup" }
 	| { readonly kind: "language"; readonly language: EpisodeLanguage }
 	| { readonly kind: "memo" }
 	| { readonly kind: "review-save" }
-	| { readonly kind: "track-hypothesis" }
+	| { readonly kind: "add-hypothesis" }
 	| { readonly kind: "observe-material" }
 	| { readonly kind: "status" };
 
@@ -179,8 +178,8 @@ export function observerControlItems(
 		view.control.episode !== "reviewing-save"
 	) {
 		items.push({
-			id: "track-hypothesis",
-			label: "Track a hypothesis",
+			id: "add-hypothesis",
+			label: "Add a hypothesis",
 			currentValue: "Draft hypothesis",
 			values: ["Draft hypothesis"],
 			description:
@@ -213,7 +212,6 @@ export function observerControlItems(
 
 	if (view.control.notebook === "ready") items.push(notebook, language);
 	if (
-		view.control.mode === "off" &&
 		view.control.notebook === "ready" &&
 		view.control.episode !== "reviewing-save"
 	) {
@@ -223,7 +221,7 @@ export function observerControlItems(
 			currentValue: "Draft request",
 			values: ["Draft request"],
 			description:
-				"Analyze supplied or retrieved material without enabling continuous Observer mode",
+				"Analyze supplied or retrieved material without changing continuous Observer Mode",
 		});
 	}
 	const healthy = view.replayHealth === "Healthy" && !view.operationalIssue;
@@ -246,12 +244,12 @@ export function observerNextStep(view: ObserverStatusView): string {
 	if (view.control.episode === "reviewing-save")
 		return "Review the save proposal, then approve or cancel it.";
 	if (view.pendingHypothesisReviews > 0)
-		return `Review the current context through ${view.pendingHypothesisReviews} ${view.pendingHypothesisReviews === 1 ? "tracked hypothesis" : "tracked hypotheses"} before Memo reconciliation.`;
+		return `Review the current context through ${view.pendingHypothesisReviews} ${view.pendingHypothesisReviews === 1 ? "added hypothesis" : "added hypotheses"} before Memo reconciliation.`;
 	if (view.control.mode === "on")
-		return "Keep working normally. Track hypotheses, reconcile with Memo, then review and save when ready.";
+		return "Keep working normally. Add hypotheses, reconcile with Memo, then review and save when ready.";
 	if (view.control.episode === "open")
-		return "Your open work is preserved. Resume observation, track a hypothesis, or review and save.";
-	return "Turn Observer on, track a hypothesis, or observe material on demand.";
+		return "Your open work is preserved. Resume observation, add a hypothesis, or review and save.";
+	return "Turn Observer on, add a hypothesis, or observe material on demand.";
 }
 
 interface ObserverControlSurfaceOptions {
@@ -441,8 +439,8 @@ export class ObserverControlSurface extends Container {
 			case "review-save":
 				this.done({ kind: "review-save" });
 				break;
-			case "track-hypothesis":
-				this.done({ kind: "track-hypothesis" });
+			case "add-hypothesis":
+				this.done({ kind: "add-hypothesis" });
 				break;
 			case "observe-material":
 				this.done({ kind: "observe-material" });

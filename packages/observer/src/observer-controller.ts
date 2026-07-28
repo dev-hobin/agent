@@ -598,8 +598,6 @@ function materialReviewSynchronizationIssue(input: {
 		return "Observer branch history를 확인해야 합니다.";
 	const issue = input.operationalIssue ?? input.synchronized.operationalIssue;
 	if (issue) return `Observer 복구가 필요합니다: ${issue}`;
-	if (input.synchronized.snapshot.state.mode !== "off")
-		return "Material review은 Observer Mode가 OFF일 때만 시작할 수 있습니다.";
 	return input.synchronized.snapshot.state.episode.status === "reviewing-save"
 		? "Review & Save proposal 검토 중에는 Material review을 시작할 수 없습니다."
 		: null;
@@ -663,14 +661,13 @@ async function ensureMaterialReviewEpisodeCommand(input: {
 		status = "opened";
 	}
 	if (
-		current.state.mode !== "off" ||
 		current.state.episode.status !== "open" ||
 		current.state.episode.core.notebookId !== notebookId
 	)
 		return {
 			ok: false,
 			message:
-				"Material review OPEN/OFF lifecycle capability를 확립하지 못했습니다.",
+				"Material review OPEN lifecycle capability를 확립하지 못했습니다.",
 		};
 	return {
 		ok: true,

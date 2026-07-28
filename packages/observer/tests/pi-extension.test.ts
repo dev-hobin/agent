@@ -11,11 +11,13 @@ import observerExtension, {
 	observerSidecarParameters,
 	requireMemoPreparationSuccess,
 	requireObservationToolSuccess,
-	routeHypothesisCommand,
+	routeAddHypothesisCommand,
+	routeMaterialCommand,
 	routeMemoCommand,
 	routeSaveCommand,
 	textFromContent,
 } from "../extensions/observer.ts";
+import { acceptScriptedMaterialInput } from "../extensions/material-review-runtime.ts";
 import {
 	hypothesisContextReviewActionSchema,
 	hypothesisOutcomeSchema,
@@ -249,16 +251,16 @@ test("routes Memo request before trigger and delegates no-op without triggering"
 	assert.deepEqual(trace, ["request", "trigger", "notify:warning"]);
 });
 
-test("routes explicit hypothesis and optional user context into a context review", async () => {
+test("adds an explicit hypothesis and routes optional context into review", async () => {
 	let received: {
 		readonly original: string;
 		readonly userContext: string | null;
 	} | null = null;
 	const notifications: string[] = [];
-	const handled = await routeHypothesisCommand(
-		"hypothesis 가설은 명시적으로 보존되어야 한다.\nContext: 사용자가 직접 이유를 제공했다.",
+	const handled = await routeAddHypothesisCommand(
+		"add-hypothesis 가설은 명시적으로 보존되어야 한다.\nContext: 사용자가 직접 이유를 제공했다.",
 		{
-			track(draft) {
+			add(draft) {
 				received = draft;
 				return Promise.resolve({ ok: false, message: "injected" });
 			},
@@ -279,8 +281,8 @@ test("routes explicit hypothesis and optional user context into a context review
 
 	const missing: string[] = [];
 	assert.equal(
-		await routeHypothesisCommand("hypothesis", {
-			track() {
+		await routeAddHypothesisCommand("add-hypothesis", {
+			add() {
 				assert.fail("Missing text must not reach tracking effects");
 			},
 			triggerReview() {
@@ -292,7 +294,67 @@ test("routes explicit hypothesis and optional user context into a context review
 		}),
 		true,
 	);
-	assert.match(missing[0] ?? "", /warning:.*hypothesis <text>/u);
+	assert.match(missing[0] ?? "", /warning:.*add-hypothesis <text>/u);
+});
+
+test("routes a scriptable material command without changing Observer Mode", () => {
+	const submitted: string[] = [];
+	const notifications: string[] = [];
+	assert.equal(
+		routeMaterialCommand("material https://example.test/source", {
+			submit(request) {
+				submitted.push(request);
+			},
+			notify(message, type) {
+				notifications.push(`${type}:${message}`);
+			},
+		}),
+		true,
+	);
+	assert.deepEqual(submitted, ["https://example.test/source"]);
+	assert.equal(notifications.length, 0);
+
+	assert.equal(
+		routeMaterialCommand("material", {
+			submit() {
+				assert.fail("Missing material must not be submitted");
+			},
+			notify(message, type) {
+				notifications.push(`${type}:${message}`);
+			},
+		}),
+		true,
+	);
+	assert.match(notifications.at(-1) ?? "", /warning:.*material <request>/u);
+	assert.equal(
+		routeMaterialCommand("status", {
+			submit() {
+				assert.fail("Unrelated commands must not be submitted");
+			},
+			notify() {},
+		}),
+		false,
+	);
+
+	const turnState = {
+		toolUsed: false,
+		latestUser: null,
+		scriptedMaterialRequest: submitted[0] ?? null,
+	};
+	assert.equal(
+		acceptScriptedMaterialInput({
+			turnState,
+			source: "extension",
+			text: submitted[0] ?? "",
+			inputSource: "rpc",
+		}),
+		true,
+	);
+	assert.deepEqual(turnState.latestUser, {
+		text: "https://example.test/source",
+		inputSource: "rpc",
+	});
+	assert.equal(turnState.scriptedMaterialRequest, null);
 });
 
 test("routes Review & Save before trigger and delegates prepared review", async () => {

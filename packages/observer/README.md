@@ -5,8 +5,8 @@ Observer is a local-first inquiry sidecar for [Pi](https://pi.dev). It follows s
 Observer supports three entry paths:
 
 - **Sidecar:** keep observation on while doing other work.
-- **Track a hypothesis:** preserve a user idea, then review the current Pi context through it as a lens.
-- **Observe material:** inspect supplied or retrieved material while Observer Mode stays off.
+- **Add a hypothesis:** preserve a user idea, then review the current Pi context through it as a lens.
+- **Observe material:** inspect supplied or retrieved material without changing Observer Mode.
 
 All three paths use the same Episode, Memo, approval, and Review & Save flow.
 
@@ -33,13 +33,13 @@ In Pi's TUI, run `/observe` with no arguments. The keyboard-first control center
 ```text
 /observe
 → connect a Notebook
-→ turn Observer On, track a hypothesis, or observe material
+→ turn Observer On, add a hypothesis, or observe material
 → work normally
 → run Memo when you want a reconciliation
 → run Review & Save when you are ready to review and save
 ```
 
-Use ↑/↓ and Enter to navigate; Esc always returns to Pi. The same surface exposes **Track a hypothesis**, **Observe material**, **Default output language**, and a detailed health view without requiring users to remember subcommands. Observer On/Off is a toggle; language is not. Enter on the language row opens an explicit `English (en)` / `Korean (ko)` chooser with the current choice preselected. On/Off and language changes update in place without closing and reopening the control center. The footer shows compact state, while a small widget appears only when an Episode needs attention or observation is active.
+Use ↑/↓ and Enter to navigate; Esc always returns to Pi. The same surface exposes **Add a hypothesis**, **Observe material**, **Default output language**, and a detailed health view without requiring users to remember subcommands. Observer On/Off is a toggle; language is not. Enter on the language row opens an explicit `English (en)` / `Korean (ko)` chooser with the current choice preselected. On/Off and language changes update in place without closing and reopening the control center. The footer shows compact state, while a small widget appears only when an Episode needs attention or observation is active.
 
 Observer never chooses a Notebook path for you. Setup accepts either an absolute path or a path relative to Pi's current working directory, then initializes a new folder or adopts an existing one without rewriting unrelated files. Direct commands remain available:
 
@@ -81,12 +81,12 @@ Turn observation off without discarding an open Episode:
 /observe off
 ```
 
-## Track a hypothesis workflow
+## Add a hypothesis workflow
 
-Track a hypothesis immediately preserves the user's wording and optional rationale, then triggers a model-owned first review of the visible Pi context and current Episode working state through that hypothesis as a lens:
+Add a hypothesis immediately preserves the user's wording and optional rationale, then triggers a model-owned first review of the visible Pi context and current Episode working state through that hypothesis as a lens:
 
 ```text
-/observe hypothesis The order of capture changes interpretation bias.
+/observe add-hypothesis The order of capture changes interpretation bias.
 Context: The last two examples diverged only after delayed note-taking.
 ```
 
@@ -94,18 +94,17 @@ The context line is optional. User context remains distinct from Observer interp
 
 ## Observe material workflow
 
-Observe material is natural-language and model-owned; it is not another slash command. While Observer Mode is off, ask Pi to review supplied or retrieved material:
+Observe material is independent of continuous Observer Mode. It works while Mode is On or Off and preserves that setting. Use the control center or the scriptable slash subcommand:
 
 ```text
-Observe this material with Observer and connect it to my current inquiry:
-<material or question>
+/observe material <inline material, path, URL, or retrieval request>
 ```
 
 For a path or URL, Pi must retrieve the material first. The instruction itself is not treated as source evidence; retrieved tool results are linked to the Observe material request. Inline user material may be used as an exact user-message source candidate.
 
 A completed Observe material pass:
 
-- keeps Observer Mode off;
+- leaves Observer Mode unchanged;
 - opens or reuses the selected notebook's open Episode;
 - requires every request-linked candidate to reach a SourceRead and semantic Observation;
 - can continue through `/observe memo` and `/observe save` using the same approval and persistence rules as Sidecar.
@@ -123,9 +122,14 @@ Model/provider behavior is stochastic. Completion receipts prove one recorded re
 | `/observe status` | Show notebook, Mode, Episode, and recovery status |
 | `/observe on` | Enable Sidecar observation for the open Episode |
 | `/observe off` | Disable Sidecar observation without settling the Episode |
-| `/observe hypothesis <text>` | Preserve a user hypothesis and trigger its initial current-context review |
+| `/observe add-hypothesis <text>` | Preserve a user hypothesis and trigger its initial current-context review |
+| `/observe material <request>` | Observe inline or retrieved material without changing Observer Mode |
 | `/observe memo` | Reconcile current working observations without Markdown writes |
 | `/observe save` | Review proposed Notebook changes, save approved records, and settle the Episode |
+
+`add-hypothesis` and `material` are command-first flows, not TUI-only shortcuts.
+Scripts may submit these exact `/observe` strings through Pi print or RPC input;
+no control-center selection is required.
 
 ## Durable data and boundaries
 

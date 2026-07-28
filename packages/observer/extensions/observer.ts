@@ -33,6 +33,7 @@ import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
 import type { SaveRequestEvent } from "../src/save-trigger.ts";
 import { observerSidecarParameters } from "./memo-tool-schema.ts";
 import {
+	acceptScriptedMaterialInput,
 	observerTurnContext,
 	routeMaterialReviewTool,
 	type ObserverMaterialReviewIds,
@@ -393,8 +394,8 @@ export interface MemoCommandEffects {
 	notify(message: string, type: "info" | "warning" | "error"): void;
 }
 
-export interface HypothesisCommandEffects {
-	track(input: {
+export interface AddHypothesisCommandEffects {
+	add(input: {
 		readonly original: string;
 		readonly userContext: string | null;
 	}): Promise<TrackUserHypothesisResult>;
@@ -420,25 +421,25 @@ function hypothesisDraft(body: string): {
 	return { original, userContext: userContext || null };
 }
 
-export async function routeHypothesisCommand(
+export async function routeAddHypothesisCommand(
 	args: string,
-	effects: HypothesisCommandEffects,
+	effects: AddHypothesisCommandEffects,
 ): Promise<boolean> {
 	const normalized = args.trim();
 	const boundary = normalized.search(/\s/u);
 	const action = boundary === -1 ? normalized : normalized.slice(0, boundary);
-	if (action !== "hypothesis") return false;
+	if (action !== "add-hypothesis") return false;
 	const draft = hypothesisDraft(
 		boundary === -1 ? "" : normalized.slice(boundary).trim(),
 	);
 	if (!draft) {
 		effects.notify(
-			"Add the hypothesis after the command: /observe hypothesis <text>",
+			"Add the hypothesis after the command: /observe add-hypothesis <text>",
 			"warning",
 		);
 		return true;
 	}
-	const result = await effects.track(draft);
+	const result = await effects.add(draft);
 	if (!result.ok) effects.notify(result.message, "error");
 	else {
 		if (result.status === "resumed")
@@ -451,6 +452,39 @@ export async function routeHypothesisCommand(
 				"warning",
 			);
 		}
+	}
+	return true;
+}
+
+export interface MaterialCommandEffects {
+	submit(materialRequest: string): void;
+	notify(message: string, type: "warning" | "error"): void;
+}
+
+export function routeMaterialCommand(
+	args: string,
+	effects: MaterialCommandEffects,
+): boolean {
+	const normalized = args.trim();
+	const boundary = normalized.search(/\s/u);
+	const action = boundary === -1 ? normalized : normalized.slice(0, boundary);
+	if (action !== "material") return false;
+	const materialRequest =
+		boundary === -1 ? "" : normalized.slice(boundary).trim();
+	if (!materialRequest) {
+		effects.notify(
+			"Add material or a retrieval request after the command: /observe material <request>",
+			"warning",
+		);
+		return true;
+	}
+	try {
+		effects.submit(materialRequest);
+	} catch (error) {
+		effects.notify(
+			`Observe material could not start: ${error instanceof Error ? error.message : String(error)}`,
+			"error",
+		);
 	}
 	return true;
 }
@@ -530,6 +564,7 @@ interface ObserveCommandInput {
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
 	readonly observation: ReturnType<typeof createObservationController>;
+	readonly turnState: ObserverTurnState;
 }
 
 export type ObserverCommandPresentation = "control" | "status" | "command";
@@ -571,8 +606,8 @@ async function refreshObserverChrome(input: {
 
 async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 	const port = commandPort(input.pi, input.ctx);
-	const hypothesisHandled = await routeHypothesisCommand(input.args, {
-		async track(draft) {
+	const hypothesisHandled = await routeAddHypothesisCommand(input.args, {
+		async add(draft) {
 			const episode = await input.controller.ensureUserHypothesisEpisode(port);
 			if (!episode.ok) return episode;
 			return input.observation.trackUserHypothesis(
@@ -611,6 +646,36 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 		notify: input.ctx.ui.notify.bind(input.ctx.ui),
 	});
 	if (hypothesisHandled) {
+		await refreshObserverChrome(input);
+		return;
+	}
+	const materialHandled = routeMaterialCommand(input.args, {
+		submit(materialRequest) {
+			input.pi.sendMessage(
+				{
+					customType: "observer.material-command",
+					content: [
+						"The next user message is an explicit Observe material request.",
+						"Observe material is independent of continuous Observer Mode; do not change Mode.",
+						"Classify the exact latest user message and call observer_sidecar with action material-review-start.",
+						"Use inline-user-message only when that exact text is evidence; use retrieved-tool-results when paths, URLs, or tools must provide the evidence.",
+					].join("\n"),
+					display: false,
+					details: { command: "material" },
+				},
+				{ triggerTurn: false },
+			);
+			input.turnState.scriptedMaterialRequest = materialRequest;
+			try {
+				input.pi.sendUserMessage(materialRequest);
+			} catch (error) {
+				input.turnState.scriptedMaterialRequest = null;
+				throw error;
+			}
+		},
+		notify: input.ctx.ui.notify.bind(input.ctx.ui),
+	});
+	if (materialHandled) {
 		await refreshObserverChrome(input);
 		return;
 	}
@@ -785,7 +850,7 @@ async function showObserverControlFlow(
 			case "review-save":
 				await runObserverCommand({ ...input, args: "save" });
 				return;
-			case "track-hypothesis":
+			case "add-hypothesis":
 				if (
 					await setObserverDraft(input.ctx, {
 						label: "hypothesis",
@@ -960,10 +1025,20 @@ function registerObserverEvents(input: {
 }): void {
 	input.pi.on("input", (event, ctx) => {
 		if (
+			acceptScriptedMaterialInput({
+				turnState: input.turnState,
+				source: event.source,
+				text: event.text,
+				inputSource: ctx.mode === "rpc" ? "rpc" : "interactive",
+			})
+		)
+			return;
+		if (
 			event.source === "extension" ||
 			event.text.trim().length === 0 ||
 			event.text.trimStart().startsWith("/observe")
 		) {
+			input.turnState.scriptedMaterialRequest = null;
 			input.turnState.latestUser = null;
 			return;
 		}
@@ -1009,6 +1084,7 @@ function registerObserverEvents(input: {
 	input.pi.on("turn_end", (event, ctx) => {
 		const toolUsed = input.turnState.toolUsed;
 		input.turnState.latestUser = null;
+		input.turnState.scriptedMaterialRequest = null;
 		if (toolUsed) return;
 		const text = textFromContent(Reflect.get(event.message, "content"));
 		if (!text) return;
@@ -1083,6 +1159,7 @@ export default function observerExtension(pi: ExtensionAPI): void {
 	const turnState: ObserverTurnState = {
 		toolUsed: false,
 		latestUser: null,
+		scriptedMaterialRequest: null,
 	};
 
 	registerObserverSidecarTool({
@@ -1095,10 +1172,17 @@ export default function observerExtension(pi: ExtensionAPI): void {
 
 	pi.registerCommand("observe", {
 		description:
-			"Configure Observer, track hypotheses, observe material, reconcile Memo, and review or save Notebook changes",
+			"Configure Observer, add hypotheses, observe material, reconcile Memo, and review or save Notebook changes",
 		getArgumentCompletions: completeObserveArgs,
 		handler(args, ctx) {
-			return handleObserveCommand({ args, ctx, pi, controller, observation });
+			return handleObserveCommand({
+				args,
+				ctx,
+				pi,
+				controller,
+				observation,
+				turnState,
+			});
 		},
 	});
 
