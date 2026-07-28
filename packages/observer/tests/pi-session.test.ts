@@ -3,20 +3,20 @@ import test from "node:test";
 
 import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
 import {
-	decodeApprovedWrapAttempt,
-	decodePreparedWrapHandoff,
+	decodeApprovedSaveAttempt,
+	decodePreparedSaveHandoff,
 	OBSERVER_LIFECYCLE_ENTRY,
-	OBSERVER_PREPARED_WRAP_ENTRY,
-	OBSERVER_PREPARED_WRAP_PROTOCOL,
-	OBSERVER_WRAP_ATTEMPT_ENTRY,
-	OBSERVER_WRAP_ATTEMPT_PROTOCOL,
-	preparedWrapDigest,
+	OBSERVER_PREPARED_SAVE_ENTRY,
+	OBSERVER_PREPARED_SAVE_PROTOCOL,
+	OBSERVER_SAVE_ATTEMPT_ENTRY,
+	OBSERVER_SAVE_ATTEMPT_PROTOCOL,
+	preparedSaveDigest,
 	reconstructObserverPiState,
-	type ApprovedWrapAttempt,
+	type ApprovedSaveAttempt,
 	type PiBranchEntryLike,
-	type PreparedWrapHandoff,
+	type PreparedSaveHandoff,
 } from "../src/pi-session.ts";
-import { OBSERVER_WRAP_SCHEMA } from "../src/wrap-profile.ts";
+import { OBSERVER_SAVE_SCHEMA } from "../src/save-profile.ts";
 
 const notebookId = "notebook-11111111-1111-4111-8111-111111111111";
 
@@ -57,7 +57,7 @@ function activation(enabled: boolean): ObserverEvent {
 function proposed(summary = "승인할 계획"): ObserverEvent {
 	return {
 		protocol: OBSERVER_PROTOCOL,
-		kind: "wrap-proposed",
+		kind: "save-proposed",
 		proposalId: "proposal-1",
 		summary,
 	};
@@ -66,7 +66,7 @@ function proposed(summary = "승인할 계획"): ObserverEvent {
 function cancelled(): ObserverEvent {
 	return {
 		protocol: OBSERVER_PROTOCOL,
-		kind: "wrap-cancelled",
+		kind: "save-cancelled",
 		proposalId: "proposal-1",
 	};
 }
@@ -74,7 +74,7 @@ function cancelled(): ObserverEvent {
 function committed(): ObserverEvent {
 	return {
 		protocol: OBSERVER_PROTOCOL,
-		kind: "wrap-committed",
+		kind: "save-committed",
 		proposalId: "proposal-1",
 		receipt: {
 			receiptId: "receipt-1",
@@ -84,12 +84,12 @@ function committed(): ObserverEvent {
 	};
 }
 
-function handoff(summary = "승인할 계획"): PreparedWrapHandoff {
+function handoff(summary = "승인할 계획"): PreparedSaveHandoff {
 	return {
-		protocol: OBSERVER_PREPARED_WRAP_PROTOCOL,
+		protocol: OBSERVER_PREPARED_SAVE_PROTOCOL,
 		summary,
 		prepared: {
-			observer_wrap: OBSERVER_WRAP_SCHEMA,
+			observer_save: OBSERVER_SAVE_SCHEMA,
 			proposal_id: "proposal-1",
 			notebook_id: notebookId,
 			root: "/tmp/observer-notebook",
@@ -102,27 +102,27 @@ function handoff(summary = "승인할 계획"): PreparedWrapHandoff {
 function preparedEntry(value: unknown = handoff()): PiBranchEntryLike {
 	return {
 		type: "custom",
-		customType: OBSERVER_PREPARED_WRAP_ENTRY,
+		customType: OBSERVER_PREPARED_SAVE_ENTRY,
 		data: value,
 	};
 }
 
 function approvedAttempt(
-	value: PreparedWrapHandoff = handoff(),
-): ApprovedWrapAttempt {
+	value: PreparedSaveHandoff = handoff(),
+): ApprovedSaveAttempt {
 	return {
-		protocol: OBSERVER_WRAP_ATTEMPT_PROTOCOL,
+		protocol: OBSERVER_SAVE_ATTEMPT_PROTOCOL,
 		kind: "approved",
 		attemptId: "attempt-1",
 		proposalId: value.prepared.proposal_id,
-		preparedDigest: preparedWrapDigest(value),
+		preparedDigest: preparedSaveDigest(value),
 	};
 }
 
 function attemptEntry(value: unknown = approvedAttempt()): PiBranchEntryLike {
 	return {
 		type: "custom",
-		customType: OBSERVER_WRAP_ATTEMPT_ENTRY,
+		customType: OBSERVER_SAVE_ATTEMPT_ENTRY,
 		data: value,
 	};
 }
@@ -136,23 +136,23 @@ function openBranch(): PiBranchEntryLike[] {
 }
 
 test("strictly decodes prepared handoffs and approved attempts", () => {
-	const accepted = decodePreparedWrapHandoff(handoff());
+	const accepted = decodePreparedSaveHandoff(handoff());
 	assert.equal(accepted.ok, true);
-	const withExtra = decodePreparedWrapHandoff({ ...handoff(), extra: true });
+	const withExtra = decodePreparedSaveHandoff({ ...handoff(), extra: true });
 	assert.equal(withExtra.ok, false);
 	if (!withExtra.ok)
 		assert.equal(withExtra.issue.code, "pi-entry.handoff.shape");
-	const unsupported = decodePreparedWrapHandoff({
+	const unsupported = decodePreparedSaveHandoff({
 		...handoff(),
-		protocol: "observer.pi-prepared-wrap/v2",
+		protocol: "observer.pi-prepared-save/v2",
 	});
 	assert.equal(unsupported.ok, false);
 	if (!unsupported.ok)
 		assert.equal(unsupported.issue.code, "pi-entry.handoff.unsupported");
 
 	const attempt = approvedAttempt();
-	assert.equal(decodeApprovedWrapAttempt(attempt).ok, true);
-	const invalidDigest = decodeApprovedWrapAttempt({
+	assert.equal(decodeApprovedSaveAttempt(attempt).ok, true);
+	const invalidDigest = decodeApprovedSaveAttempt({
 		...attempt,
 		preparedDigest: "not-a-hash",
 	});
@@ -167,17 +167,17 @@ test("normalizes handoff field order before computing proposal identity", () => 
 			root: "/tmp/observer-notebook",
 			notebook_id: notebookId,
 			proposal_id: "proposal-1",
-			observer_wrap: OBSERVER_WRAP_SCHEMA,
+			observer_save: OBSERVER_SAVE_SCHEMA,
 		},
 		summary: "승인할 계획",
-		protocol: OBSERVER_PREPARED_WRAP_PROTOCOL,
+		protocol: OBSERVER_PREPARED_SAVE_PROTOCOL,
 	};
-	const decoded = decodePreparedWrapHandoff(reordered);
+	const decoded = decodePreparedSaveHandoff(reordered);
 	assert.equal(decoded.ok, true);
 	if (!decoded.ok) return;
 	assert.equal(
-		preparedWrapDigest(decoded.value),
-		preparedWrapDigest(handoff()),
+		preparedSaveDigest(decoded.value),
+		preparedSaveDigest(handoff()),
 	);
 });
 
@@ -206,7 +206,7 @@ test("keeps exact duplicate handoff and attempt entries idempotent", () => {
 		attemptEntry(),
 	]);
 	assert.deepEqual(snapshot.issues, []);
-	assert.equal(snapshot.state.episode.status, "reviewing-wrap");
+	assert.equal(snapshot.state.episode.status, "reviewing-save");
 	assert.equal(snapshot.attempt?.attemptId, "attempt-1");
 });
 
@@ -223,7 +223,7 @@ test("reports conflicting prepared proposals without replacing the first", () =>
 		["pi-entry.handoff.conflict"],
 	);
 	assert.equal(snapshot.prepared?.handoff.summary, "승인할 계획");
-	assert.equal(snapshot.state.episode.status, "reviewing-wrap");
+	assert.equal(snapshot.state.episode.status, "reviewing-save");
 });
 
 test("fails closed for reordered lifecycle and stale attempt history", () => {
@@ -260,7 +260,7 @@ test("surfaces malformed owned entries while ignoring unrelated custom entries",
 		},
 		{
 			type: "custom",
-			customType: OBSERVER_PREPARED_WRAP_ENTRY,
+			customType: OBSERVER_PREPARED_SAVE_ENTRY,
 			data: null,
 		},
 	]);

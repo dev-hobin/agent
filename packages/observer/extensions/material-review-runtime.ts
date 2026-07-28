@@ -1,50 +1,50 @@
 import type { ObservationController } from "../src/observation-controller.ts";
 import type { ObserverController } from "../src/observer-controller.ts";
 import {
-	executeOneShotFinish,
-	executeOneShotStart,
-	oneShotCommandAction,
-	oneShotCommandText,
-	oneShotContext,
-	requireOneShotCommandSuccess,
-	type OneShotCommandIds,
-	type OneShotCommandPort,
-	type OneShotCommandResult,
-} from "../src/one-shot-command.ts";
+	executeMaterialReviewFinish,
+	executeMaterialReviewStart,
+	materialReviewCommandAction,
+	materialReviewCommandText,
+	materialReviewContext,
+	requireMaterialReviewCommandSuccess,
+	type MaterialReviewCommandIds,
+	type MaterialReviewCommandPort,
+	type MaterialReviewCommandResult,
+} from "../src/material-review-command.ts";
 import { observerSidecarContext } from "../src/observer-prompt.ts";
 import type { PiBranchEntryLike } from "../src/pi-session.ts";
-import type { LatestUserMessage } from "../src/one-shot-trigger.ts";
+import type { LatestUserMessage } from "../src/material-review-trigger.ts";
 
-export type ObserverOneShotIds = OneShotCommandIds;
+export type ObserverMaterialReviewIds = MaterialReviewCommandIds;
 
 export interface ObserverTurnState {
 	toolUsed: boolean;
 	latestUser: LatestUserMessage | null;
 }
 
-type SuccessfulOneShotCommand = Exclude<
-	OneShotCommandResult,
+type SuccessfulMaterialReviewCommand = Exclude<
+	MaterialReviewCommandResult,
 	{ readonly ok: false }
 >;
 
-export interface SuccessfulOneShotTool {
-	readonly result: SuccessfulOneShotCommand;
+export interface SuccessfulMaterialReviewTool {
+	readonly result: SuccessfulMaterialReviewCommand;
 	readonly text: string;
 }
 
-export async function routeOneShotTool(input: {
+export async function routeMaterialReviewTool(input: {
 	readonly value: unknown;
 	readonly capturedAt: unknown;
-	readonly port: OneShotCommandPort;
+	readonly port: MaterialReviewCommandPort;
 	readonly lifecycle: ObserverController;
 	readonly observation: ObservationController;
-	readonly ids: OneShotCommandIds;
+	readonly ids: MaterialReviewCommandIds;
 	readonly turnState: ObserverTurnState;
-}): Promise<SuccessfulOneShotTool | null> {
-	const action = oneShotCommandAction(input.value);
-	if (action === "one-shot-start") {
-		const result = requireOneShotCommandSuccess(
-			await executeOneShotStart({
+}): Promise<SuccessfulMaterialReviewTool | null> {
+	const action = materialReviewCommandAction(input.value);
+	if (action === "material-review-start") {
+		const result = requireMaterialReviewCommandSuccess(
+			await executeMaterialReviewStart({
 				value: input.value,
 				latestUser: input.turnState.latestUser,
 				capturedAt: input.capturedAt,
@@ -54,18 +54,18 @@ export async function routeOneShotTool(input: {
 				ids: input.ids,
 			}),
 		);
-		return { result, text: oneShotCommandText(result) };
+		return { result, text: materialReviewCommandText(result) };
 	}
-	if (action !== "one-shot-finish") return null;
-	const result = requireOneShotCommandSuccess(
-		executeOneShotFinish({
+	if (action !== "material-review-finish") return null;
+	const result = requireMaterialReviewCommandSuccess(
+		executeMaterialReviewFinish({
 			value: input.value,
 			port: input.port,
 			observation: input.observation,
 		}),
 	);
 	input.turnState.latestUser = null;
-	return { result, text: oneShotCommandText(result) };
+	return { result, text: materialReviewCommandText(result) };
 }
 
 export function observerTurnContext(input: {
@@ -73,7 +73,7 @@ export function observerTurnContext(input: {
 	readonly entries: readonly PiBranchEntryLike[];
 }): string | null {
 	const guidance = [
-		oneShotContext({
+		materialReviewContext({
 			latestUser: input.turnState.latestUser,
 			entries: input.entries,
 		}),

@@ -1,31 +1,33 @@
 import { isSha256, sha256Text } from "./content-hash.ts";
 import type { PiBranchEntryLike } from "./pi-session.ts";
 
-export const OBSERVER_ONE_SHOT_ENTRY = "observer.one-shot";
-export const OBSERVER_ONE_SHOT_PROTOCOL = "observer.one-shot/v1";
-export const OBSERVER_ONE_SHOT_ACTION_PROTOCOL = "observer-sidecar/v1";
+export const OBSERVER_MATERIAL_REVIEW_ENTRY = "observer.material-review";
+export const OBSERVER_MATERIAL_REVIEW_PROTOCOL = "observer.material-review/v1";
+export const OBSERVER_MATERIAL_REVIEW_ACTION_PROTOCOL = "observer-sidecar/v1";
 
-export type OneShotRequestId = `one-shot-${string}`;
-export type OneShotMaterial = "inline-user-message" | "retrieved-tool-results";
+export type MaterialReviewRequestId = `material-review-${string}`;
+export type MaterialReviewMaterial =
+	| "inline-user-message"
+	| "retrieved-tool-results";
 
-const ONE_SHOT_INTENT = Symbol("observer.one-shot-intent");
+const MATERIAL_REVIEW_INTENT = Symbol("observer.material-review-intent");
 const UUID_V4 =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const OBSERVATION_ID =
 	/^observation-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const MAX_USER_TEXT = 120_000;
 
-export interface OneShotStartAction {
-	readonly observerAction: typeof OBSERVER_ONE_SHOT_ACTION_PROTOCOL;
-	readonly action: "one-shot-start";
+export interface MaterialReviewStartAction {
+	readonly observerAction: typeof OBSERVER_MATERIAL_REVIEW_ACTION_PROTOCOL;
+	readonly action: "material-review-start";
 	readonly userMessageDigest: string;
-	readonly material: OneShotMaterial;
+	readonly material: MaterialReviewMaterial;
 }
 
-export interface OneShotFinishAction {
-	readonly observerAction: typeof OBSERVER_ONE_SHOT_ACTION_PROTOCOL;
-	readonly action: "one-shot-finish";
-	readonly requestId: OneShotRequestId;
+export interface MaterialReviewFinishAction {
+	readonly observerAction: typeof OBSERVER_MATERIAL_REVIEW_ACTION_PROTOCOL;
+	readonly action: "material-review-finish";
+	readonly requestId: MaterialReviewRequestId;
 }
 
 export interface LatestUserMessage {
@@ -33,77 +35,81 @@ export interface LatestUserMessage {
 	readonly inputSource: "interactive" | "rpc";
 }
 
-interface OneShotIntentBase {
-	readonly [ONE_SHOT_INTENT]: true;
-	readonly requestId: OneShotRequestId;
+interface MaterialReviewIntentBase {
+	readonly [MATERIAL_REVIEW_INTENT]: true;
+	readonly requestId: MaterialReviewRequestId;
 	readonly userMessageDigest: string;
 	readonly exactUserText: string;
 	readonly inputSource: "interactive" | "rpc";
 }
 
-export type OneShotIntent =
-	| (OneShotIntentBase & { readonly material: "inline-user-message" })
-	| (OneShotIntentBase & { readonly material: "retrieved-tool-results" });
+export type MaterialReviewIntent =
+	| (MaterialReviewIntentBase & { readonly material: "inline-user-message" })
+	| (MaterialReviewIntentBase & {
+			readonly material: "retrieved-tool-results";
+	  });
 
-export interface OneShotRequestedEvent {
-	readonly protocol: typeof OBSERVER_ONE_SHOT_PROTOCOL;
-	readonly kind: "one-shot-requested";
-	readonly requestId: OneShotRequestId;
+export interface MaterialReviewRequestedEvent {
+	readonly protocol: typeof OBSERVER_MATERIAL_REVIEW_PROTOCOL;
+	readonly kind: "material-review-requested";
+	readonly requestId: MaterialReviewRequestId;
 	readonly episodeId: string;
 	readonly userMessageDigest: string;
-	readonly material: OneShotMaterial;
+	readonly material: MaterialReviewMaterial;
 }
 
-export interface OneShotCompletedEvent {
-	readonly protocol: typeof OBSERVER_ONE_SHOT_PROTOCOL;
-	readonly kind: "one-shot-completed";
-	readonly requestId: OneShotRequestId;
+export interface MaterialReviewCompletedEvent {
+	readonly protocol: typeof OBSERVER_MATERIAL_REVIEW_PROTOCOL;
+	readonly kind: "material-review-completed";
+	readonly requestId: MaterialReviewRequestId;
 	readonly episodeId: string;
 	readonly observationIds: readonly string[];
 	readonly digest: string;
 }
 
-export type OneShotEvent = OneShotRequestedEvent | OneShotCompletedEvent;
+export type MaterialReviewEvent =
+	| MaterialReviewRequestedEvent
+	| MaterialReviewCompletedEvent;
 
-export interface OneShotIssue {
+export interface MaterialReviewIssue {
 	readonly code:
-		| "one-shot.action"
-		| "one-shot.intent"
-		| "one-shot.shape"
-		| "one-shot.history"
-		| "one-shot.conflict"
-		| "one-shot.pending"
-		| "one-shot.coverage";
+		| "material-review.action"
+		| "material-review.intent"
+		| "material-review.shape"
+		| "material-review.history"
+		| "material-review.conflict"
+		| "material-review.pending"
+		| "material-review.coverage";
 	readonly message: string;
 	readonly relatedId?: string;
 }
 
-export type OneShotResult<Value> =
+export type MaterialReviewResult<Value> =
 	| { readonly ok: true; readonly value: Value }
-	| { readonly ok: false; readonly issue: OneShotIssue };
+	| { readonly ok: false; readonly issue: MaterialReviewIssue };
 
-export interface OneShotSession {
-	readonly requests: readonly OneShotRequestedEvent[];
-	readonly completions: readonly OneShotCompletedEvent[];
-	readonly pendingRequest: OneShotRequestedEvent | null;
-	readonly completedRequestIds: readonly OneShotRequestId[];
-	readonly issues: readonly OneShotIssue[];
+export interface MaterialReviewSession {
+	readonly requests: readonly MaterialReviewRequestedEvent[];
+	readonly completions: readonly MaterialReviewCompletedEvent[];
+	readonly pendingRequest: MaterialReviewRequestedEvent | null;
+	readonly completedRequestIds: readonly MaterialReviewRequestId[];
+	readonly issues: readonly MaterialReviewIssue[];
 }
 
-export type OneShotRequestPlan =
-	| { readonly kind: "new"; readonly request: OneShotRequestedEvent }
-	| { readonly kind: "resume"; readonly request: OneShotRequestedEvent };
+export type MaterialReviewRequestPlan =
+	| { readonly kind: "new"; readonly request: MaterialReviewRequestedEvent }
+	| { readonly kind: "resume"; readonly request: MaterialReviewRequestedEvent };
 
-export interface OneShotCoverageCandidate {
+export interface MaterialReviewCoverageCandidate {
 	readonly candidateId: string;
 }
 
-export interface OneShotCoverageRead {
+export interface MaterialReviewCoverageRead {
 	readonly readId: string;
 	readonly candidateIds: readonly string[];
 }
 
-export interface OneShotCoverageObservation {
+export interface MaterialReviewCoverageObservation {
 	readonly observationId: string;
 	readonly readId: string;
 }
@@ -124,10 +130,10 @@ function hasExactKeys(
 }
 
 function failure<Value>(
-	code: OneShotIssue["code"],
+	code: MaterialReviewIssue["code"],
 	message: string,
 	relatedId?: string,
-): OneShotResult<Value> {
+): MaterialReviewResult<Value> {
 	return {
 		ok: false,
 		issue: relatedId ? { code, message, relatedId } : { code, message },
@@ -140,18 +146,21 @@ function nonempty(value: unknown): string | null {
 		: null;
 }
 
-function material(value: unknown): OneShotMaterial | null {
+function material(value: unknown): MaterialReviewMaterial | null {
 	return value === "inline-user-message" || value === "retrieved-tool-results"
 		? value
 		: null;
 }
 
-export function decodeOneShotRequestId(
+export function decodeMaterialReviewRequestId(
 	value: unknown,
-): OneShotRequestId | null {
-	if (typeof value !== "string" || !value.startsWith("one-shot-")) return null;
-	const uuid = value.slice("one-shot-".length);
-	return UUID_V4.test(uuid) ? `one-shot-${uuid}` : null;
+): MaterialReviewRequestId | null {
+	if (typeof value !== "string" || !value.startsWith("material-review-")) {
+		return null;
+	}
+	return UUID_V4.test(value.slice("material-review-".length))
+		? (value as MaterialReviewRequestId)
+		: null;
 }
 
 function parseObservationIds(value: unknown): readonly string[] | null {
@@ -167,9 +176,9 @@ function parseObservationIds(value: unknown): readonly string[] | null {
 	return new Set(sorted).size === sorted.length ? sorted : null;
 }
 
-export function decodeOneShotStartAction(
+export function decodeMaterialReviewStartAction(
 	value: unknown,
-): OneShotResult<OneShotStartAction> {
+): MaterialReviewResult<MaterialReviewStartAction> {
 	if (
 		!isObject(value) ||
 		!hasExactKeys(value, [
@@ -178,57 +187,69 @@ export function decodeOneShotStartAction(
 			"user_message_digest",
 			"material",
 		]) ||
-		value.observer_action !== OBSERVER_ONE_SHOT_ACTION_PROTOCOL ||
-		value.action !== "one-shot-start" ||
+		value.observer_action !== OBSERVER_MATERIAL_REVIEW_ACTION_PROTOCOL ||
+		value.action !== "material-review-start" ||
 		!isObject(value.material) ||
 		!hasExactKeys(value.material, ["kind"])
 	)
-		return failure("one-shot.action", "One-shot start has invalid fields.");
+		return failure(
+			"material-review.action",
+			"Material-review start has invalid fields.",
+		);
 	const parsedMaterial = material(value.material.kind);
 	if (!isSha256(value.user_message_digest) || !parsedMaterial)
-		return failure("one-shot.action", "One-shot start has invalid values.");
+		return failure(
+			"material-review.action",
+			"Material-review start has invalid values.",
+		);
 	return {
 		ok: true,
 		value: {
-			observerAction: OBSERVER_ONE_SHOT_ACTION_PROTOCOL,
-			action: "one-shot-start",
+			observerAction: OBSERVER_MATERIAL_REVIEW_ACTION_PROTOCOL,
+			action: "material-review-start",
 			userMessageDigest: value.user_message_digest,
 			material: parsedMaterial,
 		},
 	};
 }
 
-export function decodeOneShotFinishAction(
+export function decodeMaterialReviewFinishAction(
 	value: unknown,
-): OneShotResult<OneShotFinishAction> {
+): MaterialReviewResult<MaterialReviewFinishAction> {
 	if (
 		!isObject(value) ||
 		!hasExactKeys(value, ["observer_action", "action", "request_id"]) ||
-		value.observer_action !== OBSERVER_ONE_SHOT_ACTION_PROTOCOL ||
-		value.action !== "one-shot-finish"
+		value.observer_action !== OBSERVER_MATERIAL_REVIEW_ACTION_PROTOCOL ||
+		value.action !== "material-review-finish"
 	)
-		return failure("one-shot.action", "One-shot finish has invalid fields.");
-	const requestId = decodeOneShotRequestId(value.request_id);
+		return failure(
+			"material-review.action",
+			"Material-review finish has invalid fields.",
+		);
+	const requestId = decodeMaterialReviewRequestId(value.request_id);
 	return requestId
 		? {
 				ok: true,
 				value: {
-					observerAction: OBSERVER_ONE_SHOT_ACTION_PROTOCOL,
-					action: "one-shot-finish",
+					observerAction: OBSERVER_MATERIAL_REVIEW_ACTION_PROTOCOL,
+					action: "material-review-finish",
 					requestId,
 				},
 			}
-		: failure("one-shot.action", "One-shot finish has an invalid request ID.");
+		: failure(
+				"material-review.action",
+				"Material-review finish has an invalid request ID.",
+			);
 }
 
-export function refineOneShotIntent(input: {
+export function refineMaterialReviewIntent(input: {
 	readonly value: unknown;
 	readonly latestUser: LatestUserMessage | null;
 	readonly requestId: unknown;
-}): OneShotResult<OneShotIntent> {
-	const action = decodeOneShotStartAction(input.value);
+}): MaterialReviewResult<MaterialReviewIntent> {
+	const action = decodeMaterialReviewStartAction(input.value);
 	if (!action.ok) return action;
-	const requestId = decodeOneShotRequestId(input.requestId);
+	const requestId = decodeMaterialReviewRequestId(input.requestId);
 	const text = input.latestUser?.text;
 	if (
 		!requestId ||
@@ -240,11 +261,11 @@ export function refineOneShotIntent(input: {
 		sha256Text(text) !== action.value.userMessageDigest
 	)
 		return failure(
-			"one-shot.intent",
-			"One-shot start does not match the exact latest user message.",
+			"material-review.intent",
+			"Material review start does not match the exact latest user message.",
 		);
-	const base: OneShotIntentBase = {
-		[ONE_SHOT_INTENT]: true,
+	const base: MaterialReviewIntentBase = {
+		[MATERIAL_REVIEW_INTENT]: true,
 		requestId,
 		userMessageDigest: action.value.userMessageDigest,
 		exactUserText: text,
@@ -262,7 +283,7 @@ export function refineOneShotIntent(input: {
 }
 
 function completionDigest(input: {
-	readonly requestId: OneShotRequestId;
+	readonly requestId: MaterialReviewRequestId;
 	readonly episodeId: string;
 	readonly observationIds: readonly string[];
 }): string {
@@ -275,10 +296,10 @@ function completionDigest(input: {
 	);
 }
 
-export function encodeOneShotEvent(
-	event: OneShotEvent,
+export function encodeMaterialReviewEvent(
+	event: MaterialReviewEvent,
 ): Readonly<Record<string, unknown>> {
-	return event.kind === "one-shot-requested"
+	return event.kind === "material-review-requested"
 		? {
 				protocol: event.protocol,
 				kind: event.kind,
@@ -299,7 +320,7 @@ export function encodeOneShotEvent(
 
 function decodeRequested(
 	value: Readonly<Record<string, unknown>>,
-): OneShotResult<OneShotRequestedEvent> {
+): MaterialReviewResult<MaterialReviewRequestedEvent> {
 	if (
 		!hasExactKeys(value, [
 			"protocol",
@@ -310,8 +331,11 @@ function decodeRequested(
 			"material",
 		])
 	)
-		return failure("one-shot.shape", "One-shot request has invalid fields.");
-	const requestId = decodeOneShotRequestId(value.request_id);
+		return failure(
+			"material-review.shape",
+			"Material review request has invalid fields.",
+		);
+	const requestId = decodeMaterialReviewRequestId(value.request_id);
 	const episodeId = nonempty(value.episode_id);
 	const parsedMaterial = material(value.material);
 	if (
@@ -320,12 +344,15 @@ function decodeRequested(
 		!isSha256(value.user_message_digest) ||
 		!parsedMaterial
 	)
-		return failure("one-shot.shape", "One-shot request has invalid values.");
+		return failure(
+			"material-review.shape",
+			"Material review request has invalid values.",
+		);
 	return {
 		ok: true,
 		value: {
-			protocol: OBSERVER_ONE_SHOT_PROTOCOL,
-			kind: "one-shot-requested",
+			protocol: OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+			kind: "material-review-requested",
 			requestId,
 			episodeId,
 			userMessageDigest: value.user_message_digest,
@@ -336,7 +363,7 @@ function decodeRequested(
 
 function decodeCompleted(
 	value: Readonly<Record<string, unknown>>,
-): OneShotResult<OneShotCompletedEvent> {
+): MaterialReviewResult<MaterialReviewCompletedEvent> {
 	if (
 		!hasExactKeys(value, [
 			"protocol",
@@ -347,24 +374,30 @@ function decodeCompleted(
 			"digest",
 		])
 	)
-		return failure("one-shot.shape", "One-shot completion has invalid fields.");
-	const requestId = decodeOneShotRequestId(value.request_id);
+		return failure(
+			"material-review.shape",
+			"Material review completion has invalid fields.",
+		);
+	const requestId = decodeMaterialReviewRequestId(value.request_id);
 	const episodeId = nonempty(value.episode_id);
 	const observationIds = parseObservationIds(value.observation_ids);
 	if (!requestId || !episodeId || !observationIds || !isSha256(value.digest))
-		return failure("one-shot.shape", "One-shot completion has invalid values.");
+		return failure(
+			"material-review.shape",
+			"Material review completion has invalid values.",
+		);
 	const expected = completionDigest({ requestId, episodeId, observationIds });
 	if (expected !== value.digest)
 		return failure(
-			"one-shot.shape",
-			"One-shot completion digest is invalid.",
+			"material-review.shape",
+			"Material review completion digest is invalid.",
 			requestId,
 		);
 	return {
 		ok: true,
 		value: {
-			protocol: OBSERVER_ONE_SHOT_PROTOCOL,
-			kind: "one-shot-completed",
+			protocol: OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+			kind: "material-review-completed",
 			requestId,
 			episodeId,
 			observationIds,
@@ -373,36 +406,47 @@ function decodeCompleted(
 	};
 }
 
-export function decodeOneShotEvent(
+export function decodeMaterialReviewEvent(
 	value: unknown,
-): OneShotResult<OneShotEvent> {
-	if (!isObject(value) || value.protocol !== OBSERVER_ONE_SHOT_PROTOCOL)
+): MaterialReviewResult<MaterialReviewEvent> {
+	if (!isObject(value))
 		return failure(
-			"one-shot.shape",
-			"One-shot event has invalid protocol or shape.",
+			"material-review.shape",
+			"Material review event has invalid protocol or shape.",
 		);
-	if (value.kind === "one-shot-requested") return decodeRequested(value);
-	if (value.kind === "one-shot-completed") return decodeCompleted(value);
-	return failure("one-shot.shape", "One-shot event kind is unknown.");
-}
-
-function sameEvent(left: OneShotEvent, right: OneShotEvent): boolean {
-	return (
-		JSON.stringify(encodeOneShotEvent(left)) ===
-		JSON.stringify(encodeOneShotEvent(right))
+	if (value.protocol !== OBSERVER_MATERIAL_REVIEW_PROTOCOL)
+		return failure(
+			"material-review.shape",
+			"Material review event has invalid protocol or shape.",
+		);
+	if (value.kind === "material-review-requested") return decodeRequested(value);
+	if (value.kind === "material-review-completed") return decodeCompleted(value);
+	return failure(
+		"material-review.shape",
+		"Material review event kind is unknown.",
 	);
 }
 
-interface MutableOneShotReplay {
-	readonly requests: OneShotRequestedEvent[];
-	readonly completions: OneShotCompletedEvent[];
-	readonly issues: OneShotIssue[];
-	pending: OneShotRequestedEvent | null;
+function sameEvent(
+	left: MaterialReviewEvent,
+	right: MaterialReviewEvent,
+): boolean {
+	return (
+		JSON.stringify(encodeMaterialReviewEvent(left)) ===
+		JSON.stringify(encodeMaterialReviewEvent(right))
+	);
+}
+
+interface MutableMaterialReviewReplay {
+	readonly requests: MaterialReviewRequestedEvent[];
+	readonly completions: MaterialReviewCompletedEvent[];
+	readonly issues: MaterialReviewIssue[];
+	pending: MaterialReviewRequestedEvent | null;
 }
 
 function replayRequested(
-	event: OneShotRequestedEvent,
-	state: MutableOneShotReplay,
+	event: MaterialReviewRequestedEvent,
+	state: MutableMaterialReviewReplay,
 ): void {
 	const existing = state.requests.find(
 		(item) => item.requestId === event.requestId,
@@ -410,16 +454,16 @@ function replayRequested(
 	if (existing && sameEvent(existing, event)) return;
 	if (existing) {
 		state.issues.push({
-			code: "one-shot.conflict",
-			message: "One-shot request identity conflicts with history.",
+			code: "material-review.conflict",
+			message: "Material review request identity conflicts with history.",
 			relatedId: event.requestId,
 		});
 		return;
 	}
 	if (state.pending) {
 		state.issues.push({
-			code: "one-shot.pending",
-			message: "Another One-shot request is already pending.",
+			code: "material-review.pending",
+			message: "Another Material review request is already pending.",
 			relatedId: event.requestId,
 		});
 		return;
@@ -429,8 +473,8 @@ function replayRequested(
 }
 
 function replayCompleted(
-	event: OneShotCompletedEvent,
-	state: MutableOneShotReplay,
+	event: MaterialReviewCompletedEvent,
+	state: MutableMaterialReviewReplay,
 ): void {
 	const existing = state.completions.find(
 		(item) => item.requestId === event.requestId,
@@ -438,8 +482,8 @@ function replayCompleted(
 	if (existing && sameEvent(existing, event)) return;
 	if (existing) {
 		state.issues.push({
-			code: "one-shot.conflict",
-			message: "One-shot completion identity conflicts with history.",
+			code: "material-review.conflict",
+			message: "Material review completion identity conflicts with history.",
 			relatedId: event.requestId,
 		});
 		return;
@@ -450,8 +494,8 @@ function replayCompleted(
 		state.pending.episodeId !== event.episodeId
 	) {
 		state.issues.push({
-			code: "one-shot.history",
-			message: "One-shot completion has no matching pending request.",
+			code: "material-review.history",
+			message: "Material review completion has no matching pending request.",
 			relatedId: event.requestId,
 		});
 		return;
@@ -460,24 +504,27 @@ function replayCompleted(
 	state.pending = null;
 }
 
-export function reconstructOneShotSession(
+export function reconstructMaterialReviewSession(
 	entries: readonly PiBranchEntryLike[],
-): OneShotSession {
-	const state: MutableOneShotReplay = {
+): MaterialReviewSession {
+	const state: MutableMaterialReviewReplay = {
 		requests: [],
 		completions: [],
 		issues: [],
 		pending: null,
 	};
 	for (const entry of entries) {
-		if (entry.type !== "custom" || entry.customType !== OBSERVER_ONE_SHOT_ENTRY)
+		if (
+			entry.type !== "custom" ||
+			entry.customType !== OBSERVER_MATERIAL_REVIEW_ENTRY
+		)
 			continue;
-		const decoded = decodeOneShotEvent(entry.data);
+		const decoded = decodeMaterialReviewEvent(entry.data);
 		if (!decoded.ok) {
 			state.issues.push(decoded.issue);
 			continue;
 		}
-		if (decoded.value.kind === "one-shot-requested")
+		if (decoded.value.kind === "material-review-requested")
 			replayRequested(decoded.value, state);
 		else replayCompleted(decoded.value, state);
 	}
@@ -490,14 +537,14 @@ export function reconstructOneShotSession(
 	};
 }
 
-export function pendingOneShotRequestBefore(input: {
+export function pendingMaterialReviewRequestBefore(input: {
 	readonly entries: readonly PiBranchEntryLike[];
 	readonly index: number;
-	readonly requestId: OneShotRequestId;
+	readonly requestId: MaterialReviewRequestId;
 	readonly episodeId: string;
-}): OneShotRequestedEvent | null {
+}): MaterialReviewRequestedEvent | null {
 	if (!Number.isSafeInteger(input.index) || input.index < 0) return null;
-	const session = reconstructOneShotSession(
+	const session = reconstructMaterialReviewSession(
 		input.entries.slice(0, input.index),
 	);
 	if (session.issues.length > 0) return null;
@@ -508,19 +555,22 @@ export function pendingOneShotRequestBefore(input: {
 		: null;
 }
 
-export function planOneShotRequest(input: {
-	readonly intent: OneShotIntent;
+export function planMaterialReviewRequest(input: {
+	readonly intent: MaterialReviewIntent;
 	readonly episodeId: string;
-	readonly session: OneShotSession;
-}): OneShotResult<OneShotRequestPlan> {
+	readonly session: MaterialReviewSession;
+}): MaterialReviewResult<MaterialReviewRequestPlan> {
 	if (input.session.issues.length > 0)
 		return failure(
-			"one-shot.history",
-			"One-shot history must be repaired before a request.",
+			"material-review.history",
+			"Material review history must be repaired before a request.",
 		);
 	const episodeId = nonempty(input.episodeId);
 	if (!episodeId)
-		return failure("one-shot.intent", "One-shot requires an open Episode ID.");
+		return failure(
+			"material-review.intent",
+			"Material review requires an open Episode ID.",
+		);
 	if (input.session.pendingRequest) {
 		const pending = input.session.pendingRequest;
 		return pending.episodeId === episodeId &&
@@ -528,8 +578,8 @@ export function planOneShotRequest(input: {
 			pending.material === input.intent.material
 			? { ok: true, value: { kind: "resume", request: pending } }
 			: failure(
-					"one-shot.pending",
-					"Another One-shot request is already pending.",
+					"material-review.pending",
+					"Another Material review request is already pending.",
 					pending.requestId,
 				);
 	}
@@ -538,8 +588,8 @@ export function planOneShotRequest(input: {
 		value: {
 			kind: "new",
 			request: {
-				protocol: OBSERVER_ONE_SHOT_PROTOCOL,
-				kind: "one-shot-requested",
+				protocol: OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+				kind: "material-review-requested",
 				requestId: input.intent.requestId,
 				episodeId,
 				userMessageDigest: input.intent.userMessageDigest,
@@ -549,28 +599,28 @@ export function planOneShotRequest(input: {
 	};
 }
 
-interface OneShotCoverageInput {
-	readonly candidates: readonly OneShotCoverageCandidate[];
-	readonly sourceReads: readonly OneShotCoverageRead[];
-	readonly observations: readonly OneShotCoverageObservation[];
+interface MaterialReviewCoverageInput {
+	readonly candidates: readonly MaterialReviewCoverageCandidate[];
+	readonly sourceReads: readonly MaterialReviewCoverageRead[];
+	readonly observations: readonly MaterialReviewCoverageObservation[];
 }
 
 function uniqueCandidateIds(
-	candidates: readonly OneShotCoverageCandidate[],
-): OneShotResult<readonly string[]> {
+	candidates: readonly MaterialReviewCoverageCandidate[],
+): MaterialReviewResult<readonly string[]> {
 	const ids = candidates.map((item) => item.candidateId);
 	return ids.length > 0 && new Set(ids).size === ids.length
 		? { ok: true, value: ids }
 		: failure(
-				"one-shot.coverage",
-				"One-shot completion requires unique request-linked candidates.",
+				"material-review.coverage",
+				"Material review completion requires unique request-linked candidates.",
 			);
 }
 
 function coveredReads(
 	candidateIds: readonly string[],
-	sourceReads: readonly OneShotCoverageRead[],
-): OneShotResult<readonly OneShotCoverageRead[]> {
+	sourceReads: readonly MaterialReviewCoverageRead[],
+): MaterialReviewResult<readonly MaterialReviewCoverageRead[]> {
 	const candidateSet = new Set(candidateIds);
 	const reads = sourceReads.filter((read) =>
 		read.candidateIds.some((candidateId) => candidateSet.has(candidateId)),
@@ -582,28 +632,28 @@ function coveredReads(
 	);
 	if (reads.length === 0 || hasForeignCandidate)
 		return failure(
-			"one-shot.coverage",
-			"One-shot SourceReads must contain only request-linked candidates.",
+			"material-review.coverage",
+			"Material review SourceReads must contain only request-linked candidates.",
 		);
 	const consumed = new Set(reads.flatMap((read) => read.candidateIds));
 	if (candidateIds.some((candidateId) => !consumed.has(candidateId)))
 		return failure(
-			"one-shot.coverage",
-			"Every One-shot candidate requires SourceRead coverage.",
+			"material-review.coverage",
+			"Every Material review candidate requires SourceRead coverage.",
 		);
 	const readIds = reads.map((read) => read.readId);
 	return new Set(readIds).size === readIds.length
 		? { ok: true, value: reads }
 		: failure(
-				"one-shot.coverage",
-				"One-shot SourceRead identities must be unique.",
+				"material-review.coverage",
+				"Material review SourceRead identities must be unique.",
 			);
 }
 
 function coveredObservationIds(
-	reads: readonly OneShotCoverageRead[],
-	observations: readonly OneShotCoverageObservation[],
-): OneShotResult<readonly string[]> {
+	reads: readonly MaterialReviewCoverageRead[],
+	observations: readonly MaterialReviewCoverageObservation[],
+): MaterialReviewResult<readonly string[]> {
 	const readIds = reads.map((read) => read.readId);
 	const readSet = new Set(readIds);
 	const covered = observations.filter((observation) =>
@@ -614,8 +664,8 @@ function coveredObservationIds(
 		new Set(covered.map((item) => item.readId)).size !== readIds.length
 	)
 		return failure(
-			"one-shot.coverage",
-			"Every One-shot SourceRead requires exactly one semantic Observation.",
+			"material-review.coverage",
+			"Every Material review SourceRead requires exactly one semantic Observation.",
 		);
 	const ids = covered
 		.map((item) => item.observationId)
@@ -625,22 +675,22 @@ function coveredObservationIds(
 		ids.every((id) => OBSERVATION_ID.test(id))
 		? { ok: true, value: ids }
 		: failure(
-				"one-shot.coverage",
-				"One-shot Observation identities are invalid.",
+				"material-review.coverage",
+				"Material review Observation identities are invalid.",
 			);
 }
 
-interface OneShotCompletionContext {
-	readonly requestId: OneShotRequestId;
-	readonly completed: OneShotCompletedEvent | undefined;
+interface MaterialReviewCompletionContext {
+	readonly requestId: MaterialReviewRequestId;
+	readonly completed: MaterialReviewCompletedEvent | undefined;
 }
 
-function oneShotCompletionContext(input: {
+function materialReviewCompletionContext(input: {
 	readonly requestId: unknown;
 	readonly episodeId: string;
-	readonly session: OneShotSession;
-}): OneShotCompletionContext | null {
-	const requestId = decodeOneShotRequestId(input.requestId);
+	readonly session: MaterialReviewSession;
+}): MaterialReviewCompletionContext | null {
+	const requestId = decodeMaterialReviewRequestId(input.requestId);
 	if (!requestId) return null;
 	const pending = input.session.pendingRequest;
 	if (pending)
@@ -656,23 +706,23 @@ function oneShotCompletionContext(input: {
 		: null;
 }
 
-export function planOneShotCompletion(
+export function planMaterialReviewCompletion(
 	input: {
 		readonly requestId: unknown;
 		readonly episodeId: string;
-		readonly session: OneShotSession;
-	} & OneShotCoverageInput,
-): OneShotResult<OneShotCompletedEvent> {
+		readonly session: MaterialReviewSession;
+	} & MaterialReviewCoverageInput,
+): MaterialReviewResult<MaterialReviewCompletedEvent> {
 	if (input.session.issues.length > 0)
 		return failure(
-			"one-shot.history",
-			"One-shot history must be repaired before completion.",
+			"material-review.history",
+			"Material review history must be repaired before completion.",
 		);
-	const context = oneShotCompletionContext(input);
+	const context = materialReviewCompletionContext(input);
 	if (!context)
 		return failure(
-			"one-shot.pending",
-			"One-shot completion requires the exact current request.",
+			"material-review.pending",
+			"Material review completion requires the exact current request.",
 		);
 	const { requestId, completed } = context;
 	const candidates = uniqueCandidateIds(input.candidates);
@@ -681,9 +731,9 @@ export function planOneShotCompletion(
 	if (!reads.ok) return reads;
 	const observations = coveredObservationIds(reads.value, input.observations);
 	if (!observations.ok) return observations;
-	const planned: OneShotCompletedEvent = {
-		protocol: OBSERVER_ONE_SHOT_PROTOCOL,
-		kind: "one-shot-completed",
+	const planned: MaterialReviewCompletedEvent = {
+		protocol: OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+		kind: "material-review-completed",
 		requestId,
 		episodeId: input.episodeId,
 		observationIds: observations.value,
@@ -695,8 +745,8 @@ export function planOneShotCompletion(
 	};
 	if (completed && !sameEvent(completed, planned))
 		return failure(
-			"one-shot.conflict",
-			"Persisted One-shot completion does not match current coverage.",
+			"material-review.conflict",
+			"Persisted Material review completion does not match current coverage.",
 			requestId,
 		);
 	return { ok: true, value: completed ?? planned };

@@ -95,7 +95,7 @@ Golden Path와 Non-goals
 | --- | --- | --- |
 | Product Spec | Accepted baseline | `docs/product-spec-v0.1.ko.md` |
 | Package scaffold | Complete | private `@hobin/observer@0.0.0` baseline |
-| Runtime implementation | Slice 8 complete | bounded Pi One-shot → Memo → approved Wrap complete |
+| Runtime implementation | Slice 8 complete | bounded Pi Material review → Memo → approved Review & Save complete |
 | Previous implementation | Archived only | `archive/observer-v0.1` |
 | Git/remote integration | Out of scope | Product Spec Non-goals |
 | Current slice | Complete | Slices 0–9 Golden Path verified |
@@ -113,7 +113,7 @@ feature/observer
 ├─ 192a634 feat(observer): validate notebook graph integrity
 ├─ 84febc2 feat(observer): add pure lifecycle machine
 ├─ c93e4f9 feat(observer): add notebook setup and recovery
-├─ b3640f4 feat(observer): persist approved wrap batches
+├─ b3640f4 feat(observer): persist approved save batches
 ├─ 6b92a94 feat(observer): integrate Pi command lifecycle
 ├─ 5f3042d feat(observer): reconcile working memos
 ├─ dc9fdb6 feat(observer): add source-first sidecar ledger
@@ -136,30 +136,30 @@ feature/observer
 ├─ 7dc10ce fix(observer): encode memo revise disposition
 ├─ ebe2aca style(observer): format memo outcome projection
 ├─ a18dc90 fix(observer): replay memo source basis at apply
-├─ b8539f3 feat(observer): bind pure wrap requests
-├─ ce5f4e4 style(observer): format wrap request sources
-├─ 1c4c44e feat(observer): expose wrap request scope
-├─ 8f78d2d style(observer): format wrap scope tests
-├─ c5f6634 feat(observer): complete approved wrap flow
-├─ 05e4917 style(observer): format wrap completion sources
+├─ b8539f3 feat(observer): bind pure save requests
+├─ ce5f4e4 style(observer): format save request sources
+├─ 1c4c44e feat(observer): expose save request scope
+├─ 8f78d2d style(observer): format save scope tests
+├─ c5f6634 feat(observer): complete approved save flow
+├─ 05e4917 style(observer): format save completion sources
 ├─ 79f5be6 fix(observer): validate memo before instruction
 ├─ f0ee01d docs(observer): record memo boundary repair
-├─ 62b58eb fix(observer): hand off wrap scope once
-├─ 63f9925 style(observer): format wrap handoff prompt
-├─ 3a8d65b fix(observer): explain wrap markdown rules
-├─ 23e0b7f docs(observer): record live wrap completion
+├─ 62b58eb fix(observer): hand off save scope once
+├─ 63f9925 style(observer): format save handoff prompt
+├─ 3a8d65b fix(observer): explain save markdown rules
+├─ 23e0b7f docs(observer): record live save completion
 ├─ b6aca1b docs(observer): close sidecar golden path
-├─ 95cf2a2 feat(observer): define pure one-shot protocol
-├─ 93787d7 style(observer): format one-shot protocol
-├─ 778a288 feat(observer): open one-shot lifecycle episodes
-├─ 4b68c23 feat(observer): start one-shot observation requests
-├─ e3a9bc5 feat(observer): capture one-shot tool results
-├─ cf911ed feat(observer): authorize one-shot observation chains
-├─ 694923c feat(observer): finish one-shot observation requests
-├─ 3997346 feat(observer): wire one-shot Pi actions
-├─ 5089081 fix(observer): explain one-shot hydration order
-├─ a7e101c style(observer): format one-shot runtime tests
-├─ 4851293 docs(observer): close one-shot golden path
+├─ 95cf2a2 feat(observer): define pure material-review protocol
+├─ 93787d7 style(observer): format material-review protocol
+├─ 778a288 feat(observer): open material-review lifecycle episodes
+├─ 4b68c23 feat(observer): start material-review observation requests
+├─ e3a9bc5 feat(observer): capture material-review tool results
+├─ cf911ed feat(observer): authorize material-review observation chains
+├─ 694923c feat(observer): finish material-review observation requests
+├─ 3997346 feat(observer): wire material-review Pi actions
+├─ 5089081 fix(observer): explain material-review hydration order
+├─ a7e101c style(observer): format material-review runtime tests
+├─ 4851293 docs(observer): close material-review golden path
 ├─ 14123c6 docs(observer): complete v0.1 golden path
 ├─ f7f166c chore(observer): prepare public package contract
 └─ post-v0.1 landing: consumer guide and release procedure
@@ -181,14 +181,14 @@ setup
 → Hybrid 중요 변화 알림
 → memo
 → 계속 관찰
-→ wrap proposal
+→ save proposal
 → 사용자 승인
 → local save
 → OFF
 → fresh session re-entry
 ```
 
-### One-shot
+### Material review
 
 ```text
 Observer OFF
@@ -196,14 +196,14 @@ Observer OFF
 → open episode의 pending inquiry/memo 업데이트
 → Mode OFF 유지
 → memo while OFF
-→ wrap
+→ save
 → local save
 → fresh session re-entry
 ```
 
 통과한 unit test 수나 구현된 endpoint 수만으로 v0.1 완료를 주장하지 않는다.
 
-Evidence head `4851293`에서 두 Golden Path, current tarball re-entry, fresh npm consumer, dual Pi discovery, compaction replay, durable Wrap ordering, invalid Markdown rejection을 함께 확인했으므로 이 완료 조건은 충족됐다. 이후 closure 변경은 이 문서와 README에만 한정한다.
+Evidence head `4851293`에서 두 Golden Path, current tarball re-entry, fresh npm consumer, dual Pi discovery, compaction replay, durable Review & Save ordering, invalid Markdown rejection을 함께 확인했으므로 이 완료 조건은 충족됐다. 이후 closure 변경은 이 문서와 README에만 한정한다.
 
 ---
 
@@ -294,11 +294,11 @@ Observer가 필요하면 자신의 `xstate` dependency를 선언한다. 공통 s
 
 ```text
 Mode: OFF | ON
-Episode: EMPTY | OPEN | REVIEWING_WRAP | SETTLED
+Episode: EMPTY | OPEN | REVIEWING_SAVE | SETTLED
 selected notebook identity
 snapshot된 episode language
-현재 wrap proposal identity
-compact memo/wrap receipt metadata
+현재 save proposal identity
+compact memo/save receipt metadata
 legal transition guards
 branch replay
 ```
@@ -321,9 +321,9 @@ type ObserverEvent =
   | { kind: "episode-opened"; episodeId; notebookId; lang }
   | { kind: "activation-changed"; enabled: boolean }
   | { kind: "memo-reconciled"; revisionId; receipt }
-  | { kind: "wrap-proposed"; proposalId; summary }
-  | { kind: "wrap-cancelled"; proposalId }
-  | { kind: "wrap-committed"; proposalId; receipt };
+  | { kind: "save-proposed"; proposalId; summary }
+  | { kind: "save-cancelled"; proposalId }
+  | { kind: "save-committed"; proposalId; receipt };
 ```
 
 이 목록은 Slice 2의 transcript cases에서 도출하며 지금 public API로 고정하지 않는다.
@@ -337,10 +337,10 @@ ON
 MEMO
 → OPEN episode 필요; Mode는 ON/OFF 모두 허용
 
-WRAP_PROPOSED
+SAVE_PROPOSED
 → OPEN episode 필요
 
-WRAP_COMMITTED
+SAVE_COMMITTED
 → 현재 proposal ID와 일치
 → validated local save receipt 필요
 
@@ -354,11 +354,11 @@ OFF
 ### 6.6 Durable-first ordering
 
 ```text
-사용자 wrap 승인
+사용자 save 승인
 → proposed records 검증
 → local save
 → saved content 재검증
-→ wrap-committed Pi event
+→ save-committed Pi event
 → Episode SETTLED + Mode OFF
 ```
 
@@ -441,7 +441,7 @@ bounded diagnostics
 Pi extension
 XState machine
 writer
-wrap transaction
+save transaction
 semantic Zettel quality 자동 판정
 RDF/SHACL runtime
 Graph DB
@@ -503,7 +503,7 @@ Slice 1의 Claim과 Stop은 충족됐다. 다음 movement는 Slice 2의 lifecycl
 
 ### Claim
 
-> on/off, Sidecar, One-shot, memo, wrap lifecycle을 filesystem과 Pi UI 없이 결정론적으로 적용하고 replay할 수 있다.
+> on/off, Sidecar, Material review, memo, save lifecycle을 filesystem과 Pi UI 없이 결정론적으로 적용하고 replay할 수 있다.
 
 ### Scope
 
@@ -520,13 +520,13 @@ branch-entry replay
 ### Required cases
 
 ```text
-OFF → ON → MEMO → WRAP proposal → cancel → OPEN
-OFF → One-shot로 Episode OPEN, Mode는 OFF
+OFF → ON → MEMO → SAVE proposal → cancel → OPEN
+OFF → Material review로 Episode OPEN, Mode는 OFF
 Mode OFF에서 MEMO 허용
 ON → OFF, Episode OPEN 유지
 잘못된 proposal ID commit 거부
-validated receipt 없는 wrap commit 거부
-wrap commit → SETTLED + OFF
+validated receipt 없는 save commit 거부
+save commit → SETTLED + OFF
 같은 event replay → 같은 state
 branch fork → fork별 state
 ```
@@ -555,11 +555,11 @@ TypeScript diagnostics: 0
 Type assertions (`as`): 0
 ```
 
-Transition table은 Sidecar, One-shot, OFF memo, off-preserving-open, proposal cancel, stale ID, unvalidated receipt, settle+OFF, episode reopen을 구분한다. Replay는 malformed/illegal entry를 index와 stage로 보고하면서 다음 entry를 계속 처리하고, 같은 ordered input과 shared-prefix branch fork에 대해 결정적이다.
+Transition table은 Sidecar, Material review, OFF memo, off-preserving-open, proposal cancel, stale ID, unvalidated receipt, settle+OFF, episode reopen을 구분한다. Replay는 malformed/illegal entry를 index와 stage로 보고하면서 다음 entry를 계속 처리하고, 같은 ordered input과 shared-prefix branch fork에 대해 결정적이다.
 
 XState는 별도 lifecycle policy를 소유하지 않는다. `src/lifecycle.ts`의 guard/reducer를 호출하고 Mode와 Episode를 parallel state/tag로 projection한다. 모든 legal trace step과 rejected transition에서 reducer state와 machine context가 일치한다.
 
-`wrap-committed`의 `validated` status는 filesystem 검증 결과를 나타내는 evidence token이다. Slice 2는 token을 소비할 뿐 실제 save/readback truth를 만들지 않으며, 그 책임은 Slice 4에 남긴다.
+`save-committed`의 `validated` status는 filesystem 검증 결과를 나타내는 evidence token이다. Slice 2는 token을 소비할 뿐 실제 save/readback truth를 만들지 않으며, 그 책임은 Slice 4에 남긴다.
 
 ### Stop
 
@@ -636,25 +636,25 @@ Knowledge record를 쓰지 않고 notebook identity와 language만 안정적으�
 
 ---
 
-## Slice 4 — Wrap Local Persistence
+## Slice 4 — Review & Save Local Persistence
 
 **Status:** Complete
 
 ### Claim
 
-> 준비된 wrap proposal을 사용자가 승인하면 검증된 Source/Inquiry/Memo/Zettel이 로컬에 일관되게 저장되고 fresh read로 다시 열리며, 성공 후에만 episode가 settle된다.
+> 준비된 save proposal을 사용자가 승인하면 검증된 Source/Inquiry/Memo/Zettel이 로컬에 일관되게 저장되고 fresh read로 다시 열리며, 성공 후에만 episode가 settle된다.
 
 ### Scope
 
 ```text
-prepared wrap proposal
+prepared save proposal
 사용자 승인 input
 record batch preflight
 schema + graph validation
 local publication
 save receipt
 saved-content readback
-wrap-committed ordering
+save-committed ordering
 fresh notebook reopen
 ```
 
@@ -673,11 +673,11 @@ Graph/vector projection
 ```text
 Exact content hash: src/content-hash.ts
 Exact notebook inventory: src/notebook.ts
-Prepared/approval profile: src/wrap-profile.ts
-Pure E/B/F preflight: src/wrap-preflight.ts
-Stage/publish/rollback: src/wrap-transaction.ts
-Durable-first coordinator: src/wrap-service.ts
-Wrap focused tests: 11/11
+Prepared/approval profile: src/save-profile.ts
+Pure E/B/F preflight: src/save-preflight.ts
+Stage/publish/rollback: src/save-transaction.ts
+Durable-first coordinator: src/save-service.ts
+Review & Save focused tests: 11/11
 Observer package tests: 106/106
 TypeScript diagnostics: 0
 Type assertions (`as`): 0
@@ -728,7 +728,7 @@ Prepared data로 최초 local durable vertical slice가 증명된 상태. 충족
 
 ### Claim
 
-> 실제 Pi에서 setup/status/on/off/wrap lifecycle이 작동하고 restart·branch fork·compaction 이후 상태가 올바르게 복구된다.
+> 실제 Pi에서 setup/status/on/off/save lifecycle이 작동하고 restart·branch fork·compaction 이후 상태가 올바르게 복구된다.
 
 ### Scope
 
@@ -738,7 +738,7 @@ Pi extension entry
 /observe status
 /observe on
 /observe off
-/observe wrap (prepared proposal 사용)
+/observe save (prepared proposal 사용)
 session entry encoding/decoding
 branch replay
 compact status/footer
@@ -749,7 +749,7 @@ compact status/footer
 ```text
 Memo model behavior
 Hybrid observation
-One-shot semantic analysis
+Material review semantic analysis
 복잡한 TUI panel
 ```
 
@@ -759,7 +759,7 @@ One-shot semantic analysis
 Strict branch entry/replay: src/pi-session.ts
 Command grammar/coordinator: src/observer-command.ts, src/observer-controller.ts
 Korean status/footer: src/observer-status.ts
-Post-save acknowledgment recovery: src/wrap-acknowledgment.ts
+Post-save acknowledgment recovery: src/save-acknowledgment.ts
 Pi adapter: extensions/observer.ts
 Focused branch/controller/Pi tests: 23/23
 Observer package tests: 129/129
@@ -777,7 +777,7 @@ EMPTY/SETTLED에서 새 episode open, OPEN/REVIEWING resume
 off가 Mode만 끄고 OPEN episode를 보존
 malformed Observer-owned branch entry에서 fail-closed mutation block
 prepared handoff → proposal → approval attempt → local save/readback → commit entry
-wrap decline에서 canonical record write 없음
+save decline에서 canonical record write 없음
 save 완료/session acknowledgment 전 gap의 exact-final recovery
 before-state 자동 write 금지, mixed/active state recovery-required
 same-file ancestry, persisted restart, extracted branch isolation
@@ -786,13 +786,13 @@ status의 notebook/replay/persistence/prepared health와 정직한 미집계 sem
 package `/observe` discovery와 extension shutdown status cleanup
 ```
 
-Pi branch 기준 데이터는 `getBranch()` ancestry의 `observer.lifecycle`, `observer.prepared-wrap`, `observer.wrap-attempt` custom entry다. Compaction summary나 LLM context는 lifecycle 기준 데이터가 아니다. Observer-owned entry decode/transition issue가 하나라도 있으면 status 외 mutation을 진행하지 않는다.
+Pi branch 기준 데이터는 `getBranch()` ancestry의 `observer.lifecycle`, `observer.prepared-save`, `observer.save-attempt` custom entry다. Compaction summary나 LLM context는 lifecycle 기준 데이터가 아니다. Observer-owned entry decode/transition issue가 하나라도 있으면 status 외 mutation을 진행하지 않는다.
 
 Selection metadata는 `getAgentDir()/observer/selection.json`에 저장하며 `PI_CODING_AGENT_DIR` override를 따른다. 이 agent-state 경로는 notebook default가 아니다. Notebook root와 ko/en은 setup에서 명시적으로 받는다.
 
 Prepared proposal identity는 strict normalized handoff의 SHA-256이다. 승인 시 attempt entry를 filesystem effect보다 먼저 append하고, fresh receipt 뒤에만 committed entry를 append한다. Restart에서 matching attempt, no active transaction, exact approved final bytes, valid full graph가 모두 확인될 때만 acknowledgment를 복원한다.
 
-보장 범위는 persisted Pi session의 current-branch replay다. Ephemeral session은 현재 process만 보장하며 status에 표시한다. Active transaction 자동 repair, corrupt Pi JSONL repair, concurrent command queue, semantic proposal generation은 Slice 5 밖이다. RPC는 setup/status/on/off를 실제 Pi에서 수행했고, prepared wrap의 decline/approve/recovery는 같은 command controller와 real notebook service integration으로 수행했다.
+보장 범위는 persisted Pi session의 current-branch replay다. Ephemeral session은 현재 process만 보장하며 status에 표시한다. Active transaction 자동 repair, corrupt Pi JSONL repair, concurrent command queue, semantic proposal generation은 Slice 5 밖이다. RPC는 setup/status/on/off를 실제 Pi에서 수행했고, prepared save의 decline/approve/recovery는 같은 command controller와 real notebook service integration으로 수행했다.
 
 ### Stop
 
@@ -808,7 +808,7 @@ Prepared proposal identity는 strict normalized handoff의 SHA-256이다. 승인
 [x] duplicate on/off와 exact prepared entry는 append-free/idempotent stutter
 [x] prepared approval attempt를 local write보다 먼저 기록
 [x] exact final readback만 post-save acknowledgment로 복구
-[x] Memo/Hybrid/one-shot/complex TUI는 다음 slice로 보류
+[x] Memo/Hybrid/material-review/complex TUI는 다음 slice로 보류
 ```
 
 ---
@@ -914,7 +914,7 @@ Slice 6의 Claim과 Stop은 prepared semantic input 경계에서 충족됐다. �
 
 ### Claim
 
-> Observer ON 상태에서 다른 학습 workflow를 방해하지 않고 중요한 변화만 알리며, 사용자 가설과 Memo를 wrap/re-entry까지 이어갈 수 있다.
+> Observer ON 상태에서 다른 학습 workflow를 방해하지 않고 중요한 변화만 알리며, 사용자 가설과 Memo를 save/re-entry까지 이어갈 수 있다.
 
 ### Scope
 
@@ -925,7 +925,7 @@ source-first pass
 standing inquiry relevance
 Hybrid interrupt threshold
 사용자 가설 acknowledgment
-memo → continue → wrap
+memo → continue → save
 fresh-session re-entry
 ```
 
@@ -943,7 +943,7 @@ hidden chain-of-thought 접근
 
 ### Stop
 
-한 자료에서 시작해 다른 자료로 standing inquiry가 재활성화되고 wrap 후 fresh session에서 이어지는 상태.
+한 자료에서 시작해 다른 자료로 standing inquiry가 재활성화되고 save 후 fresh session에서 이어지는 상태.
 
 ### Landing 7A — Observation ledger와 sequential Sidecar controller
 
@@ -977,12 +977,12 @@ Remaining Slice 7 work:
 
 ```text
 Observation batch에서 complete prepared Memo pass를 생성·설치하는 semantic trigger
-memo → continue → wrap 실제 Sidecar transcript
+memo → continue → save 실제 Sidecar transcript
 packed artifact에서 observer_sidecar staged contract 확인
-wrap 후 fresh-session standing Inquiry re-entry
+save 후 fresh-session standing Inquiry re-entry
 ```
 
-Landing 7A는 visible candidate를 source-first로 판정하고 중요한 변화만 append 후 알리는 경계까지 닫는다. Durable Memo/Zettel 저장과 Episode settlement는 여전히 기존 `/observe memo`와 `/observe wrap`의 명시적 경계를 통과해야 한다.
+Landing 7A는 visible candidate를 source-first로 판정하고 중요한 변화만 append 후 알리는 경계까지 닫는다. Durable Memo/Zettel 저장과 Episode settlement는 여전히 기존 `/observe memo`와 `/observe save`의 명시적 경계를 통과해야 한다.
 
 ### Landing 7B — Pure Memo request/context/instruction contract
 
@@ -1016,7 +1016,7 @@ Remaining Slice 7 work:
 `/observe memo` request append/replay와 nontruth Pi agent trigger
 `observer_sidecar memo-scope` / `memo-prepare` sequential action
 instruction → prepared → applied → acknowledgment failure recovery
-memo → continue → wrap 실제 Sidecar transcript
+memo → continue → save 실제 Sidecar transcript
 packed artifact contract와 fresh-session re-entry
 ```
 
@@ -1055,7 +1055,7 @@ Remaining Slice 7 work:
 strict `memo-prepare` Sidecar action
 instruction append/replay → prepared install → Memo apply → acknowledgment
 instruction/prepared/apply/ack crash-gap recovery
-memo → continue → wrap 실제 Sidecar transcript
+memo → continue → save 실제 Sidecar transcript
 packed artifact contract와 fresh-session re-entry
 ```
 
@@ -1089,9 +1089,9 @@ Remaining Slice 7 work:
 
 ```text
 actual Pi/model-driven source-read → hydrate → record → memo-scope → memo-prepare transcript
-memo → continue → wrap approval/save/ack transcript
+memo → continue → save approval/save/ack transcript
 packed artifact contract
-wrap 후 fresh-session standing Inquiry re-entry
+save 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7D의 지원 범위는 parser-refined instruction과 기존 Memo effect 경계의 실제 controller collaboration이다. Extension tool registration/package load와 empty RPC는 검증하지만 model이 schema를 따라 nonempty instruction을 생성하는 실제 transcript는 아직 주장하지 않는다.
@@ -1121,9 +1121,9 @@ Remaining Slice 7 work:
 
 ```text
 repaired ingress로 actual source-read → hydrate → record → memo-scope → memo-prepare 재검증
-memo → continue → wrap approval/save/ack transcript
+memo → continue → save approval/save/ack transcript
 packed artifact contract
-wrap 후 fresh-session standing Inquiry re-entry
+save 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7E 뒤 bounded real-provider rerun은 `source-read → hydrate → record → memo-scope`까지 통과했다. `memo-prepare`에서는 exact request digest, locked identities, complete outcome/evidence shape가 model-facing contract에 없어서 actual tool error로 멈췄다.
@@ -1156,7 +1156,7 @@ explicit Evidence/Hypothesis/Memo outcome TypeBox schema
 memo-scope response에 request digest + MemoPreparationGuide 노출
 schema/parser conformance tests
 bounded real-provider memo-prepare 재검증
-wrap approval/save/ack + fresh-session re-entry
+save approval/save/ack + fresh-session re-entry
 ```
 
 Landing 7F-1은 model이 선택할 semantic outcome을 자동 생성하지 않는다. Exact basis와 available scope만 deterministic projection하고 strict contextual decoder를 semantic authority로 유지한다.
@@ -1189,9 +1189,9 @@ Remaining Slice 7 work:
 
 ```text
 bounded real-provider memo-prepare → install → applied → acknowledgment rerun
-memo → continue → wrap approval/save/ack transcript
+memo → continue → save approval/save/ack transcript
 packed artifact contract
-wrap 후 fresh-session standing Inquiry re-entry
+save 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7F-2 bounded rerun에서 model은 locked basis와 semantic outcome 내용을 정확히 개선했지만 세 번 모두 `dispositions`를 `instruction.pass` 안에 중첩했다. Full instruction 복사 자체가 producer-owned representation을 model에 불필요하게 맡긴다는 새 failure evidence가 됐다.
@@ -1222,9 +1222,9 @@ Remaining Slice 7 work:
 
 ```text
 bounded real-provider semantic-only memo-prepare 재검증
-memo → continue → wrap approval/save/ack transcript
+memo → continue → save approval/save/ack transcript
 packed artifact contract
-wrap 후 fresh-session standing Inquiry re-entry
+save 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7F-3은 model의 semantic 선택을 자동화하지 않는다. Model은 semantic arrays만 제안하고, producer는 locked representation을 소유하며, contextual decoder가 effect 전 최종 경계를 유지한다.
@@ -1255,9 +1255,9 @@ Remaining Slice 7 work:
 
 ```text
 bounded real-provider source-bearing rerun
-memo → continue → wrap approval/save/ack transcript
+memo → continue → save approval/save/ack transcript
 packed artifact contract
-wrap 후 fresh-session standing Inquiry re-entry
+save 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7F-4는 branch replay durability나 concurrent instance를 새로 주장하지 않는다. 현재 Pi branch ancestry 안에서 preparation과 installation이 동일한 request-scoped basis owner를 사용한다는 범위만 닫는다.
@@ -1299,9 +1299,9 @@ Remaining Slice 7 work:
 
 ```text
 bounded real-provider explicit-revise rerun
-memo → continue → wrap approval/save/ack transcript
+memo → continue → save approval/save/ack transcript
 packed artifact contract
-wrap 후 fresh-session standing Inquiry re-entry
+save 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7F-5는 model semantic truth나 exact-one을 TypeBox로 증명하지 않는다. Disposition omission만 raw variant에서 불가능하게 만들고, duplicate/completeness 의미는 기존 contextual decoder가 계속 fail-closed한다.
@@ -1331,9 +1331,9 @@ Remaining Slice 7 work:
 
 ```text
 bounded real-provider apply-scope rerun
-memo → continue → wrap approval/save/ack transcript
+memo → continue → save approval/save/ack transcript
 packed artifact contract
-wrap 후 fresh-session standing Inquiry re-entry
+save 후 fresh-session standing Inquiry re-entry
 ```
 
 Landing 7F-6은 apply effect 전에 같은 request-scoped basis를 재확립한다. Crash/power-loss durability나 concurrent instance를 새로 주장하지 않는다.
@@ -1378,20 +1378,20 @@ Assertions:
 Remaining Slice 7 work:
 
 ```text
-memo → continue → wrap approval/save/ack transcript
+memo → continue → save approval/save/ack transcript
 packed artifact contract
-wrap 후 fresh-session standing Inquiry re-entry
+save 후 fresh-session standing Inquiry re-entry
 ```
 
 이 evidence는 한 bounded stochastic run의 실제 completion을 지지한다. Provider reliability rate, model semantic truth, crash/power-loss durability, concurrent/multi-instance 실행은 주장하지 않는다.
 
-### Landing 7G-1 — Pure Wrap request/context/guide
+### Landing 7G-1 — Pure Review & Save request/context/guide
 
 ```text
-[x] strict observer.wrap-request/v1 decode/encode
+[x] strict observer.save-request/v1 decode/encode
 [x] request ID + proposal ID + episode/Memo/source/inventory digest binding
 [x] current-branch request replay, exact duplicate stutter, conflict fail-closed
-[x] wrap-proposed/cancelled/committed proposal이 request를 consume
+[x] save-proposed/cancelled/committed proposal이 request를 consume
 [x] OPEN + no pending Memo/Observation guard
 [x] exact pending request resume와 stale state 거부
 [x] locked notebook/root/language/proposal target projection
@@ -1403,8 +1403,8 @@ Order model:
 
 ```text
 OPEN/no pending work
-→ wrap-requested
-→ exact wrap context
+→ save-requested
+→ exact save context
 → future prepared handoff
 → existing approval/save/commit core
 ```
@@ -1412,7 +1412,7 @@ OPEN/no pending work
 Verifier evidence:
 
 ```text
-Focused Wrap request/context/guide: 3/3
+Focused Review & Save request/context/guide: 3/3
 TypeScript LSP: clean
 Lens: changed files clean
 Changed Observer TypeScript `as` token: 0
@@ -1421,34 +1421,34 @@ Changed Observer TypeScript `as` token: 0
 Remaining Slice 7 work:
 
 ```text
-/observe wrap request append/replay + nontruth trigger
-observer_sidecar wrap-scope/wrap-prepare schema and producer assembly
+/observe save request append/replay + nontruth trigger
+observer_sidecar save-scope/save-prepare schema and producer assembly
 approval/save/ack recovery tests
-bounded real-provider wrap transcript
+bounded real-provider save transcript
 packed artifact + fresh-process Standing Inquiry re-entry
 ```
 
 Landing 7G-1은 model Markdown을 승인하거나 저장하지 않는다. 다음 Pi landing이 refined request event만 append하고, 기존 handoff decoder/preflight/graph validator를 effect 전 authority로 유지해야 한다.
 
-### Landing 7G-2 — Pi Wrap request and read-only scope
+### Landing 7G-2 — Pi Review & Save request and read-only scope
 
 ```text
-[x] /observe wrap가 existing prepared review와 new/resumed request를 구분
-[x] refined observer.wrap-request append 후 exact replay 확인
+[x] /observe save가 existing prepared review와 new/resumed request를 구분
+[x] refined observer.save-request append 후 exact replay 확인
 [x] append throw/drop과 stale/pending/conflict fail-closed
-[x] request 확인 뒤에만 nontruth observer.wrap-trigger follow-up
-[x] strict wrap-scope action + TypeBox variant
-[x] Wrap scope가 locked target/source/working/inventory guide 반환
-[x] Mode OFF + Episode OPEN에서도 hidden Wrap request context 유지
+[x] request 확인 뒤에만 nontruth observer.save-trigger follow-up
+[x] strict save-scope action + TypeBox variant
+[x] Review & Save scope가 locked target/source/working/inventory guide 반환
+[x] Mode OFF + Episode OPEN에서도 hidden Review & Save request context 유지
 [x] locked root/notebook/language/proposal/digest를 hidden prompt에서 비노출
-[x] no prepared wrap, no wrap-proposed lifecycle, no notebook write
+[x] no prepared save, no save-proposed lifecycle, no notebook write
 ```
 
 Verifier evidence:
 
 ```text
 Observer: 172/172
-Focused action/controller/prompt/extension/wrap: 20/20
+Focused action/controller/prompt/extension/save: 20/20
 TypeScript LSP: clean
 Changed Observer TypeScript `as` token: 0
 ```
@@ -1456,18 +1456,18 @@ Changed Observer TypeScript `as` token: 0
 Remaining Slice 7 work:
 
 ```text
-wrap-prepare semantic schema/action + producer-owned handoff assembly
-prepared install → user approval/cancel → save/readback → wrap-committed recovery
-bounded real-provider wrap transcript
+save-prepare semantic schema/action + producer-owned handoff assembly
+prepared install → user approval/cancel → save/readback → save-committed recovery
+bounded real-provider save transcript
 packed artifact + fresh-process Standing Inquiry re-entry
 ```
 
-Landing 7G-2는 Wrap proposal을 만들거나 승인하지 않는다. Request entry만 branch truth이며 wrap-scope는 read-only다. 다음 landing은 unknown model submission을 existing `decodePreparedWrapHandoff`로 refine한 뒤에만 prepared effect를 허용해야 한다.
+Landing 7G-2는 Review & Save proposal을 만들거나 승인하지 않는다. Request entry만 branch truth이며 save-scope는 read-only다. 다음 landing은 unknown model submission을 existing `decodePreparedWrapHandoff`로 refine한 뒤에만 prepared effect를 허용해야 한다.
 
-### Landing 7G-3 — semantic Wrap preparation and durable completion
+### Landing 7G-3 — semantic Review & Save preparation and durable completion
 
 ```text
-[x] strict wrap-prepare action + exact TypeBox model surface
+[x] strict save-prepare action + exact TypeBox model surface
 [x] submit-only request_id/summary/records; locked proposal/notebook/root/lang 비노출
 [x] fresh exact request/context recheck before handoff assembly
 [x] observed Source + current Inquiry + current Memo required-record coverage
@@ -1475,8 +1475,8 @@ Landing 7G-2는 Wrap proposal을 만들거나 승인하지 않는다. Request en
 [x] duplicate/missing/wrong-operation/wrong-digest fail-closed
 [x] producer-owned PreparedWrapHandoff assembly + existing strict decoder
 [x] prepared append 뒤 explicit Pi confirmation
-[x] decline → wrap-cancelled, Episode OPEN, notebook write 0
-[x] approve → preflight → local save → readback → wrap-committed
+[x] decline → save-cancelled, Episode OPEN, notebook write 0
+[x] approve → preflight → local save → readback → save-committed
 [x] successful settlement → Episode SETTLED + Mode OFF
 [x] invalid/install failure before prepared effect
 ```
@@ -1484,8 +1484,8 @@ Landing 7G-2는 Wrap proposal을 만들거나 승인하지 않는다. Request en
 Verifier evidence:
 
 ```text
-Focused Wrap/controller/extension/persistence: 44/44
-Pi 0.80.10 bounded continue→Memo→Wrap: pass
+Focused Review & Save/controller/extension/persistence: 44/44
+Pi 0.80.10 bounded continue→Memo→Review & Save: pass
 TypeScript LSP: 47 files clean
 Changed Observer TypeScript `as` token: 0
 Pi extension coordinator warnings introduced by G2/G3: removed
@@ -1499,7 +1499,7 @@ none — Landing G-4 closes the accepted Sidecar Golden Path boundary
 
 Landing 7G-3의 required coverage는 각 observed Source, current working Inquiry, current working Memo ID를 정확히 한 proposed record로 표현하게 한다. Promotion candidate는 같은 Memo record의 durable disposition과 필요 시 추가 Zettel record로 표현할 수 있으며, 추가 records도 기존 Markdown/graph preflight를 통과해야 한다. Live provider reliability와 semantic truth는 아직 주장하지 않는다.
 
-첫 bounded continuation은 unchanged-current Hypothesis revise가 instruction append 뒤 install에서 거부되어 request를 poison하는 기존 Memo ordering gap을 노출했다. `79f5be6 fix(observer): validate memo before instruction`은 exact request-bound `MemoScope`에서 `reconcileMemoPass`를 instruction effect 전에 dry-run하고 install/apply revalidation을 유지한다. 두 번째 run은 Memo completion을 통과했으며, Wrap 단계에서 repeated wrap-scope 후 prepare 없이 종료되는 live guidance gap을 남겼다. `62b58eb`은 one-scope `next_action=wrap-prepare` handoff를 명시했고, 다음 run에서 드러난 Inquiry `revision_reason` authoring gap은 `3a8d65b`의 profile rule projection으로 보완했다.
+첫 bounded continuation은 unchanged-current Hypothesis revise가 instruction append 뒤 install에서 거부되어 request를 poison하는 기존 Memo ordering gap을 노출했다. `79f5be6 fix(observer): validate memo before instruction`은 exact request-bound `MemoScope`에서 `reconcileMemoPass`를 instruction effect 전에 dry-run하고 install/apply revalidation을 유지한다. 두 번째 run은 Memo completion을 통과했으며, Review & Save 단계에서 repeated save-scope 후 prepare 없이 종료되는 live guidance gap을 남겼다. `62b58eb`은 one-scope `next_action=save-prepare` handoff를 명시했고, 다음 run에서 드러난 Inquiry `revision_reason` authoring gap은 `3a8d65b`의 profile rule projection으로 보완했다.
 
 최종 bounded run:
 
@@ -1507,14 +1507,14 @@ Landing 7G-3의 required coverage는 각 observed Source, current working Inquir
 Pi: 0.80.10
 provider/model: openai-codex / gpt-5.3-codex-spark
 HEAD: 3a8d65b
-script: /tmp/observer-live-wrap-05e4917.mjs
-transcript: /tmp/observer-live-wrap-transcript.json
+script: /tmp/observer-live-save-05e4917.mjs
+transcript: /tmp/observer-live-save-transcript.json
 
 source-read → hydrate → observation → off
 → memo-scope → memo-prepare → prepared → applied → memo-reconciled
-→ wrap-request → wrap-scope × 1 → wrap-prepare × 1
-→ wrap-proposed → user confirm × 1 → approved attempt
-→ local save/readback → wrap-committed → SETTLED+OFF
+→ save-request → save-scope × 1 → save-prepare × 1
+→ save-proposed → user confirm × 1 → approved attempt
+→ local save/readback → save-committed → SETTLED+OFF
 ```
 
 Notebook evidence:
@@ -1522,10 +1522,10 @@ Notebook evidence:
 ```text
 before: 6 records
 post-Memo: same 6 names/digests
-post-Wrap: 7 records
+post-Review & Save: 7 records
 changed: inquiry.md, memo-incubating.md
 created: source-0b7fab8d-d616-49a0-bf35-b80649a0f7a5.md
-Wrap round bash calls: 0
+Review & Save round bash calls: 0
 ```
 
 이 evidence는 한 finite provider completion만 지지하며 model semantic truth나 provider reliability rate로 일반화하지 않는다.
@@ -1559,7 +1559,7 @@ Pi session continuity: none (--no-session × 2)
 Golden Path judgment:
 
 ```text
-live provider: source → Memo → approved Wrap → save/readback → SETTLED+OFF
+live provider: source → Memo → approved Review & Save → save/readback → SETTLED+OFF
 packed fresh process: persisted selection/notebook → new OPEN Episode
                     → next source-read exposes durable Standing Inquiry
 ```
@@ -1570,38 +1570,38 @@ packed fresh process: persisted selection/notebook → new OPEN Episode
 
 ---
 
-## Slice 8 — One-shot Golden Path
+## Slice 8 — Material review Golden Path
 
 **Status:** Complete
 
 ### Claim
 
-> Observer OFF 상태의 scoped 요청도 open episode의 relevant inquiry와 Memo를 실제 업데이트하며, Mode를 켜지 않고 memo/wrap까지 이어갈 수 있다.
+> Observer OFF 상태의 scoped 요청도 open episode의 relevant inquiry와 Memo를 실제 업데이트하며, Mode를 켜지 않고 memo/save까지 이어갈 수 있다.
 
 ### Scope
 
 ```text
-one-shot intent detection 또는 최소 explicit surface
+material-review intent detection 또는 최소 explicit surface
 Mode OFF 유지
 Episode OPEN 생성/재사용
 pending inquiry revision
-Mode OFF에서 memo/wrap
+Mode OFF에서 memo/save
 ```
 
 ### Evidence
 
-승인된 One-shot transcript를 실제 Pi session과 packed RPC에서 수행한다.
+승인된 Material review transcript를 실제 Pi session과 packed RPC에서 수행한다.
 
 ### Stop
 
-Sidecar와 One-shot이 같은 state, record, persistence model을 사용하고 서로 다른 별도 architecture를 만들지 않는 상태.
+Sidecar와 Material review이 같은 state, record, persistence model을 사용하고 서로 다른 별도 architecture를 만들지 않는 상태.
 
-### Landing 8A-1 — pure One-shot trigger/session protocol
+### Landing 8A-1 — pure Material review trigger/session protocol
 
 ```text
 [x] inline-user-message | retrieved-tool-results exact sum
-[x] strict one-shot-start action shape + latest user digest refinement
-[x] opaque OneShotIntent with producer-owned request ID and exact text
+[x] strict material-review-start action shape + latest user digest refinement
+[x] opaque MaterialReviewIntent with producer-owned request ID and exact text
 [x] request event stores material meaning without treating instruction as Source
 [x] request/completion codec + current-branch replay
 [x] duplicate stutter, identity conflict, overlap, reorder fail-closed
@@ -1613,7 +1613,7 @@ Sidecar와 One-shot이 같은 state, record, persistence model을 사용하고 �
 Verifier evidence:
 
 ```text
-One-shot focused: 4/4
+Material review focused: 4/4
 Observer: 176/176
 LSP: 49 files clean
 Pi-lens changed files: clean
@@ -1635,21 +1635,21 @@ automatic exact-user candidate
 ### Landing 8A-2 — OPEN/OFF lifecycle capability
 
 ```text
-[x] lifecycle owner consumes only refined OneShotIntent
+[x] lifecycle owner consumes only refined MaterialReviewIntent
 [x] selected notebook recovery precedes lifecycle effects
 [x] EMPTY/SETTLED opens a new Episode; OPEN reuses exact Episode
-[x] replay-confirmed OFF + OPEN returns opaque OneShotEpisodeCapability
+[x] replay-confirmed OFF + OPEN returns opaque MaterialReviewEpisodeCapability
 [x] capability binds request, Episode, notebook, and language identity
-[x] Mode ON, wrap review, malformed replay, recovery mismatch fail closed
+[x] Mode ON, save review, malformed replay, recovery mismatch fail closed
 [x] append throw/drop returns no capability and remains retryable
 [x] activation-changed(true) is never appended
-[x] no one-shot request, candidate, prompt, Pi, or Markdown effect
+[x] no material-review request, candidate, prompt, Pi, or Markdown effect
 ```
 
 Verifier evidence:
 
 ```text
-Observer controller + One-shot focused: 19/19
+Observer controller + Material review focused: 19/19
 Observer: 178/178
 LSP: 49 files clean
 Pi-lens new lifecycle complexity: cleared
@@ -1663,19 +1663,19 @@ Known structural residual:
 ```text
 observer-controller.ts now directly imports 16 modules (threshold 15).
 This coordination-module pressure is explicit; behavior-preserving splitting is
-not folded into the One-shot lifecycle movement. Existing memoCommand complexity
+not folded into the Material review lifecycle movement. Existing memoCommand complexity
 warning also remains pre-existing.
 ```
 
 ### Landing 8A-3 — request-before-inline-candidate
 
 ```text
-[x] ObservationController.startOneShot owns request/candidate collaboration
+[x] ObservationController.startMaterialReview owns request/candidate collaboration
 [x] capability and intent identities are checked before request append
-[x] one-shot-requested append is replay-confirmed before any candidate
+[x] material-review-requested append is replay-confirmed before any candidate
 [x] retrieved-tool-results stops pending without user-source contamination
 [x] inline-user-message appends exact text and input source once
-[x] candidate event digest carries optional exact oneShotRequestId ancestry
+[x] candidate event digest carries optional exact materialReviewRequestId ancestry
 [x] old Sidecar candidate bytes remain valid and continue to require Mode ON
 [x] OFF replay requires request-before-candidate pending prefix
 [x] request/candidate append throw/drop gaps remain retryable
@@ -1686,7 +1686,7 @@ warning also remains pre-existing.
 Verifier evidence:
 
 ```text
-Focused One-shot/Observation/lifecycle: 32/32
+Focused Material review/Observation/lifecycle: 32/32
 Observer: 182/182
 LSP changed files: clean
 TypeScript assertion-expression scan: 0
@@ -1696,7 +1696,7 @@ Known structural residual:
 
 ```text
 observation-controller.ts now imports 17 modules (threshold 15) because the
-One-shot start collaborator crosses lifecycle proof and One-shot protocol.
+Material review start collaborator crosses lifecycle proof and Material review protocol.
 The existing Observation Session replay coordinator remains high-complexity and
 high-fan-out; neither concern was disguised as behavior work in this landing.
 ```
@@ -1704,7 +1704,7 @@ high-fan-out; neither concern was disguised as behavior work in this landing.
 ### Landing 8A-4 — OFF retrieved tool-result capture
 
 ```text
-[x] existing tool-result capture ingress detects exact pending One-shot request
+[x] existing tool-result capture ingress detects exact pending Material review request
 [x] only retrieved-tool-results requests authorize OFF automatic capture
 [x] captured tool result carries exact pending request ancestry
 [x] inline pending requests do not absorb later unrelated tool results
@@ -1727,9 +1727,9 @@ TypeScript assertion-expression scan: 0
 ### Landing 8A-5 — request-linked observation chain
 
 ```text
-[x] SourceRead carries optional producer-owned oneShotRequestId ancestry
+[x] SourceRead carries optional producer-owned materialReviewRequestId ancestry
 [x] exact same-request nonempty candidate set is required
-[x] mixed Sidecar/One-shot or different-request candidates are rejected
+[x] mixed Sidecar/Material review or different-request candidates are rejected
 [x] linked SourceRead requires exact pending request prefix
 [x] hydrate and semantic record inherit ancestry only through accepted SourceRead
 [x] request → candidates → SourceRead → hydrate → Observation works while OFF
@@ -1742,7 +1742,7 @@ TypeScript assertion-expression scan: 0
 Verifier evidence:
 
 ```text
-Focused profile/session/controller/One-shot: 19/19
+Focused profile/session/controller/Material review: 19/19
 Observer: 184/184
 LSP: 49 files clean
 Pi-lens new parse/fan-out warnings: cleared
@@ -1752,7 +1752,7 @@ TypeScript assertion-expression scan: 0
 ### Landing 8A-6 — replay-safe internal completion
 
 ```text
-[x] strict one-shot-finish raw decoder returns a refined request identity
+[x] strict material-review-finish raw decoder returns a refined request identity
 [x] exact linked candidate/read/Observation coverage is required
 [x] completion append is followed by exact replay confirmation
 [x] append throw/drop returns failure without a receipt
@@ -1765,7 +1765,7 @@ TypeScript assertion-expression scan: 0
 Verifier evidence:
 
 ```text
-Focused One-shot/controller/session: 19/19
+Focused Material review/controller/session: 19/19
 Observer: 184/184
 LSP: 49 files clean
 Pi-lens new completion-planner complexity warning: cleared
@@ -1775,10 +1775,10 @@ TypeScript assertion-expression scan: 0
 ### Landing 8A-7 — Pi start/finish wiring
 
 ```text
-[x] observer-sidecar TypeBox union exposes strict one-shot-start/finish variants
+[x] observer-sidecar TypeBox union exposes strict material-review-start/finish variants
 [x] latest interactive/rpc user input is retained only for the active turn
 [x] hidden context provides exact SHA-256 without copying user text
-[x] model owns One-shot classification and material variant choice
+[x] model owns Material review classification and material variant choice
 [x] producer generates or reuses the exact pending request ID
 [x] raw start refines before OPEN/OFF lifecycle effects
 [x] raw finish refines and verifies full coverage before completion append
@@ -1790,19 +1790,19 @@ TypeScript assertion-expression scan: 0
 Verifier evidence:
 
 ```text
-Focused Pi adapter/schema/context/One-shot: 30/30
+Focused Pi adapter/schema/context/Material review: 30/30
 Observer: 188/188
 LSP: 51 files clean
 Pi-lens new adapter import/fan-out warnings: cleared by runtime extraction
 TypeScript assertion-expression scan: 0
-Pack: 41 runtime files, 0 tests; both One-shot runtime modules present
+Pack: 41 runtime files, 0 tests; both Material review runtime modules present
 Pi 0.80.10 RPC smoke: package discovery/setup/status/on/memo/off passed
 ```
 
 ### Landing 8A-7R1 — OFF hydration guidance repair
 
 ```text
-[x] bounded provider trace classified and started One-shot correctly
+[x] bounded provider trace classified and started Material review correctly
 [x] URI-bearing inline material reached linked SourceRead
 [x] one attempt recovered to hydrate → record → finish
 [x] repeated record failures exposed missing OFF-only hydration guidance
@@ -1820,24 +1820,24 @@ Observer: 188/188
 LSP: 51 files clean
 TypeScript assertion-expression scan: 0
 Diagnostic transcripts:
-  /tmp/observer-live-one-shot-first-failure.json
-  /tmp/observer-live-one-shot-second-bound-failure.json
-  /tmp/observer-live-one-shot-third-pre-repair-failure.json
-  /tmp/observer-live-one-shot-post-repair-classification-failure.json
-  /tmp/observer-live-one-shot-post-repair-retrieval-failure.json
+  /tmp/observer-live-material-review-first-failure.json
+  /tmp/observer-live-material-review-second-bound-failure.json
+  /tmp/observer-live-material-review-third-pre-repair-failure.json
+  /tmp/observer-live-material-review-post-repair-classification-failure.json
+  /tmp/observer-live-material-review-post-repair-retrieval-failure.json
 ```
 
-### Landing 8A-8 — bounded live One-shot → Memo → Wrap completion
+### Landing 8A-8 — bounded live Material review → Memo → Review & Save completion
 
 ```text
 [x] Pi 0.80.10 discovered the current package in an isolated config/workspace
-[x] real provider classified exact natural language as inline One-shot
+[x] real provider classified exact natural language as inline Material review
 [x] exact five-call order: start → source-read → hydrate → record → finish
 [x] Mode stayed OFF; no activation event or bash occurred
-[x] same OPEN Episode continued into Memo and approved Wrap
+[x] same OPEN Episode continued into Memo and approved Review & Save
 [x] Memo acknowledgment completed with notebook Markdown bytes unchanged
-[x] harness observed explicit Wrap confirmation and approved it
-[x] Wrap order reached requested → prepared → proposed → approved → committed
+[x] harness observed explicit Review & Save confirmation and approved it
+[x] Review & Save order reached requested → prepared → proposed → approved → committed
 [x] two durable records changed and one direct Source was created
 [x] sandbox was removed in finally; stderr was empty
 ```
@@ -1845,8 +1845,8 @@ Diagnostic transcripts:
 Final bounded evidence:
 
 ```text
-/tmp/observer-live-one-shot-3997346.mjs
-/tmp/observer-live-one-shot-transcript.json
+/tmp/observer-live-material-review-3997346.mjs
+/tmp/observer-live-material-review-transcript.json
 Pi: 0.80.10
 provider/model: openai-codex / gpt-5.3-codex-spark
 source head: a7e101c
@@ -1856,11 +1856,11 @@ result: pass
 Retained diagnostic evidence:
 
 ```text
-/tmp/observer-live-one-shot-first-failure.json
-/tmp/observer-live-one-shot-second-bound-failure.json
-/tmp/observer-live-one-shot-third-pre-repair-failure.json
-/tmp/observer-live-one-shot-post-repair-classification-failure.json
-/tmp/observer-live-one-shot-post-repair-retrieval-failure.json
+/tmp/observer-live-material-review-first-failure.json
+/tmp/observer-live-material-review-second-bound-failure.json
+/tmp/observer-live-material-review-third-pre-repair-failure.json
+/tmp/observer-live-material-review-post-repair-classification-failure.json
+/tmp/observer-live-material-review-post-repair-retrieval-failure.json
 ```
 
 Bounded claim only:
@@ -1881,7 +1881,7 @@ or concurrent/multi-instance safety.
 
 ### Claim
 
-> Fresh install에서 Sidecar와 One-shot의 핵심 약속이 restart/re-entry까지 작동한다.
+> Fresh install에서 Sidecar와 Material review의 핵심 약속이 restart/re-entry까지 작동한다.
 
 ### Evidence matrix
 
@@ -1894,9 +1894,9 @@ or concurrent/multi-instance safety.
 | Pi discovery | Pass | repository Pi 0.80.10 and global Pi 0.82.1 RPC |
 | fresh notebook setup | Pass | isolated manifest/selection creation in both RPC smokes |
 | Sidecar | Supported | bounded full Sidecar flow + current packed source/hydrate/record + regression suite |
-| One-shot | Pass | exact real-provider start→read→hydrate→record→finish→Memo→approved Wrap |
+| Material review | Pass | exact real-provider start→read→hydrate→record→finish→Memo→approved Review & Save |
 | compaction continuity | Pass | current replay-focused 24/24 |
-| Wrap local save | Pass | bytes unchanged through Memo; approved Wrap updated two records and created one Source |
+| Review & Save local save | Pass | bytes unchanged through Memo; approved Review & Save updated two records and created one Source |
 | fresh-process re-entry | Pass | current tarball, two `--no-session` processes, preserved selection, durable Inquiry marker |
 | manual Markdown failure | Pass | `markdown.h1.missing`, record phase, graph not evaluated |
 
@@ -1910,8 +1910,8 @@ or concurrent/multi-instance safety.
 /tmp/observer-global-0821-rpc.log
 /tmp/observer-slice9-packed-reentry.mjs
 /tmp/observer-slice9-packed-reentry-transcript.json
-/tmp/observer-live-one-shot-transcript.json
-/tmp/observer-live-wrap-transcript.json
+/tmp/observer-live-material-review-transcript.json
+/tmp/observer-live-save-transcript.json
 ```
 
 ### Residuals and non-claims
@@ -1940,13 +1940,22 @@ final closure commit differs from evidence head only in README/implementation-pl
 
 ```text
 [x] TUI의 인자 없는 /observe와 /observe settings가 같은 control center를 엶
-[x] 현재 상태에서 legal한 Mode/Memo/Wrap/Notebook/language action만 단계적으로 노출
+[x] 현재 상태에서 legal한 Mode/Memo/Review & Save/Notebook/language action만 단계적으로 노출
 [x] Notebook path는 절대 경로와 Pi cwd 기준 상대 경로를 모두 지원
-[x] 기본 출력 언어를 Notebook path와 분리된 option으로 노출하고 Memo/Zettel Markdown에만 적용
+[x] 기본 출력 언어를 Notebook path와 분리하고 Memo/Zettel Markdown에만 적용
 [x] Mode On/Off만 toggle이며 언어는 현재 값을 preselect한 en/ko SelectList chooser로 제공
 [x] Mode와 언어 변경은 control center를 닫고 재개방하지 않고 in-place 반영
 [x] Notebook이 없는 On 요청은 explicit setup 뒤에만 activation
-[x] Mode OFF + ready Notebook에서만 One-shot editor 초안 제공
+[x] Track a hypothesis를 Observe material과 분리된 primary action으로 제공
+[x] 가설 원문과 optional `Context:`를 즉시 보존하고 현재 Pi/Episode context lens review trigger
+[x] context review는 supports/challenges/mixed/insufficient-context, clues, missing info, Source IDs, boundary를 기록
+[x] pending hypothesis context review는 정확한 hypothesis ID로 재개하고 Memo를 선행 차단
+[x] Mode OFF + ready Notebook에서만 Observe material editor 초안 제공
+[x] 기존 단발 관찰 사용자/모델 표현과 action을 Observe material/material-review로 교체
+[x] Review & Save를 UI·command·model action의 유일한 public 표현으로 사용하고 `/observe save`를 command로 제공
+[x] `SaveService` public policy와 `WrapService` atomic persistence process를 인터페이스로 분리
+[x] wrap preflight/transaction issue를 stable save issue로 boundary mapping
+[x] 폐기된 action·event·ID·protocol을 위한 legacy decode/command alias는 유지하지 않음
 [x] 기존 editor 내용은 confirm 없이 덮어쓰지 않음
 [x] default language 변경은 다음 Episode에만 적용하고 열린 Episode 언어를 보존
 [x] 상세 status panel은 내부 ID 대신 흐름, working set, health, recovery를 표시
@@ -1960,8 +1969,8 @@ final closure commit differs from evidence head only in README/implementation-pl
 Evidence:
 
 ```text
-Observer package: 197/197
-TUI/controller/extension focused: 34/34
+Observer package: 203/203
+TUI/controller/extension focused: 38/38
 Pi 0.80.10 RPC smoke: setup/status/on/memo-stutter/off pass
 Pi 0.82.1 PTY: in-place activation + explicit en/ko chooser pass
 TypeScript LSP: changed files clean
@@ -2071,13 +2080,13 @@ Green test는 claim과 연결될 때만 evidence로 사용한다.
 /observe on
 /observe off
 /observe memo
-/observe wrap
+/observe save
 ```
 
 ### 승인된 자연어 surface
 
 ```text
-자료를 Observer 관점으로 봐달라는 One-shot
+자료를 Observer 관점으로 봐달라는 Material review
 사용자가 명시적으로 제안하는 가설
 특정 Memo/Zettel의 언어 override
 ```
@@ -2116,13 +2125,13 @@ on/off
 open episode
 pending hypothesis revision
 memo reconciliation receipt
-wrap proposal
+save proposal
 ```
 
 ### Local durable notebook
 
 ```text
-wrap 승인 후 Source/Inquiry/Memo/Zettel save
+save 승인 후 Source/Inquiry/Memo/Zettel save
 ```
 
 ### External
@@ -2146,7 +2155,7 @@ External tier는 v0.1 Observer가 소유하지 않는다.
 | Notebook transaction이 과도하게 복잡해짐 | accepted failure claim부터 모델링 | Slice 4 |
 | Pi session replay와 local working recovery가 중복됨 | ownership을 분리해 증명 | Slice 5/6 |
 | Hybrid가 원래 학습을 방해함 | interrupt threshold를 transcript로 검증 | Slice 7 |
-| One-shot이 예기치 않은 state mutation을 만듦 | receipt/status와 wrap에서 공개 | Slice 8 |
+| Material review이 예기치 않은 state mutation을 만듦 | receipt/status와 save에서 공개 | Slice 8 |
 | Graph/vector 확장 압력이 core를 키움 | Markdown projection contract만 유지 | v0.1 이후 |
 
 ---
@@ -2239,20 +2248,20 @@ Stop:
 - Manifest create, selection save, language update는 single-file atomic visibility만 보장하며 fsync/concurrent writer/cross-file atomicity는 보류한다.
 - Slice 4는 exact reviewed Markdown을 저장하며 decoded record를 다시 encode하지 않는다.
 - Update는 existing path를 유지하고 approved exact-byte SHA-256이 현재 bytes와 일치할 때만 허용한다.
-- Wrap preflight는 batch만이 아니라 existing E와 proposed B의 final union F를 검증한다.
+- Review & Save preflight는 batch만이 아니라 existing E와 proposed B의 final union F를 검증한다.
 - Transaction은 stage-all + drift check + deterministic publish + reverse rollback을 소유한다.
-- Receipt는 fresh readback 후 실제 ID/path/hash에서 만들며 그 뒤에만 `wrap-committed`를 적용한다.
+- Receipt는 fresh readback 후 실제 ID/path/hash에서 만들며 그 뒤에만 `save-committed`를 적용한다.
 - Rollback 대상이 planned next bytes와 다르면 외부 edit를 덮지 않고 recovery-required로 멈춘다.
 - Crash-fsync, concurrent writer, delete/rename/merge, generalized transaction은 v0.1 Slice 4 보장 밖이다.
 - Slice 5 session state는 Pi current branch의 versioned custom entry를 strict decode/fold한 결과다.
 - Observer-owned malformed/reordered entry는 fail-closed issue이며 status 외 mutation을 차단한다.
 - Prepared proposal은 normalized payload SHA-256으로 attempt와 결합하며 Pi entry ID를 domain identity로 사용하지 않는다.
-- Wrap ordering은 prepared → proposed → approved attempt → local save/readback → committed → UI success다.
+- Review & Save ordering은 prepared → proposed → approved attempt → local save/readback → committed → UI success다.
 - Post-save/pre-ack recovery는 no-active-marker + exact approved final bytes + valid full graph를 모두 요구한다.
 - `getAgentDir()/observer/selection.json`은 user-selected notebook root를 기억하는 agent state이며 notebook default가 아니다.
 - Compaction summary는 Observer state 기준 데이터가 아니며 full branch ancestry replay가 continuity를 소유한다.
 - Ephemeral Pi session은 process restart continuity를 주장하지 않고 status에 limitation을 표시한다.
-- Pi core는 extension peer dependency이고 lifecycle/notebook/wrap/controller domain modules은 Pi에 의존하지 않는다.
+- Pi core는 extension peer dependency이고 lifecycle/notebook/save/controller domain modules은 Pi에 의존하지 않는다.
 - Slice 6 prepared pass는 strict exact-field decoder와 notebook/source byte-bound basis digest를 통과한다.
 - Working Memo/Hypothesis는 Pi current branch custom entry replay가 소유하고 notebook Markdown은 memo 중 read-only다.
 - Memo pass는 live scoped Memo/hypothesis 각각에 정확히 한 outcome을 요구하며 invalid batch를 전체 거부한다.

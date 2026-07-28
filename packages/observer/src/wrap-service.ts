@@ -1,23 +1,11 @@
-import { randomUUID } from "node:crypto";
-
 import { sha256Text } from "./content-hash.ts";
-import {
-	applyObserverEvent,
-	OBSERVER_PROTOCOL,
-	type ObserverState,
-	type WrapCommittedEvent,
-} from "./lifecycle.ts";
 import {
 	openNotebook,
 	readNotebookInventory,
 	type NotebookHandle,
+	type NotebookInventoryEntry,
 } from "./notebook.ts";
-import {
-	createNotebookService,
-	type NotebookServiceIssue,
-	type NotebookServiceIssueCode,
-} from "./notebook-service.ts";
-import type { NotebookSelectionStore } from "./notebook-selection-store.ts";
+import type { PreparedSave } from "./save-profile.ts";
 import {
 	buildWrapPublicationPlan,
 	type WrapPreflightIssue,
@@ -25,29 +13,37 @@ import {
 	type WrapPublicationPlan,
 } from "./wrap-preflight.ts";
 import {
-	decodePreparedWrap,
-	decodeWrapApproval,
-	OBSERVER_WRAP_RECEIPT_SCHEMA,
-	type PreparedWrap,
-	type WrapProfileIssueCode,
-	type WrapReceipt,
-} from "./wrap-profile.ts";
-import {
 	executeWrapTransaction,
+	inspectWrapTransactionActivity,
 	type WrapFaultInjector,
+	type WrapTransactionActivity,
 	type WrapTransactionIssue,
 	type WrapTransactionIssueCode,
 	type WrapTransactionVerification,
 } from "./wrap-transaction.ts";
 
+export interface PreparedWrap {
+	readonly plan: WrapPublicationPlan;
+	readonly recordIds: readonly string[];
+}
+
+export interface WrappedRecord {
+	readonly operation: "create" | "update";
+	readonly recordId: string;
+	readonly relativePath: string;
+	readonly sha256: string;
+}
+
+export interface WrapCommit {
+	readonly receiptId: `receipt-${string}`;
+	readonly proposalId: string;
+	readonly notebook: NotebookHandle;
+	readonly records: readonly WrappedRecord[];
+}
+
 export type WrapServiceIssueCode =
-	| NotebookServiceIssueCode
 	| WrapPreflightIssueCode
-	| WrapProfileIssueCode
-	| WrapTransactionIssueCode
-	| "wrap.declined"
-	| "wrap.lifecycle"
-	| "wrap.target-mismatch";
+	| WrapTransactionIssueCode;
 
 export interface WrapServiceIssue {
 	readonly code: WrapServiceIssueCode;
@@ -58,118 +54,56 @@ export interface WrapServiceIssue {
 	readonly diagnostics?: WrapPreflightIssue["diagnostics"];
 }
 
-export type WrapServiceResult =
-	| {
-			readonly ok: true;
-			readonly value: {
-				readonly state: ObserverState;
-				readonly receipt: WrapReceipt;
-				readonly notebook: NotebookHandle;
-			};
-	  }
+export type WrapPreparationResult =
+	| { readonly ok: true; readonly value: PreparedWrap }
 	| { readonly ok: false; readonly issue: WrapServiceIssue };
 
+export type WrapCommitResult =
+	| { readonly ok: true; readonly value: WrapCommit }
+	| { readonly ok: false; readonly issue: WrapServiceIssue };
+
+export type WrapActivity = WrapTransactionActivity;
+
 export interface WrapService {
+	prepare(input: {
+		readonly notebook: NotebookHandle;
+		readonly inventory: readonly NotebookInventoryEntry[];
+		readonly save: PreparedSave;
+	}): WrapPreparationResult;
 	commit(input: {
-		readonly state: ObserverState;
-		readonly prepared: unknown;
-		readonly approval: unknown;
-	}): Promise<WrapServiceResult>;
+		readonly prepared: PreparedWrap;
+		readonly receiptId: `receipt-${string}`;
+	}): Promise<WrapCommitResult>;
 }
 
-interface ReadbackValue {
-	readonly receipt: WrapReceipt;
-	readonly notebook: NotebookHandle;
+export function inspectWrapActivity(
+	notebookRoot: string,
+): Promise<WrapActivity> {
+	return inspectWrapTransactionActivity(notebookRoot);
 }
 
-function failure(
-	code: WrapServiceIssueCode,
-	message: string,
-	input?: {
-		readonly recoveryRequired?: boolean;
-		readonly path?: string;
-		readonly recordId?: string;
-		readonly diagnostics?: WrapPreflightIssue["diagnostics"];
-	},
-): WrapServiceResult {
+function preflightFailure(issue: WrapPreflightIssue): WrapPreparationResult {
 	return {
 		ok: false,
 		issue: {
-			code,
-			message,
-			recoveryRequired: input?.recoveryRequired ?? false,
-			...(input?.path ? { path: input.path } : {}),
-			...(input?.recordId ? { recordId: input.recordId } : {}),
-			...(input?.diagnostics ? { diagnostics: input.diagnostics } : {}),
+			code: issue.code,
+			message: issue.message,
+			recoveryRequired: false,
+			...(issue.path ? { path: issue.path } : {}),
+			...(issue.recordId ? { recordId: issue.recordId } : {}),
+			...(issue.diagnostics ? { diagnostics: issue.diagnostics } : {}),
 		},
 	};
 }
 
-function notebookFailure(issue: NotebookServiceIssue): WrapServiceResult {
-	return failure(issue.code, issue.message, {
-		path: issue.path,
-		diagnostics: issue.diagnostics,
-	});
-}
-
-function preflightFailure(issue: WrapPreflightIssue): WrapServiceResult {
-	return failure(issue.code, issue.message, {
-		path: issue.path,
-		recordId: issue.recordId,
-		diagnostics: issue.diagnostics,
-	});
-}
-
-function transactionFailure(issue: WrapTransactionIssue): WrapServiceResult {
-	return failure(issue.code, issue.message, {
-		recoveryRequired: issue.recoveryRequired,
-		recordId: issue.recordId,
-	});
-}
-
-function lifecycleTargetCheck(
-	state: ObserverState,
-	prepared: PreparedWrap,
-): WrapServiceResult | null {
-	if (state.episode.status !== "reviewing-wrap") {
-		return failure(
-			"wrap.lifecycle",
-			"Wrap commit requires an episode reviewing the current proposal.",
-		);
-	}
-	if (state.episode.proposal.proposalId !== prepared.proposal_id) {
-		return failure("wrap.lifecycle", "Prepared wrap proposal is stale.");
-	}
-	if (
-		state.selectedNotebookId !== prepared.notebook_id ||
-		state.episode.core.notebookId !== prepared.notebook_id ||
-		state.episode.core.lang !== prepared.episode_language
-	) {
-		return failure(
-			"wrap.target-mismatch",
-			"Prepared wrap notebook or episode language does not match lifecycle state.",
-		);
-	}
-	return null;
-}
-
-function createReceiptId(): `receipt-${string}` {
-	return `receipt-${randomUUID()}`;
-}
-
-function commitEvent(
-	proposalId: string,
-	receiptId: string,
-	recordIds: readonly string[],
-): WrapCommittedEvent {
+function transactionFailure(issue: WrapTransactionIssue): WrapCommitResult {
 	return {
-		protocol: OBSERVER_PROTOCOL,
-		kind: "wrap-committed",
-		proposalId,
-		receipt: {
-			receiptId,
-			status: "validated",
-			recordIds,
+		ok: false,
+		issue: {
+			code: issue.code,
+			message: issue.message,
+			recoveryRequired: issue.recoveryRequired,
+			...(issue.recordId ? { recordId: issue.recordId } : {}),
 		},
 	};
 }
@@ -178,7 +112,8 @@ function finalInventoryMatches(
 	plan: WrapPublicationPlan,
 	actual: Awaited<ReturnType<typeof readNotebookInventory>>,
 ): boolean {
-	if (!actual.ok || actual.value.length !== plan.finalInputs.length) return false;
+	if (!actual.ok || actual.value.length !== plan.finalInputs.length)
+		return false;
 	const actualByPath = new Map(
 		actual.value.map((entry) => [entry.path, entry]),
 	);
@@ -188,10 +123,10 @@ function finalInventoryMatches(
 	});
 }
 
-export async function verifyWrapReadback(
+async function verifyWrapReadback(
 	plan: WrapPublicationPlan,
 	receiptId: `receipt-${string}`,
-): Promise<WrapTransactionVerification<ReadbackValue>> {
+): Promise<WrapTransactionVerification<WrapCommit>> {
 	const opened = await openNotebook(plan.notebook.root);
 	if (!opened.ok) {
 		return {
@@ -203,12 +138,10 @@ export async function verifyWrapReadback(
 	if (!finalInventoryMatches(plan, inventory)) {
 		return {
 			ok: false,
-			message: "Fresh notebook inventory differs from the publication plan.",
+			message: "Fresh notebook inventory differs from the wrap plan.",
 		};
 	}
-	if (!inventory.ok) {
-		return { ok: false, message: inventory.issue.message };
-	}
+	if (!inventory.ok) return { ok: false, message: inventory.issue.message };
 	const byPath = new Map(inventory.value.map((entry) => [entry.path, entry]));
 	const records = plan.entries.map((entry) => {
 		const saved = byPath.get(entry.targetPath);
@@ -221,132 +154,69 @@ export async function verifyWrapReadback(
 		}
 		return {
 			operation: entry.operation,
-			record_id: entry.recordId,
-			path: entry.relativePath,
+			recordId: entry.recordId,
+			relativePath: entry.relativePath,
 			sha256: entry.nextSha256,
-		};
+		} satisfies WrappedRecord;
 	});
 	if (records.some((record) => record === null)) {
 		return {
 			ok: false,
-			message: "Saved record receipt does not match fresh record bytes.",
+			message: "Wrapped record receipt does not match fresh record bytes.",
 		};
 	}
-	const complete = records.filter((record) => record !== null);
 	return {
 		ok: true,
 		value: {
+			receiptId,
+			proposalId: plan.proposalId,
 			notebook: opened.value,
-			receipt: {
-				observer_receipt: OBSERVER_WRAP_RECEIPT_SCHEMA,
-				receipt_id: receiptId,
-				proposal_id: plan.proposalId,
-				notebook_id: opened.value.manifest.notebook_id,
-				records: complete,
-			},
+			records: records.filter((record) => record !== null),
+		},
+	};
+}
+
+function prepareWrap(input: {
+	readonly notebook: NotebookHandle;
+	readonly inventory: readonly NotebookInventoryEntry[];
+	readonly save: PreparedSave;
+}): WrapPreparationResult {
+	const plan = buildWrapPublicationPlan(
+		input.notebook,
+		input.inventory,
+		input.save,
+	);
+	if (!plan.ok) return preflightFailure(plan.issue);
+	return {
+		ok: true,
+		value: {
+			plan: plan.value,
+			recordIds: plan.value.entries.map((entry) => entry.recordId),
 		},
 	};
 }
 
 async function commitWrap(
-	selectionStore: NotebookSelectionStore,
 	faultInjector: WrapFaultInjector | undefined,
 	input: {
-		readonly state: ObserverState;
-		readonly prepared: unknown;
-		readonly approval: unknown;
+		readonly prepared: PreparedWrap;
+		readonly receiptId: `receipt-${string}`;
 	},
-): Promise<WrapServiceResult> {
-	const preparedResult = decodePreparedWrap(input.prepared);
-	if (!preparedResult.ok) {
-		return failure(
-			preparedResult.issue.code,
-			preparedResult.issue.message,
-			{ path: preparedResult.issue.path },
-		);
-	}
-	const approvalResult = decodeWrapApproval(input.approval);
-	if (!approvalResult.ok) {
-		return failure(
-			approvalResult.issue.code,
-			approvalResult.issue.message,
-			{ path: approvalResult.issue.path },
-		);
-	}
-	if (approvalResult.value.proposal_id !== preparedResult.value.proposal_id) {
-		return failure("wrap.lifecycle", "Approval proposal does not match prepared wrap.");
-	}
-	if (!approvalResult.value.approved) {
-		return failure("wrap.declined", "Wrap approval was declined.");
-	}
-	const targetIssue = lifecycleTargetCheck(input.state, preparedResult.value);
-	if (targetIssue) return targetIssue;
-	const notebooks = createNotebookService({ selectionStore });
-	const recovered = await notebooks.recover(input.state);
-	if (!recovered.ok) return notebookFailure(recovered.issue);
-	if (
-		recovered.value.notebook.root !== preparedResult.value.root ||
-		recovered.value.notebook.manifest.notebook_id !==
-			preparedResult.value.notebook_id
-	) {
-		return failure(
-			"wrap.target-mismatch",
-			"Prepared wrap target differs from the recovered notebook.",
-		);
-	}
-	const inventory = await readNotebookInventory(recovered.value.notebook);
-	if (!inventory.ok) {
-		return failure(inventory.issue.code, inventory.issue.message, {
-			path: inventory.issue.path,
-			diagnostics: inventory.issue.diagnostics,
-		});
-	}
-	const plan = buildWrapPublicationPlan(
-		recovered.value.notebook,
-		inventory.value,
-		preparedResult.value,
-	);
-	if (!plan.ok) return preflightFailure(plan.issue);
-	const receiptId = createReceiptId();
-	const recordIds = plan.value.entries.map((entry) => entry.recordId);
-	const event = commitEvent(plan.value.proposalId, receiptId, recordIds);
-	const projected = applyObserverEvent(input.state, event);
-	if (!projected.applied) {
-		return failure(
-			"wrap.lifecycle",
-			`Wrap lifecycle preflight failed: ${projected.reason}.`,
-		);
-	}
+): Promise<WrapCommitResult> {
 	const transaction = await executeWrapTransaction({
-		plan: plan.value,
+		plan: input.prepared.plan,
 		faultInjector,
-		verifyReadback: () => verifyWrapReadback(plan.value, receiptId),
+		verifyReadback: () =>
+			verifyWrapReadback(input.prepared.plan, input.receiptId),
 	});
-	if (!transaction.ok) return transactionFailure(transaction.issue);
-	const committed = applyObserverEvent(input.state, event);
-	if (!committed.applied) {
-		return failure(
-			"wrap.lifecycle",
-			"Durable wrap succeeded but lifecycle acknowledgment was rejected.",
-			{ recoveryRequired: true },
-		);
-	}
-	return {
-		ok: true,
-		value: {
-			state: committed.state,
-			receipt: transaction.value.receipt,
-			notebook: transaction.value.notebook,
-		},
-	};
+	return transaction.ok ? transaction : transactionFailure(transaction.issue);
 }
 
-export function createWrapService(input: {
-	readonly selectionStore: NotebookSelectionStore;
+export function createWrapService(input?: {
 	readonly faultInjector?: WrapFaultInjector;
 }): WrapService {
 	return {
-		commit: (commitInput) =>
-			commitWrap(input.selectionStore, input.faultInjector, commitInput),
+		prepare: prepareWrap,
+		commit: (commitInput) => commitWrap(input?.faultInjector, commitInput),
 	};
 }

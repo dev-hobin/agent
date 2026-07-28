@@ -7,12 +7,9 @@ import {
 	type ObserverDiagnostic,
 	type ObserverRecordId,
 } from "./markdown-profile.ts";
-import type {
-	NotebookHandle,
-	NotebookInventoryEntry,
-} from "./notebook.ts";
+import type { NotebookHandle, NotebookInventoryEntry } from "./notebook.ts";
 import { validateObserverNotebook } from "./notebook-validation.ts";
-import type { PreparedRecord, PreparedWrap } from "./wrap-profile.ts";
+import type { PreparedRecord, PreparedSave } from "./save-profile.ts";
 
 export interface InventoryFingerprint {
 	readonly path: string;
@@ -106,7 +103,7 @@ function decodeProposedDocuments(
 				ok: false,
 				issue: {
 					code: "wrap-preflight.duplicate-id",
-					message: "Prepared wrap contains a duplicate record ID.",
+					message: "Prepared save contains a duplicate record ID.",
 					recordId: prepared.record_id,
 				},
 			};
@@ -149,9 +146,7 @@ function decodeProposedDocuments(
 	return { ok: true, value: proposed };
 }
 
-function fingerprint(
-	entry: NotebookInventoryEntry,
-): InventoryFingerprint {
+function fingerprint(entry: NotebookInventoryEntry): InventoryFingerprint {
 	return {
 		path: entry.path,
 		relativePath: entry.relativePath,
@@ -236,7 +231,7 @@ function isPreflightFailure(
 export function buildWrapPublicationPlan(
 	notebook: NotebookHandle,
 	inventory: readonly NotebookInventoryEntry[],
-	prepared: PreparedWrap,
+	prepared: PreparedSave,
 ): WrapPreflightResult {
 	const decoded = decodeProposedDocuments(prepared.records);
 	if (!decoded.ok) return { ok: false, issue: decoded.issue };
@@ -288,9 +283,9 @@ export function buildWrapPublicationPlan(
 		value: {
 			proposalId: prepared.proposal_id,
 			notebook,
-			snapshot: inventory.map(fingerprint).sort((left, right) =>
-				left.path.localeCompare(right.path),
-			),
+			snapshot: inventory
+				.map(fingerprint)
+				.sort((left, right) => left.path.localeCompare(right.path)),
 			entries,
 			finalInputs,
 		},

@@ -22,19 +22,19 @@ import {
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
 import {
-	buildWrapPreparationGuide,
-	decodeWrapRequestEvent,
-	encodeWrapRequestEvent,
-	hydrateWrapPreparationContext,
-	OBSERVER_WRAP_REQUEST_ENTRY,
-	planWrapRequest,
-	prepareWrapHandoff,
-	reconstructWrapRequestSession,
-} from "../src/wrap-trigger.ts";
+	buildSavePreparationGuide,
+	decodeSaveRequestEvent,
+	encodeSaveRequestEvent,
+	hydrateSavePreparationContext,
+	OBSERVER_SAVE_REQUEST_ENTRY,
+	planSaveRequest,
+	prepareSaveHandoff,
+	reconstructSaveRequestSession,
+} from "../src/save-trigger.ts";
 
 const NOTEBOOK_ID = "notebook-00000000-0000-4000-8000-000000000701";
-const EPISODE_ID = "episode-wrap-pure";
-const REQUEST_ID = "wrap-request-00000000-0000-4000-8000-000000000702";
+const EPISODE_ID = "episode-save-pure";
+const REQUEST_ID = "save-request-00000000-0000-4000-8000-000000000702";
 const PROPOSAL_ID = "proposal-00000000-0000-4000-8000-000000000703";
 const SOURCE_READ_ID = "source-read-00000000-0000-4000-8000-000000000704";
 const SOURCE_ID = "source-00000000-0000-4000-8000-000000000705";
@@ -74,9 +74,9 @@ function lifecycleEntries(): readonly PiBranchEntryLike[] {
 
 function notebook(): NotebookHandle {
 	return {
-		root: "/tmp/observer-wrap-pure",
-		recordsDir: "/tmp/observer-wrap-pure/records",
-		manifestPath: "/tmp/observer-wrap-pure/.observer/notebook.json",
+		root: "/tmp/observer-save-pure",
+		recordsDir: "/tmp/observer-save-pure/records",
+		manifestPath: "/tmp/observer-save-pure/.observer/notebook.json",
 		manifest: {
 			observer_notebook: OBSERVER_NOTEBOOK_SCHEMA,
 			notebook_id: NOTEBOOK_ID,
@@ -121,15 +121,15 @@ function sourceRead(): SourceReadRecordedEvent {
 		source: {
 			kind: "external-material",
 			source_id: SOURCE_ID,
-			title: "Wrap source",
+			title: "Review & Save source",
 			lang: "en",
-			uri: "https://example.test/wrap-source",
+			uri: "https://example.test/save-source",
 			revision: null,
 			content_hash: null,
-			retrieval_context: "pure wrap fixture",
+			retrieval_context: "pure save fixture",
 		},
-		faithful_summary: "The source remains available for durable wrapping.",
-		claims: [{ text: "One wrap claim.", locator: null }],
+		faithful_summary: "The source remains available for durable saveping.",
+		claims: [{ text: "One save claim.", locator: null }],
 		candidate_digest: sha256Text("candidate basis"),
 		index_digest: sha256Text("standing index"),
 		index_inquiry_ids: [],
@@ -148,16 +148,16 @@ function scenario(entries: readonly PiBranchEntryLike[]) {
 	return {
 		observation,
 		memo: reconstructMemoSession(entries),
-		requestSession: reconstructWrapRequestSession(entries),
+		requestSession: reconstructSaveRequestSession(entries),
 	};
 }
 
-describe("pure Wrap request and preparation context", () => {
+describe("pure Review & Save request and preparation context", () => {
 	test("strictly decodes, replays, resumes, and consumes one request", async () => {
 		const entries = lifecycleEntries();
 		const current = scenario(entries);
 		const records = await inventory();
-		const planned = planWrapRequest({
+		const planned = planSaveRequest({
 			...current,
 			inventory: records,
 			notebook: notebook(),
@@ -166,43 +166,43 @@ describe("pure Wrap request and preparation context", () => {
 		});
 		if (!planned.ok) assert.fail(planned.issue.message);
 		assert.equal(planned.value.kind, "new");
-		const encoded = encodeWrapRequestEvent(planned.value.request);
-		assert.deepEqual(decodeWrapRequestEvent(encoded), {
+		const encoded = encodeSaveRequestEvent(planned.value.request);
+		assert.deepEqual(decodeSaveRequestEvent(encoded), {
 			ok: true,
 			value: planned.value.request,
 		});
-		assert.equal(decodeWrapRequestEvent({ ...encoded, extra: true }).ok, false);
+		assert.equal(decodeSaveRequestEvent({ ...encoded, extra: true }).ok, false);
 
 		const requestedEntries = [
 			...entries,
-			custom(OBSERVER_WRAP_REQUEST_ENTRY, encoded),
+			custom(OBSERVER_SAVE_REQUEST_ENTRY, encoded),
 		];
 		const requested = scenario(requestedEntries);
-		const resumed = planWrapRequest({
+		const resumed = planSaveRequest({
 			...requested,
 			inventory: records,
 			notebook: notebook(),
-			requestId: "wrap-request-00000000-0000-4000-8000-000000000799",
+			requestId: "save-request-00000000-0000-4000-8000-000000000799",
 			proposalId: "proposal-00000000-0000-4000-8000-000000000799",
 		});
 		if (!resumed.ok) assert.fail(resumed.issue.message);
 		assert.equal(resumed.value.kind, "resume");
 		assert.equal(resumed.value.request.requestId, REQUEST_ID);
 
-		const exactDuplicate = reconstructWrapRequestSession([
+		const exactDuplicate = reconstructSaveRequestSession([
 			...requestedEntries,
-			custom(OBSERVER_WRAP_REQUEST_ENTRY, encoded),
+			custom(OBSERVER_SAVE_REQUEST_ENTRY, encoded),
 		]);
 		assert.equal(exactDuplicate.issues.length, 0);
 		assert.equal(exactDuplicate.requests.length, 1);
 
-		const consumed = reconstructWrapRequestSession([
+		const consumed = reconstructSaveRequestSession([
 			...requestedEntries,
 			custom(OBSERVER_LIFECYCLE_ENTRY, {
 				protocol: OBSERVER_PROTOCOL,
-				kind: "wrap-proposed",
+				kind: "save-proposed",
 				proposalId: PROPOSAL_ID,
-				summary: "Prepared wrap",
+				summary: "Prepared save",
 			}),
 		]);
 		assert.equal(consumed.pendingRequest, null);
@@ -213,7 +213,7 @@ describe("pure Wrap request and preparation context", () => {
 		const entries = lifecycleEntries();
 		const current = scenario(entries);
 		const records = await inventory();
-		const planned = planWrapRequest({
+		const planned = planSaveRequest({
 			...current,
 			inventory: records,
 			notebook: notebook(),
@@ -224,19 +224,19 @@ describe("pure Wrap request and preparation context", () => {
 		const requestedEntries = [
 			...entries,
 			custom(
-				OBSERVER_WRAP_REQUEST_ENTRY,
-				encodeWrapRequestEvent(planned.value.request),
+				OBSERVER_SAVE_REQUEST_ENTRY,
+				encodeSaveRequestEvent(planned.value.request),
 			),
 		];
 		const requested = scenario(requestedEntries);
-		const context = hydrateWrapPreparationContext({
+		const context = hydrateSavePreparationContext({
 			request: planned.value.request,
 			...requested,
 			inventory: records,
 			notebook: notebook(),
 		});
 		if (!context.ok) assert.fail(context.issue.message);
-		const guide = buildWrapPreparationGuide(context.value);
+		const guide = buildSavePreparationGuide(context.value);
 		assert.equal(guide.request.request_id, REQUEST_ID);
 		assert.equal(guide.locked_target.proposal_id, PROPOSAL_ID);
 		assert.equal(guide.observed_sources[0]?.read_id, SOURCE_READ_ID);
@@ -263,9 +263,9 @@ describe("pure Wrap request and preparation context", () => {
 				expected_sha256: null,
 			},
 		]);
-		assert.deepEqual(buildWrapPreparationGuide(context.value), guide);
+		assert.deepEqual(buildSavePreparationGuide(context.value), guide);
 
-		const prepared = prepareWrapHandoff({
+		const prepared = prepareSaveHandoff({
 			context: context.value,
 			summary: "Persist observed source.",
 			records: [
@@ -276,7 +276,7 @@ describe("pure Wrap request and preparation context", () => {
 		assert.equal(prepared.value.prepared.proposal_id, PROPOSAL_ID);
 		assert.equal(prepared.value.prepared.root, notebook().root);
 		assert.equal(
-			prepareWrapHandoff({
+			prepareSaveHandoff({
 				context: context.value,
 				summary: "Missing source.",
 				records: [],
@@ -284,7 +284,7 @@ describe("pure Wrap request and preparation context", () => {
 			false,
 		);
 		assert.equal(
-			prepareWrapHandoff({
+			prepareSaveHandoff({
 				context: context.value,
 				summary: "Wrong operation.",
 				records: [
@@ -302,16 +302,16 @@ describe("pure Wrap request and preparation context", () => {
 		const changedInventory = records.map((entry, index) =>
 			index === 0 ? { ...entry, sha256: sha256Text("changed") } : entry,
 		);
-		const stale = hydrateWrapPreparationContext({
+		const stale = hydrateSavePreparationContext({
 			request: planned.value.request,
 			...requested,
 			inventory: changedInventory,
 			notebook: notebook(),
 		});
 		assert.equal(stale.ok, false);
-		if (!stale.ok) assert.equal(stale.issue.code, "wrap-request.stale");
+		if (!stale.ok) assert.equal(stale.issue.code, "save-request.stale");
 
-		const pendingObservation = planWrapRequest({
+		const pendingObservation = planSaveRequest({
 			...current,
 			observation: {
 				...current.observation,
@@ -326,14 +326,14 @@ describe("pure Wrap request and preparation context", () => {
 		});
 		assert.equal(pendingObservation.ok, false);
 		if (!pendingObservation.ok)
-			assert.equal(pendingObservation.issue.code, "wrap-request.pending");
+			assert.equal(pendingObservation.issue.code, "save-request.pending");
 	});
 
 	test("fails closed for conflicting request identity and stale resume basis", async () => {
 		const entries = lifecycleEntries();
 		const current = scenario(entries);
 		const records = await inventory();
-		const planned = planWrapRequest({
+		const planned = planSaveRequest({
 			...current,
 			inventory: records,
 			notebook: notebook(),
@@ -341,20 +341,20 @@ describe("pure Wrap request and preparation context", () => {
 			proposalId: PROPOSAL_ID,
 		});
 		if (!planned.ok) assert.fail(planned.issue.message);
-		const encoded = encodeWrapRequestEvent(planned.value.request);
-		const conflict = reconstructWrapRequestSession([
+		const encoded = encodeSaveRequestEvent(planned.value.request);
+		const conflict = reconstructSaveRequestSession([
 			...entries,
-			custom(OBSERVER_WRAP_REQUEST_ENTRY, encoded),
-			custom(OBSERVER_WRAP_REQUEST_ENTRY, {
+			custom(OBSERVER_SAVE_REQUEST_ENTRY, encoded),
+			custom(OBSERVER_SAVE_REQUEST_ENTRY, {
 				...encoded,
 				request_digest: sha256Text("conflict"),
 			}),
 		]);
-		assert.equal(conflict.issues[0]?.code, "wrap-request.conflict");
+		assert.equal(conflict.issues[0]?.code, "save-request.conflict");
 
 		const requestedEntries = [
 			...entries,
-			custom(OBSERVER_WRAP_REQUEST_ENTRY, encoded),
+			custom(OBSERVER_SAVE_REQUEST_ENTRY, encoded),
 		];
 		const requested = scenario(requestedEntries);
 		const changedMemo = {
@@ -364,7 +364,7 @@ describe("pure Wrap request and preparation context", () => {
 				passes: requested.memo.state.passes + 1,
 			},
 		};
-		const stale = planWrapRequest({
+		const stale = planSaveRequest({
 			...requested,
 			memo: changedMemo,
 			inventory: records,
@@ -373,6 +373,6 @@ describe("pure Wrap request and preparation context", () => {
 			proposalId: PROPOSAL_ID,
 		});
 		assert.equal(stale.ok, false);
-		if (!stale.ok) assert.equal(stale.issue.code, "wrap-request.stale");
+		if (!stale.ok) assert.equal(stale.issue.code, "save-request.stale");
 	});
 });

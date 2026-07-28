@@ -90,33 +90,33 @@ function memoReconciled(revisionId = "revision-1"): ObserverEvent {
 	});
 }
 
-function wrapProposed(proposalId = "proposal-1"): ObserverEvent {
+function saveProposed(proposalId = "proposal-1"): ObserverEvent {
 	return requireEvent({
 		protocol: OBSERVER_PROTOCOL,
-		kind: "wrap-proposed",
+		kind: "save-proposed",
 		proposalId,
-		summary: `Wrap ${proposalId}`,
+		summary: `Review & Save ${proposalId}`,
 	});
 }
 
-function wrapCancelled(proposalId = "proposal-1"): ObserverEvent {
+function saveCancelled(proposalId = "proposal-1"): ObserverEvent {
 	return requireEvent({
 		protocol: OBSERVER_PROTOCOL,
-		kind: "wrap-cancelled",
+		kind: "save-cancelled",
 		proposalId,
 	});
 }
 
-function wrapCommitted(
+function saveCommitted(
 	proposalId = "proposal-1",
 	status: "unvalidated" | "validated" = "validated",
 ): ObserverEvent {
 	return requireEvent({
 		protocol: OBSERVER_PROTOCOL,
-		kind: "wrap-committed",
+		kind: "save-committed",
 		proposalId,
 		receipt: {
-			receiptId: `wrap-receipt-${proposalId}`,
+			receiptId: `save-receipt-${proposalId}`,
 			status,
 			recordIds: ["source-record-1", "zettel-record-1"],
 		},
@@ -130,7 +130,7 @@ function openState(): ObserverState {
 function reviewingState(mode: "off" | "on" = "off"): ObserverState {
 	let state = openState();
 	if (mode === "on") state = applied(state, activationChanged(true));
-	return applied(state, wrapProposed());
+	return applied(state, saveProposed());
 }
 
 const validRawEvents: readonly (readonly [string, unknown])[] = [
@@ -170,30 +170,30 @@ const validRawEvents: readonly (readonly [string, unknown])[] = [
 		},
 	],
 	[
-		"wrap-proposed",
+		"save-proposed",
 		{
 			protocol: OBSERVER_PROTOCOL,
-			kind: "wrap-proposed",
+			kind: "save-proposed",
 			proposalId: "proposal-1",
-			summary: "Wrap summary",
+			summary: "Review & Save summary",
 		},
 	],
 	[
-		"wrap-cancelled",
+		"save-cancelled",
 		{
 			protocol: OBSERVER_PROTOCOL,
-			kind: "wrap-cancelled",
+			kind: "save-cancelled",
 			proposalId: "proposal-1",
 		},
 	],
 	[
-		"wrap-committed",
+		"save-committed",
 		{
 			protocol: OBSERVER_PROTOCOL,
-			kind: "wrap-committed",
+			kind: "save-committed",
 			proposalId: "proposal-1",
 			receipt: {
-				receiptId: "wrap-receipt-1",
+				receiptId: "save-receipt-1",
 				status: "validated",
 				recordIds: [],
 			},
@@ -257,10 +257,10 @@ const invalidRawEvents: readonly (readonly [string, unknown, string])[] = [
 		"event.shape",
 	],
 	[
-		"missing wrap receipt",
+		"missing save receipt",
 		{
 			protocol: OBSERVER_PROTOCOL,
-			kind: "wrap-committed",
+			kind: "save-committed",
 			proposalId: "proposal-1",
 		},
 		"event.shape",
@@ -269,10 +269,10 @@ const invalidRawEvents: readonly (readonly [string, unknown, string])[] = [
 		"unknown receipt status",
 		{
 			protocol: OBSERVER_PROTOCOL,
-			kind: "wrap-committed",
+			kind: "save-committed",
 			proposalId: "proposal-1",
 			receipt: {
-				receiptId: "wrap-receipt-1",
+				receiptId: "save-receipt-1",
 				status: "saved",
 				recordIds: [],
 			},
@@ -283,10 +283,10 @@ const invalidRawEvents: readonly (readonly [string, unknown, string])[] = [
 		"invalid receipt record ID",
 		{
 			protocol: OBSERVER_PROTOCOL,
-			kind: "wrap-committed",
+			kind: "save-committed",
 			proposalId: "proposal-1",
 			receipt: {
-				receiptId: "wrap-receipt-1",
+				receiptId: "save-receipt-1",
 				status: "validated",
 				recordIds: [""],
 			},
@@ -326,22 +326,22 @@ describe("Observer lifecycle transitions", () => {
 		assert.equal(snapshot.hasTag("observer-on"), false);
 	});
 
-	test("runs the Sidecar memo and wrap-cancel trace", () => {
+	test("runs the Sidecar memo and save-cancel trace", () => {
 		let state = openState();
 		state = applied(state, activationChanged(true));
 		state = applied(state, memoReconciled());
-		state = applied(state, wrapProposed());
+		state = applied(state, saveProposed());
 		assert.equal(state.mode, "on");
-		assert.equal(state.episode.status, "reviewing-wrap");
-		assert.equal(observerSnapshot(state).hasTag("reviewing-wrap"), true);
-		state = applied(state, wrapCancelled());
+		assert.equal(state.episode.status, "reviewing-save");
+		assert.equal(observerSnapshot(state).hasTag("reviewing-save"), true);
+		state = applied(state, saveCancelled());
 		assert.equal(state.mode, "on");
 		assert.equal(state.episode.status, "open");
 		if (state.episode.status !== "open") assert.fail("Expected open episode");
 		assert.equal(state.episode.lastMemo?.revisionId, "revision-1");
 	});
 
-	test("keeps Mode OFF through a One-shot memo trace", () => {
+	test("keeps Mode OFF through a material review memo trace", () => {
 		let state = openState();
 		state = applied(state, memoReconciled());
 		assert.equal(state.mode, "off");
@@ -378,7 +378,10 @@ describe("Observer lifecycle transitions", () => {
 	});
 
 	test("selects notebooks only outside live work or for an exact live identity", () => {
-		let state = applied(initialObserverState(), notebookSelected("notebook-main"));
+		let state = applied(
+			initialObserverState(),
+			notebookSelected("notebook-main"),
+		);
 		assert.equal(state.selectedNotebookId, "notebook-main");
 		state = applied(state, episodeOpened());
 		const stutter = applyObserverEvent(
@@ -388,19 +391,9 @@ describe("Observer lifecycle transitions", () => {
 		assert.equal(stutter.applied, true);
 		if (!stutter.applied) assert.fail("Expected notebook selection stutter");
 		assert.equal(stutter.changed, false);
-		rejected(
-			state,
-			notebookSelected("notebook-other"),
-			"notebook.live-switch",
-		);
-		const settled = applied(
-			applied(state, wrapProposed()),
-			wrapCommitted(),
-		);
-		const switched = applied(
-			settled,
-			notebookSelected("notebook-other"),
-		);
+		rejected(state, notebookSelected("notebook-other"), "notebook.live-switch");
+		const settled = applied(applied(state, saveProposed()), saveCommitted());
+		const switched = applied(settled, notebookSelected("notebook-other"));
 		assert.equal(switched.selectedNotebookId, "notebook-other");
 	});
 
@@ -408,11 +401,11 @@ describe("Observer lifecycle transitions", () => {
 		rejected(openState(), episodeOpened("episode-2"), "episode.already-open");
 	});
 
-	test("rejects duplicate memo revision and memo during wrap review", () => {
+	test("rejects duplicate memo revision and memo during save review", () => {
 		const memoed = applied(openState(), memoReconciled());
 		rejected(memoed, memoReconciled(), "memo.revision-duplicate");
 		rejected(
-			applied(memoed, wrapProposed()),
+			applied(memoed, saveProposed()),
 			memoReconciled("revision-2"),
 			"memo.episode-open-required",
 		);
@@ -420,43 +413,43 @@ describe("Observer lifecycle transitions", () => {
 
 	test("rejects stale proposal identities", () => {
 		const state = reviewingState();
-		rejected(state, wrapCancelled("proposal-stale"), "wrap.proposal-mismatch");
-		rejected(state, wrapCommitted("proposal-stale"), "wrap.proposal-mismatch");
+		rejected(state, saveCancelled("proposal-stale"), "save.proposal-mismatch");
+		rejected(state, saveCommitted("proposal-stale"), "save.proposal-mismatch");
 	});
 
 	test("rejects commit before review and a second proposal", () => {
-		rejected(openState(), wrapCommitted(), "wrap.review-required");
+		rejected(openState(), saveCommitted(), "save.review-required");
 		rejected(
 			reviewingState(),
-			wrapProposed("proposal-2"),
-			"wrap.episode-open-required",
+			saveProposed("proposal-2"),
+			"save.episode-open-required",
 		);
 	});
 
 	test("rejects an unvalidated save receipt", () => {
 		rejected(
 			reviewingState(),
-			wrapCommitted("proposal-1", "unvalidated"),
-			"wrap.receipt-unvalidated",
+			saveCommitted("proposal-1", "unvalidated"),
+			"save.receipt-unvalidated",
 		);
 	});
 
 	test("commits only a matching validated receipt and forces OFF", () => {
-		const state = applied(reviewingState("on"), wrapCommitted());
+		const state = applied(reviewingState("on"), saveCommitted());
 		assert.equal(state.mode, "off");
 		assert.equal(state.episode.status, "settled");
 		if (state.episode.status !== "settled") assert.fail("Expected settled");
-		assert.equal(state.episode.committedWrap.proposalId, "proposal-1");
-		assert.equal(state.episode.committedWrap.receipt.status, "validated");
+		assert.equal(state.episode.committedSave.proposalId, "proposal-1");
+		assert.equal(state.episode.committedSave.receipt.status, "validated");
 		const snapshot = observerSnapshot(state);
 		assert.equal(snapshot.matches({ mode: "off", episode: "settled" }), true);
 		assert.equal(snapshot.hasTag("settled"), true);
 		assert.equal(snapshot.hasTag("observer-on"), false);
-		rejected(state, wrapCommitted(), "wrap.review-required");
+		rejected(state, saveCommitted(), "save.review-required");
 	});
 
 	test("opens only a new episode on the selected notebook after settlement", () => {
-		const settled = applied(reviewingState(), wrapCommitted());
+		const settled = applied(reviewingState(), saveCommitted());
 		rejected(settled, episodeOpened(), "episode.id-reused");
 		rejected(
 			settled,
@@ -476,8 +469,8 @@ describe("Observer lifecycle replay and XState projection", () => {
 			episodeOpened(),
 			activationChanged(true),
 			memoReconciled(),
-			wrapProposed(),
-			wrapCommitted(),
+			saveProposed(),
+			saveCommitted(),
 		];
 		const first = reconstructObserverState(values);
 		const second = reconstructObserverState(values);
@@ -491,7 +484,7 @@ describe("Observer lifecycle replay and XState projection", () => {
 		const result = reconstructObserverState([
 			episodeOpened(),
 			{ protocol: OBSERVER_PROTOCOL, kind: "unknown" },
-			wrapCommitted(),
+			saveCommitted(),
 			memoReconciled(),
 		]);
 		assert.equal(result.state.episode.status, "open");
@@ -500,7 +493,7 @@ describe("Observer lifecycle replay and XState projection", () => {
 			result.issues.map((issue) => [issue.index, issue.stage, issue.code]),
 			[
 				[1, "decode", "event.kind"],
-				[2, "transition", "wrap.review-required"],
+				[2, "transition", "save.review-required"],
 			],
 		);
 	});
@@ -514,11 +507,11 @@ describe("Observer lifecycle replay and XState projection", () => {
 			...prefix,
 			activationChanged(false),
 		]);
-		const branchB = reconstructObserverState([...prefix, wrapProposed()]);
+		const branchB = reconstructObserverState([...prefix, saveProposed()]);
 		assert.equal(branchA.state.mode, "off");
 		assert.equal(branchA.state.episode.status, "open");
 		assert.equal(branchB.state.mode, "on");
-		assert.equal(branchB.state.episode.status, "reviewing-wrap");
+		assert.equal(branchB.state.episode.status, "reviewing-save");
 	});
 
 	test("projects a live XState actor through the full lifecycle", () => {
@@ -531,22 +524,22 @@ describe("Observer lifecycle replay and XState projection", () => {
 		);
 		actor.send({ type: "OBSERVER_EVENT", event: activationChanged(true) });
 		assert.equal(actor.getSnapshot().hasTag("observer-on"), true);
-		actor.send({ type: "OBSERVER_EVENT", event: wrapProposed() });
-		assert.equal(actor.getSnapshot().hasTag("reviewing-wrap"), true);
-		actor.send({ type: "OBSERVER_EVENT", event: wrapCancelled() });
+		actor.send({ type: "OBSERVER_EVENT", event: saveProposed() });
+		assert.equal(actor.getSnapshot().hasTag("reviewing-save"), true);
+		actor.send({ type: "OBSERVER_EVENT", event: saveCancelled() });
 		assert.equal(
 			actor.getSnapshot().matches({ mode: "on", episode: "open" }),
 			true,
 		);
-		actor.send({ type: "OBSERVER_EVENT", event: wrapProposed("proposal-2") });
-		actor.send({ type: "OBSERVER_EVENT", event: wrapCommitted("proposal-2") });
+		actor.send({ type: "OBSERVER_EVENT", event: saveProposed("proposal-2") });
+		actor.send({ type: "OBSERVER_EVENT", event: saveCommitted("proposal-2") });
 		assert.equal(
 			actor.getSnapshot().matches({ mode: "off", episode: "settled" }),
 			true,
 		);
 		assert.equal(actor.getSnapshot().hasTag("settled"), true);
 		const settled = actor.getSnapshot().context;
-		actor.send({ type: "OBSERVER_EVENT", event: wrapCommitted("proposal-2") });
+		actor.send({ type: "OBSERVER_EVENT", event: saveCommitted("proposal-2") });
 		assert.deepEqual(actor.getSnapshot().context, settled);
 		actor.stop();
 	});
@@ -556,10 +549,10 @@ describe("Observer lifecycle replay and XState projection", () => {
 			episodeOpened(),
 			activationChanged(true),
 			memoReconciled(),
-			wrapProposed(),
-			wrapCancelled(),
-			wrapProposed("proposal-2"),
-			wrapCommitted("proposal-2"),
+			saveProposed(),
+			saveCancelled(),
+			saveProposed("proposal-2"),
+			saveCommitted("proposal-2"),
 		];
 		let reducerState = initialObserverState();
 		let machineState = initialObserverState();

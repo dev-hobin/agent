@@ -1,19 +1,27 @@
 import { isSha256 } from "./content-hash.ts";
-import { decodeInquiryId, type InquiryId } from "./memo-profile.ts";
+import {
+	decodeInquiryId,
+	decodeSourceId,
+	type InquiryId,
+	type SourceId,
+} from "./memo-profile.ts";
 import {
 	decodeCandidateId,
 	decodeHydrationId,
 	decodeMemoRequestId,
+	decodeObservationId,
 	decodeSourceReadId,
 	type CandidateId,
+	type HypothesisReviewAssessment,
 	type HydrationId,
 	type MemoRequestId,
+	type ObservationId,
 	type ObservationMovement,
 	type ObservationStance,
 	type SourceClaim,
 	type SourceReadId,
 } from "./observation-profile.ts";
-import { decodeWrapRequestId, type WrapRequestId } from "./wrap-trigger.ts";
+import { decodeSaveRequestId, type SaveRequestId } from "./save-trigger.ts";
 
 export const OBSERVER_SIDECAR_ACTION_PROTOCOL: "observer-sidecar/v1" =
 	"observer-sidecar/v1";
@@ -83,19 +91,30 @@ export interface RegisterUserHypothesisAction extends SidecarActionBase {
 	readonly context: string;
 }
 
+export interface HypothesisContextReviewAction extends SidecarActionBase {
+	readonly action: "hypothesis-context-review";
+	readonly hypothesisObservationId: ObservationId;
+	readonly assessment: HypothesisReviewAssessment;
+	readonly supportingClues: readonly string[];
+	readonly challengingClues: readonly string[];
+	readonly missingInformation: readonly string[];
+	readonly sourceIds: readonly SourceId[];
+	readonly interpretationBoundary: string;
+}
+
 export interface MemoScopeAction extends SidecarActionBase {
 	readonly action: "memo-scope";
 	readonly requestId: MemoRequestId;
 }
 
-export interface WrapScopeAction extends SidecarActionBase {
-	readonly action: "wrap-scope";
-	readonly requestId: WrapRequestId;
+export interface SaveScopeAction extends SidecarActionBase {
+	readonly action: "save-scope";
+	readonly requestId: SaveRequestId;
 }
 
-export interface WrapPrepareAction extends SidecarActionBase {
-	readonly action: "wrap-prepare";
-	readonly requestId: WrapRequestId;
+export interface SavePrepareAction extends SidecarActionBase {
+	readonly action: "save-prepare";
+	readonly requestId: SaveRequestId;
 	readonly summary: string;
 	readonly records: readonly unknown[];
 }
@@ -143,10 +162,11 @@ export type ObservationAction =
 	| HydrateAction
 	| RecordObservationAction
 	| RegisterUserHypothesisAction
+	| HypothesisContextReviewAction
 	| MemoScopeAction
 	| MemoPrepareAction
-	| WrapScopeAction
-	| WrapPrepareAction;
+	| SaveScopeAction
+	| SavePrepareAction;
 
 export interface ObservationActionIssue {
 	readonly code: "observation-action.object" | "observation-action.shape";
@@ -473,21 +493,27 @@ function markUserHypothesis(
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
+function markHypothesisContextReview(
+	value: Omit<HypothesisContextReviewAction, typeof OBSERVATION_ACTION_MARKER>,
+): HypothesisContextReviewAction {
+	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
+}
+
 function markMemoScope(
 	value: Omit<MemoScopeAction, typeof OBSERVATION_ACTION_MARKER>,
 ): MemoScopeAction {
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
-function markWrapScope(
-	value: Omit<WrapScopeAction, typeof OBSERVATION_ACTION_MARKER>,
-): WrapScopeAction {
+function markSaveScope(
+	value: Omit<SaveScopeAction, typeof OBSERVATION_ACTION_MARKER>,
+): SaveScopeAction {
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
-function markWrapPrepare(
-	value: Omit<WrapPrepareAction, typeof OBSERVATION_ACTION_MARKER>,
-): WrapPrepareAction {
+function markSavePrepare(
+	value: Omit<SavePrepareAction, typeof OBSERVATION_ACTION_MARKER>,
+): SavePrepareAction {
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
@@ -643,26 +669,26 @@ function parseMemoScope(
 		: failure("/request_id", "Memo-scope request ID is invalid.");
 }
 
-function parseWrapScope(
+function parseSaveScope(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
 	if (!hasExactKeys(value, ["observer_action", "action", "request_id"])) {
-		return failure("/", "Wrap-scope action has invalid fields.");
+		return failure("/", "Save-scope action has invalid fields.");
 	}
-	const requestId = decodeWrapRequestId(value.request_id);
+	const requestId = decodeSaveRequestId(value.request_id);
 	return requestId
 		? {
 				ok: true,
-				value: markWrapScope({
+				value: markSaveScope({
 					protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
-					action: "wrap-scope",
+					action: "save-scope",
 					requestId,
 				}),
 			}
-		: failure("/request_id", "Wrap-scope request ID is invalid.");
+		: failure("/request_id", "Save-scope request ID is invalid.");
 }
 
-function parseWrapPrepare(
+function parseSavePrepare(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
 	if (
@@ -674,8 +700,8 @@ function parseWrapPrepare(
 			"records",
 		])
 	)
-		return failure("/", "Wrap-prepare action has invalid fields.");
-	const requestId = decodeWrapRequestId(value.request_id);
+		return failure("/", "Save-prepare action has invalid fields.");
+	const requestId = decodeSaveRequestId(value.request_id);
 	const summary = boundedText(value.summary, 4_000);
 	if (
 		!requestId ||
@@ -683,12 +709,12 @@ function parseWrapPrepare(
 		!Array.isArray(value.records) ||
 		value.records.length > MAX_ITEMS
 	)
-		return failure("/", "Wrap-prepare action has invalid values.");
+		return failure("/", "Save-prepare action has invalid values.");
 	return {
 		ok: true,
-		value: markWrapPrepare({
+		value: markSavePrepare({
 			protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
-			action: "wrap-prepare",
+			action: "save-prepare",
 			requestId,
 			summary,
 			records: value.records,
@@ -785,6 +811,77 @@ function parseUserHypothesis(
 	};
 }
 
+function parseTextItems(value: unknown): readonly string[] | null {
+	if (!Array.isArray(value) || value.length > MAX_ITEMS) return null;
+	const items = value.map((item) => boundedText(item));
+	return items.every((item): item is string => item !== null) ? items : null;
+}
+
+function isHypothesisReviewAssessment(
+	value: unknown,
+): value is HypothesisReviewAssessment {
+	return (
+		value === "supports" ||
+		value === "challenges" ||
+		value === "mixed" ||
+		value === "insufficient-context"
+	);
+}
+
+function parseHypothesisContextReview(
+	value: Readonly<Record<string, unknown>>,
+): ObservationActionResult {
+	if (
+		!hasExactKeys(value, [
+			"observer_action",
+			"action",
+			"hypothesis_observation_id",
+			"assessment",
+			"supporting_clues",
+			"challenging_clues",
+			"missing_information",
+			"source_ids",
+			"interpretation_boundary",
+		])
+	)
+		return failure("/", "Hypothesis context review has invalid fields.");
+	const hypothesisObservationId = decodeObservationId(
+		value.hypothesis_observation_id,
+	);
+	const supportingClues = parseTextItems(value.supporting_clues);
+	const challengingClues = parseTextItems(value.challenging_clues);
+	const missingInformation = parseTextItems(value.missing_information);
+	const sourceIds = parseIds(value.source_ids, decodeSourceId, {
+		nonempty: false,
+		sort: true,
+	});
+	const interpretationBoundary = boundedText(value.interpretation_boundary);
+	if (
+		!hypothesisObservationId ||
+		!isHypothesisReviewAssessment(value.assessment) ||
+		!supportingClues ||
+		!challengingClues ||
+		!missingInformation ||
+		!sourceIds ||
+		!interpretationBoundary
+	)
+		return failure("/", "Hypothesis context review has invalid values.");
+	return {
+		ok: true,
+		value: markHypothesisContextReview({
+			protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
+			action: "hypothesis-context-review",
+			hypothesisObservationId,
+			assessment: value.assessment,
+			supportingClues,
+			challengingClues,
+			missingInformation,
+			sourceIds,
+			interpretationBoundary,
+		}),
+	};
+}
+
 export function decodeObservationAction(
 	value: unknown,
 ): ObservationActionResult {
@@ -813,14 +910,16 @@ export function decodeObservationAction(
 			return parseRecord(value);
 		case "user-hypothesis":
 			return parseUserHypothesis(value);
+		case "hypothesis-context-review":
+			return parseHypothesisContextReview(value);
 		case "memo-scope":
 			return parseMemoScope(value);
 		case "memo-prepare":
 			return parseMemoPrepare(value);
-		case "wrap-scope":
-			return parseWrapScope(value);
-		case "wrap-prepare":
-			return parseWrapPrepare(value);
+		case "save-scope":
+			return parseSaveScope(value);
+		case "save-prepare":
+			return parseSavePrepare(value);
 		default:
 			return failure("/action", "Observer Sidecar action is unknown.");
 	}

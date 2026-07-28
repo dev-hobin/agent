@@ -8,9 +8,9 @@ import {
 	type EpisodeOpenedEvent,
 	type NotebookSelectedEvent,
 	type ObserverEvent,
-	type WrapCancelledEvent,
-	type WrapCommittedEvent,
-	type WrapProposedEvent,
+	type SaveCancelledEvent,
+	type SaveCommittedEvent,
+	type SaveProposedEvent,
 } from "./lifecycle.ts";
 import {
 	decodePreparedMemoPass,
@@ -45,7 +45,11 @@ import {
 	type NotebookInventoryEntry,
 } from "./notebook.ts";
 import type { NotebookSelectionStore } from "./notebook-selection-store.ts";
-import type { OneShotIntent, OneShotRequestId } from "./one-shot-trigger.ts";
+import { reconstructObservationSession } from "./observation-session.ts";
+import type {
+	MaterialReviewIntent,
+	MaterialReviewRequestId,
+} from "./material-review-trigger.ts";
 import {
 	observerStatusView,
 	renderMemoPassReceipt,
@@ -54,27 +58,27 @@ import {
 	type ObserverStatusView,
 } from "./observer-status.ts";
 import {
-	decodePreparedWrapHandoff,
+	decodePreparedSaveHandoff,
 	OBSERVER_LIFECYCLE_ENTRY,
-	OBSERVER_PREPARED_WRAP_ENTRY,
-	OBSERVER_WRAP_ATTEMPT_ENTRY,
-	OBSERVER_WRAP_ATTEMPT_PROTOCOL,
-	preparedWrapDigest,
+	OBSERVER_PREPARED_SAVE_ENTRY,
+	OBSERVER_SAVE_ATTEMPT_ENTRY,
+	OBSERVER_SAVE_ATTEMPT_PROTOCOL,
+	preparedSaveDigest,
 	reconstructObserverPiState,
-	type ApprovedWrapAttempt,
+	type ApprovedSaveAttempt,
 	type ObserverPiSnapshot,
 	type PiBranchEntryLike,
-	type PreparedWrapHandoff,
+	type PreparedSaveHandoff,
 } from "./pi-session.ts";
 import {
-	inspectWrapAcknowledgment,
-	type WrapAcknowledgmentInspection,
-} from "./wrap-acknowledgment.ts";
+	inspectSaveAcknowledgment,
+	type SaveAcknowledgmentInspection,
+} from "./save-acknowledgment.ts";
 import {
-	OBSERVER_WRAP_APPROVAL_SCHEMA,
-	type WrapReceipt,
-} from "./wrap-profile.ts";
-import { createWrapService, type WrapService } from "./wrap-service.ts";
+	OBSERVER_SAVE_APPROVAL_SCHEMA,
+	type SaveReceipt,
+} from "./save-profile.ts";
+import { createSaveService, type SaveService } from "./save-service.ts";
 
 export interface ObserverCommandPort {
 	/** Pi's current working directory. Relative Notebook paths resolve from here. */
@@ -97,13 +101,16 @@ export interface ObserverControllerIds {
 	memoReceiptId(): `memo-receipt-${string}`;
 }
 
-const ONE_SHOT_EPISODE_CAPABILITY = Symbol(
-	"observer.one-shot-episode-capability",
+const MATERIAL_REVIEW_EPISODE_CAPABILITY = Symbol(
+	"observer.material-review-episode-capability",
+);
+const USER_HYPOTHESIS_EPISODE_CAPABILITY = Symbol(
+	"observer.user-hypothesis-episode-capability",
 );
 
-export interface OneShotEpisodeCapability {
-	readonly [ONE_SHOT_EPISODE_CAPABILITY]: true;
-	readonly requestId: OneShotRequestId;
+export interface MaterialReviewEpisodeCapability {
+	readonly [MATERIAL_REVIEW_EPISODE_CAPABILITY]: true;
+	readonly requestId: MaterialReviewRequestId;
 	readonly userMessageDigest: string;
 	readonly material: "inline-user-message" | "retrieved-tool-results";
 	readonly inputSource: "interactive" | "rpc";
@@ -112,11 +119,27 @@ export interface OneShotEpisodeCapability {
 	readonly lang: "ko" | "en";
 }
 
-export type OneShotEpisodeResult =
+export type MaterialReviewEpisodeResult =
 	| {
 			readonly ok: true;
 			readonly status: "opened" | "resumed";
-			readonly value: OneShotEpisodeCapability;
+			readonly value: MaterialReviewEpisodeCapability;
+	  }
+	| { readonly ok: false; readonly message: string };
+
+export interface UserHypothesisEpisodeCapability {
+	readonly [USER_HYPOTHESIS_EPISODE_CAPABILITY]: true;
+	readonly episodeId: string;
+	readonly notebookId: string;
+	readonly lang: EpisodeLanguage;
+	readonly mode: "on" | "off";
+}
+
+export type UserHypothesisEpisodeResult =
+	| {
+			readonly ok: true;
+			readonly status: "opened" | "resumed";
+			readonly value: UserHypothesisEpisodeCapability;
 	  }
 	| { readonly ok: false; readonly message: string };
 
@@ -134,10 +157,13 @@ export interface ObserverController {
 		value: unknown,
 		port: ObserverCommandPort,
 	): Promise<boolean>;
-	ensureOneShotEpisode(
-		intent: OneShotIntent,
+	ensureMaterialReviewEpisode(
+		intent: MaterialReviewIntent,
 		port: ObserverCommandPort,
-	): Promise<OneShotEpisodeResult>;
+	): Promise<MaterialReviewEpisodeResult>;
+	ensureUserHypothesisEpisode(
+		port: ObserverCommandPort,
+	): Promise<UserHypothesisEpisodeResult>;
 	unbind(): void;
 }
 
@@ -184,27 +210,27 @@ function activationChanged(enabled: boolean): ActivationChangedEvent {
 	return { protocol: OBSERVER_PROTOCOL, kind: "activation-changed", enabled };
 }
 
-function wrapProposed(handoff: PreparedWrapHandoff): WrapProposedEvent {
+function saveProposed(handoff: PreparedSaveHandoff): SaveProposedEvent {
 	return {
 		protocol: OBSERVER_PROTOCOL,
-		kind: "wrap-proposed",
+		kind: "save-proposed",
 		proposalId: handoff.prepared.proposal_id,
 		summary: handoff.summary,
 	};
 }
 
-function wrapCancelled(proposalId: string): WrapCancelledEvent {
+function saveCancelled(proposalId: string): SaveCancelledEvent {
 	return {
 		protocol: OBSERVER_PROTOCOL,
-		kind: "wrap-cancelled",
+		kind: "save-cancelled",
 		proposalId,
 	};
 }
 
-function wrapCommitted(receipt: WrapReceipt): WrapCommittedEvent {
+function saveCommitted(receipt: SaveReceipt): SaveCommittedEvent {
 	return {
 		protocol: OBSERVER_PROTOCOL,
-		kind: "wrap-committed",
+		kind: "save-committed",
 		proposalId: receipt.proposal_id,
 		receipt: {
 			receiptId: receipt.receipt_id,
@@ -215,15 +241,15 @@ function wrapCommitted(receipt: WrapReceipt): WrapCommittedEvent {
 }
 
 function approvedAttempt(
-	handoff: PreparedWrapHandoff,
+	handoff: PreparedSaveHandoff,
 	attemptId: string,
-): ApprovedWrapAttempt {
+): ApprovedSaveAttempt {
 	return {
-		protocol: OBSERVER_WRAP_ATTEMPT_PROTOCOL,
+		protocol: OBSERVER_SAVE_ATTEMPT_PROTOCOL,
 		kind: "approved",
 		attemptId,
 		proposalId: handoff.prepared.proposal_id,
-		preparedDigest: preparedWrapDigest(handoff),
+		preparedDigest: preparedSaveDigest(handoff),
 	};
 }
 
@@ -277,7 +303,7 @@ function appendLifecycle(
 
 function matchingOpenEpisode(
 	snapshot: ObserverPiSnapshot,
-	handoff: PreparedWrapHandoff,
+	handoff: PreparedSaveHandoff,
 ): boolean {
 	const episode = snapshot.state.episode;
 	return (
@@ -321,7 +347,7 @@ function resolveCommand(
 	return Promise.resolve(parsed.command);
 }
 
-function renderPreparedPlan(handoff: PreparedWrapHandoff): string {
+function renderPreparedPlan(handoff: PreparedSaveHandoff): string {
 	const operations = handoff.prepared.records.map(
 		(record) => `- ${record.operation}: ${record.record_id}`,
 	);
@@ -343,6 +369,7 @@ async function inspectStatus(
 	return observerStatusView({
 		snapshot: reconstructObserverPiState(port.branchEntries()),
 		memoSnapshot: reconstructMemoSession(port.branchEntries()),
+		observationSnapshot: reconstructObservationSession(port.branchEntries()),
 		notebookStatus: await notebooks.status(),
 		sessionFile: port.sessionFile(),
 		...(operationalIssue ? { operationalIssue } : {}),
@@ -419,11 +446,11 @@ async function acknowledgmentInspection(
 	snapshot: ObserverPiSnapshot,
 	notebooks: NotebookService,
 	ids: ObserverControllerIds,
-): Promise<WrapAcknowledgmentInspection | null> {
+): Promise<SaveAcknowledgmentInspection | null> {
 	if (
 		!snapshot.attempt ||
 		!snapshot.prepared ||
-		snapshot.state.episode.status !== "reviewing-wrap"
+		snapshot.state.episode.status !== "reviewing-save"
 	) {
 		return null;
 	}
@@ -431,7 +458,7 @@ async function acknowledgmentInspection(
 	if (!recovered.ok) {
 		return { status: "invalid", message: recovered.issue.message };
 	}
-	return inspectWrapAcknowledgment({
+	return inspectSaveAcknowledgment({
 		notebook: recovered.value.notebook,
 		prepared: snapshot.prepared.handoff.prepared,
 		dependencies: { receiptId: ids.receiptId },
@@ -453,7 +480,7 @@ async function synchronize(
 		const committed = appendLifecycle(
 			port,
 			snapshot,
-			wrapCommitted(inspection.receipt),
+			saveCommitted(inspection.receipt),
 		);
 		if (!committed) {
 			return {
@@ -533,16 +560,16 @@ async function setupCommand(
 	);
 }
 
-type OneShotLifecycleAppendResult =
+type RequiredLifecycleAppendResult =
 	| { readonly ok: true; readonly snapshot: ObserverPiSnapshot }
 	| { readonly ok: false; readonly message: string };
 
-function appendOneShotLifecycle(input: {
+function appendRequiredLifecycle(input: {
 	readonly port: ObserverCommandPort;
 	readonly snapshot: ObserverPiSnapshot;
 	readonly event: ObserverEvent;
 	readonly label: string;
-}): OneShotLifecycleAppendResult {
+}): RequiredLifecycleAppendResult {
 	try {
 		const snapshot = appendLifecycle(input.port, input.snapshot, input.event);
 		return snapshot
@@ -559,7 +586,7 @@ function appendOneShotLifecycle(input: {
 	}
 }
 
-function oneShotSynchronizationIssue(input: {
+function materialReviewSynchronizationIssue(input: {
 	readonly synchronized: SynchronizationResult;
 	readonly port: ObserverCommandPort;
 	readonly operationalIssue?: string;
@@ -572,25 +599,25 @@ function oneShotSynchronizationIssue(input: {
 	const issue = input.operationalIssue ?? input.synchronized.operationalIssue;
 	if (issue) return `Observer 복구가 필요합니다: ${issue}`;
 	if (input.synchronized.snapshot.state.mode !== "off")
-		return "One-shot은 Observer Mode가 OFF일 때만 시작할 수 있습니다.";
-	return input.synchronized.snapshot.state.episode.status === "reviewing-wrap"
-		? "Wrap proposal 검토 중에는 One-shot을 시작할 수 없습니다."
+		return "Material review은 Observer Mode가 OFF일 때만 시작할 수 있습니다.";
+	return input.synchronized.snapshot.state.episode.status === "reviewing-save"
+		? "Review & Save proposal 검토 중에는 Material review을 시작할 수 없습니다."
 		: null;
 }
 
-async function ensureOneShotEpisodeCommand(input: {
-	readonly intent: OneShotIntent;
+async function ensureMaterialReviewEpisodeCommand(input: {
+	readonly intent: MaterialReviewIntent;
 	readonly port: ObserverCommandPort;
 	readonly notebooks: NotebookService;
 	readonly ids: ObserverControllerIds;
 	readonly operationalIssue?: string;
-}): Promise<OneShotEpisodeResult> {
+}): Promise<MaterialReviewEpisodeResult> {
 	const synchronized = await synchronize(
 		input.port,
 		input.notebooks,
 		input.ids,
 	);
-	const synchronizationIssue = oneShotSynchronizationIssue({
+	const synchronizationIssue = materialReviewSynchronizationIssue({
 		synchronized,
 		port: input.port,
 		...(input.operationalIssue
@@ -602,17 +629,17 @@ async function ensureOneShotEpisodeCommand(input: {
 	if (!recovered.ok)
 		return {
 			ok: false,
-			message: `One-shot notebook 복구 실패: ${recovered.issue.message}`,
+			message: `Material review notebook 복구 실패: ${recovered.issue.message}`,
 		};
 	let current = synchronized.snapshot;
 	let status: "opened" | "resumed" = "resumed";
 	const notebookId = recovered.value.notebook.manifest.notebook_id;
 	if (current.state.selectedNotebookId !== notebookId) {
-		const selected = appendOneShotLifecycle({
+		const selected = appendRequiredLifecycle({
 			port: input.port,
 			snapshot: current,
 			event: notebookSelected(notebookId),
-			label: "One-shot notebook selection",
+			label: "Material review notebook selection",
 		});
 		if (!selected.ok) return selected;
 		current = selected.snapshot;
@@ -621,7 +648,7 @@ async function ensureOneShotEpisodeCommand(input: {
 		current.state.episode.status === "empty" ||
 		current.state.episode.status === "settled"
 	) {
-		const opened = appendOneShotLifecycle({
+		const opened = appendRequiredLifecycle({
 			port: input.port,
 			snapshot: current,
 			event: episodeOpened({
@@ -629,7 +656,7 @@ async function ensureOneShotEpisodeCommand(input: {
 				notebookId,
 				lang: recovered.value.notebook.manifest.default_language,
 			}),
-			label: "One-shot Episode open",
+			label: "Material review Episode open",
 		});
 		if (!opened.ok) return opened;
 		current = opened.snapshot;
@@ -642,13 +669,14 @@ async function ensureOneShotEpisodeCommand(input: {
 	)
 		return {
 			ok: false,
-			message: "One-shot OPEN/OFF lifecycle capability를 확립하지 못했습니다.",
+			message:
+				"Material review OPEN/OFF lifecycle capability를 확립하지 못했습니다.",
 		};
 	return {
 		ok: true,
 		status,
 		value: {
-			[ONE_SHOT_EPISODE_CAPABILITY]: true,
+			[MATERIAL_REVIEW_EPISODE_CAPABILITY]: true,
 			requestId: input.intent.requestId,
 			userMessageDigest: input.intent.userMessageDigest,
 			material: input.intent.material,
@@ -656,6 +684,100 @@ async function ensureOneShotEpisodeCommand(input: {
 			episodeId: current.state.episode.core.episodeId,
 			notebookId,
 			lang: current.state.episode.core.lang,
+		},
+	};
+}
+
+function userHypothesisSynchronizationIssue(input: {
+	readonly synchronized: SynchronizationResult;
+	readonly port: ObserverCommandPort;
+	readonly operationalIssue?: string;
+}): string | null {
+	if (
+		notifyReplayIssue(input.synchronized.snapshot, input.port) ||
+		notifyMemoReplayIssue(input.synchronized.memo, input.port)
+	)
+		return "Observer branch history must be repaired before tracking a hypothesis.";
+	const issue = input.operationalIssue ?? input.synchronized.operationalIssue;
+	if (issue) return `Observer recovery is required: ${issue}`;
+	return input.synchronized.snapshot.state.episode.status === "reviewing-save"
+		? "Finish or cancel the current save review before tracking a hypothesis."
+		: null;
+}
+
+async function ensureUserHypothesisEpisodeCommand(input: {
+	readonly port: ObserverCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObserverControllerIds;
+	readonly operationalIssue?: string;
+}): Promise<UserHypothesisEpisodeResult> {
+	const synchronized = await synchronize(
+		input.port,
+		input.notebooks,
+		input.ids,
+	);
+	const synchronizationIssue = userHypothesisSynchronizationIssue({
+		synchronized,
+		port: input.port,
+		...(input.operationalIssue
+			? { operationalIssue: input.operationalIssue }
+			: {}),
+	});
+	if (synchronizationIssue) return { ok: false, message: synchronizationIssue };
+	const recovered = await input.notebooks.recover(synchronized.snapshot.state);
+	if (!recovered.ok)
+		return {
+			ok: false,
+			message: `Could not open the Notebook for hypothesis tracking: ${recovered.issue.message}`,
+		};
+	let current = synchronized.snapshot;
+	let status: "opened" | "resumed" = "resumed";
+	const notebookId = recovered.value.notebook.manifest.notebook_id;
+	if (current.state.selectedNotebookId !== notebookId) {
+		const selected = appendRequiredLifecycle({
+			port: input.port,
+			snapshot: current,
+			event: notebookSelected(notebookId),
+			label: "Hypothesis Notebook selection",
+		});
+		if (!selected.ok) return selected;
+		current = selected.snapshot;
+	}
+	if (
+		current.state.episode.status === "empty" ||
+		current.state.episode.status === "settled"
+	) {
+		const opened = appendRequiredLifecycle({
+			port: input.port,
+			snapshot: current,
+			event: episodeOpened({
+				episodeId: input.ids.episodeId(),
+				notebookId,
+				lang: recovered.value.notebook.manifest.default_language,
+			}),
+			label: "Hypothesis Episode open",
+		});
+		if (!opened.ok) return opened;
+		current = opened.snapshot;
+		status = "opened";
+	}
+	if (
+		current.state.episode.status !== "open" ||
+		current.state.episode.core.notebookId !== notebookId
+	)
+		return {
+			ok: false,
+			message: "Could not establish an open Episode for hypothesis tracking.",
+		};
+	return {
+		ok: true,
+		status,
+		value: {
+			[USER_HYPOTHESIS_EPISODE_CAPABILITY]: true,
+			episodeId: current.state.episode.core.episodeId,
+			notebookId,
+			lang: current.state.episode.core.lang,
+			mode: current.state.mode,
 		},
 	};
 }
@@ -720,44 +842,41 @@ function offCommand(
 	port.notify("Observer is off. The open Episode is preserved.", "info");
 }
 
-async function wrapCommand(
+async function saveCommand(
 	snapshot: ObserverPiSnapshot,
 	port: ObserverCommandPort,
-	wraps: WrapService,
+	saves: SaveService,
 	ids: ObserverControllerIds,
 ): Promise<void> {
 	if (
-		snapshot.state.episode.status !== "reviewing-wrap" ||
+		snapshot.state.episode.status !== "reviewing-save" ||
 		!snapshot.prepared
 	) {
-		port.notify("There is no prepared Wrap proposal to review.", "warning");
+		port.notify("There is no prepared save proposal to review.", "warning");
 		return;
 	}
 	const approved = await port.confirm(
-		"Approve Observer Wrap",
+		"Approve Observer save proposal",
 		renderPreparedPlan(snapshot.prepared.handoff),
 	);
 	if (!approved) {
 		appendLifecycle(
 			port,
 			snapshot,
-			wrapCancelled(snapshot.prepared.handoff.prepared.proposal_id),
+			saveCancelled(snapshot.prepared.handoff.prepared.proposal_id),
 		);
-		port.notify("Wrap cancelled. Episode and Mode are unchanged.", "info");
+		port.notify("Save cancelled. Episode and Mode are unchanged.", "info");
 		return;
 	}
 	let current = snapshot;
 	if (!current.attempt) {
 		const currentPrepared = current.prepared;
 		if (!currentPrepared) {
-			port.notify(
-				"The prepared Wrap for approval could not be found.",
-				"error",
-			);
+			port.notify("The prepared save proposal could not be found.", "error");
 			return;
 		}
 		port.appendEntry(
-			OBSERVER_WRAP_ATTEMPT_ENTRY,
+			OBSERVER_SAVE_ATTEMPT_ENTRY,
 			approvedAttempt(currentPrepared.handoff, ids.attemptId()),
 		);
 		current = reconstructObserverPiState(port.branchEntries());
@@ -765,26 +884,26 @@ async function wrapCommand(
 	}
 	const prepared = current.prepared?.handoff;
 	if (!prepared) {
-		port.notify("The approved prepared Wrap could not be recovered.", "error");
+		port.notify("The approved save proposal could not be recovered.", "error");
 		return;
 	}
-	const saved = await wraps.commit({
+	const saved = await saves.commit({
 		state: current.state,
 		prepared: prepared.prepared,
 		approval: {
-			observer_approval: OBSERVER_WRAP_APPROVAL_SCHEMA,
+			observer_approval: OBSERVER_SAVE_APPROVAL_SCHEMA,
 			proposal_id: prepared.prepared.proposal_id,
 			approved: true,
 		},
 	});
 	if (!saved.ok) {
-		port.notify(`Wrap save failed: ${saved.issue.message}`, "error");
+		port.notify(`Notebook save failed: ${saved.issue.message}`, "error");
 		return;
 	}
-	if (!appendLifecycle(port, current, wrapCommitted(saved.value.receipt)))
+	if (!appendLifecycle(port, current, saveCommitted(saved.value.receipt)))
 		return;
 	port.notify(
-		`Wrap saved: ${saved.value.receipt.records.length} records`,
+		`Saved ${saved.value.receipt.records.length} Notebook records · Episode settled`,
 		"info",
 	);
 }
@@ -989,7 +1108,7 @@ async function executeObserverCommand(input: {
 	readonly args: string;
 	readonly port: ObserverCommandPort;
 	readonly notebooks: NotebookService;
-	readonly wraps: WrapService;
+	readonly saves: SaveService;
 	readonly ids: ObserverControllerIds;
 	readonly operationalIssue?: string;
 }): Promise<string | undefined> {
@@ -1039,11 +1158,11 @@ async function executeObserverCommand(input: {
 		case "off":
 			offCommand(synchronized.snapshot, input.port);
 			break;
-		case "wrap":
-			await wrapCommand(
+		case "save":
+			await saveCommand(
 				synchronized.snapshot,
 				input.port,
-				input.wraps,
+				input.saves,
 				input.ids,
 			);
 			break;
@@ -1086,38 +1205,38 @@ async function installPreparedCommand(input: {
 		);
 		return false;
 	}
-	const decoded = decodePreparedWrapHandoff(input.value);
+	const decoded = decodePreparedSaveHandoff(input.value);
 	if (!decoded.ok) {
-		input.port.notify(`Prepared wrap 거부: ${decoded.issue.message}`, "error");
+		input.port.notify(`Prepared save 거부: ${decoded.issue.message}`, "error");
 		return false;
 	}
-	const digest = preparedWrapDigest(decoded.value);
+	const digest = preparedSaveDigest(decoded.value);
 	if (snapshot.prepared) {
 		if (snapshot.prepared.digest === digest) {
-			input.port.notify("같은 prepared wrap이 이미 준비되어 있습니다.", "info");
+			input.port.notify("같은 prepared save이 이미 준비되어 있습니다.", "info");
 			return true;
 		}
-		input.port.notify("다른 prepared wrap이 이미 활성 상태입니다.", "error");
+		input.port.notify("다른 prepared save이 이미 활성 상태입니다.", "error");
 		return false;
 	}
 	if (!matchingOpenEpisode(snapshot, decoded.value)) {
 		input.port.notify(
-			"Prepared wrap target이 현재 open episode와 다릅니다.",
+			"Prepared save target이 현재 open episode와 다릅니다.",
 			"error",
 		);
 		return false;
 	}
-	const proposal = wrapProposed(decoded.value);
+	const proposal = saveProposed(decoded.value);
 	const projected = applyObserverEvent(snapshot.state, proposal);
 	if (!projected.applied) {
-		input.port.notify(`Wrap proposal 거부: ${projected.reason}.`, "error");
+		input.port.notify(`Save proposal rejected: ${projected.reason}.`, "error");
 		return false;
 	}
-	input.port.appendEntry(OBSERVER_PREPARED_WRAP_ENTRY, decoded.value);
+	input.port.appendEntry(OBSERVER_PREPARED_SAVE_ENTRY, decoded.value);
 	const withPrepared = reconstructObserverPiState(input.port.branchEntries());
 	if (notifyReplayIssue(withPrepared, input.port)) return false;
 	if (!appendLifecycle(input.port, withPrepared, proposal)) return false;
-	input.port.notify("Wrap proposal을 검토할 준비가 되었습니다.", "info");
+	input.port.notify("The save proposal is ready for review.", "info");
 	await refreshStatus(input.port, input.notebooks, input.operationalIssue);
 	return true;
 }
@@ -1215,7 +1334,7 @@ export function createObserverController(
 	const notebooks = createNotebookService({
 		selectionStore: dependencies.selectionStore,
 	});
-	const wraps = createWrapService({
+	const saves = createSaveService({
 		selectionStore: dependencies.selectionStore,
 	});
 	let operationalIssue: string | undefined;
@@ -1245,7 +1364,7 @@ export function createObserverController(
 				args,
 				port,
 				notebooks,
-				wraps,
+				saves,
 				ids: dependencies.ids,
 				...(operationalIssue ? { operationalIssue } : {}),
 			});
@@ -1266,9 +1385,17 @@ export function createObserverController(
 				ids: dependencies.ids,
 			});
 		},
-		ensureOneShotEpisode(intent, port) {
-			return ensureOneShotEpisodeCommand({
+		ensureMaterialReviewEpisode(intent, port) {
+			return ensureMaterialReviewEpisodeCommand({
 				intent,
+				port,
+				notebooks,
+				ids: dependencies.ids,
+				...(operationalIssue ? { operationalIssue } : {}),
+			});
+		},
+		ensureUserHypothesisEpisode(port) {
+			return ensureUserHypothesisEpisodeCommand({
 				port,
 				notebooks,
 				ids: dependencies.ids,

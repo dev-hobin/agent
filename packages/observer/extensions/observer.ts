@@ -16,8 +16,9 @@ import {
 	createObservationController,
 	type MemoRequestControllerResult,
 	type ObservationControllerIds,
-	type WrapRequestControllerResult,
 	type ObservationControllerResult,
+	type TrackUserHypothesisResult,
+	type SaveRequestControllerResult,
 } from "../src/observation-controller.ts";
 import type { PreparedObservationMemoInstruction } from "../src/memo-instruction.ts";
 import { encodePreparedMemoPass } from "../src/memo-profile.ts";
@@ -25,20 +26,21 @@ import { reconstructObservationSession } from "../src/observation-session.ts";
 import type { ObservationMemoRequestedEvent } from "../src/observation-profile.ts";
 import {
 	reconstructObserverPiState,
-	type PreparedWrapHandoff,
+	type PreparedSaveHandoff,
 } from "../src/pi-session.ts";
 import { parseObserveCommand } from "../src/observer-command.ts";
 import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
-import type { WrapRequestEvent } from "../src/wrap-trigger.ts";
+import type { SaveRequestEvent } from "../src/save-trigger.ts";
 import { observerSidecarParameters } from "./memo-tool-schema.ts";
 import {
 	observerTurnContext,
-	routeOneShotTool,
-	type ObserverOneShotIds,
+	routeMaterialReviewTool,
+	type ObserverMaterialReviewIds,
 	type ObserverTurnState,
-} from "./one-shot-runtime.ts";
+} from "./material-review-runtime.ts";
 import {
-	OBSERVER_ONE_SHOT_DRAFT,
+	OBSERVER_HYPOTHESIS_DRAFT,
+	OBSERVER_OBSERVE_MATERIAL_DRAFT,
 	ObserverWidget,
 	renderObserverChromeStatus,
 	shouldShowObserverWidget,
@@ -71,10 +73,10 @@ function systemIds(): ObserverControllerIds {
 	};
 }
 
-function systemOneShotIds(): ObserverOneShotIds {
+function systemMaterialReviewIds(): ObserverMaterialReviewIds {
 	return {
-		requestId(): `one-shot-${string}` {
-			return `one-shot-${randomUUID()}`;
+		requestId(): `material-review-${string}` {
+			return `material-review-${randomUUID()}`;
 		},
 	};
 }
@@ -102,10 +104,10 @@ function systemObservationIds(): ObservationControllerIds {
 		memoRequestId(): `memo-request-${string}` {
 			return `memo-request-${randomUUID()}`;
 		},
-		wrapRequestId(): `wrap-request-${string}` {
-			return `wrap-request-${randomUUID()}`;
+		saveRequestId(): `save-request-${string}` {
+			return `save-request-${randomUUID()}`;
 		},
-		wrapProposalId(): `proposal-${string}` {
+		saveProposalId(): `proposal-${string}` {
 			return `proposal-${randomUUID()}`;
 		},
 	};
@@ -190,6 +192,13 @@ export function observationToolText(
 				observation_id: result.hypothesis.observationId,
 				inquiry_id: result.hypothesis.inquiryId,
 			});
+		case "hypothesis-context-review":
+			return JSON.stringify({
+				ok: true,
+				message: result.message,
+				hypothesis_observation_id: result.review.hypothesisObservationId,
+				assessment: result.review.assessment,
+			});
 		case "memo-scope":
 			return JSON.stringify({
 				ok: true,
@@ -200,21 +209,21 @@ export function observationToolText(
 				memo_scope: result.context.memoScope,
 				memo_preparation: result.guide,
 			});
-		case "wrap-scope":
+		case "save-scope":
 			return JSON.stringify({
 				ok: true,
 				message: result.message,
 				next_action: {
-					action: "wrap-prepare",
+					action: "save-prepare",
 					request_id: result.context.request.requestId,
 					submit_only: ["request_id", "summary", "records"],
-					do_not_repeat: "wrap-scope",
+					do_not_repeat: "save-scope",
 				},
 				request_id: result.context.request.requestId,
 				request_digest: result.context.request.requestDigest,
-				wrap_preparation: result.guide,
+				save_preparation: result.guide,
 			});
-		case "wrap-prepare":
+		case "save-prepare":
 			return JSON.stringify({
 				ok: true,
 				message: result.message,
@@ -291,7 +300,7 @@ export async function completeMemoPreparation(
 	}
 }
 
-export type WrapPreparationCompletion =
+export type SavePreparationCompletion =
 	| {
 			readonly ok: true;
 			readonly status: "completed" | "cancelled" | "recovery-required";
@@ -300,38 +309,38 @@ export type WrapPreparationCompletion =
 	  }
 	| { readonly ok: false; readonly message: string };
 
-export interface WrapPreparationEffects {
-	install(value: PreparedWrapHandoff): Promise<boolean>;
+export interface SavePreparationEffects {
+	install(value: PreparedSaveHandoff): Promise<boolean>;
 	apply(): Promise<void>;
 	status(proposalId: string): "completed" | "cancelled" | "recovery-required";
 }
 
-function wrapCompletionMessage(
+function saveCompletionMessage(
 	status: "completed" | "cancelled" | "recovery-required",
 ): string {
 	switch (status) {
 		case "completed":
-			return "Wrap approval, local save, readback, and settlement를 확인했습니다.";
+			return "Approval, local save, readback, and Episode settlement are complete.";
 		case "cancelled":
-			return "Wrap proposal을 취소했습니다. Episode는 열린 상태로 유지됩니다.";
+			return "The save proposal was cancelled. The Episode remains open.";
 		case "recovery-required":
-			return "Wrap completion이 중단되었습니다. /observe wrap으로 복구할 수 있습니다.";
+			return "Review & Save was interrupted. Use /observe save to recover.";
 		default:
 			return assertNever(status);
 	}
 }
 
-export async function completeWrapPreparation(
-	handoff: PreparedWrapHandoff,
-	effects: WrapPreparationEffects,
-): Promise<WrapPreparationCompletion> {
+export async function completeSavePreparation(
+	handoff: PreparedSaveHandoff,
+	effects: SavePreparationEffects,
+): Promise<SavePreparationCompletion> {
 	const proposalId = handoff.prepared.proposal_id;
 	try {
 		const installed = await effects.install(handoff);
 		if (!installed)
 			return {
 				ok: false,
-				message: "Prepared Wrap proposal 설치에 실패했습니다.",
+				message: "Could not install the prepared save proposal.",
 			};
 		await effects.apply();
 		const status = effects.status(proposalId);
@@ -339,21 +348,21 @@ export async function completeWrapPreparation(
 			ok: true,
 			status,
 			proposalId,
-			message: wrapCompletionMessage(status),
+			message: saveCompletionMessage(status),
 		};
 	} catch (error) {
 		return {
 			ok: true,
 			status: "recovery-required",
 			proposalId,
-			message: `Wrap completion 중단: ${error instanceof Error ? error.message : String(error)}. /observe wrap으로 복구할 수 있습니다.`,
+			message: `Review & Save was interrupted: ${error instanceof Error ? error.message : String(error)}. Use /observe save to recover.`,
 		};
 	}
 }
 
-export function requireWrapPreparationSuccess(
-	completion: WrapPreparationCompletion,
-): Exclude<WrapPreparationCompletion, { readonly ok: false }> {
+export function requireSavePreparationSuccess(
+	completion: SavePreparationCompletion,
+): Exclude<SavePreparationCompletion, { readonly ok: false }> {
 	if (!completion.ok) throw new Error(completion.message);
 	return completion;
 }
@@ -384,19 +393,81 @@ export interface MemoCommandEffects {
 	notify(message: string, type: "info" | "warning" | "error"): void;
 }
 
-export interface WrapCommandEffects {
-	request(): Promise<WrapRequestControllerResult>;
-	delegate(): Promise<void>;
-	trigger(request: WrapRequestEvent): void;
+export interface HypothesisCommandEffects {
+	track(input: {
+		readonly original: string;
+		readonly userContext: string | null;
+	}): Promise<TrackUserHypothesisResult>;
+	triggerReview(
+		result: Extract<TrackUserHypothesisResult, { readonly ok: true }>,
+	): void;
 	notify(message: string, type: "info" | "warning" | "error"): void;
 }
 
-export async function routeWrapCommand(
+function hypothesisDraft(body: string): {
+	readonly original: string;
+	readonly userContext: string | null;
+} | null {
+	const contextMarker = /\nContext(?: \(optional\))?:\s*/iu.exec(body);
+	const hypothesisPart = contextMarker
+		? body.slice(0, contextMarker.index)
+		: body;
+	const original = hypothesisPart.replace(/^Hypothesis:\s*/iu, "").trim();
+	if (!original) return null;
+	const userContext = contextMarker
+		? body.slice((contextMarker.index ?? 0) + contextMarker[0].length).trim()
+		: "";
+	return { original, userContext: userContext || null };
+}
+
+export async function routeHypothesisCommand(
 	args: string,
-	effects: WrapCommandEffects,
+	effects: HypothesisCommandEffects,
+): Promise<boolean> {
+	const normalized = args.trim();
+	const boundary = normalized.search(/\s/u);
+	const action = boundary === -1 ? normalized : normalized.slice(0, boundary);
+	if (action !== "hypothesis") return false;
+	const draft = hypothesisDraft(
+		boundary === -1 ? "" : normalized.slice(boundary).trim(),
+	);
+	if (!draft) {
+		effects.notify(
+			"Add the hypothesis after the command: /observe hypothesis <text>",
+			"warning",
+		);
+		return true;
+	}
+	const result = await effects.track(draft);
+	if (!result.ok) effects.notify(result.message, "error");
+	else {
+		if (result.status === "resumed")
+			effects.notify("This hypothesis is already being tracked.", "info");
+		try {
+			if (result.reviewPending) effects.triggerReview(result);
+		} catch (error) {
+			effects.notify(
+				`The hypothesis is preserved, but its context review could not start: ${error instanceof Error ? error.message : String(error)}`,
+				"warning",
+			);
+		}
+	}
+	return true;
+}
+
+export interface SaveCommandEffects {
+	request(): Promise<SaveRequestControllerResult>;
+	delegate(): Promise<void>;
+	trigger(request: SaveRequestEvent): void;
+	notify(message: string, type: "info" | "warning" | "error"): void;
+}
+
+export async function routeSaveCommand(
+	args: string,
+	effects: SaveCommandEffects,
 ): Promise<boolean> {
 	const parsed = parseObserveCommand(args);
-	if (!parsed.ok || parsed.command.kind !== "wrap") return false;
+	if (!parsed.ok || parsed.command.kind !== "save") return false;
 	const requested = await effects.request();
 	if (!requested.ok) {
 		effects.notify(requested.message, "error");
@@ -407,7 +478,7 @@ export async function routeWrapCommand(
 		return true;
 	}
 	if (!requested.request) {
-		effects.notify("Wrap request identity를 확인할 수 없습니다.", "error");
+		effects.notify("Could not confirm the save request identity.", "error");
 		return true;
 	}
 	try {
@@ -415,7 +486,7 @@ export async function routeWrapCommand(
 		effects.notify(requested.message, "info");
 	} catch (error) {
 		effects.notify(
-			`Wrap request는 기록됐지만 agent trigger에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`,
+			`The save request was recorded, but the agent trigger failed: ${error instanceof Error ? error.message : String(error)}`,
 			"warning",
 		);
 	}
@@ -500,6 +571,49 @@ async function refreshObserverChrome(input: {
 
 async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 	const port = commandPort(input.pi, input.ctx);
+	const hypothesisHandled = await routeHypothesisCommand(input.args, {
+		async track(draft) {
+			const episode = await input.controller.ensureUserHypothesisEpisode(port);
+			if (!episode.ok) return episode;
+			return input.observation.trackUserHypothesis(
+				{
+					episode: episode.value,
+					original: draft.original,
+					context:
+						draft.userContext ?? "No user-provided context was supplied.",
+					capturedAt: new Date().toISOString(),
+					inputSource: input.ctx.mode === "rpc" ? "rpc" : "interactive",
+				},
+				port,
+			);
+		},
+		triggerReview(result) {
+			input.pi.sendMessage(
+				{
+					customType: "observer.hypothesis-context-review-trigger",
+					content: [
+						"A user hypothesis needs its initial current-context review.",
+						`hypothesis_observation_id=${result.hypothesis.observationId}`,
+						`hypothesis=${result.hypothesis.original}`,
+						`user_context=${result.hypothesis.context}`,
+						"Re-read the visible Pi context and current Observer working state through this hypothesis as a lens.",
+						"Preserve user-provided context separately from your interpretation.",
+						"Call observer_sidecar with action hypothesis-context-review. Record supporting clues, challenging clues, missing information, genuine Source IDs when available, and the interpretation boundary.",
+					].join("\n"),
+					display: false,
+					details: {
+						hypothesisObservationId: result.hypothesis.observationId,
+					},
+				},
+				{ deliverAs: "followUp", triggerTurn: true },
+			);
+		},
+		notify: input.ctx.ui.notify.bind(input.ctx.ui),
+	});
+	if (hypothesisHandled) {
+		await refreshObserverChrome(input);
+		return;
+	}
 	const memoHandled = await routeMemoCommand(input.args, {
 		request() {
 			return input.observation.requestMemo(port);
@@ -531,9 +645,9 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 		await refreshObserverChrome(input);
 		return;
 	}
-	const wrapHandled = await routeWrapCommand(input.args, {
+	const saveHandled = await routeSaveCommand(input.args, {
 		request() {
-			return input.observation.requestWrap(port);
+			return input.observation.requestSave(port);
 		},
 		delegate() {
 			return input.controller.command(input.args, port);
@@ -541,11 +655,11 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 		trigger(request) {
 			input.pi.sendMessage(
 				{
-					customType: "observer.wrap-trigger",
+					customType: "observer.save-trigger",
 					content: [
-						"Observer Wrap request is pending.",
+						"Observer Review & Save request is pending.",
 						`request_id=${request.requestId}`,
-						"Call observer_sidecar with action wrap-scope for this request.",
+						"Call observer_sidecar with action save-scope for this request.",
 					].join("\n"),
 					display: false,
 					details: {
@@ -558,25 +672,29 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 		},
 		notify: input.ctx.ui.notify.bind(input.ctx.ui),
 	});
-	if (!wrapHandled) await input.controller.command(input.args, port);
+	if (!saveHandled) await input.controller.command(input.args, port);
 	await refreshObserverChrome(input);
 }
 
-async function setOneShotDraft(ctx: ExtensionContext): Promise<boolean> {
+async function setObserverDraft(
+	ctx: ExtensionContext,
+	input: {
+		readonly label: string;
+		readonly draft: string;
+		readonly instruction: string;
+	},
+): Promise<boolean> {
 	const current = ctx.ui.getEditorText();
 	if (
 		current.trim() &&
 		!(await ctx.ui.confirm(
-			"Replace the editor with a One-shot draft?",
+			`Replace the editor with a ${input.label} draft?`,
 			"The editor already contains text. Replacing it will discard that text.",
 		))
 	)
 		return false;
-	ctx.ui.setEditorText(OBSERVER_ONE_SHOT_DRAFT);
-	ctx.ui.notify(
-		"Paste the material or question below the draft, then send it.",
-		"info",
-	);
+	ctx.ui.setEditorText(input.draft);
+	ctx.ui.notify(input.instruction, "info");
 	return true;
 }
 
@@ -662,11 +780,32 @@ async function showObserverControlFlow(
 				);
 				break;
 			case "memo":
-			case "wrap":
-				await runObserverCommand({ ...input, args: action.kind });
+				await runObserverCommand({ ...input, args: "memo" });
 				return;
-			case "one-shot":
-				if (await setOneShotDraft(input.ctx)) return;
+			case "review-save":
+				await runObserverCommand({ ...input, args: "save" });
+				return;
+			case "track-hypothesis":
+				if (
+					await setObserverDraft(input.ctx, {
+						label: "hypothesis",
+						draft: OBSERVER_HYPOTHESIS_DRAFT,
+						instruction:
+							"Write the hypothesis after the command. Optionally add `Context:` on a new line, then send it.",
+					})
+				)
+					return;
+				break;
+			case "observe-material":
+				if (
+					await setObserverDraft(input.ctx, {
+						label: "material observation",
+						draft: OBSERVER_OBSERVE_MATERIAL_DRAFT,
+						instruction:
+							"Paste the material or question below the draft, then send it.",
+					})
+				)
+					return;
 				break;
 			default:
 				assertNever(action);
@@ -691,7 +830,7 @@ async function handleObserveCommand(input: ObserveCommandInput): Promise<void> {
 	await runObserverCommand(input);
 }
 
-function wrapCompletionStatus(
+function saveCompletionStatus(
 	entries: Parameters<typeof reconstructObserverPiState>[0],
 	proposalId: string,
 ): "completed" | "cancelled" | "recovery-required" {
@@ -699,7 +838,7 @@ function wrapCompletionStatus(
 	if (snapshot.issues.length > 0) return "recovery-required";
 	if (
 		snapshot.state.episode.status === "settled" &&
-		snapshot.state.episode.committedWrap.proposalId === proposalId
+		snapshot.state.episode.committedSave.proposalId === proposalId
 	)
 		return "completed";
 	if (snapshot.state.episode.status === "open" && snapshot.prepared === null)
@@ -728,50 +867,50 @@ function registerObserverSidecarTool(input: {
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
 	readonly observation: ReturnType<typeof createObservationController>;
-	readonly oneShotIds: ObserverOneShotIds;
+	readonly materialReviewIds: ObserverMaterialReviewIds;
 	readonly turnState: ObserverTurnState;
 }): void {
 	input.pi.registerTool({
 		name: OBSERVER_TOOL_NAME,
 		label: "Observer Sidecar",
 		description:
-			"Start or finish an exact One-shot request, or stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement or a user hypothesis, then complete exact Memo or Wrap requests from their locked scope before prepare.",
+			"Start or finish an exact material review, review current context through a user hypothesis, or stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement, then complete exact Memo or save requests from their locked scope.",
 		promptSnippet:
-			"Use model-owned One-shot classification only with the exact hidden digest; otherwise stage source-first observations and complete exact pending Memo or Wrap requests.",
+			"Use model-owned material-review classification only with the exact hidden digest; complete pending hypothesis-context, Memo, and save reviews from their exact current scope.",
 		parameters: observerSidecarParameters,
 		executionMode: "sequential",
 		async execute(...execution) {
 			const [, params, , , ctx] = execution;
 			input.turnState.toolUsed = true;
 			const port = commandPort(input.pi, ctx);
-			const oneShot = await routeOneShotTool({
+			const materialReview = await routeMaterialReviewTool({
 				value: params,
 				capturedAt: new Date().toISOString(),
 				port,
 				lifecycle: input.controller,
 				observation: input.observation,
-				ids: input.oneShotIds,
+				ids: input.materialReviewIds,
 				turnState: input.turnState,
 			});
-			if (oneShot)
+			if (materialReview)
 				return {
-					content: [{ type: "text", text: oneShot.text }],
-					details: oneShot.result,
+					content: [{ type: "text", text: materialReview.text }],
+					details: materialReview.result,
 				};
 			const result = requireObservationToolSuccess(
 				await input.observation.execute(params, port),
 			);
-			if (result.action === "wrap-prepare") {
-				const completion = requireWrapPreparationSuccess(
-					await completeWrapPreparation(result.handoff, {
+			if (result.action === "save-prepare") {
+				const completion = requireSavePreparationSuccess(
+					await completeSavePreparation(result.handoff, {
 						install(value) {
 							return input.controller.installPrepared(value, port);
 						},
 						apply() {
-							return input.controller.command("wrap", port);
+							return input.controller.command("save", port);
 						},
 						status(proposalId) {
-							return wrapCompletionStatus(
+							return saveCompletionStatus(
 								ctx.sessionManager.getBranch(),
 								proposalId,
 							);
@@ -950,13 +1089,13 @@ export default function observerExtension(pi: ExtensionAPI): void {
 		pi,
 		controller,
 		observation,
-		oneShotIds: systemOneShotIds(),
+		materialReviewIds: systemMaterialReviewIds(),
 		turnState,
 	});
 
 	pi.registerCommand("observe", {
 		description:
-			"Configure Observer and control status, on/off, Memo, and Wrap lifecycle",
+			"Configure Observer, track hypotheses, observe material, reconcile Memo, and review or save Notebook changes",
 		getArgumentCompletions: completeObserveArgs,
 		handler(args, ctx) {
 			return handleObserveCommand({ args, ctx, pi, controller, observation });

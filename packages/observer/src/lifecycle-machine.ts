@@ -16,7 +16,7 @@ export interface ObserverMachineEvent {
 export type ObserverMachineTag =
 	| "episode-open"
 	| "observer-on"
-	| "reviewing-wrap"
+	| "reviewing-save"
 	| "settled";
 
 function machineEvent(event: ObserverEvent): ObserverMachineEvent {
@@ -76,8 +76,8 @@ export const observerMachine = machineSetup.createMachine({
 						},
 						{
 							guard: ({ context }) =>
-								context.episode.status === "reviewing-wrap",
-							target: "reviewing-wrap",
+								context.episode.status === "reviewing-save",
+							target: "reviewing-save",
 						},
 						{
 							guard: ({ context }) => context.episode.status === "settled",
@@ -94,8 +94,8 @@ export const observerMachine = machineSetup.createMachine({
 						},
 						{
 							guard: ({ context }) =>
-								context.episode.status === "reviewing-wrap",
-							target: "reviewing-wrap",
+								context.episode.status === "reviewing-save",
+							target: "reviewing-save",
 						},
 						{
 							guard: ({ context }) => context.episode.status === "settled",
@@ -103,8 +103,8 @@ export const observerMachine = machineSetup.createMachine({
 						},
 					],
 				},
-				"reviewing-wrap": {
-					tags: "reviewing-wrap",
+				"reviewing-save": {
+					tags: "reviewing-save",
 					always: [
 						{
 							guard: ({ context }) => context.episode.status === "empty",
@@ -133,8 +133,8 @@ export const observerMachine = machineSetup.createMachine({
 						},
 						{
 							guard: ({ context }) =>
-								context.episode.status === "reviewing-wrap",
-							target: "reviewing-wrap",
+								context.episode.status === "reviewing-save",
+							target: "reviewing-save",
 						},
 					],
 				},

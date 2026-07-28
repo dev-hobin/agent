@@ -6,7 +6,8 @@ import { type Component, visibleWidth } from "@earendil-works/pi-tui";
 
 import { observerCommandPresentation } from "../extensions/observer.ts";
 import {
-	OBSERVER_ONE_SHOT_DRAFT,
+	OBSERVER_HYPOTHESIS_DRAFT,
+	OBSERVER_OBSERVE_MATERIAL_DRAFT,
 	ObserverStatusPanel,
 	ObserverWidget,
 	observerControlItems,
@@ -47,7 +48,7 @@ function statusView(
 			notebook: "unselected",
 			canChangeNotebook: true,
 			canMemo: false,
-			canWrap: false,
+			canSave: false,
 		},
 		mode: "Off",
 		episode: "Empty",
@@ -56,9 +57,10 @@ function statusView(
 		notebookHealth: "Setup required",
 		replayHealth: "Healthy",
 		sessionPersistence: "Persistent session",
-		preparedWrap: "None",
+		preparedSave: "None",
 		preparedMemo: "None",
 		pendingMemos: "Not counted yet",
+		pendingHypothesisReviews: 0,
 		openInquiries: "Not counted yet",
 		zettelCandidates: "Not counted yet",
 		...overrides,
@@ -75,7 +77,7 @@ function openView(mode: "on" | "off" = "on"): ObserverStatusView {
 			notebookDefaultLanguage: "ko",
 			canChangeNotebook: false,
 			canMemo: true,
-			canWrap: true,
+			canSave: true,
 		},
 		mode: mode === "on" ? "On" : "Off",
 		episode: "Open",
@@ -113,7 +115,15 @@ test("control items progressively disclose only legal work", () => {
 	const activeItems = observerControlItems(openView());
 	assert.deepEqual(
 		activeItems.map((item) => item.id),
-		["activation", "memo", "wrap", "notebook-status", "language", "status"],
+		[
+			"activation",
+			"track-hypothesis",
+			"memo",
+			"review-save",
+			"notebook-status",
+			"language",
+			"status",
+		],
 	);
 	assert.equal(
 		activeItems.find((item) => item.id === "language")?.currentValue,
@@ -121,12 +131,86 @@ test("control items progressively disclose only legal work", () => {
 	);
 	assert.match(observerNextStep(openView()), /Keep working normally/u);
 	assert.equal(
-		observerControlItems(openView("off")).some(
-			(item) => item.id === "one-shot",
-		),
-		true,
+		activeItems.find((item) => item.id === "track-hypothesis")?.label,
+		"Track a hypothesis",
 	);
-	assert.match(OBSERVER_ONE_SHOT_DRAFT, /Observe this material once/u);
+	assert.equal(
+		activeItems.find((item) => item.id === "review-save")?.label,
+		"Review & Save",
+	);
+	const offItems = observerControlItems(openView("off"));
+	assert.equal(
+		offItems.find((item) => item.id === "observe-material")?.label,
+		"Observe material",
+	);
+	assert.equal(
+		offItems.some((item) => item.id === "material-review"),
+		false,
+	);
+	assert.equal(OBSERVER_HYPOTHESIS_DRAFT, "/observe hypothesis ");
+	assert.match(OBSERVER_OBSERVE_MATERIAL_DRAFT, /Observe this material/u);
+
+	const reviewingBase = openView("off");
+	const reviewing: ObserverStatusView = {
+		...reviewingBase,
+		episode: "Save review",
+		control: {
+			...reviewingBase.control,
+			episode: "reviewing-save",
+			canMemo: false,
+		},
+	};
+	const reviewingItems = observerControlItems(reviewing);
+	assert.equal(
+		reviewingItems.some(
+			(item) =>
+				item.id === "track-hypothesis" || item.id === "observe-material",
+		),
+		false,
+	);
+	assert.equal(
+		reviewingItems.find((item) => item.id === "review-save")?.currentValue,
+		"Review proposal",
+	);
+
+	const pendingReview: ObserverStatusView = {
+		...openView("off"),
+		pendingHypothesisReviews: 1,
+		control: { ...openView("off").control, canMemo: false },
+	};
+	assert.equal(
+		observerControlItems(pendingReview).some((item) => item.id === "memo"),
+		false,
+	);
+	assert.match(observerNextStep(pendingReview), /tracked hypothesis/u);
+});
+
+test("control surface keeps hypothesis tracking distinct from material review", async () => {
+	async function choose(row: number): Promise<unknown> {
+		const ctx = {
+			ui: {
+				async custom(factory: TestComponentFactory) {
+					let selected: unknown;
+					const component = await factory(
+						{ requestRender() {} },
+						theme,
+						{},
+						(value) => {
+							selected = value;
+						},
+					);
+					for (let index = 0; index < row; index += 1)
+						component.handleInput("\u001b[B");
+					component.handleInput("\r");
+					return selected;
+				},
+			},
+		};
+		return showObserverControl(ctx as never, openView("off"));
+	}
+
+	assert.deepEqual(await choose(1), { kind: "track-hypothesis" });
+	assert.deepEqual(await choose(6), { kind: "observe-material" });
 });
 
 test("control surface dispatches Notebook setup from the first row", async () => {
@@ -178,7 +262,7 @@ test("activation and language update in place without closing the control surfac
 				afterActivation = component.render(90).join("\n");
 				assert.equal(doneCalls, 0);
 
-				for (let index = 0; index < 4; index += 1)
+				for (let index = 0; index < 5; index += 1)
 					component.handleInput("\u001b[B");
 				component.handleInput("\r");
 				languageChoices = component.render(90).join("\n");
@@ -260,7 +344,7 @@ test("control surface returns a canonical activation action", async () => {
 	assert.match(rendered, /◆ Observer/);
 	assert.match(rendered, /Notebook\s+Setup required/);
 	assert.match(rendered, /Observer\s+Off/);
-	assert.doesNotMatch(rendered, /One-shot/);
+	assert.doesNotMatch(rendered, /Track a hypothesis|Observe material/);
 	assert.ok(rendered.split("\n").every((line) => visibleWidth(line) <= 78));
 });
 
@@ -309,5 +393,10 @@ test("footer and widget expose only action-relevant ambient state", () => {
 	assert.match(
 		new ObserverWidget(paused, theme).render(52).join("\n"),
 		/paused/,
+	);
+	const pendingReview = { ...paused, pendingHypothesisReviews: 1 };
+	assert.match(
+		new ObserverWidget(pendingReview, theme).render(62).join("\n"),
+		/hypothesis context review pending/u,
 	);
 });

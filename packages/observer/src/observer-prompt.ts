@@ -1,6 +1,6 @@
 import { reconstructObservationSession } from "./observation-session.ts";
 import type { PiBranchEntryLike } from "./pi-session.ts";
-import { reconstructWrapRequestSession } from "./wrap-trigger.ts";
+import { reconstructSaveRequestSession } from "./save-trigger.ts";
 
 const MAX_CONTEXT_CANDIDATES = 20;
 const MAX_EXCERPT = 500;
@@ -19,8 +19,8 @@ export function observerSidecarContext(
 	) {
 		return null;
 	}
-	const wrapSession = reconstructWrapRequestSession(entries);
-	if (wrapSession.issues.length > 0) return null;
+	const saveSession = reconstructSaveRequestSession(entries);
+	if (saveSession.issues.length > 0) return null;
 	const pendingMemo = session.pendingMemoRequest;
 	const memoContext = pendingMemo
 		? [
@@ -35,22 +35,40 @@ export function observerSidecarContext(
 				"</observer-memo-request>",
 			].join("\n")
 		: null;
-	const pendingWrap = wrapSession.pendingRequest;
-	const wrapContext = pendingWrap
+	const pendingSave = saveSession.pendingRequest;
+	const saveContext = pendingSave
 		? [
-				"<observer-wrap-request>",
-				`request_id=${pendingWrap.requestId}`,
-				"Call observer_sidecar action wrap-scope with this exact request ID exactly once unless it returns an error.",
-				"The successful wrap-scope result is read-only and returns next_action=wrap-prepare plus required records and the producer-owned locked target.",
-				"After a successful scope, do not call wrap-scope again. Follow next_action and submit only request_id, summary, and records.",
+				"<observer-save-request>",
+				`request_id=${pendingSave.requestId}`,
+				"Call observer_sidecar action save-scope with this exact request ID exactly once unless it returns an error.",
+				"The successful save-scope result is read-only and returns next_action=save-prepare plus required records and the producer-owned locked target.",
+				"After a successful scope, do not call save-scope again. Follow next_action and submit only request_id, summary, and records.",
 				"Do not invent or resend notebook root, notebook ID, episode language, proposal ID, or request digest.",
-				"Only the wrap-prepare completion may claim cancellation, save, or settlement.",
-				"</observer-wrap-request>",
+				"Only the save-prepare completion may claim cancellation, save, or settlement.",
+				"</observer-save-request>",
 			].join("\n")
 		: null;
-	const requestContexts = [memoContext, wrapContext].filter(
-		(value): value is string => value !== null,
-	);
+	const hypothesisReviewContext =
+		session.pendingHypothesisReviews.length > 0
+			? [
+					"<observer-hypothesis-context-review>",
+					...session.pendingHypothesisReviews.flatMap((hypothesis) => [
+						`hypothesis_observation_id=${hypothesis.observationId}`,
+						`hypothesis=${JSON.stringify(hypothesis.original)}`,
+						`user_context=${JSON.stringify(hypothesis.context)}`,
+					]),
+					"Re-read the visible Pi context and current Observer working state through each hypothesis as a lens.",
+					"Keep user-provided context separate from Observer interpretation.",
+					"Call observer_sidecar action hypothesis-context-review once per hypothesis. Include supporting clues, challenging clues, missing information, genuine Source IDs when available, and an explicit interpretation boundary.",
+					"Insufficient context is a valid assessment and never removes the hypothesis.",
+					"</observer-hypothesis-context-review>",
+				].join("\n")
+			: null;
+	const requestContexts = [
+		memoContext,
+		saveContext,
+		hypothesisReviewContext,
+	].filter((value): value is string => value !== null);
 	if (session.lifecycle.mode !== "on")
 		return requestContexts.length > 0 ? requestContexts.join("\n\n") : null;
 	const usedCandidateIds = new Set(
@@ -91,7 +109,8 @@ export function observerSidecarContext(
 		"2. Call source-read with completed candidate IDs and faithful Source facts/claims; it then returns only the compact StandingIndex.",
 		"3. If related IDs are plausible, call hydrate for only those IDs; it returns selected full context.",
 		"4. Call record with explicit stance, movement, rationale, and matching hydration, or user-hypothesis for an explicit user proposal.",
-		"5. User hypotheses are not evidence for their own truth. Do not observe Observer tool/control output.",
+		"5. After user-hypothesis succeeds, use its returned observation_id to call hypothesis-context-review after re-reading the visible context through that hypothesis as a lens.",
+		"6. User hypotheses are not evidence for their own truth. Preserve user context separately from Observer interpretation. Do not observe Observer tool/control output.",
 		"Minor/support/uncertain observations stay quiet. The tool itself alerts only after a Major event is appended.",
 		"",
 		`Pending candidates (${pendingCandidates.length}):`,

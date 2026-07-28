@@ -6,9 +6,9 @@ import {
 	type SourceId,
 } from "./memo-profile.ts";
 import {
-	decodeOneShotRequestId,
-	type OneShotRequestId,
-} from "./one-shot-trigger.ts";
+	decodeMaterialReviewRequestId,
+	type MaterialReviewRequestId,
+} from "./material-review-trigger.ts";
 
 export const OBSERVER_OBSERVATION_PROTOCOL: "observer-observation/v1" =
 	"observer-observation/v1";
@@ -29,6 +29,10 @@ export type MemoRequestId = `memo-request-${string}`;
 
 export type CandidateOrigin =
 	| { readonly kind: "user-input"; readonly inputSource: "interactive" | "rpc" }
+	| {
+			readonly kind: "explicit-user-hypothesis";
+			readonly inputSource: "interactive" | "rpc";
+	  }
 	| {
 			readonly kind: "tool-result";
 			readonly toolCallId: string;
@@ -99,7 +103,7 @@ export interface CandidateCapturedEvent extends ObservationEventBase {
 	readonly text: string;
 	readonly contentHash: string;
 	readonly capturedAt: string;
-	readonly oneShotRequestId?: OneShotRequestId;
+	readonly materialReviewRequestId?: MaterialReviewRequestId;
 }
 
 export interface SourceReadRecordedEvent extends ObservationEventBase {
@@ -112,7 +116,7 @@ export interface SourceReadRecordedEvent extends ObservationEventBase {
 	readonly candidateDigest: string;
 	readonly indexDigest: string;
 	readonly indexInquiryIds: readonly InquiryId[];
-	readonly oneShotRequestId?: OneShotRequestId;
+	readonly materialReviewRequestId?: MaterialReviewRequestId;
 }
 
 export interface InquiryHydratedEvent extends ObservationEventBase {
@@ -149,6 +153,23 @@ export interface UserHypothesisRecordedEvent extends ObservationEventBase {
 	readonly inquiryId: InquiryId;
 	readonly original: string;
 	readonly context: string;
+}
+
+export type HypothesisReviewAssessment =
+	| "supports"
+	| "challenges"
+	| "mixed"
+	| "insufficient-context";
+
+export interface HypothesisContextReviewedEvent extends ObservationEventBase {
+	readonly kind: "hypothesis-context-reviewed";
+	readonly hypothesisObservationId: ObservationId;
+	readonly assessment: HypothesisReviewAssessment;
+	readonly supportingClues: readonly string[];
+	readonly challengingClues: readonly string[];
+	readonly missingInformation: readonly string[];
+	readonly sourceIds: readonly SourceId[];
+	readonly interpretationBoundary: string;
 }
 
 export interface ObservationMemoRequestedEvent extends ObservationEventBase {
@@ -191,6 +212,7 @@ export type ObservationEvent =
 	| InquiryHydratedEvent
 	| SemanticObservationRecordedEvent
 	| UserHypothesisRecordedEvent
+	| HypothesisContextReviewedEvent
 	| ObservationMemoRequestedEvent;
 
 export type ObservationProfileIssueCode =
@@ -320,10 +342,13 @@ function parseIds<Id extends string>(
 
 function parseCandidateOrigin(value: unknown): CandidateOrigin | null {
 	if (!isObject(value) || typeof value.kind !== "string") return null;
-	if (value.kind === "user-input") {
+	if (
+		value.kind === "user-input" ||
+		value.kind === "explicit-user-hypothesis"
+	) {
 		return hasExactKeys(value, ["kind", "input_source"]) &&
 			(value.input_source === "interactive" || value.input_source === "rpc")
-			? { kind: "user-input", inputSource: value.input_source }
+			? { kind: value.kind, inputSource: value.input_source }
 			: null;
 	}
 	if (value.kind === "tool-result") {
@@ -617,6 +642,26 @@ function finishUserHypothesis(
 	};
 }
 
+function finishHypothesisContextReview(
+	value: Omit<
+		HypothesisContextReviewedEvent,
+		typeof OBSERVATION_EVENT_MARKER | "digest"
+	>,
+): EventResult<HypothesisContextReviewedEvent> {
+	const temporary: HypothesisContextReviewedEvent = {
+		...value,
+		digest: "",
+		[OBSERVATION_EVENT_MARKER]: true,
+	};
+	return {
+		ok: true,
+		value: {
+			...temporary,
+			digest: sha256Text(JSON.stringify(eventPayload(temporary))),
+		},
+	};
+}
+
 function finishMemoRequest(
 	value: Omit<
 		ObservationMemoRequestedEvent,
@@ -637,15 +682,15 @@ function finishMemoRequest(
 	};
 }
 
-type ParsedOneShotLink =
+type ParsedMaterialReviewLink =
 	| { readonly kind: "unlinked" }
-	| { readonly kind: "linked"; readonly requestId: OneShotRequestId };
+	| { readonly kind: "linked"; readonly requestId: MaterialReviewRequestId };
 
-function parseOptionalOneShotLink(
+function parseOptionalMaterialReviewLink(
 	value: Readonly<Record<string, unknown>>,
-): ParsedOneShotLink | null {
+): ParsedMaterialReviewLink | null {
 	if (!("one_shot_request_id" in value)) return { kind: "unlinked" };
-	const requestId = decodeOneShotRequestId(value.one_shot_request_id);
+	const requestId = decodeMaterialReviewRequestId(value.one_shot_request_id);
 	return requestId ? { kind: "linked", requestId } : null;
 }
 
@@ -660,12 +705,12 @@ function parseCandidate(
 		"content_hash",
 		"captured_at",
 	];
-	const oneShotLinked = "one_shot_request_id" in value;
+	const materialReviewLinked = "one_shot_request_id" in value;
 	if (
 		!hasExactKeys(
 			value,
 			baseKeys(
-				oneShotLinked
+				materialReviewLinked
 					? [...candidateKeys, "one_shot_request_id"]
 					: candidateKeys,
 				persisted,
@@ -682,15 +727,15 @@ function parseCandidate(
 	const episodeId = boundedText(value.episode_id, 300);
 	const origin = parseCandidateOrigin(value.origin);
 	const text = boundedText(value.text);
-	const oneShotRequestId = oneShotLinked
-		? decodeOneShotRequestId(value.one_shot_request_id)
+	const materialReviewRequestId = materialReviewLinked
+		? decodeMaterialReviewRequestId(value.one_shot_request_id)
 		: null;
 	if (
 		!candidateId ||
 		!episodeId ||
 		!origin ||
 		!text ||
-		(oneShotLinked && !oneShotRequestId) ||
+		(materialReviewLinked && !materialReviewRequestId) ||
 		!isSha256(value.content_hash) ||
 		value.content_hash !== sha256Text(text) ||
 		!isTimestamp(value.captured_at)
@@ -710,7 +755,7 @@ function parseCandidate(
 		text,
 		contentHash: value.content_hash,
 		capturedAt: value.captured_at,
-		...(oneShotRequestId ? { oneShotRequestId } : {}),
+		...(materialReviewRequestId ? { materialReviewRequestId } : {}),
 	});
 }
 
@@ -728,13 +773,13 @@ function parseSourceRead(
 		"index_digest",
 		"index_inquiry_ids",
 	];
-	const oneShotLink = parseOptionalOneShotLink(value);
+	const materialReviewLink = parseOptionalMaterialReviewLink(value);
 	if (
-		!oneShotLink ||
+		!materialReviewLink ||
 		!hasExactKeys(
 			value,
 			baseKeys(
-				oneShotLink.kind === "linked"
+				materialReviewLink.kind === "linked"
 					? [...sourceReadKeys, "one_shot_request_id"]
 					: sourceReadKeys,
 				persisted,
@@ -789,8 +834,8 @@ function parseSourceRead(
 		candidateDigest: value.candidate_digest,
 		indexDigest: value.index_digest,
 		indexInquiryIds,
-		...(oneShotLink.kind === "linked"
-			? { oneShotRequestId: oneShotLink.requestId }
+		...(materialReviewLink.kind === "linked"
+			? { materialReviewRequestId: materialReviewLink.requestId }
 			: {}),
 	});
 }
@@ -980,6 +1025,90 @@ function parseUserHypothesis(
 	});
 }
 
+function parseTextItems(value: unknown): readonly string[] | null {
+	if (!Array.isArray(value) || value.length > MAX_ITEMS) return null;
+	const items = value.map((item) => boundedText(item));
+	return items.every((item): item is string => item !== null) ? items : null;
+}
+
+function isHypothesisReviewAssessment(
+	value: unknown,
+): value is HypothesisReviewAssessment {
+	return (
+		value === "supports" ||
+		value === "challenges" ||
+		value === "mixed" ||
+		value === "insufficient-context"
+	);
+}
+
+function parseHypothesisContextReview(
+	value: Readonly<Record<string, unknown>>,
+	persisted: boolean,
+): EventResult<HypothesisContextReviewedEvent> {
+	if (
+		!hasExactKeys(
+			value,
+			baseKeys(
+				[
+					"hypothesis_observation_id",
+					"assessment",
+					"supporting_clues",
+					"challenging_clues",
+					"missing_information",
+					"source_ids",
+					"interpretation_boundary",
+				],
+				persisted,
+			),
+		)
+	)
+		return failure(
+			"observation-profile.shape",
+			"/",
+			"Hypothesis context review has invalid fields.",
+		);
+	const episodeId = boundedText(value.episode_id, 300);
+	const hypothesisObservationId = decodeObservationId(
+		value.hypothesis_observation_id,
+	);
+	const supportingClues = parseTextItems(value.supporting_clues);
+	const challengingClues = parseTextItems(value.challenging_clues);
+	const missingInformation = parseTextItems(value.missing_information);
+	const sourceIds = parseIds(value.source_ids, decodeSourceId, {
+		nonempty: false,
+		sort: true,
+	});
+	const interpretationBoundary = boundedText(value.interpretation_boundary);
+	if (
+		!episodeId ||
+		!hypothesisObservationId ||
+		!isHypothesisReviewAssessment(value.assessment) ||
+		!supportingClues ||
+		!challengingClues ||
+		!missingInformation ||
+		!sourceIds ||
+		!interpretationBoundary
+	)
+		return failure(
+			"observation-profile.shape",
+			"/",
+			"Hypothesis context review has invalid values.",
+		);
+	return finishHypothesisContextReview({
+		protocol: OBSERVER_OBSERVATION_PROTOCOL,
+		kind: "hypothesis-context-reviewed",
+		episodeId,
+		hypothesisObservationId,
+		assessment: value.assessment,
+		supportingClues,
+		challengingClues,
+		missingInformation,
+		sourceIds,
+		interpretationBoundary,
+	});
+}
+
 function parseMemoRequest(
 	value: Readonly<Record<string, unknown>>,
 	persisted: boolean,
@@ -1074,6 +1203,9 @@ function parseEvent(
 		case "user-hypothesis-recorded":
 			parsed = parseUserHypothesis(value, persisted);
 			break;
+		case "hypothesis-context-reviewed":
+			parsed = parseHypothesisContextReview(value, persisted);
+			break;
 		case "memo-requested":
 			parsed = parseMemoRequest(value, persisted);
 			break;
@@ -1098,6 +1230,7 @@ function parseEvent(
 function encodeOrigin(origin: CandidateOrigin): unknown {
 	switch (origin.kind) {
 		case "user-input":
+		case "explicit-user-hypothesis":
 			return { kind: origin.kind, input_source: origin.inputSource };
 		case "tool-result":
 			return {
@@ -1154,8 +1287,8 @@ function eventPayload(event: ObservationEvent): Record<string, unknown> {
 				text: event.text,
 				content_hash: event.contentHash,
 				captured_at: event.capturedAt,
-				...(event.oneShotRequestId
-					? { one_shot_request_id: event.oneShotRequestId }
+				...(event.materialReviewRequestId
+					? { one_shot_request_id: event.materialReviewRequestId }
 					: {}),
 			};
 		case "source-read-recorded":
@@ -1174,8 +1307,8 @@ function eventPayload(event: ObservationEvent): Record<string, unknown> {
 				candidate_digest: event.candidateDigest,
 				index_digest: event.indexDigest,
 				index_inquiry_ids: event.indexInquiryIds,
-				...(event.oneShotRequestId
-					? { one_shot_request_id: event.oneShotRequestId }
+				...(event.materialReviewRequestId
+					? { one_shot_request_id: event.materialReviewRequestId }
 					: {}),
 			};
 		case "inquiry-hydrated":
@@ -1218,6 +1351,19 @@ function eventPayload(event: ObservationEvent): Record<string, unknown> {
 				inquiry_id: event.inquiryId,
 				original: event.original,
 				context: event.context,
+			};
+		case "hypothesis-context-reviewed":
+			return {
+				observer_observation: event.protocol,
+				kind: event.kind,
+				episode_id: event.episodeId,
+				hypothesis_observation_id: event.hypothesisObservationId,
+				assessment: event.assessment,
+				supporting_clues: event.supportingClues,
+				challenging_clues: event.challengingClues,
+				missing_information: event.missingInformation,
+				source_ids: event.sourceIds,
+				interpretation_boundary: event.interpretationBoundary,
 			};
 		case "memo-requested":
 			return {

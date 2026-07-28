@@ -4,11 +4,11 @@ import { isSha256 } from "./content-hash.ts";
 import type { EpisodeLanguage } from "./lifecycle.ts";
 import { decodeNotebookId, type NotebookId } from "./notebook.ts";
 
-export const OBSERVER_WRAP_SCHEMA: "observer-wrap/v1" = "observer-wrap/v1";
-export const OBSERVER_WRAP_APPROVAL_SCHEMA: "observer-wrap-approval/v1" =
-	"observer-wrap-approval/v1";
-export const OBSERVER_WRAP_RECEIPT_SCHEMA: "observer-wrap-receipt/v1" =
-	"observer-wrap-receipt/v1";
+export const OBSERVER_SAVE_SCHEMA: "observer-save/v1" = "observer-save/v1";
+export const OBSERVER_SAVE_APPROVAL_SCHEMA: "observer-save-approval/v1" =
+	"observer-save-approval/v1";
+export const OBSERVER_SAVE_RECEIPT_SCHEMA: "observer-save-receipt/v1" =
+	"observer-save-receipt/v1";
 
 const MAX_ID_LENGTH = 200;
 
@@ -27,8 +27,8 @@ export interface PreparedUpdateRecord {
 
 export type PreparedRecord = PreparedCreateRecord | PreparedUpdateRecord;
 
-export interface PreparedWrap {
-	readonly observer_wrap: typeof OBSERVER_WRAP_SCHEMA;
+export interface PreparedSave {
+	readonly observer_save: typeof OBSERVER_SAVE_SCHEMA;
 	readonly proposal_id: string;
 	readonly notebook_id: NotebookId;
 	readonly root: string;
@@ -36,8 +36,8 @@ export interface PreparedWrap {
 	readonly records: readonly PreparedRecord[];
 }
 
-export interface WrapApproval {
-	readonly observer_approval: typeof OBSERVER_WRAP_APPROVAL_SCHEMA;
+export interface SaveApproval {
+	readonly observer_approval: typeof OBSERVER_SAVE_APPROVAL_SCHEMA;
 	readonly proposal_id: string;
 	readonly approved: boolean;
 }
@@ -49,28 +49,28 @@ export interface SavedRecordReceipt {
 	readonly sha256: string;
 }
 
-export interface WrapReceipt {
-	readonly observer_receipt: typeof OBSERVER_WRAP_RECEIPT_SCHEMA;
+export interface SaveReceipt {
+	readonly observer_receipt: typeof OBSERVER_SAVE_RECEIPT_SCHEMA;
 	readonly receipt_id: `receipt-${string}`;
 	readonly proposal_id: string;
 	readonly notebook_id: NotebookId;
 	readonly records: readonly SavedRecordReceipt[];
 }
 
-export type WrapProfileIssueCode =
-	| "wrap-profile.object"
-	| "wrap-profile.shape"
-	| "wrap-profile.unsupported";
+export type SaveProfileIssueCode =
+	| "save-profile.object"
+	| "save-profile.shape"
+	| "save-profile.unsupported";
 
-export interface WrapProfileIssue {
-	readonly code: WrapProfileIssueCode;
+export interface SaveProfileIssue {
+	readonly code: SaveProfileIssueCode;
 	readonly path: string;
 	readonly message: string;
 }
 
-export type WrapProfileResult<Value> =
+export type SaveProfileResult<Value> =
 	| { readonly ok: true; readonly value: Value }
-	| { readonly ok: false; readonly issue: WrapProfileIssue };
+	| { readonly ok: false; readonly issue: SaveProfileIssue };
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -97,21 +97,21 @@ function isBoundedId(value: unknown): value is string {
 }
 
 function profileFailure<Value>(
-	code: WrapProfileIssueCode,
+	code: SaveProfileIssueCode,
 	path: string,
 	message: string,
-): WrapProfileResult<Value> {
+): SaveProfileResult<Value> {
 	return { ok: false, issue: { code, path, message } };
 }
 
 function decodePreparedRecord(
 	value: unknown,
 	index: number,
-): WrapProfileResult<PreparedRecord> {
+): SaveProfileResult<PreparedRecord> {
 	const path = `/records/${index}`;
 	if (!isObject(value)) {
 		return profileFailure(
-			"wrap-profile.object",
+			"save-profile.object",
 			path,
 			"Prepared record must be an object.",
 		);
@@ -124,7 +124,7 @@ function decodePreparedRecord(
 			value.markdown.length === 0
 		) {
 			return profileFailure(
-				"wrap-profile.shape",
+				"save-profile.shape",
 				path,
 				"Create record requires record_id and non-empty Markdown.",
 			);
@@ -152,7 +152,7 @@ function decodePreparedRecord(
 			value.markdown.length === 0
 		) {
 			return profileFailure(
-				"wrap-profile.shape",
+				"save-profile.shape",
 				path,
 				"Update record requires ID, exact SHA-256, and non-empty Markdown.",
 			);
@@ -168,35 +168,35 @@ function decodePreparedRecord(
 		};
 	}
 	return profileFailure(
-		"wrap-profile.shape",
+		"save-profile.shape",
 		`${path}/operation`,
 		"Prepared record operation must be create or update.",
 	);
 }
 
-export function decodePreparedWrap(
+export function decodePreparedSave(
 	value: unknown,
-): WrapProfileResult<PreparedWrap> {
+): SaveProfileResult<PreparedSave> {
 	if (!isObject(value)) {
 		return profileFailure(
-			"wrap-profile.object",
+			"save-profile.object",
 			"/",
-			"Prepared wrap must be an object.",
+			"Prepared save must be an object.",
 		);
 	}
-	if (value.observer_wrap !== OBSERVER_WRAP_SCHEMA) {
+	if (value.observer_save !== OBSERVER_SAVE_SCHEMA) {
 		return profileFailure(
-			typeof value.observer_wrap === "string"
-				? "wrap-profile.unsupported"
-				: "wrap-profile.shape",
-			"/observer_wrap",
-			"Prepared wrap has an unsupported schema.",
+			typeof value.observer_save === "string"
+				? "save-profile.unsupported"
+				: "save-profile.shape",
+			"/observer_save",
+			"Prepared save has an unsupported schema.",
 		);
 	}
 	const notebookId = decodeNotebookId(value.notebook_id);
 	if (
 		!hasExactKeys(value, [
-			"observer_wrap",
+			"observer_save",
 			"proposal_id",
 			"notebook_id",
 			"root",
@@ -211,9 +211,9 @@ export function decodePreparedWrap(
 		!Array.isArray(value.records)
 	) {
 		return profileFailure(
-			"wrap-profile.shape",
+			"save-profile.shape",
 			"/",
-			"Prepared wrap has an invalid v1 shape.",
+			"Prepared save has an invalid v1 shape.",
 		);
 	}
 	const records: PreparedRecord[] = [];
@@ -225,7 +225,7 @@ export function decodePreparedWrap(
 	return {
 		ok: true,
 		value: {
-			observer_wrap: OBSERVER_WRAP_SCHEMA,
+			observer_save: OBSERVER_SAVE_SCHEMA,
 			proposal_id: value.proposal_id,
 			notebook_id: notebookId,
 			root: value.root,
@@ -235,23 +235,23 @@ export function decodePreparedWrap(
 	};
 }
 
-export function decodeWrapApproval(
+export function decodeSaveApproval(
 	value: unknown,
-): WrapProfileResult<WrapApproval> {
+): SaveProfileResult<SaveApproval> {
 	if (!isObject(value)) {
 		return profileFailure(
-			"wrap-profile.object",
+			"save-profile.object",
 			"/",
-			"Wrap approval must be an object.",
+			"Review & Save approval must be an object.",
 		);
 	}
-	if (value.observer_approval !== OBSERVER_WRAP_APPROVAL_SCHEMA) {
+	if (value.observer_approval !== OBSERVER_SAVE_APPROVAL_SCHEMA) {
 		return profileFailure(
 			typeof value.observer_approval === "string"
-				? "wrap-profile.unsupported"
-				: "wrap-profile.shape",
+				? "save-profile.unsupported"
+				: "save-profile.shape",
 			"/observer_approval",
-			"Wrap approval has an unsupported schema.",
+			"Review & Save approval has an unsupported schema.",
 		);
 	}
 	if (
@@ -264,15 +264,15 @@ export function decodeWrapApproval(
 		typeof value.approved !== "boolean"
 	) {
 		return profileFailure(
-			"wrap-profile.shape",
+			"save-profile.shape",
 			"/",
-			"Wrap approval has an invalid v1 shape.",
+			"Review & Save approval has an invalid v1 shape.",
 		);
 	}
 	return {
 		ok: true,
 		value: {
-			observer_approval: OBSERVER_WRAP_APPROVAL_SCHEMA,
+			observer_approval: OBSERVER_SAVE_APPROVAL_SCHEMA,
 			proposal_id: value.proposal_id,
 			approved: value.approved,
 		},

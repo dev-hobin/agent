@@ -5,8 +5,9 @@ export const OBSERVE_ACTIONS = [
 	"status",
 	"on",
 	"off",
-	"wrap",
+	"hypothesis",
 	"memo",
+	"save",
 	"settings",
 ];
 
@@ -20,7 +21,7 @@ export type ObserveCommand =
 	| { readonly kind: "status" }
 	| { readonly kind: "on" }
 	| { readonly kind: "off" }
-	| { readonly kind: "wrap" }
+	| { readonly kind: "save" }
 	| { readonly kind: "memo" }
 	| { readonly kind: "settings-unavailable" };
 
@@ -29,7 +30,7 @@ export type ObserveCommandParseResult =
 	| { readonly ok: false; readonly message: string };
 
 const USAGE =
-	"Usage: /observe setup <ko|en> <path> | status | on | off | wrap | memo | settings";
+	"Usage: /observe setup <ko|en> <path> | status | on | off | hypothesis <text> | memo | save | settings";
 
 function success(command: ObserveCommand): ObserveCommandParseResult {
 	return { ok: true, command };
@@ -84,8 +85,8 @@ export function parseObserveCommand(args: string): ObserveCommandParseResult {
 			return noArguments(remainder, { kind: "on" });
 		case "off":
 			return noArguments(remainder, { kind: "off" });
-		case "wrap":
-			return noArguments(remainder, { kind: "wrap" });
+		case "save":
+			return noArguments(remainder, { kind: "save" });
 		case "memo":
 			return noArguments(remainder, { kind: "memo" });
 		case "settings":
@@ -100,8 +101,9 @@ const OBSERVE_ACTION_DESCRIPTIONS: Readonly<Record<string, string>> = {
 	status: "Inspect Episode, working set, and Notebook health",
 	on: "Start or resume continuous Sidecar observation",
 	off: "Pause observation while preserving the Episode",
+	hypothesis: "Track a hypothesis without enabling continuous observation",
 	memo: "Reconcile working Memos and Inquiries",
-	wrap: "Prepare or review the save plan",
+	save: "Review and save Notebook changes, then settle the Episode",
 	settings: "Open the Observer control center",
 };
 

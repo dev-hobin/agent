@@ -95,7 +95,7 @@ export async function inspectWrapTransactionActivity(
 			message:
 				error instanceof Error
 					? error.message
-					: "Failed to inspect wrap transaction activity.",
+					: "Failed to inspect save transaction activity.",
 		};
 	}
 }
@@ -281,7 +281,7 @@ function transactionFailure(
 		ok: false,
 		issue: {
 			code: context.code,
-			message: message(error, "Observer wrap transaction failed."),
+			message: message(error, "Observer save transaction failed."),
 			recoveryRequired,
 			...(context.recordId ? { recordId: context.recordId } : {}),
 		},
@@ -312,7 +312,7 @@ export async function executeWrapTransaction<Value>(input: {
 			if (errorCode(error) === "EEXIST") {
 				return transactionFailure(
 					context,
-					new Error("Another or interrupted wrap transaction is active."),
+					new Error("Another or interrupted save transaction is active."),
 					true,
 				);
 			}
@@ -328,7 +328,7 @@ export async function executeWrapTransaction<Value>(input: {
 		context = { code: "wrap-transaction.drift" };
 		await hit(input.faultInjector, "before-drift-check");
 		if (!(await verifySnapshot(input.plan))) {
-			throw new Error("Notebook inventory changed after wrap preflight.");
+			throw new Error("Notebook inventory changed after save preflight.");
 		}
 		await runSequentially(staged, async (stagedEntry) => {
 			context = {

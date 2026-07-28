@@ -6,9 +6,9 @@ import { describe, test } from "node:test";
 
 import { sha256Text } from "../src/content-hash.ts";
 import {
-	refineOneShotIntent,
-	type OneShotIntent,
-} from "../src/one-shot-trigger.ts";
+	refineMaterialReviewIntent,
+	type MaterialReviewIntent,
+} from "../src/material-review-trigger.ts";
 import {
 	createObserverController,
 	type ObserverCommandPort,
@@ -36,16 +36,16 @@ import {
 } from "../src/memo-session.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
-	OBSERVER_PREPARED_WRAP_PROTOCOL,
-	OBSERVER_WRAP_ATTEMPT_ENTRY,
-	OBSERVER_WRAP_ATTEMPT_PROTOCOL,
-	preparedWrapDigest,
+	OBSERVER_PREPARED_SAVE_PROTOCOL,
+	OBSERVER_SAVE_ATTEMPT_ENTRY,
+	OBSERVER_SAVE_ATTEMPT_PROTOCOL,
+	preparedSaveDigest,
 	reconstructObserverPiState,
 	type PiBranchEntryLike,
-	type PreparedWrapHandoff,
+	type PreparedSaveHandoff,
 } from "../src/pi-session.ts";
-import { inspectWrapAcknowledgment } from "../src/wrap-acknowledgment.ts";
-import { OBSERVER_WRAP_SCHEMA } from "../src/wrap-profile.ts";
+import { inspectSaveAcknowledgment } from "../src/save-acknowledgment.ts";
+import { OBSERVER_SAVE_SCHEMA } from "../src/save-profile.ts";
 import { wrapTransactionActivePath } from "../src/wrap-transaction.ts";
 
 const externalSourceFixture = join(
@@ -77,8 +77,8 @@ class FakePort implements ObserverCommandPort {
 	failCommitAppend = false;
 	failMemoAppliedAppend = false;
 	failMemoAcknowledgmentAppend = false;
-	failOneShotOpenAppend = false;
-	dropOneShotOpenAppend = false;
+	failMaterialReviewOpenAppend = false;
+	dropMaterialReviewOpenAppend = false;
 
 	branchEntries(): readonly PiBranchEntryLike[] {
 		return this.entries;
@@ -93,18 +93,18 @@ class FakePort implements ObserverCommandPort {
 			customType === OBSERVER_LIFECYCLE_ENTRY &&
 			isObject(data) &&
 			data.kind === "episode-opened" &&
-			this.failOneShotOpenAppend
+			this.failMaterialReviewOpenAppend
 		) {
-			this.failOneShotOpenAppend = false;
-			throw new Error("Injected One-shot Episode append failure");
+			this.failMaterialReviewOpenAppend = false;
+			throw new Error("Injected material review Episode append failure");
 		}
 		if (
 			customType === OBSERVER_LIFECYCLE_ENTRY &&
 			isObject(data) &&
 			data.kind === "episode-opened" &&
-			this.dropOneShotOpenAppend
+			this.dropMaterialReviewOpenAppend
 		) {
-			this.dropOneShotOpenAppend = false;
+			this.dropMaterialReviewOpenAppend = false;
 			return;
 		}
 		if (
@@ -127,7 +127,7 @@ class FakePort implements ObserverCommandPort {
 			this.failCommitAppend &&
 			customType === OBSERVER_LIFECYCLE_ENTRY &&
 			isObject(data) &&
-			data.kind === "wrap-committed"
+			data.kind === "save-committed"
 		) {
 			this.failCommitAppend = false;
 			throw new Error("Injected session append failure");
@@ -156,18 +156,18 @@ class FakePort implements ObserverCommandPort {
 	}
 }
 
-function oneShotIntent(
+function materialReviewIntent(
 	text = "이 자료를 Observer 관점으로 봐줘.",
-): OneShotIntent {
-	const refined = refineOneShotIntent({
+): MaterialReviewIntent {
+	const refined = refineMaterialReviewIntent({
 		value: {
 			observer_action: "observer-sidecar/v1",
-			action: "one-shot-start",
+			action: "material-review-start",
 			user_message_digest: sha256Text(text),
 			material: { kind: "retrieved-tool-results" },
 		},
 		latestUser: { text, inputSource: "interactive" },
-		requestId: "one-shot-00000000-0000-4000-8000-000000000901",
+		requestId: "material-review-00000000-0000-4000-8000-000000000901",
 	});
 	if (!refined.ok) assert.fail(refined.issue.message);
 	return refined.value;
@@ -240,12 +240,12 @@ function handoff(input: {
 	readonly notebookId: `notebook-${string}`;
 	readonly root: string;
 	readonly markdown?: string;
-}): PreparedWrapHandoff {
+}): PreparedSaveHandoff {
 	return {
-		protocol: OBSERVER_PREPARED_WRAP_PROTOCOL,
-		summary: "승인할 Observer wrap 계획",
+		protocol: OBSERVER_PREPARED_SAVE_PROTOCOL,
+		summary: "승인할 Observer save 계획",
 		prepared: {
-			observer_wrap: OBSERVER_WRAP_SCHEMA,
+			observer_save: OBSERVER_SAVE_SCHEMA,
 			proposal_id: "proposal-controller-1",
 			notebook_id: input.notebookId,
 			root: input.root,
@@ -267,7 +267,7 @@ async function setupAndTurnOn(input: {
 	readonly controller: ReturnType<typeof createObserverController>;
 	readonly port: FakePort;
 	readonly root: string;
-}): Promise<PreparedWrapHandoff> {
+}): Promise<PreparedSaveHandoff> {
 	await input.controller.command(`setup en ${input.root}`, input.port);
 	await input.controller.command("on", input.port);
 	const snapshot = reconstructObserverPiState(input.port.entries);
@@ -331,11 +331,20 @@ describe("Observer command parsing", () => {
 			ok: true,
 			command: { kind: "memo" },
 		});
+		assert.deepEqual(parseObserveCommand("save"), {
+			ok: true,
+			command: { kind: "save" },
+		});
+		assert.equal(parseObserveCommand("wrap").ok, false);
 		assert.equal(parseObserveCommand("on extra").ok, false);
 		assert.equal(parseObserveCommand("setup /tmp/missing-language").ok, false);
 		assert.deepEqual(
 			completeObserveArgs("st")?.map((item) => item.value),
 			["status"],
+		);
+		assert.deepEqual(
+			completeObserveArgs("hyp")?.map((item) => item.value),
+			["hypothesis"],
 		);
 	});
 });
@@ -354,7 +363,7 @@ describe("Observer command controller", () => {
 			const opened = reconstructObserverPiState(port.entries);
 			if (
 				opened.state.episode.status !== "open" &&
-				opened.state.episode.status !== "reviewing-wrap"
+				opened.state.episode.status !== "reviewing-save"
 			) {
 				assert.fail("Expected live episode");
 			}
@@ -382,26 +391,26 @@ describe("Observer command controller", () => {
 		});
 	});
 
-	test("opens and reuses an OFF One-shot Episode without activation", async () => {
+	test("opens and reuses an OFF material review Episode without activation", async () => {
 		await withSandbox(async (sandbox) => {
 			const controller = createObserverController({
 				selectionStore: selectionStore(sandbox),
 				ids: deterministicIds(),
 			});
 			const port = new FakePort();
-			const root = join(sandbox, "one-shot notebook");
+			const root = join(sandbox, "material-review notebook");
 			await controller.command(`setup en ${root}`, port);
 			const before = reconstructObserverPiState(port.entries);
 			assert.equal(before.state.mode, "off");
 			assert.equal(before.state.episode.status, "empty");
 
-			const opened = await controller.ensureOneShotEpisode(
-				oneShotIntent(),
+			const opened = await controller.ensureMaterialReviewEpisode(
+				materialReviewIntent(),
 				port,
 			);
 			if (!opened.ok) assert.fail(opened.message);
 			assert.equal(opened.status, "opened");
-			assert.equal(opened.value.requestId, oneShotIntent().requestId);
+			assert.equal(opened.value.requestId, materialReviewIntent().requestId);
 			const snapshot = reconstructObserverPiState(port.entries);
 			assert.equal(snapshot.state.mode, "off");
 			assert.equal(snapshot.state.episode.status, "open");
@@ -417,8 +426,8 @@ describe("Observer command controller", () => {
 			);
 
 			const count = port.entries.length;
-			const resumed = await controller.ensureOneShotEpisode(
-				oneShotIntent(),
+			const resumed = await controller.ensureMaterialReviewEpisode(
+				materialReviewIntent(),
 				port,
 			);
 			if (!resumed.ok) assert.fail(resumed.message);
@@ -428,8 +437,8 @@ describe("Observer command controller", () => {
 
 			await controller.command("on", port);
 			const beforeRejected = port.entries.length;
-			const rejected = await controller.ensureOneShotEpisode(
-				oneShotIntent(),
+			const rejected = await controller.ensureMaterialReviewEpisode(
+				materialReviewIntent(),
 				port,
 			);
 			assert.equal(rejected.ok, false);
@@ -437,7 +446,7 @@ describe("Observer command controller", () => {
 		});
 	});
 
-	test("returns no One-shot capability across Episode append throw/drop gaps", async () => {
+	test("opens and reuses a hypothesis Episode without changing Observer Mode", async () => {
 		await withSandbox(async (sandbox) => {
 			const controller = createObserverController({
 				selectionStore: selectionStore(sandbox),
@@ -445,12 +454,49 @@ describe("Observer command controller", () => {
 			});
 			const port = new FakePort();
 			await controller.command(
-				`setup en ${join(sandbox, "one-shot recovery notebook")}`,
+				`setup ko ${join(sandbox, "hypothesis notebook")}`,
 				port,
 			);
-			port.failOneShotOpenAppend = true;
-			const thrown = await controller.ensureOneShotEpisode(
-				oneShotIntent(),
+
+			const opened = await controller.ensureUserHypothesisEpisode(port);
+			if (!opened.ok) assert.fail(opened.message);
+			assert.equal(opened.status, "opened");
+			assert.equal(opened.value.mode, "off");
+			assert.equal(opened.value.lang, "ko");
+			const offSnapshot = reconstructObserverPiState(port.entries);
+			assert.equal(offSnapshot.state.mode, "off");
+			assert.equal(offSnapshot.state.episode.status, "open");
+
+			const beforeResume = port.entries.length;
+			const resumed = await controller.ensureUserHypothesisEpisode(port);
+			if (!resumed.ok) assert.fail(resumed.message);
+			assert.equal(resumed.status, "resumed");
+			assert.equal(resumed.value.episodeId, opened.value.episodeId);
+			assert.equal(port.entries.length, beforeResume);
+
+			await controller.command("on", port);
+			const active = await controller.ensureUserHypothesisEpisode(port);
+			if (!active.ok) assert.fail(active.message);
+			assert.equal(active.status, "resumed");
+			assert.equal(active.value.mode, "on");
+			assert.equal(active.value.episodeId, opened.value.episodeId);
+		});
+	});
+
+	test("returns no material review capability across Episode append throw/drop gaps", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			await controller.command(
+				`setup en ${join(sandbox, "material-review recovery notebook")}`,
+				port,
+			);
+			port.failMaterialReviewOpenAppend = true;
+			const thrown = await controller.ensureMaterialReviewEpisode(
+				materialReviewIntent(),
 				port,
 			);
 			assert.equal(thrown.ok, false);
@@ -458,9 +504,9 @@ describe("Observer command controller", () => {
 				reconstructObserverPiState(port.entries).state.episode.status,
 				"empty",
 			);
-			port.dropOneShotOpenAppend = true;
-			const dropped = await controller.ensureOneShotEpisode(
-				oneShotIntent(),
+			port.dropMaterialReviewOpenAppend = true;
+			const dropped = await controller.ensureMaterialReviewEpisode(
+				materialReviewIntent(),
 				port,
 			);
 			assert.equal(dropped.ok, false);
@@ -468,8 +514,8 @@ describe("Observer command controller", () => {
 				reconstructObserverPiState(port.entries).state.episode.status,
 				"empty",
 			);
-			const recovered = await controller.ensureOneShotEpisode(
-				oneShotIntent(),
+			const recovered = await controller.ensureMaterialReviewEpisode(
+				materialReviewIntent(),
 				port,
 			);
 			assert.equal(recovered.ok, true);
@@ -735,7 +781,7 @@ describe("Observer command controller", () => {
 			const proposal = await setupAndTurnOn({ controller, port, root });
 			assert.equal(await controller.installPrepared(proposal, port), true);
 			port.confirmations.push(false);
-			await controller.command("wrap", port);
+			await controller.command("save", port);
 			const snapshot = reconstructObserverPiState(port.entries);
 			assert.equal(snapshot.state.mode, "on");
 			assert.equal(snapshot.state.episode.status, "open");
@@ -761,7 +807,7 @@ describe("Observer command controller", () => {
 			});
 			await controller.installPrepared(proposal, port);
 			port.confirmations.push(true);
-			await controller.command("wrap", port);
+			await controller.command("save", port);
 			const snapshot = reconstructObserverPiState(port.entries);
 			assert.equal(
 				snapshot.state.mode,
@@ -770,13 +816,13 @@ describe("Observer command controller", () => {
 			);
 			assert.equal(snapshot.state.episode.status, "settled");
 			const attemptIndex = port.entries.findIndex(
-				(entry) => entry.customType === OBSERVER_WRAP_ATTEMPT_ENTRY,
+				(entry) => entry.customType === OBSERVER_SAVE_ATTEMPT_ENTRY,
 			);
 			const commitIndex = port.entries.findIndex(
 				(entry) =>
 					entry.customType === OBSERVER_LIFECYCLE_ENTRY &&
 					isObject(entry.data) &&
-					entry.data.kind === "wrap-committed",
+					entry.data.kind === "save-committed",
 			);
 			assert.ok(attemptIndex >= 0);
 			assert.ok(commitIndex > attemptIndex);
@@ -784,15 +830,15 @@ describe("Observer command controller", () => {
 				await readFile(join(root, "records", `${CREATED_SOURCE}.md`), "utf8"),
 				markdown,
 			);
-			const reopened = await controller.ensureOneShotEpisode(
-				oneShotIntent("저장된 자료를 다시 Observer 관점으로 봐줘."),
+			const reopened = await controller.ensureMaterialReviewEpisode(
+				materialReviewIntent("저장된 자료를 다시 Observer 관점으로 봐줘."),
 				port,
 			);
 			if (!reopened.ok) assert.fail(reopened.message);
 			assert.equal(reopened.status, "opened");
-			const oneShotState = reconstructObserverPiState(port.entries);
-			assert.equal(oneShotState.state.mode, "off");
-			assert.equal(oneShotState.state.episode.status, "open");
+			const materialReviewState = reconstructObserverPiState(port.entries);
+			assert.equal(materialReviewState.state.mode, "off");
+			assert.equal(materialReviewState.state.episode.status, "open");
 		});
 	});
 
@@ -816,9 +862,9 @@ describe("Observer command controller", () => {
 			await controller.installPrepared(proposal, port);
 			port.confirmations.push(true);
 			port.failCommitAppend = true;
-			await assert.rejects(controller.command("wrap", port));
+			await assert.rejects(controller.command("save", port));
 			const beforeRecovery = reconstructObserverPiState(port.entries);
-			assert.equal(beforeRecovery.state.episode.status, "reviewing-wrap");
+			assert.equal(beforeRecovery.state.episode.status, "reviewing-save");
 			assert.ok(beforeRecovery.attempt);
 			const saved = await readFile(
 				join(root, "records", `${CREATED_SOURCE}.md`),
@@ -836,7 +882,7 @@ describe("Observer command controller", () => {
 			assert.equal(recovered.state.mode, "off");
 			assert.equal(
 				port.entries.filter(
-					(entry) => entry.customType === OBSERVER_WRAP_ATTEMPT_ENTRY,
+					(entry) => entry.customType === OBSERVER_SAVE_ATTEMPT_ENTRY,
 				).length,
 				1,
 			);
@@ -844,7 +890,7 @@ describe("Observer command controller", () => {
 	});
 });
 
-describe("Observer wrap acknowledgment inspection", () => {
+describe("Observer save acknowledgment inspection", () => {
 	test("distinguishes before, exact final, mixed, and active states", async () => {
 		await withSandbox(async (sandbox) => {
 			const store = selectionStore(sandbox);
@@ -870,7 +916,7 @@ describe("Observer wrap acknowledgment inspection", () => {
 					return `receipt-inspection-${receipts}`;
 				},
 			};
-			const before = await inspectWrapAcknowledgment({
+			const before = await inspectSaveAcknowledgment({
 				notebook: setup.notebook,
 				prepared: proposal.prepared,
 				dependencies,
@@ -880,7 +926,7 @@ describe("Observer wrap acknowledgment inspection", () => {
 			const target = join(root, "records", `${CREATED_SOURCE}.md`);
 			await writeFile(target, markdown, "utf8");
 			const reopenedFinal = requireNotebook(await openNotebook(root));
-			const final = await inspectWrapAcknowledgment({
+			const final = await inspectSaveAcknowledgment({
 				notebook: reopenedFinal,
 				prepared: proposal.prepared,
 				dependencies,
@@ -896,7 +942,7 @@ describe("Observer wrap acknowledgment inspection", () => {
 			);
 			await writeFile(target, changed, "utf8");
 			const reopenedMixed = requireNotebook(await openNotebook(root));
-			const mixed = await inspectWrapAcknowledgment({
+			const mixed = await inspectSaveAcknowledgment({
 				notebook: reopenedMixed,
 				prepared: proposal.prepared,
 				dependencies,
@@ -904,7 +950,7 @@ describe("Observer wrap acknowledgment inspection", () => {
 			assert.equal(mixed.status, "mixed");
 
 			await mkdir(wrapTransactionActivePath(root), { recursive: true });
-			const active = await inspectWrapAcknowledgment({
+			const active = await inspectSaveAcknowledgment({
 				notebook: reopenedMixed,
 				prepared: proposal.prepared,
 				dependencies,
@@ -919,12 +965,12 @@ describe("Observer wrap acknowledgment inspection", () => {
 			root: "/tmp/notebook",
 		});
 		const attempt = {
-			protocol: OBSERVER_WRAP_ATTEMPT_PROTOCOL,
+			protocol: OBSERVER_SAVE_ATTEMPT_PROTOCOL,
 			kind: "approved",
 			attemptId: "attempt-exact",
 			proposalId: value.prepared.proposal_id,
-			preparedDigest: preparedWrapDigest(value),
+			preparedDigest: preparedSaveDigest(value),
 		};
-		assert.equal(attempt.preparedDigest, preparedWrapDigest(value));
+		assert.equal(attempt.preparedDigest, preparedSaveDigest(value));
 	});
 });

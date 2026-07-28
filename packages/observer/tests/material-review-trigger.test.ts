@@ -3,25 +3,25 @@ import { describe, test } from "node:test";
 
 import { sha256Text } from "../src/content-hash.ts";
 import {
-	decodeOneShotEvent,
-	decodeOneShotFinishAction,
-	decodeOneShotStartAction,
-	encodeOneShotEvent,
-	OBSERVER_ONE_SHOT_ENTRY,
-	OBSERVER_ONE_SHOT_PROTOCOL,
-	planOneShotCompletion,
-	planOneShotRequest,
-	reconstructOneShotSession,
-	refineOneShotIntent,
-	type OneShotCompletedEvent,
-	type OneShotIntent,
-	type OneShotRequestedEvent,
-} from "../src/one-shot-trigger.ts";
+	decodeMaterialReviewEvent,
+	decodeMaterialReviewFinishAction,
+	decodeMaterialReviewStartAction,
+	encodeMaterialReviewEvent,
+	OBSERVER_MATERIAL_REVIEW_ENTRY,
+	OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+	planMaterialReviewCompletion,
+	planMaterialReviewRequest,
+	reconstructMaterialReviewSession,
+	refineMaterialReviewIntent,
+	type MaterialReviewCompletedEvent,
+	type MaterialReviewIntent,
+	type MaterialReviewRequestedEvent,
+} from "../src/material-review-trigger.ts";
 import type { PiBranchEntryLike } from "../src/pi-session.ts";
 
-const REQUEST_ID = "one-shot-00000000-0000-4000-8000-000000000801";
-const OTHER_REQUEST_ID = "one-shot-00000000-0000-4000-8000-000000000802";
-const EPISODE_ID = "episode-one-shot-pure";
+const REQUEST_ID = "material-review-00000000-0000-4000-8000-000000000801";
+const OTHER_REQUEST_ID = "material-review-00000000-0000-4000-8000-000000000802";
+const EPISODE_ID = "episode-material-review-pure";
 const CANDIDATE_A = "candidate-00000000-0000-4000-8000-000000000803";
 const CANDIDATE_B = "candidate-00000000-0000-4000-8000-000000000804";
 const READ_A = "source-read-00000000-0000-4000-8000-000000000805";
@@ -38,7 +38,7 @@ function startValue(
 ): Readonly<Record<string, unknown>> {
 	return {
 		observer_action: "observer-sidecar/v1",
-		action: "one-shot-start",
+		action: "material-review-start",
 		user_message_digest: sha256Text(text),
 		material: { kind },
 	};
@@ -48,8 +48,8 @@ function refine(
 	text: string,
 	kind: "inline-user-message" | "retrieved-tool-results",
 	requestId = REQUEST_ID,
-): OneShotIntent {
-	const refined = refineOneShotIntent({
+): MaterialReviewIntent {
+	const refined = refineMaterialReviewIntent({
 		value: startValue(text, kind),
 		latestUser: { text, inputSource: "interactive" },
 		requestId,
@@ -59,25 +59,25 @@ function refine(
 }
 
 function custom(data: unknown): PiBranchEntryLike {
-	return { type: "custom", customType: OBSERVER_ONE_SHOT_ENTRY, data };
+	return { type: "custom", customType: OBSERVER_MATERIAL_REVIEW_ENTRY, data };
 }
 
-function requested(intent: OneShotIntent): OneShotRequestedEvent {
-	const planned = planOneShotRequest({
+function requested(intent: MaterialReviewIntent): MaterialReviewRequestedEvent {
+	const planned = planMaterialReviewRequest({
 		intent,
 		episodeId: EPISODE_ID,
-		session: reconstructOneShotSession([]),
+		session: reconstructMaterialReviewSession([]),
 	});
 	if (!planned.ok) assert.fail(planned.issue.message);
 	return planned.value.request;
 }
 
-function complete(request: OneShotRequestedEvent): OneShotCompletedEvent {
-	const entries = [custom(encodeOneShotEvent(request))];
-	const planned = planOneShotCompletion({
+function complete(request: MaterialReviewRequestedEvent): MaterialReviewCompletedEvent {
+	const entries = [custom(encodeMaterialReviewEvent(request))];
+	const planned = planMaterialReviewCompletion({
 		requestId: request.requestId,
 		episodeId: request.episodeId,
-		session: reconstructOneShotSession(entries),
+		session: reconstructMaterialReviewSession(entries),
 		candidates: [{ candidateId: CANDIDATE_A }],
 		sourceReads: [{ readId: READ_A, candidateIds: [CANDIDATE_A] }],
 		observations: [{ observationId: OBSERVATION_A, readId: READ_A }],
@@ -86,7 +86,7 @@ function complete(request: OneShotRequestedEvent): OneShotCompletedEvent {
 	return planned.value;
 }
 
-describe("pure One-shot trigger and session", () => {
+describe("pure material review trigger and session", () => {
 	test("strictly refines inline and retrieved intents without collapsing provenance", () => {
 		const inline = refine(INLINE_TEXT, "inline-user-message");
 		assert.equal(inline.material, "inline-user-message");
@@ -100,23 +100,23 @@ describe("pure One-shot trigger and session", () => {
 		assert.notEqual(retrieved.exactUserText, INLINE_TEXT);
 
 		assert.equal(
-			decodeOneShotStartAction({
+			decodeMaterialReviewStartAction({
 				...startValue(INLINE_TEXT, "inline-user-message"),
 				extra: true,
 			}).ok,
 			false,
 		);
 		assert.equal(
-			decodeOneShotStartAction({
+			decodeMaterialReviewStartAction({
 				observer_action: "observer-sidecar/v1",
-				action: "one-shot-start",
+				action: "material-review-start",
 				user_message_digest: sha256Text(INLINE_TEXT),
 				material: { kind: "inline-user-message", extra: true },
 			}).ok,
 			false,
 		);
 		assert.equal(
-			refineOneShotIntent({
+			refineMaterialReviewIntent({
 				value: startValue(INLINE_TEXT, "inline-user-message"),
 				latestUser: { text: "Different latest message", inputSource: "rpc" },
 				requestId: REQUEST_ID,
@@ -124,7 +124,7 @@ describe("pure One-shot trigger and session", () => {
 			false,
 		);
 		assert.equal(
-			refineOneShotIntent({
+			refineMaterialReviewIntent({
 				value: startValue(INLINE_TEXT, "inline-user-message"),
 				latestUser: null,
 				requestId: REQUEST_ID,
@@ -132,24 +132,24 @@ describe("pure One-shot trigger and session", () => {
 			false,
 		);
 		assert.deepEqual(
-			decodeOneShotFinishAction({
+			decodeMaterialReviewFinishAction({
 				observer_action: "observer-sidecar/v1",
-				action: "one-shot-finish",
+				action: "material-review-finish",
 				request_id: REQUEST_ID,
 			}),
 			{
 				ok: true,
 				value: {
 					observerAction: "observer-sidecar/v1",
-					action: "one-shot-finish",
+					action: "material-review-finish",
 					requestId: REQUEST_ID,
 				},
 			},
 		);
 		assert.equal(
-			decodeOneShotFinishAction({
+			decodeMaterialReviewFinishAction({
 				observer_action: "observer-sidecar/v1",
-				action: "one-shot-finish",
+				action: "material-review-finish",
 				request_id: REQUEST_ID,
 				extra: true,
 			}).ok,
@@ -162,13 +162,13 @@ describe("pure One-shot trigger and session", () => {
 		const request = requested(intent);
 		assert.equal(request.material, "inline-user-message");
 		assert.equal(request.userMessageDigest, sha256Text(INLINE_TEXT));
-		const encoded = encodeOneShotEvent(request);
-		assert.deepEqual(decodeOneShotEvent(encoded), {
+		const encoded = encodeMaterialReviewEvent(request);
+		assert.deepEqual(decodeMaterialReviewEvent(encoded), {
 			ok: true,
 			value: request,
 		});
 		assert.equal(
-			decodeOneShotEvent({
+			decodeMaterialReviewEvent({
 				...encoded,
 				material: "retrieved-tool-results",
 				extra: true,
@@ -177,10 +177,10 @@ describe("pure One-shot trigger and session", () => {
 		);
 
 		const entries = [custom(encoded)];
-		const session = reconstructOneShotSession(entries);
+		const session = reconstructMaterialReviewSession(entries);
 		assert.equal(session.issues.length, 0);
 		assert.equal(session.pendingRequest?.requestId, REQUEST_ID);
-		const resumed = planOneShotRequest({
+		const resumed = planMaterialReviewRequest({
 			intent: refine(INLINE_TEXT, "inline-user-message", OTHER_REQUEST_ID),
 			episodeId: EPISODE_ID,
 			session,
@@ -189,7 +189,7 @@ describe("pure One-shot trigger and session", () => {
 		assert.equal(resumed.value.kind, "resume");
 		assert.equal(resumed.value.request.requestId, REQUEST_ID);
 
-		const overlap = planOneShotRequest({
+		const overlap = planMaterialReviewRequest({
 			intent: refine(
 				RETRIEVED_TEXT,
 				"retrieved-tool-results",
@@ -199,15 +199,15 @@ describe("pure One-shot trigger and session", () => {
 			session,
 		});
 		assert.equal(overlap.ok, false);
-		const duplicate = reconstructOneShotSession([...entries, custom(encoded)]);
+		const duplicate = reconstructMaterialReviewSession([...entries, custom(encoded)]);
 		assert.equal(duplicate.issues.length, 0);
 		assert.equal(duplicate.requests.length, 1);
 	});
 
 	test("requires complete candidate-read-observation coverage before completion", () => {
 		const request = requested(refine(RETRIEVED_TEXT, "retrieved-tool-results"));
-		const session = reconstructOneShotSession([
-			custom(encodeOneShotEvent(request)),
+		const session = reconstructMaterialReviewSession([
+			custom(encodeMaterialReviewEvent(request)),
 		]);
 		const base = {
 			requestId: request.requestId,
@@ -223,43 +223,43 @@ describe("pure One-shot trigger and session", () => {
 				{ observationId: OBSERVATION_B, readId: READ_B },
 			],
 		};
-		assert.equal(planOneShotCompletion({ ...base, candidates: [] }).ok, false);
+		assert.equal(planMaterialReviewCompletion({ ...base, candidates: [] }).ok, false);
 		assert.equal(
-			planOneShotCompletion({
+			planMaterialReviewCompletion({
 				...base,
 				sourceReads: [{ readId: READ_A, candidateIds: [CANDIDATE_A] }],
 			}).ok,
 			false,
 		);
 		assert.equal(
-			planOneShotCompletion({
+			planMaterialReviewCompletion({
 				...base,
 				observations: [{ observationId: OBSERVATION_A, readId: READ_A }],
 			}).ok,
 			false,
 		);
-		const planned = planOneShotCompletion(base);
+		const planned = planMaterialReviewCompletion(base);
 		if (!planned.ok) assert.fail(planned.issue.message);
 		assert.deepEqual(planned.value.observationIds, [
 			OBSERVATION_A,
 			OBSERVATION_B,
 		]);
-		assert.deepEqual(decodeOneShotEvent(encodeOneShotEvent(planned.value)), {
+		assert.deepEqual(decodeMaterialReviewEvent(encodeMaterialReviewEvent(planned.value)), {
 			ok: true,
 			value: planned.value,
 		});
-		const completedSession = reconstructOneShotSession([
-			custom(encodeOneShotEvent(request)),
-			custom(encodeOneShotEvent(planned.value)),
+		const completedSession = reconstructMaterialReviewSession([
+			custom(encodeMaterialReviewEvent(request)),
+			custom(encodeMaterialReviewEvent(planned.value)),
 		]);
-		const resumed = planOneShotCompletion({
+		const resumed = planMaterialReviewCompletion({
 			...base,
 			session: completedSession,
 		});
 		if (!resumed.ok) assert.fail(resumed.issue.message);
 		assert.deepEqual(resumed.value, planned.value);
 		assert.equal(
-			planOneShotCompletion({
+			planMaterialReviewCompletion({
 				...base,
 				session: completedSession,
 				observations: [
@@ -274,9 +274,9 @@ describe("pure One-shot trigger and session", () => {
 	test("fails closed for reordered, conflicting, and malformed history", () => {
 		const request = requested(refine(INLINE_TEXT, "inline-user-message"));
 		const completion = complete(request);
-		const encodedRequest = encodeOneShotEvent(request);
-		const encodedCompletion = encodeOneShotEvent(completion);
-		const completed = reconstructOneShotSession([
+		const encodedRequest = encodeMaterialReviewEvent(request);
+		const encodedCompletion = encodeMaterialReviewEvent(completion);
+		const completed = reconstructMaterialReviewSession([
 			custom(encodedRequest),
 			custom(encodedCompletion),
 			custom(encodedCompletion),
@@ -285,31 +285,31 @@ describe("pure One-shot trigger and session", () => {
 		assert.equal(completed.pendingRequest, null);
 		assert.deepEqual(completed.completedRequestIds, [REQUEST_ID]);
 
-		const reordered = reconstructOneShotSession([
+		const reordered = reconstructMaterialReviewSession([
 			custom(encodedCompletion),
 			custom(encodedRequest),
 		]);
-		assert.equal(reordered.issues[0]?.code, "one-shot.history");
-		const conflict = reconstructOneShotSession([
+		assert.equal(reordered.issues[0]?.code, "material-review.history");
+		const conflict = reconstructMaterialReviewSession([
 			custom(encodedRequest),
 			custom({ ...encodedRequest, material: "retrieved-tool-results" }),
 		]);
-		assert.equal(conflict.issues[0]?.code, "one-shot.conflict");
-		const overlap = reconstructOneShotSession([
+		assert.equal(conflict.issues[0]?.code, "material-review.conflict");
+		const overlap = reconstructMaterialReviewSession([
 			custom(encodedRequest),
 			custom({
-				protocol: OBSERVER_ONE_SHOT_PROTOCOL,
-				kind: "one-shot-requested",
+				protocol: OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+				kind: "material-review-requested",
 				request_id: OTHER_REQUEST_ID,
 				episode_id: EPISODE_ID,
 				user_message_digest: sha256Text(RETRIEVED_TEXT),
 				material: "retrieved-tool-results",
 			}),
 		]);
-		assert.equal(overlap.issues[0]?.code, "one-shot.pending");
-		const malformed = reconstructOneShotSession([
-			custom({ protocol: OBSERVER_ONE_SHOT_PROTOCOL, kind: "unknown" }),
+		assert.equal(overlap.issues[0]?.code, "material-review.pending");
+		const malformed = reconstructMaterialReviewSession([
+			custom({ protocol: OBSERVER_MATERIAL_REVIEW_PROTOCOL, kind: "unknown" }),
 		]);
-		assert.equal(malformed.issues[0]?.code, "one-shot.shape");
+		assert.equal(malformed.issues[0]?.code, "material-review.shape");
 	});
 });

@@ -22,7 +22,7 @@ Observer의 이전 시도는 원전 감사와 많은 기술적 증거를 남겼�
 누가, 언제 Observer를 켜는가?
 Observer가 켜지면 무엇을 관찰하는가?
 가설은 어떻게 생성되고 검증되고 다시 활성화되는가?
-memo와 wrap은 무엇을 하는가?
+memo와 save은 무엇을 하는가?
 무엇이 언제 로컬 기록이 되는가?
 어떤 기록이 Zettel로 승격되는가?
 다음 세션에서는 어떻게 이어지는가?
@@ -33,7 +33,7 @@ Observer가 하지 않는 일은 무엇인가?
 
 ## 2. 제품 약속
 
-> Observer는 사용자가 자료를 읽고 학습하거나 분석하는 동안 Pi에 별도의 관찰 관점을 활성화한다. Observer는 자료와 사용자–에이전트의 작업 흐름을 source-faithful하게 관찰하고, 여러 가설–검증 루프를 장기간 추적하며, 중요한 반례·새 가설·방향 전환만 알린다. 사용자가 `memo`를 요청하면 아직 Zettel로 승격되지 않은 통찰을 현재까지의 관련 컨텍스트로 재조정하고, `wrap`을 요청하면 저장 계획을 검토받은 뒤 성숙한 지식과 미결 탐구를 사용자가 소유한 로컬 Markdown 기록으로 남긴다.
+> Observer는 사용자가 자료를 읽고 학습하거나 분석하는 동안 Pi에 별도의 관찰 관점을 활성화한다. Observer는 자료와 사용자–에이전트의 작업 흐름을 source-faithful하게 관찰하고, 여러 가설–검증 루프를 장기간 추적하며, 중요한 반례·새 가설·방향 전환만 알린다. 사용자가 `memo`를 요청하면 아직 Zettel로 승격되지 않은 통찰을 현재까지의 관련 컨텍스트로 재조정하고, `save`을 요청하면 저장 계획을 검토받은 뒤 성숙한 지식과 미결 탐구를 사용자가 소유한 로컬 Markdown 기록으로 남긴다.
 
 Observer는 지식관리 데이터베이스가 아니라 다음의 결합이다.
 
@@ -96,22 +96,60 @@ Observer ON
 → 중요한 변화만 알림
 → memo로 중간 재조정
 → 계속 학습
-→ wrap으로 최종 검토·로컬 저장·종료
+→ Review & Save로 최종 검토·로컬 저장·종료
 ```
 
-### 4.3 One-shot 사용
+### 4.3 Track a hypothesis 사용
+
+```text
+Observer ON 또는 OFF
+→ 사용자가 가설 원문과 선택적 context를 입력
+→ 원문과 origin=user를 즉시 working state에 보존
+→ 현재 Pi context와 Episode working state를 그 가설의 렌즈로 재검토
+→ 지지 단서, 도전 단서, 부족한 정보, 실제 Source 연결, 해석 경계를 기록
+→ 기존 Mode 유지
+```
+
+가설 등록에는 근거·개연성·성숙도 gate를 두지 않는다. 다만 최초 context review가
+끝나기 전에는 Memo reconciliation을 시작하지 않는다. 이는 가설 등록 조건이 아니라
+사용자가 제공한 context와 Observer의 해석을 분리하고, 현재 context에서 왜 이 가설을
+계속 추적할지 또는 무엇이 부족한지 남기기 위한 절차다. `insufficient-context`도 유효한
+완료 결과이며 가설 원문을 삭제하거나 수정하지 않는다.
+
+### 4.4 Observe material 사용
 
 ```text
 Observer OFF
 → “이 자료를 Observer 관점으로 봐줘”
-→ 해당 요청 동안 scoped observation 수행
+→ 해당 요청 동안 scoped Observe material 수행
 → 기존 standing inquiry를 실제 working state에서 업데이트
 → 요청한 결과 반환
 → 지속 관찰 모드는 OFF 유지
-→ 이후 memo 또는 wrap에서 누적 결과 재조정·저장
+→ 이후 memo 또는 Review & Save에서 누적 결과 재조정·저장
 ```
 
-One-shot은 단순한 read-only 분석이 아니다. 관련 가설과 Memo의 pending revision을 실제 working state에 남긴다. 다만 `wrap` 승인 전에는 장기 Zettel 기록으로 승격하지 않는다.
+Observe material은 단순한 read-only 분석이 아니다. 관련 가설과 Memo의 pending revision을 실제 working state에 남긴다. 다만 `/observe save` 승인 전에는 장기 Zettel 기록으로 승격하지 않는다.
+
+### 4.5 Review & Save와 내부 Wrap 경계
+
+사용자·모델·lifecycle이 다루는 제품 연산은 `Review & Save`다. 코드의
+`SaveService`는 proposal·approval·Notebook target·lifecycle·최종 receipt 계약을
+소유한다. 실제 record graph를 publication plan으로 묶고 원자적으로 쓰고 readback과
+rollback을 수행하는 과정은 주입된 `WrapService`의 내부 구현이다.
+
+```text
+Review & Save request
+→ SaveService: decode · authorize · recover target
+→ WrapService.prepare: validate · build atomic wrap plan
+→ SaveService: lifecycle preflight
+→ WrapService.commit: stage · publish · readback · rollback
+→ SaveService: public save receipt · settle Episode
+```
+
+따라서 wrap은 사용자 command, model action, public event/protocol이 아니다. 내부 wrap
+failure도 `SaveService` 경계에서 `save.invalid-plan`, `save.busy`,
+`save.concurrent-change`, `save.persistence`로 변환한다. pre-1.0의 폐기된 action·event·ID
+이름을 decode하는 별도 legacy 경로는 두지 않는다.
 
 ---
 
@@ -130,7 +168,7 @@ OFF ↔ ON
 관찰, 가설, Memo가 쌓이는 하나의 작업 구간이다. Mode와 독립적이다.
 
 ```text
-EMPTY → OPEN → WRAP PROPOSAL → SETTLED
+EMPTY → OPEN → SAVE PROPOSAL → SETTLED
 ```
 
 다음 상태가 가능하다.
@@ -140,7 +178,7 @@ Mode: OFF
 Episode: OPEN
 ```
 
-예: Observer를 잠시 껐거나, One-shot 결과가 쌓였지만 아직 wrap하지 않은 상태.
+예: Observer를 잠시 껐거나, Observe material 결과가 쌓였지만 아직 Review & Save를 완료하지 않은 상태.
 
 ### Standing Inquiry
 
@@ -185,10 +223,10 @@ Notebook 미선택
 → Notebook 설정, 기본 출력 언어, Observer 활성화, 상태 확인만 노출
 
 Episode OPEN
-→ Mode, Memo, Wrap, 고정 Notebook, 다음 Episode 언어, 상태를 노출
+→ Mode, Memo, Review & Save, 고정 Notebook, 다음 Episode 언어, 상태를 노출
 
 Mode OFF + Notebook 준비됨
-→ One-shot 자연어 요청 초안을 추가로 제공
+→ Observe material 자연어 요청 초안을 추가로 제공
 ```
 
 제어판은 새로운 lifecycle effect를 만들지 않고 아래의 기존 명령과 같은
@@ -233,7 +271,7 @@ Observer의 지속 관찰을 활성화한다.
 
 ```text
 - Zettel 승격 없음
-- wrap 없음
+- save 없음
 - 열린 episode 유지
 - working state는 recovery 가능하게 보존
 ```
@@ -261,7 +299,7 @@ Observer의 지속 관찰을 활성화한다.
 
 `memo`는 Mode가 OFF여도 열린 episode에 적용할 수 있다.
 
-### `/observe wrap`
+### `/observe save`
 
 현재 observation episode를 의미적으로 마무리한다.
 
@@ -316,15 +354,15 @@ Mode OFF ←──────────────────────�
                  /observe off
 
 Episode EMPTY
-    │ on 또는 one-shot
+    │ on 또는 observe-material
     ▼
 Episode OPEN
     │ memo 0..N회
     ▼
 Episode OPEN
-    │ wrap
+    │ save
     ▼
-WRAP PROPOSAL
+SAVE PROPOSAL
     ├─ 취소/수정 미완료 → Episode OPEN
     └─ 승인·저장 완료   → Episode SETTLED + Mode OFF
 ```
@@ -344,7 +382,7 @@ Observer가 활성 상태이거나 episode가 열려 있음
 automatic recovery
 = 손실 방지용 provisional working state
 
-wrap persistence
+save persistence
 = 사용자가 승인한 로컬 장기 기록
 ```
 
@@ -367,9 +405,9 @@ Observer는 기본적으로 조용히 관찰한다.
 - 기존 가설을 단순히 반복 지지하는 증거
 - 표현만 조금 정교하게 만드는 변화
 - 아직 중요성이 불분명한 연상
-- Memo나 wrap에서 함께 보는 편이 좋은 작은 변화
+- Memo나 save에서 함께 보는 편이 좋은 작은 변화
 
-사용자는 일반적인 발전 상황을 `memo`와 `wrap`에서 확인한다.
+사용자는 일반적인 발전 상황을 `memo`와 `save`에서 확인한다.
 
 ---
 
@@ -414,11 +452,31 @@ Source C ─┬→ Inquiry H2
 ### 보존할 것
 
 - 사용자가 처음 표현한 원문
+- 사용자가 직접 제공한 context 또는 이유
 - 현재 revision
 - 가설을 촉발한 자료와 문맥
 - 사용자 제안인지 Observer 제안인지에 대한 origin
 - 지지·반박·경계 증거
 - revision 이유
+
+### 최초 context review
+
+```text
+가설 capture
+→ user context를 별도 보존
+→ 현재 보이는 Pi 대화와 tool result 재검토
+→ 현재 Episode의 Observation·Memo·Inquiry working state 재검토
+→ supports | challenges | mixed | insufficient-context 판단
+→ supporting clues / challenging clues / missing information 기록
+→ 실제로 식별 가능한 Source만 source_ids에 연결
+→ interpretation boundary 기록
+```
+
+사용자 context는 사용자가 왜 그렇게 생각했는지에 대한 단서이지 자동으로 검증된
+Source evidence가 아니다. Observer가 현재 context에서 추론한 이유도 사용자 이유처럼
+기록하지 않는다. 파일·URL·도구 경로는 실제 내용을 조회하기 전까지 Source가 아니다.
+context review 실패 시 가설은 `pending` 상태로 보존하고 다음 turn에서 정확한 가설 ID로
+재개한다.
 
 ### 구분할 것
 
@@ -442,7 +500,7 @@ original hypothesis
 → revision reason
 ```
 
-가설이 틀렸다는 이유로 조용히 삭제하지 않는다. 반박된 가설에서 이동 가능한 지식이 생기면 Zettel 후보가 될 수 있다.
+가설이 틀렸다는 이유로 조용히 삭제하지 않는다. 반박된 가설에서 이동 가능한 지식이 생기면 Zettel 후보가 될 수 있다. 근거 없는 가설도 Inquiry나 incubating Memo로 유지할 수 있으며, Source 요건은 가설 등록이 아니라 재사용 가능한 Zettel 승격 경계에 적용한다.
 
 ---
 
@@ -496,9 +554,9 @@ Observer remains ON/OFF (기존 Mode 유지)
 
 ---
 
-## 12. Wrap 계약
+## 12. Review & Save 계약
 
-Wrap은 단순한 `save`나 `close`가 아니다.
+Review & Save는 단순한 파일 `save`나 `close`가 아니다.
 
 ```text
 최종 의미 정리
@@ -509,7 +567,7 @@ Wrap은 단순한 `save`나 `close`가 아니다.
 + Observer OFF
 ```
 
-### Wrap proposal 필수 정보
+### Review & Save proposal 필수 정보
 
 ```text
 저장할 notebook 위치
@@ -522,7 +580,7 @@ Standing으로 유지할 Inquiry
 Retire 또는 supersede할 항목과 이유
 ```
 
-### Wrap 승인
+### Review & Save 승인
 
 사용자는 다음을 할 수 있다.
 
@@ -530,14 +588,14 @@ Retire 또는 supersede할 항목과 이유
 - 특정 Zettel 후보를 Memo로 되돌림
 - 특정 Memo를 Zettel로 승격하도록 추가 검토 요청
 - 특정 항목 retire 취소
-- Wrap 전체 취소
+- Review & Save 전체 취소
 
 승인 후에만 로컬 파일을 변경한다.
 
-### Wrap 완료 receipt
+### Review & Save 완료 receipt
 
 ```text
-Observation wrapped
+Review & Save completed
 
 Saved locally
 - Zettel: N
@@ -588,7 +646,7 @@ working (recovery state, 아직 장기 record 아님)
 → promoted | superseded | retired
 ```
 
-Wrap에서 미성숙하다는 이유만으로 폐기하지 않는다. 가능성이 있는 Memo는 incubating으로 보존한다.
+Review & Save에서 미성숙하다는 이유만으로 폐기하지 않는다. 가능성이 있는 Memo는 incubating으로 보존한다.
 
 ### Zettel
 
@@ -703,7 +761,7 @@ en
 
 - Notebook별 Memo·Zettel Markdown 기본 출력 언어를 가진다.
 - 이 설정은 TUI label, help, status의 표시 언어를 변경하지 않는다.
-- Episode가 열릴 때 출력 언어를 고정하고 wrap까지 유지한다.
+- Episode가 열릴 때 출력 언어를 고정하고 save까지 유지한다.
 - 특정 문서에 대한 명시적 언어 override는 허용한다.
 - 기존 문서를 수정할 때는 해당 문서의 기존 언어를 유지한다.
 - Source의 실제 언어는 ko/en 이외의 BCP 47 tag도 허용한다.
@@ -876,7 +934,7 @@ Notebook 전체에서 확인한다.
 ### 19.4 검증 시점
 
 ```text
-- wrap proposal 생성 전
+- save proposal 생성 전
 - 사용자 승인 후 실제 저장 직전
 - notebook을 열거나 선택할 때
 - standing inquiry를 재진입할 때
@@ -887,7 +945,7 @@ Manual edit도 동일한 decoder와 graph validator를 통과해야 한다.
 
 ### 19.5 저장 원칙
 
-Wrap batch 중 하나라도 무효라면 일부 파일만 저장하지 않는다.
+Review & Save batch 중 하나라도 무효라면 일부 파일만 저장하지 않는다.
 
 ```text
 모두 유효 → 로컬 저장
@@ -949,7 +1007,7 @@ v0.1 core에 graph DB나 RDF runtime을 넣지 않는다.
 → Hybrid 중요 변화 알림
 → /observe memo
 → 계속 학습
-→ /observe wrap
+→ /observe save
 → 저장 계획 검토
 → 사용자 승인
 → Source/Memo/Inquiry/Zettel 로컬 저장
@@ -967,23 +1025,36 @@ Observer ON + Episode OPEN
 → 같은 episode와 pending context 재개
 ```
 
-### 21.3 One-shot
+### 21.3 Track a hypothesis
+
+```text
+Observer ON 또는 OFF
+→ /observe hypothesis <가설>
+→ optional Context: <사용자 이유>
+→ original + user context 즉시 보존
+→ 현재 context lens review trigger
+→ supports/challenges/mixed/insufficient-context 기록
+→ Mode 유지
+→ review 완료 뒤 memo 가능
+```
+
+### 21.4 Observe material
 
 ```text
 Observer OFF
 → 자료를 Observer 관점으로 요청
-→ scoped observation
+→ scoped Observe material
 → 관련 standing inquiry pending revision
 → Mode OFF 유지
-→ 여러 one-shot 누적 가능
-→ Mode OFF 상태에서도 memo 가능
-→ wrap 승인 후 로컬 저장
+→ 여러 Observe material 요청 누적 가능
+→ 완료된 hypothesis context review와 Observe material 결과를 memo에서 재조정
+→ /observe save 승인 후 로컬 저장
 ```
 
-### 21.4 Fresh-session re-entry
+### 21.5 Fresh-session re-entry
 
 ```text
-이전 episode wrap 완료
+이전 Episode Review & Save 완료
 → 새 Pi 세션
 → /observe on
 → compact standing inquiry index 복구
@@ -992,7 +1063,7 @@ Observer OFF
 → 가설 검증 계속
 ```
 
-### 21.5 Compaction
+### 21.6 Compaction
 
 ```text
 긴 관찰 중 Pi compaction
@@ -1037,12 +1108,13 @@ Subagent는 제3자 관찰 관점을 구현할 후보지만 v0.1 설계와 구�
 ```text
 [x] 이 제품 약속이 사용자가 기대한 Observer를 설명한다.
 [x] Sidecar transcript의 사용감이 맞다.
-[x] One-shot transcript의 부작용이 맞다.
-[x] on/off/memo/wrap의 effect가 구분된다.
+[x] Track a hypothesis가 원문과 user context를 보존하고 현재 context를 lens review한다.
+[x] Observe material transcript의 부작용이 맞다.
+[x] on/off/memo/Review & Save의 effect가 구분된다.
 [x] Mode와 Episode의 독립 상태가 이해된다.
 [x] Memo와 Zettel의 생명주기가 맞다.
 [x] 직접 관찰과 사용자 가설이 구분된다.
-[x] Wrap이 무엇을 저장하고 무엇을 묻는지 맞다.
+[x] Review & Save가 무엇을 저장하고 무엇을 묻는지 맞다.
 [x] Notebook 위치와 언어 설정 방식이 맞다.
 [x] Local-first와 Git 비책임 경계가 맞다.
 [x] Markdown Profile의 record 종류와 relation 분리가 맞다.
@@ -1062,11 +1134,11 @@ Slice 0: Package와 제품 계약 — Complete
 Slice 1: Markdown Profile Fixtures와 Validation — Next
 Slice 2: Pure Observer Lifecycle Machine
 Slice 3: Notebook Setup과 Language Binding
-Slice 4: Wrap Local Persistence
+Slice 4: Review & Save Local Persistence
 Slice 5: Pi Commands와 Branch Replay
 Slice 6: Memo Reconciliation
 Slice 7: Sidecar Golden Path
-Slice 8: One-shot Golden Path
+Slice 8: Observe material Golden Path
 Slice 9: v0.1 Golden Path Verification
 ```
 
@@ -1084,7 +1156,7 @@ Slice 9: v0.1 Golden Path Verification
 - JSON Schema 파일
 - Graph validation rule 목록과 오류 형식
 - Source locator의 세부 표현
-- Atomic wrap transaction 방식
+- Atomic save transaction 방식
 - Pi compaction recovery 구현
 - Existing Markdown manual edit 처리
 - 실제 Pi extension에서 다른 skill output을 관찰하는 방법
@@ -1135,4 +1207,4 @@ Slice 9: v0.1 Golden Path Verification
 
 ## 27. 한 문장 확인
 
-> 사용자는 Observer를 켜고 자신의 학습을 계속한다. Observer는 자료와 상호작용 속에서 여러 가설을 조용히 추적하고 중요한 변화만 알린다. 사용자가 `memo`를 호출하면 미성숙한 생각들을 현재까지의 관련 컨텍스트로 재조정하고, `wrap`을 호출하면 저장 계획을 보여준 뒤 승인된 Source·Inquiry·Memo·Zettel을 선택한 로컬 notebook에 저장하고 관찰을 끝낸다. 다음 세션에서는 새 자료가 관련될 때 미결 가설이 자동으로 다시 활성화된다.
+> 사용자는 Observer를 켜고 자신의 학습을 계속한다. Observer는 자료와 상호작용 속에서 여러 가설을 조용히 추적하고 중요한 변화만 알린다. 사용자가 `memo`를 호출하면 미성숙한 생각들을 현재까지의 관련 컨텍스트로 재조정하고, `save`을 호출하면 저장 계획을 보여준 뒤 승인된 Source·Inquiry·Memo·Zettel을 선택한 로컬 notebook에 저장하고 관찰을 끝낸다. 다음 세션에서는 새 자료가 관련될 때 미결 가설이 자동으로 다시 활성화된다.

@@ -17,10 +17,10 @@ import {
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
 import {
-	encodeWrapRequestEvent,
-	OBSERVER_WRAP_REQUEST_ENTRY,
-	type WrapRequestEvent,
-} from "../src/wrap-trigger.ts";
+	encodeSaveRequestEvent,
+	OBSERVER_SAVE_REQUEST_ENTRY,
+	type SaveRequestEvent,
+} from "../src/save-trigger.ts";
 
 const CANDIDATE_ID = "candidate-00000000-0000-4000-8000-000000000001";
 const READ_ID = "source-read-00000000-0000-4000-8000-000000000001";
@@ -111,6 +111,47 @@ describe("Observer hidden Sidecar context", () => {
 		assert.doesNotMatch(context ?? "", /Standing Inquiry title/u);
 	});
 
+	test("resumes a pending hypothesis review from exact user context while Mode is OFF", () => {
+		const candidate = event({
+			observer_observation: "observer-observation/v1",
+			kind: "candidate-captured",
+			episode_id: "episode-prompt-1",
+			candidate_id: CANDIDATE_ID,
+			origin: {
+				kind: "explicit-user-hypothesis",
+				input_source: "interactive",
+			},
+			text: "Context review should be part of hypothesis tracking.",
+			content_hash: sha256Text(
+				"Context review should be part of hypothesis tracking.",
+			),
+			captured_at: "2026-08-01T12:00:00.000Z",
+		});
+		const hypothesis = event({
+			observer_observation: "observer-observation/v1",
+			kind: "user-hypothesis-recorded",
+			episode_id: "episode-prompt-1",
+			observation_id: "observation-00000000-0000-4000-8000-000000000020",
+			candidate_id: CANDIDATE_ID,
+			inquiry_id: "inquiry-00000000-0000-4000-8000-000000000020",
+			original: "Context review should be part of hypothesis tracking.",
+			context: "The user supplied an explicit rationale.",
+		});
+		const context = observerSidecarContext([
+			...lifecycle(false),
+			entry(candidate),
+			entry(hypothesis),
+		]);
+		assert.match(context ?? "", /<observer-hypothesis-context-review>/u);
+		assert.match(
+			context ?? "",
+			/hypothesis_observation_id=observation-00000000-0000-4000-8000-000000000020/u,
+		);
+		assert.match(context ?? "", /The user supplied an explicit rationale/u);
+		assert.match(context ?? "", /action hypothesis-context-review/u);
+		assert.match(context ?? "", /Insufficient context is a valid assessment/u);
+	});
+
 	test("projects a pending Memo request even when Mode is OFF", () => {
 		const candidate = event({
 			observer_observation: "observer-observation/v1",
@@ -170,11 +211,11 @@ describe("Observer hidden Sidecar context", () => {
 		assert.doesNotMatch(context ?? "", /<observer-sidecar>/u);
 	});
 
-	test("projects a pending Wrap request while OFF without exposing locked values", () => {
-		const request: WrapRequestEvent = {
-			protocol: "observer.wrap-request/v1",
-			kind: "wrap-requested",
-			requestId: "wrap-request-00000000-0000-4000-8000-000000000024",
+	test("projects a pending save request while OFF without exposing locked values", () => {
+		const request: SaveRequestEvent = {
+			protocol: "observer.save-request/v1",
+			kind: "save-requested",
+			requestId: "save-request-00000000-0000-4000-8000-000000000024",
 			proposalId: "proposal-00000000-0000-4000-8000-000000000025",
 			requestDigest:
 				"0000000000000000000000000000000000000000000000000000000000000026",
@@ -189,17 +230,17 @@ describe("Observer hidden Sidecar context", () => {
 			...lifecycle(false),
 			{
 				type: "custom",
-				customType: OBSERVER_WRAP_REQUEST_ENTRY,
-				data: encodeWrapRequestEvent(request),
+				customType: OBSERVER_SAVE_REQUEST_ENTRY,
+				data: encodeSaveRequestEvent(request),
 			},
 		]);
-		assert.match(context ?? "", /<observer-wrap-request>/u);
+		assert.match(context ?? "", /<observer-save-request>/u);
 		assert.equal(context?.includes(request.requestId), true);
-		assert.match(context ?? "", /action wrap-scope/u);
+		assert.match(context ?? "", /action save-scope/u);
 		assert.match(context ?? "", /exactly once unless it returns an error/u);
 		assert.match(
 			context ?? "",
-			/After a successful scope, do not call wrap-scope again/u,
+			/After a successful scope, do not call save-scope again/u,
 		);
 		assert.match(
 			context ?? "",

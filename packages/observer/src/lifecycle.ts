@@ -23,7 +23,7 @@ export interface MemoRevision {
 	readonly receipt: MemoReceipt;
 }
 
-export interface WrapProposal {
+export interface SaveProposal {
 	readonly proposalId: string;
 	readonly summary: string;
 }
@@ -34,7 +34,7 @@ export interface LocalSaveReceipt {
 	readonly recordIds: readonly string[];
 }
 
-export interface CommittedWrap {
+export interface CommittedSave {
 	readonly proposalId: string;
 	readonly receipt: LocalSaveReceipt & { readonly status: "validated" };
 }
@@ -49,21 +49,21 @@ export interface OpenEpisode {
 	readonly lastMemo: MemoRevision | null;
 }
 
-export interface ReviewingWrapEpisode {
-	readonly status: "reviewing-wrap";
+export interface ReviewingSaveEpisode {
+	readonly status: "reviewing-save";
 	readonly core: EpisodeCore;
 	readonly lastMemo: MemoRevision | null;
-	readonly proposal: WrapProposal;
+	readonly proposal: SaveProposal;
 }
 
 export interface SettledEpisode {
 	readonly status: "settled";
 	readonly core: EpisodeCore;
 	readonly lastMemo: MemoRevision | null;
-	readonly committedWrap: CommittedWrap;
+	readonly committedSave: CommittedSave;
 }
 
-export type ActiveEpisode = OpenEpisode | ReviewingWrapEpisode;
+export type ActiveEpisode = OpenEpisode | ReviewingSaveEpisode;
 export type ObserverEpisode = ActiveEpisode | EmptyEpisode | SettledEpisode;
 
 type ObserverState =
@@ -108,19 +108,18 @@ export interface MemoReconciledEvent
 	readonly receipt: MemoReceipt;
 }
 
-export interface WrapProposedEvent
-	extends ObserverEventBase<"wrap-proposed"> {
+export interface SaveProposedEvent extends ObserverEventBase<"save-proposed"> {
 	readonly proposalId: string;
 	readonly summary: string;
 }
 
-export interface WrapCancelledEvent
-	extends ObserverEventBase<"wrap-cancelled"> {
+export interface SaveCancelledEvent
+	extends ObserverEventBase<"save-cancelled"> {
 	readonly proposalId: string;
 }
 
-export interface WrapCommittedEvent
-	extends ObserverEventBase<"wrap-committed"> {
+export interface SaveCommittedEvent
+	extends ObserverEventBase<"save-committed"> {
 	readonly proposalId: string;
 	readonly receipt: LocalSaveReceipt;
 }
@@ -130,9 +129,9 @@ export type ObserverEvent =
 	| EpisodeOpenedEvent
 	| MemoReconciledEvent
 	| NotebookSelectedEvent
-	| WrapCancelledEvent
-	| WrapCommittedEvent
-	| WrapProposedEvent;
+	| SaveCancelledEvent
+	| SaveCommittedEvent
+	| SaveProposedEvent;
 
 export type ObserverEventDecodeCode =
 	| "event.kind"
@@ -158,10 +157,10 @@ export type ObserverTransitionRejection =
 	| "memo.revision-duplicate"
 	| "notebook.live-switch"
 	| "notebook.mismatch"
-	| "wrap.episode-open-required"
-	| "wrap.proposal-mismatch"
-	| "wrap.receipt-unvalidated"
-	| "wrap.review-required";
+	| "save.episode-open-required"
+	| "save.proposal-mismatch"
+	| "save.receipt-unvalidated"
+	| "save.review-required";
 
 export type ObserverEventApplication =
 	| {
@@ -240,9 +239,7 @@ function parseMemoReceipt(value: unknown): MemoReceipt | null {
 	return { receiptId: value.receiptId, summary: value.summary };
 }
 
-function isReceiptStatus(
-	value: unknown,
-): value is LocalSaveReceipt["status"] {
+function isReceiptStatus(value: unknown): value is LocalSaveReceipt["status"] {
 	return value === "unvalidated" || value === "validated";
 }
 
@@ -386,7 +383,7 @@ function normalizeMemoReconciled(
 	};
 }
 
-function normalizeWrapProposed(
+function normalizeSaveProposed(
 	value: Readonly<Record<string, unknown>>,
 ): ObserverEventDecodeResult {
 	if (
@@ -397,21 +394,21 @@ function normalizeWrapProposed(
 		return decodeFailure(
 			"event.shape",
 			"/",
-			"wrap-proposed requires a bounded proposal ID and summary.",
+			"save-proposed requires a bounded proposal ID and summary.",
 		);
 	}
 	return {
 		ok: true,
 		event: {
 			protocol: OBSERVER_PROTOCOL,
-			kind: "wrap-proposed",
+			kind: "save-proposed",
 			proposalId: value.proposalId,
 			summary: value.summary,
 		},
 	};
 }
 
-function normalizeWrapCancelled(
+function normalizeSaveCancelled(
 	value: Readonly<Record<string, unknown>>,
 ): ObserverEventDecodeResult {
 	if (
@@ -421,20 +418,20 @@ function normalizeWrapCancelled(
 		return decodeFailure(
 			"event.shape",
 			"/",
-			"wrap-cancelled requires one bounded proposal ID.",
+			"save-cancelled requires one bounded proposal ID.",
 		);
 	}
 	return {
 		ok: true,
 		event: {
 			protocol: OBSERVER_PROTOCOL,
-			kind: "wrap-cancelled",
+			kind: "save-cancelled",
 			proposalId: value.proposalId,
 		},
 	};
 }
 
-function normalizeWrapCommitted(
+function normalizeSaveCommitted(
 	value: Readonly<Record<string, unknown>>,
 ): ObserverEventDecodeResult {
 	if (
@@ -444,7 +441,7 @@ function normalizeWrapCommitted(
 		return decodeFailure(
 			"event.shape",
 			"/",
-			"wrap-committed requires a bounded proposal ID and local-save receipt.",
+			"save-committed requires a bounded proposal ID and local-save receipt.",
 		);
 	}
 	const receipt = parseLocalSaveReceipt(value.receipt);
@@ -459,7 +456,7 @@ function normalizeWrapCommitted(
 		ok: true,
 		event: {
 			protocol: OBSERVER_PROTOCOL,
-			kind: "wrap-committed",
+			kind: "save-committed",
 			proposalId: value.proposalId,
 			receipt,
 		},
@@ -470,7 +467,11 @@ export function normalizeObserverEvent(
 	value: unknown,
 ): ObserverEventDecodeResult {
 	if (!isObject(value)) {
-		return decodeFailure("event.object", "/", "Observer event must be an object.");
+		return decodeFailure(
+			"event.object",
+			"/",
+			"Observer event must be an object.",
+		);
 	}
 	if (value.protocol !== OBSERVER_PROTOCOL) {
 		return decodeFailure(
@@ -480,7 +481,11 @@ export function normalizeObserverEvent(
 		);
 	}
 	if (typeof value.kind !== "string") {
-		return decodeFailure("event.kind", "/kind", "Observer event kind is required.");
+		return decodeFailure(
+			"event.kind",
+			"/kind",
+			"Observer event kind is required.",
+		);
 	}
 	switch (value.kind) {
 		case "episode-opened":
@@ -491,12 +496,12 @@ export function normalizeObserverEvent(
 			return normalizeNotebookSelected(value);
 		case "memo-reconciled":
 			return normalizeMemoReconciled(value);
-		case "wrap-proposed":
-			return normalizeWrapProposed(value);
-		case "wrap-cancelled":
-			return normalizeWrapCancelled(value);
-		case "wrap-committed":
-			return normalizeWrapCommitted(value);
+		case "save-proposed":
+			return normalizeSaveProposed(value);
+		case "save-cancelled":
+			return normalizeSaveCancelled(value);
+		case "save-committed":
+			return normalizeSaveCommitted(value);
 		default:
 			return decodeFailure(
 				"event.kind",
@@ -534,7 +539,7 @@ function applyEpisodeOpened(
 ): ObserverEventApplication {
 	if (
 		state.episode.status === "open" ||
-		state.episode.status === "reviewing-wrap"
+		state.episode.status === "reviewing-save"
 	) {
 		return rejected(state, "episode.already-open");
 	}
@@ -575,7 +580,7 @@ function applyActivationChanged(
 	}
 	if (
 		state.episode.status !== "open" &&
-		state.episode.status !== "reviewing-wrap"
+		state.episode.status !== "reviewing-save"
 	) {
 		return rejected(state, "activation.episode-required");
 	}
@@ -594,7 +599,7 @@ function applyNotebookSelected(
 ): ObserverEventApplication {
 	if (
 		state.episode.status === "open" ||
-		state.episode.status === "reviewing-wrap"
+		state.episode.status === "reviewing-save"
 	) {
 		const liveNotebookId =
 			state.selectedNotebookId ?? state.episode.core.notebookId;
@@ -630,17 +635,17 @@ function applyMemoReconciled(
 	});
 }
 
-function applyWrapProposed(
+function applySaveProposed(
 	state: ObserverState,
-	event: WrapProposedEvent,
+	event: SaveProposedEvent,
 ): ObserverEventApplication {
 	if (state.episode.status !== "open") {
-		return rejected(state, "wrap.episode-open-required");
+		return rejected(state, "save.episode-open-required");
 	}
 	return accepted(state, {
 		...state,
 		episode: {
-			status: "reviewing-wrap",
+			status: "reviewing-save",
 			core: state.episode.core,
 			lastMemo: state.episode.lastMemo,
 			proposal: {
@@ -654,25 +659,25 @@ function applyWrapProposed(
 function matchingProposal(
 	state: ObserverState,
 	proposalId: string,
-): ObserverEventApplication | ReviewingWrapEpisode {
-	if (state.episode.status !== "reviewing-wrap") {
-		return rejected(state, "wrap.review-required");
+): ObserverEventApplication | ReviewingSaveEpisode {
+	if (state.episode.status !== "reviewing-save") {
+		return rejected(state, "save.review-required");
 	}
 	if (state.episode.proposal.proposalId !== proposalId) {
-		return rejected(state, "wrap.proposal-mismatch");
+		return rejected(state, "save.proposal-mismatch");
 	}
 	return state.episode;
 }
 
 function isRejectedApplication(
-	value: ObserverEventApplication | ReviewingWrapEpisode,
+	value: ObserverEventApplication | ReviewingSaveEpisode,
 ): value is ObserverEventApplication {
 	return "applied" in value;
 }
 
-function applyWrapCancelled(
+function applySaveCancelled(
 	state: ObserverState,
-	event: WrapCancelledEvent,
+	event: SaveCancelledEvent,
 ): ObserverEventApplication {
 	const episode = matchingProposal(state, event.proposalId);
 	if (isRejectedApplication(episode)) return episode;
@@ -686,14 +691,14 @@ function applyWrapCancelled(
 	});
 }
 
-function applyWrapCommitted(
+function applySaveCommitted(
 	state: ObserverState,
-	event: WrapCommittedEvent,
+	event: SaveCommittedEvent,
 ): ObserverEventApplication {
 	const episode = matchingProposal(state, event.proposalId);
 	if (isRejectedApplication(episode)) return episode;
 	if (event.receipt.status !== "validated") {
-		return rejected(state, "wrap.receipt-unvalidated");
+		return rejected(state, "save.receipt-unvalidated");
 	}
 	return accepted(state, {
 		mode: "off",
@@ -702,7 +707,7 @@ function applyWrapCommitted(
 			status: "settled",
 			core: episode.core,
 			lastMemo: episode.lastMemo,
-			committedWrap: {
+			committedSave: {
 				proposalId: event.proposalId,
 				receipt: {
 					receiptId: event.receipt.receiptId,
@@ -731,12 +736,12 @@ export function applyObserverEvent(
 			return applyNotebookSelected(state, event);
 		case "memo-reconciled":
 			return applyMemoReconciled(state, event);
-		case "wrap-proposed":
-			return applyWrapProposed(state, event);
-		case "wrap-cancelled":
-			return applyWrapCancelled(state, event);
-		case "wrap-committed":
-			return applyWrapCommitted(state, event);
+		case "save-proposed":
+			return applySaveProposed(state, event);
+		case "save-cancelled":
+			return applySaveCancelled(state, event);
+		case "save-committed":
+			return applySaveCommitted(state, event);
 		default:
 			return assertNever(event);
 	}

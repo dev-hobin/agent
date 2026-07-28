@@ -23,16 +23,17 @@ import {
 import type { EpisodeLanguage } from "../src/lifecycle.ts";
 import type { ObserverStatusView } from "../src/observer-status.ts";
 
-export const OBSERVER_ONE_SHOT_DRAFT =
-	"Observe this material once from the Observer perspective:\n";
-
+export const OBSERVER_HYPOTHESIS_DRAFT = "/observe hypothesis ";
+export const OBSERVER_OBSERVE_MATERIAL_DRAFT =
+	"Observe this material with Observer without enabling continuous mode:\n";
 export type ObserverControlAction =
 	| { readonly kind: "activation"; readonly enabled: boolean }
 	| { readonly kind: "setup" }
 	| { readonly kind: "language"; readonly language: EpisodeLanguage }
 	| { readonly kind: "memo" }
-	| { readonly kind: "wrap" }
-	| { readonly kind: "one-shot" }
+	| { readonly kind: "review-save" }
+	| { readonly kind: "track-hypothesis" }
+	| { readonly kind: "observe-material" }
 	| { readonly kind: "status" };
 
 export interface ObserverControlEffects {
@@ -116,10 +117,10 @@ function memoValue(view: ObserverStatusView): string {
 		: `Reconcile ${view.pendingMemos}`;
 }
 
-function wrapValue(view: ObserverStatusView): string {
-	return view.control.episode === "reviewing-wrap"
-		? "Review plan"
-		: "Prepare wrap";
+function saveValue(view: ObserverStatusView): string {
+	return view.control.episode === "reviewing-save"
+		? "Review proposal"
+		: "Prepare save plan";
 }
 
 function activationDescription(view: ObserverStatusView): string {
@@ -130,6 +131,7 @@ function activationDescription(view: ObserverStatusView): string {
 	return "Start continuous Sidecar observation";
 }
 
+/** Projects legal Observer actions into the interactive control center. */
 export function observerControlItems(
 	view: ObserverStatusView,
 	pendingLanguage: EpisodeLanguage = view.control.notebookDefaultLanguage ??
@@ -156,7 +158,7 @@ export function observerControlItems(
 			: { values: ["en", "ko"] }),
 		description:
 			view.control.episode === "open" ||
-			view.control.episode === "reviewing-wrap"
+			view.control.episode === "reviewing-save"
 				? `Memo and Zettel Markdown use this for the next Episode · the current Episode remains ${view.episodeLanguage}`
 				: "Language used when Observer writes Memo and Zettel Markdown · does not change the UI language",
 	};
@@ -172,6 +174,20 @@ export function observerControlItems(
 			? [activation]
 			: [notebook, language, activation];
 
+	if (
+		view.control.notebook === "ready" &&
+		view.control.episode !== "reviewing-save"
+	) {
+		items.push({
+			id: "track-hypothesis",
+			label: "Track a hypothesis",
+			currentValue: "Draft hypothesis",
+			values: ["Draft hypothesis"],
+			description:
+				"Preserve an idea, then re-read the current context through it as a lens",
+		});
+	}
+
 	if (view.control.canMemo) {
 		items.push({
 			id: "memo",
@@ -182,28 +198,32 @@ export function observerControlItems(
 				"Reconcile current observations with related Inquiries · does not write Notebook files",
 		});
 	}
-	if (view.control.canWrap) {
+	if (view.control.canSave) {
 		items.push({
-			id: "wrap",
-			label: "Wrap",
-			currentValue: wrapValue(view),
-			values: [wrapValue(view)],
+			id: "review-save",
+			label: "Review & Save",
+			currentValue: saveValue(view),
+			values: [saveValue(view)],
 			description:
-				view.control.episode === "reviewing-wrap"
-					? "Review the save plan, then approve or cancel"
-					: "Prepare final reconciliation and user-approved persistence",
+				view.control.episode === "reviewing-save"
+					? "Review proposed Notebook changes, then approve or cancel"
+					: "Reconcile pending work, prepare Notebook changes, and settle the Episode after approval",
 		});
 	}
 
 	if (view.control.notebook === "ready") items.push(notebook, language);
-	if (view.control.mode === "off" && view.control.notebook === "ready") {
+	if (
+		view.control.mode === "off" &&
+		view.control.notebook === "ready" &&
+		view.control.episode !== "reviewing-save"
+	) {
 		items.push({
-			id: "one-shot",
-			label: "One-shot",
-			currentValue: "Insert draft",
-			values: ["Insert draft"],
+			id: "observe-material",
+			label: "Observe material",
+			currentValue: "Draft request",
+			values: ["Draft request"],
 			description:
-				"Observe one request without enabling continuous Observer mode",
+				"Analyze supplied or retrieved material without enabling continuous Observer mode",
 		});
 	}
 	const healthy = view.replayHealth === "Healthy" && !view.operationalIssue;
@@ -223,13 +243,15 @@ export function observerNextStep(view: ObserverStatusView): string {
 		return "Open Status and health first to inspect the recovery cause.";
 	if (view.control.notebook === "unselected")
 		return "Connect a Notebook, then turn Observer on.";
-	if (view.control.episode === "reviewing-wrap")
-		return "Review the Wrap save plan, then approve or cancel it.";
+	if (view.control.episode === "reviewing-save")
+		return "Review the save proposal, then approve or cancel it.";
+	if (view.pendingHypothesisReviews > 0)
+		return `Review the current context through ${view.pendingHypothesisReviews} ${view.pendingHypothesisReviews === 1 ? "tracked hypothesis" : "tracked hypotheses"} before Memo reconciliation.`;
 	if (view.control.mode === "on")
-		return "Keep working normally. Reconcile with Memo and finish with Wrap when needed.";
+		return "Keep working normally. Track hypotheses, reconcile with Memo, then review and save when ready.";
 	if (view.control.episode === "open")
-		return "Your open work is preserved. Resume observation or choose Memo/Wrap.";
-	return "Turn Observer on to start the Sidecar, or insert a One-shot draft.";
+		return "Your open work is preserved. Resume observation, track a hypothesis, or review and save.";
+	return "Turn Observer on, track a hypothesis, or observe material on demand.";
 }
 
 interface ObserverControlSurfaceOptions {
@@ -416,11 +438,14 @@ export class ObserverControlSurface extends Container {
 			case "memo":
 				this.done({ kind: "memo" });
 				break;
-			case "wrap":
-				this.done({ kind: "wrap" });
+			case "review-save":
+				this.done({ kind: "review-save" });
 				break;
-			case "one-shot":
-				this.done({ kind: "one-shot" });
+			case "track-hypothesis":
+				this.done({ kind: "track-hypothesis" });
+				break;
+			case "observe-material":
+				this.done({ kind: "observe-material" });
 				break;
 			default:
 				break;
@@ -556,6 +581,11 @@ export class ObserverStatusPanel {
 		rows.push(row());
 		section("Working set");
 		add("Pending Memo", this.view.pendingMemos);
+		add(
+			"Hypothesis context review",
+			String(this.view.pendingHypothesisReviews),
+			this.view.pendingHypothesisReviews > 0 ? "warning" : "muted",
+		);
 		add("Open Inquiry", this.view.openInquiries);
 		add("Zettel candidates", this.view.zettelCandidates);
 		add(
@@ -563,8 +593,8 @@ export class ObserverStatusPanel {
 			this.view.preparedMemo === "None" ? "None" : "Prepared",
 		);
 		add(
-			"Wrap preparation",
-			this.view.preparedWrap === "None" ? "None" : "Ready for review",
+			"Save proposal",
+			this.view.preparedSave === "None" ? "None" : "Ready for review",
 		);
 
 		rows.push(row());
@@ -624,11 +654,11 @@ export function renderObserverChromeStatus(
 		return (
 			theme.fg("accent", "observer") + separator + theme.fg("warning", "setup")
 		);
-	if (view.control.episode === "reviewing-wrap")
+	if (view.control.episode === "reviewing-save")
 		return (
 			theme.fg("accent", "observer") +
 			separator +
-			theme.fg("warning", "wrap review")
+			theme.fg("warning", "save review")
 		);
 	if (view.control.mode === "on")
 		return (
@@ -653,7 +683,7 @@ export function shouldShowObserverWidget(view: ObserverStatusView): boolean {
 	return Boolean(
 		view.operationalIssue ||
 			view.control.notebook === "unhealthy" ||
-			view.control.episode === "reviewing-wrap" ||
+			view.control.episode === "reviewing-save" ||
 			view.control.mode === "on" ||
 			view.control.episode === "open",
 	);
@@ -676,11 +706,26 @@ export class ObserverWidget {
 		) {
 			lines.push(this.theme.fg("error", "! Observer · recovery required"));
 			lines.push(this.theme.fg("dim", "  /observe → Status and health"));
-		} else if (this.view.control.episode === "reviewing-wrap") {
+		} else if (this.view.control.episode === "reviewing-save") {
 			lines.push(
-				this.theme.fg("warning", "! Observer · Wrap plan awaiting review"),
+				this.theme.fg("warning", "! Observer · save proposal awaiting review"),
 			);
-			lines.push(this.theme.fg("dim", "  /observe → Wrap → approve or cancel"));
+			lines.push(
+				this.theme.fg("dim", "  /observe → Review & Save → approve or cancel"),
+			);
+		} else if (this.view.pendingHypothesisReviews > 0) {
+			lines.push(
+				this.theme.fg(
+					"warning",
+					`! Observer · ${this.view.pendingHypothesisReviews} hypothesis context review${this.view.pendingHypothesisReviews === 1 ? "" : "s"} pending`,
+				),
+			);
+			lines.push(
+				this.theme.fg(
+					"dim",
+					"  The next agent turn resumes the exact tracked hypothesis",
+				),
+			);
 		} else if (this.view.control.mode === "on") {
 			lines.push(
 				this.theme.fg("success", "◆ Observer · observing") +
@@ -697,7 +742,7 @@ export class ObserverWidget {
 			lines.push(
 				this.theme.fg(
 					"dim",
-					"  Open Episode preserved · use /observe to resume, Memo, or Wrap",
+					"  Open Episode preserved · use /observe to resume, Memo, or Review & Save",
 				),
 			);
 		}

@@ -37,18 +37,22 @@ import {
 	type NotebookSelectionStore,
 } from "../src/notebook-selection-store.ts";
 import {
-	decodePreparedWrap,
-	decodeWrapApproval,
-	OBSERVER_WRAP_APPROVAL_SCHEMA,
-	OBSERVER_WRAP_SCHEMA,
+	decodePreparedSave,
+	decodeSaveApproval,
+	OBSERVER_SAVE_APPROVAL_SCHEMA,
+	OBSERVER_SAVE_SCHEMA,
 	type PreparedRecord,
-} from "../src/wrap-profile.ts";
+} from "../src/save-profile.ts";
 import {
-	createWrapService,
-	type WrapService,
-	type WrapServiceResult,
-} from "../src/wrap-service.ts";
-import type { WrapFaultInjector, WrapFaultPoint } from "../src/wrap-transaction.ts";
+	createSaveService,
+	type SaveService,
+	type SaveServiceResult,
+} from "../src/save-service.ts";
+import { createWrapService } from "../src/wrap-service.ts";
+import type {
+	WrapFaultInjector,
+	WrapFaultPoint,
+} from "../src/wrap-transaction.ts";
 
 const baselineRoot = join(
 	import.meta.dirname,
@@ -75,7 +79,7 @@ interface ReviewContext {
 	readonly root: string;
 	readonly selectionStore: NotebookSelectionStore;
 	readonly notebooks: NotebookService;
-	readonly wraps: WrapService;
+	readonly saves: SaveService;
 	readonly session: NotebookSession;
 	readonly state: ObserverState;
 	readonly notebookId: NotebookId;
@@ -151,23 +155,26 @@ async function prepareReview(
 		episode.state,
 		requireEvent({
 			protocol: OBSERVER_PROTOCOL,
-			kind: "wrap-proposed",
+			kind: "save-proposed",
 			proposalId: "proposal-wrap-1",
-			summary: "Prepared wrap",
+			summary: "Prepared save",
 		}),
 	);
 	return {
 		root: episode.notebook.root,
 		selectionStore,
 		notebooks,
-		wraps: createWrapService({ selectionStore, faultInjector }),
+		saves: createSaveService({
+			selectionStore,
+			wrapService: createWrapService({ faultInjector }),
+		}),
 		session: episode,
 		state,
 		notebookId: episode.notebook.manifest.notebook_id,
 	};
 }
 
-function preparedWrap(
+function preparedSave(
 	context: ReviewContext,
 	records: readonly PreparedRecord[],
 	input?: {
@@ -178,7 +185,7 @@ function preparedWrap(
 	},
 ): unknown {
 	return {
-		observer_wrap: OBSERVER_WRAP_SCHEMA,
+		observer_save: OBSERVER_SAVE_SCHEMA,
 		proposal_id: input?.proposalId ?? "proposal-wrap-1",
 		notebook_id: input?.notebookId ?? context.notebookId,
 		root: input?.root ?? context.root,
@@ -187,12 +194,9 @@ function preparedWrap(
 	};
 }
 
-function approval(
-	approved = true,
-	proposalId = "proposal-wrap-1",
-): unknown {
+function approval(approved = true, proposalId = "proposal-wrap-1"): unknown {
 	return {
-		observer_approval: OBSERVER_WRAP_APPROVAL_SCHEMA,
+		observer_approval: OBSERVER_SAVE_APPROVAL_SCHEMA,
 		proposal_id: proposalId,
 		approved,
 	};
@@ -307,7 +311,9 @@ function updateRecord(
 	};
 }
 
-async function inventoryContents(root: string): Promise<ReadonlyMap<string, string>> {
+async function inventoryContents(
+	root: string,
+): Promise<ReadonlyMap<string, string>> {
 	const notebook = requireValue(await openNotebook(root));
 	const inventory = requireValue(await readNotebookInventory(notebook));
 	return new Map(inventory.map((entry) => [entry.relativePath, entry.content]));
@@ -334,15 +340,15 @@ function throwingFault(
 	};
 }
 
-function requireWrapSuccess(result: WrapServiceResult) {
+function requireSaveSuccess(result: SaveServiceResult) {
 	if (!result.ok) assert.fail(JSON.stringify(result.issue));
 	return result.value;
 }
 
-describe("Observer wrap profile", () => {
-	test("decodes empty prepared wrap and explicit approval", () => {
-		const prepared = decodePreparedWrap({
-			observer_wrap: OBSERVER_WRAP_SCHEMA,
+describe("Observer save profile", () => {
+	test("decodes empty prepared save and explicit approval", () => {
+		const prepared = decodePreparedSave({
+			observer_save: OBSERVER_SAVE_SCHEMA,
 			proposal_id: "proposal-1",
 			notebook_id: "notebook-00000000-0000-4000-8000-000000000001",
 			root: "/tmp/notebook",
@@ -350,17 +356,17 @@ describe("Observer wrap profile", () => {
 			records: [],
 		});
 		assert.equal(prepared.ok, true);
-		const accepted = decodeWrapApproval(approval());
+		const accepted = decodeSaveApproval(approval());
 		assert.equal(accepted.ok, true);
 		if (!accepted.ok) assert.fail("Expected approval");
 		assert.equal(accepted.value.approved, true);
-		const declined = decodeWrapApproval(approval(false));
+		const declined = decodeSaveApproval(approval(false));
 		assert.equal(declined.ok, true);
 	});
 
 	test("rejects malformed prepared and approval values", () => {
 		const valid = {
-			observer_wrap: OBSERVER_WRAP_SCHEMA,
+			observer_save: OBSERVER_SAVE_SCHEMA,
 			proposal_id: "proposal-1",
 			notebook_id: "notebook-00000000-0000-4000-8000-000000000001",
 			root: "/tmp/notebook",
@@ -369,7 +375,7 @@ describe("Observer wrap profile", () => {
 		};
 		for (const value of [
 			null,
-			{ ...valid, observer_wrap: "observer-wrap/v2" },
+			{ ...valid, observer_save: "observer-save/v2" },
 			{ ...valid, root: "relative/notebook" },
 			{ ...valid, episode_language: "ja" },
 			{ ...valid, records: null },
@@ -386,39 +392,37 @@ describe("Observer wrap profile", () => {
 				],
 			},
 		]) {
-			assert.equal(decodePreparedWrap(value).ok, false);
+			assert.equal(decodePreparedSave(value).ok, false);
 		}
 		for (const value of [
 			null,
-			{ observer_approval: "observer-wrap-approval/v2" },
+			{ observer_approval: "observer-save-approval/v2" },
 			{
-				observer_approval: OBSERVER_WRAP_APPROVAL_SCHEMA,
+				observer_approval: OBSERVER_SAVE_APPROVAL_SCHEMA,
 				proposal_id: "proposal-wrap-1",
 				approved: "yes",
 			},
 			{
-				observer_approval: OBSERVER_WRAP_APPROVAL_SCHEMA,
+				observer_approval: OBSERVER_SAVE_APPROVAL_SCHEMA,
 				proposal_id: "proposal-wrap-1",
 				approved: true,
 				extra: true,
 			},
 		]) {
-			assert.equal(decodeWrapApproval(value).ok, false);
+			assert.equal(decodeSaveApproval(value).ok, false);
 		}
 	});
 });
 
-describe("Observer wrap durable persistence", () => {
+describe("Observer durable save persistence", () => {
 	test("creates exact Markdown, verifies receipt, settles, and reopens", async () => {
 		await withSandbox(async (sandbox) => {
 			const context = await prepareReview(sandbox, false);
 			const markdown = await externalSource();
-			const result = requireWrapSuccess(
-				await context.wraps.commit({
+			const result = requireSaveSuccess(
+				await context.saves.commit({
 					state: context.state,
-					prepared: preparedWrap(context, [
-						createRecord(SOURCE_NEW, markdown),
-					]),
+					prepared: preparedSave(context, [createRecord(SOURCE_NEW, markdown)]),
 					approval: approval(),
 				}),
 			);
@@ -449,10 +453,10 @@ describe("Observer wrap durable persistence", () => {
 			const context = await prepareReview(sandbox, true);
 			const memo = await promotedMemo(context.root);
 			const zettel = promotedZettel();
-			const result = requireWrapSuccess(
-				await context.wraps.commit({
+			const result = requireSaveSuccess(
+				await context.saves.commit({
 					state: context.state,
-					prepared: preparedWrap(context, [
+					prepared: preparedSave(context, [
 						createRecord(ZETTEL_NEW, zettel),
 						updateRecord(MEMO_ONE, memo.sha256, memo.content),
 					]),
@@ -478,10 +482,10 @@ describe("Observer wrap durable persistence", () => {
 		await withSandbox(async (sandbox) => {
 			const context = await prepareReview(sandbox, true);
 			const before = await inventoryContents(context.root);
-			const result = requireWrapSuccess(
-				await context.wraps.commit({
+			const result = requireSaveSuccess(
+				await context.saves.commit({
 					state: context.state,
-					prepared: preparedWrap(context, []),
+					prepared: preparedSave(context, []),
 					approval: approval(),
 				}),
 			);
@@ -497,49 +501,48 @@ describe("Observer wrap durable persistence", () => {
 			const before = await inventoryContents(context.root);
 			const cases = [
 				{
-					prepared: preparedWrap(context, []),
+					prepared: preparedSave(context, []),
 					approval: approval(false),
-					code: "wrap.declined",
+					code: "save.declined",
 				},
 				{
-					prepared: preparedWrap(context, []),
+					prepared: preparedSave(context, []),
 					approval: approval(true, "proposal-stale"),
-					code: "wrap.lifecycle",
+					code: "save.lifecycle",
 				},
 				{
-					prepared: preparedWrap(context, [], {
+					prepared: preparedSave(context, [], {
 						proposalId: "proposal-stale",
 					}),
 					approval: approval(true, "proposal-stale"),
-					code: "wrap.lifecycle",
+					code: "save.lifecycle",
 				},
 				{
-					prepared: preparedWrap(context, [], {
-						notebookId:
-							"notebook-00000000-0000-4000-8000-999999999999",
+					prepared: preparedSave(context, [], {
+						notebookId: "notebook-00000000-0000-4000-8000-999999999999",
 					}),
 					approval: approval(),
-					code: "wrap.target-mismatch",
+					code: "save.target-mismatch",
 				},
 				{
-					prepared: preparedWrap(context, [], { root: join(sandbox, "other") }),
+					prepared: preparedSave(context, [], { root: join(sandbox, "other") }),
 					approval: approval(),
-					code: "wrap.target-mismatch",
+					code: "save.target-mismatch",
 				},
 				{
-					prepared: preparedWrap(context, [], { language: "ko" }),
+					prepared: preparedSave(context, [], { language: "ko" }),
 					approval: approval(),
-					code: "wrap.target-mismatch",
+					code: "save.target-mismatch",
 				},
 			];
 			for (const item of cases) {
-				const result = await context.wraps.commit({
+				const result = await context.saves.commit({
 					state: context.state,
 					prepared: item.prepared,
 					approval: item.approval,
 				});
 				assert.equal(result.ok, false);
-				if (result.ok) assert.fail("Expected wrap rejection");
+				if (result.ok) assert.fail("Expected save rejection");
 				assert.equal(result.issue.code, item.code);
 				assert.deepEqual(await inventoryContents(context.root), before);
 				await assertNoActiveTransaction(context.root);
@@ -559,33 +562,27 @@ describe("Observer wrap durable persistence", () => {
 						createRecord(SOURCE_NEW, newSource),
 						createRecord(SOURCE_NEW, newSource),
 					],
-					"wrap-preflight.duplicate-id",
+					"save.invalid-plan",
 				],
 				[
 					[createRecord(SOURCE_ONE, await externalSource(SOURCE_ONE))],
-					"wrap-preflight.create-collision",
+					"save.invalid-plan",
 				],
 				[
 					[updateRecord(SOURCE_NEW, "0".repeat(64), newSource)],
-					"wrap-preflight.update-missing",
+					"save.invalid-plan",
 				],
-				[
-					[createRecord(SOURCE_NEW, "# invalid\n")],
-					"wrap-preflight.record-invalid",
-				],
-				[
-					[createRecord(ZETTEL_INVALID, invalidZettel())],
-					"wrap-preflight.final-invalid",
-				],
+				[[createRecord(SOURCE_NEW, "# invalid\n")], "save.invalid-plan"],
+				[[createRecord(ZETTEL_INVALID, invalidZettel())], "save.invalid-plan"],
 				[
 					[updateRecord(MEMO_ONE, "0".repeat(64), memo.content)],
-					"wrap-preflight.update-stale",
+					"save.invalid-plan",
 				],
 			];
 			for (const [records, code] of cases) {
-				const result = await context.wraps.commit({
+				const result = await context.saves.commit({
 					state: context.state,
-					prepared: preparedWrap(context, records),
+					prepared: preparedSave(context, records),
 					approval: approval(),
 				});
 				assert.equal(result.ok, false);
@@ -613,9 +610,9 @@ describe("Observer wrap durable persistence", () => {
 				);
 				const before = await inventoryContents(context.root);
 				const memo = await promotedMemo(context.root);
-				const result = await context.wraps.commit({
+				const result = await context.saves.commit({
 					state: context.state,
-					prepared: preparedWrap(context, [
+					prepared: preparedSave(context, [
 						updateRecord(MEMO_ONE, memo.sha256, memo.content),
 						createRecord(ZETTEL_NEW, promotedZettel()),
 					]),
@@ -625,7 +622,7 @@ describe("Observer wrap durable persistence", () => {
 				if (result.ok) assert.fail("Expected injected failure");
 				assert.equal(result.issue.recoveryRequired, false);
 				assert.deepEqual(await inventoryContents(context.root), before);
-				assert.equal(context.state.episode.status, "reviewing-wrap");
+				assert.equal(context.state.episode.status, "reviewing-save");
 				await assertNoActiveTransaction(context.root);
 			});
 		}
@@ -633,7 +630,11 @@ describe("Observer wrap durable persistence", () => {
 
 	test("detects non-target drift before first publication", async () => {
 		await withSandbox(async (sandbox) => {
-			const sourcePath = join(contextRoot(sandbox), "records", "source-external.md");
+			const sourcePath = join(
+				contextRoot(sandbox),
+				"records",
+				"source-external.md",
+			);
 			const fault = throwingFault("before-drift-check", async () => {
 				const current = await readFile(sourcePath, "utf8");
 				await writeFile(sourcePath, `${current}\n`, "utf8");
@@ -641,16 +642,16 @@ describe("Observer wrap durable persistence", () => {
 			const context = await prepareReview(sandbox, true, fault);
 			const memo = await revisedMemo(context.root);
 			const memoBefore = await readFile(memo.path, "utf8");
-			const result = await context.wraps.commit({
+			const result = await context.saves.commit({
 				state: context.state,
-				prepared: preparedWrap(context, [
+				prepared: preparedSave(context, [
 					updateRecord(MEMO_ONE, memo.sha256, memo.content),
 				]),
 				approval: approval(),
 			});
 			assert.equal(result.ok, false);
 			if (result.ok) assert.fail("Expected drift rejection");
-			assert.equal(result.issue.code, "wrap-transaction.drift");
+			assert.equal(result.issue.code, "save.concurrent-change");
 			assert.equal(await readFile(memo.path, "utf8"), memoBefore);
 			await assertNoActiveTransaction(context.root);
 		});
@@ -667,18 +668,21 @@ describe("Observer wrap durable persistence", () => {
 			const context = await prepareReview(sandbox, true, fault);
 			const memo = await revisedMemo(context.root);
 			targetPath = memo.path;
-			const result = await context.wraps.commit({
+			const result = await context.saves.commit({
 				state: context.state,
-				prepared: preparedWrap(context, [
+				prepared: preparedSave(context, [
 					updateRecord(MEMO_ONE, memo.sha256, memo.content),
 				]),
 				approval: approval(),
 			});
 			assert.equal(result.ok, false);
 			if (result.ok) assert.fail("Expected recovery-required failure");
-			assert.equal(result.issue.code, "wrap-transaction.rollback");
+			assert.equal(result.issue.code, "save.persistence");
 			assert.equal(result.issue.recoveryRequired, true);
-			assert.equal(await readFile(targetPath, "utf8"), "external concurrent edit");
+			assert.equal(
+				await readFile(targetPath, "utf8"),
+				"external concurrent edit",
+			);
 			await access(activeTransactionPath(context.root));
 		});
 	});
@@ -688,40 +692,38 @@ describe("Observer wrap durable persistence", () => {
 			const context = await prepareReview(sandbox, false);
 			const markdown = await externalSource();
 			await mkdir(activeTransactionPath(context.root), { recursive: true });
-			const blocked = await context.wraps.commit({
+			const blocked = await context.saves.commit({
 				state: context.state,
-				prepared: preparedWrap(context, [
-					createRecord(SOURCE_NEW, markdown),
-				]),
+				prepared: preparedSave(context, [createRecord(SOURCE_NEW, markdown)]),
 				approval: approval(),
 			});
 			assert.equal(blocked.ok, false);
 			if (blocked.ok) assert.fail("Expected active transaction rejection");
-			assert.equal(blocked.issue.code, "wrap-transaction.active");
+			assert.equal(blocked.issue.code, "save.busy");
 			assert.equal(blocked.issue.recoveryRequired, true);
 			await rm(activeTransactionPath(context.root), {
 				recursive: true,
 				force: true,
 			});
-			const prepared = preparedWrap(context, [
+			const prepared = preparedSave(context, [
 				createRecord(SOURCE_NEW, markdown),
 			]);
-			const success = requireWrapSuccess(
-				await context.wraps.commit({
+			const success = requireSaveSuccess(
+				await context.saves.commit({
 					state: context.state,
 					prepared,
 					approval: approval(),
 				}),
 			);
 			const beforeDuplicate = await inventoryContents(context.root);
-			const duplicate = await context.wraps.commit({
+			const duplicate = await context.saves.commit({
 				state: success.state,
 				prepared,
 				approval: approval(),
 			});
 			assert.equal(duplicate.ok, false);
 			if (duplicate.ok) assert.fail("Expected duplicate commit rejection");
-			assert.equal(duplicate.issue.code, "wrap.lifecycle");
+			assert.equal(duplicate.issue.code, "save.lifecycle");
 			assert.deepEqual(await inventoryContents(context.root), beforeDuplicate);
 		});
 	});

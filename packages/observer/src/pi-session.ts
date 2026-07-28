@@ -6,15 +6,15 @@ import {
 	type ObserverEvent,
 	type ObserverState,
 } from "./lifecycle.ts";
-import { decodePreparedWrap, type PreparedWrap } from "./wrap-profile.ts";
+import { decodePreparedSave, type PreparedSave } from "./save-profile.ts";
 
 export const OBSERVER_LIFECYCLE_ENTRY = "observer.lifecycle";
-export const OBSERVER_PREPARED_WRAP_ENTRY = "observer.prepared-wrap";
-export const OBSERVER_WRAP_ATTEMPT_ENTRY = "observer.wrap-attempt";
-export const OBSERVER_PREPARED_WRAP_PROTOCOL: "observer.pi-prepared-wrap/v1" =
-	"observer.pi-prepared-wrap/v1";
-export const OBSERVER_WRAP_ATTEMPT_PROTOCOL: "observer.pi-wrap-attempt/v1" =
-	"observer.pi-wrap-attempt/v1";
+export const OBSERVER_PREPARED_SAVE_ENTRY = "observer.prepared-save";
+export const OBSERVER_SAVE_ATTEMPT_ENTRY = "observer.save-attempt";
+export const OBSERVER_PREPARED_SAVE_PROTOCOL: "observer.pi-prepared-save/v1" =
+	"observer.pi-prepared-save/v1";
+export const OBSERVER_SAVE_ATTEMPT_PROTOCOL: "observer.pi-save-attempt/v1" =
+	"observer.pi-save-attempt/v1";
 
 const MAX_ID_LENGTH = 200;
 const MAX_SUMMARY_LENGTH = 4_000;
@@ -25,14 +25,14 @@ export interface PiBranchEntryLike {
 	readonly data?: unknown;
 }
 
-export interface PreparedWrapHandoff {
-	readonly protocol: typeof OBSERVER_PREPARED_WRAP_PROTOCOL;
+export interface PreparedSaveHandoff {
+	readonly protocol: typeof OBSERVER_PREPARED_SAVE_PROTOCOL;
 	readonly summary: string;
-	readonly prepared: PreparedWrap;
+	readonly prepared: PreparedSave;
 }
 
-export interface ApprovedWrapAttempt {
-	readonly protocol: typeof OBSERVER_WRAP_ATTEMPT_PROTOCOL;
+export interface ApprovedSaveAttempt {
+	readonly protocol: typeof OBSERVER_SAVE_ATTEMPT_PROTOCOL;
 	readonly kind: "approved";
 	readonly attemptId: string;
 	readonly proposalId: string;
@@ -71,15 +71,15 @@ export interface ObserverPiReplayIssue {
 	readonly message: string;
 }
 
-export interface PreparedWrapState {
-	readonly handoff: PreparedWrapHandoff;
+export interface PreparedSaveState {
+	readonly handoff: PreparedSaveHandoff;
 	readonly digest: string;
 }
 
 export interface ObserverPiSnapshot {
 	readonly state: ObserverState;
-	readonly prepared: PreparedWrapState | null;
-	readonly attempt: ApprovedWrapAttempt | null;
+	readonly prepared: PreparedSaveState | null;
+	readonly attempt: ApprovedSaveAttempt | null;
 	readonly issues: readonly ObserverPiReplayIssue[];
 }
 
@@ -124,23 +124,23 @@ function decodeFailure<Value>(
 	return { ok: false, issue: { code, path, message } };
 }
 
-export function decodePreparedWrapHandoff(
+export function decodePreparedSaveHandoff(
 	value: unknown,
-): PiSessionDecodeResult<PreparedWrapHandoff> {
+): PiSessionDecodeResult<PreparedSaveHandoff> {
 	if (!isObject(value)) {
 		return decodeFailure(
 			"pi-entry.handoff.shape",
 			"/",
-			"Prepared wrap handoff must be an object.",
+			"Prepared save handoff must be an object.",
 		);
 	}
-	if (value.protocol !== OBSERVER_PREPARED_WRAP_PROTOCOL) {
+	if (value.protocol !== OBSERVER_PREPARED_SAVE_PROTOCOL) {
 		return decodeFailure(
 			typeof value.protocol === "string"
 				? "pi-entry.handoff.unsupported"
 				: "pi-entry.handoff.shape",
 			"/protocol",
-			"Prepared wrap handoff has an unsupported protocol.",
+			"Prepared save handoff has an unsupported protocol.",
 		);
 	}
 	if (
@@ -150,10 +150,10 @@ export function decodePreparedWrapHandoff(
 		return decodeFailure(
 			"pi-entry.handoff.shape",
 			"/",
-			"Prepared wrap handoff requires one bounded summary and prepared value.",
+			"Prepared save handoff requires one bounded summary and prepared value.",
 		);
 	}
-	const prepared = decodePreparedWrap(value.prepared);
+	const prepared = decodePreparedSave(value.prepared);
 	if (!prepared.ok) {
 		return decodeFailure(
 			"pi-entry.handoff.shape",
@@ -164,30 +164,30 @@ export function decodePreparedWrapHandoff(
 	return {
 		ok: true,
 		value: {
-			protocol: OBSERVER_PREPARED_WRAP_PROTOCOL,
+			protocol: OBSERVER_PREPARED_SAVE_PROTOCOL,
 			summary: value.summary,
 			prepared: prepared.value,
 		},
 	};
 }
 
-export function decodeApprovedWrapAttempt(
+export function decodeApprovedSaveAttempt(
 	value: unknown,
-): PiSessionDecodeResult<ApprovedWrapAttempt> {
+): PiSessionDecodeResult<ApprovedSaveAttempt> {
 	if (!isObject(value)) {
 		return decodeFailure(
 			"pi-entry.attempt.shape",
 			"/",
-			"Approved wrap attempt must be an object.",
+			"Approved save attempt must be an object.",
 		);
 	}
-	if (value.protocol !== OBSERVER_WRAP_ATTEMPT_PROTOCOL) {
+	if (value.protocol !== OBSERVER_SAVE_ATTEMPT_PROTOCOL) {
 		return decodeFailure(
 			typeof value.protocol === "string"
 				? "pi-entry.attempt.unsupported"
 				: "pi-entry.attempt.shape",
 			"/protocol",
-			"Approved wrap attempt has an unsupported protocol.",
+			"Approved save attempt has an unsupported protocol.",
 		);
 	}
 	if (
@@ -206,13 +206,13 @@ export function decodeApprovedWrapAttempt(
 		return decodeFailure(
 			"pi-entry.attempt.shape",
 			"/",
-			"Approved wrap attempt requires IDs and a prepared SHA-256 digest.",
+			"Approved save attempt requires IDs and a prepared SHA-256 digest.",
 		);
 	}
 	return {
 		ok: true,
 		value: {
-			protocol: OBSERVER_WRAP_ATTEMPT_PROTOCOL,
+			protocol: OBSERVER_SAVE_ATTEMPT_PROTOCOL,
 			kind: "approved",
 			attemptId: value.attemptId,
 			proposalId: value.proposalId,
@@ -221,7 +221,7 @@ export function decodeApprovedWrapAttempt(
 	};
 }
 
-export function preparedWrapDigest(handoff: PreparedWrapHandoff): string {
+export function preparedSaveDigest(handoff: PreparedSaveHandoff): string {
 	return sha256Text(JSON.stringify(handoff));
 }
 
@@ -235,8 +235,8 @@ function replayIssue(
 }
 
 function sameAttempt(
-	left: ApprovedWrapAttempt,
-	right: ApprovedWrapAttempt,
+	left: ApprovedSaveAttempt,
+	right: ApprovedSaveAttempt,
 ): boolean {
 	return (
 		left.attemptId === right.attemptId &&
@@ -247,7 +247,7 @@ function sameAttempt(
 
 function matchingLiveEpisode(
 	state: ObserverState,
-	handoff: PreparedWrapHandoff,
+	handoff: PreparedSaveHandoff,
 ): boolean {
 	return (
 		state.episode.status === "open" &&
@@ -259,39 +259,39 @@ function matchingLiveEpisode(
 
 function lifecycleOrderIssue(
 	event: ObserverEvent,
-	prepared: PreparedWrapState | null,
-	attempt: ApprovedWrapAttempt | null,
+	prepared: PreparedSaveState | null,
+	attempt: ApprovedSaveAttempt | null,
 ): string | null {
-	if (event.kind === "wrap-proposed") {
-		if (!prepared) return "Wrap proposal has no prepared handoff.";
+	if (event.kind === "save-proposed") {
+		if (!prepared) return "Review & Save proposal has no prepared handoff.";
 		if (
 			prepared.handoff.prepared.proposal_id !== event.proposalId ||
 			prepared.handoff.summary !== event.summary
 		) {
-			return "Wrap proposal does not match the prepared handoff.";
+			return "Review & Save proposal does not match the prepared handoff.";
 		}
 	}
-	if (event.kind === "wrap-cancelled") {
+	if (event.kind === "save-cancelled") {
 		if (
 			!prepared ||
 			prepared.handoff.prepared.proposal_id !== event.proposalId
 		) {
-			return "Wrap cancellation does not match the prepared handoff.";
+			return "Review & Save cancellation does not match the prepared handoff.";
 		}
 	}
-	if (event.kind === "wrap-committed") {
+	if (event.kind === "save-committed") {
 		if (
 			!prepared ||
 			prepared.handoff.prepared.proposal_id !== event.proposalId
 		) {
-			return "Wrap commit does not match the prepared handoff.";
+			return "Review & Save commit does not match the prepared handoff.";
 		}
 		if (
 			!attempt ||
 			attempt.proposalId !== event.proposalId ||
 			attempt.preparedDigest !== prepared.digest
 		) {
-			return "Wrap commit has no matching approved attempt.";
+			return "Review & Save commit has no matching approved attempt.";
 		}
 	}
 	return null;
@@ -299,8 +299,8 @@ function lifecycleOrderIssue(
 
 interface ReplayAccumulator {
 	state: ObserverState;
-	prepared: PreparedWrapState | null;
-	attempt: ApprovedWrapAttempt | null;
+	prepared: PreparedSaveState | null;
+	attempt: ApprovedSaveAttempt | null;
 	readonly issues: ObserverPiReplayIssue[];
 }
 
@@ -309,7 +309,7 @@ function processPreparedEntry(
 	data: unknown,
 	index: number,
 ): void {
-	const decoded = decodePreparedWrapHandoff(data);
+	const decoded = decodePreparedSaveHandoff(data);
 	if (!decoded.ok) {
 		replayIssue(
 			accumulator.issues,
@@ -324,13 +324,13 @@ function processPreparedEntry(
 			accumulator.issues,
 			index,
 			"pi-entry.handoff.order",
-			"Prepared wrap handoff requires its matching open episode.",
+			"Prepared save handoff requires its matching open episode.",
 		);
 		return;
 	}
 	const candidate = {
 		handoff: decoded.value,
-		digest: preparedWrapDigest(decoded.value),
+		digest: preparedSaveDigest(decoded.value),
 	};
 	if (!accumulator.prepared) {
 		accumulator.prepared = candidate;
@@ -348,16 +348,16 @@ function processPreparedEntry(
 		accumulator.issues,
 		index,
 		"pi-entry.handoff.conflict",
-		"Another prepared wrap handoff is already active.",
+		"Another prepared save handoff is already active.",
 	);
 }
 
 function attemptMatchesReview(
 	accumulator: ReplayAccumulator,
-	attempt: ApprovedWrapAttempt,
+	attempt: ApprovedSaveAttempt,
 ): boolean {
 	return (
-		accumulator.state.episode.status === "reviewing-wrap" &&
+		accumulator.state.episode.status === "reviewing-save" &&
 		accumulator.prepared !== null &&
 		attempt.proposalId === accumulator.prepared.handoff.prepared.proposal_id &&
 		attempt.preparedDigest === accumulator.prepared.digest
@@ -369,7 +369,7 @@ function processAttemptEntry(
 	data: unknown,
 	index: number,
 ): void {
-	const decoded = decodeApprovedWrapAttempt(data);
+	const decoded = decodeApprovedSaveAttempt(data);
 	if (!decoded.ok) {
 		replayIssue(
 			accumulator.issues,
@@ -384,7 +384,7 @@ function processAttemptEntry(
 			accumulator.issues,
 			index,
 			"pi-entry.attempt.order",
-			"Approved wrap attempt does not match the current review.",
+			"Approved save attempt does not match the current review.",
 		);
 		return;
 	}
@@ -397,7 +397,7 @@ function processAttemptEntry(
 		accumulator.issues,
 		index,
 		"pi-entry.attempt.conflict",
-		"Another approved wrap attempt is already active.",
+		"Another approved save attempt is already active.",
 	);
 }
 
@@ -442,8 +442,8 @@ function processLifecycleEntry(
 	}
 	accumulator.state = application.state;
 	if (
-		decoded.event.kind === "wrap-cancelled" ||
-		decoded.event.kind === "wrap-committed"
+		decoded.event.kind === "save-cancelled" ||
+		decoded.event.kind === "save-committed"
 	) {
 		accumulator.prepared = null;
 		accumulator.attempt = null;
@@ -457,10 +457,10 @@ function processOwnedEntry(
 ): void {
 	if (entry.type !== "custom" || typeof entry.customType !== "string") return;
 	switch (entry.customType) {
-		case OBSERVER_PREPARED_WRAP_ENTRY:
+		case OBSERVER_PREPARED_SAVE_ENTRY:
 			processPreparedEntry(accumulator, entry.data, index);
 			return;
-		case OBSERVER_WRAP_ATTEMPT_ENTRY:
+		case OBSERVER_SAVE_ATTEMPT_ENTRY:
 			processAttemptEntry(accumulator, entry.data, index);
 			return;
 		case OBSERVER_LIFECYCLE_ENTRY:

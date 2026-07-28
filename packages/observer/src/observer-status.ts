@@ -2,6 +2,7 @@ import type { EpisodeLanguage } from "./lifecycle.ts";
 import type { MemoPassReceipt } from "./memo-reconciliation.ts";
 import type { MemoSessionSnapshot } from "./memo-session.ts";
 import type { NotebookStatus } from "./notebook-service.ts";
+import type { ObservationSessionSnapshot } from "./observation-session.ts";
 import type { ObserverPiSnapshot } from "./pi-session.ts";
 
 function assertNever(value: never): never {
@@ -16,21 +17,22 @@ export interface ObserverControlState {
 	readonly notebookDefaultLanguage?: EpisodeLanguage;
 	readonly canChangeNotebook: boolean;
 	readonly canMemo: boolean;
-	readonly canWrap: boolean;
+	readonly canSave: boolean;
 }
 
 export interface ObserverStatusView {
 	readonly control: ObserverControlState;
 	readonly mode: "On" | "Off";
-	readonly episode: "Empty" | "Open" | "Wrap review" | "Settled";
+	readonly episode: "Empty" | "Open" | "Save review" | "Settled";
 	readonly notebook: string;
 	readonly episodeLanguage: string;
 	readonly notebookHealth: string;
 	readonly replayHealth: string;
 	readonly sessionPersistence: "Persistent session" | "Ephemeral session";
-	readonly preparedWrap: string;
+	readonly preparedSave: string;
 	readonly preparedMemo: string;
 	readonly pendingMemos: string;
+	readonly pendingHypothesisReviews: number;
 	readonly openInquiries: string;
 	readonly zettelCandidates: string;
 	readonly operationalIssue?: string;
@@ -44,8 +46,8 @@ function episodeLabel(
 			return "Empty";
 		case "open":
 			return "Open";
-		case "reviewing-wrap":
-			return "Wrap review";
+		case "reviewing-save":
+			return "Save review";
 		case "settled":
 			return "Settled";
 		default:
@@ -74,10 +76,11 @@ function notebookView(status: NotebookStatus): {
 
 function observerControlState(
 	snapshot: ObserverPiSnapshot,
+	observationSnapshot: ObservationSessionSnapshot,
 	notebookStatus: NotebookStatus,
 ): ObserverControlState {
 	const episode = snapshot.state.episode.status;
-	const liveEpisode = episode === "open" || episode === "reviewing-wrap";
+	const liveEpisode = episode === "open" || episode === "reviewing-save";
 	const readyNotebook =
 		notebookStatus.status === "ready" ? notebookStatus.notebook : undefined;
 	return {
@@ -91,8 +94,10 @@ function observerControlState(
 				}
 			: {}),
 		canChangeNotebook: !liveEpisode,
-		canMemo: episode === "open",
-		canWrap: liveEpisode,
+		canMemo:
+			episode === "open" &&
+			observationSnapshot.pendingHypothesisReviews.length === 0,
+		canSave: liveEpisode,
 	};
 }
 
@@ -103,6 +108,7 @@ function workingCount(passes: number, count: number): string {
 export function observerStatusView(input: {
 	readonly snapshot: ObserverPiSnapshot;
 	readonly memoSnapshot: MemoSessionSnapshot;
+	readonly observationSnapshot: ObservationSessionSnapshot;
 	readonly notebookStatus: NotebookStatus;
 	readonly sessionFile: string | undefined;
 	readonly operationalIssue?: string;
@@ -111,7 +117,11 @@ export function observerStatusView(input: {
 	const episode = input.snapshot.state.episode;
 	const working = input.memoSnapshot.state;
 	return {
-		control: observerControlState(input.snapshot, input.notebookStatus),
+		control: observerControlState(
+			input.snapshot,
+			input.observationSnapshot,
+			input.notebookStatus,
+		),
 		mode: input.snapshot.state.mode === "on" ? "On" : "Off",
 		episode: episodeLabel(episode.status),
 		notebook: notebook.notebook,
@@ -120,13 +130,14 @@ export function observerStatusView(input: {
 		notebookHealth: notebook.health,
 		replayHealth:
 			input.snapshot.issues.length === 0 &&
-			input.memoSnapshot.issues.length === 0
+			input.memoSnapshot.issues.length === 0 &&
+			input.observationSnapshot.issues.length === 0
 				? "Healthy"
-				: `${input.snapshot.issues.length + input.memoSnapshot.issues.length} errors`,
+				: `${input.snapshot.issues.length + input.memoSnapshot.issues.length + input.observationSnapshot.issues.length} errors`,
 		sessionPersistence: input.sessionFile
 			? "Persistent session"
 			: "Ephemeral session",
-		preparedWrap: input.snapshot.prepared
+		preparedSave: input.snapshot.prepared
 			? input.snapshot.prepared.handoff.prepared.proposal_id
 			: "None",
 		preparedMemo: input.memoSnapshot.prepared?.passId ?? "None",
@@ -134,6 +145,8 @@ export function observerStatusView(input: {
 			working.passes,
 			working.memos.filter((memo) => memo.disposition !== "superseded").length,
 		),
+		pendingHypothesisReviews:
+			input.observationSnapshot.pendingHypothesisReviews.length,
 		openInquiries: workingCount(working.passes, working.hypotheses.length),
 		zettelCandidates: workingCount(
 			working.passes,
@@ -155,9 +168,10 @@ export function renderObserverStatus(view: ObserverStatusView): string {
 		`Notebook health: ${view.notebookHealth}`,
 		`Session replay health: ${view.replayHealth}`,
 		`Session persistence: ${view.sessionPersistence}`,
-		`Prepared Wrap: ${view.preparedWrap}`,
+		`Prepared save proposal: ${view.preparedSave}`,
 		`Prepared Memo pass: ${view.preparedMemo}`,
 		`Pending Memos: ${view.pendingMemos}`,
+		`Pending hypothesis context reviews: ${view.pendingHypothesisReviews}`,
 		`Open Inquiries: ${view.openInquiries}`,
 		`Zettel candidates: ${view.zettelCandidates}`,
 		...(view.operationalIssue

@@ -13,8 +13,8 @@ const evidenceId = stableId("evidence");
 const inquiryId = stableId("inquiry");
 const memoId = stableId("memo");
 const memoRequestId = stableId("memo-request");
-const wrapRequestId = stableId("wrap-request");
-const oneShotRequestId = stableId("one-shot");
+const saveRequestId = stableId("save-request");
+const materialReviewRequestId = stableId("material-review");
 const memoRevisionId = stableId("memo-revision");
 
 export const memoEvidenceItemSchema = Type.Object(
@@ -150,11 +150,11 @@ const observationDispositionSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
-export const wrapScopeActionSchema = Type.Object(
+export const saveScopeActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("wrap-scope"),
-		request_id: wrapRequestId,
+		action: Type.Literal("save-scope"),
+		request_id: saveRequestId,
 	},
 	{ additionalProperties: false },
 );
@@ -179,11 +179,11 @@ const preparedRecordSchema = Type.Union([
 	),
 ]);
 
-export const wrapPrepareActionSchema = Type.Object(
+export const savePrepareActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("wrap-prepare"),
-		request_id: wrapRequestId,
+		action: Type.Literal("save-prepare"),
+		request_id: saveRequestId,
 		summary: Type.String(),
 		records: Type.Array(preparedRecordSchema),
 	},
@@ -241,10 +241,10 @@ const claimSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
-export const oneShotStartActionSchema = Type.Object(
+export const materialReviewStartActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("one-shot-start"),
+		action: Type.Literal("material-review-start"),
 		user_message_digest: Type.String({ pattern: "^[0-9a-f]{64}$" }),
 		material: Type.Union([
 			Type.Object(
@@ -260,18 +260,38 @@ export const oneShotStartActionSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
-export const oneShotFinishActionSchema = Type.Object(
+export const materialReviewFinishActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("one-shot-finish"),
-		request_id: oneShotRequestId,
+		action: Type.Literal("material-review-finish"),
+		request_id: materialReviewRequestId,
+	},
+	{ additionalProperties: false },
+);
+
+export const hypothesisContextReviewActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("hypothesis-context-review"),
+		hypothesis_observation_id: stableId("observation"),
+		assessment: Type.Union([
+			Type.Literal("supports"),
+			Type.Literal("challenges"),
+			Type.Literal("mixed"),
+			Type.Literal("insufficient-context"),
+		]),
+		supporting_clues: Type.Array(Type.String()),
+		challenging_clues: Type.Array(Type.String()),
+		missing_information: Type.Array(Type.String()),
+		source_ids: Type.Array(stableId("source")),
+		interpretation_boundary: Type.String(),
 	},
 	{ additionalProperties: false },
 );
 
 export const observerSidecarParameters = Type.Union([
-	oneShotStartActionSchema,
-	oneShotFinishActionSchema,
+	materialReviewStartActionSchema,
+	materialReviewFinishActionSchema,
 	Type.Object(
 		{
 			observer_action: Type.Literal("observer-sidecar/v1"),
@@ -333,6 +353,7 @@ export const observerSidecarParameters = Type.Union([
 		},
 		{ additionalProperties: false },
 	),
+	hypothesisContextReviewActionSchema,
 	Type.Object(
 		{
 			observer_action: Type.Literal("observer-sidecar/v1"),
@@ -342,6 +363,6 @@ export const observerSidecarParameters = Type.Union([
 		{ additionalProperties: false },
 	),
 	memoPrepareActionSchema,
-	wrapScopeActionSchema,
-	wrapPrepareActionSchema,
+	saveScopeActionSchema,
+	savePrepareActionSchema,
 ]);

@@ -5,25 +5,22 @@ import {
 	type NotebookInventoryEntry,
 } from "./notebook.ts";
 import {
-	OBSERVER_WRAP_RECEIPT_SCHEMA,
+	OBSERVER_SAVE_RECEIPT_SCHEMA,
 	type PreparedRecord,
-	type PreparedWrap,
-	type WrapReceipt,
-} from "./wrap-profile.ts";
-import {
-	inspectWrapTransactionActivity,
-	type WrapTransactionActivity,
-} from "./wrap-transaction.ts";
+	type PreparedSave,
+	type SaveReceipt,
+} from "./save-profile.ts";
+import { inspectWrapActivity, type WrapActivity } from "./wrap-service.ts";
 
-export type WrapAcknowledgmentInspection =
+export type SaveAcknowledgmentInspection =
 	| { readonly status: "before" }
-	| { readonly status: "final"; readonly receipt: WrapReceipt }
+	| { readonly status: "final"; readonly receipt: SaveReceipt }
 	| { readonly status: "active"; readonly message: string }
 	| { readonly status: "mixed"; readonly message: string }
 	| { readonly status: "invalid"; readonly message: string };
 
-export interface WrapAcknowledgmentDependencies {
-	readonly inspectActivity?: (root: string) => Promise<WrapTransactionActivity>;
+export interface SaveAcknowledgmentDependencies {
+	readonly inspectActivity?: (root: string) => Promise<WrapActivity>;
 	readonly receiptId: () => `receipt-${string}`;
 }
 
@@ -56,10 +53,10 @@ function duplicateRecordId(records: readonly PreparedRecord[]): string | null {
 
 function finalReceipt(
 	notebook: NotebookHandle,
-	prepared: PreparedWrap,
+	prepared: PreparedSave,
 	inventory: readonly NotebookInventoryEntry[],
 	receiptId: `receipt-${string}`,
-): WrapReceipt | null {
+): SaveReceipt | null {
 	const byId = new Map<string, NotebookInventoryEntry>(
 		inventory.map((entry) => [entry.document.record.id, entry]),
 	);
@@ -82,7 +79,7 @@ function finalReceipt(
 	if (records.some((record) => record === null)) return null;
 	const complete = records.filter((record) => record !== null);
 	return {
-		observer_receipt: OBSERVER_WRAP_RECEIPT_SCHEMA,
+		observer_receipt: OBSERVER_SAVE_RECEIPT_SCHEMA,
 		receipt_id: receiptId,
 		proposal_id: prepared.proposal_id,
 		notebook_id: notebook.manifest.notebook_id,
@@ -90,18 +87,18 @@ function finalReceipt(
 	};
 }
 
-export async function inspectWrapAcknowledgment(input: {
+export async function inspectSaveAcknowledgment(input: {
 	readonly notebook: NotebookHandle;
-	readonly prepared: PreparedWrap;
-	readonly dependencies: WrapAcknowledgmentDependencies;
-}): Promise<WrapAcknowledgmentInspection> {
+	readonly prepared: PreparedSave;
+	readonly dependencies: SaveAcknowledgmentDependencies;
+}): Promise<SaveAcknowledgmentInspection> {
 	const inspectActivity =
-		input.dependencies.inspectActivity ?? inspectWrapTransactionActivity;
+		input.dependencies.inspectActivity ?? inspectWrapActivity;
 	const activity = await inspectActivity(input.notebook.root);
 	if (activity.status === "active") {
 		return {
 			status: "active",
-			message: "An interrupted wrap transaction is still active.",
+			message: "An interrupted save transaction is still active.",
 		};
 	}
 	if (activity.status === "unknown") {
@@ -111,7 +108,7 @@ export async function inspectWrapAcknowledgment(input: {
 	if (duplicate) {
 		return {
 			status: "invalid",
-			message: `Prepared wrap repeats record ID: ${duplicate}.`,
+			message: `Prepared save repeats record ID: ${duplicate}.`,
 		};
 	}
 	const inventory = await readNotebookInventory(input.notebook);

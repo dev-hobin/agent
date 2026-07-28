@@ -11,31 +11,33 @@ import observerExtension, {
 	observerSidecarParameters,
 	requireMemoPreparationSuccess,
 	requireObservationToolSuccess,
+	routeHypothesisCommand,
 	routeMemoCommand,
-	routeWrapCommand,
+	routeSaveCommand,
 	textFromContent,
 } from "../extensions/observer.ts";
 import {
+	hypothesisContextReviewActionSchema,
 	hypothesisOutcomeSchema,
 	memoOutcomeSchema,
 	memoPrepareActionSchema,
-	oneShotFinishActionSchema,
-	oneShotStartActionSchema,
-	wrapPrepareActionSchema,
-	wrapScopeActionSchema,
+	materialReviewFinishActionSchema,
+	materialReviewStartActionSchema,
+	savePrepareActionSchema,
+	saveScopeActionSchema,
 } from "../extensions/memo-tool-schema.ts";
 import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
 import { decodeObservationAction } from "../src/observation-action.ts";
-import { requireOneShotCommandSuccess } from "../src/one-shot-command.ts";
+import { requireMaterialReviewCommandSuccess } from "../src/material-review-command.ts";
 import { prepareObservationEvent } from "../src/observation-profile.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
 	reconstructObserverPiState,
 } from "../src/pi-session.ts";
 import {
-	decodeWrapRequestEvent,
-	type WrapRequestEvent,
-} from "../src/wrap-trigger.ts";
+	decodeSaveRequestEvent,
+	type SaveRequestEvent,
+} from "../src/save-trigger.ts";
 
 const notebookId = "notebook-22222222-2222-4222-8222-222222222222";
 
@@ -137,12 +139,22 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 	assert.match(source, /pi\.on\("tool_result"/u);
 	assert.match(source, /event\.toolName === OBSERVER_TOOL_NAME/u);
 	assert.match(schemaSource, /action: Type\.Literal\("memo-scope"\)/u);
-	assert.match(schemaSource, /action: Type\.Literal\("one-shot-start"\)/u);
-	assert.match(schemaSource, /action: Type\.Literal\("one-shot-finish"\)/u);
+	assert.match(
+		schemaSource,
+		/action: Type\.Literal\("hypothesis-context-review"\)/u,
+	);
+	assert.match(
+		schemaSource,
+		/action: Type\.Literal\("material-review-start"\)/u,
+	);
+	assert.match(
+		schemaSource,
+		/action: Type\.Literal\("material-review-finish"\)/u,
+	);
 	assert.match(source, /parsed\.command\.kind !== "memo"/u);
-	assert.match(source, /parsed\.command\.kind !== "wrap"/u);
-	assert.match(schemaSource, /wrapScopeActionSchema/u);
-	assert.match(schemaSource, /wrapPrepareActionSchema/u);
+	assert.match(source, /parsed\.command\.kind !== "save"/u);
+	assert.match(schemaSource, /saveScopeActionSchema/u);
+	assert.match(schemaSource, /savePrepareActionSchema/u);
 	assert.match(source, /pi\.on\("context"/u);
 	const requestIndex = source.indexOf("observation.requestMemo(port)");
 	const triggerIndex = source.indexOf("pi.sendMessage(", requestIndex);
@@ -237,25 +249,71 @@ test("routes Memo request before trigger and delegates no-op without triggering"
 	assert.deepEqual(trace, ["request", "trigger", "notify:warning"]);
 });
 
-test("routes Wrap request before trigger and delegates prepared review", async () => {
-	const decoded = decodeWrapRequestEvent({
-		protocol: "observer.wrap-request/v1",
-		kind: "wrap-requested",
-		request_id: "wrap-request-00000000-0000-4000-8000-000000000044",
+test("routes explicit hypothesis and optional user context into a context review", async () => {
+	let received: {
+		readonly original: string;
+		readonly userContext: string | null;
+	} | null = null;
+	const notifications: string[] = [];
+	const handled = await routeHypothesisCommand(
+		"hypothesis 가설은 명시적으로 보존되어야 한다.\nContext: 사용자가 직접 이유를 제공했다.",
+		{
+			track(draft) {
+				received = draft;
+				return Promise.resolve({ ok: false, message: "injected" });
+			},
+			triggerReview() {
+				assert.fail("A failed capture must not trigger context review");
+			},
+			notify(message, type) {
+				notifications.push(`${type}:${message}`);
+			},
+		},
+	);
+	assert.equal(handled, true);
+	assert.deepEqual(received, {
+		original: "가설은 명시적으로 보존되어야 한다.",
+		userContext: "사용자가 직접 이유를 제공했다.",
+	});
+	assert.deepEqual(notifications, ["error:injected"]);
+
+	const missing: string[] = [];
+	assert.equal(
+		await routeHypothesisCommand("hypothesis", {
+			track() {
+				assert.fail("Missing text must not reach tracking effects");
+			},
+			triggerReview() {
+				assert.fail("Missing text must not trigger context review");
+			},
+			notify(message, type) {
+				missing.push(`${type}:${message}`);
+			},
+		}),
+		true,
+	);
+	assert.match(missing[0] ?? "", /warning:.*hypothesis <text>/u);
+});
+
+test("routes Review & Save before trigger and delegates prepared review", async () => {
+	const decoded = decodeSaveRequestEvent({
+		protocol: "observer.save-request/v1",
+		kind: "save-requested",
+		request_id: "save-request-00000000-0000-4000-8000-000000000044",
 		proposal_id: "proposal-00000000-0000-4000-8000-000000000045",
 		request_digest:
 			"0000000000000000000000000000000000000000000000000000000000000046",
-		episode_id: "episode-extension-wrap",
+		episode_id: "episode-extension-save",
 		notebook_id: notebookId,
-		root: "/tmp/observer-extension-wrap",
+		root: "/tmp/observer-extension-save",
 		episode_language: "en",
 		memo_revision_id: null,
 		source_read_ids: [],
 	});
 	if (!decoded.ok) assert.fail(decoded.issue.message);
-	const request: WrapRequestEvent = decoded.value;
+	const request: SaveRequestEvent = decoded.value;
 	const trace: string[] = [];
-	const handled = await routeWrapCommand("wrap", {
+	const handled = await routeSaveCommand("save", {
 		request() {
 			trace.push("request");
 			return Promise.resolve({
@@ -279,7 +337,7 @@ test("routes Wrap request before trigger and delegates prepared review", async (
 	assert.deepEqual(trace, ["request", "trigger", "notify:info"]);
 
 	trace.length = 0;
-	await routeWrapCommand("wrap", {
+	await routeSaveCommand("save", {
 		request() {
 			trace.push("request");
 			return Promise.resolve({
@@ -303,17 +361,17 @@ test("routes Wrap request before trigger and delegates prepared review", async (
 
 	const scope = {
 		observer_action: "observer-sidecar/v1",
-		action: "wrap-scope",
+		action: "save-scope",
 		request_id: request.requestId,
 	};
-	assert.equal(Value.Check(wrapScopeActionSchema, scope), true);
+	assert.equal(Value.Check(saveScopeActionSchema, scope), true);
 	assert.equal(
-		Value.Check(wrapScopeActionSchema, { ...scope, extra: true }),
+		Value.Check(saveScopeActionSchema, { ...scope, extra: true }),
 		false,
 	);
 	const prepare = {
 		observer_action: "observer-sidecar/v1",
-		action: "wrap-prepare",
+		action: "save-prepare",
 		request_id: request.requestId,
 		summary: "Prepare one required record.",
 		records: [
@@ -324,9 +382,9 @@ test("routes Wrap request before trigger and delegates prepared review", async (
 			},
 		],
 	};
-	assert.equal(Value.Check(wrapPrepareActionSchema, prepare), true);
+	assert.equal(Value.Check(savePrepareActionSchema, prepare), true);
 	assert.equal(
-		Value.Check(wrapPrepareActionSchema, {
+		Value.Check(savePrepareActionSchema, {
 			...prepare,
 			proposal_id: request.proposalId,
 		}),
@@ -335,6 +393,31 @@ test("routes Wrap request before trigger and delegates prepared review", async (
 	assert.equal(decodeObservationAction(prepare).ok, true);
 	assert.equal(
 		decodeObservationAction({ ...prepare, root: request.root }).ok,
+		false,
+	);
+});
+
+test("validates a bounded hypothesis context review payload", () => {
+	const review = {
+		observer_action: "observer-sidecar/v1",
+		action: "hypothesis-context-review",
+		hypothesis_observation_id:
+			"observation-00000000-0000-4000-8000-000000000089",
+		assessment: "mixed",
+		supporting_clues: ["The current conversation contains one supporting cue."],
+		challenging_clues: ["The current conversation also contains one tension."],
+		missing_information: ["No external comparison has been retrieved."],
+		source_ids: [],
+		interpretation_boundary: "Visible Pi context only.",
+	};
+	assert.equal(Value.Check(hypothesisContextReviewActionSchema, review), true);
+	assert.equal(Value.Check(observerSidecarParameters, review), true);
+	assert.equal(decodeObservationAction(review).ok, true);
+	assert.equal(
+		Value.Check(hypothesisContextReviewActionSchema, {
+			...review,
+			observer_interpretation_as_user_context: true,
+		}),
 		false,
 	);
 });
@@ -361,29 +444,32 @@ test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {
 	assert.equal(value.claims[0]?.locator, null);
 });
 
-test("describes strict One-shot start and finish model payloads", () => {
+test("describes strict material review start and finish model payloads", () => {
 	const start = {
 		observer_action: "observer-sidecar/v1",
-		action: "one-shot-start",
+		action: "material-review-start",
 		user_message_digest: "1".repeat(64),
 		material: { kind: "inline-user-message" },
 	};
 	const finish = {
 		observer_action: "observer-sidecar/v1",
-		action: "one-shot-finish",
-		request_id: "one-shot-00000000-0000-4000-8000-000000000092",
+		action: "material-review-finish",
+		request_id: "material-review-00000000-0000-4000-8000-000000000092",
 	};
-	assert.equal(Value.Check(oneShotStartActionSchema, start), true);
+	assert.equal(Value.Check(materialReviewStartActionSchema, start), true);
 	assert.equal(
-		Value.Check(oneShotStartActionSchema, {
+		Value.Check(materialReviewStartActionSchema, {
 			...start,
 			material: { kind: "inline-user-message", text: "not allowed" },
 		}),
 		false,
 	);
-	assert.equal(Value.Check(oneShotFinishActionSchema, finish), true);
+	assert.equal(Value.Check(materialReviewFinishActionSchema, finish), true);
 	assert.equal(
-		Value.Check(oneShotFinishActionSchema, { ...finish, digest: "locked" }),
+		Value.Check(materialReviewFinishActionSchema, {
+			...finish,
+			digest: "locked",
+		}),
 		false,
 	);
 	assert.equal(Value.Check(observerSidecarParameters, start), true);
@@ -550,11 +636,11 @@ test("describes every Memo outcome and rejects locked-field injection", () => {
 test("maps domain and installation rejection to actual tool errors", () => {
 	assert.throws(
 		() =>
-			requireOneShotCommandSuccess({
+			requireMaterialReviewCommandSuccess({
 				ok: false,
-				message: "one-shot failed",
+				message: "material-review failed",
 			}),
-		/one-shot failed/u,
+		/material-review failed/u,
 	);
 	assert.throws(
 		() =>

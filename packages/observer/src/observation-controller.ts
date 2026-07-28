@@ -20,7 +20,10 @@ import {
 	type NotebookService,
 } from "./notebook-service.ts";
 import type { NotebookSelectionStore } from "./notebook-selection-store.ts";
-import type { OneShotEpisodeCapability } from "./observer-controller.ts";
+import type {
+	MaterialReviewEpisodeCapability,
+	UserHypothesisEpisodeCapability,
+} from "./observer-controller.ts";
 import {
 	buildObservationMemoPreparationGuide,
 	hydrateObservationMemoContext,
@@ -31,11 +34,12 @@ import {
 import {
 	decodeObservationAction,
 	type HydrateAction,
+	type HypothesisContextReviewAction,
 	type MemoPrepareAction,
 	type MemoScopeAction,
 	type ObservationAction,
-	type WrapScopeAction,
-	type WrapPrepareAction,
+	type SaveScopeAction,
+	type SavePrepareAction,
 	type RecordObservationAction,
 	type RegisterUserHypothesisAction,
 	type SourceReadAction,
@@ -46,6 +50,7 @@ import {
 	prepareObservationEvent,
 	OBSERVER_OBSERVATION_ENTRY,
 	type CandidateCapturedEvent,
+	type HypothesisContextReviewedEvent,
 	type InquiryHydratedEvent,
 	type ObservationEvent,
 	type ObservationMemoRequestedEvent,
@@ -63,19 +68,19 @@ import {
 	reconstructObserverPiState,
 	type ObserverPiSnapshot,
 	type PiBranchEntryLike,
-	type PreparedWrapHandoff,
+	type PreparedSaveHandoff,
 } from "./pi-session.ts";
 import {
-	encodeOneShotEvent,
-	OBSERVER_ONE_SHOT_ENTRY,
-	planOneShotCompletion,
-	planOneShotRequest,
-	reconstructOneShotSession,
-	type OneShotCompletedEvent,
-	type OneShotFinishAction,
-	type OneShotIntent,
-	type OneShotRequestedEvent,
-} from "./one-shot-trigger.ts";
+	encodeMaterialReviewEvent,
+	OBSERVER_MATERIAL_REVIEW_ENTRY,
+	planMaterialReviewCompletion,
+	planMaterialReviewRequest,
+	reconstructMaterialReviewSession,
+	type MaterialReviewCompletedEvent,
+	type MaterialReviewFinishAction,
+	type MaterialReviewIntent,
+	type MaterialReviewRequestedEvent,
+} from "./material-review-trigger.ts";
 import {
 	buildStandingIndex,
 	hydrateStandingContext,
@@ -83,19 +88,19 @@ import {
 	type StandingIndex,
 } from "./standing-index.ts";
 import {
-	buildWrapPreparationGuide,
-	encodeWrapRequestEvent,
-	hydrateWrapPreparationContext,
-	OBSERVER_WRAP_REQUEST_ENTRY,
-	planWrapRequest,
-	prepareWrapHandoff,
-	reconstructWrapRequestSession,
-	type WrapPreparationContext,
-	type WrapPreparationGuide,
-	type WrapRequestEvent,
-	type WrapRequestId,
-	type WrapProposalId,
-} from "./wrap-trigger.ts";
+	buildSavePreparationGuide,
+	encodeSaveRequestEvent,
+	hydrateSavePreparationContext,
+	OBSERVER_SAVE_REQUEST_ENTRY,
+	planSaveRequest,
+	prepareSaveHandoff,
+	reconstructSaveRequestSession,
+	type SavePreparationContext,
+	type SavePreparationGuide,
+	type SaveRequestEvent,
+	type SaveRequestId,
+	type SaveProposalId,
+} from "./save-trigger.ts";
 
 export interface ObservationCommandPort {
 	branchEntries(): readonly PiBranchEntryLike[];
@@ -111,8 +116,8 @@ export interface ObservationControllerIds {
 	sourceId(): SourceId;
 	inquiryId(): InquiryId;
 	memoRequestId(): `memo-request-${string}`;
-	wrapRequestId(): WrapRequestId;
-	wrapProposalId(): WrapProposalId;
+	saveRequestId(): SaveRequestId;
+	saveProposalId(): SaveProposalId;
 }
 
 export type CandidateCaptureResult =
@@ -123,24 +128,34 @@ export type CandidateCaptureResult =
 	  }
 	| { readonly ok: false; readonly message: string };
 
-export type OneShotFinishControllerResult =
+export type TrackUserHypothesisResult =
 	| {
 			readonly ok: true;
-			readonly status: "completed" | "resumed";
-			readonly completion: OneShotCompletedEvent;
+			readonly status: "recorded" | "resumed";
+			readonly reviewPending: boolean;
+			readonly candidate: CandidateCapturedEvent;
+			readonly hypothesis: UserHypothesisRecordedEvent;
 	  }
 	| { readonly ok: false; readonly message: string };
 
-export type OneShotStartControllerResult =
+export type MaterialReviewFinishControllerResult =
+	| {
+			readonly ok: true;
+			readonly status: "completed" | "resumed";
+			readonly completion: MaterialReviewCompletedEvent;
+	  }
+	| { readonly ok: false; readonly message: string };
+
+export type MaterialReviewStartControllerResult =
 	| {
 			readonly ok: true;
 			readonly status: "pending-retrieval";
-			readonly request: OneShotRequestedEvent;
+			readonly request: MaterialReviewRequestedEvent;
 	  }
 	| {
 			readonly ok: true;
 			readonly status: "inline-captured" | "inline-resumed";
-			readonly request: OneShotRequestedEvent;
+			readonly request: MaterialReviewRequestedEvent;
 			readonly candidate: CandidateCapturedEvent;
 	  }
 	| { readonly ok: false; readonly message: string };
@@ -174,6 +189,12 @@ export type ObservationControllerResult =
 	  }
 	| {
 			readonly ok: true;
+			readonly action: "hypothesis-context-review";
+			readonly message: string;
+			readonly review: HypothesisContextReviewedEvent;
+	  }
+	| {
+			readonly ok: true;
 			readonly action: "memo-scope";
 			readonly message: string;
 			readonly context: ObservationMemoContext;
@@ -181,16 +202,16 @@ export type ObservationControllerResult =
 	  }
 	| {
 			readonly ok: true;
-			readonly action: "wrap-scope";
+			readonly action: "save-scope";
 			readonly message: string;
-			readonly context: WrapPreparationContext;
-			readonly guide: WrapPreparationGuide;
+			readonly context: SavePreparationContext;
+			readonly guide: SavePreparationGuide;
 	  }
 	| {
 			readonly ok: true;
-			readonly action: "wrap-prepare";
+			readonly action: "save-prepare";
 			readonly message: string;
-			readonly handoff: PreparedWrapHandoff;
+			readonly handoff: PreparedSaveHandoff;
 	  }
 	| {
 			readonly ok: true;
@@ -201,7 +222,7 @@ export type ObservationControllerResult =
 	  }
 	| { readonly ok: false; readonly message: string };
 
-export type WrapRequestControllerResult =
+export type SaveRequestControllerResult =
 	| {
 			readonly ok: true;
 			readonly status: "delegate";
@@ -212,7 +233,7 @@ export type WrapRequestControllerResult =
 			readonly ok: true;
 			readonly status: "requested" | "resumed";
 			readonly message: string;
-			readonly request: WrapRequestEvent;
+			readonly request: SaveRequestEvent;
 	  }
 	| { readonly ok: false; readonly message: string };
 
@@ -232,18 +253,18 @@ export type MemoRequestControllerResult =
 	| { readonly ok: false; readonly message: string };
 
 export interface ObservationController {
-	finishOneShot(
-		action: OneShotFinishAction,
+	finishMaterialReview(
+		action: MaterialReviewFinishAction,
 		port: ObservationCommandPort,
-	): OneShotFinishControllerResult;
-	startOneShot(
+	): MaterialReviewFinishControllerResult;
+	startMaterialReview(
 		value: {
-			readonly intent: OneShotIntent;
-			readonly episode: OneShotEpisodeCapability;
+			readonly intent: MaterialReviewIntent;
+			readonly episode: MaterialReviewEpisodeCapability;
 			readonly capturedAt: unknown;
 		},
 		port: ObservationCommandPort,
-	): OneShotStartControllerResult;
+	): MaterialReviewStartControllerResult;
 	capture(
 		value: {
 			readonly origin: unknown;
@@ -252,14 +273,24 @@ export interface ObservationController {
 		},
 		port: ObservationCommandPort,
 	): CandidateCaptureResult;
+	trackUserHypothesis(
+		value: {
+			readonly episode: UserHypothesisEpisodeCapability;
+			readonly original: string;
+			readonly context: string;
+			readonly capturedAt: string;
+			readonly inputSource: "interactive" | "rpc";
+		},
+		port: ObservationCommandPort,
+	): Promise<TrackUserHypothesisResult>;
 	execute(
 		value: unknown,
 		port: ObservationCommandPort,
 	): Promise<ObservationControllerResult>;
 	requestMemo(port: ObservationCommandPort): MemoRequestControllerResult;
-	requestWrap(
+	requestSave(
 		port: ObservationCommandPort,
-	): Promise<WrapRequestControllerResult>;
+	): Promise<SaveRequestControllerResult>;
 }
 
 interface ControllerDependencies {
@@ -271,7 +302,7 @@ interface LiveWorkingBranch {
 	readonly pi: ObserverPiSnapshot;
 	readonly memo: ReturnType<typeof reconstructMemoSession>;
 	readonly observation: ObservationSessionSnapshot;
-	readonly oneShot: ReturnType<typeof reconstructOneShotSession>;
+	readonly materialReview: ReturnType<typeof reconstructMaterialReviewSession>;
 }
 
 function assertNever(value: never): never {
@@ -283,15 +314,15 @@ function liveBranch(port: ObservationCommandPort): LiveWorkingBranch | string {
 	const pi = reconstructObserverPiState(entries);
 	const memo = reconstructMemoSession(entries);
 	const observation = reconstructObservationSession(entries);
-	const oneShot = reconstructOneShotSession(entries);
+	const materialReview = reconstructMaterialReviewSession(entries);
 	const firstIssue =
 		pi.issues[0]?.code ??
 		memo.issues[0]?.code ??
 		observation.issues[0]?.code ??
-		oneShot.issues[0]?.code;
+		materialReview.issues[0]?.code;
 	return firstIssue
 		? `Observer working history를 확인해야 합니다: ${firstIssue}.`
-		: { pi, memo, observation, oneShot };
+		: { pi, memo, observation, materialReview };
 }
 
 function isLiveBranch(
@@ -310,12 +341,13 @@ function branchReadAuthorized(
 	branch: LiveWorkingBranch,
 	read: SourceReadRecordedEvent,
 ): boolean {
-	if (!read.oneShotRequestId) return activeEpisode(branch);
+	if (!read.materialReviewRequestId) return activeEpisode(branch);
 	return (
 		branch.pi.state.episode.status === "open" &&
 		branch.pi.state.episode.core.episodeId === read.episodeId &&
-		branch.oneShot.pendingRequest?.requestId === read.oneShotRequestId &&
-		branch.oneShot.pendingRequest.episodeId === read.episodeId
+		branch.materialReview.pendingRequest?.requestId ===
+			read.materialReviewRequestId &&
+		branch.materialReview.pendingRequest.episodeId === read.episodeId
 	);
 }
 
@@ -364,6 +396,13 @@ function replayedEvent(
 					(item) => item.observationId === event.observationId,
 				) ?? null
 			);
+		case "hypothesis-context-reviewed":
+			return (
+				snapshot.hypothesisReviews.find(
+					(item) =>
+						item.hypothesisObservationId === event.hypothesisObservationId,
+				) ?? null
+			);
 		case "memo-requested":
 			return (
 				snapshot.memoRequests.find(
@@ -395,53 +434,59 @@ function appendEvent(
 		: "Observer working entry가 replay에서 확인되지 않았습니다.";
 }
 
-function appendOneShotRequest(
+function appendMaterialReviewRequest(
 	port: ObservationCommandPort,
-	request: OneShotRequestedEvent,
-): OneShotRequestedEvent | string {
+	request: MaterialReviewRequestedEvent,
+): MaterialReviewRequestedEvent | string {
 	try {
-		port.appendEntry(OBSERVER_ONE_SHOT_ENTRY, encodeOneShotEvent(request));
+		port.appendEntry(
+			OBSERVER_MATERIAL_REVIEW_ENTRY,
+			encodeMaterialReviewEvent(request),
+		);
 	} catch (error) {
-		return `One-shot request 기록 실패: ${error instanceof Error ? error.message : String(error)}`;
+		return `Material review request 기록 실패: ${error instanceof Error ? error.message : String(error)}`;
 	}
-	const replayed = reconstructOneShotSession(port.branchEntries());
+	const replayed = reconstructMaterialReviewSession(port.branchEntries());
 	const issue = replayed.issues[0];
-	if (issue) return `One-shot request replay 실패: ${issue.code}.`;
+	if (issue) return `Material review request replay 실패: ${issue.code}.`;
 	const confirmed = replayed.requests.find(
 		(event) => event.requestId === request.requestId,
 	);
 	return confirmed &&
-		JSON.stringify(encodeOneShotEvent(confirmed)) ===
-			JSON.stringify(encodeOneShotEvent(request))
+		JSON.stringify(encodeMaterialReviewEvent(confirmed)) ===
+			JSON.stringify(encodeMaterialReviewEvent(request))
 		? confirmed
-		: "One-shot request가 replay에서 확인되지 않았습니다.";
+		: "Material review request가 replay에서 확인되지 않았습니다.";
 }
 
-function appendOneShotCompletion(
+function appendMaterialReviewCompletion(
 	port: ObservationCommandPort,
-	completion: OneShotCompletedEvent,
-): OneShotCompletedEvent | string {
+	completion: MaterialReviewCompletedEvent,
+): MaterialReviewCompletedEvent | string {
 	try {
-		port.appendEntry(OBSERVER_ONE_SHOT_ENTRY, encodeOneShotEvent(completion));
+		port.appendEntry(
+			OBSERVER_MATERIAL_REVIEW_ENTRY,
+			encodeMaterialReviewEvent(completion),
+		);
 	} catch (error) {
-		return `One-shot completion 기록 실패: ${error instanceof Error ? error.message : String(error)}`;
+		return `Material review completion 기록 실패: ${error instanceof Error ? error.message : String(error)}`;
 	}
-	const replayed = reconstructOneShotSession(port.branchEntries());
+	const replayed = reconstructMaterialReviewSession(port.branchEntries());
 	const issue = replayed.issues[0];
-	if (issue) return `One-shot completion replay 실패: ${issue.code}.`;
+	if (issue) return `Material review completion replay 실패: ${issue.code}.`;
 	const confirmed = replayed.completions.find(
 		(event) => event.requestId === completion.requestId,
 	);
 	return confirmed &&
-		JSON.stringify(encodeOneShotEvent(confirmed)) ===
-			JSON.stringify(encodeOneShotEvent(completion))
+		JSON.stringify(encodeMaterialReviewEvent(confirmed)) ===
+			JSON.stringify(encodeMaterialReviewEvent(completion))
 		? confirmed
-		: "One-shot completion이 replay에서 확인되지 않았습니다.";
+		: "Material review completion이 replay에서 확인되지 않았습니다.";
 }
 
-function oneShotAttemptIssue(input: {
-	readonly intent: OneShotIntent;
-	readonly episode: OneShotEpisodeCapability;
+function materialReviewAttemptIssue(input: {
+	readonly intent: MaterialReviewIntent;
+	readonly episode: MaterialReviewEpisodeCapability;
 	readonly branch: LiveWorkingBranch;
 }): string | null {
 	if (
@@ -450,7 +495,7 @@ function oneShotAttemptIssue(input: {
 		input.episode.material !== input.intent.material ||
 		input.episode.inputSource !== input.intent.inputSource
 	)
-		return "One-shot intent와 Episode capability가 일치하지 않습니다.";
+		return "Material review intent와 Episode capability가 일치하지 않습니다.";
 	const lifecycle = input.branch.pi.state;
 	if (
 		lifecycle.mode !== "off" ||
@@ -459,17 +504,18 @@ function oneShotAttemptIssue(input: {
 		lifecycle.episode.core.notebookId !== input.episode.notebookId ||
 		lifecycle.episode.core.lang !== input.episode.lang
 	)
-		return "One-shot Episode capability가 현재 OPEN/OFF lifecycle과 일치하지 않습니다.";
+		return "Material review Episode capability가 현재 OPEN/OFF lifecycle과 일치하지 않습니다.";
 	return null;
 }
 
 function existingInlineCandidate(input: {
-	readonly request: OneShotRequestedEvent;
-	readonly intent: OneShotIntent;
+	readonly request: MaterialReviewRequestedEvent;
+	readonly intent: MaterialReviewIntent;
 	readonly observation: ObservationSessionSnapshot;
 }): CandidateCapturedEvent | string | null {
 	const linked = input.observation.candidates.filter(
-		(candidate) => candidate.oneShotRequestId === input.request.requestId,
+		(candidate) =>
+			candidate.materialReviewRequestId === input.request.requestId,
 	);
 	if (linked.length === 0) return null;
 	const candidate = linked[0];
@@ -482,36 +528,36 @@ function existingInlineCandidate(input: {
 		candidate.origin.kind !== "user-input" ||
 		candidate.origin.inputSource !== input.intent.inputSource
 	)
-		return "One-shot inline candidate history가 exact intent와 충돌합니다.";
+		return "Material review inline candidate history가 exact intent와 충돌합니다.";
 	return candidate;
 }
 
-function startOneShot(input: {
+function startMaterialReview(input: {
 	readonly value: {
-		readonly intent: OneShotIntent;
-		readonly episode: OneShotEpisodeCapability;
+		readonly intent: MaterialReviewIntent;
+		readonly episode: MaterialReviewEpisodeCapability;
 		readonly capturedAt: unknown;
 	};
 	readonly port: ObservationCommandPort;
 	readonly ids: ObservationControllerIds;
-}): OneShotStartControllerResult {
+}): MaterialReviewStartControllerResult {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
-	const attemptIssue = oneShotAttemptIssue({
+	const attemptIssue = materialReviewAttemptIssue({
 		intent: input.value.intent,
 		episode: input.value.episode,
 		branch,
 	});
 	if (attemptIssue) return { ok: false, message: attemptIssue };
-	const plan = planOneShotRequest({
+	const plan = planMaterialReviewRequest({
 		intent: input.value.intent,
 		episodeId: input.value.episode.episodeId,
-		session: reconstructOneShotSession(input.port.branchEntries()),
+		session: reconstructMaterialReviewSession(input.port.branchEntries()),
 	});
 	if (!plan.ok) return { ok: false, message: plan.issue.message };
 	const request =
 		plan.value.kind === "new"
-			? appendOneShotRequest(input.port, plan.value.request)
+			? appendMaterialReviewRequest(input.port, plan.value.request)
 			: plan.value.request;
 	if (typeof request === "string") return { ok: false, message: request };
 	if (input.value.intent.material === "retrieved-tool-results")
@@ -521,7 +567,7 @@ function startOneShot(input: {
 	if (observationIssue)
 		return {
 			ok: false,
-			message: `One-shot candidate replay 실패: ${observationIssue.code}.`,
+			message: `Material review candidate replay 실패: ${observationIssue.code}.`,
 		};
 	const existing = existingInlineCandidate({
 		request,
@@ -555,7 +601,10 @@ function startOneShot(input: {
 	);
 	if (typeof prepared === "string") return { ok: false, message: prepared };
 	if (prepared.kind !== "candidate-captured")
-		return { ok: false, message: "One-shot candidate refinement failed." };
+		return {
+			ok: false,
+			message: "Material review candidate refinement failed.",
+		};
 	const appended = appendEvent(input.port, prepared);
 	return typeof appended === "string"
 		? { ok: false, message: appended }
@@ -567,10 +616,10 @@ function startOneShot(input: {
 			};
 }
 
-function finishOneShot(input: {
-	readonly action: OneShotFinishAction;
+function finishMaterialReview(input: {
+	readonly action: MaterialReviewFinishAction;
 	readonly port: ObservationCommandPort;
-}): OneShotFinishControllerResult {
+}): MaterialReviewFinishControllerResult {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	const episode = branch.pi.state.episode;
@@ -578,15 +627,15 @@ function finishOneShot(input: {
 		return {
 			ok: false,
 			message:
-				"One-shot completion requires Mode OFF and an OPEN Episode without Wrap review.",
+				"Material review completion requires Mode OFF and an OPEN Episode without Review & Save review.",
 		};
 	const candidates = branch.observation.candidates.flatMap((candidate) =>
-		candidate.oneShotRequestId === input.action.requestId
+		candidate.materialReviewRequestId === input.action.requestId
 			? [{ candidateId: candidate.candidateId }]
 			: [],
 	);
 	const sourceReads = branch.observation.sourceReads.flatMap((read) =>
-		read.oneShotRequestId === input.action.requestId
+		read.materialReviewRequestId === input.action.requestId
 			? [{ readId: read.readId, candidateIds: read.candidateIds }]
 			: [],
 	);
@@ -594,21 +643,21 @@ function finishOneShot(input: {
 		observationId: observation.observationId,
 		readId: observation.readId,
 	}));
-	const planned = planOneShotCompletion({
+	const planned = planMaterialReviewCompletion({
 		requestId: input.action.requestId,
 		episodeId: episode.core.episodeId,
-		session: branch.oneShot,
+		session: branch.materialReview,
 		candidates,
 		sourceReads,
 		observations,
 	});
 	if (!planned.ok) return { ok: false, message: planned.issue.message };
-	const persisted = branch.oneShot.completions.find(
+	const persisted = branch.materialReview.completions.find(
 		(completion) => completion.requestId === input.action.requestId,
 	);
 	if (persisted)
 		return { ok: true, status: "resumed", completion: planned.value };
-	const appended = appendOneShotCompletion(input.port, planned.value);
+	const appended = appendMaterialReviewCompletion(input.port, planned.value);
 	return typeof appended === "string"
 		? { ok: false, message: appended }
 		: { ok: true, status: "completed", completion: appended };
@@ -716,7 +765,7 @@ function prepareSourceRead(input: {
 			index_inquiry_ids: input.index.inquiries.map(
 				(inquiry) => inquiry.inquiryId,
 			),
-			...(input.ancestry.kind === "one-shot"
+			...(input.ancestry.kind === "material-review"
 				? { one_shot_request_id: input.ancestry.requestId }
 				: {}),
 		},
@@ -752,21 +801,31 @@ async function sourceRead(input: {
 			message: "Source-read candidate를 current branch에서 찾지 못했습니다.",
 		};
 	}
+	if (
+		candidates.some(
+			(candidate) => candidate.origin.kind === "explicit-user-hypothesis",
+		)
+	)
+		return {
+			ok: false,
+			message: "A user hypothesis is not Source evidence.",
+		};
 	const ancestry = deriveReadAncestry({
 		candidates,
-		pendingRequest: branch.oneShot.pendingRequest,
+		pendingRequest: branch.materialReview.pendingRequest,
 		episodeId: episode.core.episodeId,
 	});
 	if (ancestry.kind === "invalid")
 		return {
 			ok: false,
-			message: "Source-read candidate의 One-shot ancestry가 일치하지 않습니다.",
+			message:
+				"Source-read candidate의 Material review ancestry가 일치하지 않습니다.",
 		};
-	if (!activeEpisode(branch) && ancestry.kind !== "one-shot")
+	if (!activeEpisode(branch) && ancestry.kind !== "material-review")
 		return {
 			ok: false,
 			message:
-				"Source-read에는 Mode ON 또는 exact One-shot ancestry가 필요합니다.",
+				"Source-read에는 Mode ON 또는 exact Material review ancestry가 필요합니다.",
 		};
 	const usedCandidateIds = new Set(
 		branch.observation.sourceReads.flatMap((read) => read.candidateIds),
@@ -826,7 +885,7 @@ async function hydrate(input: {
 		return {
 			ok: false,
 			message:
-				"Hydration에는 Mode ON 또는 exact One-shot read ancestry가 필요합니다.",
+				"Hydration에는 Mode ON 또는 exact Material review read ancestry가 필요합니다.",
 		};
 	const inventory = await inventoryFor(branch, input.notebooks);
 	if (!isInventory(inventory)) return { ok: false, message: inventory };
@@ -922,7 +981,7 @@ async function record(input: {
 		return {
 			ok: false,
 			message:
-				"Observation에는 Mode ON 또는 exact One-shot read ancestry가 필요합니다.",
+				"Observation에는 Mode ON 또는 exact Material review read ancestry가 필요합니다.",
 		};
 	if (
 		branch.observation.observations.some(
@@ -993,6 +1052,84 @@ async function record(input: {
 	};
 }
 
+type UserHypothesisRegistrationResult =
+	| Extract<ObservationControllerResult, { readonly action: "user-hypothesis" }>
+	| { readonly ok: false; readonly message: string };
+
+async function registerUserHypothesis(input: {
+	readonly branch: LiveWorkingBranch;
+	readonly candidate: CandidateCapturedEvent;
+	readonly existingInquiryId: InquiryId | null;
+	readonly original: string;
+	readonly context: string;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObservationControllerIds;
+}): Promise<UserHypothesisRegistrationResult> {
+	const duplicate = input.branch.observation.userHypotheses.find(
+		(item) =>
+			item.candidateId === input.candidate.candidateId &&
+			item.original === input.original &&
+			item.context === input.context &&
+			(input.existingInquiryId === null ||
+				item.inquiryId === input.existingInquiryId),
+	);
+	if (duplicate) {
+		return {
+			ok: true,
+			action: "user-hypothesis",
+			message: "This user hypothesis is already being tracked.",
+			hypothesis: duplicate,
+		};
+	}
+	if (input.existingInquiryId) {
+		const inventory = await inventoryFor(input.branch, input.notebooks);
+		if (!isInventory(inventory)) return { ok: false, message: inventory };
+		const index = currentIndex({ branch: input.branch, inventory });
+		if (
+			!index.inquiries.some(
+				(item) => item.inquiryId === input.existingInquiryId,
+			)
+		) {
+			return {
+				ok: false,
+				message: "The selected Inquiry is not in the current standing index.",
+			};
+		}
+	}
+	const episode = input.branch.pi.state.episode;
+	if (episode.status !== "open")
+		return {
+			ok: false,
+			message: "Hypothesis tracking requires an open Episode.",
+		};
+	const prepared = refinedEvent(
+		{
+			observer_observation: "observer-observation/v1",
+			kind: "user-hypothesis-recorded",
+			episode_id: episode.core.episodeId,
+			observation_id: input.ids.observationId(),
+			candidate_id: input.candidate.candidateId,
+			inquiry_id: input.existingInquiryId ?? input.ids.inquiryId(),
+			original: input.original,
+			context: input.context,
+		},
+		"user-hypothesis-recorded",
+	);
+	if (typeof prepared === "string") return { ok: false, message: prepared };
+	if (prepared.kind !== "user-hypothesis-recorded")
+		return { ok: false, message: "User hypothesis refinement failed." };
+	const appended = appendEvent(input.port, prepared);
+	if (typeof appended === "string") return { ok: false, message: appended };
+	input.port.notify(`Tracking hypothesis: ${prepared.original}`, "info");
+	return {
+		ok: true,
+		action: "user-hypothesis",
+		message: "The user hypothesis was added to the working state.",
+		hypothesis: prepared,
+	};
+}
+
 async function userHypothesis(input: {
 	readonly action: RegisterUserHypothesisAction;
 	readonly port: ObservationCommandPort;
@@ -1001,78 +1138,250 @@ async function userHypothesis(input: {
 }): Promise<ObservationControllerResult> {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
-	if (!activeEpisode(branch) || branch.pi.state.episode.status !== "open") {
+	if (!activeEpisode(branch) || branch.pi.state.episode.status !== "open")
 		return {
 			ok: false,
-			message: "사용자 가설 등록에는 활성화된 open Episode가 필요합니다.",
+			message:
+				"User hypothesis registration requires Mode ON and an open Episode.",
 		};
-	}
 	const candidate = branch.observation.candidates.find(
 		(item) => item.candidateId === input.action.candidateId,
 	);
-	if (!candidate || candidate.origin.kind !== "user-input") {
+	if (!candidate || candidate.origin.kind !== "user-input")
 		return {
 			ok: false,
-			message: "사용자 가설에는 current user-input candidate가 필요합니다.",
+			message: "A current user-input candidate is required.",
 		};
-	}
-	const duplicate = branch.observation.userHypotheses.find(
-		(item) =>
-			item.candidateId === input.action.candidateId &&
-			item.original === input.action.original &&
-			item.context === input.action.context &&
-			(input.action.existingInquiryId === null ||
-				item.inquiryId === input.action.existingInquiryId),
+	return registerUserHypothesis({
+		branch,
+		candidate,
+		existingInquiryId: input.action.existingInquiryId,
+		original: input.action.original,
+		context: input.action.context,
+		port: input.port,
+		notebooks: input.notebooks,
+		ids: input.ids,
+	});
+}
+
+function trackedHypothesisEpisodeIssue(input: {
+	readonly branch: LiveWorkingBranch;
+	readonly capability: UserHypothesisEpisodeCapability;
+}): string | null {
+	const episode = input.branch.pi.state.episode;
+	return episode.status === "open" &&
+		episode.core.episodeId === input.capability.episodeId &&
+		episode.core.notebookId === input.capability.notebookId &&
+		episode.core.lang === input.capability.lang &&
+		input.branch.pi.state.mode === input.capability.mode
+		? null
+		: "The hypothesis Episode capability no longer matches the current branch.";
+}
+
+async function trackUserHypothesis(input: {
+	readonly value: {
+		readonly episode: UserHypothesisEpisodeCapability;
+		readonly original: string;
+		readonly context: string;
+		readonly capturedAt: string;
+		readonly inputSource: "interactive" | "rpc";
+	};
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObservationControllerIds;
+}): Promise<TrackUserHypothesisResult> {
+	let branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	const initialBranch = branch;
+	const episodeIssue = trackedHypothesisEpisodeIssue({
+		branch: initialBranch,
+		capability: input.value.episode,
+	});
+	if (episodeIssue) return { ok: false, message: episodeIssue };
+	const preparedCandidate = refinedEvent(
+		{
+			observer_observation: "observer-observation/v1",
+			kind: "candidate-captured",
+			episode_id: input.value.episode.episodeId,
+			candidate_id: input.ids.candidateId(),
+			origin: {
+				kind: "explicit-user-hypothesis",
+				input_source: input.value.inputSource,
+			},
+			text: input.value.original,
+			content_hash: sha256Text(input.value.original),
+			captured_at: input.value.capturedAt,
+		},
+		"candidate-captured",
 	);
-	if (duplicate) {
+	if (typeof preparedCandidate === "string")
+		return { ok: false, message: preparedCandidate };
+	if (preparedCandidate.kind !== "candidate-captured")
+		return { ok: false, message: "Hypothesis candidate refinement failed." };
+	const existingHypothesis = initialBranch.observation.userHypotheses.find(
+		(hypothesis) => {
+			if (
+				hypothesis.original !== input.value.original ||
+				hypothesis.context !== input.value.context
+			)
+				return false;
+			const candidate = initialBranch.observation.candidates.find(
+				(item) => item.candidateId === hypothesis.candidateId,
+			);
+			return (
+				candidate?.episodeId === input.value.episode.episodeId &&
+				candidate.origin.kind === "explicit-user-hypothesis" &&
+				candidate.text === preparedCandidate.text &&
+				!candidate.materialReviewRequestId
+			);
+		},
+	);
+	let candidate = existingHypothesis
+		? initialBranch.observation.candidates.find(
+				(item) => item.candidateId === existingHypothesis.candidateId,
+			)
+		: initialBranch.observation.candidates.findLast(
+				(item) =>
+					item.episodeId === input.value.episode.episodeId &&
+					item.origin.kind === "explicit-user-hypothesis" &&
+					item.text === preparedCandidate.text &&
+					!item.materialReviewRequestId,
+			);
+	if (!candidate) {
+		const appended = appendEvent(input.port, preparedCandidate);
+		if (typeof appended === "string") return { ok: false, message: appended };
+		candidate = preparedCandidate;
+		const replayed = liveBranch(input.port);
+		if (!isLiveBranch(replayed)) return { ok: false, message: replayed };
+		branch = replayed;
+	}
+	const registered = await registerUserHypothesis({
+		branch,
+		candidate,
+		existingInquiryId: null,
+		original: preparedCandidate.text,
+		context: input.value.context,
+		port: input.port,
+		notebooks: input.notebooks,
+		ids: input.ids,
+	});
+	if (!registered.ok) return registered;
+	return {
+		ok: true,
+		status: existingHypothesis ? "resumed" : "recorded",
+		reviewPending: !branch.observation.hypothesisReviews.some(
+			(review) =>
+				review.hypothesisObservationId === registered.hypothesis.observationId,
+		),
+		candidate,
+		hypothesis: registered.hypothesis,
+	};
+}
+
+function hypothesisReviewHasRequiredClues(
+	action: HypothesisContextReviewAction,
+): boolean {
+	switch (action.assessment) {
+		case "supports":
+			return action.supportingClues.length > 0;
+		case "challenges":
+			return action.challengingClues.length > 0;
+		case "mixed":
+			return (
+				action.supportingClues.length > 0 && action.challengingClues.length > 0
+			);
+		case "insufficient-context":
+			return action.missingInformation.length > 0;
+		default:
+			return assertNever(action.assessment);
+	}
+}
+
+async function hypothesisContextReview(input: {
+	readonly action: HypothesisContextReviewAction;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+}): Promise<ObservationControllerResult> {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	const episode = branch.pi.state.episode;
+	if (episode.status !== "open")
+		return {
+			ok: false,
+			message: "Hypothesis context review requires an open Episode.",
+		};
+	const hypothesis = branch.observation.userHypotheses.find(
+		(item) => item.observationId === input.action.hypothesisObservationId,
+	);
+	if (!hypothesis || hypothesis.episodeId !== episode.core.episodeId)
+		return {
+			ok: false,
+			message: "The hypothesis is not pending in the current Episode.",
+		};
+	const existing = branch.observation.hypothesisReviews.find(
+		(item) => item.hypothesisObservationId === hypothesis.observationId,
+	);
+	if (existing)
 		return {
 			ok: true,
-			action: "user-hypothesis",
-			message: "이미 등록된 사용자 가설입니다.",
-			hypothesis: duplicate,
+			action: "hypothesis-context-review",
+			message: "The current-context review is already recorded.",
+			review: existing,
 		};
-	}
-	if (input.action.existingInquiryId) {
+	if (!hypothesisReviewHasRequiredClues(input.action))
+		return {
+			ok: false,
+			message:
+				"The assessment must include matching clues, or missing information when context is insufficient.",
+		};
+	if (input.action.sourceIds.length > 0) {
 		const inventory = await inventoryFor(branch, input.notebooks);
 		if (!isInventory(inventory)) return { ok: false, message: inventory };
-		const index = currentIndex({ branch, inventory });
-		if (
-			!index.inquiries.some(
-				(item) => item.inquiryId === input.action.existingInquiryId,
-			)
-		) {
+		const availableSourceIds = new Set([
+			...inventory.flatMap((entry) =>
+				entry.document.record.observer_type === "source"
+					? [entry.document.record.id]
+					: [],
+			),
+			...branch.observation.sourceReads.map((read) => read.source.sourceId),
+		]);
+		if (input.action.sourceIds.some((id) => !availableSourceIds.has(id)))
 			return {
 				ok: false,
-				message: "지정한 existing Inquiry가 standing index에 없습니다.",
+				message:
+					"A context-review Source reference is not available in the current Episode or Notebook.",
 			};
-		}
 	}
 	const prepared = refinedEvent(
 		{
 			observer_observation: "observer-observation/v1",
-			kind: "user-hypothesis-recorded",
-			episode_id: branch.pi.state.episode.core.episodeId,
-			observation_id: input.ids.observationId(),
-			candidate_id: input.action.candidateId,
-			inquiry_id: input.action.existingInquiryId ?? input.ids.inquiryId(),
-			original: input.action.original,
-			context: input.action.context,
+			kind: "hypothesis-context-reviewed",
+			episode_id: episode.core.episodeId,
+			hypothesis_observation_id: hypothesis.observationId,
+			assessment: input.action.assessment,
+			supporting_clues: input.action.supportingClues,
+			challenging_clues: input.action.challengingClues,
+			missing_information: input.action.missingInformation,
+			source_ids: input.action.sourceIds,
+			interpretation_boundary: input.action.interpretationBoundary,
 		},
-		"user-hypothesis-recorded",
+		"hypothesis-context-reviewed",
 	);
 	if (typeof prepared === "string") return { ok: false, message: prepared };
-	if (prepared.kind !== "user-hypothesis-recorded") {
-		return { ok: false, message: "User hypothesis refinement failed." };
-	}
+	if (prepared.kind !== "hypothesis-context-reviewed")
+		return {
+			ok: false,
+			message: "Hypothesis context review refinement failed.",
+		};
 	const appended = appendEvent(input.port, prepared);
-	if (typeof appended === "string") return { ok: false, message: appended };
-	input.port.notify(`사용자 가설을 추적합니다: ${prepared.original}`, "info");
-	return {
-		ok: true,
-		action: "user-hypothesis",
-		message: "사용자 가설을 working state에 등록했습니다.",
-		hypothesis: prepared,
-	};
+	return typeof appended === "string"
+		? { ok: false, message: appended }
+		: {
+				ok: true,
+				action: "hypothesis-context-review",
+				message: `Reviewed current context through the hypothesis: ${prepared.assessment}`,
+				review: prepared,
+			};
 }
 
 function requestMemo(input: {
@@ -1081,6 +1390,12 @@ function requestMemo(input: {
 }): MemoRequestControllerResult {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	if (branch.observation.pendingHypothesisReviews.length > 0)
+		return {
+			ok: false,
+			message:
+				"Finish the pending hypothesis context review before Memo reconciliation.",
+		};
 	if (branch.memo.prepared || branch.memo.pendingAcknowledgment) {
 		const pendingRequestId = branch.observation.pendingMemoRequest?.requestId;
 		const instructionId =
@@ -1137,59 +1452,59 @@ function requestMemo(input: {
 	}
 }
 
-async function requestWrap(input: {
+async function requestSave(input: {
 	readonly port: ObservationCommandPort;
 	readonly notebooks: NotebookService;
 	readonly ids: ObservationControllerIds;
-}): Promise<WrapRequestControllerResult> {
+}): Promise<SaveRequestControllerResult> {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	if (
 		branch.pi.prepared ||
-		branch.pi.state.episode.status === "reviewing-wrap"
+		branch.pi.state.episode.status === "reviewing-save"
 	) {
 		return {
 			ok: true,
 			status: "delegate",
-			message: "기존 Wrap proposal을 검토하거나 복구합니다.",
+			message: "Review or recover the existing save proposal.",
 			request: null,
 		};
 	}
 	const workingSet = await notebookWorkingSetFor(branch, input.notebooks);
 	if (typeof workingSet === "string") return { ok: false, message: workingSet };
-	const requestSession = reconstructWrapRequestSession(
+	const requestSession = reconstructSaveRequestSession(
 		input.port.branchEntries(),
 	);
-	const planned = planWrapRequest({
+	const planned = planSaveRequest({
 		observation: branch.observation,
 		memo: branch.memo,
 		requestSession,
 		inventory: workingSet.inventory,
 		notebook: workingSet.notebook,
-		requestId: input.ids.wrapRequestId(),
-		proposalId: input.ids.wrapProposalId(),
+		requestId: input.ids.saveRequestId(),
+		proposalId: input.ids.saveProposalId(),
 	});
 	if (!planned.ok) return { ok: false, message: planned.issue.message };
 	if (planned.value.kind === "resume") {
 		return {
 			ok: true,
 			status: "resumed",
-			message: `기존 Wrap request를 재개합니다: ${planned.value.request.requestId}`,
+			message: `Resuming the existing save request: ${planned.value.request.requestId}`,
 			request: planned.value.request,
 		};
 	}
 	try {
 		input.port.appendEntry(
-			OBSERVER_WRAP_REQUEST_ENTRY,
-			encodeWrapRequestEvent(planned.value.request),
+			OBSERVER_SAVE_REQUEST_ENTRY,
+			encodeSaveRequestEvent(planned.value.request),
 		);
 	} catch (error) {
 		return {
 			ok: false,
-			message: `Wrap request 기록 실패: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Could not record the save request: ${error instanceof Error ? error.message : String(error)}`,
 		};
 	}
-	const replayed = reconstructWrapRequestSession(input.port.branchEntries());
+	const replayed = reconstructSaveRequestSession(input.port.branchEntries());
 	const confirmed = replayed.pendingRequest;
 	if (
 		replayed.issues.length > 0 ||
@@ -1199,40 +1514,40 @@ async function requestWrap(input: {
 		return {
 			ok: false,
 			message: replayed.issues[0]
-				? `Wrap request replay 실패: ${replayed.issues[0].code}.`
-				: "Wrap request가 replay에서 확인되지 않았습니다.",
+				? `Save request replay failed: ${replayed.issues[0].code}.`
+				: "The save request was not confirmed by replay.",
 		};
 	}
 	return {
 		ok: true,
 		status: "requested",
-		message: `Wrap request를 기록했습니다: ${confirmed.requestId}`,
+		message: `Save request recorded: ${confirmed.requestId}`,
 		request: confirmed,
 	};
 }
 
-async function wrapContext(input: {
-	readonly requestId: WrapRequestId;
+async function saveContext(input: {
+	readonly requestId: SaveRequestId;
 	readonly port: ObservationCommandPort;
 	readonly notebooks: NotebookService;
 }): Promise<
-	| { readonly ok: true; readonly value: WrapPreparationContext }
+	| { readonly ok: true; readonly value: SavePreparationContext }
 	| { readonly ok: false; readonly message: string }
 > {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	const workingSet = await notebookWorkingSetFor(branch, input.notebooks);
 	if (typeof workingSet === "string") return { ok: false, message: workingSet };
-	const requestSession = reconstructWrapRequestSession(
+	const requestSession = reconstructSaveRequestSession(
 		input.port.branchEntries(),
 	);
 	const request = requestSession.pendingRequest;
 	if (!request || request.requestId !== input.requestId)
 		return {
 			ok: false,
-			message: "Wrap action에는 exact pending request가 필요합니다.",
+			message: "Review & Save action에는 exact pending request가 필요합니다.",
 		};
-	const context = hydrateWrapPreparationContext({
+	const context = hydrateSavePreparationContext({
 		request,
 		observation: branch.observation,
 		memo: branch.memo,
@@ -1245,12 +1560,12 @@ async function wrapContext(input: {
 		: { ok: false, message: context.issue.message };
 }
 
-async function wrapScope(input: {
-	readonly action: WrapScopeAction;
+async function saveScope(input: {
+	readonly action: SaveScopeAction;
 	readonly port: ObservationCommandPort;
 	readonly notebooks: NotebookService;
 }): Promise<ObservationControllerResult> {
-	const context = await wrapContext({
+	const context = await saveContext({
 		requestId: input.action.requestId,
 		port: input.port,
 		notebooks: input.notebooks,
@@ -1258,25 +1573,25 @@ async function wrapScope(input: {
 	if (!context.ok) return context;
 	return {
 		ok: true,
-		action: "wrap-scope",
-		message: `Wrap request scope 활성화: ${input.action.requestId}`,
+		action: "save-scope",
+		message: `Save request scope activated: ${input.action.requestId}`,
 		context: context.value,
-		guide: buildWrapPreparationGuide(context.value),
+		guide: buildSavePreparationGuide(context.value),
 	};
 }
 
-async function wrapPrepare(input: {
-	readonly action: WrapPrepareAction;
+async function savePrepare(input: {
+	readonly action: SavePrepareAction;
 	readonly port: ObservationCommandPort;
 	readonly notebooks: NotebookService;
 }): Promise<ObservationControllerResult> {
-	const context = await wrapContext({
+	const context = await saveContext({
 		requestId: input.action.requestId,
 		port: input.port,
 		notebooks: input.notebooks,
 	});
 	if (!context.ok) return context;
-	const prepared = prepareWrapHandoff({
+	const prepared = prepareSaveHandoff({
 		context: context.value,
 		summary: input.action.summary,
 		records: input.action.records,
@@ -1284,8 +1599,8 @@ async function wrapPrepare(input: {
 	if (!prepared.ok) return { ok: false, message: prepared.issue.message };
 	return {
 		ok: true,
-		action: "wrap-prepare",
-		message: `Wrap proposal 준비 완료: ${prepared.value.prepared.proposal_id}`,
+		action: "save-prepare",
+		message: `Save proposal prepared: ${prepared.value.prepared.proposal_id}`,
 		handoff: prepared.value,
 	};
 }
@@ -1478,13 +1793,13 @@ function executeMemoSidecarAction(input: {
 function pendingRetrievedCaptureRequest(input: {
 	readonly branch: LiveWorkingBranch;
 	readonly port: ObservationCommandPort;
-}): OneShotRequestedEvent | string | null {
+}): MaterialReviewRequestedEvent | string | null {
 	if (
 		input.branch.pi.state.mode !== "off" ||
 		input.branch.pi.state.episode.status !== "open"
 	)
 		return null;
-	const pending = input.branch.oneShot.pendingRequest;
+	const pending = input.branch.materialReview.pendingRequest;
 	return pending?.material === "retrieved-tool-results" &&
 		pending.episodeId === input.branch.pi.state.episode.core.episodeId
 		? pending
@@ -1503,12 +1818,12 @@ function captureCandidate(input: {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	const sidecarActive = activeEpisode(branch);
-	const oneShotRequest = sidecarActive
+	const materialReviewRequest = sidecarActive
 		? null
 		: pendingRetrievedCaptureRequest({ branch, port: input.port });
-	if (typeof oneShotRequest === "string")
-		return { ok: false, message: oneShotRequest };
-	if (!sidecarActive && !oneShotRequest)
+	if (typeof materialReviewRequest === "string")
+		return { ok: false, message: materialReviewRequest };
+	if (!sidecarActive && !materialReviewRequest)
 		return { ok: true, status: "ignored", candidate: null };
 	if (branch.pi.state.episode.status !== "open")
 		return { ok: true, status: "ignored", candidate: null };
@@ -1525,8 +1840,8 @@ function captureCandidate(input: {
 					? sha256Text(input.value.text)
 					: "",
 			captured_at: input.value.capturedAt,
-			...(oneShotRequest
-				? { one_shot_request_id: oneShotRequest.requestId }
+			...(materialReviewRequest
+				? { one_shot_request_id: materialReviewRequest.requestId }
 				: {}),
 		},
 		"candidate-captured",
@@ -1535,7 +1850,7 @@ function captureCandidate(input: {
 	if (prepared.kind !== "candidate-captured") {
 		return { ok: false, message: "Candidate refinement failed." };
 	}
-	if (oneShotRequest && prepared.origin.kind !== "tool-result")
+	if (materialReviewRequest && prepared.origin.kind !== "tool-result")
 		return { ok: true, status: "ignored", candidate: null };
 	const appended = appendEvent(input.port, prepared);
 	return typeof appended === "string"
@@ -1584,14 +1899,20 @@ function executeObservationAction(input: {
 				notebooks: input.notebooks,
 				ids: input.ids,
 			});
-		case "wrap-scope":
-			return wrapScope({
+		case "hypothesis-context-review":
+			return hypothesisContextReview({
 				action: input.action,
 				port: input.port,
 				notebooks: input.notebooks,
 			});
-		case "wrap-prepare":
-			return wrapPrepare({
+		case "save-scope":
+			return saveScope({
+				action: input.action,
+				port: input.port,
+				notebooks: input.notebooks,
+			});
+		case "save-prepare":
+			return savePrepare({
 				action: input.action,
 				port: input.port,
 				notebooks: input.notebooks,
@@ -1608,20 +1929,28 @@ export function createObservationController(
 		selectionStore: dependencies.selectionStore,
 	});
 	return {
-		finishOneShot(action, port) {
-			return finishOneShot({ action, port });
+		finishMaterialReview(action, port) {
+			return finishMaterialReview({ action, port });
 		},
-		startOneShot(value, port) {
-			return startOneShot({ value, port, ids: dependencies.ids });
+		startMaterialReview(value, port) {
+			return startMaterialReview({ value, port, ids: dependencies.ids });
 		},
-		requestWrap(port) {
-			return requestWrap({ port, notebooks, ids: dependencies.ids });
+		requestSave(port) {
+			return requestSave({ port, notebooks, ids: dependencies.ids });
 		},
 		requestMemo(port) {
 			return requestMemo({ port, ids: dependencies.ids });
 		},
 		capture(value, port) {
 			return captureCandidate({ value, port, ids: dependencies.ids });
+		},
+		trackUserHypothesis(value, port) {
+			return trackUserHypothesis({
+				value,
+				port,
+				notebooks,
+				ids: dependencies.ids,
+			});
 		},
 		execute(value, port) {
 			const decoded = decodeObservationAction(value);

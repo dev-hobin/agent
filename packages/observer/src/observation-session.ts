@@ -15,6 +15,7 @@ import {
 	OBSERVER_OBSERVATION_ENTRY,
 	type CandidateCapturedEvent,
 	type CandidateId,
+	type HypothesisContextReviewedEvent,
 	type InquiryHydratedEvent,
 	type MemoRequestId,
 	type ObservationEvent,
@@ -26,10 +27,10 @@ import {
 	type UserHypothesisRecordedEvent,
 } from "./observation-profile.ts";
 import {
-	pendingOneShotRequestBefore,
-	type OneShotRequestId,
-	type OneShotRequestedEvent,
-} from "./one-shot-trigger.ts";
+	pendingMaterialReviewRequestBefore,
+	type MaterialReviewRequestId,
+	type MaterialReviewRequestedEvent,
+} from "./material-review-trigger.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
 	type PiBranchEntryLike,
@@ -66,6 +67,8 @@ export interface ObservationSessionSnapshot {
 	readonly hydrations: readonly InquiryHydratedEvent[];
 	readonly observations: readonly SemanticObservationRecordedEvent[];
 	readonly userHypotheses: readonly UserHypothesisRecordedEvent[];
+	readonly hypothesisReviews: readonly HypothesisContextReviewedEvent[];
+	readonly pendingHypothesisReviews: readonly UserHypothesisRecordedEvent[];
 	readonly memoRequests: readonly ObservationMemoRequestedEvent[];
 	readonly pendingMemoRequest: ObservationMemoRequestedEvent | null;
 	readonly pendingHypotheses: readonly PendingObservationHypothesis[];
@@ -99,6 +102,8 @@ function eventIdentity(event: ObservationEvent): string {
 		case "semantic-observation-recorded":
 		case "user-hypothesis-recorded":
 			return event.observationId;
+		case "hypothesis-context-reviewed":
+			return `hypothesis-review:${event.hypothesisObservationId}`;
 		case "memo-requested":
 			return event.requestId;
 		default:
@@ -129,23 +134,35 @@ export function observationCandidateDigest(
 	);
 }
 
-function requiresActiveObservation(event: ObservationEvent): boolean {
-	return event.kind === "user-hypothesis-recorded";
+function requiresActiveObservation(
+	event: ObservationEvent,
+	candidates: ReadonlyMap<CandidateId, CandidateCapturedEvent>,
+): boolean {
+	return (
+		event.kind === "user-hypothesis-recorded" &&
+		candidates.get(event.candidateId)?.origin.kind !==
+			"explicit-user-hypothesis"
+	);
 }
 
 export type ReadAncestry =
 	| { readonly kind: "unlinked" }
-	| { readonly kind: "one-shot"; readonly requestId: OneShotRequestId }
+	| {
+			readonly kind: "material-review";
+			readonly requestId: MaterialReviewRequestId;
+	  }
 	| { readonly kind: "invalid" };
 
 export function deriveReadAncestry(input: {
 	readonly candidates: readonly CandidateCapturedEvent[];
-	readonly pendingRequest: OneShotRequestedEvent | null;
+	readonly pendingRequest: MaterialReviewRequestedEvent | null;
 	readonly episodeId: string;
 }): ReadAncestry {
 	if (input.candidates.length === 0) return { kind: "invalid" };
 	const requestIds = input.candidates.flatMap((candidate) =>
-		candidate.oneShotRequestId ? [candidate.oneShotRequestId] : [],
+		candidate.materialReviewRequestId
+			? [candidate.materialReviewRequestId]
+			: [],
 	);
 	if (requestIds.length === 0) return { kind: "unlinked" };
 	const requestId = requestIds[0];
@@ -157,7 +174,7 @@ export function deriveReadAncestry(input: {
 		input.pendingRequest.episodeId !== input.episodeId
 	)
 		return { kind: "invalid" };
-	return { kind: "one-shot", requestId };
+	return { kind: "material-review", requestId };
 }
 
 function readAuthorized(input: {
@@ -166,14 +183,14 @@ function readAuthorized(input: {
 	readonly entries: readonly PiBranchEntryLike[];
 	readonly index: number;
 }): boolean {
-	if (!input.read.oneShotRequestId)
+	if (!input.read.materialReviewRequestId)
 		return hasLiveEpisode(input.lifecycle, input.read.episodeId, true);
 	return (
 		hasLiveEpisode(input.lifecycle, input.read.episodeId, false) &&
-		pendingOneShotRequestBefore({
+		pendingMaterialReviewRequestBefore({
 			entries: input.entries,
 			index: input.index,
-			requestId: input.read.oneShotRequestId,
+			requestId: input.read.materialReviewRequestId,
 			episodeId: input.read.episodeId,
 		}) !== null
 	);
@@ -199,29 +216,31 @@ function applyCandidate(input: {
 	readonly candidates: Map<CandidateId, CandidateCapturedEvent>;
 	readonly issues: ObservationSessionIssue[];
 }): void {
-	const oneShotAuthorized = input.event.oneShotRequestId
-		? pendingOneShotRequestBefore({
+	const materialReviewAuthorized = input.event.materialReviewRequestId
+		? pendingMaterialReviewRequestBefore({
 				entries: input.entries,
 				index: input.index,
-				requestId: input.event.oneShotRequestId,
+				requestId: input.event.materialReviewRequestId,
 				episodeId: input.event.episodeId,
 			}) !== null
 		: false;
+	const explicitHypothesis =
+		input.event.origin.kind === "explicit-user-hypothesis";
 	if (
-		(input.event.oneShotRequestId && !oneShotAuthorized) ||
+		(input.event.materialReviewRequestId && !materialReviewAuthorized) ||
 		!hasLiveEpisode(
 			input.lifecycle,
 			input.event.episodeId,
-			!input.event.oneShotRequestId,
+			!input.event.materialReviewRequestId && !explicitHypothesis,
 		)
 	) {
 		issue(
 			input.issues,
 			input.index,
 			"observation-session.scope",
-			oneShotAuthorized
-				? "One-shot candidate requires its exact open Episode."
-				: "Candidate capture requires Mode ON or exact pending One-shot ancestry.",
+			materialReviewAuthorized
+				? "Material review candidate requires its exact open Episode."
+				: "Candidate capture requires Mode ON or exact pending Material review ancestry.",
 		);
 		return;
 	}
@@ -242,11 +261,11 @@ function applySourceRead(input: {
 		const candidate = input.candidates.get(id);
 		return candidate ? [candidate] : [];
 	});
-	const pendingRequest = input.event.oneShotRequestId
-		? pendingOneShotRequestBefore({
+	const pendingRequest = input.event.materialReviewRequestId
+		? pendingMaterialReviewRequestBefore({
 				entries: input.entries,
 				index: input.index,
-				requestId: input.event.oneShotRequestId,
+				requestId: input.event.materialReviewRequestId,
 				episodeId: input.event.episodeId,
 			})
 		: null;
@@ -256,20 +275,21 @@ function applySourceRead(input: {
 		episodeId: input.event.episodeId,
 	});
 	const ancestryMatches =
-		(ancestry.kind === "unlinked" && !input.event.oneShotRequestId) ||
-		(ancestry.kind === "one-shot" &&
-			ancestry.requestId === input.event.oneShotRequestId);
+		(ancestry.kind === "unlinked" && !input.event.materialReviewRequestId) ||
+		(ancestry.kind === "material-review" &&
+			ancestry.requestId === input.event.materialReviewRequestId);
 	if (
 		!ancestryMatches ||
 		!hasLiveEpisode(
 			input.lifecycle,
 			input.event.episodeId,
-			ancestry.kind !== "one-shot",
+			ancestry.kind !== "material-review",
 		) ||
 		candidates.length !== input.event.candidateIds.length ||
 		candidates.some(
 			(candidate) =>
 				candidate.episodeId !== input.event.episodeId ||
+				candidate.origin.kind === "explicit-user-hypothesis" ||
 				input.usedCandidateIds.has(candidate.candidateId),
 		) ||
 		observationCandidateDigest(candidates) !== input.event.candidateDigest
@@ -379,10 +399,15 @@ function applyUserHypothesis(input: {
 }): void {
 	const candidate = input.candidates.get(input.event.candidateId);
 	if (
-		!hasLiveEpisode(input.lifecycle, input.event.episodeId, true) ||
 		!candidate ||
+		!hasLiveEpisode(
+			input.lifecycle,
+			input.event.episodeId,
+			candidate.origin.kind !== "explicit-user-hypothesis",
+		) ||
 		candidate.episodeId !== input.event.episodeId ||
-		candidate.origin.kind !== "user-input"
+		(candidate.origin.kind !== "user-input" &&
+			candidate.origin.kind !== "explicit-user-hypothesis")
 	) {
 		issue(
 			input.issues,
@@ -393,6 +418,39 @@ function applyUserHypothesis(input: {
 		return;
 	}
 	input.userHypotheses.set(input.event.observationId, input.event);
+}
+
+function applyHypothesisContextReview(input: {
+	readonly event: HypothesisContextReviewedEvent;
+	readonly index: number;
+	readonly lifecycle: ObserverState;
+	readonly userHypotheses: ReadonlyMap<
+		ObservationId,
+		UserHypothesisRecordedEvent
+	>;
+	readonly hypothesisReviews: Map<
+		ObservationId,
+		HypothesisContextReviewedEvent
+	>;
+	readonly issues: ObservationSessionIssue[];
+}): void {
+	const hypothesis = input.userHypotheses.get(
+		input.event.hypothesisObservationId,
+	);
+	if (
+		!hypothesis ||
+		hypothesis.episodeId !== input.event.episodeId ||
+		!hasLiveEpisode(input.lifecycle, input.event.episodeId, false)
+	) {
+		issue(
+			input.issues,
+			input.index,
+			"observation-session.order",
+			"Hypothesis context review requires its exact open user hypothesis.",
+		);
+		return;
+	}
+	input.hypothesisReviews.set(input.event.hypothesisObservationId, input.event);
 }
 
 function applyMemoRequest(input: {
@@ -504,6 +562,10 @@ export function reconstructObservationSession(
 		SemanticObservationRecordedEvent
 	>();
 	const userHypotheses = new Map<ObservationId, UserHypothesisRecordedEvent>();
+	const hypothesisReviews = new Map<
+		ObservationId,
+		HypothesisContextReviewedEvent
+	>();
 	const memoRequests = new Map<MemoRequestId, ObservationMemoRequestedEvent>();
 	const requestIndices = new Map<MemoRequestId, number>();
 	const usedCandidateIds = new Set<CandidateId>();
@@ -564,7 +626,7 @@ export function reconstructObservationSession(
 			!hasLiveEpisode(
 				lifecycle,
 				decoded.value.episodeId,
-				requiresActiveObservation(decoded.value),
+				requiresActiveObservation(decoded.value, candidates),
 			)
 		) {
 			issue(
@@ -635,6 +697,16 @@ export function reconstructObservationSession(
 					issues,
 				});
 				break;
+			case "hypothesis-context-reviewed":
+				applyHypothesisContextReview({
+					event: decoded.value,
+					index,
+					lifecycle,
+					userHypotheses,
+					hypothesisReviews,
+					issues,
+				});
+				break;
 			case "memo-requested":
 				applyMemoRequest({
 					event: decoded.value,
@@ -702,21 +774,31 @@ export function reconstructObservationSession(
 		(value) => value.observationId,
 	);
 	const pendingHypotheses: PendingObservationHypothesis[] = [
-		...userValues.flatMap((event): PendingObservationHypothesis[] =>
-			unconsumed.has(event.observationId)
+		...userValues.flatMap((event): PendingObservationHypothesis[] => {
+			if (!unconsumed.has(event.observationId)) return [];
+			const review = hypothesisReviews.get(event.observationId);
+			const reviewContext = review
 				? [
-						{
-							inquiryId: event.inquiryId,
-							observationId: event.observationId,
-							origin: "user",
-							original: event.original,
-							current: event.original,
-							context: event.context,
-							sourceReadId: null,
-						},
-					]
-				: [],
-		),
+						`User context: ${event.context}`,
+						`Context review: ${review.assessment}`,
+						`Supporting clues: ${review.supportingClues.join(" | ") || "None"}`,
+						`Challenging clues: ${review.challengingClues.join(" | ") || "None"}`,
+						`Missing information: ${review.missingInformation.join(" | ") || "None"}`,
+						`Interpretation boundary: ${review.interpretationBoundary}`,
+					].join("\n")
+				: event.context;
+			return [
+				{
+					inquiryId: event.inquiryId,
+					observationId: event.observationId,
+					origin: "user",
+					original: event.original,
+					current: event.original,
+					context: reviewContext,
+					sourceReadId: null,
+				},
+			];
+		}),
 		...observationValues.flatMap((event): PendingObservationHypothesis[] =>
 			unconsumed.has(event.observationId) && event.observerHypothesis
 				? [
@@ -741,6 +823,13 @@ export function reconstructObservationSession(
 		hydrations: sortById(hydrations.values(), (value) => value.hydrationId),
 		observations: observationValues,
 		userHypotheses: userValues,
+		hypothesisReviews: sortById(
+			hypothesisReviews.values(),
+			(value) => value.hypothesisObservationId,
+		),
+		pendingHypothesisReviews: userValues.filter(
+			(value) => !hypothesisReviews.has(value.observationId),
+		),
 		memoRequests: sortById(memoRequests.values(), (value) => value.requestId),
 		pendingMemoRequest: pendingMemoRequests[0] ?? null,
 		pendingHypotheses,

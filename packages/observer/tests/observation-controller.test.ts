@@ -6,21 +6,21 @@ import { describe, test } from "node:test";
 
 import {
 	completeMemoPreparation,
-	completeWrapPreparation,
+	completeSavePreparation,
 	observationToolText,
 } from "../extensions/observer.ts";
 import {
-	routeOneShotTool,
+	routeMaterialReviewTool,
 	type ObserverTurnState,
-} from "../extensions/one-shot-runtime.ts";
+} from "../extensions/material-review-runtime.ts";
 import { sha256Text } from "../src/content-hash.ts";
 import { initialObserverState, OBSERVER_PROTOCOL } from "../src/lifecycle.ts";
 import {
-	executeOneShotFinish,
-	executeOneShotStart,
-	oneShotCommandText,
-	oneShotContext,
-} from "../src/one-shot-command.ts";
+	executeMaterialReviewFinish,
+	executeMaterialReviewStart,
+	materialReviewCommandText,
+	materialReviewContext,
+} from "../src/material-review-command.ts";
 import { OBSERVER_MEMO_INSTRUCTION_ENTRY } from "../src/memo-instruction.ts";
 import {
 	createNotebookService,
@@ -36,7 +36,7 @@ import {
 	createObserverController,
 	type ObserverController,
 	type ObserverControllerIds,
-	type OneShotEpisodeCapability,
+	type MaterialReviewEpisodeCapability,
 } from "../src/observer-controller.ts";
 import {
 	OBSERVER_APPLIED_MEMO_ENTRY,
@@ -46,20 +46,20 @@ import { OBSERVER_OBSERVATION_ENTRY } from "../src/observation-profile.ts";
 import { reconstructObservationSession } from "../src/observation-session.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
-	OBSERVER_PREPARED_WRAP_ENTRY,
+	OBSERVER_PREPARED_SAVE_ENTRY,
 	reconstructObserverPiState,
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
 import {
-	OBSERVER_ONE_SHOT_ENTRY,
-	refineOneShotIntent,
-	type OneShotIntent,
-} from "../src/one-shot-trigger.ts";
+	OBSERVER_MATERIAL_REVIEW_ENTRY,
+	refineMaterialReviewIntent,
+	type MaterialReviewIntent,
+} from "../src/material-review-trigger.ts";
 import {
-	OBSERVER_WRAP_REQUEST_ENTRY,
-	reconstructWrapRequestSession,
-	type WrapPreparationGuide,
-} from "../src/wrap-trigger.ts";
+	OBSERVER_SAVE_REQUEST_ENTRY,
+	reconstructSaveRequestSession,
+	type SavePreparationGuide,
+} from "../src/save-trigger.ts";
 
 const BASELINE = join(
 	import.meta.dirname,
@@ -77,7 +77,7 @@ observer_schema: observer-record/v1
 observer_type: source
 observer_status: available
 id: ${sourceId}
-title: Wrapped observation source
+title: Saveped observation source
 lang: en
 created: "2026-08-01T10:05:00Z"
 modified: "2026-08-01T10:05:00Z"
@@ -90,7 +90,7 @@ source_kind: external-material
 external:
   uri: https://example.test/material
 ---
-# Wrapped observation source
+# Saveped observation source
 
 Immediate notes can preserve retrieval cues.
 `;
@@ -144,12 +144,12 @@ class FakePort implements ObservationCommandPort {
 	}> = [];
 	failNextObservationAppend = false;
 	dropNextObservationAppend = false;
-	failNextOneShotAppend = false;
-	dropNextOneShotAppend = false;
+	failNextMaterialReviewAppend = false;
+	dropNextMaterialReviewAppend = false;
 	failNextInstructionAppend = false;
 	dropNextInstructionAppend = false;
-	failNextWrapRequestAppend = false;
-	dropNextWrapRequestAppend = false;
+	failNextSaveRequestAppend = false;
+	dropNextSaveRequestAppend = false;
 	confirmation = true;
 
 	branchEntries(): readonly PiBranchEntryLike[] {
@@ -157,26 +157,32 @@ class FakePort implements ObservationCommandPort {
 	}
 
 	appendEntry(customType: string, data: unknown): void {
-		if (this.failNextOneShotAppend && customType === OBSERVER_ONE_SHOT_ENTRY) {
-			this.failNextOneShotAppend = false;
-			throw new Error("Injected One-shot request append failure");
+		if (
+			this.failNextMaterialReviewAppend &&
+			customType === OBSERVER_MATERIAL_REVIEW_ENTRY
+		) {
+			this.failNextMaterialReviewAppend = false;
+			throw new Error("Injected material review request append failure");
 		}
-		if (this.dropNextOneShotAppend && customType === OBSERVER_ONE_SHOT_ENTRY) {
-			this.dropNextOneShotAppend = false;
+		if (
+			this.dropNextMaterialReviewAppend &&
+			customType === OBSERVER_MATERIAL_REVIEW_ENTRY
+		) {
+			this.dropNextMaterialReviewAppend = false;
 			return;
 		}
 		if (
-			this.failNextWrapRequestAppend &&
-			customType === OBSERVER_WRAP_REQUEST_ENTRY
+			this.failNextSaveRequestAppend &&
+			customType === OBSERVER_SAVE_REQUEST_ENTRY
 		) {
-			this.failNextWrapRequestAppend = false;
-			throw new Error("Injected Wrap request append failure");
+			this.failNextSaveRequestAppend = false;
+			throw new Error("Injected Review & Save request append failure");
 		}
 		if (
-			this.dropNextWrapRequestAppend &&
-			customType === OBSERVER_WRAP_REQUEST_ENTRY
+			this.dropNextSaveRequestAppend &&
+			customType === OBSERVER_SAVE_REQUEST_ENTRY
 		) {
-			this.dropNextWrapRequestAppend = false;
+			this.dropNextSaveRequestAppend = false;
 			return;
 		}
 		if (
@@ -257,15 +263,15 @@ function lifecycleIds(): ObserverControllerIds {
 	};
 }
 
-function oneShotIntent(input: {
+function materialReviewIntent(input: {
 	readonly text: string;
 	readonly material: "inline-user-message" | "retrieved-tool-results";
-	readonly requestId: `one-shot-${string}`;
-}): OneShotIntent {
-	const refined = refineOneShotIntent({
+	readonly requestId: `material-review-${string}`;
+}): MaterialReviewIntent {
+	const refined = refineMaterialReviewIntent({
 		value: {
 			observer_action: "observer-sidecar/v1",
-			action: "one-shot-start",
+			action: "material-review-start",
 			user_message_digest: sha256Text(input.text),
 			material: { kind: input.material },
 		},
@@ -276,12 +282,12 @@ function oneShotIntent(input: {
 	return refined.value;
 }
 
-async function oneShotEpisode(input: {
+async function materialReviewEpisode(input: {
 	readonly controller: ObserverController;
 	readonly port: FakePort;
-	readonly intent: OneShotIntent;
-}): Promise<OneShotEpisodeCapability> {
-	const ensured = await input.controller.ensureOneShotEpisode(
+	readonly intent: MaterialReviewIntent;
+}): Promise<MaterialReviewEpisodeCapability> {
+	const ensured = await input.controller.ensureMaterialReviewEpisode(
 		input.intent,
 		input.port,
 	);
@@ -297,7 +303,7 @@ function deterministicIds(): ObservationControllerIds {
 	let source = 100;
 	let inquiry = 0;
 	let memoRequest = 0;
-	let wrapRequest = 0;
+	let saveRequest = 0;
 	let wrapProposal = 0;
 	function suffix(value: number): string {
 		return String(value).padStart(12, "0");
@@ -331,11 +337,11 @@ function deterministicIds(): ObservationControllerIds {
 			memoRequest += 1;
 			return `memo-request-00000000-0000-4000-8000-${suffix(memoRequest)}`;
 		},
-		wrapRequestId(): `wrap-request-${string}` {
-			wrapRequest += 1;
-			return `wrap-request-00000000-0000-4000-8000-${suffix(wrapRequest)}`;
+		saveRequestId(): `save-request-${string}` {
+			saveRequest += 1;
+			return `save-request-00000000-0000-4000-8000-${suffix(saveRequest)}`;
 		},
-		wrapProposalId(): `proposal-${string}` {
+		saveProposalId(): `proposal-${string}` {
 			wrapProposal += 1;
 			return `proposal-00000000-0000-4000-8000-${suffix(wrapProposal)}`;
 		},
@@ -443,21 +449,21 @@ describe("Observation staged controller", () => {
 			const text = "이 문장을 Observer 관점으로 바로 관찰해 줘.";
 			const value = {
 				observer_action: "observer-sidecar/v1",
-				action: "one-shot-start",
+				action: "material-review-start",
 				user_message_digest: sha256Text(text),
 				material: { kind: "inline-user-message" },
 			};
 			let generated = 0;
 			const ids = {
-				requestId(): `one-shot-${string}` {
+				requestId(): `material-review-${string}` {
 					generated += 1;
-					return `one-shot-00000000-0000-4000-8000-${String(400 + generated).padStart(12, "0")}`;
+					return `material-review-00000000-0000-4000-8000-${String(400 + generated).padStart(12, "0")}`;
 				},
 			};
 			const beforeModeRejection = port.entries.length;
 			assert.equal(
 				(
-					await executeOneShotStart({
+					await executeMaterialReviewStart({
 						value,
 						latestUser: { text, inputSource: "interactive" },
 						capturedAt: "2026-08-01T09:57:00.000Z",
@@ -474,7 +480,7 @@ describe("Observation staged controller", () => {
 			const beforeDigestRejection = port.entries.length;
 			assert.equal(
 				(
-					await executeOneShotStart({
+					await executeMaterialReviewStart({
 						value: { ...value, user_message_digest: "0".repeat(64) },
 						latestUser: { text, inputSource: "interactive" },
 						capturedAt: "2026-08-01T09:58:00.000Z",
@@ -495,7 +501,7 @@ describe("Observation staged controller", () => {
 					Reflect.get(entry.data, "kind") === "activation-changed" &&
 					Reflect.get(entry.data, "enabled") === true,
 			).length;
-			const started = await executeOneShotStart({
+			const started = await executeMaterialReviewStart({
 				value,
 				latestUser: { text, inputSource: "interactive" },
 				capturedAt: "2026-08-01T09:59:00.000Z",
@@ -504,20 +510,22 @@ describe("Observation staged controller", () => {
 				observation: controller,
 				ids,
 			});
-			if (!started.ok || started.action !== "one-shot-start")
-				assert.fail(started.ok ? "Expected One-shot start" : started.message);
+			if (!started.ok || started.action !== "material-review-start")
+				assert.fail(
+					started.ok ? "Expected material review start" : started.message,
+				);
 			assert.equal(started.status, "inline-captured");
 			assert.ok(started.candidateId);
-			assert.deepEqual(JSON.parse(oneShotCommandText(started)), {
+			assert.deepEqual(JSON.parse(materialReviewCommandText(started)), {
 				ok: true,
-				action: "one-shot-start",
+				action: "material-review-start",
 				status: "inline-captured",
 				request_id: started.requestId,
 				candidate_id: started.candidateId,
 				next_action: "source-read",
 			});
 			const afterStarted = port.entries.length;
-			const resumed = await executeOneShotStart({
+			const resumed = await executeMaterialReviewStart({
 				value,
 				latestUser: { text, inputSource: "interactive" },
 				capturedAt: "2026-08-01T10:00:00.000Z",
@@ -526,7 +534,7 @@ describe("Observation staged controller", () => {
 				observation: controller,
 				ids,
 			});
-			if (!resumed.ok || resumed.action !== "one-shot-start")
+			if (!resumed.ok || resumed.action !== "material-review-start")
 				assert.fail(resumed.ok ? "Expected resumed start" : resumed.message);
 			assert.equal(resumed.status, "inline-resumed");
 			assert.equal(resumed.requestId, started.requestId);
@@ -549,16 +557,16 @@ describe("Observation staged controller", () => {
 		await withSandbox(async ({ controller, lifecycleController, port }) => {
 			await lifecycleController.command("off", port);
 			const text = "이 파일을 읽고 관찰해 줘: /tmp/input.md";
-			const affordance = oneShotContext({
+			const affordance = materialReviewContext({
 				latestUser: { text, inputSource: "rpc" },
 				entries: port.entries,
 			});
 			assert.match(affordance ?? "", new RegExp(sha256Text(text), "u"));
 			assert.doesNotMatch(affordance ?? "", new RegExp(text, "u"));
-			const started = await executeOneShotStart({
+			const started = await executeMaterialReviewStart({
 				value: {
 					observer_action: "observer-sidecar/v1",
-					action: "one-shot-start",
+					action: "material-review-start",
 					user_message_digest: sha256Text(text),
 					material: { kind: "retrieved-tool-results" },
 				},
@@ -569,24 +577,21 @@ describe("Observation staged controller", () => {
 				observation: controller,
 				ids: {
 					requestId() {
-						return "one-shot-00000000-0000-4000-8000-000000000409";
+						return "material-review-00000000-0000-4000-8000-000000000409";
 					},
 				},
 			});
-			if (!started.ok || started.action !== "one-shot-start")
+			if (!started.ok || started.action !== "material-review-start")
 				assert.fail(started.ok ? "Expected retrieved start" : started.message);
 			assert.equal(started.status, "pending-retrieval");
 			assert.equal(started.candidateId, null);
-			const guidance = oneShotContext({
+			const guidance = materialReviewContext({
 				latestUser: { text, inputSource: "rpc" },
 				entries: port.entries,
 			});
 			assert.match(guidance ?? "", new RegExp(started.requestId, "u"));
 			assert.match(guidance ?? "", /retrieved-tool-results/u);
-			assert.match(
-				guidance ?? "",
-				/related_inquiry_ids.*first call hydrate/u,
-			);
+			assert.match(guidance ?? "", /related_inquiry_ids.*first call hydrate/u);
 			assert.match(
 				guidance ?? "",
 				/hydration_id=null and related_inquiry_ids=\[\]/u,
@@ -596,7 +601,7 @@ describe("Observation staged controller", () => {
 		});
 	});
 
-	test("routes One-shot actions through the Pi runtime adapter as results or errors", async () => {
+	test("routes material review actions through the Pi runtime adapter as results or errors", async () => {
 		await withSandbox(async ({ controller, lifecycleController, port }) => {
 			await lifecycleController.command("off", port);
 			const text = "이 경계를 바로 관찰해 줘.";
@@ -604,10 +609,10 @@ describe("Observation staged controller", () => {
 				toolUsed: true,
 				latestUser: { text, inputSource: "interactive" },
 			};
-			const routed = await routeOneShotTool({
+			const routed = await routeMaterialReviewTool({
 				value: {
 					observer_action: "observer-sidecar/v1",
-					action: "one-shot-start",
+					action: "material-review-start",
 					user_message_digest: sha256Text(text),
 					material: { kind: "inline-user-message" },
 				},
@@ -617,24 +622,24 @@ describe("Observation staged controller", () => {
 				observation: controller,
 				ids: {
 					requestId() {
-						return "one-shot-00000000-0000-4000-8000-000000000410";
+						return "material-review-00000000-0000-4000-8000-000000000410";
 					},
 				},
 				turnState,
 			});
-			if (!routed || routed.result.action !== "one-shot-start")
-				assert.fail("Expected routed One-shot start");
+			if (!routed || routed.result.action !== "material-review-start")
+				assert.fail("Expected routed material review start");
 			assert.match(routed.text, /"next_action":"source-read"/u);
 			assert.equal(
-				await routeOneShotTool({
-					value: { action: "not-one-shot" },
+				await routeMaterialReviewTool({
+					value: { action: "not-material-review" },
 					capturedAt: "2026-08-01T10:00:01.000Z",
 					port,
 					lifecycle: lifecycleController,
 					observation: controller,
 					ids: {
 						requestId() {
-							return "one-shot-00000000-0000-4000-8000-000000000411";
+							return "material-review-00000000-0000-4000-8000-000000000411";
 						},
 					},
 					turnState,
@@ -642,10 +647,10 @@ describe("Observation staged controller", () => {
 				null,
 			);
 			await assert.rejects(
-				routeOneShotTool({
+				routeMaterialReviewTool({
 					value: {
 						observer_action: "observer-sidecar/v1",
-						action: "one-shot-finish",
+						action: "material-review-finish",
 						request_id: routed.result.requestId,
 					},
 					capturedAt: "2026-08-01T10:00:02.000Z",
@@ -654,7 +659,7 @@ describe("Observation staged controller", () => {
 					observation: controller,
 					ids: {
 						requestId() {
-							return "one-shot-00000000-0000-4000-8000-000000000412";
+							return "material-review-00000000-0000-4000-8000-000000000412";
 						},
 					},
 					turnState,
@@ -664,22 +669,22 @@ describe("Observation staged controller", () => {
 		});
 	});
 
-	test("appends One-shot request before one exact OFF inline candidate and resumes both", async () => {
+	test("appends material review request before one exact OFF inline candidate and resumes both", async () => {
 		await withSandbox(async ({ controller, lifecycleController, port }) => {
 			await lifecycleController.command("off", port);
 			const text = "이 문장을 Observer 관점으로 바로 관찰해 줘.";
-			const firstIntent = oneShotIntent({
+			const firstIntent = materialReviewIntent({
 				text,
 				material: "inline-user-message",
-				requestId: "one-shot-00000000-0000-4000-8000-000000000301",
+				requestId: "material-review-00000000-0000-4000-8000-000000000301",
 			});
-			const firstEpisode = await oneShotEpisode({
+			const firstEpisode = await materialReviewEpisode({
 				controller: lifecycleController,
 				port,
 				intent: firstIntent,
 			});
 			const beforeMismatch = port.entries.length;
-			const mismatched = controller.startOneShot(
+			const mismatched = controller.startMaterialReview(
 				{
 					intent: firstIntent,
 					episode: {
@@ -692,7 +697,7 @@ describe("Observation staged controller", () => {
 			);
 			assert.equal(mismatched.ok, false);
 			assert.equal(port.entries.length, beforeMismatch);
-			const started = controller.startOneShot(
+			const started = controller.startMaterialReview(
 				{
 					intent: firstIntent,
 					episode: firstEpisode,
@@ -704,7 +709,7 @@ describe("Observation staged controller", () => {
 			assert.equal(started.status, "inline-captured");
 			assert.equal(started.candidate.text, text);
 			assert.equal(
-				started.candidate.oneShotRequestId,
+				started.candidate.materialReviewRequestId,
 				started.request.requestId,
 			);
 			assert.deepEqual(started.candidate.origin, {
@@ -712,7 +717,7 @@ describe("Observation staged controller", () => {
 				inputSource: "interactive",
 			});
 			const requestIndex = port.entries.findIndex(
-				(entry) => entry.customType === OBSERVER_ONE_SHOT_ENTRY,
+				(entry) => entry.customType === OBSERVER_MATERIAL_REVIEW_ENTRY,
 			);
 			const candidateIndex = port.entries.findIndex(
 				(entry) => entry.customType === OBSERVER_OBSERVATION_ENTRY,
@@ -740,18 +745,18 @@ describe("Observation staged controller", () => {
 			if (unrelatedTool.ok) assert.equal(unrelatedTool.status, "ignored");
 			assert.equal(port.entries.length, beforeUnrelatedTool);
 
-			const retryIntent = oneShotIntent({
+			const retryIntent = materialReviewIntent({
 				text,
 				material: "inline-user-message",
-				requestId: "one-shot-00000000-0000-4000-8000-000000000302",
+				requestId: "material-review-00000000-0000-4000-8000-000000000302",
 			});
-			const retryEpisode = await oneShotEpisode({
+			const retryEpisode = await materialReviewEpisode({
 				controller: lifecycleController,
 				port,
 				intent: retryIntent,
 			});
 			const count = port.entries.length;
-			const resumed = controller.startOneShot(
+			const resumed = controller.startMaterialReview(
 				{
 					intent: retryIntent,
 					episode: retryEpisode,
@@ -766,20 +771,20 @@ describe("Observation staged controller", () => {
 		});
 	});
 
-	test("keeps retrieved One-shot pending without creating user-source material", async () => {
+	test("keeps retrieved material review pending without creating user-source material", async () => {
 		await withSandbox(async ({ controller, lifecycleController, port }) => {
 			await lifecycleController.command("off", port);
-			const intent = oneShotIntent({
+			const intent = materialReviewIntent({
 				text: "이 파일을 읽고 Observer 관점으로 관찰해 줘: /tmp/input.md",
 				material: "retrieved-tool-results",
-				requestId: "one-shot-00000000-0000-4000-8000-000000000303",
+				requestId: "material-review-00000000-0000-4000-8000-000000000303",
 			});
-			const episode = await oneShotEpisode({
+			const episode = await materialReviewEpisode({
 				controller: lifecycleController,
 				port,
 				intent,
 			});
-			const started = controller.startOneShot(
+			const started = controller.startMaterialReview(
 				{
 					intent,
 					episode,
@@ -843,7 +848,7 @@ describe("Observation staged controller", () => {
 			assert.equal(captured.status, "captured");
 			if (!captured.candidate) assert.fail("Expected retrieved candidate");
 			assert.equal(
-				captured.candidate.oneShotRequestId,
+				captured.candidate.materialReviewRequestId,
 				started.request.requestId,
 			);
 			assert.deepEqual(captured.candidate.origin, {
@@ -857,12 +862,12 @@ describe("Observation staged controller", () => {
 			assert.equal(replayed.candidates.length, 1);
 			const finishValue = {
 				observer_action: "observer-sidecar/v1",
-				action: "one-shot-finish",
+				action: "material-review-finish",
 				request_id: started.request.requestId,
 			};
 			const beforeIncomplete = port.entries.length;
 			assert.equal(
-				executeOneShotFinish({
+				executeMaterialReviewFinish({
 					value: finishValue,
 					port,
 					observation: controller,
@@ -875,8 +880,11 @@ describe("Observation staged controller", () => {
 				port,
 			);
 			if (!read.ok || read.action !== "source-read")
-				assert.fail(read.ok ? "Expected One-shot read" : read.message);
-			assert.equal(read.read.oneShotRequestId, started.request.requestId);
+				assert.fail(read.ok ? "Expected material review read" : read.message);
+			assert.equal(
+				read.read.materialReviewRequestId,
+				started.request.requestId,
+			);
 			const hydrated = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
@@ -889,7 +897,7 @@ describe("Observation staged controller", () => {
 			);
 			if (!hydrated.ok || hydrated.action !== "hydrate")
 				assert.fail(
-					hydrated.ok ? "Expected One-shot hydration" : hydrated.message,
+					hydrated.ok ? "Expected material review hydration" : hydrated.message,
 				);
 			const recorded = await controller.execute(
 				{
@@ -900,14 +908,15 @@ describe("Observation staged controller", () => {
 					related_inquiry_ids: [DURABLE_INQUIRY],
 					stance: "challenges",
 					movement: "core-counterexample",
-					rationale: "Retrieved evidence changes the active One-shot inquiry.",
+					rationale:
+						"Retrieved evidence changes the active material review inquiry.",
 					observer_hypothesis: null,
 				},
 				port,
 			);
 			if (!recorded.ok || recorded.action !== "record")
 				assert.fail(
-					recorded.ok ? "Expected One-shot record" : recorded.message,
+					recorded.ok ? "Expected material review record" : recorded.message,
 				);
 			const completedChain = reconstructObservationSession(port.entries);
 			assert.equal(completedChain.issues.length, 0);
@@ -915,25 +924,25 @@ describe("Observation staged controller", () => {
 			assert.equal(completedChain.sourceReads.length, 1);
 			assert.equal(completedChain.hydrations.length, 1);
 			assert.equal(completedChain.observations.length, 1);
-			port.failNextOneShotAppend = true;
+			port.failNextMaterialReviewAppend = true;
 			assert.equal(
-				executeOneShotFinish({
+				executeMaterialReviewFinish({
 					value: finishValue,
 					port,
 					observation: controller,
 				}).ok,
 				false,
 			);
-			port.dropNextOneShotAppend = true;
+			port.dropNextMaterialReviewAppend = true;
 			assert.equal(
-				executeOneShotFinish({
+				executeMaterialReviewFinish({
 					value: finishValue,
 					port,
 					observation: controller,
 				}).ok,
 				false,
 			);
-			const finished = executeOneShotFinish({
+			const finished = executeMaterialReviewFinish({
 				value: finishValue,
 				port,
 				observation: controller,
@@ -943,16 +952,16 @@ describe("Observation staged controller", () => {
 			assert.deepEqual(finished.observationIds, [
 				recorded.observation.observationId,
 			]);
-			assert.deepEqual(JSON.parse(oneShotCommandText(finished)), {
+			assert.deepEqual(JSON.parse(materialReviewCommandText(finished)), {
 				ok: true,
-				action: "one-shot-finish",
+				action: "material-review-finish",
 				status: "completed",
 				request_id: started.request.requestId,
 				observation_ids: [recorded.observation.observationId],
 				completion_digest: finished.completionDigest,
 				lifecycle: { mode: "off", episode: "open" },
 			});
-			const resumed = executeOneShotFinish({
+			const resumed = executeMaterialReviewFinish({
 				value: finishValue,
 				port,
 				observation: controller,
@@ -963,7 +972,7 @@ describe("Observation staged controller", () => {
 			assert.deepEqual(resumed.observationIds, finished.observationIds);
 			assert.equal(
 				port.entries.filter(
-					(entry) => entry.customType === OBSERVER_ONE_SHOT_ENTRY,
+					(entry) => entry.customType === OBSERVER_MATERIAL_REVIEW_ENTRY,
 				).length,
 				2,
 			);
@@ -973,13 +982,13 @@ describe("Observation staged controller", () => {
 		});
 	});
 
-	test("rejects mixed Sidecar and One-shot candidate ancestry", async () => {
+	test("rejects mixed Sidecar and material review candidate ancestry", async () => {
 		await withSandbox(async ({ controller, lifecycleController, port }) => {
 			const sidecar = controller.capture(
 				{
 					origin: {
 						kind: "tool-result",
-						tool_call_id: "tool-call-sidecar-before-one-shot",
+						tool_call_id: "tool-call-sidecar-before-material-review",
 						tool_name: "read",
 					},
 					text: "Earlier Sidecar material.",
@@ -990,17 +999,17 @@ describe("Observation staged controller", () => {
 			if (!sidecar.ok || !sidecar.candidate)
 				assert.fail("Expected Sidecar candidate");
 			await lifecycleController.command("off", port);
-			const intent = oneShotIntent({
+			const intent = materialReviewIntent({
 				text: "새 자료를 조회해 관찰해 줘.",
 				material: "retrieved-tool-results",
-				requestId: "one-shot-00000000-0000-4000-8000-000000000309",
+				requestId: "material-review-00000000-0000-4000-8000-000000000309",
 			});
-			const episode = await oneShotEpisode({
+			const episode = await materialReviewEpisode({
 				controller: lifecycleController,
 				port,
 				intent,
 			});
-			const started = controller.startOneShot(
+			const started = controller.startMaterialReview(
 				{ intent, episode, capturedAt: "2026-08-01T10:09:00.000Z" },
 				port,
 			);
@@ -1009,10 +1018,10 @@ describe("Observation staged controller", () => {
 				{
 					origin: {
 						kind: "tool-result",
-						tool_call_id: "tool-call-one-shot-mixed",
+						tool_call_id: "tool-call-material-review-mixed",
 						tool_name: "read",
 					},
-					text: "Current One-shot material.",
+					text: "Current material review material.",
 					capturedAt: "2026-08-01T10:10:00.000Z",
 				},
 				port,
@@ -1035,7 +1044,7 @@ describe("Observation staged controller", () => {
 		});
 	});
 
-	test("does not treat an unlinked Sidecar read as One-shot ancestry after off", async () => {
+	test("does not treat an unlinked Sidecar read as material review ancestry after off", async () => {
 		await withSandbox(async ({ controller, lifecycleController, port }) => {
 			const captured = controller.capture(
 				{
@@ -1057,7 +1066,7 @@ describe("Observation staged controller", () => {
 			);
 			if (!read.ok || read.action !== "source-read")
 				assert.fail("Expected read");
-			assert.equal(read.read.oneShotRequestId, undefined);
+			assert.equal(read.read.materialReviewRequestId, undefined);
 			await lifecycleController.command("off", port);
 			const before = port.entries.length;
 			const hydrate = await controller.execute(
@@ -1095,33 +1104,33 @@ describe("Observation staged controller", () => {
 			await lifecycleController.command("off", port);
 			const text = "재시도 경계를 관찰해 줘.";
 			async function attempt(request: number) {
-				const intent = oneShotIntent({
+				const intent = materialReviewIntent({
 					text,
 					material: "inline-user-message",
-					requestId: `one-shot-00000000-0000-4000-8000-${String(request).padStart(12, "0")}`,
+					requestId: `material-review-00000000-0000-4000-8000-${String(request).padStart(12, "0")}`,
 				});
 				return {
 					intent,
-					episode: await oneShotEpisode({
+					episode: await materialReviewEpisode({
 						controller: lifecycleController,
 						port,
 						intent,
 					}),
 				};
 			}
-			port.failNextOneShotAppend = true;
+			port.failNextMaterialReviewAppend = true;
 			const first = await attempt(304);
 			assert.equal(
-				controller.startOneShot(
+				controller.startMaterialReview(
 					{ ...first, capturedAt: "2026-08-01T10:03:00.000Z" },
 					port,
 				).ok,
 				false,
 			);
-			port.dropNextOneShotAppend = true;
+			port.dropNextMaterialReviewAppend = true;
 			const second = await attempt(305);
 			assert.equal(
-				controller.startOneShot(
+				controller.startMaterialReview(
 					{ ...second, capturedAt: "2026-08-01T10:04:00.000Z" },
 					port,
 				).ok,
@@ -1129,7 +1138,7 @@ describe("Observation staged controller", () => {
 			);
 			assert.equal(
 				port.entries.filter(
-					(entry) => entry.customType === OBSERVER_ONE_SHOT_ENTRY,
+					(entry) => entry.customType === OBSERVER_MATERIAL_REVIEW_ENTRY,
 				).length,
 				0,
 			);
@@ -1137,7 +1146,7 @@ describe("Observation staged controller", () => {
 			port.failNextObservationAppend = true;
 			const third = await attempt(306);
 			assert.equal(
-				controller.startOneShot(
+				controller.startMaterialReview(
 					{ ...third, capturedAt: "2026-08-01T10:05:00.000Z" },
 					port,
 				).ok,
@@ -1146,21 +1155,21 @@ describe("Observation staged controller", () => {
 			port.dropNextObservationAppend = true;
 			const fourth = await attempt(307);
 			assert.equal(
-				controller.startOneShot(
+				controller.startMaterialReview(
 					{ ...fourth, capturedAt: "2026-08-01T10:06:00.000Z" },
 					port,
 				).ok,
 				false,
 			);
 			const fifth = await attempt(308);
-			const recovered = controller.startOneShot(
+			const recovered = controller.startMaterialReview(
 				{ ...fifth, capturedAt: "2026-08-01T10:07:00.000Z" },
 				port,
 			);
 			assert.equal(recovered.ok, true);
 			assert.equal(
 				port.entries.filter(
-					(entry) => entry.customType === OBSERVER_ONE_SHOT_ENTRY,
+					(entry) => entry.customType === OBSERVER_MATERIAL_REVIEW_ENTRY,
 				).length,
 				1,
 			);
@@ -1190,7 +1199,7 @@ describe("Observation staged controller", () => {
 			if (!captured.ok || !captured.candidate) {
 				assert.fail(captured.ok ? "Expected candidate" : captured.message);
 			}
-			assert.equal(captured.candidate.oneShotRequestId, undefined);
+			assert.equal(captured.candidate.materialReviewRequestId, undefined);
 			const beforeReadEntries = port.entries.length;
 			const read = await controller.execute(
 				externalSourceAction(captured.candidate.candidateId),
@@ -1375,7 +1384,7 @@ describe("Observation staged controller", () => {
 		});
 	});
 
-	test("completes read-only Memo then approves and settles a required-record Wrap", async () => {
+	test("completes read-only Memo then approves and settles a required-record Review & Save", async () => {
 		await withSandbox(
 			async ({ sandbox, controller, lifecycleController, port }) => {
 				const sourceCandidate = controller.capture(
@@ -1456,6 +1465,34 @@ describe("Observation staged controller", () => {
 					);
 				}
 				const registeredHypothesis = registered.hypothesis;
+				const contextReview = await controller.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "hypothesis-context-review",
+						hypothesis_observation_id: registeredHypothesis.observationId,
+						assessment: "supports",
+						supporting_clues: [
+							"The current conversation explicitly connects re-entry cost to recording time.",
+						],
+						challenging_clues: [],
+						missing_information: [
+							"No cross-session comparison is available yet.",
+						],
+						source_ids: [],
+						interpretation_boundary:
+							"Initial review is limited to the visible Pi context.",
+					},
+					port,
+				);
+				if (
+					!contextReview.ok ||
+					contextReview.action !== "hypothesis-context-review"
+				)
+					assert.fail(
+						contextReview.ok
+							? "Expected hypothesis context review"
+							: contextReview.message,
+					);
 				port.entries.push({
 					type: "custom",
 					customType: OBSERVER_LIFECYCLE_ENTRY,
@@ -1868,77 +1905,79 @@ describe("Observation staged controller", () => {
 					reconstructObserverPiState(port.entries).state.mode,
 					"off",
 				);
-				const beforeWrapRequest = port.entries.length;
-				port.failNextWrapRequestAppend = true;
-				assert.equal((await controller.requestWrap(port)).ok, false);
-				assert.equal(port.entries.length, beforeWrapRequest);
-				port.dropNextWrapRequestAppend = true;
-				assert.equal((await controller.requestWrap(port)).ok, false);
-				assert.equal(port.entries.length, beforeWrapRequest);
-				const wrapRequested = await controller.requestWrap(port);
-				if (!wrapRequested.ok || !wrapRequested.request)
+				const beforeSaveRequest = port.entries.length;
+				port.failNextSaveRequestAppend = true;
+				assert.equal((await controller.requestSave(port)).ok, false);
+				assert.equal(port.entries.length, beforeSaveRequest);
+				port.dropNextSaveRequestAppend = true;
+				assert.equal((await controller.requestSave(port)).ok, false);
+				assert.equal(port.entries.length, beforeSaveRequest);
+				const saveRequested = await controller.requestSave(port);
+				if (!saveRequested.ok || !saveRequested.request)
 					assert.fail(
-						wrapRequested.ok ? "Expected Wrap request" : wrapRequested.message,
+						saveRequested.ok
+							? "Expected Review & Save request"
+							: saveRequested.message,
 					);
-				assert.equal(wrapRequested.status, "requested");
-				const afterWrapRequest = port.entries.length;
-				const wrapResumed = await controller.requestWrap(port);
+				assert.equal(saveRequested.status, "requested");
+				const afterSaveRequest = port.entries.length;
+				const wrapResumed = await controller.requestSave(port);
 				assert.equal(wrapResumed.ok, true);
 				if (wrapResumed.ok) assert.equal(wrapResumed.status, "resumed");
-				assert.equal(port.entries.length, afterWrapRequest);
-				const malformedWrapScope = await controller.execute(
+				assert.equal(port.entries.length, afterSaveRequest);
+				const malformedSaveScope = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "wrap-scope",
-						request_id: wrapRequested.request.requestId,
+						action: "save-scope",
+						request_id: saveRequested.request.requestId,
 						extra: true,
 					},
 					port,
 				);
-				assert.equal(malformedWrapScope.ok, false);
-				assert.equal(port.entries.length, afterWrapRequest);
-				const wrapScoped = await controller.execute(
+				assert.equal(malformedSaveScope.ok, false);
+				assert.equal(port.entries.length, afterSaveRequest);
+				const saveScoped = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "wrap-scope",
-						request_id: wrapRequested.request.requestId,
+						action: "save-scope",
+						request_id: saveRequested.request.requestId,
 					},
 					port,
 				);
-				if (!wrapScoped.ok || wrapScoped.action !== "wrap-scope")
+				if (!saveScoped.ok || saveScoped.action !== "save-scope")
 					assert.fail(
-						wrapScoped.ok ? "Expected Wrap scope" : wrapScoped.message,
+						saveScoped.ok ? "Expected Review & Save scope" : saveScoped.message,
 					);
 				assert.equal(
-					wrapScoped.guide.locked_target.proposal_id,
-					wrapRequested.request.proposalId,
+					saveScoped.guide.locked_target.proposal_id,
+					saveRequested.request.proposalId,
 				);
-				assert.equal(wrapScoped.guide.inventory.length, 6);
-				assert.equal(wrapScoped.guide.observed_sources.length, 1);
-				const wrapPayload = toolPayload(wrapScoped);
-				assert.equal(wrapPayload.request_id, wrapRequested.request.requestId);
+				assert.equal(saveScoped.guide.inventory.length, 6);
+				assert.equal(saveScoped.guide.observed_sources.length, 1);
+				const wrapPayload = toolPayload(saveScoped);
+				assert.equal(wrapPayload.request_id, saveRequested.request.requestId);
 				assert.deepEqual(wrapPayload.next_action, {
-					action: "wrap-prepare",
-					request_id: wrapRequested.request.requestId,
+					action: "save-prepare",
+					request_id: saveRequested.request.requestId,
 					submit_only: ["request_id", "summary", "records"],
-					do_not_repeat: "wrap-scope",
+					do_not_repeat: "save-scope",
 				});
-				assert.deepEqual(wrapPayload.wrap_preparation, wrapScoped.guide);
+				assert.deepEqual(wrapPayload.save_preparation, saveScoped.guide);
 				assert.equal(
-					reconstructWrapRequestSession(port.entries).pendingRequest?.requestId,
-					wrapRequested.request.requestId,
+					reconstructSaveRequestSession(port.entries).pendingRequest?.requestId,
+					saveRequested.request.requestId,
 				);
 				assert.equal(
 					port.entries.some(
 						(entry) =>
 							entry.type === "custom" &&
-							entry.customType === OBSERVER_PREPARED_WRAP_ENTRY,
+							entry.customType === OBSERVER_PREPARED_SAVE_ENTRY,
 					),
 					false,
 				);
 				assert.equal(await readFile(notebookPath, "utf8"), beforeNotebook);
 				const sourceId = sourceRead.read.source.sourceId;
-				function recordsFor(guide: WrapPreparationGuide): readonly unknown[] {
+				function recordsFor(guide: SavePreparationGuide): readonly unknown[] {
 					return guide.required_records.map((required) => {
 						if (required.operation === "update") {
 							const inventoryRecord = guide.inventory.find(
@@ -1964,7 +2003,7 @@ describe("Observation staged controller", () => {
 					});
 				}
 				assert.deepEqual(
-					wrapScoped.guide.required_records.map((record) => record.record_id),
+					saveScoped.guide.required_records.map((record) => record.record_id),
 					[
 						DURABLE_INQUIRY,
 						registeredHypothesis.inquiryId,
@@ -1972,12 +2011,12 @@ describe("Observation staged controller", () => {
 						sourceId,
 					].toSorted(),
 				);
-				const beforeMalformedWrap = port.entries.length;
+				const beforeMalformedSave = port.entries.length;
 				const missingCoverage = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "wrap-prepare",
-						request_id: wrapRequested.request.requestId,
+						action: "save-prepare",
+						request_id: saveRequested.request.requestId,
 						summary: "Incomplete proposal",
 						records: [],
 					},
@@ -1987,49 +2026,51 @@ describe("Observation staged controller", () => {
 				const lockedOverride = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "wrap-prepare",
-						request_id: wrapRequested.request.requestId,
+						action: "save-prepare",
+						request_id: saveRequested.request.requestId,
 						summary: "Locked override",
-						records: recordsFor(wrapScoped.guide),
+						records: recordsFor(saveScoped.guide),
 						proposal_id: "proposal-00000000-0000-4000-8000-000000000999",
 					},
 					port,
 				);
 				assert.equal(lockedOverride.ok, false);
-				assert.equal(port.entries.length, beforeMalformedWrap);
-				const preparedWrap = await controller.execute(
+				assert.equal(port.entries.length, beforeMalformedSave);
+				const preparedSave = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "wrap-prepare",
-						request_id: wrapRequested.request.requestId,
+						action: "save-prepare",
+						request_id: saveRequested.request.requestId,
 						summary: "Persist one source and the reconciled inquiry state.",
-						records: recordsFor(wrapScoped.guide),
+						records: recordsFor(saveScoped.guide),
 					},
 					port,
 				);
-				if (!preparedWrap.ok || preparedWrap.action !== "wrap-prepare")
+				if (!preparedSave.ok || preparedSave.action !== "save-prepare")
 					assert.fail(
-						preparedWrap.ok
-							? "Expected Wrap preparation"
-							: preparedWrap.message,
+						preparedSave.ok
+							? "Expected Review & Save preparation"
+							: preparedSave.message,
 					);
-				assert.equal(port.entries.length, beforeMalformedWrap);
-				const failedWrapInstall = await completeWrapPreparation(
-					preparedWrap.handoff,
+				assert.equal(port.entries.length, beforeMalformedSave);
+				const failedSaveInstall = await completeSavePreparation(
+					preparedSave.handoff,
 					{
 						install() {
 							return Promise.resolve(false);
 						},
 						apply() {
-							assert.fail("Wrap apply must not run after failed install");
+							assert.fail(
+								"Review & Save apply must not run after failed install",
+							);
 						},
 						status() {
 							return "recovery-required";
 						},
 					},
 				);
-				assert.equal(failedWrapInstall.ok, false);
-				assert.equal(port.entries.length, beforeMalformedWrap);
+				assert.equal(failedSaveInstall.ok, false);
+				assert.equal(port.entries.length, beforeMalformedSave);
 				function completionStatus(
 					proposalId: string,
 				): "completed" | "cancelled" | "recovery-required" {
@@ -2037,7 +2078,7 @@ describe("Observation staged controller", () => {
 					if (snapshot.issues.length > 0) return "recovery-required";
 					if (
 						snapshot.state.episode.status === "settled" &&
-						snapshot.state.episode.committedWrap.proposalId === proposalId
+						snapshot.state.episode.committedSave.proposalId === proposalId
 					)
 						return "completed";
 					return snapshot.state.episode.status === "open" &&
@@ -2046,12 +2087,12 @@ describe("Observation staged controller", () => {
 						: "recovery-required";
 				}
 				port.confirmation = false;
-				const cancelled = await completeWrapPreparation(preparedWrap.handoff, {
+				const cancelled = await completeSavePreparation(preparedSave.handoff, {
 					install(value) {
 						return lifecycleController.installPrepared(value, port);
 					},
 					apply() {
-						return lifecycleController.command("wrap", port);
+						return lifecycleController.command("save", port);
 					},
 					status: completionStatus,
 				});
@@ -2066,47 +2107,49 @@ describe("Observation staged controller", () => {
 				);
 
 				port.confirmation = true;
-				const retryRequest = await controller.requestWrap(port);
+				const retryRequest = await controller.requestSave(port);
 				if (!retryRequest.ok || !retryRequest.request)
 					assert.fail(
 						retryRequest.ok
-							? "Expected retry Wrap request"
+							? "Expected retry Review & Save request"
 							: retryRequest.message,
 					);
 				const retryScope = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "wrap-scope",
+						action: "save-scope",
 						request_id: retryRequest.request.requestId,
 					},
 					port,
 				);
-				if (!retryScope.ok || retryScope.action !== "wrap-scope")
+				if (!retryScope.ok || retryScope.action !== "save-scope")
 					assert.fail(
-						retryScope.ok ? "Expected retry Wrap scope" : retryScope.message,
+						retryScope.ok
+							? "Expected retry Review & Save scope"
+							: retryScope.message,
 					);
 				const retryPrepared = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "wrap-prepare",
+						action: "save-prepare",
 						request_id: retryRequest.request.requestId,
 						summary: "Approved durable reconciliation.",
 						records: recordsFor(retryScope.guide),
 					},
 					port,
 				);
-				if (!retryPrepared.ok || retryPrepared.action !== "wrap-prepare")
+				if (!retryPrepared.ok || retryPrepared.action !== "save-prepare")
 					assert.fail(
 						retryPrepared.ok
-							? "Expected retry Wrap preparation"
+							? "Expected retry Review & Save preparation"
 							: retryPrepared.message,
 					);
-				const completed = await completeWrapPreparation(retryPrepared.handoff, {
+				const completed = await completeSavePreparation(retryPrepared.handoff, {
 					install(value) {
 						return lifecycleController.installPrepared(value, port);
 					},
 					apply() {
-						return lifecycleController.command("wrap", port);
+						return lifecycleController.command("save", port);
 					},
 					status: completionStatus,
 				});
@@ -2124,6 +2167,92 @@ describe("Observation staged controller", () => {
 				);
 			},
 		);
+	});
+
+	test("tracks an explicit hypothesis while Mode stays off and resumes exact retries", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			await lifecycleController.command("off", port);
+			const episode =
+				await lifecycleController.ensureUserHypothesisEpisode(port);
+			if (!episode.ok) assert.fail(episode.message);
+			assert.equal(episode.value.mode, "off");
+			const original = "가설 추적은 지속 관찰과 독립적이어야 한다.";
+			const context =
+				"사용자는 지속 관찰을 켜지 않고도 떠오른 가설을 보존하고 싶다.";
+			const tracked = await controller.trackUserHypothesis(
+				{
+					episode: episode.value,
+					original,
+					context,
+					capturedAt: "2026-08-01T10:02:00.000Z",
+					inputSource: "interactive",
+				},
+				port,
+			);
+			if (!tracked.ok) assert.fail(tracked.message);
+			assert.equal(tracked.status, "recorded");
+			assert.equal(tracked.reviewPending, true);
+			assert.equal(tracked.hypothesis.original, original);
+			assert.equal(reconstructObserverPiState(port.entries).state.mode, "off");
+			const session = reconstructObservationSession(port.entries);
+			assert.equal(session.pendingHypotheses[0]?.origin, "user");
+			assert.equal(session.pendingHypotheses[0]?.sourceReadId, null);
+			assert.equal(session.pendingHypothesisReviews.length, 1);
+			const blockedMemo = controller.requestMemo(port);
+			assert.equal(blockedMemo.ok, false);
+			if (!blockedMemo.ok) assert.match(blockedMemo.message, /context review/u);
+			const reviewed = await controller.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "hypothesis-context-review",
+					hypothesis_observation_id: tracked.hypothesis.observationId,
+					assessment: "insufficient-context",
+					supporting_clues: [],
+					challenging_clues: [],
+					missing_information: [
+						"The visible context has no comparison across multiple sessions yet.",
+					],
+					source_ids: [],
+					interpretation_boundary:
+						"The first review covers only the visible Pi context and current Episode working state.",
+				},
+				port,
+			);
+			if (!reviewed.ok || reviewed.action !== "hypothesis-context-review")
+				assert.fail(reviewed.ok ? "Expected context review" : reviewed.message);
+			const reviewedSession = reconstructObservationSession(port.entries);
+			assert.equal(reviewedSession.pendingHypothesisReviews.length, 0);
+			assert.match(
+				reviewedSession.pendingHypotheses[0]?.context ?? "",
+				/Context review: insufficient-context/u,
+			);
+			const beforeInvalidRead = port.entries.length;
+			const invalidRead = await controller.execute(
+				externalSourceAction(tracked.candidate.candidateId),
+				port,
+			);
+			assert.equal(invalidRead.ok, false);
+			if (!invalidRead.ok)
+				assert.match(invalidRead.message, /not Source evidence/u);
+			assert.equal(port.entries.length, beforeInvalidRead);
+
+			const beforeRetry = port.entries.length;
+			const retried = await controller.trackUserHypothesis(
+				{
+					episode: episode.value,
+					original,
+					context,
+					capturedAt: "2026-08-01T10:02:30.000Z",
+					inputSource: "interactive",
+				},
+				port,
+			);
+			if (!retried.ok) assert.fail(retried.message);
+			assert.equal(retried.status, "resumed");
+			assert.equal(retried.reviewPending, false);
+			assert.equal(retried.hypothesis.inquiryId, tracked.hypothesis.inquiryId);
+			assert.equal(port.entries.length, beforeRetry);
+		});
 	});
 
 	test("registers an explicit user hypothesis after append and ignores capture when off", async () => {

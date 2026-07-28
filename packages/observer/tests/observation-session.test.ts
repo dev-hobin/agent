@@ -44,11 +44,11 @@ import {
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
 import {
-	encodeOneShotEvent,
-	OBSERVER_ONE_SHOT_ENTRY,
-	OBSERVER_ONE_SHOT_PROTOCOL,
-	type OneShotRequestedEvent,
-} from "../src/one-shot-trigger.ts";
+	encodeMaterialReviewEvent,
+	OBSERVER_MATERIAL_REVIEW_ENTRY,
+	OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+	type MaterialReviewRequestedEvent,
+} from "../src/material-review-trigger.ts";
 import {
 	buildStandingIndex,
 	hydrateStandingContext,
@@ -62,7 +62,7 @@ const HYDRATION_ID = "hydration-00000000-0000-4000-8000-000000000304";
 const OBSERVATION_MAJOR = "observation-00000000-0000-4000-8000-000000000305";
 const OBSERVATION_USER = "observation-00000000-0000-4000-8000-000000000306";
 const REQUEST_ID = "memo-request-00000000-0000-4000-8000-000000000307";
-const ONE_SHOT_REQUEST_ID = "one-shot-00000000-0000-4000-8000-000000000312";
+const MATERIAL_REVIEW_REQUEST_ID = "material-review-00000000-0000-4000-8000-000000000312";
 const SOURCE_ID = "source-00000000-0000-4000-8000-000000000308";
 const DURABLE_INQUIRY: InquiryId =
 	"inquiry-00000000-0000-4000-8000-000000000003";
@@ -125,7 +125,7 @@ function candidate(input: {
 	readonly candidateId: string;
 	readonly origin: unknown;
 	readonly text: string;
-	readonly oneShotRequestId?: string;
+	readonly materialReviewRequestId?: string;
 }): CandidateCapturedEvent {
 	const event = requireWorkingEvent({
 		observer_observation: "observer-observation/v1",
@@ -136,8 +136,8 @@ function candidate(input: {
 		text: input.text,
 		content_hash: sha256Text(input.text),
 		captured_at: "2026-08-01T10:00:00.000Z",
-		...(input.oneShotRequestId
-			? { one_shot_request_id: input.oneShotRequestId }
+		...(input.materialReviewRequestId
+			? { one_shot_request_id: input.materialReviewRequestId }
 			: {}),
 	});
 	if (event.kind !== "candidate-captured")
@@ -431,7 +431,7 @@ describe("Observation Profile v1", () => {
 		assert.equal(
 			decodeObservationEvent({
 				...encodedRead,
-				one_shot_request_id: "one-shot-invalid",
+				one_shot_request_id: "material-review-invalid",
 			}).ok,
 			false,
 		);
@@ -471,11 +471,11 @@ describe("Observation Profile v1", () => {
 });
 
 describe("Observation current-branch session", () => {
-	test("authorizes only request-linked candidates after an exact pending One-shot prefix", () => {
-		const request: OneShotRequestedEvent = {
-			protocol: OBSERVER_ONE_SHOT_PROTOCOL,
-			kind: "one-shot-requested",
-			requestId: ONE_SHOT_REQUEST_ID,
+	test("authorizes only request-linked candidates after an exact pending material review prefix", () => {
+		const request: MaterialReviewRequestedEvent = {
+			protocol: OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+			kind: "material-review-requested",
+			requestId: MATERIAL_REVIEW_REQUEST_ID,
 			episodeId: EPISODE_ID,
 			userMessageDigest: sha256Text("inline material"),
 			material: "inline-user-message",
@@ -484,20 +484,20 @@ describe("Observation current-branch session", () => {
 			candidateId: CANDIDATE_USER,
 			origin: { kind: "user-input", input_source: "interactive" },
 			text: "inline material",
-			oneShotRequestId: ONE_SHOT_REQUEST_ID,
+			materialReviewRequestId: MATERIAL_REVIEW_REQUEST_ID,
 		});
 		const encoded = encodeObservationEvent(linked);
 		const decoded = decodeObservationEvent(encoded);
 		if (!decoded.ok) assert.fail(decoded.issue.message);
 		assert.equal(
 			decoded.value.kind === "candidate-captured"
-				? decoded.value.oneShotRequestId
+				? decoded.value.materialReviewRequestId
 				: null,
-			ONE_SHOT_REQUEST_ID,
+			MATERIAL_REVIEW_REQUEST_ID,
 		);
 		const requestEntry = custom(
-			OBSERVER_ONE_SHOT_ENTRY,
-			encodeOneShotEvent(request),
+			OBSERVER_MATERIAL_REVIEW_ENTRY,
+			encodeMaterialReviewEvent(request),
 		);
 		const candidateEntry = observationEntry(linked);
 		const authorized = reconstructObservationSession([

@@ -9,56 +9,59 @@ import type {
 } from "./observer-controller.ts";
 import { reconstructObserverPiState } from "./pi-session.ts";
 import {
-	decodeOneShotFinishAction,
-	decodeOneShotStartAction,
-	reconstructOneShotSession,
-	refineOneShotIntent,
+	decodeMaterialReviewFinishAction,
+	decodeMaterialReviewStartAction,
+	reconstructMaterialReviewSession,
+	refineMaterialReviewIntent,
 	type LatestUserMessage,
-	type OneShotRequestId,
-} from "./one-shot-trigger.ts";
+	type MaterialReviewRequestId,
+} from "./material-review-trigger.ts";
 
-export interface OneShotCommandPort
+export interface MaterialReviewCommandPort
 	extends ObserverCommandPort,
 		ObservationCommandPort {}
 
-export interface OneShotCommandIds {
-	requestId(): OneShotRequestId;
+export interface MaterialReviewCommandIds {
+	requestId(): MaterialReviewRequestId;
 }
 
-export type OneShotCommandAction = "one-shot-start" | "one-shot-finish";
+export type MaterialReviewCommandAction =
+	| "material-review-start"
+	| "material-review-finish";
 
-export type OneShotCommandResult =
+export type MaterialReviewCommandResult =
 	| {
 			readonly ok: true;
-			readonly action: "one-shot-start";
+			readonly action: "material-review-start";
 			readonly status:
 				| "pending-retrieval"
 				| "inline-captured"
 				| "inline-resumed";
-			readonly requestId: OneShotRequestId;
+			readonly requestId: MaterialReviewRequestId;
 			readonly candidateId: string | null;
 	  }
 	| {
 			readonly ok: true;
-			readonly action: "one-shot-finish";
+			readonly action: "material-review-finish";
 			readonly status: "completed" | "resumed";
-			readonly requestId: OneShotRequestId;
+			readonly requestId: MaterialReviewRequestId;
 			readonly observationIds: readonly string[];
 			readonly completionDigest: string;
 	  }
 	| { readonly ok: false; readonly message: string };
 
-function failure(message: string): OneShotCommandResult {
+function failure(message: string): MaterialReviewCommandResult {
 	return { ok: false, message };
 }
 
-export function oneShotCommandAction(
+export function materialReviewCommandAction(
 	value: unknown,
-): OneShotCommandAction | null {
+): MaterialReviewCommandAction | null {
 	if (typeof value !== "object" || value === null || Array.isArray(value))
 		return null;
 	const action = Reflect.get(value, "action");
-	return action === "one-shot-start" || action === "one-shot-finish"
+	return action === "material-review-start" ||
+		action === "material-review-finish"
 		? action
 		: null;
 }
@@ -69,7 +72,7 @@ function pendingStartIssue(input: {
 		readonly material: "inline-user-message" | "retrieved-tool-results";
 	};
 	readonly pending: ReturnType<
-		typeof reconstructOneShotSession
+		typeof reconstructMaterialReviewSession
 	>["pendingRequest"];
 	readonly pi: ReturnType<typeof reconstructObserverPiState>;
 }): string | null {
@@ -79,50 +82,56 @@ function pendingStartIssue(input: {
 		pending.userMessageDigest !== input.action.userMessageDigest ||
 		pending.material !== input.action.material
 	)
-		return "Another One-shot request is already pending.";
+		return "Another material-review request is already pending.";
 	const episode = input.pi.state.episode;
 	return input.pi.state.mode === "off" &&
 		episode.status === "open" &&
 		episode.core.episodeId === pending.episodeId
 		? null
-		: "Pending One-shot history does not match an OFF OPEN Episode.";
+		: "Pending material-review history does not match an OFF OPEN Episode.";
 }
 
-export async function executeOneShotStart(input: {
+/** Starts or resumes the public Observe material command flow. */
+export async function executeMaterialReviewStart(input: {
 	readonly value: unknown;
 	readonly latestUser: LatestUserMessage | null;
 	readonly capturedAt: unknown;
-	readonly port: OneShotCommandPort;
+	readonly port: MaterialReviewCommandPort;
 	readonly lifecycle: ObserverController;
 	readonly observation: ObservationController;
-	readonly ids: OneShotCommandIds;
-}): Promise<OneShotCommandResult> {
-	const action = decodeOneShotStartAction(input.value);
+	readonly ids: MaterialReviewCommandIds;
+}): Promise<MaterialReviewCommandResult> {
+	const action = decodeMaterialReviewStartAction(input.value);
 	if (!action.ok) return failure(action.issue.message);
-	const oneShot = reconstructOneShotSession(input.port.branchEntries());
+	const materialReview = reconstructMaterialReviewSession(
+		input.port.branchEntries(),
+	);
 	const pi = reconstructObserverPiState(input.port.branchEntries());
-	const historyIssue = oneShot.issues[0] ?? pi.issues[0];
+	const historyIssue = materialReview.issues[0] ?? pi.issues[0];
 	if (historyIssue)
-		return failure(`One-shot history must be repaired: ${historyIssue.code}.`);
+		return failure(
+			`Material-review history must be repaired: ${historyIssue.code}.`,
+		);
 	const pendingIssue = pendingStartIssue({
 		action: action.value,
-		pending: oneShot.pendingRequest,
+		pending: materialReview.pendingRequest,
 		pi,
 	});
 	if (pendingIssue) return failure(pendingIssue);
-	const requestId = oneShot.pendingRequest?.requestId ?? input.ids.requestId();
-	const intent = refineOneShotIntent({
+	const requestId =
+		materialReview.pendingRequest?.requestId ?? input.ids.requestId();
+	const intent = refineMaterialReviewIntent({
 		value: input.value,
 		latestUser: input.latestUser,
 		requestId,
 	});
 	if (!intent.ok) return failure(intent.issue.message);
-	const episode = await input.lifecycle.ensureOneShotEpisode(
+	const episode = await input.lifecycle.ensureMaterialReviewEpisode(
 		intent.value,
 		input.port,
 	);
 	if (!episode.ok) return failure(episode.message);
-	const started = input.observation.startOneShot(
+	const started = input.observation.startMaterialReview(
 		{
 			intent: intent.value,
 			episode: episode.value,
@@ -133,25 +142,29 @@ export async function executeOneShotStart(input: {
 	if (!started.ok) return failure(started.message);
 	return {
 		ok: true,
-		action: "one-shot-start",
+		action: "material-review-start",
 		status: started.status,
 		requestId: started.request.requestId,
 		candidateId: "candidate" in started ? started.candidate.candidateId : null,
 	};
 }
 
-export function executeOneShotFinish(input: {
+/** Finishes the exact pending Observe material request. */
+export function executeMaterialReviewFinish(input: {
 	readonly value: unknown;
-	readonly port: OneShotCommandPort;
+	readonly port: MaterialReviewCommandPort;
 	readonly observation: ObservationController;
-}): OneShotCommandResult {
-	const action = decodeOneShotFinishAction(input.value);
+}): MaterialReviewCommandResult {
+	const action = decodeMaterialReviewFinishAction(input.value);
 	if (!action.ok) return failure(action.issue.message);
-	const finished = input.observation.finishOneShot(action.value, input.port);
+	const finished = input.observation.finishMaterialReview(
+		action.value,
+		input.port,
+	);
 	if (!finished.ok) return failure(finished.message);
 	return {
 		ok: true,
-		action: "one-shot-finish",
+		action: "material-review-finish",
 		status: finished.status,
 		requestId: finished.completion.requestId,
 		observationIds: finished.completion.observationIds,
@@ -159,17 +172,17 @@ export function executeOneShotFinish(input: {
 	};
 }
 
-export function requireOneShotCommandSuccess(
-	result: OneShotCommandResult,
-): Exclude<OneShotCommandResult, { readonly ok: false }> {
+export function requireMaterialReviewCommandSuccess(
+	result: MaterialReviewCommandResult,
+): Exclude<MaterialReviewCommandResult, { readonly ok: false }> {
 	if (!result.ok) throw new Error(result.message);
 	return result;
 }
 
-export function oneShotCommandText(
-	result: Exclude<OneShotCommandResult, { readonly ok: false }>,
+export function materialReviewCommandText(
+	result: Exclude<MaterialReviewCommandResult, { readonly ok: false }>,
 ): string {
-	if (result.action === "one-shot-start") {
+	if (result.action === "material-review-start") {
 		const nextAction =
 			result.status === "pending-retrieval"
 				? "retrieve-source-material"
@@ -194,32 +207,32 @@ export function oneShotCommandText(
 	});
 }
 
-export function oneShotContext(input: {
+export function materialReviewContext(input: {
 	readonly latestUser: LatestUserMessage | null;
 	readonly entries: readonly Parameters<
-		typeof reconstructOneShotSession
+		typeof reconstructMaterialReviewSession
 	>[0][number][];
 }): string | null {
-	const session = reconstructOneShotSession(input.entries);
+	const session = reconstructMaterialReviewSession(input.entries);
 	const issue = session.issues[0];
 	if (issue)
-		return `Observer One-shot history issue: ${issue.code}. Do not start or finish One-shot work until repaired.`;
+		return `Observer material-review history issue: ${issue.code}. Do not start or finish material review until repaired.`;
 	const pending = session.pendingRequest;
 	if (pending)
 		return [
-			"Observer One-shot request is pending.",
+			"Observer material-review request is pending.",
 			`request_id: ${pending.requestId}`,
 			`material: ${pending.material}`,
-			"Do not call one-shot-start again unless retrying the exact failed start.",
+			"Do not call material-review-start again unless retrying the exact failed start.",
 			"Call source-read for the request-linked candidate; it returns a compact StandingIndex and index digest.",
 			"If record will use any related_inquiry_ids, first call hydrate for those IDs with this read_id and index_digest, then pass the returned exact hydration_id to record.",
 			"If no hydration is needed, record must use hydration_id=null and related_inquiry_ids=[].",
-			"After exactly one semantic Observation covers each request-linked SourceRead, call one-shot-finish with only this request_id.",
+			"After exactly one semantic Observation covers each request-linked SourceRead, call material-review-finish with only this request_id.",
 		].join("\n");
 	if (!input.latestUser) return null;
 	return [
-		"Observer One-shot classification is model-owned; do not start automatically.",
-		"If and only if the latest user asks for one bounded Observer observation, call observer_sidecar one-shot-start.",
+		"Observer material-review classification is model-owned; do not start automatically.",
+		"If and only if the latest user asks to observe supplied or retrieved material without continuous mode, call observer_sidecar material-review-start.",
 		`exact_latest_user_sha256: ${sha256Text(input.latestUser.text)}`,
 		"Choose material.kind as inline-user-message only when the exact user text itself is evidence; choose retrieved-tool-results when requested paths, URLs, or tools must provide the evidence.",
 		"The instruction, path, or URL is not Source evidence.",

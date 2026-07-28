@@ -120,7 +120,7 @@ function notebookServiceIssue(issue: NotebookIssue): NotebookServiceIssue {
 function isLiveEpisode(state: ObserverState): boolean {
 	return (
 		state.episode.status === "open" ||
-		state.episode.status === "reviewing-wrap"
+		state.episode.status === "reviewing-save"
 	);
 }
 
