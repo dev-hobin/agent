@@ -42,7 +42,10 @@ import {
 	OBSERVER_APPLIED_MEMO_ENTRY,
 	OBSERVER_PREPARED_MEMO_ENTRY,
 } from "../src/memo-session.ts";
-import { OBSERVER_OBSERVATION_ENTRY } from "../src/observation-profile.ts";
+import {
+	MAX_OBSERVATION_TEXT_LENGTH,
+	OBSERVER_OBSERVATION_ENTRY,
+} from "../src/observation-profile.ts";
 import { reconstructObservationSession } from "../src/observation-session.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
@@ -304,7 +307,7 @@ function deterministicIds(): ObservationControllerIds {
 	let inquiry = 0;
 	let memoRequest = 0;
 	let saveRequest = 0;
-	let wrapProposal = 0;
+	let saveProposal = 0;
 	function suffix(value: number): string {
 		return String(value).padStart(12, "0");
 	}
@@ -342,8 +345,8 @@ function deterministicIds(): ObservationControllerIds {
 			return `save-request-00000000-0000-4000-8000-${suffix(saveRequest)}`;
 		},
 		saveProposalId(): `proposal-${string}` {
-			wrapProposal += 1;
-			return `proposal-00000000-0000-4000-8000-${suffix(wrapProposal)}`;
+			saveProposal += 1;
+			return `proposal-00000000-0000-4000-8000-${suffix(saveProposal)}`;
 		},
 	};
 }
@@ -1256,6 +1259,60 @@ describe("Observation staged controller", () => {
 		});
 	});
 
+	test("captures oversized tool results as complete bounded segments without profile errors", async () => {
+		await withSandbox(async ({ controller, port }) => {
+			const original = `BEGIN-${"x".repeat(50_000)}-END`;
+			const captured = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-oversized",
+						tool_name: "read",
+					},
+					text: original,
+					capturedAt: "2026-08-01T10:00:30.000Z",
+				},
+				port,
+			);
+			if (!captured.ok || !captured.candidate)
+				assert.fail(captured.ok ? "Expected candidate" : captured.message);
+			const segments = reconstructObservationSession(
+				port.entries,
+			).candidates.filter(
+				(candidate) =>
+					candidate.origin.kind === "tool-result" &&
+					candidate.origin.toolCallId === "tool-oversized",
+			);
+			assert.equal(segments.length, 3);
+			assert.equal(
+				segments
+					.map((segment) =>
+						segment.text.replace(
+							/^\[Observer candidate segment \d+\/\d+; contiguous text from one captured message\]\n/u,
+							"",
+						),
+					)
+					.join(""),
+				original,
+			);
+			assert.ok(
+				segments.every(
+					(segment) =>
+						segment.text.length <= MAX_OBSERVATION_TEXT_LENGTH &&
+						segment.contentHash === sha256Text(segment.text),
+				),
+			);
+			const read = await controller.execute(
+				{
+					...externalSourceAction(segments[0]?.candidateId ?? ""),
+					candidate_ids: segments.map((segment) => segment.candidateId),
+				},
+				port,
+			);
+			assert.equal(read.ok, true);
+		});
+	});
+
 	test("keeps minor observations silent and alerts only after a major append", async () => {
 		await withSandbox(async ({ controller, port }) => {
 			const first = controller.capture(
@@ -1492,18 +1549,50 @@ describe("Observation staged controller", () => {
 				const beforeNotebook = await readFile(notebookPath, "utf8");
 				const beforeFailed = port.entries.length;
 				port.failNextObservationAppend = true;
-				const failed = controller.requestMemo(port);
+				const failed = await controller.requestReviewSave(port);
 				assert.equal(failed.ok, false);
 				assert.equal(port.entries.length, beforeFailed);
 
-				const requested = controller.requestMemo(port);
-				if (!requested.ok || requested.status !== "requested") {
-					assert.fail(requested.ok ? "Expected request" : requested.message);
+				const ordinaryMemo = controller.requestMemo(port);
+				if (!ordinaryMemo.ok || ordinaryMemo.status !== "requested")
+					assert.fail(
+						ordinaryMemo.ok
+							? "Expected ordinary Memo request"
+							: ordinaryMemo.message,
+					);
+				if (!ordinaryMemo.request)
+					assert.fail("Expected ordinary Memo request identity");
+				assert.equal(
+					await controller.continueReviewSaveAfterMemo(
+						ordinaryMemo.request.requestId,
+						port,
+					),
+					null,
+				);
+				const beforeFailedContinuation = port.entries.length;
+				port.failNextObservationAppend = true;
+				const failedContinuation = await controller.requestReviewSave(port);
+				assert.equal(failedContinuation.ok, false);
+				assert.equal(port.entries.length, beforeFailedContinuation);
+
+				const finalization = await controller.requestReviewSave(port);
+				if (!finalization.ok || finalization.status !== "memo-resumed") {
+					assert.fail(
+						finalization.ok
+							? "Expected existing Memo to continue into Review & Save"
+							: finalization.message,
+					);
 				}
+				assert.equal(
+					reconstructObservationSession(port.entries).reviewSaveContinuations[0]
+						?.memoRequestId,
+					ordinaryMemo.request.requestId,
+				);
+				const requested = { request: ordinaryMemo.request };
 				const afterRequest = port.entries.length;
-				const resumed = controller.requestMemo(port);
+				const resumed = await controller.requestReviewSave(port);
 				assert.equal(resumed.ok, true);
-				if (resumed.ok) assert.equal(resumed.status, "resumed");
+				if (resumed.ok) assert.equal(resumed.status, "memo-resumed");
 				assert.equal(port.entries.length, afterRequest);
 
 				const malformed = await controller.execute(
@@ -1893,23 +1982,47 @@ describe("Observation staged controller", () => {
 				);
 				const beforeSaveRequest = port.entries.length;
 				port.failNextSaveRequestAppend = true;
-				assert.equal((await controller.requestSave(port)).ok, false);
+				assert.equal(
+					(
+						await controller.continueReviewSaveAfterMemo(
+							requested.request.requestId,
+							port,
+						)
+					)?.ok,
+					false,
+				);
 				assert.equal(port.entries.length, beforeSaveRequest);
 				port.dropNextSaveRequestAppend = true;
-				assert.equal((await controller.requestSave(port)).ok, false);
+				assert.equal(
+					(
+						await controller.continueReviewSaveAfterMemo(
+							requested.request.requestId,
+							port,
+						)
+					)?.ok,
+					false,
+				);
 				assert.equal(port.entries.length, beforeSaveRequest);
-				const saveRequested = await controller.requestSave(port);
-				if (!saveRequested.ok || !saveRequested.request)
-					assert.fail(
-						saveRequested.ok
-							? "Expected Review & Save request"
-							: saveRequested.message,
-					);
-				assert.equal(saveRequested.status, "requested");
+				const saveRequested = await controller.continueReviewSaveAfterMemo(
+					requested.request.requestId,
+					port,
+				);
+				if (saveRequested === null)
+					assert.fail("Expected Review & Save continuation");
+				if (!saveRequested.ok) assert.fail(saveRequested.message);
+				if (saveRequested.status !== "requested")
+					assert.fail("Expected Review & Save request");
 				const afterSaveRequest = port.entries.length;
-				const wrapResumed = await controller.requestSave(port);
-				assert.equal(wrapResumed.ok, true);
-				if (wrapResumed.ok) assert.equal(wrapResumed.status, "resumed");
+				assert.equal(
+					await controller.continueReviewSaveAfterMemo(
+						requested.request.requestId,
+						port,
+					),
+					null,
+				);
+				const saveResumed = await controller.requestReviewSave(port);
+				assert.equal(saveResumed.ok, true);
+				if (saveResumed.ok) assert.equal(saveResumed.status, "resumed");
 				assert.equal(port.entries.length, afterSaveRequest);
 				const malformedSaveScope = await controller.execute(
 					{
@@ -1940,15 +2053,15 @@ describe("Observation staged controller", () => {
 				);
 				assert.equal(saveScoped.guide.inventory.length, 6);
 				assert.equal(saveScoped.guide.observed_sources.length, 1);
-				const wrapPayload = toolPayload(saveScoped);
-				assert.equal(wrapPayload.request_id, saveRequested.request.requestId);
-				assert.deepEqual(wrapPayload.next_action, {
+				const savePayload = toolPayload(saveScoped);
+				assert.equal(savePayload.request_id, saveRequested.request.requestId);
+				assert.deepEqual(savePayload.next_action, {
 					action: "save-prepare",
 					request_id: saveRequested.request.requestId,
 					submit_only: ["request_id", "summary", "records"],
 					do_not_repeat: "save-scope",
 				});
-				assert.deepEqual(wrapPayload.save_preparation, saveScoped.guide);
+				assert.deepEqual(savePayload.save_preparation, saveScoped.guide);
 				assert.equal(
 					reconstructSaveRequestSession(port.entries).pendingRequest?.requestId,
 					saveRequested.request.requestId,

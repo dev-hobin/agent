@@ -22,11 +22,21 @@ export function observerSidecarContext(
 	const saveSession = reconstructSaveRequestSession(entries);
 	if (saveSession.issues.length > 0) return null;
 	const pendingMemo = session.pendingMemoRequest;
+	const reviewSaveMemoRequestIds = new Set(
+		session.reviewSaveContinuations.map(
+			(continuation) => continuation.memoRequestId,
+		),
+	);
 	const memoContext = pendingMemo
 		? [
 				"<observer-memo-request>",
 				`request_id=${pendingMemo.requestId}`,
 				`observation_ids=${pendingMemo.observationIds.join(",")}`,
+				...(reviewSaveMemoRequestIds.has(pendingMemo.requestId)
+					? [
+							"This is the final Memo reconciliation for Review & Save; successful completion continues to the proposal automatically.",
+						]
+					: []),
 				"Call observer_sidecar action memo-scope with this exact request ID.",
 				"The memo-scope result includes producer-owned locked fields and memo_preparation.submission_seed.",
 				"Call memo-prepare with the same request ID and one submission containing only evidence, hypothesis_outcomes, memo_outcomes, and dispositions; never resend or nest locked fields.",

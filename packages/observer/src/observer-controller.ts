@@ -8,6 +8,7 @@ import {
 	type EpisodeOpenedEvent,
 	type NotebookSelectedEvent,
 	type ObserverEvent,
+	type OutputLanguageChangedEvent,
 	type SaveCancelledEvent,
 	type SaveCommittedEvent,
 	type SaveProposedEvent,
@@ -210,6 +211,12 @@ function activationChanged(enabled: boolean): ActivationChangedEvent {
 	return { protocol: OBSERVER_PROTOCOL, kind: "activation-changed", enabled };
 }
 
+function outputLanguageChanged(
+	lang: EpisodeLanguage,
+): OutputLanguageChangedEvent {
+	return { protocol: OBSERVER_PROTOCOL, kind: "output-language-changed", lang };
+}
+
 function saveProposed(handoff: PreparedSaveHandoff): SaveProposedEvent {
 	return {
 		protocol: OBSERVER_PROTOCOL,
@@ -309,8 +316,7 @@ function matchingOpenEpisode(
 	return (
 		episode.status === "open" &&
 		snapshot.state.selectedNotebookId === handoff.prepared.notebook_id &&
-		episode.core.notebookId === handoff.prepared.notebook_id &&
-		episode.core.lang === handoff.prepared.episode_language
+		episode.core.notebookId === handoff.prepared.notebook_id
 	);
 }
 
@@ -418,24 +424,61 @@ async function updateDefaultLanguageCommand(input: {
 			input.port.notify(`Observer recovery is required: ${issue}`, "error");
 		return false;
 	}
+	const episode = synchronized.snapshot.state.episode;
+	const active =
+		episode.status === "open" || episode.status === "reviewing-save";
+	let current = synchronized.snapshot;
+	let previousLanguage: EpisodeLanguage | null = null;
+	if (active && episode.core.lang !== input.language) {
+		previousLanguage = episode.core.lang;
+		const changed = appendRequiredLifecycle({
+			port: input.port,
+			snapshot: current,
+			event: outputLanguageChanged(input.language),
+			label: "Output language change",
+		});
+		if (
+			!changed.ok ||
+			(changed.snapshot.state.episode.status !== "open" &&
+				changed.snapshot.state.episode.status !== "reviewing-save") ||
+			changed.snapshot.state.episode.core.lang !== input.language
+		) {
+			input.port.notify(
+				changed.ok
+					? "Output language change was not visible in the current branch."
+					: changed.message,
+				"error",
+			);
+			return false;
+		}
+		current = changed.snapshot;
+	}
 	const updated = await input.notebooks.updateDefaultLanguage({
-		state: synchronized.snapshot.state,
+		state: current.state,
 		language: input.language,
 	});
 	if (!updated.ok) {
+		if (previousLanguage) {
+			const rollback = appendRequiredLifecycle({
+				port: input.port,
+				snapshot: current,
+				event: outputLanguageChanged(previousLanguage),
+				label: "Output language rollback",
+			});
+			if (!rollback.ok)
+				input.port.notify(
+					`Output language rollback failed: ${rollback.message}`,
+					"error",
+				);
+		}
 		input.port.notify(
 			`Default output language update failed: ${updated.issue.message}`,
 			"error",
 		);
 		return false;
 	}
-	const episode = synchronized.snapshot.state.episode;
-	const preserved =
-		episode.status !== "empty" && episode.core.lang !== input.language
-			? ` The current Episode output remains ${episode.core.lang}.`
-			: "";
 	input.port.notify(
-		`Default Memo and Zettel output language set to ${input.language} for the next Episode.${preserved}`,
+		`Memo and Zettel output language set to ${input.language}. New work uses it immediately; already prepared work keeps its locked language.`,
 		"info",
 	);
 	await refreshStatus(input.port, input.notebooks);
@@ -849,11 +892,14 @@ async function saveCommand(
 		snapshot.state.episode.status !== "reviewing-save" ||
 		!snapshot.prepared
 	) {
-		port.notify("There is no prepared save proposal to review.", "warning");
+		port.notify(
+			"There is no prepared Review & Save proposal to review.",
+			"warning",
+		);
 		return;
 	}
 	const approved = await port.confirm(
-		"Approve Observer save proposal",
+		"Approve Observer Review & Save proposal",
 		renderPreparedPlan(snapshot.prepared.handoff),
 	);
 	if (!approved) {
@@ -869,7 +915,10 @@ async function saveCommand(
 	if (!current.attempt) {
 		const currentPrepared = current.prepared;
 		if (!currentPrepared) {
-			port.notify("The prepared save proposal could not be found.", "error");
+			port.notify(
+				"The prepared Review & Save proposal could not be found.",
+				"error",
+			);
 			return;
 		}
 		port.appendEntry(
@@ -881,7 +930,10 @@ async function saveCommand(
 	}
 	const prepared = current.prepared?.handoff;
 	if (!prepared) {
-		port.notify("The approved save proposal could not be recovered.", "error");
+		port.notify(
+			"The approved Review & Save proposal could not be recovered.",
+			"error",
+		);
 		return;
 	}
 	const saved = await saves.commit({
@@ -1226,14 +1278,17 @@ async function installPreparedCommand(input: {
 	const proposal = saveProposed(decoded.value);
 	const projected = applyObserverEvent(snapshot.state, proposal);
 	if (!projected.applied) {
-		input.port.notify(`Save proposal rejected: ${projected.reason}.`, "error");
+		input.port.notify(
+			`Review & Save proposal rejected: ${projected.reason}.`,
+			"error",
+		);
 		return false;
 	}
 	input.port.appendEntry(OBSERVER_PREPARED_SAVE_ENTRY, decoded.value);
 	const withPrepared = reconstructObserverPiState(input.port.branchEntries());
 	if (notifyReplayIssue(withPrepared, input.port)) return false;
 	if (!appendLifecycle(input.port, withPrepared, proposal)) return false;
-	input.port.notify("The save proposal is ready for review.", "info");
+	input.port.notify("The Review & Save proposal is ready for review.", "info");
 	await refreshStatus(input.port, input.notebooks, input.operationalIssue);
 	return true;
 }

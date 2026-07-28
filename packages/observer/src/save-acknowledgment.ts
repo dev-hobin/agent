@@ -10,7 +10,10 @@ import {
 	type PreparedSave,
 	type SaveReceipt,
 } from "./save-profile.ts";
-import { inspectWrapActivity, type WrapActivity } from "./wrap-service.ts";
+import {
+	inspectPublicationActivity,
+	type PublicationActivity,
+} from "./notebook-publication-service.ts";
 
 export type SaveAcknowledgmentInspection =
 	| { readonly status: "before" }
@@ -20,7 +23,7 @@ export type SaveAcknowledgmentInspection =
 	| { readonly status: "invalid"; readonly message: string };
 
 export interface SaveAcknowledgmentDependencies {
-	readonly inspectActivity?: (root: string) => Promise<WrapActivity>;
+	readonly inspectActivity?: (root: string) => Promise<PublicationActivity>;
 	readonly receiptId: () => `receipt-${string}`;
 }
 
@@ -93,7 +96,7 @@ export async function inspectSaveAcknowledgment(input: {
 	readonly dependencies: SaveAcknowledgmentDependencies;
 }): Promise<SaveAcknowledgmentInspection> {
 	const inspectActivity =
-		input.dependencies.inspectActivity ?? inspectWrapActivity;
+		input.dependencies.inspectActivity ?? inspectPublicationActivity;
 	const activity = await inspectActivity(input.notebook.root);
 	if (activity.status === "active") {
 		return {

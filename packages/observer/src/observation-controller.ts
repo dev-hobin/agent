@@ -48,10 +48,12 @@ import {
 import {
 	encodeObservationEvent,
 	prepareObservationEvent,
+	MAX_OBSERVATION_TEXT_LENGTH,
 	OBSERVER_OBSERVATION_ENTRY,
 	type CandidateCapturedEvent,
 	type HypothesisContextReviewedEvent,
 	type InquiryHydratedEvent,
+	type MemoRequestId,
 	type ObservationEvent,
 	type ObservationMemoRequestedEvent,
 	type SemanticObservationRecordedEvent,
@@ -235,6 +237,20 @@ export type SaveRequestControllerResult =
 			readonly message: string;
 			readonly request: SaveRequestEvent;
 	  }
+	| {
+			readonly ok: true;
+			readonly status: "memo-delegate";
+			readonly message: string;
+			readonly request: null;
+			readonly memoRequest: null;
+	  }
+	| {
+			readonly ok: true;
+			readonly status: "memo-requested" | "memo-resumed";
+			readonly message: string;
+			readonly request: null;
+			readonly memoRequest: ObservationMemoRequestedEvent;
+	  }
 	| { readonly ok: false; readonly message: string };
 
 export type MemoRequestControllerResult =
@@ -291,6 +307,13 @@ export interface ObservationController {
 	requestSave(
 		port: ObservationCommandPort,
 	): Promise<SaveRequestControllerResult>;
+	requestReviewSave(
+		port: ObservationCommandPort,
+	): Promise<SaveRequestControllerResult>;
+	continueReviewSaveAfterMemo(
+		requestId: MemoRequestId,
+		port: ObservationCommandPort,
+	): Promise<SaveRequestControllerResult | null>;
 }
 
 interface ControllerDependencies {
@@ -409,6 +432,12 @@ function replayedEvent(
 					(item) => item.requestId === event.requestId,
 				) ?? null
 			);
+		case "review-save-continuation-requested":
+			return (
+				snapshot.reviewSaveContinuations.find(
+					(item) => item.memoRequestId === event.memoRequestId,
+				) ?? null
+			);
 		default:
 			return assertNever(event);
 	}
@@ -500,8 +529,7 @@ function materialReviewAttemptIssue(input: {
 	if (
 		lifecycle.episode.status !== "open" ||
 		lifecycle.episode.core.episodeId !== input.episode.episodeId ||
-		lifecycle.episode.core.notebookId !== input.episode.notebookId ||
-		lifecycle.episode.core.lang !== input.episode.lang
+		lifecycle.episode.core.notebookId !== input.episode.notebookId
 	)
 		return "Material review Episode capability가 현재 OPEN lifecycle과 일치하지 않습니다.";
 	return null;
@@ -1171,7 +1199,6 @@ function trackedHypothesisEpisodeIssue(input: {
 	return episode.status === "open" &&
 		episode.core.episodeId === input.capability.episodeId &&
 		episode.core.notebookId === input.capability.notebookId &&
-		episode.core.lang === input.capability.lang &&
 		input.branch.pi.state.mode === input.capability.mode
 		? null
 		: "The hypothesis Episode capability no longer matches the current branch.";
@@ -1396,7 +1423,8 @@ function requestMemo(input: {
 				"Finish the pending hypothesis context review before Memo reconciliation.",
 		};
 	if (branch.memo.prepared || branch.memo.pendingAcknowledgment) {
-		const pendingRequestId = branch.observation.pendingMemoRequest?.requestId;
+		const pendingRequest = branch.observation.pendingMemoRequest;
+		const pendingRequestId = pendingRequest?.requestId;
 		const instructionId =
 			branch.memo.prepared?.instructionId ??
 			branch.memo.pendingAcknowledgment?.instructionId;
@@ -1465,7 +1493,7 @@ async function requestSave(input: {
 		return {
 			ok: true,
 			status: "delegate",
-			message: "Review or recover the existing save proposal.",
+			message: "Review or recover the existing Review & Save proposal.",
 			request: null,
 		};
 	}
@@ -1488,7 +1516,7 @@ async function requestSave(input: {
 		return {
 			ok: true,
 			status: "resumed",
-			message: `Resuming the existing save request: ${planned.value.request.requestId}`,
+			message: `Resuming the existing Review & Save request: ${planned.value.request.requestId}`,
 			request: planned.value.request,
 		};
 	}
@@ -1500,7 +1528,7 @@ async function requestSave(input: {
 	} catch (error) {
 		return {
 			ok: false,
-			message: `Could not record the save request: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Could not record the Review & Save request: ${error instanceof Error ? error.message : String(error)}`,
 		};
 	}
 	const replayed = reconstructSaveRequestSession(input.port.branchEntries());
@@ -1514,7 +1542,7 @@ async function requestSave(input: {
 			ok: false,
 			message: replayed.issues[0]
 				? `Save request replay failed: ${replayed.issues[0].code}.`
-				: "The save request was not confirmed by replay.",
+				: "The Review & Save request was not confirmed by replay.",
 		};
 	}
 	return {
@@ -1523,6 +1551,137 @@ async function requestSave(input: {
 		message: `Save request recorded: ${confirmed.requestId}`,
 		request: confirmed,
 	};
+}
+
+function ensureReviewSaveContinuation(input: {
+	readonly requestId: MemoRequestId;
+	readonly port: ObservationCommandPort;
+}): string | null {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return branch;
+	const request = branch.observation.memoRequests.find(
+		(candidate) => candidate.requestId === input.requestId,
+	);
+	if (!request) return "Final Memo request identity is missing.";
+	const saveRequests = reconstructSaveRequestSession(
+		input.port.branchEntries(),
+	);
+	if (saveRequests.issues.length > 0)
+		return `Review & Save request history is invalid: ${saveRequests.issues[0]?.code}.`;
+	const existing = branch.observation.reviewSaveContinuations.find(
+		(continuation) => continuation.memoRequestId === input.requestId,
+	);
+	if (existing)
+		return existing.baseSaveRequestCount === saveRequests.requests.length
+			? null
+			: "The final Memo continuation was already used by a Review & Save request.";
+	const prepared = refinedEvent(
+		{
+			observer_observation: "observer-observation/v1",
+			kind: "review-save-continuation-requested",
+			episode_id: request.episodeId,
+			memo_request_id: request.requestId,
+			base_save_request_count: saveRequests.requests.length,
+		},
+		"review-save-continuation-requested",
+	);
+	if (typeof prepared === "string") return prepared;
+	if (prepared.kind !== "review-save-continuation-requested")
+		return "Review & Save continuation refinement failed.";
+	const appended = appendEvent(input.port, prepared);
+	return typeof appended === "string" ? appended : null;
+}
+
+async function requestReviewSave(input: {
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObservationControllerIds;
+}): Promise<SaveRequestControllerResult> {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	if (branch.pi.prepared || branch.pi.state.episode.status === "reviewing-save")
+		return requestSave(input);
+	const memoRequired =
+		branch.observation.pendingMemoRequest !== null ||
+		branch.observation.unconsumedObservationIds.length > 0 ||
+		branch.memo.prepared !== null ||
+		branch.memo.pendingAcknowledgment !== null;
+	if (!memoRequired) return requestSave(input);
+	const memo = requestMemo({ port: input.port, ids: input.ids });
+	if (!memo.ok) return memo;
+	if (memo.status === "none") return requestSave(input);
+	const memoRequest = memo.request ?? branch.observation.pendingMemoRequest;
+	if (!memoRequest)
+		return { ok: false, message: "Final Memo request identity is missing." };
+	const continuationIssue = ensureReviewSaveContinuation({
+		requestId: memoRequest.requestId,
+		port: input.port,
+	});
+	if (continuationIssue) return { ok: false, message: continuationIssue };
+	if (memo.status === "delegate")
+		return {
+			ok: true,
+			status: "memo-delegate",
+			message: "Complete the prepared final Memo pass before Review & Save.",
+			request: null,
+			memoRequest: null,
+		};
+	return {
+		ok: true,
+		status: memo.status === "requested" ? "memo-requested" : "memo-resumed",
+		message:
+			"Review & Save is running its final Memo reconciliation before preparing the proposal.",
+		request: null,
+		memoRequest,
+	};
+}
+
+async function continueReviewSaveAfterMemo(input: {
+	readonly requestId: MemoRequestId;
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+	readonly ids: ObservationControllerIds;
+}): Promise<SaveRequestControllerResult | null> {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	const request = branch.observation.memoRequests.find(
+		(candidate) => candidate.requestId === input.requestId,
+	);
+	const continuation = branch.observation.reviewSaveContinuations.find(
+		(candidate) => candidate.memoRequestId === input.requestId,
+	);
+	if (!request || !continuation) return null;
+	const saveRequests = reconstructSaveRequestSession(
+		input.port.branchEntries(),
+	);
+	if (saveRequests.issues.length > 0)
+		return {
+			ok: false,
+			message: `Review & Save request history is invalid: ${saveRequests.issues[0]?.code}.`,
+		};
+	if (saveRequests.requests.length > continuation.baseSaveRequestCount)
+		return null;
+	if (saveRequests.requests.length < continuation.baseSaveRequestCount)
+		return {
+			ok: false,
+			message: "Review & Save continuation has an invalid save-request basis.",
+		};
+	if (branch.observation.pendingMemoRequest?.requestId === input.requestId)
+		return {
+			ok: false,
+			message: "Final Memo reconciliation is still pending.",
+		};
+	const unconsumed = new Set(branch.observation.unconsumedObservationIds);
+	if (
+		request.observationIds.some((observationId) =>
+			unconsumed.has(observationId),
+		)
+	)
+		return {
+			ok: false,
+			message: "Final Memo reconciliation did not consume its complete scope.",
+		};
+	return requestSave(input);
 }
 
 async function saveContext(input: {
@@ -1599,7 +1758,7 @@ async function savePrepare(input: {
 	return {
 		ok: true,
 		action: "save-prepare",
-		message: `Save proposal prepared: ${prepared.value.prepared.proposal_id}`,
+		message: `Review & Save proposal prepared: ${prepared.value.prepared.proposal_id}`,
 		handoff: prepared.value,
 	};
 }
@@ -1805,6 +1964,24 @@ function pendingRetrievedCaptureRequest(input: {
 		: null;
 }
 
+const CANDIDATE_SEGMENT_HEADER_RESERVE = 160;
+const CANDIDATE_SEGMENT_PAYLOAD_LENGTH =
+	MAX_OBSERVATION_TEXT_LENGTH - CANDIDATE_SEGMENT_HEADER_RESERVE;
+
+function candidateCaptureTexts(value: unknown): readonly unknown[] {
+	if (typeof value !== "string" || value.length <= MAX_OBSERVATION_TEXT_LENGTH)
+		return [value];
+	const total = Math.ceil(value.length / CANDIDATE_SEGMENT_PAYLOAD_LENGTH);
+	return Array.from({ length: total }, (_, index) => {
+		const part = index + 1;
+		const header = `[Observer candidate segment ${part}/${total}; contiguous text from one captured message]\n`;
+		const start = index * CANDIDATE_SEGMENT_PAYLOAD_LENGTH;
+		return (
+			header + value.slice(start, start + CANDIDATE_SEGMENT_PAYLOAD_LENGTH)
+		);
+	});
+}
+
 function captureCandidate(input: {
 	readonly value: {
 		readonly origin: unknown;
@@ -1826,35 +2003,45 @@ function captureCandidate(input: {
 		return { ok: true, status: "ignored", candidate: null };
 	if (branch.pi.state.episode.status !== "open")
 		return { ok: true, status: "ignored", candidate: null };
-	const prepared = refinedEvent(
-		{
-			observer_observation: "observer-observation/v1",
-			kind: "candidate-captured",
-			episode_id: branch.pi.state.episode.core.episodeId,
-			candidate_id: input.ids.candidateId(),
-			origin: encodeOrigin(input.value.origin),
-			text: input.value.text,
-			content_hash:
-				typeof input.value.text === "string"
-					? sha256Text(input.value.text)
-					: "",
-			captured_at: input.value.capturedAt,
-			...(materialReviewRequest
-				? { one_shot_request_id: materialReviewRequest.requestId }
-				: {}),
-		},
-		"candidate-captured",
-	);
-	if (typeof prepared === "string") return { ok: false, message: prepared };
-	if (prepared.kind !== "candidate-captured") {
-		return { ok: false, message: "Candidate refinement failed." };
+	const preparedCandidates: CandidateCapturedEvent[] = [];
+	for (const text of candidateCaptureTexts(input.value.text)) {
+		const prepared = refinedEvent(
+			{
+				observer_observation: "observer-observation/v1",
+				kind: "candidate-captured",
+				episode_id: branch.pi.state.episode.core.episodeId,
+				candidate_id: input.ids.candidateId(),
+				origin: encodeOrigin(input.value.origin),
+				text,
+				content_hash: typeof text === "string" ? sha256Text(text) : "",
+				captured_at: input.value.capturedAt,
+				...(materialReviewRequest
+					? { one_shot_request_id: materialReviewRequest.requestId }
+					: {}),
+			},
+			"candidate-captured",
+		);
+		if (typeof prepared === "string") return { ok: false, message: prepared };
+		if (prepared.kind !== "candidate-captured") {
+			return { ok: false, message: "Candidate refinement failed." };
+		}
+		preparedCandidates.push(prepared);
 	}
-	if (materialReviewRequest && prepared.origin.kind !== "tool-result")
+	if (
+		materialReviewRequest &&
+		preparedCandidates.some(
+			(candidate) => candidate.origin.kind !== "tool-result",
+		)
+	)
 		return { ok: true, status: "ignored", candidate: null };
-	const appended = appendEvent(input.port, prepared);
-	return typeof appended === "string"
-		? { ok: false, message: appended }
-		: { ok: true, status: "captured", candidate: prepared };
+	for (const candidate of preparedCandidates) {
+		const appended = appendEvent(input.port, candidate);
+		if (typeof appended === "string") return { ok: false, message: appended };
+	}
+	const first = preparedCandidates[0];
+	return first
+		? { ok: true, status: "captured", candidate: first }
+		: { ok: true, status: "ignored", candidate: null };
 }
 
 function executeObservationAction(input: {
@@ -1936,6 +2123,17 @@ export function createObservationController(
 		},
 		requestSave(port) {
 			return requestSave({ port, notebooks, ids: dependencies.ids });
+		},
+		requestReviewSave(port) {
+			return requestReviewSave({ port, notebooks, ids: dependencies.ids });
+		},
+		continueReviewSaveAfterMemo(requestId, port) {
+			return continueReviewSaveAfterMemo({
+				requestId,
+				port,
+				notebooks,
+				ids: dependencies.ids,
+			});
 		},
 		requestMemo(port) {
 			return requestMemo({ port, ids: dependencies.ids });

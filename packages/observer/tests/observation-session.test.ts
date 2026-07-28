@@ -62,7 +62,8 @@ const HYDRATION_ID = "hydration-00000000-0000-4000-8000-000000000304";
 const OBSERVATION_MAJOR = "observation-00000000-0000-4000-8000-000000000305";
 const OBSERVATION_USER = "observation-00000000-0000-4000-8000-000000000306";
 const REQUEST_ID = "memo-request-00000000-0000-4000-8000-000000000307";
-const MATERIAL_REVIEW_REQUEST_ID = "material-review-00000000-0000-4000-8000-000000000312";
+const MATERIAL_REVIEW_REQUEST_ID =
+	"material-review-00000000-0000-4000-8000-000000000312";
 const SOURCE_ID = "source-00000000-0000-4000-8000-000000000308";
 const DURABLE_INQUIRY: InquiryId =
 	"inquiry-00000000-0000-4000-8000-000000000003";
@@ -435,6 +436,44 @@ describe("Observation Profile v1", () => {
 			}).ok,
 			false,
 		);
+	});
+
+	test("orders a durable Review & Save continuation after its exact Memo request", () => {
+		const trace = workingTrace();
+		const request = trace.events.find(
+			(event) => event.kind === "memo-requested",
+		);
+		if (!request || request.kind !== "memo-requested")
+			assert.fail("Expected Memo request");
+		const continuation = prepareObservationEvent({
+			observer_observation: "observer-observation/v1",
+			kind: "review-save-continuation-requested",
+			episode_id: request.episodeId,
+			memo_request_id: request.requestId,
+			base_save_request_count: 0,
+		});
+		if (
+			!continuation.ok ||
+			continuation.value.kind !== "review-save-continuation-requested"
+		)
+			assert.fail("Expected Review & Save continuation");
+		const accepted = reconstructObservationSession([
+			...trace.entries,
+			observationEntry(continuation.value),
+		]);
+		assert.equal(accepted.issues.length, 0);
+		assert.equal(
+			accepted.reviewSaveContinuations[0]?.memoRequestId,
+			request.requestId,
+		);
+		const requestEntry = trace.entries.at(-1);
+		if (!requestEntry) assert.fail("Expected Memo request entry");
+		const reordered = reconstructObservationSession([
+			...trace.entries.slice(0, -1),
+			observationEntry(continuation.value),
+			requestEntry,
+		]);
+		assert.equal(reordered.issues[0]?.code, "observation-session.order");
 	});
 
 	test("rejects self-tool candidates and inconsistent observation branches", () => {

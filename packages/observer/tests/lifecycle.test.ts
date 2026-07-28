@@ -70,6 +70,14 @@ function activationChanged(enabled: boolean): ObserverEvent {
 	});
 }
 
+function outputLanguageChanged(lang: "ko" | "en"): ObserverEvent {
+	return requireEvent({
+		protocol: OBSERVER_PROTOCOL,
+		kind: "output-language-changed",
+		lang,
+	});
+}
+
 function notebookSelected(notebookId: string): ObserverEvent {
 	return requireEvent({
 		protocol: OBSERVER_PROTOCOL,
@@ -150,6 +158,14 @@ const validRawEvents: readonly (readonly [string, unknown])[] = [
 			protocol: OBSERVER_PROTOCOL,
 			kind: "activation-changed",
 			enabled: true,
+		},
+	],
+	[
+		"output-language-changed",
+		{
+			protocol: OBSERVER_PROTOCOL,
+			kind: "output-language-changed",
+			lang: "en",
 		},
 	],
 	[
@@ -242,6 +258,15 @@ const invalidRawEvents: readonly (readonly [string, unknown, string])[] = [
 			kind: "episode-opened",
 			episodeId: "episode-1",
 			notebookId: "notebook-main",
+			lang: "ja",
+		},
+		"event.shape",
+	],
+	[
+		"unsupported output language",
+		{
+			protocol: OBSERVER_PROTOCOL,
+			kind: "output-language-changed",
 			lang: "ja",
 		},
 		"event.shape",
@@ -354,6 +379,31 @@ describe("Observer lifecycle transitions", () => {
 		state = applied(state, activationChanged(false));
 		assert.equal(state.mode, "off");
 		assert.deepEqual(state.episode, episode);
+	});
+
+	test("changes output language immediately without replacing active work", () => {
+		rejected(
+			initialObserverState(),
+			outputLanguageChanged("en"),
+			"language.active-episode-required",
+		);
+		const open = applied(openState(), outputLanguageChanged("en"));
+		assert.equal(
+			open.episode.status === "open" && open.episode.core.lang,
+			"en",
+		);
+		const reviewing = applied(open, saveProposed());
+		const changed = applied(reviewing, outputLanguageChanged("ko"));
+		assert.equal(changed.episode.status, "reviewing-save");
+		assert.equal(
+			changed.episode.status === "reviewing-save" && changed.episode.core.lang,
+			"ko",
+		);
+		assert.equal(
+			changed.episode.status === "reviewing-save" &&
+				changed.episode.proposal.proposalId,
+			"proposal-1",
+		);
 	});
 
 	test("accepts repeated activation stutters", () => {

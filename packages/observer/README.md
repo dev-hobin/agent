@@ -36,7 +36,7 @@ In Pi's TUI, run `/observe` with no arguments. The keyboard-first control center
 → turn Observer On, add a hypothesis, or observe material
 → work normally
 → run Memo when you want a reconciliation
-→ run Review & Save when you are ready to review and save
+→ run Review & Save when you are ready
 ```
 
 Use ↑/↓ and Enter to navigate; Esc always returns to Pi. The same surface exposes **Add a hypothesis**, **Observe material**, **Default output language**, and a detailed health view without requiring users to remember subcommands. Observer On/Off is a toggle; language is not. Enter on the language row opens an explicit `English (en)` / `Korean (ko)` chooser with the current choice preselected. On/Off and language changes update in place without closing and reopening the control center. The footer shows compact state, while a small widget appears only when an Episode needs attention or observation is active.
@@ -49,7 +49,7 @@ Observer never chooses a Notebook path for you. Setup accepts either an absolute
 /observe status
 ```
 
-`ko` and `en` select the language used when Observer writes Memo and Zettel Markdown; they do not change the control-center UI language. `/observe settings` opens the same control center. Changing the default output language during an open Episode affects the next Episode only. Do not move or replace the selected Notebook while an Episode is open.
+`ko` and `en` select the language used when Observer writes new Memo and Zettel Markdown; they do not change the control-center UI language. `/observe settings` opens the same control center. Language changes apply immediately without replacing the open Episode. Work that was already prepared keeps the language locked in its review scope, and existing Markdown keeps its own language. Do not move or replace the selected Notebook while an Episode is open.
 
 ## Sidecar workflow
 
@@ -59,7 +59,7 @@ Turn observation on, then work with Pi normally:
 /observe on
 ```
 
-Read documents, inspect code, retrieve webpages, or discuss a question. Observer stages source candidates, SourceReads, optional Standing Inquiry hydration, semantic observations, and user hypotheses on the current Pi branch.
+Read documents, inspect code, retrieve webpages, or discuss a question. Observer stages source candidates, SourceReads, optional Standing Inquiry hydration, semantic observations, and user hypotheses on the current Pi branch. Automatic conversation and tool-result candidates are bounded context clues. Oversized text is split into ordered bounded segments, preserving all captured candidate text instead of dropping the middle or producing a profile error. The original tool result remains the material to inspect before recording Source evidence.
 
 Reconcile the current working material without writing notebook Markdown:
 
@@ -73,7 +73,7 @@ When the current inquiry is ready for durable review:
 /observe save
 ```
 
-Observer prepares a proposal. Notebook Markdown changes only after you explicitly approve the proposal and Observer saves, reads back, and validates the records. A successful Review & Save settles the Episode and leaves Mode off.
+If working observations or a prepared Memo still need reconciliation, Review & Save first completes one final Memo pass and then continues into the Review & Save proposal; you do not need to run `/observe memo` first. Notebook Markdown changes only after you explicitly approve the proposal and Observer saves, reads back, and validates the records. A successful Review & Save settles the Episode and leaves Mode off.
 
 Turn observation off without discarding an open Episode:
 
@@ -151,9 +151,9 @@ approval → validation → save → readback validation → settlement ordering
 
 The code keeps the product operation and its persistence mechanism separate.
 `SaveService` owns the Review & Save contract, lifecycle checks, target recovery,
-and public receipt. Its injected `WrapService` implementation owns record
-planning, atomic publication, readback, and rollback. Wrap is an internal save
-process, not a command, model action, or persisted public protocol.
+and public receipt. Its injected `NotebookPublicationService` owns record
+planning, atomic publication, readback, and rollback. Notebook publication is an
+internal persistence process, not a command, model action, or public protocol.
 
 ## Update and remove
 

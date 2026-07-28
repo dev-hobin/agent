@@ -23,10 +23,10 @@ import {
 	type SaveReceipt,
 } from "./save-profile.ts";
 import {
-	createWrapService,
-	type WrapService,
-	type WrapServiceIssue,
-} from "./wrap-service.ts";
+	createNotebookPublicationService,
+	type NotebookPublicationService,
+	type NotebookPublicationIssue,
+} from "./notebook-publication-service.ts";
 
 export type SaveServiceIssueCode =
 	| NotebookServiceIssueCode
@@ -97,17 +97,22 @@ function notebookFailure(issue: NotebookServiceIssue): SaveServiceResult {
 	});
 }
 
-function saveCodeForWrap(issue: WrapServiceIssue): SaveServiceIssueCode {
-	if (issue.code.startsWith("wrap-preflight.")) return "save.invalid-plan";
-	if (issue.code === "wrap-transaction.active") return "save.busy";
-	if (issue.code === "wrap-transaction.drift") {
+function saveCodeForPublication(
+	issue: NotebookPublicationIssue,
+): SaveServiceIssueCode {
+	if (issue.code.startsWith("publication-preflight."))
+		return "save.invalid-plan";
+	if (issue.code === "publication-transaction.active") return "save.busy";
+	if (issue.code === "publication-transaction.drift") {
 		return "save.concurrent-change";
 	}
 	return "save.persistence";
 }
 
-function wrapFailure(issue: WrapServiceIssue): SaveServiceResult {
-	return failure(saveCodeForWrap(issue), issue.message, {
+function publicationFailure(
+	issue: NotebookPublicationIssue,
+): SaveServiceResult {
+	return failure(saveCodeForPublication(issue), issue.message, {
 		recoveryRequired: issue.recoveryRequired,
 		path: issue.path,
 		recordId: issue.recordId,
@@ -126,16 +131,18 @@ function lifecycleTargetCheck(
 		);
 	}
 	if (state.episode.proposal.proposalId !== prepared.proposal_id) {
-		return failure("save.lifecycle", "Prepared save proposal is stale.");
+		return failure(
+			"save.lifecycle",
+			"Prepared Review & Save proposal is stale.",
+		);
 	}
 	if (
 		state.selectedNotebookId !== prepared.notebook_id ||
-		state.episode.core.notebookId !== prepared.notebook_id ||
-		state.episode.core.lang !== prepared.episode_language
+		state.episode.core.notebookId !== prepared.notebook_id
 	) {
 		return failure(
 			"save.target-mismatch",
-			"Prepared save notebook or episode language does not match lifecycle state.",
+			"Prepared save notebook does not match lifecycle state.",
 		);
 	}
 	return null;
@@ -164,7 +171,7 @@ function commitEvent(
 
 async function commitSave(
 	selectionStore: NotebookSelectionStore,
-	wrapService: WrapService,
+	publicationService: NotebookPublicationService,
 	input: {
 		readonly state: ObserverState;
 		readonly prepared: unknown;
@@ -214,17 +221,18 @@ async function commitSave(
 			diagnostics: inventory.issue.diagnostics,
 		});
 	}
-	const preparedWrap = wrapService.prepare({
+	const preparedPublication = publicationService.prepare({
 		notebook: recovered.value.notebook,
 		inventory: inventory.value,
 		save: preparedResult.value,
 	});
-	if (!preparedWrap.ok) return wrapFailure(preparedWrap.issue);
+	if (!preparedPublication.ok)
+		return publicationFailure(preparedPublication.issue);
 	const receiptId = createReceiptId();
 	const event = commitEvent(
 		preparedResult.value.proposal_id,
 		receiptId,
-		preparedWrap.value.recordIds,
+		preparedPublication.value.recordIds,
 	);
 	const projected = applyObserverEvent(input.state, event);
 	if (!projected.applied) {
@@ -233,11 +241,11 @@ async function commitSave(
 			`Review & Save lifecycle preflight failed: ${projected.reason}.`,
 		);
 	}
-	const wrapped = await wrapService.commit({
-		prepared: preparedWrap.value,
+	const published = await publicationService.commit({
+		prepared: preparedPublication.value,
 		receiptId,
 	});
-	if (!wrapped.ok) return wrapFailure(wrapped.issue);
+	if (!published.ok) return publicationFailure(published.issue);
 	const committed = applyObserverEvent(input.state, event);
 	if (!committed.applied) {
 		return failure(
@@ -250,13 +258,13 @@ async function commitSave(
 		ok: true,
 		value: {
 			state: committed.state,
-			notebook: wrapped.value.notebook,
+			notebook: published.value.notebook,
 			receipt: {
 				observer_receipt: OBSERVER_SAVE_RECEIPT_SCHEMA,
-				receipt_id: wrapped.value.receiptId,
-				proposal_id: wrapped.value.proposalId,
-				notebook_id: wrapped.value.notebook.manifest.notebook_id,
-				records: wrapped.value.records.map((record) => ({
+				receipt_id: published.value.receiptId,
+				proposal_id: published.value.proposalId,
+				notebook_id: published.value.notebook.manifest.notebook_id,
+				records: published.value.records.map((record) => ({
 					operation: record.operation,
 					record_id: record.recordId,
 					path: record.relativePath,
@@ -269,11 +277,12 @@ async function commitSave(
 
 export function createSaveService(input: {
 	readonly selectionStore: NotebookSelectionStore;
-	readonly wrapService?: WrapService;
+	readonly publicationService?: NotebookPublicationService;
 }): SaveService {
-	const wrapService = input.wrapService ?? createWrapService();
+	const publicationService =
+		input.publicationService ?? createNotebookPublicationService();
 	return {
 		commit: (commitInput) =>
-			commitSave(input.selectionStore, wrapService, commitInput),
+			commitSave(input.selectionStore, publicationService, commitInput),
 	};
 }

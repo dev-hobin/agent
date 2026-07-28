@@ -79,11 +79,7 @@ function serviceAt(sandbox: string): NotebookService {
 }
 
 function manifestPath(root: string): string {
-	return join(
-		root,
-		OBSERVER_MANIFEST_DIRECTORY,
-		OBSERVER_MANIFEST_FILENAME,
-	);
+	return join(root, OBSERVER_MANIFEST_DIRECTORY, OBSERVER_MANIFEST_FILENAME);
 }
 
 function recordsPath(root: string): string {
@@ -457,7 +453,10 @@ describe("Observer notebook selection and language", () => {
 				}),
 			);
 			const live = requireValue(
-				await service.openEpisode({ state: setup.state, episodeId: "episode-1" }),
+				await service.openEpisode({
+					state: setup.state,
+					episodeId: "episode-1",
+				}),
 			);
 			const refreshed = requireValue(
 				await service.select({ root: rootA, state: live.state }),
@@ -487,7 +486,10 @@ describe("Observer notebook selection and language", () => {
 				}),
 			);
 			const live = requireValue(
-				await service.openEpisode({ state: setup.state, episodeId: "episode-1" }),
+				await service.openEpisode({
+					state: setup.state,
+					episodeId: "episode-1",
+				}),
 			);
 			await cp(root, copyRoot, { recursive: true });
 			const switched = await service.select({
@@ -556,7 +558,7 @@ describe("Observer notebook selection and language", () => {
 		});
 	});
 
-	test("updates only the future-episode default language", async () => {
+	test("updates the notebook default without mutating caller-owned lifecycle state", async () => {
 		await withSandbox(async (sandbox) => {
 			const root = join(sandbox, "notebook");
 			const service = serviceAt(sandbox);
@@ -571,7 +573,10 @@ describe("Observer notebook selection and language", () => {
 			const sourcePath = join(recordsPath(root), "source-external.md");
 			const sourceBefore = await readFile(sourcePath);
 			const live = requireValue(
-				await service.openEpisode({ state: setup.state, episodeId: "episode-ko" }),
+				await service.openEpisode({
+					state: setup.state,
+					episodeId: "episode-ko",
+				}),
 			);
 			const updated = requireValue(
 				await service.updateDefaultLanguage({
@@ -631,7 +636,10 @@ describe("Observer notebook selection and language", () => {
 				}),
 			);
 			const live = requireValue(
-				await service.openEpisode({ state: setup.state, episodeId: "episode-1" }),
+				await service.openEpisode({
+					state: setup.state,
+					episodeId: "episode-1",
+				}),
 			);
 			const rejected = await service.setup({
 				root: other,

@@ -296,7 +296,7 @@ Observer가 필요하면 자신의 `xstate` dependency를 선언한다. 공통 s
 Mode: OFF | ON
 Episode: EMPTY | OPEN | REVIEWING_SAVE | SETTLED
 selected notebook identity
-snapshot된 episode language
+현재 output language projection
 현재 save proposal identity
 compact memo/save receipt metadata
 legal transition guards
@@ -320,6 +320,7 @@ Git state
 type ObserverEvent =
   | { kind: "episode-opened"; episodeId; notebookId; lang }
   | { kind: "activation-changed"; enabled: boolean }
+  | { kind: "output-language-changed"; lang }
   | { kind: "memo-reconciled"; revisionId; receipt }
   | { kind: "save-proposed"; proposalId; summary }
   | { kind: "save-cancelled"; proposalId }
@@ -582,7 +583,7 @@ notebook initialize/open
 notebook identity/manifest
 한 시점에 하나의 selected notebook
 ko/en default language
-episode language snapshot
+active output language projection
 read-only status projection
 ```
 
@@ -620,8 +621,8 @@ fresh service에서 selected notebook recovery
 missing/corrupt/unsupported manifest rejection
 malformed/null selection과 stale path/ID 구분
 OPEN/REVIEWING 중 다른 ID 또는 같은 ID·다른 path switch 거부
-ko/en notebook default와 episode language snapshot 분리
-기존 Markdown exact bytes와 status read-only 보존
+ko/en notebook default와 active output language 즉시 동기화
+prepared 작업의 locked language와 기존 Markdown exact bytes 보존
 records/*.md를 Slice 1 decoder/graph validator로 검증
 selection publication 실패 후 selected state 미주장
 ```
@@ -1462,7 +1463,7 @@ bounded real-provider save transcript
 packed artifact + fresh-process Standing Inquiry re-entry
 ```
 
-Landing 7G-2는 Review & Save proposal을 만들거나 승인하지 않는다. Request entry만 branch truth이며 save-scope는 read-only다. 다음 landing은 unknown model submission을 existing `decodePreparedWrapHandoff`로 refine한 뒤에만 prepared effect를 허용해야 한다.
+Landing 7G-2는 Review & Save proposal을 만들거나 승인하지 않는다. Request entry만 branch truth이며 save-scope는 read-only다. 다음 landing은 unknown model submission을 existing `decodePreparedSaveHandoff`로 refine한 뒤에만 prepared effect를 허용해야 한다.
 
 ### Landing 7G-3 — semantic Review & Save preparation and durable completion
 
@@ -1473,7 +1474,7 @@ Landing 7G-2는 Review & Save proposal을 만들거나 승인하지 않는다. R
 [x] observed Source + current Inquiry + current Memo required-record coverage
 [x] create/update operation 및 expected SHA-256 lock
 [x] duplicate/missing/wrong-operation/wrong-digest fail-closed
-[x] producer-owned PreparedWrapHandoff assembly + existing strict decoder
+[x] producer-owned PreparedSaveHandoff assembly + existing strict decoder
 [x] prepared append 뒤 explicit Pi confirmation
 [x] decline → save-cancelled, Episode OPEN, notebook write 0
 [x] approve → preflight → local save → readback → save-committed
@@ -1954,13 +1955,16 @@ final closure commit differs from evidence head only in README/implementation-pl
 [x] `/observe add-hypothesis <text>`와 `/observe material <request>` scriptable command 제공
 [x] 기존 단발 관찰 사용자/모델 표현과 action을 Observe material/material-review로 교체
 [x] Review & Save를 UI·command·model action의 유일한 public 표현으로 사용하고 `/observe save`를 command로 제공
-[x] `SaveService` public policy와 `WrapService` atomic persistence process를 인터페이스로 분리
-[x] wrap preflight/transaction issue를 stable save issue로 boundary mapping
+[x] `SaveService` public policy와 `NotebookPublicationService` atomic persistence process를 인터페이스로 분리
+[x] publication preflight/transaction issue를 stable save issue로 boundary mapping
+[x] Review & Save가 미정리 working state의 마지막 Memo reconciliation 뒤 proposal로 연속 진행
+[x] 대용량 automatic Candidate를 순서 있는 bounded segment로 나누어 capture된 Candidate text 전체를 보존
 [x] 폐기된 action·event·ID·protocol을 위한 legacy decode/command alias는 유지하지 않음
 [x] 기존 editor 내용은 confirm 없이 덮어쓰지 않음
-[x] default language 변경은 다음 Episode에만 적용하고 열린 Episode 언어를 보존
+[x] output language 변경은 열린 Episode를 교체하지 않고 새 작업과 view에 즉시 적용
+[x] prepared Memo·Review & Save는 준비 시점의 locked language를 보존
 [x] 상세 status panel은 내부 ID 대신 흐름, working set, health, recovery를 표시
-[x] footer는 compact state, widget은 active/paused/review/recovery일 때만 표시
+[x] footer/widget은 Mode를 On/Off로 정확히 표시하고 review/recovery를 별도 노출
 [x] TUI가 아닌 mode의 기존 command/RPC 동작 유지
 [x] 모든 surface가 terminal width를 넘지 않고 Esc/Enter로 복귀
 [x] 설정 완료 뒤 control center와 footer/widget이 새 상태로 즉시 재구성됨
@@ -1970,11 +1974,13 @@ final closure commit differs from evidence head only in README/implementation-pl
 Evidence:
 
 ```text
-Observer package: 204/204
-TUI/controllers/extension focused: 52/52
+Observer package: 211/211
+Final Memo/segment/controller/prompt/extension focused: 44/44
 Pi 0.80.10 RPC smoke: setup/status/on/memo-stutter/off pass
 Pi 0.82.1 PTY: in-place activation + explicit en/ko chooser pass
-TypeScript LSP: changed files clean
+Actual model bash tool result: 50,000 chars → ordered segments 19,916 + 19,916 + 10,396, full reconstruction pass
+npm pack dry-run: expected 43/43 files, publication modules included, wrap modules absent
+TypeScript LSP: Observer package clean
 ```
 
 Textual의 command discovery, screen stack, state-dependent action, option list,
@@ -2244,7 +2250,7 @@ Stop:
 - Slice 3 notebook identity는 strict manifest의 `notebook-<UUID v4>`이고 path와 독립적이다.
 - selected target은 notebook ID와 canonical absolute root를 함께 보존해 copy/move drift를 탐지한다.
 - Selection persistence location은 caller가 명시적으로 주입하며 cwd/global fallback을 두지 않는다.
-- Notebook default language와 current episode snapshot은 별도 owner이며 default update가 열린 episode나 기존 Markdown을 바꾸지 않는다.
+- Notebook default language가 현재 output preference를 소유하며 update는 열린 Episode를 교체하지 않고 새 작업에 즉시 적용한다. Prepared 작업의 locked language와 기존 Markdown은 바꾸지 않는다.
 - Open/select/status는 direct `records/*.md`를 Slice 1 validator로 검증하고 validation policy를 복제하지 않는다.
 - Manifest create, selection save, language update는 single-file atomic visibility만 보장하며 fsync/concurrent writer/cross-file atomicity는 보류한다.
 - Slice 4는 exact reviewed Markdown을 저장하며 decoded record를 다시 encode하지 않는다.

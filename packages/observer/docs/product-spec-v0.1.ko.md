@@ -130,26 +130,26 @@ Observer ON 또는 OFF
 
 Observe material은 단순한 read-only 분석이 아니다. 관련 가설과 Memo의 pending revision을 실제 working state에 남긴다. 다만 `/observe save` 승인 전에는 장기 Zettel 기록으로 승격하지 않는다.
 
-### 4.5 Review & Save와 내부 Wrap 경계
+### 4.5 Review & Save와 Notebook publication 경계
 
 사용자·모델·lifecycle이 다루는 제품 연산은 `Review & Save`다. 코드의
 `SaveService`는 proposal·approval·Notebook target·lifecycle·최종 receipt 계약을
 소유한다. 실제 record graph를 publication plan으로 묶고 원자적으로 쓰고 readback과
-rollback을 수행하는 과정은 주입된 `WrapService`의 내부 구현이다.
+rollback을 수행하는 과정은 주입된 `NotebookPublicationService`의 내부 구현이다.
 
 ```text
 Review & Save request
 → SaveService: decode · authorize · recover target
-→ WrapService.prepare: validate · build atomic wrap plan
+→ NotebookPublicationService.prepare: validate · build publication plan
 → SaveService: lifecycle preflight
-→ WrapService.commit: stage · publish · readback · rollback
+→ NotebookPublicationService.commit: stage · publish · readback · rollback
 → SaveService: public save receipt · settle Episode
 ```
 
-따라서 wrap은 사용자 command, model action, public event/protocol이 아니다. 내부 wrap
-failure도 `SaveService` 경계에서 `save.invalid-plan`, `save.busy`,
-`save.concurrent-change`, `save.persistence`로 변환한다. pre-1.0의 폐기된 action·event·ID
-이름을 decode하는 별도 legacy 경로는 두지 않는다.
+따라서 Notebook publication은 사용자 command, model action, public event/protocol이
+아니다. 내부 publication failure도 `SaveService` 경계에서 `save.invalid-plan`,
+`save.busy`, `save.concurrent-change`, `save.persistence`로 변환한다. pre-1.0의 폐기된
+action·event·ID 이름을 decode하는 별도 legacy 경로는 두지 않는다.
 
 ---
 
@@ -224,7 +224,7 @@ Notebook 미선택
 
 Episode OPEN
 → Mode, Add a hypothesis, Observe material, Memo, Review & Save,
-  고정 Notebook, 다음 Episode 언어, 상태를 노출
+  고정 Notebook, 현재 출력 언어, 상태를 노출
 ```
 
 제어판은 새로운 lifecycle effect를 만들지 않고 아래의 기존 명령과 같은
@@ -334,7 +334,7 @@ Source evidence로 취급하지 않는다.
 Observer Mode
 Episode 상태
 Notebook 위치
-Episode 출력 언어
+현재 출력 언어
 Pending Memo 수
 Open Inquiry 수
 Zettel 후보 수
@@ -349,7 +349,8 @@ Notebook과 기본 출력 언어를 서로 구분된 option으로 확인·변경
 - 여러 notebook이 존재할 수 있다.
 - 한 시점에는 하나만 선택한다.
 - 열린 episode에 pending work가 있으면 notebook을 조용히 변경할 수 없다.
-- Notebook 언어 변경은 기본적으로 다음 episode부터 적용한다.
+- 출력 언어 변경은 Episode 경계와 무관하게 새 Memo·Zettel 작업에 즉시 적용한다.
+- 이미 준비된 Memo·Review & Save 작업은 승인·재시도 scope에 잠긴 언어를 유지한다.
 
 ---
 
@@ -577,6 +578,12 @@ Review & Save는 단순한 파일 `save`나 `close`가 아니다.
 + Observer OFF
 ```
 
+미소비 Observation, pending Memo request, prepared Memo가 남아 있으면 Review & Save는
+`review-save` continuation으로 마지막 Memo reconciliation을 먼저 완료하고 같은 흐름에서
+Review & Save proposal로 이어진다. 사용자가 먼저 별도의 `memo` 명령을 실행할 필요는 없다. 이미
+Memo reconciliation이 끝난 상태라면 곧바로 proposal을 준비한다. 마지막 Memo pass와
+Review & Save proposal은 각각 준비 시점의 scope와 출력 언어를 잠근다.
+
 ### Review & Save proposal 필수 정보
 
 ```text
@@ -771,7 +778,8 @@ en
 
 - Notebook별 Memo·Zettel Markdown 기본 출력 언어를 가진다.
 - 이 설정은 TUI label, help, status의 표시 언어를 변경하지 않는다.
-- Episode가 열릴 때 출력 언어를 고정하고 save까지 유지한다.
+- 출력 언어 변경은 열린 Episode를 교체하지 않고 이후 새 작업에 즉시 적용한다.
+- 이미 준비된 작업은 승인·재시도 일관성을 위해 준비 시점의 언어를 유지한다.
 - 특정 문서에 대한 명시적 언어 override는 허용한다.
 - 기존 문서를 수정할 때는 해당 문서의 기존 언어를 유지한다.
 - Source의 실제 언어는 ko/en 이외의 BCP 47 tag도 허용한다.
@@ -944,7 +952,7 @@ Notebook 전체에서 확인한다.
 ### 19.4 검증 시점
 
 ```text
-- save proposal 생성 전
+- Review & Save proposal 생성 전
 - 사용자 승인 후 실제 저장 직전
 - notebook을 열거나 선택할 때
 - standing inquiry를 재진입할 때

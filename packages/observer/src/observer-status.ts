@@ -25,7 +25,7 @@ export interface ObserverStatusView {
 	readonly mode: "On" | "Off";
 	readonly episode: "Empty" | "Open" | "Save review" | "Settled";
 	readonly notebook: string;
-	readonly episodeLanguage: string;
+	readonly outputLanguage: string;
 	readonly notebookHealth: string;
 	readonly replayHealth: string;
 	readonly sessionPersistence: "Persistent session" | "Ephemeral session";
@@ -116,17 +116,19 @@ export function observerStatusView(input: {
 	const notebook = notebookView(input.notebookStatus);
 	const episode = input.snapshot.state.episode;
 	const working = input.memoSnapshot.state;
+	const control = observerControlState(
+		input.snapshot,
+		input.observationSnapshot,
+		input.notebookStatus,
+	);
 	return {
-		control: observerControlState(
-			input.snapshot,
-			input.observationSnapshot,
-			input.notebookStatus,
-		),
+		control,
 		mode: input.snapshot.state.mode === "on" ? "On" : "Off",
 		episode: episodeLabel(episode.status),
 		notebook: notebook.notebook,
-		episodeLanguage:
-			episode.status === "empty" ? "Not fixed yet" : episode.core.lang,
+		outputLanguage:
+			control.notebookDefaultLanguage ??
+			(episode.status === "empty" ? "Not set" : episode.core.lang),
 		notebookHealth: notebook.health,
 		replayHealth:
 			input.snapshot.issues.length === 0 &&
@@ -164,11 +166,11 @@ export function renderObserverStatus(view: ObserverStatusView): string {
 		`Observer mode: ${view.mode}`,
 		`Episode: ${view.episode}`,
 		`Notebook: ${view.notebook}`,
-		`Episode output language: ${view.episodeLanguage}`,
+		`Output language: ${view.outputLanguage}`,
 		`Notebook health: ${view.notebookHealth}`,
 		`Session replay health: ${view.replayHealth}`,
 		`Session persistence: ${view.sessionPersistence}`,
-		`Prepared save proposal: ${view.preparedSave}`,
+		`Prepared Review & Save proposal: ${view.preparedSave}`,
 		`Prepared Memo pass: ${view.preparedMemo}`,
 		`Pending Memos: ${view.pendingMemos}`,
 		`Pending hypothesis context reviews: ${view.pendingHypothesisReviews}`,

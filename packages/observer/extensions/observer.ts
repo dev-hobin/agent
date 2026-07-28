@@ -323,7 +323,7 @@ function saveCompletionMessage(
 		case "completed":
 			return "Approval, local save, readback, and Episode settlement are complete.";
 		case "cancelled":
-			return "The save proposal was cancelled. The Episode remains open.";
+			return "The Review & Save proposal was cancelled. The Episode remains open.";
 		case "recovery-required":
 			return "Review & Save was interrupted. Use /observe save to recover.";
 		default:
@@ -341,7 +341,7 @@ export async function completeSavePreparation(
 		if (!installed)
 			return {
 				ok: false,
-				message: "Could not install the prepared save proposal.",
+				message: "Could not install the prepared Review & Save proposal.",
 			};
 		await effects.apply();
 		const status = effects.status(proposalId);
@@ -491,8 +491,10 @@ export function routeMaterialCommand(
 
 export interface SaveCommandEffects {
 	request(): Promise<SaveRequestControllerResult>;
-	delegate(): Promise<void>;
-	trigger(request: SaveRequestEvent): void;
+	delegateSave(): Promise<void>;
+	delegateMemo(): Promise<void>;
+	triggerSave(request: SaveRequestEvent): void;
+	triggerMemo(request: ObservationMemoRequestedEvent): void;
 	notify(message: string, type: "info" | "warning" | "error"): void;
 }
 
@@ -502,25 +504,51 @@ export async function routeSaveCommand(
 ): Promise<boolean> {
 	const parsed = parseObserveCommand(args);
 	if (!parsed.ok || parsed.command.kind !== "save") return false;
-	const requested = await effects.request();
+	let requested = await effects.request();
 	if (!requested.ok) {
 		effects.notify(requested.message, "error");
 		return true;
 	}
+	if (requested.status === "memo-delegate") {
+		await effects.delegateMemo();
+		requested = await effects.request();
+		if (!requested.ok) {
+			effects.notify(requested.message, "error");
+			return true;
+		}
+	}
 	if (requested.status === "delegate") {
-		await effects.delegate();
+		await effects.delegateSave();
 		return true;
 	}
-	if (!requested.request) {
-		effects.notify("Could not confirm the save request identity.", "error");
+	if (
+		requested.status === "memo-requested" ||
+		requested.status === "memo-resumed"
+	) {
+		try {
+			effects.triggerMemo(requested.memoRequest);
+			effects.notify(requested.message, "info");
+		} catch (error) {
+			effects.notify(
+				`Final Memo request was recorded, but the agent trigger failed: ${error instanceof Error ? error.message : String(error)}`,
+				"warning",
+			);
+		}
+		return true;
+	}
+	if (requested.status === "memo-delegate" || !requested.request) {
+		effects.notify(
+			"Could not complete the final Memo reconciliation.",
+			"error",
+		);
 		return true;
 	}
 	try {
-		effects.trigger(requested.request);
+		effects.triggerSave(requested.request);
 		effects.notify(requested.message, "info");
 	} catch (error) {
 		effects.notify(
-			`The save request was recorded, but the agent trigger failed: ${error instanceof Error ? error.message : String(error)}`,
+			`The Review & Save request was recorded, but the agent trigger failed: ${error instanceof Error ? error.message : String(error)}`,
 			"warning",
 		);
 	}
@@ -712,12 +740,34 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 	}
 	const saveHandled = await routeSaveCommand(input.args, {
 		request() {
-			return input.observation.requestSave(port);
+			return input.observation.requestReviewSave(port);
 		},
-		delegate() {
+		delegateSave() {
 			return input.controller.command(input.args, port);
 		},
-		trigger(request) {
+		delegateMemo() {
+			return input.controller.command("memo", port);
+		},
+		triggerMemo(request) {
+			input.pi.sendMessage(
+				{
+					customType: "observer.final-memo-trigger",
+					content: [
+						"Review & Save requires one final Memo reconciliation.",
+						`request_id=${request.requestId}`,
+						"Call observer_sidecar with action memo-scope for this request. Successful completion continues to the Review & Save proposal automatically.",
+					].join("\n"),
+					display: false,
+					details: {
+						requestId: request.requestId,
+						requestDigest: request.requestDigest,
+						continuation: "review-save",
+					},
+				},
+				{ deliverAs: "followUp", triggerTurn: true },
+			);
+		},
+		triggerSave(request) {
 			input.pi.sendMessage(
 				{
 					customType: "observer.save-trigger",
@@ -939,7 +989,7 @@ function registerObserverSidecarTool(input: {
 		name: OBSERVER_TOOL_NAME,
 		label: "Observer Sidecar",
 		description:
-			"Start or finish an exact material review, review current context through a user hypothesis, or stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement, then complete exact Memo or save requests from their locked scope.",
+			"Start or finish an exact material review, review current context through a user hypothesis, or stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement, then complete exact Memo or Review & Save requests from their locked scope.",
 		promptSnippet:
 			"Use model-owned material-review classification only with the exact hidden digest; complete pending hypothesis-context, Memo, and save reviews from their exact current scope.",
 		parameters: observerSidecarParameters,
@@ -1004,9 +1054,30 @@ function registerObserverSidecarTool(input: {
 						},
 					}),
 				);
+				const continuation =
+					completion.status === "completed"
+						? await input.observation.continueReviewSaveAfterMemo(
+								result.instruction.requestId,
+								port,
+							)
+						: null;
+				const next =
+					continuation?.ok && continuation.request
+						? {
+								action: "save-scope" as const,
+								request_id: continuation.request.requestId,
+							}
+						: continuation?.ok && continuation.status === "delegate"
+							? { action: "review-existing-save" as const }
+							: null;
+				const payload = {
+					completion,
+					...(continuation ? { continuation } : {}),
+					...(next ? { next_action: next } : {}),
+				};
 				return {
-					content: [{ type: "text", text: JSON.stringify(completion) }],
-					details: { preparation: result, completion },
+					content: [{ type: "text", text: JSON.stringify(payload) }],
+					details: { preparation: result, ...payload },
 				};
 			}
 			return {
@@ -1172,7 +1243,7 @@ export default function observerExtension(pi: ExtensionAPI): void {
 
 	pi.registerCommand("observe", {
 		description:
-			"Configure Observer, add hypotheses, observe material, reconcile Memo, and review or save Notebook changes",
+			"Configure Observer, add hypotheses, observe material, reconcile Memo, and run Review & Save",
 		getArgumentCompletions: completeObserveArgs,
 		handler(args, ctx) {
 			return handleObserveCommand({

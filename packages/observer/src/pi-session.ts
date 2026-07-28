@@ -252,8 +252,7 @@ function matchingLiveEpisode(
 	return (
 		state.episode.status === "open" &&
 		state.selectedNotebookId === handoff.prepared.notebook_id &&
-		state.episode.core.notebookId === handoff.prepared.notebook_id &&
-		state.episode.core.lang === handoff.prepared.episode_language
+		state.episode.core.notebookId === handoff.prepared.notebook_id
 	);
 }
 

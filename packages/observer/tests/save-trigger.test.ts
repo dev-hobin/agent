@@ -189,6 +189,45 @@ describe("pure Review & Save request and preparation context", () => {
 		assert.equal(resumed.value.kind, "resume");
 		assert.equal(resumed.value.request.requestId, REQUEST_ID);
 
+		const changedLanguage = scenario([
+			...requestedEntries,
+			custom(OBSERVER_LIFECYCLE_ENTRY, {
+				protocol: OBSERVER_PROTOCOL,
+				kind: "output-language-changed",
+				lang: "ko",
+			}),
+		]);
+		const lockedResume = planSaveRequest({
+			...changedLanguage,
+			inventory: records,
+			notebook: notebook(),
+			requestId: "save-request-00000000-0000-4000-8000-000000000798",
+			proposalId: "proposal-00000000-0000-4000-8000-000000000798",
+		});
+		if (!lockedResume.ok) assert.fail(lockedResume.issue.message);
+		assert.equal(lockedResume.value.kind, "resume");
+		assert.equal(lockedResume.value.request.episodeLanguage, "en");
+
+		const newLanguagePlan = planSaveRequest({
+			...scenario([
+				...entries,
+				custom(OBSERVER_LIFECYCLE_ENTRY, {
+					protocol: OBSERVER_PROTOCOL,
+					kind: "output-language-changed",
+					lang: "ko",
+				}),
+			]),
+			inventory: records,
+			notebook: {
+				...notebook(),
+				manifest: { ...notebook().manifest, default_language: "ko" },
+			},
+			requestId: "save-request-00000000-0000-4000-8000-000000000797",
+			proposalId: "proposal-00000000-0000-4000-8000-000000000797",
+		});
+		if (!newLanguagePlan.ok) assert.fail(newLanguagePlan.issue.message);
+		assert.equal(newLanguagePlan.value.request.episodeLanguage, "ko");
+
 		const exactDuplicate = reconstructSaveRequestSession([
 			...requestedEntries,
 			custom(OBSERVER_SAVE_REQUEST_ENTRY, encoded),

@@ -374,6 +374,19 @@ test("routes Review & Save before trigger and delegates prepared review", async 
 	});
 	if (!decoded.ok) assert.fail(decoded.issue.message);
 	const request: SaveRequestEvent = decoded.value;
+	const finalMemoDecoded = prepareObservationEvent({
+		observer_observation: "observer-observation/v1",
+		kind: "memo-requested",
+		episode_id: "episode-extension-save",
+		request_id: "memo-request-00000000-0000-4000-8000-000000000048",
+		base_memo_revision_id: null,
+		observation_ids: ["observation-00000000-0000-4000-8000-000000000049"],
+		request_digest:
+			"0000000000000000000000000000000000000000000000000000000000000050",
+	});
+	if (!finalMemoDecoded.ok || finalMemoDecoded.value.kind !== "memo-requested")
+		assert.fail("Expected final Memo request");
+	const finalMemoRequest = finalMemoDecoded.value;
 	const trace: string[] = [];
 	const handled = await routeSaveCommand("save", {
 		request() {
@@ -385,11 +398,17 @@ test("routes Review & Save before trigger and delegates prepared review", async 
 				request,
 			});
 		},
-		async delegate() {
+		async delegateSave() {
 			trace.push("delegate");
 		},
-		trigger() {
+		async delegateMemo() {
+			trace.push("memo-delegate");
+		},
+		triggerSave() {
 			trace.push("trigger");
+		},
+		triggerMemo() {
+			trace.push("memo-trigger");
 		},
 		notify(_message, type) {
 			trace.push(`notify:${type}`);
@@ -404,16 +423,97 @@ test("routes Review & Save before trigger and delegates prepared review", async 
 			trace.push("request");
 			return Promise.resolve({
 				ok: true,
+				status: "memo-requested",
+				message: "final memo",
+				request: null,
+				memoRequest: finalMemoRequest,
+			});
+		},
+		async delegateSave() {
+			trace.push("delegate");
+		},
+		async delegateMemo() {
+			trace.push("memo-delegate");
+		},
+		triggerSave() {
+			trace.push("trigger");
+		},
+		triggerMemo() {
+			trace.push("memo-trigger");
+		},
+		notify(_message, type) {
+			trace.push(`notify:${type}`);
+		},
+	});
+	assert.deepEqual(trace, ["request", "memo-trigger", "notify:info"]);
+
+	trace.length = 0;
+	let finalMemoDelegated = false;
+	await routeSaveCommand("save", {
+		request() {
+			trace.push("request");
+			if (!finalMemoDelegated)
+				return Promise.resolve({
+					ok: true,
+					status: "memo-delegate",
+					message: "apply prepared Memo",
+					request: null,
+					memoRequest: null,
+				});
+			return Promise.resolve({
+				ok: true,
+				status: "requested",
+				message: "requested",
+				request,
+			});
+		},
+		async delegateSave() {
+			trace.push("delegate");
+		},
+		async delegateMemo() {
+			trace.push("memo-delegate");
+			finalMemoDelegated = true;
+		},
+		triggerSave() {
+			trace.push("trigger");
+		},
+		triggerMemo() {
+			trace.push("memo-trigger");
+		},
+		notify(_message, type) {
+			trace.push(`notify:${type}`);
+		},
+	});
+	assert.deepEqual(trace, [
+		"request",
+		"memo-delegate",
+		"request",
+		"trigger",
+		"notify:info",
+	]);
+
+	trace.length = 0;
+	await routeSaveCommand("save", {
+		request() {
+			trace.push("request");
+			return Promise.resolve({
+				ok: true,
 				status: "delegate",
 				message: "delegate",
 				request: null,
 			});
 		},
-		async delegate() {
+		async delegateSave() {
 			trace.push("delegate");
 		},
-		trigger() {
+		async delegateMemo() {
+			trace.push("memo-delegate");
+		},
+		triggerSave() {
 			trace.push("trigger");
+		},
+		triggerMemo() {
+			trace.push("memo-trigger");
 		},
 		notify(_message, type) {
 			trace.push(`notify:${type}`);

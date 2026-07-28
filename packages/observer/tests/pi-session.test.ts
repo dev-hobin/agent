@@ -301,19 +301,17 @@ test("uses supplied branch ancestry while compaction entries only stutter", () =
 	assert.deepEqual(forkState.issues, []);
 });
 
-test("rejects a handoff whose notebook or language differs from the open episode", () => {
-	const other = handoff();
-	const mismatched = {
-		...other,
-		prepared: { ...other.prepared, episode_language: "en" },
-	};
+test("keeps a prepared operation's locked language when the active preference changes", () => {
+	const locked = handoff();
 	const snapshot = reconstructObserverPiState([
 		...openBranch(),
-		preparedEntry(mismatched),
+		lifecycle({
+			protocol: OBSERVER_PROTOCOL,
+			kind: "output-language-changed",
+			lang: "en",
+		}),
+		preparedEntry(locked),
 	]);
-	assert.deepEqual(
-		snapshot.issues.map((issue) => issue.code),
-		["pi-entry.handoff.order"],
-	);
-	assert.equal(snapshot.prepared, null);
+	assert.deepEqual(snapshot.issues, []);
+	assert.equal(snapshot.prepared?.handoff.prepared.episode_language, "ko");
 });

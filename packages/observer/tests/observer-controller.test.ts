@@ -46,7 +46,7 @@ import {
 } from "../src/pi-session.ts";
 import { inspectSaveAcknowledgment } from "../src/save-acknowledgment.ts";
 import { OBSERVER_SAVE_SCHEMA } from "../src/save-profile.ts";
-import { wrapTransactionActivePath } from "../src/wrap-transaction.ts";
+import { publicationTransactionActivePath } from "../src/notebook-publication-transaction.ts";
 
 const externalSourceFixture = join(
 	import.meta.dirname,
@@ -79,6 +79,7 @@ class FakePort implements ObserverCommandPort {
 	failMemoAcknowledgmentAppend = false;
 	failMaterialReviewOpenAppend = false;
 	dropMaterialReviewOpenAppend = false;
+	dropOutputLanguageAppend = false;
 
 	branchEntries(): readonly PiBranchEntryLike[] {
 		return this.entries;
@@ -105,6 +106,15 @@ class FakePort implements ObserverCommandPort {
 			this.dropMaterialReviewOpenAppend
 		) {
 			this.dropMaterialReviewOpenAppend = false;
+			return;
+		}
+		if (
+			customType === OBSERVER_LIFECYCLE_ENTRY &&
+			isObject(data) &&
+			data.kind === "output-language-changed" &&
+			this.dropOutputLanguageAppend
+		) {
+			this.dropOutputLanguageAppend = false;
 			return;
 		}
 		if (
@@ -562,7 +572,7 @@ describe("Observer command controller", () => {
 		});
 	});
 
-	test("changes only the next-episode language while a live episode stays fixed", async () => {
+	test("applies output language immediately while preserving the active Episode identity", async () => {
 		await withSandbox(async (sandbox) => {
 			const controller = createObserverController({
 				selectionStore: selectionStore(sandbox),
@@ -580,11 +590,41 @@ describe("Observer command controller", () => {
 			assert.equal(view.control.mode, "on");
 			assert.equal(view.control.episode, "open");
 			assert.equal(view.control.notebookDefaultLanguage, "en");
-			assert.equal(view.episodeLanguage, "ko");
+			assert.equal(view.outputLanguage, "en");
+			assert.equal(
+				port.entries.filter(
+					(entry) =>
+						entry.customType === OBSERVER_LIFECYCLE_ENTRY &&
+						(entry.data as { kind?: string }).kind ===
+							"output-language-changed",
+				).length,
+				1,
+			);
 			assert.match(
 				port.notifications.at(-1)?.message ?? "",
-				/current Episode output remains ko/u,
+				/New work uses it immediately/u,
 			);
+		});
+	});
+
+	test("does not publish a language setting when its live view update is dropped", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "language drop notebook");
+			await controller.command(`setup ko ${root}`, port);
+			await controller.command("on", port);
+			port.dropOutputLanguageAppend = true;
+
+			assert.equal(await controller.updateDefaultLanguage("en", port), false);
+			const opened = requireNotebook(await openNotebook(root));
+			assert.equal(opened.manifest.default_language, "ko");
+			const view = await controller.inspect(port);
+			assert.equal(view.outputLanguage, "ko");
+			assert.equal(view.control.notebookDefaultLanguage, "ko");
 		});
 	});
 
@@ -956,7 +996,7 @@ describe("Observer save acknowledgment inspection", () => {
 			});
 			assert.equal(mixed.status, "mixed");
 
-			await mkdir(wrapTransactionActivePath(root), { recursive: true });
+			await mkdir(publicationTransactionActivePath(root), { recursive: true });
 			const active = await inspectSaveAcknowledgment({
 				notebook: reopenedMixed,
 				prepared: proposal.prepared,

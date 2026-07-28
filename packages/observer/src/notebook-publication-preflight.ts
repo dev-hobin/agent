@@ -18,7 +18,7 @@ export interface InventoryFingerprint {
 	readonly sha256: string;
 }
 
-export interface WrapPublicationEntry {
+export interface NotebookPublicationEntry {
 	readonly operation: "create" | "update";
 	readonly recordId: ObserverRecordId;
 	readonly targetPath: string;
@@ -29,39 +29,39 @@ export interface WrapPublicationEntry {
 	readonly beforeSha256: string | null;
 }
 
-export interface WrapPublicationPlan {
+export interface NotebookPublicationPlan {
 	readonly proposalId: string;
 	readonly notebook: NotebookHandle;
 	readonly snapshot: readonly InventoryFingerprint[];
-	readonly entries: readonly WrapPublicationEntry[];
+	readonly entries: readonly NotebookPublicationEntry[];
 	readonly finalInputs: readonly MarkdownInput[];
 }
 
-export type WrapPreflightIssueCode =
-	| "wrap-preflight.create-collision"
-	| "wrap-preflight.duplicate-id"
-	| "wrap-preflight.final-invalid"
-	| "wrap-preflight.record-invalid"
-	| "wrap-preflight.record-mismatch"
-	| "wrap-preflight.update-missing"
-	| "wrap-preflight.update-stale";
+export type PublicationPreflightIssueCode =
+	| "publication-preflight.create-collision"
+	| "publication-preflight.duplicate-id"
+	| "publication-preflight.final-invalid"
+	| "publication-preflight.record-invalid"
+	| "publication-preflight.record-mismatch"
+	| "publication-preflight.update-missing"
+	| "publication-preflight.update-stale";
 
-export interface WrapPreflightIssue {
-	readonly code: WrapPreflightIssueCode;
+export interface PublicationPreflightIssue {
+	readonly code: PublicationPreflightIssueCode;
 	readonly message: string;
 	readonly recordId?: string;
 	readonly path?: string;
 	readonly diagnostics?: readonly ObserverDiagnostic[];
 }
 
-type WrapPreflightFailure = {
+type PublicationPreflightFailure = {
 	readonly ok: false;
-	readonly issue: WrapPreflightIssue;
+	readonly issue: PublicationPreflightIssue;
 };
 
-export type WrapPreflightResult =
-	| { readonly ok: true; readonly value: WrapPublicationPlan }
-	| WrapPreflightFailure;
+export type PublicationPreflightResult =
+	| { readonly ok: true; readonly value: NotebookPublicationPlan }
+	| PublicationPreflightFailure;
 
 interface ProposedDocument {
 	readonly prepared: PreparedRecord;
@@ -70,14 +70,14 @@ interface ProposedDocument {
 }
 
 function failure(
-	code: WrapPreflightIssueCode,
+	code: PublicationPreflightIssueCode,
 	message: string,
 	input?: {
 		readonly recordId?: string;
 		readonly path?: string;
 		readonly diagnostics?: readonly ObserverDiagnostic[];
 	},
-): WrapPreflightFailure {
+): PublicationPreflightFailure {
 	return {
 		ok: false,
 		issue: {
@@ -94,7 +94,7 @@ function decodeProposedDocuments(
 	records: readonly PreparedRecord[],
 ):
 	| { readonly ok: true; readonly value: readonly ProposedDocument[] }
-	| { readonly ok: false; readonly issue: WrapPreflightIssue } {
+	| { readonly ok: false; readonly issue: PublicationPreflightIssue } {
 	const seen = new Set<string>();
 	const proposed: ProposedDocument[] = [];
 	for (const [index, prepared] of records.entries()) {
@@ -102,7 +102,7 @@ function decodeProposedDocuments(
 			return {
 				ok: false,
 				issue: {
-					code: "wrap-preflight.duplicate-id",
+					code: "publication-preflight.duplicate-id",
 					message: "Prepared save contains a duplicate record ID.",
 					recordId: prepared.record_id,
 				},
@@ -118,7 +118,7 @@ function decodeProposedDocuments(
 			return {
 				ok: false,
 				issue: {
-					code: "wrap-preflight.record-invalid",
+					code: "publication-preflight.record-invalid",
 					message: "Prepared record failed Markdown validation.",
 					recordId: prepared.record_id,
 					path,
@@ -130,7 +130,7 @@ function decodeProposedDocuments(
 			return {
 				ok: false,
 				issue: {
-					code: "wrap-preflight.record-mismatch",
+					code: "publication-preflight.record-mismatch",
 					message: "Prepared record ID differs from decoded Markdown ID.",
 					recordId: prepared.record_id,
 					path,
@@ -160,10 +160,10 @@ function createPublicationEntry(
 	proposed: ProposedDocument,
 	existingById: ReadonlyMap<string, NotebookInventoryEntry>,
 	existingPaths: ReadonlySet<string>,
-): WrapPreflightFailure | WrapPublicationEntry {
+): PublicationPreflightFailure | NotebookPublicationEntry {
 	if (existingById.has(proposed.recordId)) {
 		return failure(
-			"wrap-preflight.create-collision",
+			"publication-preflight.create-collision",
 			"Create record ID already exists in the notebook.",
 			{ recordId: proposed.recordId },
 		);
@@ -171,7 +171,7 @@ function createPublicationEntry(
 	const targetPath = join(notebook.recordsDir, `${proposed.recordId}.md`);
 	if (existingPaths.has(targetPath)) {
 		return failure(
-			"wrap-preflight.create-collision",
+			"publication-preflight.create-collision",
 			"Create record target path already exists.",
 			{ recordId: proposed.recordId, path: targetPath },
 		);
@@ -191,11 +191,11 @@ function createPublicationEntry(
 function updatePublicationEntry(
 	proposed: ProposedDocument,
 	existingById: ReadonlyMap<string, NotebookInventoryEntry>,
-): WrapPreflightFailure | WrapPublicationEntry {
+): PublicationPreflightFailure | NotebookPublicationEntry {
 	const existing = existingById.get(proposed.recordId);
 	if (!existing) {
 		return failure(
-			"wrap-preflight.update-missing",
+			"publication-preflight.update-missing",
 			"Update record does not exist in the notebook.",
 			{ recordId: proposed.recordId },
 		);
@@ -205,7 +205,7 @@ function updatePublicationEntry(
 		existing.sha256 !== proposed.prepared.expected_sha256
 	) {
 		return failure(
-			"wrap-preflight.update-stale",
+			"publication-preflight.update-stale",
 			"Update record exact bytes differ from the approved revision.",
 			{ recordId: proposed.recordId, path: existing.path },
 		);
@@ -223,23 +223,23 @@ function updatePublicationEntry(
 }
 
 function isPreflightFailure(
-	value: WrapPreflightFailure | WrapPublicationEntry,
-): value is WrapPreflightFailure {
+	value: PublicationPreflightFailure | NotebookPublicationEntry,
+): value is PublicationPreflightFailure {
 	return "ok" in value && !value.ok;
 }
 
-export function buildWrapPublicationPlan(
+export function buildNotebookPublicationPlan(
 	notebook: NotebookHandle,
 	inventory: readonly NotebookInventoryEntry[],
 	prepared: PreparedSave,
-): WrapPreflightResult {
+): PublicationPreflightResult {
 	const decoded = decodeProposedDocuments(prepared.records);
 	if (!decoded.ok) return { ok: false, issue: decoded.issue };
 	const existingById = new Map(
 		inventory.map((entry) => [entry.document.record.id, entry]),
 	);
 	const existingPaths = new Set(inventory.map((entry) => entry.path));
-	const entries: WrapPublicationEntry[] = [];
+	const entries: NotebookPublicationEntry[] = [];
 	for (const proposed of decoded.value) {
 		const entry =
 			proposed.prepared.operation === "create"
@@ -273,7 +273,7 @@ export function buildWrapPublicationPlan(
 	const finalValidation = validateObserverNotebook(finalInputs);
 	if (!finalValidation.ok) {
 		return failure(
-			"wrap-preflight.final-invalid",
+			"publication-preflight.final-invalid",
 			"Final notebook graph failed validation.",
 			{ diagnostics: finalValidation.diagnostics },
 		);

@@ -208,7 +208,27 @@ describe("Observer hidden Sidecar context", () => {
 		assert.match(context ?? "", /revise-incubating/u);
 		assert.match(context ?? "", /revise-promotion-candidate/u);
 		assert.match(context ?? "", /Never combine any revise kind/u);
+		assert.doesNotMatch(context ?? "", /final Memo reconciliation/u);
 		assert.doesNotMatch(context ?? "", /<observer-sidecar>/u);
+
+		if (request.kind !== "memo-requested") assert.fail("Expected Memo request");
+		const continuation = event({
+			observer_observation: "observer-observation/v1",
+			kind: "review-save-continuation-requested",
+			episode_id: "episode-prompt-1",
+			memo_request_id: request.requestId,
+			base_save_request_count: 0,
+		});
+		const finalContext = observerSidecarContext([
+			...lifecycle(true),
+			entry(candidate),
+			entry(hypothesis),
+			entry(request),
+			entry(continuation),
+			activation(false),
+		]);
+		assert.match(finalContext ?? "", /final Memo reconciliation/u);
+		assert.match(finalContext ?? "", /continues to the proposal/u);
 	});
 
 	test("projects a pending save request while OFF without exposing locked values", () => {

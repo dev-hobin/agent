@@ -101,12 +101,12 @@ const OBSERVE_ACTION_DESCRIPTIONS: Readonly<Record<string, string>> = {
 	setup: "Create or select a Notebook (absolute or relative path)",
 	status: "Inspect Episode, working set, and Notebook health",
 	on: "Start or resume continuous Sidecar observation",
-	off: "Pause observation while preserving the Episode",
+	off: "Turn Observer Off while preserving the Episode",
 	"add-hypothesis": "Add a hypothesis and review current context through it",
 	material:
 		"Observe supplied or retrieved material without changing Observer Mode",
 	memo: "Reconcile working Memos and Inquiries",
-	save: "Review and save Notebook changes, then settle the Episode",
+	save: "Run Review & Save, then settle the Episode",
 	settings: "Open the Observer control center",
 };
 

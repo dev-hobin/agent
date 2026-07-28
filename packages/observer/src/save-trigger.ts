@@ -493,12 +493,15 @@ function requiredRecords(input: {
 	);
 }
 
-function requestDigest(input: {
-	readonly observation: ObservationSessionSnapshot;
-	readonly memo: MemoSessionSnapshot;
-	readonly inventory: readonly NotebookInventoryEntry[];
-	readonly notebook: NotebookHandle;
-}): string {
+function requestDigest(
+	input: {
+		readonly observation: ObservationSessionSnapshot;
+		readonly memo: MemoSessionSnapshot;
+		readonly inventory: readonly NotebookInventoryEntry[];
+		readonly notebook: NotebookHandle;
+	},
+	lockedLanguage?: "ko" | "en",
+): string {
 	const episode = input.observation.lifecycle.episode;
 	return sha256Text(
 		JSON.stringify({
@@ -508,7 +511,7 @@ function requestDigest(input: {
 					: {
 							episode_id: episode.core.episodeId,
 							notebook_id: episode.core.notebookId,
-							episode_language: episode.core.lang,
+							episode_language: lockedLanguage ?? episode.core.lang,
 						},
 			root: input.notebook.root,
 			memo: input.memo.state,
@@ -574,18 +577,17 @@ export function planSaveRequest(input: {
 			"save-request.state",
 			"Review & Save request requires an open Episode.",
 		);
-	const digest = requestDigest(input);
+	const pending = input.requestSession.pendingRequest;
+	const digest = requestDigest(input, pending?.episodeLanguage);
 	const sourceReadIds = input.observation.sourceReads
 		.map((read) => read.readId)
 		.toSorted((left, right) => left.localeCompare(right));
-	const pending = input.requestSession.pendingRequest;
 	if (pending) {
 		if (
 			pending.requestDigest !== digest ||
 			pending.episodeId !== episode.core.episodeId ||
 			pending.notebookId !== episode.core.notebookId ||
 			pending.root !== input.notebook.root ||
-			pending.episodeLanguage !== episode.core.lang ||
 			pending.memoRevisionId !== input.memo.state.revisionId ||
 			JSON.stringify(pending.sourceReadIds) !== JSON.stringify(sourceReadIds)
 		) {

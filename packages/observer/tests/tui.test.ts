@@ -53,7 +53,7 @@ function statusView(
 		mode: "Off",
 		episode: "Empty",
 		notebook: "Not selected",
-		episodeLanguage: "Not fixed yet",
+		outputLanguage: "Not set",
 		notebookHealth: "Setup required",
 		replayHealth: "Healthy",
 		sessionPersistence: "Persistent session",
@@ -82,7 +82,7 @@ function openView(mode: "on" | "off" = "on"): ObserverStatusView {
 		mode: mode === "on" ? "On" : "Off",
 		episode: "Open",
 		notebook: "/Users/me/notes/observer",
-		episodeLanguage: "ko",
+		outputLanguage: "ko",
 		notebookHealth: "Healthy",
 		pendingMemos: "3",
 		openInquiries: "2",
@@ -290,6 +290,7 @@ test("activation and language update in place without closing the control surfac
 				const next = openView("on");
 				return {
 					...next,
+					outputLanguage: language,
 					control: {
 						...next.control,
 						notebookDefaultLanguage: language,
@@ -381,20 +382,18 @@ test("footer and widget expose only action-relevant ambient state", () => {
 	);
 	assert.equal(shouldShowObserverWidget(active), true);
 	const activeLines = new ObserverWidget(active, theme).render(52);
-	assert.match(activeLines.join("\n"), /observing/);
+	assert.match(activeLines.join("\n"), /Observer · on/);
+	assert.match(activeLines.join("\n"), /on · ko/);
 	assert.match(activeLines.join("\n"), /Memo 3 · Inquiry 2/);
 	assert.ok(activeLines.every((line) => visibleWidth(line) <= 52));
 
-	const paused = openView("off");
+	const off = openView("off");
 	assert.equal(
-		renderObserverChromeStatus(paused, theme),
-		"observer · paused · Episode preserved",
+		renderObserverChromeStatus(off, theme),
+		"observer · off · Episode preserved",
 	);
-	assert.match(
-		new ObserverWidget(paused, theme).render(52).join("\n"),
-		/paused/,
-	);
-	const pendingReview = { ...paused, pendingHypothesisReviews: 1 };
+	assert.match(new ObserverWidget(off, theme).render(52).join("\n"), /off/);
+	const pendingReview = { ...off, pendingHypothesisReviews: 1 };
 	assert.match(
 		new ObserverWidget(pendingReview, theme).render(62).join("\n"),
 		/hypothesis context review pending/u,

@@ -48,11 +48,11 @@ import {
 	type SaveService,
 	type SaveServiceResult,
 } from "../src/save-service.ts";
-import { createWrapService } from "../src/wrap-service.ts";
+import { createNotebookPublicationService } from "../src/notebook-publication-service.ts";
 import type {
-	WrapFaultInjector,
-	WrapFaultPoint,
-} from "../src/wrap-transaction.ts";
+	PublicationFaultInjector,
+	PublicationFaultPoint,
+} from "../src/notebook-publication-transaction.ts";
 
 const baselineRoot = join(
 	import.meta.dirname,
@@ -113,7 +113,7 @@ function applied(state: ObserverState, event: ObserverEvent): ObserverState {
 async function withSandbox(
 	run: (sandbox: string) => Promise<void>,
 ): Promise<void> {
-	const sandbox = await mkdtemp(join(tmpdir(), "observer-wrap-"));
+	const sandbox = await mkdtemp(join(tmpdir(), "observer-publication-"));
 	try {
 		await run(sandbox);
 	} finally {
@@ -130,7 +130,7 @@ async function copyBaseline(root: string): Promise<void> {
 async function prepareReview(
 	sandbox: string,
 	withBaseline: boolean,
-	faultInjector?: WrapFaultInjector,
+	faultInjector?: PublicationFaultInjector,
 ): Promise<ReviewContext> {
 	const root = join(sandbox, "notebook");
 	const selectionStore = fileNotebookSelectionStore(
@@ -148,7 +148,7 @@ async function prepareReview(
 	const episode = requireValue(
 		await notebooks.openEpisode({
 			state: setup.state,
-			episodeId: "episode-wrap-1",
+			episodeId: "episode-publication-1",
 		}),
 	);
 	const state = applied(
@@ -156,7 +156,7 @@ async function prepareReview(
 		requireEvent({
 			protocol: OBSERVER_PROTOCOL,
 			kind: "save-proposed",
-			proposalId: "proposal-wrap-1",
+			proposalId: "proposal-publication-1",
 			summary: "Prepared save",
 		}),
 	);
@@ -166,7 +166,7 @@ async function prepareReview(
 		notebooks,
 		saves: createSaveService({
 			selectionStore,
-			wrapService: createWrapService({ faultInjector }),
+			publicationService: createNotebookPublicationService({ faultInjector }),
 		}),
 		session: episode,
 		state,
@@ -186,7 +186,7 @@ function preparedSave(
 ): unknown {
 	return {
 		observer_save: OBSERVER_SAVE_SCHEMA,
-		proposal_id: input?.proposalId ?? "proposal-wrap-1",
+		proposal_id: input?.proposalId ?? "proposal-publication-1",
 		notebook_id: input?.notebookId ?? context.notebookId,
 		root: input?.root ?? context.root,
 		episode_language: input?.language ?? "en",
@@ -194,7 +194,10 @@ function preparedSave(
 	};
 }
 
-function approval(approved = true, proposalId = "proposal-wrap-1"): unknown {
+function rawApprovalInput(
+	approved = true,
+	proposalId = "proposal-publication-1",
+): unknown {
 	return {
 		observer_approval: OBSERVER_SAVE_APPROVAL_SCHEMA,
 		proposal_id: proposalId,
@@ -328,9 +331,9 @@ async function assertNoActiveTransaction(root: string): Promise<void> {
 }
 
 function throwingFault(
-	selected: WrapFaultPoint,
+	selected: PublicationFaultPoint,
 	action?: (recordId: string | undefined) => Promise<void>,
-): WrapFaultInjector {
+): PublicationFaultInjector {
 	return {
 		async hit(point, recordId): Promise<void> {
 			if (point !== selected) return;
@@ -356,11 +359,11 @@ describe("Observer save profile", () => {
 			records: [],
 		});
 		assert.equal(prepared.ok, true);
-		const accepted = decodeSaveApproval(approval());
+		const accepted = decodeSaveApproval(rawApprovalInput());
 		assert.equal(accepted.ok, true);
 		if (!accepted.ok) assert.fail("Expected approval");
 		assert.equal(accepted.value.approved, true);
-		const declined = decodeSaveApproval(approval(false));
+		const declined = decodeSaveApproval(rawApprovalInput(false));
 		assert.equal(declined.ok, true);
 	});
 
@@ -399,12 +402,12 @@ describe("Observer save profile", () => {
 			{ observer_approval: "observer-save-approval/v2" },
 			{
 				observer_approval: OBSERVER_SAVE_APPROVAL_SCHEMA,
-				proposal_id: "proposal-wrap-1",
+				proposal_id: "proposal-publication-1",
 				approved: "yes",
 			},
 			{
 				observer_approval: OBSERVER_SAVE_APPROVAL_SCHEMA,
-				proposal_id: "proposal-wrap-1",
+				proposal_id: "proposal-publication-1",
 				approved: true,
 				extra: true,
 			},
@@ -423,7 +426,7 @@ describe("Observer durable save persistence", () => {
 				await context.saves.commit({
 					state: context.state,
 					prepared: preparedSave(context, [createRecord(SOURCE_NEW, markdown)]),
-					approval: approval(),
+					approval: rawApprovalInput(),
 				}),
 			);
 			assert.equal(result.state.mode, "off");
@@ -460,7 +463,7 @@ describe("Observer durable save persistence", () => {
 						createRecord(ZETTEL_NEW, zettel),
 						updateRecord(MEMO_ONE, memo.sha256, memo.content),
 					]),
-					approval: approval(),
+					approval: rawApprovalInput(),
 				}),
 			);
 			assert.deepEqual(
@@ -486,11 +489,26 @@ describe("Observer durable save persistence", () => {
 				await context.saves.commit({
 					state: context.state,
 					prepared: preparedSave(context, []),
-					approval: approval(),
+					approval: rawApprovalInput(),
 				}),
 			);
 			assert.deepEqual(result.receipt.records, []);
 			assert.deepEqual(await inventoryContents(context.root), before);
+			assert.equal(result.state.episode.status, "settled");
+		});
+	});
+
+	test("allows approved prepared work to keep its locked output language", async () => {
+		await withSandbox(async (sandbox) => {
+			const context = await prepareReview(sandbox, true);
+			const result = requireSaveSuccess(
+				await context.saves.commit({
+					state: context.state,
+					prepared: preparedSave(context, [], { language: "ko" }),
+					approval: rawApprovalInput(),
+				}),
+			);
+			assert.deepEqual(result.receipt.records, []);
 			assert.equal(result.state.episode.status, "settled");
 		});
 	});
@@ -502,36 +520,31 @@ describe("Observer durable save persistence", () => {
 			const cases = [
 				{
 					prepared: preparedSave(context, []),
-					approval: approval(false),
+					approval: rawApprovalInput(false),
 					code: "save.declined",
 				},
 				{
 					prepared: preparedSave(context, []),
-					approval: approval(true, "proposal-stale"),
+					approval: rawApprovalInput(true, "proposal-stale"),
 					code: "save.lifecycle",
 				},
 				{
 					prepared: preparedSave(context, [], {
 						proposalId: "proposal-stale",
 					}),
-					approval: approval(true, "proposal-stale"),
+					approval: rawApprovalInput(true, "proposal-stale"),
 					code: "save.lifecycle",
 				},
 				{
 					prepared: preparedSave(context, [], {
 						notebookId: "notebook-00000000-0000-4000-8000-999999999999",
 					}),
-					approval: approval(),
+					approval: rawApprovalInput(),
 					code: "save.target-mismatch",
 				},
 				{
 					prepared: preparedSave(context, [], { root: join(sandbox, "other") }),
-					approval: approval(),
-					code: "save.target-mismatch",
-				},
-				{
-					prepared: preparedSave(context, [], { language: "ko" }),
-					approval: approval(),
+					approval: rawApprovalInput(),
 					code: "save.target-mismatch",
 				},
 			];
@@ -583,7 +596,7 @@ describe("Observer durable save persistence", () => {
 				const result = await context.saves.commit({
 					state: context.state,
 					prepared: preparedSave(context, records),
-					approval: approval(),
+					approval: rawApprovalInput(),
 				});
 				assert.equal(result.ok, false);
 				if (result.ok) assert.fail("Expected preflight rejection");
@@ -601,7 +614,7 @@ describe("Observer durable save persistence", () => {
 			"before-publish",
 			"after-publish",
 			"before-readback",
-		] satisfies readonly WrapFaultPoint[]) {
+		] satisfies readonly PublicationFaultPoint[]) {
 			await withSandbox(async (sandbox) => {
 				const context = await prepareReview(
 					sandbox,
@@ -616,7 +629,7 @@ describe("Observer durable save persistence", () => {
 						updateRecord(MEMO_ONE, memo.sha256, memo.content),
 						createRecord(ZETTEL_NEW, promotedZettel()),
 					]),
-					approval: approval(),
+					approval: rawApprovalInput(),
 				});
 				assert.equal(result.ok, false);
 				if (result.ok) assert.fail("Expected injected failure");
@@ -647,7 +660,7 @@ describe("Observer durable save persistence", () => {
 				prepared: preparedSave(context, [
 					updateRecord(MEMO_ONE, memo.sha256, memo.content),
 				]),
-				approval: approval(),
+				approval: rawApprovalInput(),
 			});
 			assert.equal(result.ok, false);
 			if (result.ok) assert.fail("Expected drift rejection");
@@ -673,7 +686,7 @@ describe("Observer durable save persistence", () => {
 				prepared: preparedSave(context, [
 					updateRecord(MEMO_ONE, memo.sha256, memo.content),
 				]),
-				approval: approval(),
+				approval: rawApprovalInput(),
 			});
 			assert.equal(result.ok, false);
 			if (result.ok) assert.fail("Expected recovery-required failure");
@@ -695,7 +708,7 @@ describe("Observer durable save persistence", () => {
 			const blocked = await context.saves.commit({
 				state: context.state,
 				prepared: preparedSave(context, [createRecord(SOURCE_NEW, markdown)]),
-				approval: approval(),
+				approval: rawApprovalInput(),
 			});
 			assert.equal(blocked.ok, false);
 			if (blocked.ok) assert.fail("Expected active transaction rejection");
@@ -712,14 +725,14 @@ describe("Observer durable save persistence", () => {
 				await context.saves.commit({
 					state: context.state,
 					prepared,
-					approval: approval(),
+					approval: rawApprovalInput(),
 				}),
 			);
 			const beforeDuplicate = await inventoryContents(context.root);
 			const duplicate = await context.saves.commit({
 				state: success.state,
 				prepared,
-				approval: approval(),
+				approval: rawApprovalInput(),
 			});
 			assert.equal(duplicate.ok, false);
 			if (duplicate.ok) assert.fail("Expected duplicate commit rejection");

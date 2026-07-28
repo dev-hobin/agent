@@ -7,82 +7,84 @@ import {
 } from "./notebook.ts";
 import type { PreparedSave } from "./save-profile.ts";
 import {
-	buildWrapPublicationPlan,
-	type WrapPreflightIssue,
-	type WrapPreflightIssueCode,
-	type WrapPublicationPlan,
-} from "./wrap-preflight.ts";
+	buildNotebookPublicationPlan,
+	type PublicationPreflightIssue,
+	type PublicationPreflightIssueCode,
+	type NotebookPublicationPlan,
+} from "./notebook-publication-preflight.ts";
 import {
-	executeWrapTransaction,
-	inspectWrapTransactionActivity,
-	type WrapFaultInjector,
-	type WrapTransactionActivity,
-	type WrapTransactionIssue,
-	type WrapTransactionIssueCode,
-	type WrapTransactionVerification,
-} from "./wrap-transaction.ts";
+	executePublicationTransaction,
+	inspectPublicationTransactionActivity,
+	type PublicationFaultInjector,
+	type PublicationTransactionActivity,
+	type PublicationTransactionIssue,
+	type PublicationTransactionIssueCode,
+	type PublicationTransactionVerification,
+} from "./notebook-publication-transaction.ts";
 
-export interface PreparedWrap {
-	readonly plan: WrapPublicationPlan;
+export interface PreparedPublication {
+	readonly plan: NotebookPublicationPlan;
 	readonly recordIds: readonly string[];
 }
 
-export interface WrappedRecord {
+export interface PublishedRecord {
 	readonly operation: "create" | "update";
 	readonly recordId: string;
 	readonly relativePath: string;
 	readonly sha256: string;
 }
 
-export interface WrapCommit {
+export interface PublicationCommit {
 	readonly receiptId: `receipt-${string}`;
 	readonly proposalId: string;
 	readonly notebook: NotebookHandle;
-	readonly records: readonly WrappedRecord[];
+	readonly records: readonly PublishedRecord[];
 }
 
-export type WrapServiceIssueCode =
-	| WrapPreflightIssueCode
-	| WrapTransactionIssueCode;
+export type NotebookPublicationIssueCode =
+	| PublicationPreflightIssueCode
+	| PublicationTransactionIssueCode;
 
-export interface WrapServiceIssue {
-	readonly code: WrapServiceIssueCode;
+export interface NotebookPublicationIssue {
+	readonly code: NotebookPublicationIssueCode;
 	readonly message: string;
 	readonly recoveryRequired: boolean;
 	readonly path?: string;
 	readonly recordId?: string;
-	readonly diagnostics?: WrapPreflightIssue["diagnostics"];
+	readonly diagnostics?: PublicationPreflightIssue["diagnostics"];
 }
 
-export type WrapPreparationResult =
-	| { readonly ok: true; readonly value: PreparedWrap }
-	| { readonly ok: false; readonly issue: WrapServiceIssue };
+export type PublicationPreparationResult =
+	| { readonly ok: true; readonly value: PreparedPublication }
+	| { readonly ok: false; readonly issue: NotebookPublicationIssue };
 
-export type WrapCommitResult =
-	| { readonly ok: true; readonly value: WrapCommit }
-	| { readonly ok: false; readonly issue: WrapServiceIssue };
+export type PublicationCommitResult =
+	| { readonly ok: true; readonly value: PublicationCommit }
+	| { readonly ok: false; readonly issue: NotebookPublicationIssue };
 
-export type WrapActivity = WrapTransactionActivity;
+export type PublicationActivity = PublicationTransactionActivity;
 
-export interface WrapService {
+export interface NotebookPublicationService {
 	prepare(input: {
 		readonly notebook: NotebookHandle;
 		readonly inventory: readonly NotebookInventoryEntry[];
 		readonly save: PreparedSave;
-	}): WrapPreparationResult;
+	}): PublicationPreparationResult;
 	commit(input: {
-		readonly prepared: PreparedWrap;
+		readonly prepared: PreparedPublication;
 		readonly receiptId: `receipt-${string}`;
-	}): Promise<WrapCommitResult>;
+	}): Promise<PublicationCommitResult>;
 }
 
-export function inspectWrapActivity(
+export function inspectPublicationActivity(
 	notebookRoot: string,
-): Promise<WrapActivity> {
-	return inspectWrapTransactionActivity(notebookRoot);
+): Promise<PublicationActivity> {
+	return inspectPublicationTransactionActivity(notebookRoot);
 }
 
-function preflightFailure(issue: WrapPreflightIssue): WrapPreparationResult {
+function publicationPreflightFailure(
+	issue: PublicationPreflightIssue,
+): PublicationPreparationResult {
 	return {
 		ok: false,
 		issue: {
@@ -96,7 +98,9 @@ function preflightFailure(issue: WrapPreflightIssue): WrapPreparationResult {
 	};
 }
 
-function transactionFailure(issue: WrapTransactionIssue): WrapCommitResult {
+function publicationTransactionFailure(
+	issue: PublicationTransactionIssue,
+): PublicationCommitResult {
 	return {
 		ok: false,
 		issue: {
@@ -109,7 +113,7 @@ function transactionFailure(issue: WrapTransactionIssue): WrapCommitResult {
 }
 
 function finalInventoryMatches(
-	plan: WrapPublicationPlan,
+	plan: NotebookPublicationPlan,
 	actual: Awaited<ReturnType<typeof readNotebookInventory>>,
 ): boolean {
 	if (!actual.ok || actual.value.length !== plan.finalInputs.length)
@@ -123,10 +127,10 @@ function finalInventoryMatches(
 	});
 }
 
-async function verifyWrapReadback(
-	plan: WrapPublicationPlan,
+async function verifyPublicationReadback(
+	plan: NotebookPublicationPlan,
 	receiptId: `receipt-${string}`,
-): Promise<WrapTransactionVerification<WrapCommit>> {
+): Promise<PublicationTransactionVerification<PublicationCommit>> {
 	const opened = await openNotebook(plan.notebook.root);
 	if (!opened.ok) {
 		return {
@@ -138,7 +142,7 @@ async function verifyWrapReadback(
 	if (!finalInventoryMatches(plan, inventory)) {
 		return {
 			ok: false,
-			message: "Fresh notebook inventory differs from the wrap plan.",
+			message: "Fresh notebook inventory differs from the publication plan.",
 		};
 	}
 	if (!inventory.ok) return { ok: false, message: inventory.issue.message };
@@ -157,12 +161,12 @@ async function verifyWrapReadback(
 			recordId: entry.recordId,
 			relativePath: entry.relativePath,
 			sha256: entry.nextSha256,
-		} satisfies WrappedRecord;
+		} satisfies PublishedRecord;
 	});
 	if (records.some((record) => record === null)) {
 		return {
 			ok: false,
-			message: "Wrapped record receipt does not match fresh record bytes.",
+			message: "Published record receipt does not match fresh record bytes.",
 		};
 	}
 	return {
@@ -176,17 +180,17 @@ async function verifyWrapReadback(
 	};
 }
 
-function prepareWrap(input: {
+function preparePublication(input: {
 	readonly notebook: NotebookHandle;
 	readonly inventory: readonly NotebookInventoryEntry[];
 	readonly save: PreparedSave;
-}): WrapPreparationResult {
-	const plan = buildWrapPublicationPlan(
+}): PublicationPreparationResult {
+	const plan = buildNotebookPublicationPlan(
 		input.notebook,
 		input.inventory,
 		input.save,
 	);
-	if (!plan.ok) return preflightFailure(plan.issue);
+	if (!plan.ok) return publicationPreflightFailure(plan.issue);
 	return {
 		ok: true,
 		value: {
@@ -196,27 +200,30 @@ function prepareWrap(input: {
 	};
 }
 
-async function commitWrap(
-	faultInjector: WrapFaultInjector | undefined,
+async function commitPublication(
+	faultInjector: PublicationFaultInjector | undefined,
 	input: {
-		readonly prepared: PreparedWrap;
+		readonly prepared: PreparedPublication;
 		readonly receiptId: `receipt-${string}`;
 	},
-): Promise<WrapCommitResult> {
-	const transaction = await executeWrapTransaction({
+): Promise<PublicationCommitResult> {
+	const transaction = await executePublicationTransaction({
 		plan: input.prepared.plan,
 		faultInjector,
 		verifyReadback: () =>
-			verifyWrapReadback(input.prepared.plan, input.receiptId),
+			verifyPublicationReadback(input.prepared.plan, input.receiptId),
 	});
-	return transaction.ok ? transaction : transactionFailure(transaction.issue);
+	return transaction.ok
+		? transaction
+		: publicationTransactionFailure(transaction.issue);
 }
 
-export function createWrapService(input?: {
-	readonly faultInjector?: WrapFaultInjector;
-}): WrapService {
+export function createNotebookPublicationService(input?: {
+	readonly faultInjector?: PublicationFaultInjector;
+}): NotebookPublicationService {
 	return {
-		prepare: prepareWrap,
-		commit: (commitInput) => commitWrap(input?.faultInjector, commitInput),
+		prepare: preparePublication,
+		commit: (commitInput) =>
+			commitPublication(input?.faultInjector, commitInput),
 	};
 }

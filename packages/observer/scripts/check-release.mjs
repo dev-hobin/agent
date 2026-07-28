@@ -45,10 +45,11 @@ const EXPECTED_FILES = [
 	"src/pi-session.ts",
 	"src/standing-index.ts",
 	"src/save-acknowledgment.ts",
-	"src/wrap-preflight.ts",
+	"src/notebook-publication-preflight.ts",
+	"src/notebook-publication-service.ts",
 	"src/save-profile.ts",
 	"src/save-service.ts",
-	"src/wrap-transaction.ts",
+	"src/notebook-publication-transaction.ts",
 	"src/save-trigger.ts",
 ];
 

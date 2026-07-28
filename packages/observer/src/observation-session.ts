@@ -21,6 +21,7 @@ import {
 	type ObservationEvent,
 	type ObservationId,
 	type ObservationMemoRequestedEvent,
+	type ReviewSaveContinuationRequestedEvent,
 	type SemanticObservationRecordedEvent,
 	type SourceReadId,
 	type SourceReadRecordedEvent,
@@ -71,6 +72,7 @@ export interface ObservationSessionSnapshot {
 	readonly pendingHypothesisReviews: readonly UserHypothesisRecordedEvent[];
 	readonly memoRequests: readonly ObservationMemoRequestedEvent[];
 	readonly pendingMemoRequest: ObservationMemoRequestedEvent | null;
+	readonly reviewSaveContinuations: readonly ReviewSaveContinuationRequestedEvent[];
 	readonly pendingHypotheses: readonly PendingObservationHypothesis[];
 	readonly consumedObservationIds: readonly ObservationId[];
 	readonly unconsumedObservationIds: readonly ObservationId[];
@@ -106,6 +108,8 @@ function eventIdentity(event: ObservationEvent): string {
 			return `hypothesis-review:${event.hypothesisObservationId}`;
 		case "memo-requested":
 			return event.requestId;
+		case "review-save-continuation-requested":
+			return `review-save-continuation:${event.memoRequestId}`;
 		default:
 			return assertNever(event);
 	}
@@ -511,6 +515,37 @@ function applyMemoRequest(input: {
 	input.memoRequests.set(input.event.requestId, input.event);
 }
 
+function applyReviewSaveContinuation(input: {
+	readonly event: ReviewSaveContinuationRequestedEvent;
+	readonly index: number;
+	readonly lifecycle: ObserverState;
+	readonly memoRequests: ReadonlyMap<
+		MemoRequestId,
+		ObservationMemoRequestedEvent
+	>;
+	readonly continuations: Map<
+		MemoRequestId,
+		ReviewSaveContinuationRequestedEvent
+	>;
+	readonly issues: ObservationSessionIssue[];
+}): void {
+	const request = input.memoRequests.get(input.event.memoRequestId);
+	if (
+		!request ||
+		!hasLiveEpisode(input.lifecycle, input.event.episodeId, false) ||
+		request.episodeId !== input.event.episodeId
+	) {
+		issue(
+			input.issues,
+			input.index,
+			"observation-session.order",
+			"Review & Save continuation requires its exact preceding Memo request.",
+		);
+		return;
+	}
+	input.continuations.set(input.event.memoRequestId, input.event);
+}
+
 function sortById<Value>(
 	values: Iterable<Value>,
 	id: (value: Value) => string,
@@ -567,6 +602,10 @@ export function reconstructObservationSession(
 		HypothesisContextReviewedEvent
 	>();
 	const memoRequests = new Map<MemoRequestId, ObservationMemoRequestedEvent>();
+	const reviewSaveContinuations = new Map<
+		MemoRequestId,
+		ReviewSaveContinuationRequestedEvent
+	>();
 	const requestIndices = new Map<MemoRequestId, number>();
 	const usedCandidateIds = new Set<CandidateId>();
 	const observedReadIds = new Set<SourceReadId>();
@@ -721,6 +760,16 @@ export function reconstructObservationSession(
 					issues,
 				});
 				break;
+			case "review-save-continuation-requested":
+				applyReviewSaveContinuation({
+					event: decoded.value,
+					index,
+					lifecycle,
+					memoRequests,
+					continuations: reviewSaveContinuations,
+					issues,
+				});
+				break;
 			default:
 				assertNever(decoded.value);
 		}
@@ -818,7 +867,7 @@ export function reconstructObservationSession(
 
 	return {
 		lifecycle,
-		candidates: sortById(candidates.values(), (value) => value.candidateId),
+		candidates: [...candidates.values()],
 		sourceReads: sortById(sourceReads.values(), (value) => value.readId),
 		hydrations: sortById(hydrations.values(), (value) => value.hydrationId),
 		observations: observationValues,
@@ -832,6 +881,10 @@ export function reconstructObservationSession(
 		),
 		memoRequests: sortById(memoRequests.values(), (value) => value.requestId),
 		pendingMemoRequest: pendingMemoRequests[0] ?? null,
+		reviewSaveContinuations: sortById(
+			reviewSaveContinuations.values(),
+			(value) => value.memoRequestId,
+		),
 		pendingHypotheses,
 		consumedObservationIds: [...consumedObservationIds].toSorted(
 			(left, right) => left.localeCompare(right),

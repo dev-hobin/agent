@@ -126,7 +126,7 @@ function activationDescription(view: ObserverStatusView): string {
 	if (view.control.mode === "on")
 		return "Quietly observing material and conversation · only material changes are surfaced";
 	if (view.control.episode === "open")
-		return "Observation is paused while the open Episode and working state are preserved";
+		return "Observer is Off · the open Episode and working state remain available";
 	return "Start continuous Sidecar observation";
 }
 
@@ -156,10 +156,7 @@ export function observerControlItems(
 			? { submenu: languageSubmenu }
 			: { values: ["en", "ko"] }),
 		description:
-			view.control.episode === "open" ||
-			view.control.episode === "reviewing-save"
-				? `Memo and Zettel Markdown use this for the next Episode · the current Episode remains ${view.episodeLanguage}`
-				: "Language used when Observer writes Memo and Zettel Markdown · does not change the UI language",
+			"Memo and Zettel Markdown use this immediately for new work · prepared work keeps its locked language · does not change the UI language",
 	};
 	const activation: SettingItem = {
 		id: "activation",
@@ -242,13 +239,13 @@ export function observerNextStep(view: ObserverStatusView): string {
 	if (view.control.notebook === "unselected")
 		return "Connect a Notebook, then turn Observer on.";
 	if (view.control.episode === "reviewing-save")
-		return "Review the save proposal, then approve or cancel it.";
+		return "Inspect the Review & Save proposal, then approve or cancel it.";
 	if (view.pendingHypothesisReviews > 0)
 		return `Review the current context through ${view.pendingHypothesisReviews} ${view.pendingHypothesisReviews === 1 ? "added hypothesis" : "added hypotheses"} before Memo reconciliation.`;
 	if (view.control.mode === "on")
-		return "Keep working normally. Add hypotheses, reconcile with Memo, then review and save when ready.";
+		return "Keep working normally. Add hypotheses, reconcile with Memo, then run Review & Save when ready.";
 	if (view.control.episode === "open")
-		return "Your open work is preserved. Resume observation, add a hypothesis, or review and save.";
+		return "Your open work is preserved. Resume observation, add a hypothesis, or run Review & Save.";
 	return "Turn Observer on, add a hypothesis, or observe material on demand.";
 }
 
@@ -564,7 +561,7 @@ export class ObserverStatusPanel {
 			this.view.control.mode === "on" ? "success" : "dim",
 		);
 		add("Episode", this.view.episode, "text");
-		add("Output language", this.view.episodeLanguage);
+		add("Output language", this.view.outputLanguage);
 		add("Next", observerNextStep(this.view), "accent", 4);
 
 		rows.push(row());
@@ -591,7 +588,7 @@ export class ObserverStatusPanel {
 			this.view.preparedMemo === "None" ? "None" : "Prepared",
 		);
 		add(
-			"Save proposal",
+			"Review & Save proposal",
 			this.view.preparedSave === "None" ? "None" : "Ready for review",
 		);
 
@@ -670,11 +667,11 @@ export function renderObserverChromeStatus(
 		return (
 			theme.fg("accent", "observer") +
 			separator +
-			theme.fg("warning", "paused") +
+			theme.fg("muted", "off") +
 			separator +
 			theme.fg("muted", "Episode preserved")
 		);
-	return theme.fg("dim", "observer · ready");
+	return theme.fg("dim", "observer · off");
 }
 
 export function shouldShowObserverWidget(view: ObserverStatusView): boolean {
@@ -706,7 +703,10 @@ export class ObserverWidget {
 			lines.push(this.theme.fg("dim", "  /observe → Status and health"));
 		} else if (this.view.control.episode === "reviewing-save") {
 			lines.push(
-				this.theme.fg("warning", "! Observer · save proposal awaiting review"),
+				this.theme.fg(
+					"warning",
+					"! Observer · Review & Save proposal awaiting review",
+				),
 			);
 			lines.push(
 				this.theme.fg("dim", "  /observe → Review & Save → approve or cancel"),
@@ -726,8 +726,8 @@ export class ObserverWidget {
 			);
 		} else if (this.view.control.mode === "on") {
 			lines.push(
-				this.theme.fg("success", "◆ Observer · observing") +
-					this.theme.fg("dim", ` · ${this.view.episodeLanguage}`),
+				this.theme.fg("success", "◆ Observer · on") +
+					this.theme.fg("dim", ` · ${this.view.outputLanguage}`),
 			);
 			lines.push(
 				this.theme.fg(
@@ -736,11 +736,11 @@ export class ObserverWidget {
 				),
 			);
 		} else {
-			lines.push(this.theme.fg("warning", "◇ Observer · paused"));
+			lines.push(this.theme.fg("muted", "◇ Observer · off"));
 			lines.push(
 				this.theme.fg(
 					"dim",
-					"  Open Episode preserved · use /observe to resume, Memo, or Review & Save",
+					"  Open Episode preserved · use /observe to turn On, Memo, or Review & Save",
 				),
 			);
 		}

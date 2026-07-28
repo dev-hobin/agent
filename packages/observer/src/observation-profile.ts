@@ -18,7 +18,8 @@ const OBSERVATION_EVENT_MARKER = Symbol("observer.observation-event");
 const UUID_V4 =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const BCP47 = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/u;
-const MAX_TEXT = 20_000;
+export const MAX_OBSERVATION_TEXT_LENGTH = 20_000;
+const MAX_TEXT = MAX_OBSERVATION_TEXT_LENGTH;
 const MAX_ITEMS = 1_000;
 
 export type CandidateId = `candidate-${string}`;
@@ -180,6 +181,13 @@ export interface ObservationMemoRequestedEvent extends ObservationEventBase {
 	readonly requestDigest: string;
 }
 
+export interface ReviewSaveContinuationRequestedEvent
+	extends ObservationEventBase {
+	readonly kind: "review-save-continuation-requested";
+	readonly memoRequestId: MemoRequestId;
+	readonly baseSaveRequestCount: number;
+}
+
 export type MemoRequestObservation =
 	| SemanticObservationRecordedEvent
 	| UserHypothesisRecordedEvent;
@@ -213,7 +221,8 @@ export type ObservationEvent =
 	| SemanticObservationRecordedEvent
 	| UserHypothesisRecordedEvent
 	| HypothesisContextReviewedEvent
-	| ObservationMemoRequestedEvent;
+	| ObservationMemoRequestedEvent
+	| ReviewSaveContinuationRequestedEvent;
 
 export type ObservationProfileIssueCode =
 	| "observation-profile.digest"
@@ -669,6 +678,26 @@ function finishMemoRequest(
 	>,
 ): EventResult<ObservationMemoRequestedEvent> {
 	const temporary: ObservationMemoRequestedEvent = {
+		...value,
+		digest: "",
+		[OBSERVATION_EVENT_MARKER]: true,
+	};
+	return {
+		ok: true,
+		value: {
+			...temporary,
+			digest: sha256Text(JSON.stringify(eventPayload(temporary))),
+		},
+	};
+}
+
+function finishReviewSaveContinuation(
+	value: Omit<
+		ReviewSaveContinuationRequestedEvent,
+		typeof OBSERVATION_EVENT_MARKER | "digest"
+	>,
+): EventResult<ReviewSaveContinuationRequestedEvent> {
+	const temporary: ReviewSaveContinuationRequestedEvent = {
 		...value,
 		digest: "",
 		[OBSERVATION_EVENT_MARKER]: true,
@@ -1167,6 +1196,43 @@ function parseMemoRequest(
 	});
 }
 
+function parseReviewSaveContinuation(
+	value: Readonly<Record<string, unknown>>,
+	persisted: boolean,
+): EventResult<ReviewSaveContinuationRequestedEvent> {
+	if (
+		!hasExactKeys(
+			value,
+			baseKeys(["memo_request_id", "base_save_request_count"], persisted),
+		)
+	)
+		return failure(
+			"observation-profile.shape",
+			"/",
+			"Review & Save continuation has invalid fields.",
+		);
+	const episodeId = boundedText(value.episode_id, 300);
+	const memoRequestId = decodeMemoRequestId(value.memo_request_id);
+	if (
+		!episodeId ||
+		!memoRequestId ||
+		!Number.isSafeInteger(value.base_save_request_count) ||
+		Number(value.base_save_request_count) < 0
+	)
+		return failure(
+			"observation-profile.shape",
+			"/",
+			"Review & Save continuation has invalid values.",
+		);
+	return finishReviewSaveContinuation({
+		protocol: OBSERVER_OBSERVATION_PROTOCOL,
+		kind: "review-save-continuation-requested",
+		episodeId,
+		memoRequestId,
+		baseSaveRequestCount: Number(value.base_save_request_count),
+	});
+}
+
 function parseEvent(
 	value: unknown,
 	persisted: boolean,
@@ -1208,6 +1274,9 @@ function parseEvent(
 			break;
 		case "memo-requested":
 			parsed = parseMemoRequest(value, persisted);
+			break;
+		case "review-save-continuation-requested":
+			parsed = parseReviewSaveContinuation(value, persisted);
 			break;
 		default:
 			return failure(
@@ -1374,6 +1443,14 @@ function eventPayload(event: ObservationEvent): Record<string, unknown> {
 				base_memo_revision_id: event.baseMemoRevisionId,
 				observation_ids: event.observationIds,
 				request_digest: event.requestDigest,
+			};
+		case "review-save-continuation-requested":
+			return {
+				observer_observation: event.protocol,
+				kind: event.kind,
+				episode_id: event.episodeId,
+				memo_request_id: event.memoRequestId,
+				base_save_request_count: event.baseSaveRequestCount,
 			};
 		default:
 			return assertNever(event);

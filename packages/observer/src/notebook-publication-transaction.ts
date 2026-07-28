@@ -17,62 +17,62 @@ import {
 } from "./notebook.ts";
 import type {
 	InventoryFingerprint,
-	WrapPublicationEntry,
-	WrapPublicationPlan,
-} from "./wrap-preflight.ts";
+	NotebookPublicationEntry,
+	NotebookPublicationPlan,
+} from "./notebook-publication-preflight.ts";
 
-export type WrapFaultPoint =
+export type PublicationFaultPoint =
 	| "after-stage"
 	| "before-drift-check"
 	| "before-publish"
 	| "after-publish"
 	| "before-readback";
 
-export interface WrapFaultInjector {
-	hit(point: WrapFaultPoint, recordId?: string): Promise<void>;
+export interface PublicationFaultInjector {
+	hit(point: PublicationFaultPoint, recordId?: string): Promise<void>;
 }
 
-export type WrapTransactionIssueCode =
-	| "wrap-transaction.active"
-	| "wrap-transaction.cleanup"
-	| "wrap-transaction.drift"
-	| "wrap-transaction.publish"
-	| "wrap-transaction.readback"
-	| "wrap-transaction.rollback"
-	| "wrap-transaction.stage";
+export type PublicationTransactionIssueCode =
+	| "publication-transaction.active"
+	| "publication-transaction.cleanup"
+	| "publication-transaction.drift"
+	| "publication-transaction.publish"
+	| "publication-transaction.readback"
+	| "publication-transaction.rollback"
+	| "publication-transaction.stage";
 
-export interface WrapTransactionIssue {
-	readonly code: WrapTransactionIssueCode;
+export interface PublicationTransactionIssue {
+	readonly code: PublicationTransactionIssueCode;
 	readonly message: string;
 	readonly recoveryRequired: boolean;
 	readonly recordId?: string;
 }
 
-export type WrapTransactionActivity =
+export type PublicationTransactionActivity =
 	| { readonly status: "inactive" }
 	| { readonly status: "active" }
 	| { readonly status: "unknown"; readonly message: string };
 
-export type WrapTransactionVerification<Value> =
+export type PublicationTransactionVerification<Value> =
 	| { readonly ok: true; readonly value: Value }
 	| { readonly ok: false; readonly message: string };
 
-export type WrapTransactionResult<Value> =
+export type PublicationTransactionResult<Value> =
 	| { readonly ok: true; readonly value: Value }
-	| { readonly ok: false; readonly issue: WrapTransactionIssue };
+	| { readonly ok: false; readonly issue: PublicationTransactionIssue };
 
 interface StagedEntry {
-	readonly entry: WrapPublicationEntry;
+	readonly entry: NotebookPublicationEntry;
 	readonly stagedPath: string;
 	readonly beforePath: string | null;
 }
 
 interface FailureContext {
-	code: WrapTransactionIssueCode;
+	code: PublicationTransactionIssueCode;
 	recordId?: string;
 }
 
-export function wrapTransactionActivePath(notebookRoot: string): string {
+export function publicationTransactionActivePath(notebookRoot: string): string {
 	return join(
 		notebookRoot,
 		OBSERVER_MANIFEST_DIRECTORY,
@@ -81,10 +81,10 @@ export function wrapTransactionActivePath(notebookRoot: string): string {
 	);
 }
 
-export async function inspectWrapTransactionActivity(
+export async function inspectPublicationTransactionActivity(
 	notebookRoot: string,
-): Promise<WrapTransactionActivity> {
-	const activePath = wrapTransactionActivePath(notebookRoot);
+): Promise<PublicationTransactionActivity> {
+	const activePath = publicationTransactionActivePath(notebookRoot);
 	try {
 		await lstat(activePath);
 		return { status: "active" };
@@ -117,8 +117,8 @@ function message(error: unknown, fallback: string): string {
 }
 
 async function hit(
-	injector: WrapFaultInjector | undefined,
-	point: WrapFaultPoint,
+	injector: PublicationFaultInjector | undefined,
+	point: PublicationFaultPoint,
 	recordId?: string,
 ): Promise<void> {
 	if (injector) await injector.hit(point, recordId);
@@ -171,7 +171,7 @@ function inventoryFingerprint(
 async function writeTransactionFiles(
 	activePath: string,
 	transactionId: string,
-	plan: WrapPublicationPlan,
+	plan: NotebookPublicationPlan,
 ): Promise<readonly StagedEntry[]> {
 	const stagedRoot = join(activePath, "staged");
 	const beforeRoot = join(activePath, "before");
@@ -196,7 +196,7 @@ async function writeTransactionFiles(
 		staged.push({ entry, stagedPath, beforePath });
 	});
 	const journal = {
-		observer_transaction: "observer-wrap-transaction/v1",
+		observer_transaction: "observer-notebook-publication/v1",
 		transaction_id: transactionId,
 		proposal_id: plan.proposalId,
 		records: plan.entries.map((entry) => ({
@@ -215,7 +215,7 @@ async function writeTransactionFiles(
 	return staged;
 }
 
-async function verifySnapshot(plan: WrapPublicationPlan): Promise<boolean> {
+async function verifySnapshot(plan: NotebookPublicationPlan): Promise<boolean> {
 	const current = inventoryFingerprint(
 		await readNotebookInventory(plan.notebook),
 	);
@@ -234,7 +234,7 @@ async function publishEntry(staged: StagedEntry): Promise<void> {
 	await atomicReplaceTextFile(staged.entry.targetPath, content);
 }
 
-async function rollbackEntry(entry: WrapPublicationEntry): Promise<void> {
+async function rollbackEntry(entry: NotebookPublicationEntry): Promise<void> {
 	const current = await readFile(entry.targetPath, "utf8");
 	if (sha256Text(current) !== entry.nextSha256) {
 		throw new Error(
@@ -255,8 +255,8 @@ async function rollbackEntry(entry: WrapPublicationEntry): Promise<void> {
 }
 
 async function rollbackPublished(
-	plan: WrapPublicationPlan,
-	published: readonly WrapPublicationEntry[],
+	plan: NotebookPublicationPlan,
+	published: readonly NotebookPublicationEntry[],
 ): Promise<void> {
 	await runSequentially(published.toReversed(), async (entry) => {
 		await rollbackEntry(entry);
@@ -276,7 +276,7 @@ function transactionFailure(
 	context: FailureContext,
 	error: unknown,
 	recoveryRequired: boolean,
-): WrapTransactionResult<never> {
+): PublicationTransactionResult<never> {
 	return {
 		ok: false,
 		issue: {
@@ -288,21 +288,23 @@ function transactionFailure(
 	};
 }
 
-export async function executeWrapTransaction<Value>(input: {
-	readonly plan: WrapPublicationPlan;
-	readonly verifyReadback: () => Promise<WrapTransactionVerification<Value>>;
-	readonly faultInjector?: WrapFaultInjector;
-}): Promise<WrapTransactionResult<Value>> {
+export async function executePublicationTransaction<Value>(input: {
+	readonly plan: NotebookPublicationPlan;
+	readonly verifyReadback: () => Promise<
+		PublicationTransactionVerification<Value>
+	>;
+	readonly faultInjector?: PublicationFaultInjector;
+}): Promise<PublicationTransactionResult<Value>> {
 	const transactionRoot = join(
 		input.plan.notebook.root,
 		OBSERVER_MANIFEST_DIRECTORY,
 		"transactions",
 	);
-	const activePath = wrapTransactionActivePath(input.plan.notebook.root);
+	const activePath = publicationTransactionActivePath(input.plan.notebook.root);
 	const transactionId = `transaction-${randomUUID()}`;
 	let acquired = false;
-	let published: WrapPublicationEntry[] = [];
-	let context: FailureContext = { code: "wrap-transaction.active" };
+	let published: NotebookPublicationEntry[] = [];
+	let context: FailureContext = { code: "publication-transaction.active" };
 	try {
 		await mkdir(transactionRoot, { recursive: true });
 		try {
@@ -318,21 +320,21 @@ export async function executeWrapTransaction<Value>(input: {
 			}
 			throw error;
 		}
-		context = { code: "wrap-transaction.stage" };
+		context = { code: "publication-transaction.stage" };
 		const staged = await writeTransactionFiles(
 			activePath,
 			transactionId,
 			input.plan,
 		);
 		await hit(input.faultInjector, "after-stage");
-		context = { code: "wrap-transaction.drift" };
+		context = { code: "publication-transaction.drift" };
 		await hit(input.faultInjector, "before-drift-check");
 		if (!(await verifySnapshot(input.plan))) {
 			throw new Error("Notebook inventory changed after save preflight.");
 		}
 		await runSequentially(staged, async (stagedEntry) => {
 			context = {
-				code: "wrap-transaction.publish",
+				code: "publication-transaction.publish",
 				recordId: stagedEntry.entry.recordId,
 			};
 			await hit(
@@ -348,11 +350,11 @@ export async function executeWrapTransaction<Value>(input: {
 				stagedEntry.entry.recordId,
 			);
 		});
-		context = { code: "wrap-transaction.readback" };
+		context = { code: "publication-transaction.readback" };
 		await hit(input.faultInjector, "before-readback");
 		const verified = await input.verifyReadback();
 		if (!verified.ok) throw new Error(verified.message);
-		context = { code: "wrap-transaction.cleanup" };
+		context = { code: "publication-transaction.cleanup" };
 		await removeActive(activePath);
 		acquired = false;
 		return { ok: true, value: verified.value };
@@ -363,7 +365,10 @@ export async function executeWrapTransaction<Value>(input: {
 				published = [];
 			} catch (rollbackError) {
 				return transactionFailure(
-					{ code: "wrap-transaction.rollback", recordId: context.recordId },
+					{
+						code: "publication-transaction.rollback",
+						recordId: context.recordId,
+					},
 					rollbackError,
 					true,
 				);
@@ -375,7 +380,7 @@ export async function executeWrapTransaction<Value>(input: {
 				acquired = false;
 			} catch (cleanupError) {
 				return transactionFailure(
-					{ code: "wrap-transaction.cleanup" },
+					{ code: "publication-transaction.cleanup" },
 					cleanupError,
 					true,
 				);

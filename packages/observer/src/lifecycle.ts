@@ -97,6 +97,11 @@ export interface ActivationChangedEvent
 	readonly enabled: boolean;
 }
 
+export interface OutputLanguageChangedEvent
+	extends ObserverEventBase<"output-language-changed"> {
+	readonly lang: EpisodeLanguage;
+}
+
 export interface NotebookSelectedEvent
 	extends ObserverEventBase<"notebook-selected"> {
 	readonly notebookId: string;
@@ -129,6 +134,7 @@ export type ObserverEvent =
 	| EpisodeOpenedEvent
 	| MemoReconciledEvent
 	| NotebookSelectedEvent
+	| OutputLanguageChangedEvent
 	| SaveCancelledEvent
 	| SaveCommittedEvent
 	| SaveProposedEvent;
@@ -152,6 +158,7 @@ export type ObserverEventDecodeResult =
 export type ObserverTransitionRejection =
 	| "activation.episode-required"
 	| "episode.already-open"
+	| "language.active-episode-required"
 	| "episode.id-reused"
 	| "memo.episode-open-required"
 	| "memo.revision-duplicate"
@@ -328,6 +335,29 @@ function normalizeActivationChanged(
 	};
 }
 
+function normalizeOutputLanguageChanged(
+	value: Readonly<Record<string, unknown>>,
+): ObserverEventDecodeResult {
+	if (
+		!hasExactKeys(value, ["protocol", "kind", "lang"]) ||
+		(value.lang !== "ko" && value.lang !== "en")
+	) {
+		return decodeFailure(
+			"event.shape",
+			"/",
+			"output-language-changed requires ko or en.",
+		);
+	}
+	return {
+		ok: true,
+		event: {
+			protocol: OBSERVER_PROTOCOL,
+			kind: "output-language-changed",
+			lang: value.lang,
+		},
+	};
+}
+
 function normalizeNotebookSelected(
 	value: Readonly<Record<string, unknown>>,
 ): ObserverEventDecodeResult {
@@ -492,6 +522,8 @@ export function normalizeObserverEvent(
 			return normalizeEpisodeOpened(value);
 		case "activation-changed":
 			return normalizeActivationChanged(value);
+		case "output-language-changed":
+			return normalizeOutputLanguageChanged(value);
 		case "notebook-selected":
 			return normalizeNotebookSelected(value);
 		case "memo-reconciled":
@@ -590,6 +622,26 @@ function applyActivationChanged(
 		mode: "on",
 		selectedNotebookId: state.episode.core.notebookId,
 		episode: state.episode,
+	});
+}
+
+function applyOutputLanguageChanged(
+	state: ObserverState,
+	event: OutputLanguageChangedEvent,
+): ObserverEventApplication {
+	if (
+		state.episode.status !== "open" &&
+		state.episode.status !== "reviewing-save"
+	) {
+		return rejected(state, "language.active-episode-required");
+	}
+	if (state.episode.core.lang === event.lang) return accepted(state, state);
+	return accepted(state, {
+		...state,
+		episode: {
+			...state.episode,
+			core: { ...state.episode.core, lang: event.lang },
+		},
 	});
 }
 
@@ -732,6 +784,8 @@ export function applyObserverEvent(
 			return applyEpisodeOpened(state, event);
 		case "activation-changed":
 			return applyActivationChanged(state, event);
+		case "output-language-changed":
+			return applyOutputLanguageChanged(state, event);
 		case "notebook-selected":
 			return applyNotebookSelected(state, event);
 		case "memo-reconciled":
