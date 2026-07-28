@@ -118,7 +118,7 @@ async function inspectPack() {
 
 await requireCleanRepository();
 const report = await inspectPack();
-assert.equal(report.filename, "hobin-observer-0.1.0.tgz");
+assert.equal(report.filename, "hobin-observer-0.1.1.tgz");
 assert.deepEqual(report.paths.toSorted(), EXPECTED_FILES.toSorted());
 
 process.stdout.write(

@@ -12,7 +12,7 @@ All three paths use the same Episode, Memo, approval, and Review & Save flow.
 
 ## Install
 
-Requires Node.js 22.19 or newer. The 0.1.0 compatibility window is Pi 0.80.10 through 0.82.x; release checks exercise Pi 0.80.10, 0.81.1, and 0.82.1.
+Requires Node.js 22.19 or newer. The 0.1.x compatibility window is Pi 0.80.10 through 0.82.x; release checks exercise Pi 0.80.10, 0.81.1, and 0.82.1.
 
 ```sh
 pi install npm:@hobin/observer

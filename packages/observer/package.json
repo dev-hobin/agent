@@ -1,6 +1,6 @@
 {
   "name": "@hobin/observer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A local-first observation mode for durable inquiry, memo reconciliation, and Zettelkasten promotion in Pi.",
   "type": "module",
   "keywords": [
