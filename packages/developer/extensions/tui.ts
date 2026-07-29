@@ -717,6 +717,11 @@ export function showDeveloperHistorySelector(
 
 export type QuestionBriefAction = "continue" | "defer";
 
+const QUESTION_BRIEF_DEFAULT_ROWS = 19;
+const QUESTION_BRIEF_MIN_ROWS = 9;
+const QUESTION_BRIEF_RESERVED_APP_ROWS = 5;
+const QUESTION_BRIEF_FIXED_ROWS = 8;
+
 function questionGateExplanation(question: PendingQuestion): string {
 	if (question.gate === "before-implementation")
 		return "Implementation remains blocked until this question is resolved.";
@@ -726,12 +731,17 @@ function questionGateExplanation(question: PendingQuestion): string {
 }
 
 export class DeveloperQuestionBriefPanel {
+	private bodyLineCount = 0;
+	private bodyViewportRows = 1;
 	private cachedLines?: string[];
+	private cachedViewportRows?: number;
 	private cachedWidth?: number;
 	private readonly done: (action: QuestionBriefAction) => void;
 	private readonly keybindings: KeybindingsManager;
 	private readonly question: PendingQuestion;
 	private readonly requestRender: () => void;
+	private readonly requestedViewportRows: () => number;
+	private scrollOffset = 0;
 	private selected: QuestionBriefAction = "continue";
 	private readonly theme: Theme;
 
@@ -741,17 +751,40 @@ export class DeveloperQuestionBriefPanel {
 		keybindings: KeybindingsManager,
 		done: (action: QuestionBriefAction) => void,
 		requestRender: () => void = () => {},
+		requestedViewportRows: () => number = () => QUESTION_BRIEF_DEFAULT_ROWS,
 	) {
 		this.question = question;
 		this.theme = theme;
 		this.keybindings = keybindings;
 		this.done = done;
 		this.requestRender = requestRender;
+		this.requestedViewportRows = requestedViewportRows;
+	}
+
+	private scrollPage(direction: -1 | 1): void {
+		const maxOffset = Math.max(0, this.bodyLineCount - this.bodyViewportRows);
+		const pageSize = Math.max(1, this.bodyViewportRows - 1);
+		const nextOffset = Math.max(
+			0,
+			Math.min(maxOffset, this.scrollOffset + direction * pageSize),
+		);
+		if (nextOffset === this.scrollOffset) return;
+		this.scrollOffset = nextOffset;
+		this.invalidate();
+		this.requestRender();
 	}
 
 	handleInput(data: string): void {
 		if (this.keybindings.matches(data, "tui.select.cancel")) {
 			this.done("defer");
+			return;
+		}
+		if (this.keybindings.matches(data, "tui.select.pageUp")) {
+			this.scrollPage(-1);
+			return;
+		}
+		if (this.keybindings.matches(data, "tui.select.pageDown")) {
+			this.scrollPage(1);
 			return;
 		}
 		if (
@@ -768,16 +801,27 @@ export class DeveloperQuestionBriefPanel {
 	}
 
 	render(width: number): string[] {
-		if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+		const viewportRows = Math.max(
+			QUESTION_BRIEF_MIN_ROWS,
+			Math.floor(this.requestedViewportRows()),
+		);
+		if (
+			this.cachedLines &&
+			this.cachedWidth === width &&
+			this.cachedViewportRows === viewportRows
+		)
+			return this.cachedLines;
 
 		const panelWidth = Math.max(1, width);
 		const innerWidth = Math.max(1, panelWidth - 2);
-		const rows: string[] = [];
+		const bodyRows: string[] = [];
 		const border = (text: string) => this.theme.fg("borderAccent", text);
 		const row = (content = "") =>
 			`${border("│")}${truncateToWidth(content, innerWidth, "", true)}${border("│")}`;
 		const section = (title: string) =>
-			rows.push(row(`  ${this.theme.fg("accent", this.theme.bold(title))}`));
+			bodyRows.push(
+				row(`  ${this.theme.fg("accent", this.theme.bold(title))}`),
+			);
 		const addField = (
 			label: string,
 			value: string,
@@ -791,16 +835,16 @@ export class DeveloperQuestionBriefPanel {
 				this.theme.fg(color, value.length > 0 ? value : "(none)"),
 				contentWidth,
 			);
-			rows.push(row(styledPrefix + (wrapped[0] ?? "")));
+			bodyRows.push(row(styledPrefix + (wrapped[0] ?? "")));
 			const indent = " ".repeat(visibleWidth(plainPrefix));
-			for (const line of wrapped.slice(1)) rows.push(row(indent + line));
+			for (const line of wrapped.slice(1)) bodyRows.push(row(indent + line));
 		};
 		const addMarkdownField = (
 			label: string,
 			value: string,
 			color: ThemeColor = "text",
 		) => {
-			rows.push(row(`  ${this.theme.fg("dim", `${label} ·`)}`));
+			bodyRows.push(row(`  ${this.theme.fg("dim", `${label} ·`)}`));
 			const contentWidth = Math.max(1, innerWidth - 4);
 			const markdown = new Markdown(
 				value,
@@ -810,7 +854,7 @@ export class DeveloperQuestionBriefPanel {
 				{ color: (text) => this.theme.fg(color, text) },
 			);
 			for (const line of markdown.render(contentWidth))
-				rows.push(row(`    ${line}`));
+				bodyRows.push(row(`    ${line}`));
 		};
 		const action = (
 			value: QuestionBriefAction,
@@ -820,25 +864,12 @@ export class DeveloperQuestionBriefPanel {
 			const selected = this.selected === value;
 			const cursor = selected ? this.theme.fg("accent", "→ ") : "  ";
 			const labelColor: ThemeColor = selected ? "accent" : "text";
-			for (const [index, line] of wrapTextWithAnsi(
-				this.theme.fg(labelColor, selected ? this.theme.bold(label) : label),
-				Math.max(1, innerWidth - 2),
-			).entries())
-				rows.push(row(`${index === 0 ? cursor : "  "}${line}`));
-			for (const line of wrapTextWithAnsi(
-				this.theme.fg("muted", description),
-				Math.max(1, innerWidth - 4),
-			))
-				rows.push(row(`    ${line}`));
+			const content = `${cursor}${this.theme.fg(
+				labelColor,
+				selected ? this.theme.bold(label) : label,
+			)} ${this.theme.fg("muted", `· ${description}`)}`;
+			return row(content);
 		};
-
-		rows.push(border(`╭${"─".repeat(innerWidth)}╮`));
-		rows.push(
-			row(
-				`  ${this.theme.fg("accent", this.theme.bold("◆ Developer decision brief"))}`,
-			),
-		);
-		rows.push(row());
 
 		section("Why this decision is required");
 		if (this.question.context)
@@ -849,7 +880,7 @@ export class DeveloperQuestionBriefPanel {
 				"No additional context was recorded for this legacy question.",
 				"warning",
 			);
-		rows.push(row());
+		bodyRows.push(row());
 
 		section("Decision contract");
 		addField("question", this.question.question);
@@ -863,7 +894,7 @@ export class DeveloperQuestionBriefPanel {
 
 		const fields = this.question.responseSpec?.fields ?? [];
 		if (fields.length > 0) {
-			rows.push(row());
+			bodyRows.push(row());
 			section(`Choice preview · ${fields.length}`);
 			for (const [fieldIndex, field] of fields.entries()) {
 				addField(
@@ -891,36 +922,52 @@ export class DeveloperQuestionBriefPanel {
 			}
 		}
 
-		rows.push(row());
-		section("Choose after reviewing the explanation above");
-		action(
-			"continue",
-			"Continue to answer",
-			"Open the response fields or editor now.",
+		this.bodyLineCount = bodyRows.length;
+		this.bodyViewportRows = Math.max(
+			1,
+			viewportRows - QUESTION_BRIEF_FIXED_ROWS,
 		);
-		action(
-			"defer",
-			"Leave open",
-			"Keep the question and its gate in Developer for later.",
+		const maxOffset = Math.max(0, this.bodyLineCount - this.bodyViewportRows);
+		this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, maxOffset));
+		const visibleBody = bodyRows.slice(
+			this.scrollOffset,
+			this.scrollOffset + this.bodyViewportRows,
 		);
-		rows.push(row());
-		for (const line of wrapTextWithAnsi(
-			this.theme.fg(
-				"dim",
-				"mouse wheel scroll · drag select · Cmd+C copy · ↑↓ choose · enter continue · esc leave open",
+		while (visibleBody.length < this.bodyViewportRows) visibleBody.push(row());
+		const visibleStart = this.bodyLineCount === 0 ? 0 : this.scrollOffset + 1;
+		const visibleEnd = Math.min(
+			this.bodyLineCount,
+			this.scrollOffset + this.bodyViewportRows,
+		);
+		const detailStatus =
+			this.bodyLineCount > this.bodyViewportRows
+				? `detail ${visibleStart}-${visibleEnd}/${this.bodyLineCount} · PgUp/PgDn scroll`
+				: `detail ${this.bodyLineCount}/${this.bodyLineCount}`;
+		const rows = [
+			border(`╭${"─".repeat(innerWidth)}╮`),
+			row(
+				`  ${this.theme.fg("accent", this.theme.bold("◆ Developer decision brief"))} ${this.theme.fg("muted", `· ${this.question.question}`)}`,
 			),
-			Math.max(1, innerWidth - 2),
-		))
-			rows.push(row(`  ${line}`));
-		rows.push(border(`╰${"─".repeat(innerWidth)}╯`));
+			row(`  ${this.theme.fg("dim", detailStatus)}`),
+			...visibleBody,
+			border(`├${"─".repeat(innerWidth)}┤`),
+			action("continue", "Continue to answer", "open the response fields"),
+			action("defer", "Leave open", "keep this question and gate for later"),
+			row(
+				`  ${this.theme.fg("dim", "PgUp/PgDn detail · ↑↓ choose · enter confirm · esc leave open · drag select · Cmd+C copy")}`,
+			),
+			border(`╰${"─".repeat(innerWidth)}╯`),
+		];
 
 		this.cachedWidth = width;
+		this.cachedViewportRows = viewportRows;
 		this.cachedLines = rows;
 		return rows;
 	}
 
 	invalidate(): void {
 		this.cachedLines = undefined;
+		this.cachedViewportRows = undefined;
 		this.cachedWidth = undefined;
 	}
 }
@@ -937,7 +984,23 @@ export async function showDeveloperQuestionBrief(
 				keybindings,
 				(value) => done(value),
 				() => tui.requestRender(),
+				() =>
+					Math.max(
+						QUESTION_BRIEF_MIN_ROWS,
+						(tui.terminal?.rows ??
+							QUESTION_BRIEF_DEFAULT_ROWS + QUESTION_BRIEF_RESERVED_APP_ROWS) -
+							QUESTION_BRIEF_RESERVED_APP_ROWS,
+					),
 			),
+		{
+			overlay: true,
+			overlayOptions: {
+				anchor: "center",
+				width: "94%",
+				maxHeight: "90%",
+				margin: 1,
+			},
+		},
 	);
 	return action ?? "defer";
 }

@@ -201,10 +201,12 @@ Developer keeps consequential unknowns explicit instead of silently turning them
 into assumptions. A question records who can resolve it, what evidence or answer
 would close it, and whether it blocks implementation or completion.
 
-`/develop questions` shows the explanation before answer controls. User-owned
-questions accept an answer, agent-owned questions can be sent back to Pi for
-investigation, and environment-owned questions identify access or observations
-that must come from outside the session.
+`/develop questions` opens a bounded decision brief with the Markdown
+explanation visible in the initial viewport and answer/defer actions pinned below
+it. Page Up and Page Down move through longer detail without displacing those
+actions. User-owned questions accept an answer, agent-owned questions can be sent
+back to Pi for investigation, and environment-owned questions identify access or
+observations that must come from outside the session.
 
 The footer shows activation and the current route. A compact widget appears only
 while a route or unresolved question exists. `/develop status` and

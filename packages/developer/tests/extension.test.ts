@@ -3041,13 +3041,21 @@ test("a multi-question editor cancel returns to the question selector", async ()
 	await harness.commands.get("develop").handler("questions", harness.ctx);
 
 	assert.equal(harness.customCalls(), customCallsBeforeQuestions + 5);
-	assert.deepEqual(harness.customOptions.slice(-5), [
-		undefined,
-		undefined,
-		undefined,
-		undefined,
-		undefined,
-	]);
+	const questionFlowOptions = harness.customOptions.slice(-5);
+	assert.equal(questionFlowOptions[0], undefined);
+	assert.equal(
+		(questionFlowOptions[1] as { overlay?: boolean } | undefined)?.overlay,
+		true,
+	);
+	assert.equal(
+		(questionFlowOptions[2] as { overlay?: boolean } | undefined)?.overlay,
+		true,
+	);
+	assert.equal(questionFlowOptions[3], undefined);
+	assert.equal(
+		(questionFlowOptions[4] as { overlay?: boolean } | undefined)?.overlay,
+		true,
+	);
 	assert.match(
 		harness.sentUserMessages.at(-1)?.content ?? "",
 		/wide viewport preserves/,

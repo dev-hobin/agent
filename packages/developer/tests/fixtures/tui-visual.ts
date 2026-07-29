@@ -410,7 +410,7 @@ export function createQaScenarios(): QaScenario[] {
 			id: "answer-ime",
 			label: "Questions / choices / review / Korean IME",
 			description:
-				"Wheel-scroll and drag-copy without changing selection, then exercise custom input, review, edit, and Escape",
+				"Page through sticky Markdown detail while actions remain visible, then exercise drag-copy, custom input, review, edit, and Escape",
 			run: runAnswerImeScenario,
 		},
 		{

@@ -330,7 +330,7 @@ test("pending question UI distinguishes agent evidence from required user answer
 	assert.match(prompt, /Gate: before-implementation/);
 });
 
-test("decision brief renders legacy fallback before controls and wheel never changes its action", () => {
+test("decision brief keeps legacy context and actions sticky while detail pages", () => {
 	let selected: string | undefined;
 	const panel = new DeveloperQuestionBriefPanel(
 		{ ...choiceQuestion, context: undefined },
@@ -340,15 +340,20 @@ test("decision brief renders legacy fallback before controls and wheel never cha
 			selected = action;
 		},
 	);
-	const output = panel.render(88).join("\n");
+	const initial = panel.render(88).join("\n");
 
-	assert.match(output, /No additional context was recorded/);
-	assert.match(output, /A1 · Expose all/);
-	assert.match(output, /show · Expose/);
-	assert.ok(
-		output.indexOf("No additional context was recorded") <
-			output.indexOf("Continue to answer"),
-	);
+	assert.match(initial, /No additional context was recorded/);
+	assert.match(initial, /Continue to answer/);
+	assert.match(initial, /Leave open/);
+	assert.doesNotMatch(initial, /A1 · Expose all/);
+
+	panel.handleInput("\u001b[6~");
+	const later = panel.render(88).join("\n");
+	assert.match(later, /A1 · Expose all/);
+	assert.match(later, /show · Expose/);
+	assert.match(later, /Continue to answer/);
+	assert.match(later, /Leave open/);
+
 	panel.handleInput("\u001b[<65;12;8M");
 	panel.handleInput("\r");
 	assert.equal(selected, "continue");
@@ -444,12 +449,15 @@ test("a new blocking user question explains the decision before answer controls"
 	assert.match(briefRendered, /value: undefined \| null/);
 	assert.doesNotMatch(briefRendered, /## Empty-state contract/);
 	assert.doesNotMatch(briefRendered, /\*\*serialization consequence\*\*/);
-	assert.match(briefRendered, /Implementation remains blocked/);
+	assert.match(briefRendered, /Continue to answer/);
+	assert.match(briefRendered, /Leave open/);
+	assert.doesNotMatch(briefRendered, /Choice preview/);
+	assert.equal(briefRendered.split("\n").length, 19);
 	assert.ok(
-		briefRendered.indexOf("A1: absent") <
+		briefRendered.indexOf("Empty-state contract") <
 			briefRendered.indexOf("Continue to answer"),
 	);
-	assert.equal(customOptions, undefined);
+	assert.equal(isOverlayRequest(customOptions), true);
 	assert.deepEqual(writes, []);
 });
 
@@ -491,7 +499,8 @@ test("choice response specs render field controls and submit exact structured an
 	);
 
 	assert.equal(customCall, 4);
-	assert.deepEqual(customOptions, [undefined, undefined, undefined, undefined]);
+	assert.equal(isOverlayRequest(customOptions[0]), true);
+	assert.deepEqual(customOptions.slice(1), [undefined, undefined, undefined]);
 	assert.match(renderedControls[0] ?? "", /Why this decision is required/);
 	assert.match(renderedControls[0] ?? "", /Review scope/);
 	assert.match(renderedControls[0] ?? "", /both product constraints/);
@@ -502,12 +511,9 @@ test("choice response specs render field controls and submit exact structured an
 		renderedControls[0] ?? "",
 		/\*\*both product constraints\*\*/,
 	);
-	assert.match(renderedControls[0] ?? "", /A1 · Expose all/);
-	assert.match(renderedControls[0] ?? "", /show · Expose/);
-	assert.ok(
-		(renderedControls[0] ?? "").indexOf("show · Expose") <
-			(renderedControls[0] ?? "").indexOf("Continue to answer"),
-	);
+	assert.match(renderedControls[0] ?? "", /Continue to answer/);
+	assert.match(renderedControls[0] ?? "", /Leave open/);
+	assert.doesNotMatch(renderedControls[0] ?? "", /Choice preview/);
 	assert.match(renderedControls[1] ?? "", /A1 · Expose all/);
 	assert.match(renderedControls[1] ?? "", /A2 · Expose selected components/);
 	assert.match(renderedControls[2] ?? "", /show · Expose/);
@@ -525,10 +531,12 @@ test("choice response specs render field controls and submit exact structured an
 	assert.doesNotMatch(request, /question:product-controls/);
 });
 
-test("long choice fields and reviews render every row as native-scroll surfaces", async () => {
+test("long choice details page inside a sticky brief before native choice surfaces", async () => {
 	const writes: string[] = [];
 	const customOptions: unknown[] = [];
-	const rendered: string[] = [];
+	const briefPages: string[] = [];
+	const renderedControls: string[] = [];
+	let customCall = 0;
 	const manyFieldQuestion: PendingQuestion = {
 		...choiceQuestion,
 		id: "question:many-fields",
@@ -550,6 +558,7 @@ test("long choice fields and reviews render every row as native-scroll surfaces"
 	const ctx = {
 		ui: {
 			async custom(factory: TestComponentFactory, options: unknown) {
+				customCall += 1;
 				customOptions.push(options);
 				let selected: unknown;
 				const component = await factory(
@@ -563,7 +572,16 @@ test("long choice fields and reviews render every row as native-scroll surfaces"
 						selected = value;
 					},
 				);
-				rendered.push(component.render(100).join("\n"));
+				if (customCall === 1) {
+					for (let page = 0; page < 20; page += 1) {
+						const rendered = component.render(100).join("\n");
+						briefPages.push(rendered);
+						if (rendered.includes("field 15/15 · field-14")) break;
+						component.handleInput("\u001b[6~");
+					}
+				} else {
+					renderedControls.push(component.render(100).join("\n"));
+				}
 				component.handleInput("\r");
 				return selected;
 			},
@@ -576,21 +594,26 @@ test("long choice fields and reviews render every row as native-scroll surfaces"
 		manyFieldQuestion,
 	);
 
-	assert.equal(rendered.length, 17);
-	assert.ok(customOptions.every((options) => options === undefined));
-	assert.match(rendered[0] ?? "", /Why this decision is required/);
-	assert.match(rendered[0] ?? "", /Option 0\/0/);
-	assert.match(rendered[0] ?? "", /Option 0\/14/);
-	assert.match(rendered[0] ?? "", /field 15\/15 · field-14/);
+	assert.equal(customCall, 17);
+	assert.equal(isOverlayRequest(customOptions[0]), true);
+	assert.ok(customOptions.slice(1).every((options) => options === undefined));
+	assert.match(briefPages[0] ?? "", /Why this decision is required/);
+	assert.match(briefPages[0] ?? "", /Review scope/);
 	assert.ok(
-		(rendered[0] ?? "").indexOf("Option 0/14") <
-			(rendered[0] ?? "").indexOf("Continue to answer"),
+		briefPages.every(
+			(page) =>
+				page.includes("Continue to answer") && page.includes("Leave open"),
+		),
 	);
-	assert.match(rendered[1] ?? "", /Write another answer…/);
-	assert.match(rendered.at(-1) ?? "", /field-0 · option-0-0/);
-	assert.match(rendered.at(-1) ?? "", /field-14 · option-14-0/);
+	const completeBrief = briefPages.join("\n");
+	assert.match(completeBrief, /Option 0\/0/);
+	assert.match(completeBrief, /Option 0\/14/);
+	assert.match(completeBrief, /field 15\/15 · field-14/);
+	assert.match(renderedControls[0] ?? "", /Write another answer…/);
+	assert.match(renderedControls.at(-1) ?? "", /field-0 · option-0-0/);
+	assert.match(renderedControls.at(-1) ?? "", /field-14 · option-14-0/);
 	assert.match(
-		rendered.at(-1) ?? "",
+		renderedControls.at(-1) ?? "",
 		/mouse wheel scroll · drag select · Cmd\+C copy/,
 	);
 	assert.match(request ?? "", /- field-14: option-14-0 — Option 14\/0/);
@@ -644,7 +667,8 @@ test("choice response specs offer a final custom answer and preserve it through 
 	);
 
 	assert.equal(customCall, 3);
-	assert.deepEqual(customOptions, [undefined, undefined, undefined]);
+	assert.equal(isOverlayRequest(customOptions[0]), true);
+	assert.deepEqual(customOptions.slice(1), [undefined, undefined]);
 	assert.match(renderedBrief, /Review scope/);
 	assert.doesNotMatch(renderedBrief, /## Review scope/);
 	assert.match(renderedField, /Write another answer…/);
@@ -1362,7 +1386,7 @@ test("question resolution explains legacy context before opening the editor", as
 	const ctx = {
 		ui: {
 			async custom(factory: TestComponentFactory, options: unknown) {
-				assert.equal(options, undefined);
+				assert.equal(isOverlayRequest(options), true);
 				let selected: unknown;
 				const component = await factory(
 					{ requestRender() {} },
