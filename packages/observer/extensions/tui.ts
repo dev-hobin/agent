@@ -637,7 +637,7 @@ export async function showObserverStatus(
 export function renderObserverChromeStatus(
 	view: ObserverStatusView,
 	theme: Theme,
-): string {
+): string | undefined {
 	const separator = theme.fg("dim", " · ");
 	if (view.operationalIssue || view.control.notebook === "unhealthy")
 		return (
@@ -645,10 +645,7 @@ export function renderObserverChromeStatus(
 			separator +
 			theme.fg("error", "needs attention")
 		);
-	if (view.control.notebook === "unselected")
-		return (
-			theme.fg("accent", "observer") + separator + theme.fg("warning", "setup")
-		);
+	if (view.control.notebook === "unselected") return undefined;
 	if (view.control.episode === "reviewing-save")
 		return (
 			theme.fg("accent", "observer") +
@@ -671,7 +668,7 @@ export function renderObserverChromeStatus(
 			separator +
 			theme.fg("muted", "Episode preserved")
 		);
-	return theme.fg("dim", "observer · off");
+	return undefined;
 }
 
 export function shouldShowObserverWidget(view: ObserverStatusView): boolean {

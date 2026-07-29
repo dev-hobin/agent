@@ -39,7 +39,16 @@ In Pi's TUI, run `/observe` with no arguments. The keyboard-first control center
 → run Review & Save when you are ready
 ```
 
-Use ↑/↓ and Enter to navigate; Esc always returns to Pi. The same surface exposes **Add a hypothesis**, **Observe material**, **Default output language**, and a detailed health view without requiring users to remember subcommands. Observer On/Off is a toggle; language is not. Enter on the language row opens an explicit `English (en)` / `Korean (ko)` chooser with the current choice preselected. On/Off and language changes update in place without closing and reopening the control center. The footer shows compact state, while a small widget appears only when an Episode needs attention or observation is active.
+Use ↑/↓ and Enter to navigate; Esc always returns to Pi. The same surface
+exposes **Add a hypothesis**, **Observe material**, **Default output language**,
+and a detailed health view without requiring users to remember subcommands.
+Observer On/Off is a toggle; language is not. Enter on the language row opens
+an explicit `English (en)` / `Korean (ko)` chooser with the current choice
+preselected. On/Off and language changes update in place without closing and
+reopening the control center. The footer and small widget stay hidden while
+Observer is idle, including before Notebook setup. They appear only while
+observation is active, an Episode is preserved, or review or recovery needs
+attention.
 
 Observer never chooses a Notebook path for you. Setup accepts either an absolute path or a path relative to Pi's current working directory, then initializes a new folder or adopts an existing one without rewriting unrelated files. Direct commands remain available:
 

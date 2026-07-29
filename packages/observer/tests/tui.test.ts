@@ -369,11 +369,26 @@ test("status panel is complete, width-bounded, and keyboard dismissible", () => 
 });
 
 test("footer and widget expose only action-relevant ambient state", () => {
-	assert.equal(
-		renderObserverChromeStatus(statusView(), theme),
-		"observer · setup",
-	);
+	assert.equal(renderObserverChromeStatus(statusView(), theme), undefined);
 	assert.equal(shouldShowObserverWidget(statusView()), false);
+
+	const idle = statusView({
+		control: {
+			mode: "off",
+			episode: "empty",
+			notebook: "ready",
+			notebookRoot: "/Users/me/notes/observer",
+			notebookDefaultLanguage: "ko",
+			canChangeNotebook: true,
+			canMemo: false,
+			canSave: false,
+		},
+		notebook: "/Users/me/notes/observer",
+		outputLanguage: "ko",
+		notebookHealth: "Healthy",
+	});
+	assert.equal(renderObserverChromeStatus(idle, theme), undefined);
+	assert.equal(shouldShowObserverWidget(idle), false);
 
 	const active = openView();
 	assert.equal(
