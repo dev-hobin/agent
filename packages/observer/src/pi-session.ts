@@ -23,6 +23,7 @@ export interface PiBranchEntryLike {
 	readonly type?: unknown;
 	readonly customType?: unknown;
 	readonly data?: unknown;
+	readonly message?: unknown;
 }
 
 export interface PreparedSaveHandoff {

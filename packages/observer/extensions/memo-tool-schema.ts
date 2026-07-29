@@ -289,9 +289,28 @@ export const hypothesisContextReviewActionSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
+export const nominateToolResultsActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("nominate-tool-results"),
+		selections: Type.Array(
+			Type.Object(
+				{
+					tool_call_id: Type.String({ minLength: 1, maxLength: 300 }),
+					reason: Type.String({ minLength: 1, maxLength: 4_000 }),
+				},
+				{ additionalProperties: false },
+			),
+			{ minItems: 1, maxItems: 12 },
+		),
+	},
+	{ additionalProperties: false },
+);
+
 export const observerSidecarParameters = Type.Union([
 	materialReviewStartActionSchema,
 	materialReviewFinishActionSchema,
+	nominateToolResultsActionSchema,
 	Type.Object(
 		{
 			observer_action: Type.Literal("observer-sidecar/v1"),

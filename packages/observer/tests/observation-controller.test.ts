@@ -6,6 +6,7 @@ import { describe, test } from "node:test";
 
 import {
 	completeMemoPreparation,
+	captureOrStageToolResult,
 	completeSavePreparation,
 	observationToolText,
 } from "../extensions/observer.ts";
@@ -13,10 +14,13 @@ import {
 	activateMaterialReviewRun,
 	activeMaterialReviewCaptureRequestId,
 	beginObserverAgentRun,
+	consumeToolResultNominations,
 	endObserverAgentRun,
+	resolveToolResultNomination,
 	routeMaterialReviewTool,
 	settleObserverAgentRun,
 	stageMaterialReviewRetry,
+	stageNominatableToolResult,
 	suspendMaterialReviewRun,
 	type ObserverTurnState,
 } from "../extensions/material-review-runtime.ts";
@@ -469,10 +473,24 @@ describe("Observation staged controller", () => {
 			agentRunSequence: 0,
 			activeAgentRunId: null,
 			materialReviewRun: null,
+			nominatableToolResults: new Map(),
 			stagedMaterialReviewRetry: null,
 		};
 		beginObserverAgentRun(turnState);
+		assert.equal(
+			stageNominatableToolResult({
+				turnState,
+				result: {
+					toolCallId: "tool-before-material",
+					toolName: "read",
+					isError: false,
+					capturedAt: "2026-08-01T08:59:00.000Z",
+				},
+			}),
+			true,
+		);
 		assert.equal(activateMaterialReviewRun(turnState, request), true);
+		assert.equal(turnState.nominatableToolResults.size, 0);
 		assert.equal(
 			activeMaterialReviewCaptureRequestId(turnState),
 			request.requestId,
@@ -493,6 +511,147 @@ describe("Observation staged controller", () => {
 		assert.equal(activeMaterialReviewCaptureRequestId(turnState), null);
 		settleObserverAgentRun(turnState);
 		assert.equal(turnState.stagedMaterialReviewRetry, null);
+	});
+
+	test("bounds meaning-based tool-result nomination to the current agent run", () => {
+		const turnState: ObserverTurnState = {
+			toolUsed: false,
+			latestUser: null,
+			scriptedMaterialRequest: null,
+			blockedRequestId: null,
+			agentRunSequence: 0,
+			activeAgentRunId: null,
+			materialReviewRun: null,
+			nominatableToolResults: new Map(),
+			stagedMaterialReviewRetry: null,
+		};
+		assert.equal(
+			stageNominatableToolResult({
+				turnState,
+				result: {
+					toolCallId: "tool-before-run",
+					toolName: "read",
+					isError: false,
+					capturedAt: "2026-08-01T09:00:00.000Z",
+				},
+			}),
+			false,
+		);
+		beginObserverAgentRun(turnState);
+		assert.equal(
+			stageNominatableToolResult({
+				turnState,
+				result: {
+					toolCallId: "tool-current-run",
+					toolName: "read",
+					isError: false,
+					capturedAt: "2026-08-01T09:01:00.000Z",
+				},
+			}),
+			true,
+		);
+		const entries = [
+			{
+				type: "message",
+				message: {
+					role: "toolResult",
+					toolCallId: "tool-current-run",
+					toolName: "read",
+					content: [{ type: "text", text: "A meaningful source claim." }],
+					isError: false,
+				},
+			},
+		];
+		const resolved = resolveToolResultNomination({
+			turnState,
+			selections: [
+				{
+					tool_call_id: "tool-current-run",
+					reason: "It establishes a source claim relevant to the inquiry.",
+				},
+			],
+			entries,
+		});
+		if (!resolved.ok) assert.fail(resolved.message);
+		assert.equal(resolved.results[0]?.text, "A meaningful source claim.");
+		assert.match(resolved.results[0]?.reason ?? "", /source claim/u);
+		assert.equal(
+			resolveToolResultNomination({
+				turnState,
+				selections: [
+					{ tool_call_id: "tool-not-staged", reason: "Not authorized." },
+				],
+				entries,
+			}).ok,
+			false,
+		);
+		consumeToolResultNominations(turnState, ["tool-current-run"]);
+		assert.equal(turnState.nominatableToolResults.size, 0);
+		endObserverAgentRun(turnState);
+		assert.equal(
+			resolveToolResultNomination({
+				turnState,
+				selections: [
+					{
+						tool_call_id: "tool-current-run",
+						reason: "A stale attempt.",
+					},
+				],
+				entries,
+			}).ok,
+			false,
+		);
+	});
+
+	test("stages normal Mode ON tool results without appending Observer candidates", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			const turnState: ObserverTurnState = {
+				toolUsed: false,
+				latestUser: null,
+				scriptedMaterialRequest: null,
+				blockedRequestId: null,
+				agentRunSequence: 0,
+				activeAgentRunId: null,
+				materialReviewRun: null,
+				nominatableToolResults: new Map(),
+				stagedMaterialReviewRetry: null,
+			};
+			beginObserverAgentRun(turnState);
+			const before = port.entries.length;
+			assert.equal(
+				captureOrStageToolResult({
+					toolCallId: "tool-staged-only",
+					toolName: "read",
+					text: "Routine file content.",
+					isError: false,
+					capturedAt: "2026-08-01T09:10:00.000Z",
+					entries: port.entries,
+					port,
+					observation: controller,
+					turnState,
+				}),
+				null,
+			);
+			assert.equal(port.entries.length, before);
+			assert.equal(
+				turnState.nominatableToolResults.has("tool-staged-only"),
+				true,
+			);
+			await lifecycleController.command("off", port);
+			beginObserverAgentRun(turnState);
+			captureOrStageToolResult({
+				toolCallId: "tool-mode-off",
+				toolName: "read",
+				text: "Mode OFF content.",
+				isError: false,
+				capturedAt: "2026-08-01T09:11:00.000Z",
+				entries: port.entries,
+				port,
+				observation: controller,
+				turnState,
+			});
+			assert.equal(turnState.nominatableToolResults.size, 0);
+		});
 	});
 
 	test("orchestrates inline material review without changing active Mode", async () => {
@@ -659,6 +818,7 @@ describe("Observation staged controller", () => {
 				agentRunSequence: 1,
 				activeAgentRunId: 1,
 				materialReviewRun: null,
+				nominatableToolResults: new Map(),
 				stagedMaterialReviewRetry: null,
 			};
 			const routed = await routeMaterialReviewTool({
@@ -1107,6 +1267,8 @@ describe("Observation staged controller", () => {
 					},
 					text: "Later technical-reading result.",
 					capturedAt: "2026-08-01T10:09:00.000Z",
+					nominationReason:
+						"It contributes source evidence to the open Episode.",
 				},
 				port,
 			);
@@ -1168,6 +1330,7 @@ describe("Observation staged controller", () => {
 					},
 					text: "Earlier Sidecar material.",
 					capturedAt: "2026-08-01T10:08:00.000Z",
+					nominationReason: "It is evidence for the standing inquiry.",
 				},
 				port,
 			);
@@ -1231,6 +1394,7 @@ describe("Observation staged controller", () => {
 					},
 					text: "Sidecar-only read material.",
 					capturedAt: "2026-08-01T10:11:00.000Z",
+					nominationReason: "It establishes a source claim for the Episode.",
 				},
 				port,
 			);
@@ -1358,8 +1522,24 @@ describe("Observation staged controller", () => {
 		});
 	});
 
-	test("captures active candidates, returns index after source-read, and hydrates only standing IDs", async () => {
+	test("captures only nominated active tool results, returns index, and hydrates standing IDs", async () => {
 		await withSandbox(async ({ controller, port }) => {
+			const beforeAutomaticRead = port.entries.length;
+			const automaticRead = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-routine",
+						tool_name: "read",
+					},
+					text: "Routine navigation output",
+					capturedAt: "2026-08-01T09:59:00.000Z",
+				},
+				port,
+			);
+			assert.equal(automaticRead.ok, true);
+			if (automaticRead.ok) assert.equal(automaticRead.status, "ignored");
+			assert.equal(port.entries.length, beforeAutomaticRead);
 			const captured = controller.capture(
 				{
 					origin: {
@@ -1369,6 +1549,8 @@ describe("Observation staged controller", () => {
 					},
 					text: "Source result text",
 					capturedAt: "2026-08-01T10:00:00.000Z",
+					nominationReason:
+						"It provides evidence related to the durable inquiry.",
 				},
 				port,
 			);
@@ -1376,6 +1558,35 @@ describe("Observation staged controller", () => {
 				assert.fail(captured.ok ? "Expected candidate" : captured.message);
 			}
 			assert.equal(captured.candidate.materialReviewRequestId, undefined);
+			assert.equal(
+				captured.candidate.origin.kind === "tool-result"
+					? captured.candidate.origin.nominationReason
+					: null,
+				"It provides evidence related to the durable inquiry.",
+			);
+			const beforeResume = port.entries.length;
+			const resumed = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-1",
+						tool_name: "read",
+					},
+					text: "Source result text",
+					capturedAt: "2026-08-01T10:00:10.000Z",
+					nominationReason: "Retrying the same nomination must be idempotent.",
+				},
+				port,
+			);
+			assert.equal(resumed.ok, true);
+			if (resumed.ok) {
+				assert.equal(resumed.status, "resumed");
+				assert.equal(
+					resumed.candidate?.candidateId,
+					captured.candidate.candidateId,
+				);
+			}
+			assert.equal(port.entries.length, beforeResume);
 			const beforeReadEntries = port.entries.length;
 			const read = await controller.execute(
 				externalSourceAction(captured.candidate.candidateId),
@@ -1458,6 +1669,7 @@ describe("Observation staged controller", () => {
 					},
 					text: original,
 					capturedAt: "2026-08-01T10:00:30.000Z",
+					nominationReason: "The complete large result is source evidence.",
 				},
 				port,
 			);
@@ -1511,6 +1723,7 @@ describe("Observation staged controller", () => {
 					},
 					text: "Minor source result",
 					capturedAt: "2026-08-01T10:01:00.000Z",
+					nominationReason: "It repeats support for the durable inquiry.",
 				},
 				port,
 			);
@@ -1562,6 +1775,7 @@ describe("Observation staged controller", () => {
 					},
 					text: "Major source result",
 					capturedAt: "2026-08-01T10:02:00.000Z",
+					nominationReason: "It supplies a central counterexample.",
 				},
 				port,
 			);
@@ -1626,6 +1840,8 @@ describe("Observation staged controller", () => {
 						},
 						text: "Immediate notes can preserve retrieval cues.",
 						capturedAt: "2026-08-01T10:02:00.000Z",
+						nominationReason:
+							"It provides source evidence for Memo reconciliation.",
 					},
 					port,
 				);

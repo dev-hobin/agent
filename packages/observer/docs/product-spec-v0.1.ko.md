@@ -320,6 +320,29 @@ Observer의 지속 관찰을 활성화한다.
 Observer Mode와 무관하게 같은 OPEN Episode를 사용하며 최초 current-context
 review를 시작한다.
 
+### 일반 Sidecar tool-result 선별
+
+일반 Mode ON agent run에서 tool execution은 Observation이 아니라 잠재적 evidence다.
+Observer는 tool result 본문을 즉시 candidate event로 복제하지 않는다. 현재 agent run의
+bounded tool-call reference만 일시적으로 유지하고, 모델이 다음 조건 중 하나를 구체적인
+이유와 함께 `nominate-tool-results`로 선택할 때만 원본 Pi tool result를 candidate로
+승격한다.
+
+- Source claim을 제공한다.
+- 반례나 중요한 경계를 제공한다.
+- 현재 Inquiry 또는 Memo에 관련된 판단 근거를 제공한다.
+
+단순 navigation, 목록, write acknowledgement, 반복 read, routine diagnostics는 실행됐다는
+이유만으로 nominate하지 않는다. reference는 agent run 종료, 새 사용자 입력, session 전환,
+명시적 material-review run 시작 시 폐기한다. 이전 run의 tool-call ID와 현재 branch에 없는
+결과는 nominate할 수 없다. nomination reason은 candidate origin에 보존하고, 같은
+`tool_call_id + content hash`의 재시도는 기존 candidate를 resume한다. reason의 의미
+품질은 model-owned judgment이며 runtime은 current-run ownership, exact branch result,
+non-empty bounded reason만 구조적으로 보장한다.
+
+명시적 retrieved `/observe material`은 사용자가 exact 자료 retrieval을 요청했으므로 이
+선별 규칙의 유일한 자동 capture 예외다.
+
 ### `/observe material <request>`
 
 inline 자료, 경로, URL 또는 retrieval 요청을 명시적인 Observe material agent run으로
@@ -340,7 +363,8 @@ pending + capture window suspended + Mode OFF
 → 이후 tool result 무시
 
 pending + capture window suspended + Mode ON
-→ 이후 tool result는 일반 Sidecar candidate이며 stale request와 연결하지 않음
+→ 이후 tool result는 현재 run의 nomination-eligible reference일 뿐이며,
+  명시적으로 nominate되기 전에는 candidate가 아니고 stale request와 연결하지 않음
 ```
 
 ### `/observe material retry`

@@ -127,8 +127,9 @@ export interface ObservationControllerIds {
 export type CandidateCaptureResult =
 	| {
 			readonly ok: true;
-			readonly status: "captured" | "ignored";
+			readonly status: "captured" | "resumed" | "ignored";
 			readonly candidate: CandidateCapturedEvent | null;
+			readonly candidates: readonly CandidateCapturedEvent[];
 	  }
 	| { readonly ok: false; readonly message: string };
 
@@ -311,6 +312,7 @@ export interface ObservationController {
 			readonly text: unknown;
 			readonly capturedAt: unknown;
 			readonly materialReviewRequestId?: MaterialReviewRequestedEvent["requestId"];
+			readonly nominationReason?: unknown;
 		},
 		port: ObservationCommandPort,
 	): CandidateCaptureResult;
@@ -2111,30 +2113,111 @@ function candidateCaptureTexts(value: unknown): readonly unknown[] {
 	});
 }
 
+function ignoredCandidateCapture(): CandidateCaptureResult {
+	return {
+		ok: true,
+		status: "ignored",
+		candidate: null,
+		candidates: [],
+	};
+}
+
+type CandidateOriginAdmission =
+	| { readonly status: "admitted"; readonly encodedOrigin: unknown }
+	| { readonly status: "ignored" }
+	| { readonly status: "invalid"; readonly message: string };
+
+function admitCandidateOrigin(input: {
+	readonly origin: unknown;
+	readonly nominationReason: unknown;
+	readonly materialReviewAuthorized: boolean;
+}): CandidateOriginAdmission {
+	const originKind =
+		typeof input.origin === "object" && input.origin !== null
+			? Reflect.get(input.origin, "kind")
+			: null;
+	const nominationReason =
+		typeof input.nominationReason === "string"
+			? input.nominationReason.trim()
+			: "";
+	if (originKind === "tool-result" && !input.materialReviewAuthorized) {
+		if (!nominationReason) return { status: "ignored" };
+		if (nominationReason.length > 4_000) {
+			return {
+				status: "invalid",
+				message: "Tool-result nomination reason exceeds 4000 characters.",
+			};
+		}
+		return {
+			status: "admitted",
+			encodedOrigin: {
+				...(input.origin as Readonly<Record<string, unknown>>),
+				nomination_reason: nominationReason,
+			},
+		};
+	}
+	if (input.nominationReason !== undefined) {
+		return {
+			status: "invalid",
+			message:
+				"A nomination reason is valid only for a non-material tool result.",
+		};
+	}
+	return { status: "admitted", encodedOrigin: encodeOrigin(input.origin) };
+}
+
+function existingToolResultCandidate(input: {
+	readonly candidates: readonly CandidateCapturedEvent[];
+	readonly prepared: CandidateCapturedEvent;
+}): CandidateCapturedEvent | undefined {
+	if (input.prepared.origin.kind !== "tool-result") return undefined;
+	const { toolCallId, toolName } = input.prepared.origin;
+	return input.candidates.find(
+		(candidate) =>
+			candidate.episodeId === input.prepared.episodeId &&
+			candidate.contentHash === input.prepared.contentHash &&
+			candidate.materialReviewRequestId ===
+				input.prepared.materialReviewRequestId &&
+			candidate.origin.kind === "tool-result" &&
+			candidate.origin.toolCallId === toolCallId &&
+			candidate.origin.toolName === toolName,
+	);
+}
+
 function captureCandidate(input: {
 	readonly value: {
 		readonly origin: unknown;
 		readonly text: unknown;
 		readonly capturedAt: unknown;
 		readonly materialReviewRequestId?: MaterialReviewRequestedEvent["requestId"];
+		readonly nominationReason?: unknown;
 	};
 	readonly port: ObservationCommandPort;
 	readonly ids: ObservationControllerIds;
 }): CandidateCaptureResult {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
-	const sidecarActive = activeEpisode(branch);
 	const materialReviewRequest = authorizedRetrievedCaptureRequest({
 		branch,
 		requestId: input.value.materialReviewRequestId,
 	});
 	if (typeof materialReviewRequest === "string")
 		return { ok: false, message: materialReviewRequest };
-	if (!sidecarActive && !materialReviewRequest)
-		return { ok: true, status: "ignored", candidate: null };
+	if (!activeEpisode(branch) && !materialReviewRequest)
+		return ignoredCandidateCapture();
 	if (branch.pi.state.episode.status !== "open")
-		return { ok: true, status: "ignored", candidate: null };
-	const preparedCandidates: CandidateCapturedEvent[] = [];
+		return ignoredCandidateCapture();
+	const originAdmission = admitCandidateOrigin({
+		origin: input.value.origin,
+		nominationReason: input.value.nominationReason,
+		materialReviewAuthorized: Boolean(materialReviewRequest),
+	});
+	if (originAdmission.status === "ignored") return ignoredCandidateCapture();
+	if (originAdmission.status === "invalid") {
+		return { ok: false, message: originAdmission.message };
+	}
+	const candidates: CandidateCapturedEvent[] = [];
+	const appendedCandidates: CandidateCapturedEvent[] = [];
 	for (const text of candidateCaptureTexts(input.value.text)) {
 		const prepared = refinedEvent(
 			{
@@ -2142,7 +2225,7 @@ function captureCandidate(input: {
 				kind: "candidate-captured",
 				episode_id: branch.pi.state.episode.core.episodeId,
 				candidate_id: input.ids.candidateId(),
-				origin: encodeOrigin(input.value.origin),
+				origin: originAdmission.encodedOrigin,
 				text,
 				content_hash: typeof text === "string" ? sha256Text(text) : "",
 				captured_at: input.value.capturedAt,
@@ -2156,23 +2239,34 @@ function captureCandidate(input: {
 		if (prepared.kind !== "candidate-captured") {
 			return { ok: false, message: "Candidate refinement failed." };
 		}
-		preparedCandidates.push(prepared);
+		const existing = existingToolResultCandidate({
+			candidates: branch.observation.candidates,
+			prepared,
+		});
+		if (existing) {
+			candidates.push(existing);
+		} else {
+			candidates.push(prepared);
+			appendedCandidates.push(prepared);
+		}
 	}
 	if (
 		materialReviewRequest &&
-		preparedCandidates.some(
-			(candidate) => candidate.origin.kind !== "tool-result",
-		)
+		candidates.some((candidate) => candidate.origin.kind !== "tool-result")
 	)
-		return { ok: true, status: "ignored", candidate: null };
-	for (const candidate of preparedCandidates) {
+		return ignoredCandidateCapture();
+	for (const candidate of appendedCandidates) {
 		const appended = appendEvent(input.port, candidate);
 		if (typeof appended === "string") return { ok: false, message: appended };
 	}
-	const first = preparedCandidates[0];
-	return first
-		? { ok: true, status: "captured", candidate: first }
-		: { ok: true, status: "ignored", candidate: null };
+	const first = candidates[0];
+	if (!first) return ignoredCandidateCapture();
+	return {
+		ok: true,
+		status: appendedCandidates.length > 0 ? "captured" : "resumed",
+		candidate: first,
+		candidates,
+	};
 }
 
 function executeObservationAction(input: {

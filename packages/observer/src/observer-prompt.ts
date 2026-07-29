@@ -9,8 +9,15 @@ function excerpt(text: string): string {
 	return text.length <= MAX_EXCERPT ? text : `${text.slice(0, MAX_EXCERPT)}…`;
 }
 
+export interface ObserverNominatableToolResult {
+	readonly toolCallId: string;
+	readonly toolName: string;
+	readonly isError: boolean;
+}
+
 export function observerSidecarContext(
 	entries: readonly PiBranchEntryLike[],
+	nominatableToolResults: readonly ObserverNominatableToolResult[] = [],
 ): string | null {
 	const session = reconstructObservationSession(entries);
 	if (
@@ -101,10 +108,18 @@ export function observerSidecarContext(
 	);
 	const candidateLines = pendingCandidates
 		.slice(0, MAX_CONTEXT_CANDIDATES)
-		.map(
-			(candidate) =>
-				`- ${candidate.candidateId} [${candidate.origin.kind}] ${JSON.stringify(excerpt(candidate.text))}`,
-		);
+		.map((candidate) => {
+			const selection =
+				candidate.origin.kind === "tool-result" &&
+				candidate.origin.nominationReason
+					? ` selected=${JSON.stringify(excerpt(candidate.origin.nominationReason))}`
+					: "";
+			return `- ${candidate.candidateId} [${candidate.origin.kind}]${selection} ${JSON.stringify(excerpt(candidate.text))}`;
+		});
+	const nominatableLines = nominatableToolResults.map(
+		(result) =>
+			`- ${result.toolCallId} tool=${JSON.stringify(result.toolName)} status=${result.isError ? "error" : "success"}`,
+	);
 	const readLines = pendingReads.map((read) => {
 		const hydration = session.hydrations.find(
 			(item) => item.readId === read.readId,
@@ -118,13 +133,19 @@ export function observerSidecarContext(
 		"<observer-sidecar>",
 		"Observer Mode is ON for the current OPEN episode.",
 		"Use the sequential observer_sidecar tool only for the staged protocol below.",
-		"1. Reconstruct source meaning faithfully before seeing any Standing Inquiry content.",
-		"2. Call source-read with completed candidate IDs and faithful Source facts/claims; it then returns only the compact StandingIndex.",
-		"3. If related IDs are plausible, call hydrate for only those IDs; it returns selected full context.",
-		"4. Call record with explicit stance, movement, rationale, and matching hydration, or user-hypothesis for an explicit user proposal.",
-		"5. After user-hypothesis succeeds, use its returned observation_id to call hypothesis-context-review after re-reading the visible context through that hypothesis as a lens.",
-		"6. User hypotheses are not evidence for their own truth. Preserve user context separately from Observer interpretation. Do not observe Observer tool/control output.",
+		"1. A tool execution is not an Observation. Do not nominate routine navigation, listing, write acknowledgements, repeated reads, or diagnostics merely because they ran.",
+		"2. When a listed tool result contributes source evidence, a counterexample, a boundary, or an Inquiry/Memo-relevant finding, call nominate-tool-results with its exact tool_call_id and a specific reason. If none is meaningful, make no Observer call.",
+		"3. Reconstruct nominated or already-pending source meaning faithfully before seeing any Standing Inquiry content.",
+		"4. Call source-read with the candidate IDs returned by nomination or listed below and faithful Source facts/claims; it then returns only the compact StandingIndex.",
+		"5. If related IDs are plausible, call hydrate for only those IDs; it returns selected full context.",
+		"6. Call record with explicit stance, movement, rationale, and matching hydration, or user-hypothesis for an explicit user proposal.",
+		"7. After user-hypothesis succeeds, use its returned observation_id to call hypothesis-context-review after re-reading the visible context through that hypothesis as a lens.",
+		"8. User hypotheses are not evidence for their own truth. Preserve user context separately from Observer interpretation. Do not observe Observer tool/control output.",
 		"Minor/support/uncertain observations stay quiet. The tool itself alerts only after a Major event is appended.",
+		"",
+		`Tool results eligible for meaning-based nomination in this agent run (${nominatableToolResults.length}):`,
+		...(nominatableLines.length > 0 ? nominatableLines : ["- none"]),
+		"These are references to visible Pi tool results, not captured Observer candidates.",
 		"",
 		`Pending candidates (${pendingCandidates.length}):`,
 		...(candidateLines.length > 0 ? candidateLines : ["- none"]),

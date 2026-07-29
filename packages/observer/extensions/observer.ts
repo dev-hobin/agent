@@ -19,6 +19,7 @@ import {
 	type MemoRequestControllerResult,
 	type MaterialReviewCancelControllerResult,
 	type MaterialReviewRetryControllerResult,
+	type ObservationCommandPort,
 	type ObservationControllerIds,
 	type ObservationControllerResult,
 	type TrackUserHypothesisResult,
@@ -28,7 +29,10 @@ import type { PreparedObservationMemoInstruction } from "../src/memo-instruction
 import { encodePreparedMemoPass } from "../src/memo-profile.ts";
 import { reconstructObservationSession } from "../src/observation-session.ts";
 import type { ObservationMemoRequestedEvent } from "../src/observation-profile.ts";
-import type { PreparedSaveHandoff } from "../src/pi-session.ts";
+import type {
+	PiBranchEntryLike,
+	PreparedSaveHandoff,
+} from "../src/pi-session.ts";
 import { parseObserveCommand } from "../src/observer-command.ts";
 import type { ObserverStatusView } from "../src/observer-status.ts";
 import { renderSaveProposalReview } from "../src/save-review.ts";
@@ -40,11 +44,15 @@ import {
 	activeMaterialReviewCaptureRequestId,
 	activeMaterialReviewRequestId,
 	beginObserverAgentRun,
+	clearToolResultNominations,
+	consumeToolResultNominations,
 	endObserverAgentRun,
 	observerTurnContext,
+	resolveToolResultNomination,
 	routeMaterialReviewTool,
 	settleObserverAgentRun,
 	stageMaterialReviewRetry,
+	stageNominatableToolResult,
 	suspendMaterialReviewRun,
 	type ObserverMaterialReviewIds,
 	type ObserverTurnState,
@@ -1157,6 +1165,65 @@ function memoPreparationCompleted(
 	);
 }
 
+function executeToolResultNomination(input: {
+	readonly selections: unknown;
+	readonly entries: readonly PiBranchEntryLike[];
+	readonly turnState: ObserverTurnState;
+	readonly observation: ReturnType<typeof createObservationController>;
+	readonly port: ObservationCommandPort;
+}): {
+	content: { type: "text"; text: string }[];
+	details: unknown;
+} {
+	const resolution = resolveToolResultNomination({
+		turnState: input.turnState,
+		selections: input.selections,
+		entries: input.entries,
+	});
+	if (!resolution.ok) throw new Error(resolution.message);
+	const nominations = [];
+	for (const result of resolution.results) {
+		const captured = input.observation.capture(
+			{
+				origin: {
+					kind: "tool-result",
+					tool_call_id: result.toolCallId,
+					tool_name: result.toolName,
+				},
+				text: result.text,
+				capturedAt: result.capturedAt,
+				nominationReason: result.reason,
+			},
+			input.port,
+		);
+		if (!captured.ok) throw new Error(captured.message);
+		if (captured.status === "ignored") {
+			throw new Error(
+				`Tool result ${result.toolCallId} is no longer eligible for Observer capture.`,
+			);
+		}
+		nominations.push({
+			tool_call_id: result.toolCallId,
+			candidate_ids: captured.candidates.map(
+				(candidate) => candidate.candidateId,
+			),
+		});
+	}
+	consumeToolResultNominations(
+		input.turnState,
+		resolution.results.map((result) => result.toolCallId),
+	);
+	const payload = {
+		action: "nominate-tool-results" as const,
+		nominations,
+		next: "Call source-read only for the returned candidate_ids after faithfully reconstructing their source meaning.",
+	};
+	return {
+		content: [{ type: "text", text: JSON.stringify(payload) }],
+		details: payload,
+	};
+}
+
 function registerObserverSidecarTool(input: {
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
@@ -1168,9 +1235,9 @@ function registerObserverSidecarTool(input: {
 		name: OBSERVER_TOOL_NAME,
 		label: "Observer Sidecar",
 		description:
-			"Start or finish an exact material review, review current context through a user hypothesis, or stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement, then complete exact Memo and Review proposal requests from their locked scope.",
+			"Nominate only meaning-bearing tool results from the active agent run, start or finish an exact material review, review current context through a user hypothesis, or stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement, then complete exact Memo and Review proposal requests from their locked scope.",
 		promptSnippet:
-			"Use model-owned material-review classification only with the exact hidden digest; complete pending hypothesis-context, Memo, and save reviews from their exact current scope.",
+			"Nominate tool results only when hidden Observer guidance lists their exact IDs and they contribute evidence; use model-owned material-review classification only with the exact hidden digest; complete pending hypothesis-context, Memo, and save reviews from their exact current scope.",
 		parameters: observerSidecarParameters,
 		executionMode: "sequential",
 		renderShell: "self",
@@ -1205,6 +1272,15 @@ function registerObserverSidecarTool(input: {
 					content: [{ type: "text", text: materialReview.text }],
 					details: materialReview.result,
 				};
+			if (params.action === "nominate-tool-results") {
+				return executeToolResultNomination({
+					selections: params.selections,
+					entries: ctx.sessionManager.getBranch(),
+					turnState: input.turnState,
+					observation: input.observation,
+					port,
+				});
+			}
 			const executionResult = await input.observation.execute(params, port);
 			if (!executionResult.ok) {
 				const action = Reflect.get(params, "action");
@@ -1296,6 +1372,55 @@ function registerObserverSidecarTool(input: {
 	});
 }
 
+export function captureOrStageToolResult(input: {
+	readonly toolCallId: string;
+	readonly toolName: string;
+	readonly text: string;
+	readonly isError: boolean;
+	readonly capturedAt: string;
+	readonly entries: readonly PiBranchEntryLike[];
+	readonly port: ObservationCommandPort;
+	readonly observation: ReturnType<typeof createObservationController>;
+	readonly turnState: ObserverTurnState;
+}) {
+	const materialReviewRequestId = activeMaterialReviewCaptureRequestId(
+		input.turnState,
+	);
+	if (materialReviewRequestId) {
+		if (input.isError) return null;
+		return input.observation.capture(
+			{
+				origin: {
+					kind: "tool-result",
+					tool_call_id: input.toolCallId,
+					tool_name: input.toolName,
+				},
+				text: input.text,
+				capturedAt: input.capturedAt,
+				materialReviewRequestId,
+			},
+			input.port,
+		);
+	}
+	const session = reconstructObservationSession(input.entries);
+	if (
+		session.issues.length > 0 ||
+		session.lifecycle.mode !== "on" ||
+		session.lifecycle.episode.status !== "open"
+	)
+		return null;
+	stageNominatableToolResult({
+		turnState: input.turnState,
+		result: {
+			toolCallId: input.toolCallId,
+			toolName: input.toolName,
+			isError: input.isError,
+			capturedAt: input.capturedAt,
+		},
+	});
+	return null;
+}
+
 function registerObserverEvents(input: {
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
@@ -1303,6 +1428,7 @@ function registerObserverEvents(input: {
 	readonly turnState: ObserverTurnState;
 }): void {
 	input.pi.on("input", (event, ctx) => {
+		clearToolResultNominations(input.turnState);
 		if (
 			acceptScriptedMaterialInput({
 				turnState: input.turnState,
@@ -1343,26 +1469,18 @@ function registerObserverEvents(input: {
 		if (event.toolName === OBSERVER_TOOL_NAME) return;
 		const text = textFromContent(event.content);
 		if (!text) return;
-		const materialReviewRequestId = activeMaterialReviewCaptureRequestId(
-			input.turnState,
-		);
-		if (materialReviewRequestId && event.isError) return;
-		reportCaptureFailure(
-			input.observation.capture(
-				{
-					origin: {
-						kind: "tool-result",
-						tool_call_id: event.toolCallId,
-						tool_name: event.toolName,
-					},
-					text,
-					capturedAt: new Date().toISOString(),
-					...(materialReviewRequestId ? { materialReviewRequestId } : {}),
-				},
-				commandPort(input.pi, ctx),
-			),
-			ctx,
-		);
+		const capture = captureOrStageToolResult({
+			toolCallId: event.toolCallId,
+			toolName: event.toolName,
+			text,
+			isError: event.isError,
+			capturedAt: new Date().toISOString(),
+			entries: ctx.sessionManager.getBranch(),
+			port: commandPort(input.pi, ctx),
+			observation: input.observation,
+			turnState: input.turnState,
+		});
+		if (capture) reportCaptureFailure(capture, ctx);
 	});
 	input.pi.on("agent_start", () => {
 		beginObserverAgentRun(input.turnState);
@@ -1463,6 +1581,7 @@ export default function observerExtension(pi: ExtensionAPI): void {
 		agentRunSequence: 0,
 		activeAgentRunId: null,
 		materialReviewRun: null,
+		nominatableToolResults: new Map(),
 		stagedMaterialReviewRetry: null,
 	};
 

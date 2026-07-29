@@ -38,6 +38,7 @@ export type CandidateOrigin =
 			readonly kind: "tool-result";
 			readonly toolCallId: string;
 			readonly toolName: string;
+			readonly nominationReason?: string;
 	  }
 	| { readonly kind: "assistant-result"; readonly turnIndex: number };
 
@@ -349,6 +350,34 @@ function parseIds<Id extends string>(
 		: result;
 }
 
+function parseToolResultOrigin(
+	value: Readonly<Record<string, unknown>>,
+): CandidateOrigin | null {
+	const toolCallId = boundedText(value.tool_call_id, 300);
+	const toolName = boundedText(value.tool_name, 300);
+	const hasNominationReason = value.nomination_reason !== undefined;
+	const nominationReason = hasNominationReason
+		? boundedText(value.nomination_reason, 4_000)
+		: null;
+	const expectedKeys = hasNominationReason
+		? ["kind", "tool_call_id", "tool_name", "nomination_reason"]
+		: ["kind", "tool_call_id", "tool_name"];
+	if (
+		!hasExactKeys(value, expectedKeys) ||
+		!toolCallId ||
+		!toolName ||
+		toolName === "observer_sidecar" ||
+		(hasNominationReason && !nominationReason)
+	)
+		return null;
+	return {
+		kind: "tool-result",
+		toolCallId,
+		toolName,
+		...(nominationReason ? { nominationReason } : {}),
+	};
+}
+
 function parseCandidateOrigin(value: unknown): CandidateOrigin | null {
 	if (!isObject(value) || typeof value.kind !== "string") return null;
 	if (
@@ -360,16 +389,7 @@ function parseCandidateOrigin(value: unknown): CandidateOrigin | null {
 			? { kind: value.kind, inputSource: value.input_source }
 			: null;
 	}
-	if (value.kind === "tool-result") {
-		const toolCallId = boundedText(value.tool_call_id, 300);
-		const toolName = boundedText(value.tool_name, 300);
-		return hasExactKeys(value, ["kind", "tool_call_id", "tool_name"]) &&
-			toolCallId &&
-			toolName &&
-			toolName !== "observer_sidecar"
-			? { kind: "tool-result", toolCallId, toolName }
-			: null;
-	}
+	if (value.kind === "tool-result") return parseToolResultOrigin(value);
 	if (value.kind === "assistant-result") {
 		return hasExactKeys(value, ["kind", "turn_index"]) &&
 			typeof value.turn_index === "number" &&
@@ -1306,6 +1326,9 @@ function encodeOrigin(origin: CandidateOrigin): unknown {
 				kind: origin.kind,
 				tool_call_id: origin.toolCallId,
 				tool_name: origin.toolName,
+				...(origin.nominationReason
+					? { nomination_reason: origin.nominationReason }
+					: {}),
 			};
 		case "assistant-result":
 			return { kind: origin.kind, turn_index: origin.turnIndex };

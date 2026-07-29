@@ -69,9 +69,11 @@ Turn observation on, then work with Pi normally:
 /observe on
 ```
 
-Read documents, inspect code, retrieve webpages, or discuss a question. Observer stages source candidates, SourceReads, optional Standing Inquiry hydration, semantic observations, and user hypotheses on the current Pi branch. Automatic conversation and tool-result candidates are bounded context clues. Oversized text is split into ordered bounded segments, preserving all captured candidate text instead of dropping the middle or producing a profile error. The original tool result remains the material to inspect before recording Source evidence.
+Read documents, inspect code, retrieve webpages, or discuss a question. Observer stages selected source candidates, SourceReads, optional Standing Inquiry hydration, semantic observations, and user hypotheses on the current Pi branch. A normal tool execution is only eligible evidence: it is not copied into Observer state. During the same agent run, the model may nominate an exact tool-call ID with a specific evidence, counterexample, boundary, or Inquiry/Memo relevance reason. Only that explicit nomination promotes the original Pi tool result to an Observer candidate. Routine navigation, listings, write acknowledgements, repeated reads, and diagnostics remain unselected and create no Observer event. Unselected references disappear when the agent run ends or new user input arrives.
 
-Routine successful `observer_sidecar` protocol calls render no transcript row in the TUI. Failures, recovery state, explicit receipts, and Major notifications remain visible. Pi session history still retains tool and Observer protocol entries for model continuity, branch replay, and audit; visual quietness is presentation, not deletion of the underlying session log.
+Oversized nominated results are split into ordered bounded segments, preserving all selected text instead of dropping the middle or producing a profile error. Repeated nomination of the same tool result and content resumes the existing candidates rather than duplicating them. Explicit retrieved `/observe material` is the exception: its bounded active retrieval run captures successful exact tool results automatically because the user requested that material directly.
+
+Routine successful `observer_sidecar` protocol calls render no transcript row in the TUI. Failures, recovery state, explicit receipts, and Major notifications remain visible. Pi session history still retains ordinary tool messages for model continuity and audit, while Observer protocol entries exist only for nominated or explicitly requested material. Visual quietness is presentation, not deletion of the underlying Pi session log.
 
 Reconcile the current working material without writing notebook Markdown:
 
@@ -118,7 +120,7 @@ Observe material is independent of continuous Observer Mode. It works while Mode
 /observe material <inline material, path, URL, or retrieval request>
 ```
 
-For a path or URL, Pi must retrieve the material first. The instruction itself is not treated as source evidence. Retrieved tool results are linked only during the agent run that starts or explicitly retries that exact Observe material request. When that run settles—or unrelated user input arrives—the retrieval window closes while the request remains visibly suspended. Later technical-reading tools are therefore ignored when continuous Mode is Off, or remain ordinary Sidecar candidates when Mode is On; they are never silently attached to the stale material request.
+For a path or URL, Pi must retrieve the material first. The instruction itself is not treated as source evidence. Retrieved tool results are linked only during the agent run that starts or explicitly retries that exact Observe material request. When that run settles—or unrelated user input arrives—the retrieval window closes while the request remains visibly suspended. Later technical-reading tools are therefore ignored when continuous Mode is Off, or become nomination-eligible references only for their own active agent run when Mode is On; they are never silently captured or attached to the stale material request.
 
 If processing stops before completion, use:
 

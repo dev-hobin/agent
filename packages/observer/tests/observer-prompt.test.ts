@@ -97,6 +97,7 @@ describe("Observer hidden Sidecar context", () => {
 				kind: "tool-result",
 				tool_call_id: "tool-call-prompt",
 				tool_name: "read",
+				nomination_reason: "It establishes a source claim for the inquiry.",
 			},
 			text: "A source result that still needs source-first interpretation.",
 			content_hash: sha256Text(
@@ -108,11 +109,22 @@ describe("Observer hidden Sidecar context", () => {
 			observerSidecarContext([...lifecycle(false), entry(candidate)]),
 			null,
 		);
-		const context = observerSidecarContext([
-			...lifecycle(true),
-			entry(candidate),
-		]);
+		const context = observerSidecarContext(
+			[...lifecycle(true), entry(candidate)],
+			[
+				{
+					toolCallId: "tool-call-eligible",
+					toolName: "fetch_content",
+					isError: false,
+				},
+			],
+		);
 		assert.match(context ?? "", /source meaning faithfully/u);
+		assert.match(context ?? "", /A tool execution is not an Observation/u);
+		assert.match(context ?? "", /nominate-tool-results/u);
+		assert.match(context ?? "", /tool-call-eligible/u);
+		assert.match(context ?? "", /not captured Observer candidates/u);
+		assert.match(context ?? "", /establishes a source claim/u);
 		assert.match(context ?? "", new RegExp(CANDIDATE_ID, "u"));
 		assert.doesNotMatch(context ?? "", /Standing Inquiry title/u);
 	});
@@ -228,6 +240,7 @@ describe("Observer hidden Sidecar context", () => {
 					agentRunSequence: 0,
 					activeAgentRunId: null,
 					materialReviewRun: null,
+					nominatableToolResults: new Map(),
 					stagedMaterialReviewRetry: null,
 				},
 				entries: pendingEntries,
@@ -338,6 +351,7 @@ describe("Observer hidden Sidecar context", () => {
 				agentRunSequence: 1,
 				activeAgentRunId: null,
 				materialReviewRun: null,
+				nominatableToolResults: new Map(),
 				stagedMaterialReviewRetry: null,
 			},
 			entries,
@@ -357,6 +371,7 @@ describe("Observer hidden Sidecar context", () => {
 					requestId: request.requestId,
 					material: request.material,
 				},
+				nominatableToolResults: new Map(),
 				stagedMaterialReviewRetry: null,
 			},
 			entries,

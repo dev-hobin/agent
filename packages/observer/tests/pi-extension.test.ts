@@ -4,10 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import {
-	SessionManager,
-	type Theme,
-} from "@earendil-works/pi-coding-agent";
+import { SessionManager, type Theme } from "@earendil-works/pi-coding-agent";
 import { Value } from "typebox/value";
 
 import observerExtension, {
@@ -480,6 +477,7 @@ test("routes a scriptable material command without changing Observer Mode", () =
 		agentRunSequence: 0,
 		activeAgentRunId: null,
 		materialReviewRun: null,
+		nominatableToolResults: new Map(),
 		stagedMaterialReviewRetry: null,
 	};
 	assert.equal(
@@ -745,6 +743,44 @@ test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {
 	};
 	Value.Convert(observerSidecarParameters, value);
 	assert.equal(value.claims[0]?.locator, null);
+});
+
+test("describes bounded meaning-based tool-result nomination payloads", () => {
+	assert.equal(
+		Value.Check(observerSidecarParameters, {
+			observer_action: "observer-sidecar/v1",
+			action: "nominate-tool-results",
+			selections: [
+				{
+					tool_call_id: "tool-call-meaningful",
+					reason: "It establishes a source claim relevant to the open inquiry.",
+				},
+			],
+		}),
+		true,
+	);
+	assert.equal(
+		Value.Check(observerSidecarParameters, {
+			observer_action: "observer-sidecar/v1",
+			action: "nominate-tool-results",
+			selections: [],
+		}),
+		false,
+	);
+	assert.equal(
+		Value.Check(observerSidecarParameters, {
+			observer_action: "observer-sidecar/v1",
+			action: "nominate-tool-results",
+			selections: [
+				{
+					tool_call_id: "tool-call-meaningful",
+					reason: "A reason.",
+					extra: true,
+				},
+			],
+		}),
+		false,
+	);
 });
 
 test("describes strict material review start and finish model payloads", () => {

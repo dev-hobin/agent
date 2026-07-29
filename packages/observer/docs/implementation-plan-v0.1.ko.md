@@ -949,8 +949,11 @@ hidden chain-of-thought 접근
 ### Landing 7A — Observation ledger와 sequential Sidecar controller
 
 ```text
-[x] visible user/main-agent/tool result를 current OPEN+ON Episode candidate로 append
-[x] Observer 자체 tool/control과 OFF input은 무시
+[x] visible user/main-agent 대화를 current OPEN+ON Episode candidate로 append
+[x] 일반 tool result는 current agent run의 bounded reference로만 staging하고,
+    exact ID와 이유를 명시한 `nominate-tool-results` 뒤에만 candidate로 승격
+[x] retrieved Observe material active run만 successful tool result를 자동 capture
+[x] Observer 자체 tool/control, unselected tool result, OFF input은 무시
 [x] source-read 전 Standing Inquiry 내용을 노출하지 않는 source-first 순서
 [x] deterministic StandingIndex를 반환한 뒤 선택한 Inquiry만 hydrate
 [x] strict action decoder와 action-specific semantic preflight
@@ -2279,4 +2282,12 @@ Stop:
 - `/observe memo` request는 exact Observation batch를 묶고 `memo-scope` → parser-refined `memo-prepare`만 기존 prepared → applied → acknowledgment 경계에 위임한다.
 - Memo instruction append/replay 전에는 prepared effect를 허용하지 않으며 exact retry와 install/apply/ack gap은 duplicate 없이 복구한다.
 - Memo completion은 Mode/Episode와 durable Markdown을 변경하지 않고 acknowledged request의 Observation만 consumed 처리한다.
+- 일반 tool execution은 Observation이 아니다. Mode ON의 tool result는 current agent run에
+  bounded ID/name/error metadata만 일시 보존하고 model-owned explicit nomination 전에는
+  Observer event를 만들지 않는다.
+- `nominate-tool-results`는 current-run staged ID, current branch exact result, non-empty
+  selection reason을 함께 요구한다. reason은 candidate origin에 보존하고 동일
+  tool-call/content 재시도는 기존 candidate를 resume한다.
+- retrieved Observe material의 active capture grant만 일반 nomination gate의 예외이며,
+  material start/retry가 시작되면 일반 nomination reference를 비운다.
 ```
