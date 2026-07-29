@@ -597,6 +597,7 @@ describe("Observation staged controller", () => {
 				toolUsed: true,
 				latestUser: { text, inputSource: "interactive" },
 				scriptedMaterialRequest: null,
+				blockedRequestId: null,
 			};
 			const routed = await routeMaterialReviewTool({
 				value: {
@@ -2158,45 +2159,24 @@ describe("Observation staged controller", () => {
 						install() {
 							return Promise.resolve(false);
 						},
-						apply() {
-							assert.fail(
-								"Review & Save apply must not run after failed install",
-							);
-						},
-						status() {
-							return "recovery-required";
-						},
 					},
 				);
 				assert.equal(failedSaveInstall.ok, false);
 				assert.equal(port.entries.length, beforeMalformedSave);
-				function completionStatus(
-					proposalId: string,
-				): "completed" | "cancelled" | "recovery-required" {
-					const snapshot = reconstructObserverPiState(port.entries);
-					if (snapshot.issues.length > 0) return "recovery-required";
-					if (
-						snapshot.state.episode.status === "settled" &&
-						snapshot.state.episode.committedSave.proposalId === proposalId
-					)
-						return "completed";
-					return snapshot.state.episode.status === "open" &&
-						snapshot.prepared === null
-						? "cancelled"
-						: "recovery-required";
-				}
+
 				port.confirmation = false;
-				const cancelled = await completeSavePreparation(preparedSave.handoff, {
+				const reviewed = await completeSavePreparation(preparedSave.handoff, {
 					install(value) {
 						return lifecycleController.installPrepared(value, port);
 					},
-					apply() {
-						return lifecycleController.command("save", port);
-					},
-					status: completionStatus,
 				});
-				assert.equal(cancelled.ok, true);
-				if (cancelled.ok) assert.equal(cancelled.status, "cancelled");
+				assert.equal(reviewed.ok, true);
+				if (reviewed.ok) assert.equal(reviewed.status, "prepared");
+				assert.equal(
+					reconstructObserverPiState(port.entries).state.episode.status,
+					"reviewing-save",
+				);
+				await lifecycleController.command("save", port);
 				assert.equal(
 					reconstructObserverPiState(port.entries).state.episode.status,
 					"open",
@@ -2247,13 +2227,14 @@ describe("Observation staged controller", () => {
 					install(value) {
 						return lifecycleController.installPrepared(value, port);
 					},
-					apply() {
-						return lifecycleController.command("save", port);
-					},
-					status: completionStatus,
 				});
 				assert.equal(completed.ok, true);
-				if (completed.ok) assert.equal(completed.status, "completed");
+				if (completed.ok) assert.equal(completed.status, "prepared");
+				assert.equal(
+					reconstructObserverPiState(port.entries).state.episode.status,
+					"reviewing-save",
+				);
+				await lifecycleController.command("save", port);
 				const settled = reconstructObserverPiState(port.entries);
 				assert.equal(settled.state.mode, "off");
 				assert.equal(settled.state.episode.status, "settled");

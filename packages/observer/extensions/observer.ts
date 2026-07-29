@@ -24,10 +24,7 @@ import type { PreparedObservationMemoInstruction } from "../src/memo-instruction
 import { encodePreparedMemoPass } from "../src/memo-profile.ts";
 import { reconstructObservationSession } from "../src/observation-session.ts";
 import type { ObservationMemoRequestedEvent } from "../src/observation-profile.ts";
-import {
-	reconstructObserverPiState,
-	type PreparedSaveHandoff,
-} from "../src/pi-session.ts";
+import type { PreparedSaveHandoff } from "../src/pi-session.ts";
 import { parseObserveCommand } from "../src/observer-command.ts";
 import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
 import type { SaveRequestEvent } from "../src/save-trigger.ts";
@@ -304,7 +301,7 @@ export async function completeMemoPreparation(
 export type SavePreparationCompletion =
 	| {
 			readonly ok: true;
-			readonly status: "completed" | "cancelled" | "recovery-required";
+			readonly status: "prepared" | "recovery-required";
 			readonly proposalId: string;
 			readonly message: string;
 	  }
@@ -312,23 +309,6 @@ export type SavePreparationCompletion =
 
 export interface SavePreparationEffects {
 	install(value: PreparedSaveHandoff): Promise<boolean>;
-	apply(): Promise<void>;
-	status(proposalId: string): "completed" | "cancelled" | "recovery-required";
-}
-
-function saveCompletionMessage(
-	status: "completed" | "cancelled" | "recovery-required",
-): string {
-	switch (status) {
-		case "completed":
-			return "Approval, local save, readback, and Episode settlement are complete.";
-		case "cancelled":
-			return "The Review & Save proposal was cancelled. The Episode remains open.";
-		case "recovery-required":
-			return "Review & Save was interrupted. Use /observe save to recover.";
-		default:
-			return assertNever(status);
-	}
 }
 
 export async function completeSavePreparation(
@@ -341,22 +321,21 @@ export async function completeSavePreparation(
 		if (!installed)
 			return {
 				ok: false,
-				message: "Could not install the prepared Review & Save proposal.",
+				message: "Could not install the prepared save proposal.",
 			};
-		await effects.apply();
-		const status = effects.status(proposalId);
 		return {
 			ok: true,
-			status,
+			status: "prepared",
 			proposalId,
-			message: saveCompletionMessage(status),
+			message:
+				"Review is complete. The proposal is ready; run /observe save to inspect and approve it.",
 		};
 	} catch (error) {
 		return {
 			ok: true,
 			status: "recovery-required",
 			proposalId,
-			message: `Review & Save was interrupted: ${error instanceof Error ? error.message : String(error)}. Use /observe save to recover.`,
+			message: `Review preparation was interrupted: ${error instanceof Error ? error.message : String(error)}. Run /observe review to recover.`,
 		};
 	}
 }
@@ -489,7 +468,7 @@ export function routeMaterialCommand(
 	return true;
 }
 
-export interface SaveCommandEffects {
+export interface ReviewCommandEffects {
 	request(): Promise<SaveRequestControllerResult>;
 	delegateSave(): Promise<void>;
 	delegateMemo(): Promise<void>;
@@ -498,12 +477,12 @@ export interface SaveCommandEffects {
 	notify(message: string, type: "info" | "warning" | "error"): void;
 }
 
-export async function routeSaveCommand(
+export async function routeReviewCommand(
 	args: string,
-	effects: SaveCommandEffects,
+	effects: ReviewCommandEffects,
 ): Promise<boolean> {
 	const parsed = parseObserveCommand(args);
-	if (!parsed.ok || parsed.command.kind !== "save") return false;
+	if (!parsed.ok || parsed.command.kind !== "review") return false;
 	let requested = await effects.request();
 	if (!requested.ok) {
 		effects.notify(requested.message, "error");
@@ -518,7 +497,10 @@ export async function routeSaveCommand(
 		}
 	}
 	if (requested.status === "delegate") {
-		await effects.delegateSave();
+		effects.notify(
+			`${requested.message} Run /observe save to inspect and approve it.`,
+			"info",
+		);
 		return true;
 	}
 	if (
@@ -530,7 +512,7 @@ export async function routeSaveCommand(
 			effects.notify(requested.message, "info");
 		} catch (error) {
 			effects.notify(
-				`Final Memo request was recorded, but the agent trigger failed: ${error instanceof Error ? error.message : String(error)}`,
+				`The final Review Memo request was recorded, but the agent trigger failed: ${error instanceof Error ? error.message : String(error)}`,
 				"warning",
 			);
 		}
@@ -548,7 +530,7 @@ export async function routeSaveCommand(
 		effects.notify(requested.message, "info");
 	} catch (error) {
 		effects.notify(
-			`The Review & Save request was recorded, but the agent trigger failed: ${error instanceof Error ? error.message : String(error)}`,
+			`The Review request was recorded, but the agent trigger failed: ${error instanceof Error ? error.message : String(error)}`,
 			"warning",
 		);
 	}
@@ -709,6 +691,7 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 	}
 	const memoHandled = await routeMemoCommand(input.args, {
 		request() {
+			input.turnState.blockedRequestId = null;
 			return input.observation.requestMemo(port);
 		},
 		delegate() {
@@ -738,8 +721,9 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 		await refreshObserverChrome(input);
 		return;
 	}
-	const saveHandled = await routeSaveCommand(input.args, {
+	const reviewHandled = await routeReviewCommand(input.args, {
 		request() {
+			input.turnState.blockedRequestId = null;
 			return input.observation.requestReviewSave(port);
 		},
 		delegateSave() {
@@ -753,9 +737,9 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 				{
 					customType: "observer.final-memo-trigger",
 					content: [
-						"Review & Save requires one final Memo reconciliation.",
+						"Review requires one final Memo reconciliation.",
 						`request_id=${request.requestId}`,
-						"Call observer_sidecar with action memo-scope for this request. Successful completion continues to the Review & Save proposal automatically.",
+						"Call observer_sidecar with action memo-scope for this request. Successful completion continues to an inspectable save proposal without writing files.",
 					].join("\n"),
 					display: false,
 					details: {
@@ -772,9 +756,9 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 				{
 					customType: "observer.save-trigger",
 					content: [
-						"Observer Review & Save request is pending.",
+						"Observer Review request is pending.",
 						`request_id=${request.requestId}`,
-						"Call observer_sidecar with action save-scope for this request.",
+						"Call observer_sidecar with action save-scope for this request. Prepare the proposal only; do not approve or save it.",
 					].join("\n"),
 					display: false,
 					details: {
@@ -787,7 +771,7 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 		},
 		notify: input.ctx.ui.notify.bind(input.ctx.ui),
 	});
-	if (!saveHandled) await input.controller.command(input.args, port);
+	if (!reviewHandled) await input.controller.command(input.args, port);
 	await refreshObserverChrome(input);
 }
 
@@ -897,7 +881,10 @@ async function showObserverControlFlow(
 			case "memo":
 				await runObserverCommand({ ...input, args: "memo" });
 				return;
-			case "review-save":
+			case "review":
+				await runObserverCommand({ ...input, args: "review" });
+				return;
+			case "save":
 				await runObserverCommand({ ...input, args: "save" });
 				return;
 			case "add-hypothesis":
@@ -945,22 +932,6 @@ async function handleObserveCommand(input: ObserveCommandInput): Promise<void> {
 	await runObserverCommand(input);
 }
 
-function saveCompletionStatus(
-	entries: Parameters<typeof reconstructObserverPiState>[0],
-	proposalId: string,
-): "completed" | "cancelled" | "recovery-required" {
-	const snapshot = reconstructObserverPiState(entries);
-	if (snapshot.issues.length > 0) return "recovery-required";
-	if (
-		snapshot.state.episode.status === "settled" &&
-		snapshot.state.episode.committedSave.proposalId === proposalId
-	)
-		return "completed";
-	if (snapshot.state.episode.status === "open" && snapshot.prepared === null)
-		return "cancelled";
-	return "recovery-required";
-}
-
 function memoPreparationCompleted(
 	entries: Parameters<typeof reconstructObservationSession>[0],
 	requestId: string,
@@ -989,7 +960,7 @@ function registerObserverSidecarTool(input: {
 		name: OBSERVER_TOOL_NAME,
 		label: "Observer Sidecar",
 		description:
-			"Start or finish an exact material review, review current context through a user hypothesis, or stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement, then complete exact Memo or Review & Save requests from their locked scope.",
+			"Start or finish an exact material review, review current context through a user hypothesis, or stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement, then complete exact Memo and Review proposal requests from their locked scope.",
 		promptSnippet:
 			"Use model-owned material-review classification only with the exact hidden digest; complete pending hypothesis-context, Memo, and save reviews from their exact current scope.",
 		parameters: observerSidecarParameters,
@@ -1012,23 +983,38 @@ function registerObserverSidecarTool(input: {
 					content: [{ type: "text", text: materialReview.text }],
 					details: materialReview.result,
 				};
-			const result = requireObservationToolSuccess(
-				await input.observation.execute(params, port),
-			);
+			const executionResult = await input.observation.execute(params, port);
+			if (!executionResult.ok) {
+				const action = Reflect.get(params, "action");
+				const requestId = Reflect.get(params, "request_id");
+				const requestAction =
+					action === "memo-scope" ||
+					action === "memo-prepare" ||
+					action === "save-scope" ||
+					action === "save-prepare";
+				if (!requestAction || typeof requestId !== "string") {
+					throw new Error(executionResult.message);
+				}
+				input.turnState.blockedRequestId = requestId;
+				const failure = {
+					ok: false,
+					message: executionResult.message,
+					retry: false,
+					automatic_observer_request_paused: true,
+					next: "Continue the user's requested task. Retry Observer explicitly with /observe memo or /observe review.",
+				};
+				return {
+					content: [{ type: "text", text: JSON.stringify(failure) }],
+					details: executionResult,
+				};
+			}
+			input.turnState.blockedRequestId = null;
+			const result = executionResult;
 			if (result.action === "save-prepare") {
 				const completion = requireSavePreparationSuccess(
 					await completeSavePreparation(result.handoff, {
 						install(value) {
 							return input.controller.installPrepared(value, port);
-						},
-						apply() {
-							return input.controller.command("save", port);
-						},
-						status(proposalId) {
-							return saveCompletionStatus(
-								ctx.sessionManager.getBranch(),
-								proposalId,
-							);
 						},
 					}),
 				);
@@ -1231,6 +1217,7 @@ export default function observerExtension(pi: ExtensionAPI): void {
 		toolUsed: false,
 		latestUser: null,
 		scriptedMaterialRequest: null,
+		blockedRequestId: null,
 	};
 
 	registerObserverSidecarTool({
@@ -1243,7 +1230,7 @@ export default function observerExtension(pi: ExtensionAPI): void {
 
 	pi.registerCommand("observe", {
 		description:
-			"Configure Observer, add hypotheses, observe material, reconcile Memo, and run Review & Save",
+			"Configure Observer, reconcile Memo, Review proposed changes, and Save separately",
 		getArgumentCompletions: completeObserveArgs,
 		handler(args, ctx) {
 			return handleObserveCommand({

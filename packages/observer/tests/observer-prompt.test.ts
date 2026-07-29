@@ -11,6 +11,7 @@ import {
 	type ObservationEvent,
 } from "../src/observation-profile.ts";
 import { observationCandidateDigest } from "../src/observation-session.ts";
+import { observerTurnContext } from "../extensions/material-review-runtime.ts";
 import { observerSidecarContext } from "../src/observer-prompt.ts";
 import {
 	OBSERVER_LIFECYCLE_ENTRY,
@@ -189,13 +190,14 @@ describe("Observer hidden Sidecar context", () => {
 				observations: [hypothesis],
 			}),
 		});
-		const context = observerSidecarContext([
+		const pendingEntries = [
 			...lifecycle(true),
 			entry(candidate),
 			entry(hypothesis),
 			entry(request),
 			activation(false),
-		]);
+		];
+		const context = observerSidecarContext(pendingEntries);
 		assert.match(context ?? "", /<observer-memo-request>/u);
 		assert.match(
 			context ?? "",
@@ -210,8 +212,20 @@ describe("Observer hidden Sidecar context", () => {
 		assert.match(context ?? "", /Never combine any revise kind/u);
 		assert.doesNotMatch(context ?? "", /final Memo reconciliation/u);
 		assert.doesNotMatch(context ?? "", /<observer-sidecar>/u);
-
 		if (request.kind !== "memo-requested") assert.fail("Expected Memo request");
+		assert.equal(
+			observerTurnContext({
+				turnState: {
+					toolUsed: true,
+					latestUser: null,
+					scriptedMaterialRequest: null,
+					blockedRequestId: request.requestId,
+				},
+				entries: pendingEntries,
+			}),
+			null,
+		);
+
 		const continuation = event({
 			observer_observation: "observer-observation/v1",
 			kind: "review-save-continuation-requested",

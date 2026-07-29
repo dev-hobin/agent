@@ -21,6 +21,7 @@ export interface ObserverTurnState {
 	toolUsed: boolean;
 	latestUser: LatestUserMessage | null;
 	scriptedMaterialRequest: string | null;
+	blockedRequestId: string | null;
 }
 
 export function acceptScriptedMaterialInput(input: {
@@ -97,7 +98,9 @@ export function observerTurnContext(input: {
 			latestUser: input.turnState.latestUser,
 			entries: input.entries,
 		}),
-		observerSidecarContext(input.entries),
+		input.turnState.blockedRequestId
+			? null
+			: observerSidecarContext(input.entries),
 	]
 		.filter((item) => item !== null)
 		.join("\n\n");

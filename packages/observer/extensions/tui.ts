@@ -30,7 +30,8 @@ export type ObserverControlAction =
 	| { readonly kind: "setup" }
 	| { readonly kind: "language"; readonly language: EpisodeLanguage }
 	| { readonly kind: "memo" }
-	| { readonly kind: "review-save" }
+	| { readonly kind: "review" }
+	| { readonly kind: "save" }
 	| { readonly kind: "add-hypothesis" }
 	| { readonly kind: "observe-material" }
 	| { readonly kind: "status" };
@@ -116,10 +117,12 @@ function memoValue(view: ObserverStatusView): string {
 		: `Reconcile ${view.pendingMemos}`;
 }
 
-function saveValue(view: ObserverStatusView): string {
-	return view.control.episode === "reviewing-save"
-		? "Review proposal"
-		: "Prepare save plan";
+function reviewValue(view: ObserverStatusView): string {
+	if (view.pendingObservations > 0)
+		return `Review ${view.pendingObservations} observations`;
+	return view.pendingMemos === "Not counted yet"
+		? "Prepare proposal"
+		: `Review ${view.pendingMemos} Memos`;
 }
 
 function activationDescription(view: ObserverStatusView): string {
@@ -194,16 +197,24 @@ export function observerControlItems(
 				"Reconcile current observations with related Inquiries · does not write Notebook files",
 		});
 	}
+	if (view.control.canReview) {
+		items.push({
+			id: "review",
+			label: "Review",
+			currentValue: reviewValue(view),
+			values: [reviewValue(view)],
+			description:
+				"Reconcile pending work and prepare an inspectable proposal · does not write Notebook files",
+		});
+	}
 	if (view.control.canSave) {
 		items.push({
-			id: "review-save",
-			label: "Review & Save",
-			currentValue: saveValue(view),
-			values: [saveValue(view)],
+			id: "save",
+			label: "Save",
+			currentValue: "Inspect and approve",
+			values: ["Inspect and approve"],
 			description:
-				view.control.episode === "reviewing-save"
-					? "Review proposed Notebook changes, then approve or cancel"
-					: "Reconcile pending work, prepare Notebook changes, and settle the Episode after approval",
+				"Inspect the exact proposed Notebook changes, then approve or cancel",
 		});
 	}
 
@@ -239,13 +250,13 @@ export function observerNextStep(view: ObserverStatusView): string {
 	if (view.control.notebook === "unselected")
 		return "Connect a Notebook, then turn Observer on.";
 	if (view.control.episode === "reviewing-save")
-		return "Inspect the Review & Save proposal, then approve or cancel it.";
+		return "Inspect the prepared proposal, then Save or cancel it.";
 	if (view.pendingHypothesisReviews > 0)
 		return `Review the current context through ${view.pendingHypothesisReviews} ${view.pendingHypothesisReviews === 1 ? "added hypothesis" : "added hypotheses"} before Memo reconciliation.`;
 	if (view.control.mode === "on")
-		return "Keep working normally. Add hypotheses, reconcile with Memo, then run Review & Save when ready.";
+		return "Keep working normally. Reconcile with Memo, then Review before Save.";
 	if (view.control.episode === "open")
-		return "Your open work is preserved. Resume observation, add a hypothesis, or run Review & Save.";
+		return "Your open work is preserved. Resume observation, inspect Status, or run Review.";
 	return "Turn Observer on, add a hypothesis, or observe material on demand.";
 }
 
@@ -433,8 +444,11 @@ export class ObserverControlSurface extends Container {
 			case "memo":
 				this.done({ kind: "memo" });
 				break;
-			case "review-save":
-				this.done({ kind: "review-save" });
+			case "review":
+				this.done({ kind: "review" });
+				break;
+			case "save":
+				this.done({ kind: "save" });
 				break;
 			case "add-hypothesis":
 				this.done({ kind: "add-hypothesis" });
@@ -575,21 +589,37 @@ export class ObserverStatusPanel {
 
 		rows.push(row());
 		section("Working set");
-		add("Pending Memo", this.view.pendingMemos);
+		add("Pending observations", String(this.view.pendingObservations));
+		add("Working Memos", this.view.pendingMemos);
+		for (const memo of this.view.memoItems.slice(0, 3)) {
+			add(
+				`Memo · ${memo.title} [${memo.disposition}]`,
+				memo.content,
+				"text",
+				4,
+			);
+		}
+		if (this.view.memoItems.length > 3)
+			add("More Memos", String(this.view.memoItems.length - 3));
 		add(
 			"Hypothesis context review",
 			String(this.view.pendingHypothesisReviews),
 			this.view.pendingHypothesisReviews > 0 ? "warning" : "muted",
 		);
-		add("Open Inquiry", this.view.openInquiries);
+		add("Open Inquiries", this.view.openInquiries);
+		for (const inquiry of this.view.inquiryItems.slice(0, 3)) {
+			add(`Inquiry · ${inquiry.origin}`, inquiry.current, "text", 3);
+		}
+		if (this.view.inquiryItems.length > 3)
+			add("More Inquiries", String(this.view.inquiryItems.length - 3));
 		add("Zettel candidates", this.view.zettelCandidates);
 		add(
 			"Memo preparation",
 			this.view.preparedMemo === "None" ? "None" : "Prepared",
 		);
 		add(
-			"Review & Save proposal",
-			this.view.preparedSave === "None" ? "None" : "Ready for review",
+			"Save proposal",
+			this.view.preparedSave === "None" ? "None" : "Reviewed and ready",
 		);
 
 		rows.push(row());
@@ -650,7 +680,7 @@ export function renderObserverChromeStatus(
 		return (
 			theme.fg("accent", "observer") +
 			separator +
-			theme.fg("warning", "save review")
+			theme.fg("warning", "ready to save")
 		);
 	if (view.control.mode === "on")
 		return (
@@ -702,11 +732,14 @@ export class ObserverWidget {
 			lines.push(
 				this.theme.fg(
 					"warning",
-					"! Observer · Review & Save proposal awaiting review",
+					"! Observer · reviewed proposal awaiting Save",
 				),
 			);
 			lines.push(
-				this.theme.fg("dim", "  /observe → Review & Save → approve or cancel"),
+				this.theme.fg(
+					"dim",
+					"  /observe → Save → inspect and approve or cancel",
+				),
 			);
 		} else if (this.view.pendingHypothesisReviews > 0) {
 			lines.push(
@@ -737,7 +770,7 @@ export class ObserverWidget {
 			lines.push(
 				this.theme.fg(
 					"dim",
-					"  Open Episode preserved · use /observe to turn On, Memo, or Review & Save",
+					"  Open Episode preserved · use /observe to turn On, Memo, or Review",
 				),
 			);
 		}

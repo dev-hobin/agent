@@ -73,6 +73,10 @@ class FakePort implements ObserverCommandPort {
 	readonly inputs: Array<string | undefined> = [];
 	readonly selections: Array<string | undefined> = [];
 	readonly confirmations: boolean[] = [];
+	readonly confirmationPrompts: Array<{
+		readonly title: string;
+		readonly message: string;
+	}> = [];
 	persistedSession = "/tmp/observer-session.jsonl";
 	failCommitAppend = false;
 	failMemoAppliedAppend = false;
@@ -153,7 +157,8 @@ class FakePort implements ObserverCommandPort {
 		return this.selections.shift();
 	}
 
-	async confirm(): Promise<boolean> {
+	async confirm(title: string, message: string): Promise<boolean> {
+		this.confirmationPrompts.push({ title, message });
 		return this.confirmations.shift() ?? false;
 	}
 
@@ -340,6 +345,10 @@ describe("Observer command parsing", () => {
 		assert.deepEqual(parseObserveCommand("memo"), {
 			ok: true,
 			command: { kind: "memo" },
+		});
+		assert.deepEqual(parseObserveCommand("review"), {
+			ok: true,
+			command: { kind: "review" },
 		});
 		assert.deepEqual(parseObserveCommand("save"), {
 			ok: true,
@@ -641,7 +650,7 @@ describe("Observer command controller", () => {
 			assert.equal(port.entries.length, before);
 			const text = port.notifications.at(-1)?.message ?? "";
 			assert.match(text, /Ephemeral session/u);
-			assert.match(text, /Pending Memos: Not counted yet/u);
+			assert.match(text, /Working Memos: Not counted yet/u);
 		});
 	});
 
@@ -696,7 +705,7 @@ describe("Observer command controller", () => {
 
 			await controller.command("status", port);
 			const status = port.notifications.at(-1)?.message ?? "";
-			assert.match(status, /Pending Memos: 0/u);
+			assert.match(status, /Working Memos: 0/u);
 			assert.match(status, /Open Inquiries: 0/u);
 			assert.match(status, /Zettel candidates: 0/u);
 			const entryCount = port.entries.length;
@@ -817,6 +826,28 @@ describe("Observer command controller", () => {
 		});
 	});
 
+	test("does not start Review implicitly when Save has no prepared proposal", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			await setupAndTurnOn({
+				controller,
+				port,
+				root: join(sandbox, "notebook"),
+			});
+			const before = port.entries.length;
+			await controller.command("save", port);
+			assert.equal(port.entries.length, before);
+			assert.match(
+				port.notifications.at(-1)?.message ?? "",
+				/Run \/observe review first/u,
+			);
+		});
+	});
+
 	test("installs and declines a prepared proposal without record writes", async () => {
 		await withSandbox(async (sandbox) => {
 			const controller = createObserverController({
@@ -855,6 +886,10 @@ describe("Observer command controller", () => {
 			await controller.installPrepared(proposal, port);
 			port.confirmations.push(true);
 			await controller.command("save", port);
+			assert.match(
+				port.confirmationPrompts[0]?.message ?? "",
+				/How to Take Smart Notes/u,
+			);
 			const snapshot = reconstructObserverPiState(port.entries);
 			assert.equal(
 				snapshot.state.mode,

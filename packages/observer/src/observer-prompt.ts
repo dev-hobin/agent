@@ -34,7 +34,7 @@ export function observerSidecarContext(
 				`observation_ids=${pendingMemo.observationIds.join(",")}`,
 				...(reviewSaveMemoRequestIds.has(pendingMemo.requestId)
 					? [
-							"This is the final Memo reconciliation for Review & Save; successful completion continues to the proposal automatically.",
+							"This is the final Memo reconciliation for Review; successful completion continues to the proposal preparation without saving.",
 						]
 					: []),
 				"Call observer_sidecar action memo-scope with this exact request ID.",
@@ -54,7 +54,7 @@ export function observerSidecarContext(
 				"The successful save-scope result is read-only and returns next_action=save-prepare plus required records and the producer-owned locked target.",
 				"After a successful scope, do not call save-scope again. Follow next_action and submit only request_id, summary, and records.",
 				"Do not invent or resend notebook root, notebook ID, episode language, proposal ID, or request digest.",
-				"Only the save-prepare completion may claim cancellation, save, or settlement.",
+				"Only save-prepare completion may claim that Review produced a proposal. It must not claim approval, file writes, or Episode settlement.",
 				"</observer-save-request>",
 			].join("\n")
 		: null;

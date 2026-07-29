@@ -17,13 +17,27 @@ export interface ObserverControlState {
 	readonly notebookDefaultLanguage?: EpisodeLanguage;
 	readonly canChangeNotebook: boolean;
 	readonly canMemo: boolean;
+	readonly canReview: boolean;
 	readonly canSave: boolean;
+}
+
+export interface ObserverMemoStatusItem {
+	readonly memoId: string;
+	readonly title: string;
+	readonly disposition: string;
+	readonly content: string;
+}
+
+export interface ObserverInquiryStatusItem {
+	readonly inquiryId: string;
+	readonly origin: "user" | "observer";
+	readonly current: string;
 }
 
 export interface ObserverStatusView {
 	readonly control: ObserverControlState;
 	readonly mode: "On" | "Off";
-	readonly episode: "Empty" | "Open" | "Save review" | "Settled";
+	readonly episode: "Empty" | "Open" | "Ready to save" | "Settled";
 	readonly notebook: string;
 	readonly outputLanguage: string;
 	readonly notebookHealth: string;
@@ -32,8 +46,11 @@ export interface ObserverStatusView {
 	readonly preparedSave: string;
 	readonly preparedMemo: string;
 	readonly pendingMemos: string;
+	readonly pendingObservations: number;
+	readonly memoItems: readonly ObserverMemoStatusItem[];
 	readonly pendingHypothesisReviews: number;
 	readonly openInquiries: string;
+	readonly inquiryItems: readonly ObserverInquiryStatusItem[];
 	readonly zettelCandidates: string;
 	readonly operationalIssue?: string;
 }
@@ -47,7 +64,7 @@ function episodeLabel(
 		case "open":
 			return "Open";
 		case "reviewing-save":
-			return "Save review";
+			return "Ready to save";
 		case "settled":
 			return "Settled";
 		default:
@@ -97,7 +114,10 @@ function observerControlState(
 		canMemo:
 			episode === "open" &&
 			observationSnapshot.pendingHypothesisReviews.length === 0,
-		canSave: liveEpisode,
+		canReview:
+			episode === "open" &&
+			observationSnapshot.pendingHypothesisReviews.length === 0,
+		canSave: episode === "reviewing-save",
 	};
 }
 
@@ -147,9 +167,24 @@ export function observerStatusView(input: {
 			working.passes,
 			working.memos.filter((memo) => memo.disposition !== "superseded").length,
 		),
+		pendingObservations:
+			input.observationSnapshot.unconsumedObservationIds.length,
+		memoItems: working.memos
+			.filter((memo) => memo.disposition !== "superseded")
+			.map((memo) => ({
+				memoId: memo.memoId,
+				title: memo.title,
+				disposition: memo.disposition,
+				content: memo.content,
+			})),
 		pendingHypothesisReviews:
 			input.observationSnapshot.pendingHypothesisReviews.length,
 		openInquiries: workingCount(working.passes, working.hypotheses.length),
+		inquiryItems: working.hypotheses.map((hypothesis) => ({
+			inquiryId: hypothesis.inquiryId,
+			origin: hypothesis.origin,
+			current: hypothesis.current,
+		})),
 		zettelCandidates: workingCount(
 			working.passes,
 			working.memos.filter((memo) => memo.disposition === "promotion-candidate")
@@ -170,11 +205,20 @@ export function renderObserverStatus(view: ObserverStatusView): string {
 		`Notebook health: ${view.notebookHealth}`,
 		`Session replay health: ${view.replayHealth}`,
 		`Session persistence: ${view.sessionPersistence}`,
-		`Prepared Review & Save proposal: ${view.preparedSave}`,
+		`Prepared save proposal: ${view.preparedSave}`,
 		`Prepared Memo pass: ${view.preparedMemo}`,
-		`Pending Memos: ${view.pendingMemos}`,
+		`Pending observations: ${view.pendingObservations}`,
+		`Working Memos: ${view.pendingMemos}`,
+		...view.memoItems.map(
+			(memo) =>
+				`- ${memo.title} [${memo.disposition}] (${memo.memoId})\n  ${memo.content}`,
+		),
 		`Pending hypothesis context reviews: ${view.pendingHypothesisReviews}`,
 		`Open Inquiries: ${view.openInquiries}`,
+		...view.inquiryItems.map(
+			(inquiry) =>
+				`- [${inquiry.origin}] ${inquiry.current} (${inquiry.inquiryId})`,
+		),
 		`Zettel candidates: ${view.zettelCandidates}`,
 		...(view.operationalIssue
 			? [`Recovery required: ${view.operationalIssue}`]

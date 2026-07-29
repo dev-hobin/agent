@@ -8,6 +8,7 @@ export const OBSERVE_ACTIONS = [
 	"add-hypothesis",
 	"material",
 	"memo",
+	"review",
 	"save",
 	"settings",
 ];
@@ -22,6 +23,7 @@ export type ObserveCommand =
 	| { readonly kind: "status" }
 	| { readonly kind: "on" }
 	| { readonly kind: "off" }
+	| { readonly kind: "review" }
 	| { readonly kind: "save" }
 	| { readonly kind: "memo" }
 	| { readonly kind: "settings-unavailable" };
@@ -31,7 +33,7 @@ export type ObserveCommandParseResult =
 	| { readonly ok: false; readonly message: string };
 
 const USAGE =
-	"Usage: /observe setup <ko|en> <path> | status | on | off | add-hypothesis <text> | material <request> | memo | save | settings";
+	"Usage: /observe setup <ko|en> <path> | status | on | off | add-hypothesis <text> | material <request> | memo | review | save | settings";
 
 function success(command: ObserveCommand): ObserveCommandParseResult {
 	return { ok: true, command };
@@ -86,6 +88,8 @@ export function parseObserveCommand(args: string): ObserveCommandParseResult {
 			return noArguments(remainder, { kind: "on" });
 		case "off":
 			return noArguments(remainder, { kind: "off" });
+		case "review":
+			return noArguments(remainder, { kind: "review" });
 		case "save":
 			return noArguments(remainder, { kind: "save" });
 		case "memo":
@@ -105,8 +109,9 @@ const OBSERVE_ACTION_DESCRIPTIONS: Readonly<Record<string, string>> = {
 	"add-hypothesis": "Add a hypothesis and review current context through it",
 	material:
 		"Observe supplied or retrieved material without changing Observer Mode",
-	memo: "Reconcile working Memos and Inquiries",
-	save: "Run Review & Save, then settle the Episode",
+	memo: "Reconcile working Memos and Inquiries without preparing a save",
+	review: "Reconcile pending work and prepare an inspectable save proposal",
+	save: "Inspect and approve an already prepared proposal",
 	settings: "Open the Observer control center",
 };
 

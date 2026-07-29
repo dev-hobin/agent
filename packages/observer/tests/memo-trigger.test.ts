@@ -330,6 +330,155 @@ describe("pure Observation Memo trigger", () => {
 		]);
 	});
 
+	test("treats an Inquiry created by one requested Observation as pending when a later Observation relates to it", () => {
+		const pendingInquiryId = "inquiry-00000000-0000-4000-8000-000000000530";
+		const firstCandidate = candidate({
+			id: "candidate-00000000-0000-4000-8000-000000000531",
+			text: "first source",
+			origin: {
+				kind: "tool-result",
+				tool_call_id: "tool-pending-inquiry-first",
+				tool_name: "read",
+			},
+		});
+		const firstRead = event({
+			observer_observation: "observer-observation/v1",
+			kind: "source-read-recorded",
+			episode_id: EPISODE_ID,
+			read_id: "source-read-00000000-0000-4000-8000-000000000532",
+			candidate_ids: [firstCandidate.candidateId],
+			source: {
+				kind: "external-material",
+				source_id: "source-00000000-0000-4000-8000-000000000533",
+				title: "First source",
+				lang: "en",
+				uri: "https://example.com/pending-first",
+				revision: null,
+				content_hash: null,
+				retrieval_context: "first read result",
+			},
+			faithful_summary: "The first source suggests a new hypothesis.",
+			claims: [{ text: "A new hypothesis is plausible.", locator: null }],
+			candidate_digest: observationCandidateDigest([firstCandidate]),
+			index_digest: INDEX_DIGEST,
+			index_inquiry_ids: [],
+		});
+		if (firstRead.kind !== "source-read-recorded")
+			assert.fail("Expected first SourceRead");
+		const hypothesisObservation = event({
+			observer_observation: "observer-observation/v1",
+			kind: "semantic-observation-recorded",
+			episode_id: EPISODE_ID,
+			observation_id: "observation-00000000-0000-4000-8000-000000000534",
+			read_id: firstRead.readId,
+			hydration_id: null,
+			related_inquiry_ids: [],
+			stance: "uncertain",
+			movement: "independent-new-hypothesis",
+			rationale: "The first source opens a new question.",
+			observer_hypothesis: {
+				inquiry_id: pendingInquiryId,
+				original: "The new question remains useful across sources.",
+			},
+		});
+		if (hypothesisObservation.kind !== "semantic-observation-recorded")
+			assert.fail("Expected hypothesis Observation");
+
+		const secondCandidate = candidate({
+			id: "candidate-00000000-0000-4000-8000-000000000535",
+			text: "second source",
+			origin: {
+				kind: "tool-result",
+				tool_call_id: "tool-pending-inquiry-second",
+				tool_name: "read",
+			},
+		});
+		const pendingIndexDigest = sha256Text("pending inquiry index");
+		const secondRead = event({
+			observer_observation: "observer-observation/v1",
+			kind: "source-read-recorded",
+			episode_id: EPISODE_ID,
+			read_id: "source-read-00000000-0000-4000-8000-000000000536",
+			candidate_ids: [secondCandidate.candidateId],
+			source: {
+				kind: "external-material",
+				source_id: "source-00000000-0000-4000-8000-000000000537",
+				title: "Second source",
+				lang: "en",
+				uri: "https://example.com/pending-second",
+				revision: null,
+				content_hash: null,
+				retrieval_context: "second read result",
+			},
+			faithful_summary: "The second source supports the pending hypothesis.",
+			claims: [{ text: "The hypothesis recurs.", locator: null }],
+			candidate_digest: observationCandidateDigest([secondCandidate]),
+			index_digest: pendingIndexDigest,
+			index_inquiry_ids: [pendingInquiryId],
+		});
+		if (secondRead.kind !== "source-read-recorded")
+			assert.fail("Expected second SourceRead");
+		const hydration = event({
+			observer_observation: "observer-observation/v1",
+			kind: "inquiry-hydrated",
+			episode_id: EPISODE_ID,
+			hydration_id: "hydration-00000000-0000-4000-8000-000000000538",
+			read_id: secondRead.readId,
+			index_digest: pendingIndexDigest,
+			inquiry_ids: [pendingInquiryId],
+			context_digest: sha256Text("pending inquiry context"),
+		});
+		if (hydration.kind !== "inquiry-hydrated")
+			assert.fail("Expected hydration");
+		const relatedObservation = event({
+			observer_observation: "observer-observation/v1",
+			kind: "semantic-observation-recorded",
+			episode_id: EPISODE_ID,
+			observation_id: "observation-00000000-0000-4000-8000-000000000539",
+			read_id: secondRead.readId,
+			hydration_id: hydration.hydrationId,
+			related_inquiry_ids: [pendingInquiryId],
+			stance: "supports",
+			movement: "repeated-support",
+			rationale: "A later source supports the pending hypothesis.",
+			observer_hypothesis: null,
+		});
+		const entries = [
+			lifecycle({
+				protocol: OBSERVER_PROTOCOL,
+				kind: "episode-opened",
+				episodeId: EPISODE_ID,
+				notebookId: "notebook-memo-trigger",
+				lang: "ko",
+			}),
+			lifecycle({
+				protocol: OBSERVER_PROTOCOL,
+				kind: "activation-changed",
+				enabled: true,
+			}),
+			observationEntry(firstCandidate),
+			observationEntry(firstRead),
+			observationEntry(hypothesisObservation),
+			observationEntry(secondCandidate),
+			observationEntry(secondRead),
+			observationEntry(hydration),
+			observationEntry(relatedObservation),
+		];
+		const planned = plan(entries);
+		if (!planned.ok || planned.value.kind !== "append")
+			assert.fail(planned.ok ? "Expected Memo request" : planned.issue.message);
+		const requested = [...entries, observationEntry(planned.value.request)];
+		const context = hydrateObservationMemoContext({
+			observation: reconstructObservationSession(requested),
+			memo: reconstructMemoSession(requested),
+			inventory: [],
+			requestId: planned.value.request.requestId,
+		});
+		if (!context.ok) assert.fail(context.issue.message);
+		assert.deepEqual(context.value.memoScope.relatedInquiryIds, []);
+		assert.equal(context.value.observations.length, 2);
+	});
+
 	test("plans one exact all-eligible request, resumes it, and leaves later observations for the next batch", () => {
 		const emptyEntries = baseEntries().entries.slice(0, 2);
 		const empty = plan(emptyEntries);

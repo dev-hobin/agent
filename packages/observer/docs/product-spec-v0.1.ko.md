@@ -125,20 +125,26 @@ Observer ON 또는 OFF
 → 기존 standing inquiry를 실제 working state에서 업데이트
 → 요청한 결과 반환
 → 기존 Observer Mode 유지
-→ 이후 memo 또는 Review & Save에서 누적 결과 재조정·저장
+→ 이후 Memo·Review에서 누적 결과를 재조정하고 별도 Save 승인으로 저장
 ```
 
 Observe material은 단순한 read-only 분석이 아니다. 관련 가설과 Memo의 pending revision을 실제 working state에 남긴다. 다만 `/observe save` 승인 전에는 장기 Zettel 기록으로 승격하지 않는다.
 
-### 4.5 Review & Save와 Notebook publication 경계
+### 4.5 Review·Save와 Notebook publication 경계
 
-사용자·모델·lifecycle이 다루는 제품 연산은 `Review & Save`다. 코드의
-`SaveService`는 proposal·approval·Notebook target·lifecycle·최종 receipt 계약을
-소유한다. 실제 record graph를 publication plan으로 묶고 원자적으로 쓰고 readback과
-rollback을 수행하는 과정은 주입된 `NotebookPublicationService`의 내부 구현이다.
+사용자 연산은 proposal을 준비하는 `Review`와 승인된 proposal을 기록하는 `Save`로
+분리된다. 코드의 `SaveService`는 승인 이후의 Notebook target·lifecycle·최종 receipt
+계약을 소유한다. 실제 record graph를 publication plan으로 묶고 원자적으로 쓰고
+readback과 rollback을 수행하는 과정은 주입된 `NotebookPublicationService`의 내부
+구현이다.
 
 ```text
-Review & Save request
+Review request
+→ final Memo reconciliation
+→ exact proposal preparation
+→ stop without file writes
+
+Save approval
 → SaveService: decode · authorize · recover target
 → NotebookPublicationService.prepare: validate · build publication plan
 → SaveService: lifecycle preflight
@@ -565,26 +571,36 @@ Observer remains ON/OFF (기존 Mode 유지)
 
 ---
 
-## 12. Review & Save 계약
+## 12. Review와 Save 계약
 
-Review & Save는 단순한 파일 `save`나 `close`가 아니다.
+Review와 Save는 서로 다른 사용자 연산이다. Review는 판단 가능한 제안을 만들고 멈추며,
+Save만 승인 후 파일을 변경한다.
 
 ```text
-최종 의미 정리
+Review
+= 최종 의미 정리
 + 승격 판단
-+ 사용자 검토
-+ 로컬 저장
-+ episode 종료
++ 현재 Memo/Inquiry 상태 확인
++ exact Notebook proposal 준비
++ 파일 변경 없음
+
+Save
+= prepared proposal 표시
++ 사용자 승인 또는 취소
++ 승인된 로컬 저장
++ readback validation
++ Episode 종료
 + Observer OFF
 ```
 
-미소비 Observation, pending Memo request, prepared Memo가 남아 있으면 Review & Save는
+미소비 Observation, pending Memo request, prepared Memo가 남아 있으면 Review는
 `review-save` continuation으로 마지막 Memo reconciliation을 먼저 완료하고 같은 흐름에서
-Review & Save proposal로 이어진다. 사용자가 먼저 별도의 `memo` 명령을 실행할 필요는 없다. 이미
+proposal 준비까지 이어진다. 사용자가 먼저 별도의 `memo` 명령을 실행할 필요는 없다. 이미
 Memo reconciliation이 끝난 상태라면 곧바로 proposal을 준비한다. 마지막 Memo pass와
-Review & Save proposal은 각각 준비 시점의 scope와 출력 언어를 잠근다.
+proposal은 각각 준비 시점의 scope와 출력 언어를 잠근다. proposal 준비가 끝나도 Save를
+자동 실행하거나 승인 UI를 자동으로 열지 않는다.
 
-### Review & Save proposal 필수 정보
+### Review proposal 필수 정보
 
 ```text
 저장할 notebook 위치
@@ -595,24 +611,27 @@ Review & Save proposal은 각각 준비 시점의 scope와 출력 언어를 잠�
 Incubating으로 유지할 Memo
 Standing으로 유지할 Inquiry
 Retire 또는 supersede할 항목과 이유
+각 create/update record의 exact Markdown
 ```
 
-### Review & Save 승인
+현재 working Memo와 Inquiry는 Status에서 제목·상태·현재 내용을 확인할 수 있어야 한다.
+Save 확인 화면은 record ID만이 아니라 실제 제안 Markdown을 보여야 한다.
+
+### Save 승인
 
 사용자는 다음을 할 수 있다.
 
-- 제안 전체 승인
-- 특정 Zettel 후보를 Memo로 되돌림
-- 특정 Memo를 Zettel로 승격하도록 추가 검토 요청
-- 특정 항목 retire 취소
-- Review & Save 전체 취소
+- prepared proposal 전체 승인
+- Save 취소 후 Episode와 working state 유지
+- Review 단계로 돌아가 추가 관찰·Memo reconciliation 수행
 
-승인 후에만 로컬 파일을 변경한다.
+승인 후에만 로컬 파일을 변경한다. prepared proposal 없이 Save를 실행하면 Review를 먼저
+실행하라는 안내만 제공하며 Review를 암묵적으로 시작하지 않는다.
 
-### Review & Save 완료 receipt
+### Save 완료 receipt
 
 ```text
-Review & Save completed
+Save completed
 
 Saved locally
 - Zettel: N

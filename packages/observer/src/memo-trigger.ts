@@ -296,14 +296,24 @@ function relatedInquiryIds(input: {
 			hypothesis.episodeId === input.episodeId ? [hypothesis.inquiryId] : [],
 		),
 	);
+	const pending = new Set(
+		input.observations.flatMap((observation) => {
+			if (observation.kind === "user-hypothesis-recorded") {
+				return [observation.inquiryId];
+			}
+			return observation.observerHypothesis
+				? [observation.observerHypothesis.inquiryId]
+				: [];
+		}),
+	);
+	const standing = (id: InquiryId) => durable.has(id) || working.has(id);
 	const related = input.observations.flatMap((observation) => {
 		if (observation.kind === "semantic-observation-recorded") {
-			return observation.relatedInquiryIds;
+			return observation.relatedInquiryIds.filter(
+				(id) => standing(id) || !pending.has(id),
+			);
 		}
-		return durable.has(observation.inquiryId) ||
-			working.has(observation.inquiryId)
-			? [observation.inquiryId]
-			: [];
+		return standing(observation.inquiryId) ? [observation.inquiryId] : [];
 	});
 	return [...new Set(related)].toSorted((left, right) =>
 		left.localeCompare(right),

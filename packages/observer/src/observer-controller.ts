@@ -354,15 +354,18 @@ function resolveCommand(
 }
 
 function renderPreparedPlan(handoff: PreparedSaveHandoff): string {
-	const operations = handoff.prepared.records.map(
-		(record) => `- ${record.operation}: ${record.record_id}`,
-	);
+	const operations = handoff.prepared.records.flatMap((record) => [
+		`--- ${record.operation}: ${record.record_id} ---`,
+		record.markdown,
+		"",
+	]);
 	return [
 		handoff.summary,
 		"",
 		`Notebook: ${handoff.prepared.root}`,
 		`Output language: ${handoff.prepared.episode_language}`,
 		`Records: ${handoff.prepared.records.length}`,
+		"",
 		...operations,
 	].join("\n");
 }
@@ -642,7 +645,7 @@ function materialReviewSynchronizationIssue(input: {
 	const issue = input.operationalIssue ?? input.synchronized.operationalIssue;
 	if (issue) return `Observer 복구가 필요합니다: ${issue}`;
 	return input.synchronized.snapshot.state.episode.status === "reviewing-save"
-		? "Review & Save proposal 검토 중에는 Material review을 시작할 수 없습니다."
+		? "Save proposal이 준비된 동안에는 Material review을 시작할 수 없습니다."
 		: null;
 }
 
@@ -893,13 +896,13 @@ async function saveCommand(
 		!snapshot.prepared
 	) {
 		port.notify(
-			"There is no prepared Review & Save proposal to review.",
+			"There is no reviewed proposal to save. Run /observe review first.",
 			"warning",
 		);
 		return;
 	}
 	const approved = await port.confirm(
-		"Approve Observer Review & Save proposal",
+		"Save reviewed Observer proposal",
 		renderPreparedPlan(snapshot.prepared.handoff),
 	);
 	if (!approved) {
@@ -908,17 +911,17 @@ async function saveCommand(
 			snapshot,
 			saveCancelled(snapshot.prepared.handoff.prepared.proposal_id),
 		);
-		port.notify("Save cancelled. Episode and Mode are unchanged.", "info");
+		port.notify(
+			"Save cancelled. The Episode and working state remain open.",
+			"info",
+		);
 		return;
 	}
 	let current = snapshot;
 	if (!current.attempt) {
 		const currentPrepared = current.prepared;
 		if (!currentPrepared) {
-			port.notify(
-				"The prepared Review & Save proposal could not be found.",
-				"error",
-			);
+			port.notify("The prepared save proposal could not be found.", "error");
 			return;
 		}
 		port.appendEntry(
@@ -930,10 +933,7 @@ async function saveCommand(
 	}
 	const prepared = current.prepared?.handoff;
 	if (!prepared) {
-		port.notify(
-			"The approved Review & Save proposal could not be recovered.",
-			"error",
-		);
+		port.notify("The approved save proposal could not be recovered.", "error");
 		return;
 	}
 	const saved = await saves.commit({
@@ -1207,6 +1207,12 @@ async function executeObserverCommand(input: {
 		case "off":
 			offCommand(synchronized.snapshot, input.port);
 			break;
+		case "review":
+			input.port.notify(
+				"Review preparation must start through the Observer extension.",
+				"warning",
+			);
+			break;
 		case "save":
 			await saveCommand(
 				synchronized.snapshot,
@@ -1278,17 +1284,17 @@ async function installPreparedCommand(input: {
 	const proposal = saveProposed(decoded.value);
 	const projected = applyObserverEvent(snapshot.state, proposal);
 	if (!projected.applied) {
-		input.port.notify(
-			`Review & Save proposal rejected: ${projected.reason}.`,
-			"error",
-		);
+		input.port.notify(`Save proposal rejected: ${projected.reason}.`, "error");
 		return false;
 	}
 	input.port.appendEntry(OBSERVER_PREPARED_SAVE_ENTRY, decoded.value);
 	const withPrepared = reconstructObserverPiState(input.port.branchEntries());
 	if (notifyReplayIssue(withPrepared, input.port)) return false;
 	if (!appendLifecycle(input.port, withPrepared, proposal)) return false;
-	input.port.notify("The Review & Save proposal is ready for review.", "info");
+	input.port.notify(
+		"Review completed. The proposal is ready; run /observe save to inspect and approve it.",
+		"info",
+	);
 	await refreshStatus(input.port, input.notebooks, input.operationalIssue);
 	return true;
 }

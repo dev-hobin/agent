@@ -48,6 +48,7 @@ function statusView(
 			notebook: "unselected",
 			canChangeNotebook: true,
 			canMemo: false,
+			canReview: false,
 			canSave: false,
 		},
 		mode: "Off",
@@ -60,8 +61,11 @@ function statusView(
 		preparedSave: "None",
 		preparedMemo: "None",
 		pendingMemos: "Not counted yet",
+		pendingObservations: 0,
+		memoItems: [],
 		pendingHypothesisReviews: 0,
 		openInquiries: "Not counted yet",
+		inquiryItems: [],
 		zettelCandidates: "Not counted yet",
 		...overrides,
 	};
@@ -77,7 +81,8 @@ function openView(mode: "on" | "off" = "on"): ObserverStatusView {
 			notebookDefaultLanguage: "ko",
 			canChangeNotebook: false,
 			canMemo: true,
-			canSave: true,
+			canReview: true,
+			canSave: false,
 		},
 		mode: mode === "on" ? "On" : "Off",
 		episode: "Open",
@@ -119,7 +124,7 @@ test("control items progressively disclose only legal work", () => {
 			"activation",
 			"add-hypothesis",
 			"memo",
-			"review-save",
+			"review",
 			"notebook-status",
 			"language",
 			"observe-material",
@@ -136,8 +141,8 @@ test("control items progressively disclose only legal work", () => {
 		"Add a hypothesis",
 	);
 	assert.equal(
-		activeItems.find((item) => item.id === "review-save")?.label,
-		"Review & Save",
+		activeItems.find((item) => item.id === "review")?.label,
+		"Review",
 	);
 	const offItems = observerControlItems(openView("off"));
 	assert.equal(
@@ -154,11 +159,13 @@ test("control items progressively disclose only legal work", () => {
 	const reviewingBase = openView("off");
 	const reviewing: ObserverStatusView = {
 		...reviewingBase,
-		episode: "Save review",
+		episode: "Ready to save",
 		control: {
 			...reviewingBase.control,
 			episode: "reviewing-save",
 			canMemo: false,
+			canReview: false,
+			canSave: true,
 		},
 	};
 	const reviewingItems = observerControlItems(reviewing);
@@ -169,14 +176,18 @@ test("control items progressively disclose only legal work", () => {
 		false,
 	);
 	assert.equal(
-		reviewingItems.find((item) => item.id === "review-save")?.currentValue,
-		"Review proposal",
+		reviewingItems.find((item) => item.id === "save")?.currentValue,
+		"Inspect and approve",
 	);
 
 	const pendingReview: ObserverStatusView = {
 		...openView("off"),
 		pendingHypothesisReviews: 1,
-		control: { ...openView("off").control, canMemo: false },
+		control: {
+			...openView("off").control,
+			canMemo: false,
+			canReview: false,
+		},
 	};
 	assert.equal(
 		observerControlItems(pendingReview).some((item) => item.id === "memo"),
@@ -361,7 +372,8 @@ test("status panel is complete, width-bounded, and keyboard dismissible", () => 
 	assert.match(output, /Notebook/);
 	assert.match(output, /Working set/);
 	assert.match(output, /Recovery and persistence/);
-	assert.match(output, /Pending Memo · 3/);
+	assert.match(output, /Pending observations · 0/);
+	assert.match(output, /Working Memos · 3/);
 	assert.match(output, /Keep working normally/);
 	assert.ok(lines.every((line) => visibleWidth(line) <= 62));
 	panel.handleInput("\r");
@@ -381,6 +393,7 @@ test("footer and widget expose only action-relevant ambient state", () => {
 			notebookDefaultLanguage: "ko",
 			canChangeNotebook: true,
 			canMemo: false,
+			canReview: false,
 			canSave: false,
 		},
 		notebook: "/Users/me/notes/observer",

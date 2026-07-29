@@ -8,7 +8,7 @@ Observer supports three entry paths:
 - **Add a hypothesis:** preserve a user idea, then review the current Pi context through it as a lens.
 - **Observe material:** inspect supplied or retrieved material without changing Observer Mode.
 
-All three paths use the same Episode, Memo, approval, and Review & Save flow.
+All three paths use the same Episode and Memo flow. Review prepares an inspectable proposal; Save is a separate explicit approval and persistence step.
 
 ## Install
 
@@ -35,8 +35,9 @@ In Pi's TUI, run `/observe` with no arguments. The keyboard-first control center
 → connect a Notebook
 → turn Observer On, add a hypothesis, or observe material
 → work normally
-→ run Memo when you want a reconciliation
-→ run Review & Save when you are ready
+→ run Memo when you want an interim reconciliation
+→ run Review to reconcile pending work and prepare a proposal
+→ run Save only after inspecting the proposal
 ```
 
 Use ↑/↓ and Enter to navigate; Esc always returns to Pi. The same surface
@@ -79,10 +80,16 @@ Reconcile the current working material without writing notebook Markdown:
 When the current inquiry is ready for durable review:
 
 ```text
+/observe review
+```
+
+Review completes one final Memo pass when needed and prepares the exact Notebook proposal. It never writes Notebook files and stops after the proposal is ready. Inspect the working Memo and Inquiry state in **Status and health**, then run:
+
+```text
 /observe save
 ```
 
-If working observations or a prepared Memo still need reconciliation, Review & Save first completes one final Memo pass and then continues into the Review & Save proposal; you do not need to run `/observe memo` first. Notebook Markdown changes only after you explicitly approve the proposal and Observer saves, reads back, and validates the records. A successful Review & Save settles the Episode and leaves Mode off.
+Save shows the proposed Markdown, asks for explicit approval, and only then writes, reads back, validates, and settles the Episode. Cancelling Save leaves the Episode and working state open.
 
 Turn observation off without discarding an open Episode:
 
@@ -116,7 +123,7 @@ A completed Observe material pass:
 - leaves Observer Mode unchanged;
 - opens or reuses the selected notebook's open Episode;
 - requires every request-linked candidate to reach a SourceRead and semantic Observation;
-- can continue through `/observe memo` and `/observe save` using the same approval and persistence rules as Sidecar.
+- can continue through `/observe memo`, `/observe review`, and `/observe save` using the same separated review and persistence rules as Sidecar.
 
 Model/provider behavior is stochastic. Completion receipts prove one recorded request chain, not semantic truth or a provider reliability rate.
 
@@ -133,8 +140,9 @@ Model/provider behavior is stochastic. Completion receipts prove one recorded re
 | `/observe off` | Disable Sidecar observation without settling the Episode |
 | `/observe add-hypothesis <text>` | Preserve a user hypothesis and trigger its initial current-context review |
 | `/observe material <request>` | Observe inline or retrieved material without changing Observer Mode |
-| `/observe memo` | Reconcile current working observations without Markdown writes |
-| `/observe save` | Review proposed Notebook changes, save approved records, and settle the Episode |
+| `/observe memo` | Reconcile current working observations without preparing or writing Markdown |
+| `/observe review` | Reconcile pending work and prepare an inspectable proposal without file writes |
+| `/observe save` | Inspect and approve an already prepared proposal, then persist and settle |
 
 `add-hypothesis` and `material` are command-first flows, not TUI-only shortcuts.
 Scripts may submit these exact `/observe` strings through Pi print or RPC input;
@@ -155,11 +163,12 @@ Observer owns local Source, Inquiry, Memo, and Zettel persistence. It does not o
 - model semantic truth.
 
 Every durable Zettel must have at least one direct Source reference. Invalid
-Markdown is rejected before graph integrity checks, and Review & Save follows
-approval → validation → save → readback validation → settlement ordering.
+Markdown is rejected before graph integrity checks. Review ends at a prepared
+proposal; Save follows approval → validation → write → readback validation →
+settlement ordering.
 
 The code keeps the product operation and its persistence mechanism separate.
-`SaveService` owns the Review & Save contract, lifecycle checks, target recovery,
+`SaveService` owns the approved Save contract, lifecycle checks, target recovery,
 and public receipt. Its injected `NotebookPublicationService` owns record
 planning, atomic publication, readback, and rollback. Notebook publication is an
 internal persistence process, not a command, model action, or public protocol.

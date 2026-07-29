@@ -14,7 +14,7 @@ import observerExtension, {
 	routeAddHypothesisCommand,
 	routeMaterialCommand,
 	routeMemoCommand,
-	routeSaveCommand,
+	routeReviewCommand,
 	textFromContent,
 } from "../extensions/observer.ts";
 import { acceptScriptedMaterialInput } from "../extensions/material-review-runtime.ts";
@@ -154,7 +154,7 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 		/action: Type\.Literal\("material-review-finish"\)/u,
 	);
 	assert.match(source, /parsed\.command\.kind !== "memo"/u);
-	assert.match(source, /parsed\.command\.kind !== "save"/u);
+	assert.match(source, /parsed\.command\.kind !== "review"/u);
 	assert.match(schemaSource, /saveScopeActionSchema/u);
 	assert.match(schemaSource, /savePrepareActionSchema/u);
 	assert.match(source, /pi\.on\("context"/u);
@@ -340,6 +340,7 @@ test("routes a scriptable material command without changing Observer Mode", () =
 		toolUsed: false,
 		latestUser: null,
 		scriptedMaterialRequest: submitted[0] ?? null,
+		blockedRequestId: null,
 	};
 	assert.equal(
 		acceptScriptedMaterialInput({
@@ -357,7 +358,7 @@ test("routes a scriptable material command without changing Observer Mode", () =
 	assert.equal(turnState.scriptedMaterialRequest, null);
 });
 
-test("routes Review & Save before trigger and delegates prepared review", async () => {
+test("routes Review preparation before triggers and delegates an existing proposal", async () => {
 	const decoded = decodeSaveRequestEvent({
 		protocol: "observer.save-request/v1",
 		kind: "save-requested",
@@ -388,7 +389,7 @@ test("routes Review & Save before trigger and delegates prepared review", async 
 		assert.fail("Expected final Memo request");
 	const finalMemoRequest = finalMemoDecoded.value;
 	const trace: string[] = [];
-	const handled = await routeSaveCommand("save", {
+	const handled = await routeReviewCommand("review", {
 		request() {
 			trace.push("request");
 			return Promise.resolve({
@@ -418,7 +419,7 @@ test("routes Review & Save before trigger and delegates prepared review", async 
 	assert.deepEqual(trace, ["request", "trigger", "notify:info"]);
 
 	trace.length = 0;
-	await routeSaveCommand("save", {
+	await routeReviewCommand("review", {
 		request() {
 			trace.push("request");
 			return Promise.resolve({
@@ -449,7 +450,7 @@ test("routes Review & Save before trigger and delegates prepared review", async 
 
 	trace.length = 0;
 	let finalMemoDelegated = false;
-	await routeSaveCommand("save", {
+	await routeReviewCommand("review", {
 		request() {
 			trace.push("request");
 			if (!finalMemoDelegated)
@@ -493,7 +494,7 @@ test("routes Review & Save before trigger and delegates prepared review", async 
 	]);
 
 	trace.length = 0;
-	await routeSaveCommand("save", {
+	await routeReviewCommand("review", {
 		request() {
 			trace.push("request");
 			return Promise.resolve({
@@ -519,7 +520,7 @@ test("routes Review & Save before trigger and delegates prepared review", async 
 			trace.push(`notify:${type}`);
 		},
 	});
-	assert.deepEqual(trace, ["request", "delegate"]);
+	assert.deepEqual(trace, ["request", "notify:info"]);
 
 	const scope = {
 		observer_action: "observer-sidecar/v1",

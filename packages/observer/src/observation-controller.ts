@@ -654,7 +654,7 @@ function finishMaterialReview(input: {
 		return {
 			ok: false,
 			message:
-				"Material review completion requires an OPEN Episode without Review & Save review.",
+				"Material review completion requires an OPEN Episode without a prepared save proposal.",
 		};
 	const candidates = branch.observation.candidates.flatMap((candidate) =>
 		candidate.materialReviewRequestId === input.action.requestId
@@ -1493,7 +1493,7 @@ async function requestSave(input: {
 		return {
 			ok: true,
 			status: "delegate",
-			message: "Review or recover the existing Review & Save proposal.",
+			message: "The reviewed proposal is ready for Save.",
 			request: null,
 		};
 	}
@@ -1516,7 +1516,7 @@ async function requestSave(input: {
 		return {
 			ok: true,
 			status: "resumed",
-			message: `Resuming the existing Review & Save request: ${planned.value.request.requestId}`,
+			message: `Resuming the existing Review request: ${planned.value.request.requestId}`,
 			request: planned.value.request,
 		};
 	}
@@ -1528,7 +1528,7 @@ async function requestSave(input: {
 	} catch (error) {
 		return {
 			ok: false,
-			message: `Could not record the Review & Save request: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Could not record the Review request: ${error instanceof Error ? error.message : String(error)}`,
 		};
 	}
 	const replayed = reconstructSaveRequestSession(input.port.branchEntries());
@@ -1542,7 +1542,7 @@ async function requestSave(input: {
 			ok: false,
 			message: replayed.issues[0]
 				? `Save request replay failed: ${replayed.issues[0].code}.`
-				: "The Review & Save request was not confirmed by replay.",
+				: "The Review request was not confirmed by replay.",
 		};
 	}
 	return {
@@ -1567,14 +1567,14 @@ function ensureReviewSaveContinuation(input: {
 		input.port.branchEntries(),
 	);
 	if (saveRequests.issues.length > 0)
-		return `Review & Save request history is invalid: ${saveRequests.issues[0]?.code}.`;
+		return `Review request history is invalid: ${saveRequests.issues[0]?.code}.`;
 	const existing = branch.observation.reviewSaveContinuations.find(
 		(continuation) => continuation.memoRequestId === input.requestId,
 	);
 	if (existing)
 		return existing.baseSaveRequestCount === saveRequests.requests.length
 			? null
-			: "The final Memo continuation was already used by a Review & Save request.";
+			: "The final Memo continuation was already used by a Review request.";
 	const prepared = refinedEvent(
 		{
 			observer_observation: "observer-observation/v1",
@@ -1587,7 +1587,7 @@ function ensureReviewSaveContinuation(input: {
 	);
 	if (typeof prepared === "string") return prepared;
 	if (prepared.kind !== "review-save-continuation-requested")
-		return "Review & Save continuation refinement failed.";
+		return "Review continuation refinement failed.";
 	const appended = appendEvent(input.port, prepared);
 	return typeof appended === "string" ? appended : null;
 }
@@ -1622,7 +1622,7 @@ async function requestReviewSave(input: {
 		return {
 			ok: true,
 			status: "memo-delegate",
-			message: "Complete the prepared final Memo pass before Review & Save.",
+			message: "Complete the prepared final Memo pass before Review.",
 			request: null,
 			memoRequest: null,
 		};
@@ -1630,7 +1630,7 @@ async function requestReviewSave(input: {
 		ok: true,
 		status: memo.status === "requested" ? "memo-requested" : "memo-resumed",
 		message:
-			"Review & Save is running its final Memo reconciliation before preparing the proposal.",
+			"Review is running its final Memo reconciliation before preparing the proposal.",
 		request: null,
 		memoRequest,
 	};
@@ -1657,14 +1657,14 @@ async function continueReviewSaveAfterMemo(input: {
 	if (saveRequests.issues.length > 0)
 		return {
 			ok: false,
-			message: `Review & Save request history is invalid: ${saveRequests.issues[0]?.code}.`,
+			message: `Review request history is invalid: ${saveRequests.issues[0]?.code}.`,
 		};
 	if (saveRequests.requests.length > continuation.baseSaveRequestCount)
 		return null;
 	if (saveRequests.requests.length < continuation.baseSaveRequestCount)
 		return {
 			ok: false,
-			message: "Review & Save continuation has an invalid save-request basis.",
+			message: "Review continuation has an invalid proposal-request basis.",
 		};
 	if (branch.observation.pendingMemoRequest?.requestId === input.requestId)
 		return {
@@ -1703,7 +1703,7 @@ async function saveContext(input: {
 	if (!request || request.requestId !== input.requestId)
 		return {
 			ok: false,
-			message: "Review & Save action에는 exact pending request가 필요합니다.",
+			message: "Review preparation에는 exact pending request가 필요합니다.",
 		};
 	const context = hydrateSavePreparationContext({
 		request,
@@ -1758,7 +1758,7 @@ async function savePrepare(input: {
 	return {
 		ok: true,
 		action: "save-prepare",
-		message: `Review & Save proposal prepared: ${prepared.value.prepared.proposal_id}`,
+		message: `Review proposal prepared: ${prepared.value.prepared.proposal_id}`,
 		handoff: prepared.value,
 	};
 }
