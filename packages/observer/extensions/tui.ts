@@ -8,6 +8,9 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import {
 	Container,
+	type Keybinding,
+	type KeybindingsManager,
+	type KeyId,
 	type SelectItem,
 	SelectList,
 	type SettingItem,
@@ -42,6 +45,21 @@ export interface ObserverControlEffects {
 	onError(error: unknown): void;
 }
 
+function displayTerminalText(value: string): string {
+	return [...value.replaceAll("\r\n", "\n")]
+		.map((character) => {
+			if (character === "\n") return "\n";
+			const code = character.charCodeAt(0);
+			if (code === 0x1b) return "␛";
+			if (code < 0x20 || (code >= 0x7f && code <= 0x9f))
+				return character === "\t"
+					? "    "
+					: `\\x${code.toString(16).padStart(2, "0")}`;
+			return character;
+		})
+		.join("");
+}
+
 function settingsTheme(theme: Theme): SettingsListTheme {
 	return {
 		label: (text, selected) =>
@@ -53,8 +71,19 @@ function settingsTheme(theme: Theme): SettingsListTheme {
 	};
 }
 
+function configuredKey(
+	keybindings: KeybindingsManager | undefined,
+	binding: Keybinding,
+	fallback: string,
+): string {
+	return typeof keybindings?.getKeys === "function"
+		? keybindings.getKeys(binding).join("/")
+		: fallback;
+}
+
 function defaultOutputLanguageSubmenu(
 	theme: Theme,
+	keybindings?: KeybindingsManager,
 ): NonNullable<SettingItem["submenu"]> {
 	return (currentValue, done) => {
 		const items: SelectItem[] = [
@@ -94,7 +123,14 @@ function defaultOutputLanguageSubmenu(
 		container.addChild(new Text("", 0, 0));
 		container.addChild(list);
 		container.addChild(
-			new Text(theme.fg("dim", "↑↓ move · Enter choose · Esc back"), 0, 0),
+			new Text(
+				theme.fg(
+					"dim",
+					`${configuredKey(keybindings, "tui.select.up", "↑")}/${configuredKey(keybindings, "tui.select.down", "↓")} move · ${configuredKey(keybindings, "tui.select.confirm", "Enter")} choose · ${configuredKey(keybindings, "tui.select.cancel", "Esc")} back`,
+				),
+				0,
+				0,
+			),
 		);
 		container.addChild(border());
 		return {
@@ -108,7 +144,11 @@ function defaultOutputLanguageSubmenu(
 function notebookValue(view: ObserverStatusView): string {
 	if (view.control.notebook === "unselected") return "Setup required";
 	if (view.control.notebook === "unhealthy") return "Needs attention";
-	return basename(view.control.notebookRoot ?? view.notebook) || view.notebook;
+	return (
+		displayTerminalText(
+			basename(view.control.notebookRoot ?? view.notebook) || view.notebook,
+		) || "Notebook"
+	);
 }
 
 function memoValue(view: ObserverStatusView): string {
@@ -126,6 +166,8 @@ function reviewValue(view: ObserverStatusView): string {
 }
 
 function activationDescription(view: ObserverStatusView): string {
+	if (view.control.mode === "on" && view.control.episode === "reviewing-save")
+		return "Observer remains On · capture is suspended until this proposal is saved or returned to Review";
 	if (view.control.mode === "on")
 		return "Quietly observing material and conversation · only material changes are surfaced";
 	if (view.control.episode === "open")
@@ -247,6 +289,8 @@ export function observerControlItems(
 export function observerNextStep(view: ObserverStatusView): string {
 	if (view.operationalIssue || view.control.notebook === "unhealthy")
 		return "Open Status and health first to inspect the recovery cause.";
+	if (view.automaticProcessingPause)
+		return "Automatic processing is paused. Run Memo or Review explicitly to retry.";
 	if (view.control.notebook === "unselected")
 		return "Connect a Notebook, then turn Observer on.";
 	if (view.control.episode === "reviewing-save")
@@ -264,6 +308,7 @@ interface ObserverControlSurfaceOptions {
 	readonly view: ObserverStatusView;
 	readonly pendingLanguage: EpisodeLanguage;
 	readonly theme: Theme;
+	readonly keybindings?: KeybindingsManager;
 	readonly effects?: ObserverControlEffects;
 	readonly done: (action: ObserverControlAction | null) => void;
 	readonly requestRender: () => void;
@@ -293,6 +338,7 @@ export class ObserverControlSurface extends Container {
 	private readonly done: (action: ObserverControlAction | null) => void;
 	private readonly effects: ObserverControlEffects | undefined;
 	private help!: Text;
+	private readonly keybindings: KeybindingsManager | undefined;
 	private pendingLanguage: EpisodeLanguage;
 	private readonly requestRender: () => void;
 	private settings!: SettingsList;
@@ -304,6 +350,7 @@ export class ObserverControlSurface extends Container {
 		this.view = options.view;
 		this.pendingLanguage = options.pendingLanguage;
 		this.theme = options.theme;
+		this.keybindings = options.keybindings;
 		this.effects = options.effects;
 		this.done = options.done;
 		this.requestRender = options.requestRender;
@@ -313,7 +360,7 @@ export class ObserverControlSurface extends Container {
 	private helpText(): string {
 		return this.busy
 			? "Applying change…"
-			: "↑↓ move · Enter select/change · Esc close · changes apply to the current Pi branch";
+			: `${configuredKey(this.keybindings, "tui.select.up", "↑")}/${configuredKey(this.keybindings, "tui.select.down", "↓")} move · ${configuredKey(this.keybindings, "tui.select.confirm", "Enter")} select/change · ${configuredKey(this.keybindings, "tui.select.cancel", "Esc")} close · changes apply to the current Pi branch`;
 	}
 
 	private rebuild(): void {
@@ -343,7 +390,7 @@ export class ObserverControlSurface extends Container {
 		const items = observerControlItems(
 			this.view,
 			this.pendingLanguage,
-			defaultOutputLanguageSubmenu(this.theme),
+			defaultOutputLanguageSubmenu(this.theme, this.keybindings),
 		);
 		this.settings = new SettingsList(
 			items,
@@ -370,12 +417,12 @@ export class ObserverControlSurface extends Container {
 		const previousItems = observerControlItems(
 			this.view,
 			this.pendingLanguage,
-			defaultOutputLanguageSubmenu(this.theme),
+			defaultOutputLanguageSubmenu(this.theme, this.keybindings),
 		);
 		const nextItems = observerControlItems(
 			next,
 			pendingLanguage,
-			defaultOutputLanguageSubmenu(this.theme),
+			defaultOutputLanguageSubmenu(this.theme, this.keybindings),
 		);
 		this.view = next;
 		this.pendingLanguage = pendingLanguage;
@@ -477,11 +524,12 @@ export async function showObserverControl(
 	effects?: ObserverControlEffects,
 ): Promise<ObserverControlAction | undefined> {
 	const result = await ctx.ui.custom<ObserverControlAction | null>(
-		(tui, theme, _keybindings, done) => {
+		(tui, theme, keybindings, done) => {
 			const surface = new ObserverControlSurface({
 				view,
 				pendingLanguage,
 				theme,
+				keybindings,
 				...(effects ? { effects } : {}),
 				done,
 				requestRender: () => tui.requestRender(),
@@ -505,50 +553,99 @@ function healthColor(view: ObserverStatusView): ThemeColor {
 }
 
 export class ObserverStatusPanel {
+	private cachedHeight?: number;
 	private cachedLines?: string[];
+	private cachedOffset?: number;
 	private cachedWidth?: number;
+	private readonly keybindings?: KeybindingsManager;
 	private readonly onClose: () => void;
+	private readonly requestRender: () => void;
 	private readonly theme: Theme;
 	private readonly view: ObserverStatusView;
+	private pageSize = 10;
+	private scrollOffset = 0;
 
-	constructor(view: ObserverStatusView, theme: Theme, onClose: () => void) {
+	constructor(
+		view: ObserverStatusView,
+		theme: Theme,
+		onClose: () => void,
+		keybindings?: KeybindingsManager,
+		requestRender: () => void = () => {},
+	) {
 		this.view = view;
 		this.theme = theme;
 		this.onClose = onClose;
+		this.keybindings = keybindings;
+		this.requestRender = requestRender;
+	}
+
+	private matches(data: string, binding: Keybinding, fallback: KeyId): boolean {
+		return this.keybindings
+			? this.keybindings.matches(data, binding)
+			: matchesKey(data, fallback);
+	}
+
+	private key(binding: Keybinding, fallback: string): string {
+		return this.keybindings?.getKeys(binding).join("/") ?? fallback;
 	}
 
 	handleInput(data: string): void {
 		if (
-			matchesKey(data, "escape") ||
-			matchesKey(data, "enter") ||
+			this.matches(data, "tui.select.cancel", "escape") ||
+			this.matches(data, "tui.select.confirm", "enter") ||
 			matchesKey(data, "ctrl+c")
-		)
+		) {
 			this.onClose();
+			return;
+		}
+		const previous = this.scrollOffset;
+		if (this.matches(data, "tui.select.up", "up"))
+			this.scrollOffset = Math.max(0, this.scrollOffset - 1);
+		else if (this.matches(data, "tui.select.down", "down"))
+			this.scrollOffset += 1;
+		else if (this.matches(data, "tui.select.pageUp", "pageUp"))
+			this.scrollOffset = Math.max(0, this.scrollOffset - this.pageSize);
+		else if (this.matches(data, "tui.select.pageDown", "pageDown"))
+			this.scrollOffset += this.pageSize;
+		else if (matchesKey(data, "home")) this.scrollOffset = 0;
+		else if (matchesKey(data, "end"))
+			this.scrollOffset = Number.MAX_SAFE_INTEGER;
+		if (previous !== this.scrollOffset) {
+			this.invalidate();
+			this.requestRender();
+		}
 	}
 
-	render(width: number): string[] {
-		if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+	render(width: number, maximumHeight = Number.MAX_SAFE_INTEGER): string[] {
+		if (
+			this.cachedLines &&
+			this.cachedWidth === width &&
+			this.cachedHeight === maximumHeight &&
+			this.cachedOffset === this.scrollOffset
+		)
+			return this.cachedLines;
 		const innerWidth = Math.max(1, width - 2);
 		const border = (text: string) => this.theme.fg("borderAccent", text);
-		const rows: string[] = [];
+		const body: string[] = [];
 		const row = (content = "") =>
 			`${border("│")}${truncateToWidth(content, innerWidth, "…", true)}${border("│")}`;
 		const section = (title: string) =>
-			rows.push(row(`  ${this.theme.fg("accent", this.theme.bold(title))}`));
+			body.push(row(`  ${this.theme.fg("accent", this.theme.bold(title))}`));
 		const add = (
 			label: string,
 			value: string,
 			color: ThemeColor = "muted",
-			maxLines = 3,
+			maxLines: number | "all" = 3,
 		) => {
 			const plainPrefix = `  ${label} · `;
 			const styledPrefix = `  ${this.theme.fg("dim", `${label} ·`)} `;
 			const contentWidth = Math.max(1, innerWidth - visibleWidth(plainPrefix));
 			const wrapped = wrapTextWithAnsi(
-				this.theme.fg(color, value),
+				this.theme.fg(color, displayTerminalText(value)),
 				contentWidth,
 			);
-			const visible = wrapped.slice(0, maxLines);
+			const visible =
+				maxLines === "all" ? wrapped : wrapped.slice(0, maxLines);
 			if (wrapped.length > visible.length && visible.length > 0) {
 				const last = visible.length - 1;
 				visible[last] =
@@ -558,16 +655,12 @@ export class ObserverStatusPanel {
 						"",
 					) + this.theme.fg("dim", "…");
 			}
-			rows.push(row(styledPrefix + (visible[0] ?? "")));
+			body.push(row(styledPrefix + (visible[0] ?? "")));
 			const indent = " ".repeat(visibleWidth(plainPrefix));
-			for (const line of visible.slice(1)) rows.push(row(indent + line));
+			for (const line of visible.slice(1)) body.push(row(indent + line));
 		};
 
-		rows.push(border(`╭${"─".repeat(innerWidth)}╮`));
-		rows.push(
-			row(`  ${this.theme.fg("accent", this.theme.bold("◆ Observer status"))}`),
-		);
-		rows.push(row());
+		body.push(row());
 		section("Current flow");
 		add(
 			"Mode",
@@ -578,74 +671,112 @@ export class ObserverStatusPanel {
 		add("Output language", this.view.outputLanguage);
 		add("Next", observerNextStep(this.view), "accent", 4);
 
-		rows.push(row());
+		body.push(row());
 		section("Notebook");
-		add("Location", this.view.notebook, "text", 4);
+		add("Location", this.view.notebook, "text", "all");
 		add(
 			"Default output language",
 			this.view.control.notebookDefaultLanguage ?? "Not set",
 		);
 		add("Validation", this.view.notebookHealth, healthColor(this.view), 4);
 
-		rows.push(row());
+		body.push(row());
 		section("Working set");
 		add("Pending observations", String(this.view.pendingObservations));
 		add("Working Memos", this.view.pendingMemos);
-		for (const memo of this.view.memoItems.slice(0, 3)) {
+		for (const memo of this.view.memoItems) {
 			add(
 				`Memo · ${memo.title} [${memo.disposition}]`,
 				memo.content,
 				"text",
-				4,
+				"all",
 			);
 		}
-		if (this.view.memoItems.length > 3)
-			add("More Memos", String(this.view.memoItems.length - 3));
 		add(
 			"Hypothesis context review",
 			String(this.view.pendingHypothesisReviews),
 			this.view.pendingHypothesisReviews > 0 ? "warning" : "muted",
 		);
 		add("Open Inquiries", this.view.openInquiries);
-		for (const inquiry of this.view.inquiryItems.slice(0, 3)) {
-			add(`Inquiry · ${inquiry.origin}`, inquiry.current, "text", 3);
-		}
-		if (this.view.inquiryItems.length > 3)
-			add("More Inquiries", String(this.view.inquiryItems.length - 3));
+		for (const inquiry of this.view.inquiryItems)
+			add(`Inquiry · ${inquiry.origin}`, inquiry.current, "text", "all");
 		add("Zettel candidates", this.view.zettelCandidates);
 		add(
 			"Memo preparation",
 			this.view.preparedMemo === "None" ? "None" : "Prepared",
 		);
-		add(
-			"Save proposal",
-			this.view.preparedSave === "None" ? "None" : "Reviewed and ready",
-		);
+		if (this.view.preparedSaveDetails) {
+			const proposal = this.view.preparedSaveDetails;
+			add(
+				"Save proposal",
+				`${proposal.recordCount} records · create ${proposal.createCount} · update ${proposal.updateCount}`,
+				"warning",
+			);
+			add("Proposal summary", proposal.summary, "text", 5);
+			add("Proposal ID", proposal.proposalId, "muted", 2);
+		} else add("Save proposal", "None");
 
-		rows.push(row());
+		body.push(row());
 		section("Recovery and persistence");
 		add("Branch replay", this.view.replayHealth, healthColor(this.view));
 		add("Pi session", this.view.sessionPersistence);
+		if (this.view.automaticProcessingPause)
+			add(
+				"Automatic processing paused",
+				this.view.automaticProcessingPause,
+				"warning",
+				5,
+			);
 		if (this.view.operationalIssue)
 			add("Recovery required", this.view.operationalIssue, "error", 6);
 
-		rows.push(row());
-		for (const line of wrapTextWithAnsi(
-			this.theme.fg(
+		const top = border(`╭${"─".repeat(innerWidth)}╮`);
+		const title = row(
+			`  ${this.theme.fg("accent", this.theme.bold("◆ Observer status"))}`,
+		);
+		const bottom = border(`╰${"─".repeat(innerWidth)}╯`);
+		const footer = row(
+			`  ${this.theme.fg(
 				"dim",
-				"mouse wheel scroll · drag select · Cmd+C copy · Enter/Esc close",
-			),
-			Math.max(1, innerWidth - 2),
-		))
-			rows.push(row(`  ${line}`));
-		rows.push(border(`╰${"─".repeat(innerWidth)}╯`));
+				`${this.key("tui.select.up", "↑")}/${this.key("tui.select.down", "↓")} scroll · ${this.key("tui.select.pageUp", "PgUp")}/${this.key("tui.select.pageDown", "PgDn")} page · ${this.key("tui.select.confirm", "Enter")}/${this.key("tui.select.cancel", "Esc")} close`,
+			)}`,
+		);
+		const height = Math.max(8, maximumHeight);
+		let result: string[];
+		if (body.length + 4 <= height) {
+			this.scrollOffset = 0;
+			this.pageSize = body.length;
+			result = [top, title, ...body, footer, bottom];
+		} else {
+			this.pageSize = Math.max(1, height - 5);
+			const maximumOffset = Math.max(0, body.length - this.pageSize);
+			this.scrollOffset = Math.min(this.scrollOffset, maximumOffset);
+			const position = row(
+				`  ${this.theme.fg(
+					"dim",
+					`Showing ${this.scrollOffset + 1}-${Math.min(body.length, this.scrollOffset + this.pageSize)} of ${body.length}`,
+				)}`,
+			);
+			result = [
+				top,
+				title,
+				...body.slice(this.scrollOffset, this.scrollOffset + this.pageSize),
+				position,
+				footer,
+				bottom,
+			];
+		}
 		this.cachedWidth = width;
-		this.cachedLines = rows;
-		return rows;
+		this.cachedHeight = maximumHeight;
+		this.cachedOffset = this.scrollOffset;
+		this.cachedLines = result;
+		return result;
 	}
 
 	invalidate(): void {
+		this.cachedHeight = undefined;
 		this.cachedLines = undefined;
+		this.cachedOffset = undefined;
 		this.cachedWidth = undefined;
 	}
 }
@@ -654,10 +785,17 @@ export async function showObserverStatus(
 	ctx: ExtensionContext,
 	view: ObserverStatusView,
 ): Promise<void> {
-	await ctx.ui.custom<void>((_tui, theme, _keybindings, done) => {
-		const panel = new ObserverStatusPanel(view, theme, () => done());
+	await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
+		const panel = new ObserverStatusPanel(
+			view,
+			theme,
+			() => done(),
+			keybindings,
+			() => tui.requestRender(),
+		);
 		return {
-			render: (width) => panel.render(width),
+			render: (width) =>
+				panel.render(width, Math.max(8, tui.terminal.rows - 2)),
 			handleInput: (data) => panel.handleInput(data),
 			invalidate: () => panel.invalidate(),
 		};
@@ -676,6 +814,12 @@ export function renderObserverChromeStatus(
 			theme.fg("error", "needs attention")
 		);
 	if (view.control.notebook === "unselected") return undefined;
+	if (view.automaticProcessingPause)
+		return (
+			theme.fg("accent", "observer") +
+			separator +
+			theme.fg("warning", "processing paused")
+		);
 	if (view.control.episode === "reviewing-save")
 		return (
 			theme.fg("accent", "observer") +
@@ -704,6 +848,7 @@ export function renderObserverChromeStatus(
 export function shouldShowObserverWidget(view: ObserverStatusView): boolean {
 	return Boolean(
 		view.operationalIssue ||
+			view.automaticProcessingPause ||
 			view.control.notebook === "unhealthy" ||
 			view.control.episode === "reviewing-save" ||
 			view.control.mode === "on" ||
@@ -728,6 +873,13 @@ export class ObserverWidget {
 		) {
 			lines.push(this.theme.fg("error", "! Observer · recovery required"));
 			lines.push(this.theme.fg("dim", "  /observe → Status and health"));
+		} else if (this.view.automaticProcessingPause) {
+			lines.push(
+				this.theme.fg("warning", "! Observer · automatic processing paused"),
+			);
+			lines.push(
+				this.theme.fg("dim", "  /observe → Memo or Review to retry explicitly"),
+			);
 		} else if (this.view.control.episode === "reviewing-save") {
 			lines.push(
 				this.theme.fg(

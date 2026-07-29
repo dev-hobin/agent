@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import {
 	getAgentDir,
@@ -26,6 +26,8 @@ import { reconstructObservationSession } from "../src/observation-session.ts";
 import type { ObservationMemoRequestedEvent } from "../src/observation-profile.ts";
 import type { PreparedSaveHandoff } from "../src/pi-session.ts";
 import { parseObserveCommand } from "../src/observer-command.ts";
+import type { ObserverStatusView } from "../src/observer-status.ts";
+import { renderSaveProposalReview } from "../src/save-review.ts";
 import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
 import type { SaveRequestEvent } from "../src/save-trigger.ts";
 import { observerSidecarParameters } from "./memo-tool-schema.ts";
@@ -45,6 +47,7 @@ import {
 	showObserverControl,
 	showObserverStatus,
 } from "./tui.ts";
+import { showSaveProposalReview } from "./save-proposal-tui.ts";
 
 const OBSERVER_STATUS_KEY = "observer";
 const OBSERVER_TOOL_NAME = "observer_sidecar";
@@ -124,7 +127,17 @@ function commandPort(
 		appendEntry: pi.appendEntry.bind(pi),
 		input: ui.input.bind(ui),
 		select: ui.select.bind(ui),
-		confirm: ui.confirm.bind(ui),
+		async reviewSaveProposal(review) {
+			if (ctx.mode === "tui") return showSaveProposalReview(ctx, review);
+			const choice = await ui.select(renderSaveProposalReview(review), [
+				"Go back · keep proposal ready",
+				"Return to Review · discard proposal",
+				`Save all ${review.records.length} records`,
+			]);
+			if (choice?.startsWith("Save all")) return "approve";
+			if (choice?.startsWith("Return to Review")) return "reject";
+			return "back";
+		},
 		notify: ui.notify.bind(ui),
 		setStatus(text) {
 			ui.setStatus(OBSERVER_STATUS_KEY, text);
@@ -590,17 +603,33 @@ export function observerCommandPresentation(
 	return "command";
 }
 
+function withTurnState(
+	view: ObserverStatusView,
+	turnState: ObserverTurnState | undefined,
+): ObserverStatusView {
+	return turnState?.blockedRequestId
+		? {
+				...view,
+				automaticProcessingPause: `Request ${turnState.blockedRequestId} failed. Run Memo or Review explicitly to retry.`,
+			}
+		: view;
+}
+
 async function refreshObserverChrome(input: {
 	readonly ctx: ExtensionContext;
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
+	readonly turnState?: ObserverTurnState;
 }): Promise<void> {
 	const port = commandPort(input.pi, input.ctx);
 	if (input.ctx.mode !== "tui") {
 		await input.controller.refresh(port);
 		return;
 	}
-	const view = await input.controller.inspect(port);
+	const view = withTurnState(
+		await input.controller.inspect(port),
+		input.turnState,
+	);
 	input.ctx.ui.setStatus(
 		OBSERVER_STATUS_KEY,
 		renderObserverChromeStatus(view, input.ctx.ui.theme),
@@ -784,14 +813,14 @@ async function setObserverDraft(
 	},
 ): Promise<boolean> {
 	const current = ctx.ui.getEditorText();
-	if (
-		current.trim() &&
-		!(await ctx.ui.confirm(
-			`Replace the editor with a ${input.label} draft?`,
-			"The editor already contains text. Replacing it will discard that text.",
-		))
-	)
-		return false;
+	if (current.trim()) {
+		const replacement = `Replace editor with ${input.label} draft`;
+		const choice = await ctx.ui.select(
+			"The editor already contains text. Choose whether to keep it or replace it.",
+			["Keep current editor text", replacement],
+		);
+		if (choice !== replacement) return false;
+	}
 	ctx.ui.setEditorText(input.draft);
 	ctx.ui.notify(input.instruction, "info");
 	return true;
@@ -811,7 +840,19 @@ async function setupNotebookFromControl(
 		input.ctx.ui.notify("Enter a Notebook path.", "warning");
 		return false;
 	}
-	await input.controller.command(`setup ${language} ${root.trim()}`, port);
+	const resolvedRoot = resolve(input.ctx.cwd, root.trim());
+	const setup = `Set up ${resolvedRoot} · default output ${language}`;
+	const choice = await input.ctx.ui.select(
+		[
+			"Review Observer Notebook setup",
+			`Resolved path: ${resolvedRoot}`,
+			`Default Memo/Zettel language: ${language}`,
+			"A new Notebook is initialized; an existing folder is adopted without rewriting unrelated files.",
+		].join("\n"),
+		["Go back · make no changes", setup],
+	);
+	if (choice !== setup) return false;
+	await input.controller.command(`setup ${language} ${resolvedRoot}`, port);
 	const view = await input.controller.inspect(port);
 	return view.control.notebook === "ready";
 }
@@ -822,24 +863,36 @@ async function showObserverControlFlow(
 	const port = commandPort(input.pi, input.ctx);
 	let pendingLanguage: "ko" | "en" = "en";
 	while (true) {
-		const view = await input.controller.inspect(port);
+		const view = withTurnState(
+			await input.controller.inspect(port),
+			input.turnState,
+		);
 		if (view.control.notebookDefaultLanguage)
 			pendingLanguage = view.control.notebookDefaultLanguage;
 		const action = await showObserverControl(input.ctx, view, pendingLanguage, {
 			async applyActivation(enabled) {
 				await input.controller.command(enabled ? "on" : "off", port);
 				await refreshObserverChrome(input);
-				return input.controller.inspect(port);
+				return withTurnState(
+					await input.controller.inspect(port),
+					input.turnState,
+				);
 			},
 			async applyLanguage(language) {
-				const current = await input.controller.inspect(port);
+				const current = withTurnState(
+					await input.controller.inspect(port),
+					input.turnState,
+				);
 				const applied =
 					current.control.notebook === "ready"
 						? await input.controller.updateDefaultLanguage(language, port)
 						: true;
 				if (applied) pendingLanguage = language;
 				await refreshObserverChrome(input);
-				return input.controller.inspect(port);
+				return withTurnState(
+					await input.controller.inspect(port),
+					input.turnState,
+				);
 			},
 			onError(error) {
 				input.ctx.ui.notify(
@@ -875,7 +928,10 @@ async function showObserverControlFlow(
 			case "status":
 				await showObserverStatus(
 					input.ctx,
-					await input.controller.inspect(port),
+					withTurnState(
+						await input.controller.inspect(port),
+						input.turnState,
+					),
 				);
 				break;
 			case "memo":
@@ -922,8 +978,9 @@ async function handleObserveCommand(input: ObserveCommandInput): Promise<void> {
 		return;
 	}
 	if (presentation === "status") {
-		const view = await input.controller.inspect(
-			commandPort(input.pi, input.ctx),
+		const view = withTurnState(
+			await input.controller.inspect(commandPort(input.pi, input.ctx)),
+			input.turnState,
 		);
 		await refreshObserverChrome(input);
 		await showObserverStatus(input.ctx, view);

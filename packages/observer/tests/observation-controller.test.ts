@@ -235,8 +235,8 @@ class FakePort implements ObservationCommandPort {
 		return Promise.resolve(undefined);
 	}
 
-	confirm(): Promise<boolean> {
-		return Promise.resolve(this.confirmation);
+	reviewSaveProposal(): Promise<"approve" | "reject"> {
+		return Promise.resolve(this.confirmation ? "approve" : "reject");
 	}
 
 	setStatus(): void {}

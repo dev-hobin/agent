@@ -96,7 +96,8 @@ Observer ON
 → 중요한 변화만 알림
 → memo로 중간 재조정
 → 계속 학습
-→ Review & Save로 최종 검토·로컬 저장·종료
+→ Review로 proposal 준비·검증
+→ Save에서 파일별 검토 후 batch 전체 승인·로컬 저장·종료
 ```
 
 ### 4.3 Add a hypothesis 사용
@@ -142,11 +143,15 @@ readback과 rollback을 수행하는 과정은 주입된 `NotebookPublicationSer
 Review request
 → final Memo reconciliation
 → exact proposal preparation
+→ SaveService preflight: decode · recover target · validate final graph · build publication plan
+→ valid proposal만 ready 상태로 전환
 → stop without file writes
 
-Save approval
-→ SaveService: decode · authorize · recover target
-→ NotebookPublicationService.prepare: validate · build publication plan
+Save inspection and approval
+→ 현재 target에 대해 SaveService preflight 재실행
+→ target path · create/update · 문서 유형 · diff · exact final Markdown 검토
+→ Save all N records 명시적 batch 승인
+→ SaveService: authorize current proposal
 → SaveService: lifecycle preflight
 → NotebookPublicationService.commit: stage · publish · readback · rollback
 → SaveService: public save receipt · settle Episode
@@ -229,8 +234,11 @@ Notebook 미선택
 → Notebook 설정, 기본 출력 언어, Observer 활성화, 상태 확인만 노출
 
 Episode OPEN
-→ Mode, Add a hypothesis, Observe material, Memo, Review & Save,
+→ Mode, Add a hypothesis, Observe material, Memo, Review,
   고정 Notebook, 현재 출력 언어, 상태를 노출
+
+Validated proposal ready
+→ Mode 상태와 capture suspended 경계, Save, proposal 요약, 상태를 노출
 ```
 
 제어판은 새로운 lifecycle effect를 만들지 않고 아래의 기존 명령과 같은
@@ -244,7 +252,10 @@ read-only status를 반환한다. `/observe settings`는 TUI에서 같은 제어
 최초 Notebook 위치와 기본 출력 언어를 설정한다. TUI에서는 두 설정을
 별도 option으로 노출한다. Mode On/Off만 toggle로 취급한다. 기본 출력 언어는
 현재 선택을 미리 가리키는 `English (en)` / `Korean (ko)` 명시적 chooser로
-제공하며 Enter 때 다음 값으로 순환시키지 않는다.
+제공하며 Enter 때 다음 값으로 순환시키지 않는다. 파일 작업 전에는 Pi cwd 기준으로
+resolve한 절대 경로와 선택 언어를 다시 보여준다. 초기 선택은 `Go back`이며 사용자가
+`Set up <path>`를 명시적으로 선택한 경우에만 새 Notebook을 초기화하거나 기존 folder를
+adopt한다.
 
 ```text
 입력
@@ -315,22 +326,32 @@ inline 자료, 경로, URL 또는 retrieval 요청을 명시적인 Observe mater
 전달한다. Observer Mode가 ON이면 ON, OFF이면 OFF로 유지하며, command 자체를
 Source evidence로 취급하지 않는다.
 
+### `/observe review`
+
+현재 working state를 하나의 저장 가능한 proposal로 정리한다. 필요하면 마지막 Memo
+reconciliation을 먼저 수행한 뒤, 모든 create/update Markdown과 최종 Notebook graph를
+검증한다. 유효한 proposal만 `Ready to save` 상태가 된다. Review는 Notebook 파일을
+변경하지 않고 Save UI를 자동으로 열지도 않는다.
+
 ### `/observe save`
 
-현재 observation episode를 의미적으로 마무리한다.
+`/observe review`가 준비·검증한 proposal만 검토하고 저장한다. Save는 최종
+reconciliation이나 proposal 생성을 암묵적으로 시작하지 않는다.
 
 ```text
-1. 마지막 memo 이후 관찰을 포함해 최종 reconciliation
-2. Zettel 승격 후보 결정
-3. Incubating Memo와 Standing Inquiry 정리
-4. 저장 위치와 언어를 포함한 계획 표시
-5. 사용자 확인 또는 수정 대기
-6. 승인된 계획을 로컬 기록으로 저장
-7. episode를 SETTLED로 전환
+1. 현재 Notebook target에 대해 prepared proposal을 다시 검증
+2. record별 target path·create/update·문서 유형을 목록으로 표시
+3. update는 diff, final Markdown, existing Markdown을 전환해 검토
+4. create는 exact final Markdown을 검토
+5. Back / Return to Review / Save all N records 중 하나를 명시적으로 선택
+6. batch 전체 승인 후에만 로컬 기록으로 저장
+7. readback validation 후 episode를 SETTLED로 전환
 8. Observer Mode를 OFF로 전환
 ```
 
-사용자가 승인하기 전에는 저장하거나 끄지 않는다. 사용자가 취소하면 episode와 Mode 상태를 유지한다.
+`Back`은 lifecycle을 바꾸지 않고 proposal을 ready 상태로 유지한다. `Return to
+Review`는 proposal만 폐기하고 Episode와 working state를 OPEN으로 유지한다. `Save all
+N records`만 파일을 변경한다. record별 검토는 지원하지만 부분 저장은 지원하지 않는다.
 
 ### `/observe status`
 
@@ -377,11 +398,12 @@ Episode OPEN
     │ memo 0..N회
     ▼
 Episode OPEN
-    │ save
+    │ review
     ▼
-SAVE PROPOSAL
-    ├─ 취소/수정 미완료 → Episode OPEN
-    └─ 승인·저장 완료   → Episode SETTLED + Mode OFF
+VALIDATED SAVE PROPOSAL
+    ├─ Back                  → proposal 유지, 같은 상태
+    ├─ Return to Review      → Episode OPEN + working state 유지
+    └─ Save all N + readback → Episode SETTLED + Mode OFF
 ```
 
 ### 7.2 Compaction 안전성
@@ -585,9 +607,10 @@ Review
 + 파일 변경 없음
 
 Save
-= prepared proposal 표시
-+ 사용자 승인 또는 취소
-+ 승인된 로컬 저장
+= 현재 Notebook target에 대한 proposal 재검증
++ bounded record 목록과 update diff/exact Markdown 표시
++ Back / Return to Review / Save all N records 선택
++ batch 전체가 승인된 경우에만 로컬 저장
 + readback validation
 + Episode 종료
 + Observer OFF
@@ -615,17 +638,22 @@ Retire 또는 supersede할 항목과 이유
 ```
 
 현재 working Memo와 Inquiry는 Status에서 제목·상태·현재 내용을 확인할 수 있어야 한다.
-Save 확인 화면은 record ID만이 아니라 실제 제안 Markdown을 보여야 한다.
+Save 확인 화면은 record ID만이 아니라 target 상대 경로, create/update, 문서 유형,
+제목과 실제 제안 Markdown을 보여야 한다. update는 diff를 기본으로 보여주되 existing
+Markdown과 exact final Markdown으로 전환할 수 있어야 한다. terminal 높이를 넘는 내용은
+고정 header/footer 사이에서 키보드로 scroll할 수 있어야 한다.
 
 ### Save 승인
 
 사용자는 다음을 할 수 있다.
 
-- prepared proposal 전체 승인
-- Save 취소 후 Episode와 working state 유지
-- Review 단계로 돌아가 추가 관찰·Memo reconciliation 수행
+- record별 내용을 검토한 뒤 prepared proposal 전체 승인
+- Back으로 Save UI를 닫고 같은 proposal을 나중에 다시 검토
+- Return to Review로 proposal만 폐기하고 추가 관찰·Memo reconciliation 수행
 
-승인 후에만 로컬 파일을 변경한다. prepared proposal 없이 Save를 실행하면 Review를 먼저
+Save action은 `Yes/No`가 아니라 결과를 설명하는 label을 사용한다. 초기 Enter는 승인으로
+이어지지 않으며, `Save all N records`를 명시적으로 선택한 뒤에만 파일을 변경한다.
+prepared proposal 없이 Save를 실행하면 Review를 먼저
 실행하라는 안내만 제공하며 Review를 암묵적으로 시작하지 않는다.
 
 ### Save 완료 receipt
@@ -971,8 +999,9 @@ Notebook 전체에서 확인한다.
 ### 19.4 검증 시점
 
 ```text
-- Review & Save proposal 생성 전
-- 사용자 승인 후 실제 저장 직전
+- Review proposal이 ready 상태가 되기 전
+- Save UI를 열 때 현재 Notebook target에 대해
+- 사용자 batch 승인 후 실제 저장 직전
 - notebook을 열거나 선택할 때
 - standing inquiry를 재진입할 때
 - status에서 notebook health를 요청할 때
@@ -982,7 +1011,8 @@ Manual edit도 동일한 decoder와 graph validator를 통과해야 한다.
 
 ### 19.5 저장 원칙
 
-Review & Save batch 중 하나라도 무효라면 일부 파일만 저장하지 않는다.
+Review/Save batch 중 하나라도 무효라면 일부 파일만 저장하지 않는다. record별 검토는
+가능하지만 record별 승인·제외는 graph proposal을 다시 계산하지 않고 수행하지 않는다.
 
 ```text
 모두 유효 → 로컬 저장
@@ -1044,9 +1074,11 @@ v0.1 core에 graph DB나 RDF runtime을 넣지 않는다.
 → Hybrid 중요 변화 알림
 → /observe memo
 → 계속 학습
+→ /observe review
+→ validated proposal ready, 파일 변경 없음
 → /observe save
-→ 저장 계획 검토
-→ 사용자 승인
+→ target path·diff·exact Markdown 검토
+→ Save all N records 승인
 → Source/Memo/Inquiry/Zettel 로컬 저장
 → Observer OFF
 ```
@@ -1085,7 +1117,8 @@ Observer ON 또는 OFF
 → 기존 Mode 유지
 → 여러 Observe material 요청 누적 가능
 → 완료된 hypothesis context review와 Observe material 결과를 memo에서 재조정
-→ /observe save 승인 후 로컬 저장
+→ /observe review로 proposal 준비·검증
+→ /observe save에서 batch 승인 후 로컬 저장
 ```
 
 ### 21.5 Fresh-session re-entry
@@ -1147,11 +1180,11 @@ Subagent는 제3자 관찰 관점을 구현할 후보지만 v0.1 설계와 구�
 [x] Sidecar transcript의 사용감이 맞다.
 [x] Add a hypothesis가 원문과 user context를 보존하고 현재 context를 lens review한다.
 [x] Observe material transcript의 부작용이 맞다.
-[x] on/off/memo/Review & Save의 effect가 구분된다.
+[x] on/off/memo/Review/Save의 effect가 구분된다.
 [x] Mode와 Episode의 독립 상태가 이해된다.
 [x] Memo와 Zettel의 생명주기가 맞다.
 [x] 직접 관찰과 사용자 가설이 구분된다.
-[x] Review & Save가 무엇을 저장하고 무엇을 묻는지 맞다.
+[x] Review와 Save가 무엇을 검증·표시·저장하고 무엇을 묻는지 맞다.
 [x] Notebook 위치와 언어 설정 방식이 맞다.
 [x] Local-first와 Git 비책임 경계가 맞다.
 [x] Markdown Profile의 record 종류와 relation 분리가 맞다.

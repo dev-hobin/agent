@@ -6,6 +6,7 @@ import {
 	type MarkdownInput,
 	type ObserverDiagnostic,
 	type ObserverRecordId,
+	type ObserverRecordType,
 } from "./markdown-profile.ts";
 import type { NotebookHandle, NotebookInventoryEntry } from "./notebook.ts";
 import { validateObserverNotebook } from "./notebook-validation.ts";
@@ -21,6 +22,8 @@ export interface InventoryFingerprint {
 export interface NotebookPublicationEntry {
 	readonly operation: "create" | "update";
 	readonly recordId: ObserverRecordId;
+	readonly recordType: ObserverRecordType;
+	readonly title: string;
 	readonly targetPath: string;
 	readonly relativePath: string;
 	readonly nextContent: string;
@@ -66,6 +69,8 @@ export type PublicationPreflightResult =
 interface ProposedDocument {
 	readonly prepared: PreparedRecord;
 	readonly recordId: ObserverRecordId;
+	readonly recordType: ObserverRecordType;
+	readonly title: string;
 	readonly content: string;
 }
 
@@ -140,6 +145,8 @@ function decodeProposedDocuments(
 		proposed.push({
 			prepared,
 			recordId: decoded.value.record.id,
+			recordType: decoded.value.record.observer_type,
+			title: decoded.value.record.title,
 			content: prepared.markdown,
 		});
 	}
@@ -179,6 +186,8 @@ function createPublicationEntry(
 	return {
 		operation: "create",
 		recordId: proposed.recordId,
+		recordType: proposed.recordType,
+		title: proposed.title,
 		targetPath,
 		relativePath: `records/${proposed.recordId}.md`,
 		nextContent: proposed.content,
@@ -213,6 +222,8 @@ function updatePublicationEntry(
 	return {
 		operation: "update",
 		recordId: proposed.recordId,
+		recordType: proposed.recordType,
+		title: proposed.title,
 		targetPath: existing.path,
 		relativePath: existing.relativePath,
 		nextContent: proposed.content,

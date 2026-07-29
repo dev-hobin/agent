@@ -79,7 +79,16 @@ import {
 	OBSERVER_SAVE_APPROVAL_SCHEMA,
 	type SaveReceipt,
 } from "./save-profile.ts";
-import { createSaveService, type SaveService } from "./save-service.ts";
+import {
+	createSaveService,
+	type SaveService,
+	type SaveServiceIssue,
+} from "./save-service.ts";
+import {
+	saveProposalReview,
+	type SaveProposalReview,
+	type SaveProposalReviewDecision,
+} from "./save-review.ts";
 
 export interface ObserverCommandPort {
 	/** Pi's current working directory. Relative Notebook paths resolve from here. */
@@ -89,7 +98,9 @@ export interface ObserverCommandPort {
 	appendEntry(customType: string, data: unknown): void;
 	input(title: string, placeholder?: string): Promise<string | undefined>;
 	select(title: string, options: string[]): Promise<string | undefined>;
-	confirm(title: string, message: string): Promise<boolean>;
+	reviewSaveProposal(
+		review: SaveProposalReview,
+	): Promise<SaveProposalReviewDecision>;
 	notify(message: string, type?: "info" | "warning" | "error"): void;
 	setStatus(text: string | undefined): void;
 }
@@ -337,7 +348,19 @@ async function promptSetup(
 		);
 		return null;
 	}
-	return { kind: "setup", root: root.trim(), lang: language };
+	const resolvedRoot = resolve(port.cwd ?? process.cwd(), root.trim());
+	const proceed = `Set up ${resolvedRoot} · default output ${language}`;
+	const choice = await port.select(
+		[
+			"Review Observer Notebook setup",
+			`Resolved path: ${resolvedRoot}`,
+			`Default Memo/Zettel language: ${language}`,
+			"A new Notebook is initialized; an existing folder is adopted without rewriting unrelated files.",
+		].join("\n"),
+		["Go back · make no changes", proceed],
+	);
+	if (choice !== proceed) return null;
+	return { kind: "setup", root: resolvedRoot, lang: language };
 }
 
 function resolveCommand(
@@ -353,21 +376,27 @@ function resolveCommand(
 	return Promise.resolve(parsed.command);
 }
 
-function renderPreparedPlan(handoff: PreparedSaveHandoff): string {
-	const operations = handoff.prepared.records.flatMap((record) => [
-		`--- ${record.operation}: ${record.record_id} ---`,
-		record.markdown,
-		"",
-	]);
-	return [
-		handoff.summary,
-		"",
-		`Notebook: ${handoff.prepared.root}`,
-		`Output language: ${handoff.prepared.episode_language}`,
-		`Records: ${handoff.prepared.records.length}`,
-		"",
-		...operations,
-	].join("\n");
+function saveIssueSummary(issue: SaveServiceIssue): string {
+	const subject = issue.recordId
+		? ` Record: ${issue.recordId}.`
+		: issue.path
+			? ` Path: ${issue.path}.`
+			: "";
+	const diagnostic = issue.diagnostics?.[0]?.message;
+	return `${issue.message}${subject}${diagnostic ? ` ${diagnostic}` : ""}`;
+}
+
+function saveReceiptSummary(review: SaveProposalReview): string {
+	const counts = new Map<string, number>();
+	for (const record of review.records)
+		counts.set(record.recordType, (counts.get(record.recordType) ?? 0) + 1);
+	const byType = ["source", "inquiry", "memo", "zettel"]
+		.flatMap((type) => {
+			const count = counts.get(type) ?? 0;
+			return count > 0 ? [`${type} ${count}`] : [];
+		})
+		.join(" · ");
+	return byType ? ` · ${byType}` : "";
 }
 
 async function inspectStatus(
@@ -901,18 +930,53 @@ async function saveCommand(
 		);
 		return;
 	}
-	const approved = await port.confirm(
-		"Save reviewed Observer proposal",
-		renderPreparedPlan(snapshot.prepared.handoff),
-	);
-	if (!approved) {
+	port.setStatus("observer · validating save proposal");
+	const preflight = await saves.preflight({
+		state: snapshot.state,
+		prepared: snapshot.prepared.handoff.prepared,
+	});
+	if (!preflight.ok) {
+		const returnToReview =
+			"Return to Review · discard invalid proposal, preserve working state";
+		const choice = await port.select(
+			`The reviewed proposal is no longer ready to save. ${saveIssueSummary(preflight.issue)}`,
+			["Keep proposal for diagnosis", returnToReview],
+		);
+		if (choice === returnToReview) {
+			appendLifecycle(
+				port,
+				snapshot,
+				saveCancelled(snapshot.prepared.handoff.prepared.proposal_id),
+			);
+			port.notify(
+				"Returned to Review. The invalid proposal was discarded; the Episode and working state remain open.",
+				"info",
+			);
+		} else {
+			port.notify(
+				"The invalid proposal was kept for diagnosis. Return to Review before preparing a replacement.",
+				"error",
+			);
+		}
+		return;
+	}
+	const review = saveProposalReview(snapshot.prepared.handoff, preflight.value);
+	const decision = await port.reviewSaveProposal(review);
+	if (decision === "back") {
+		port.notify(
+			"Save postponed. The reviewed proposal remains ready to inspect.",
+			"info",
+		);
+		return;
+	}
+	if (decision === "reject") {
 		appendLifecycle(
 			port,
 			snapshot,
 			saveCancelled(snapshot.prepared.handoff.prepared.proposal_id),
 		);
 		port.notify(
-			"Save cancelled. The Episode and working state remain open.",
+			"Returned to Review. The proposal was discarded; the Episode and working state remain open.",
 			"info",
 		);
 		return;
@@ -936,6 +1000,9 @@ async function saveCommand(
 		port.notify("The approved save proposal could not be recovered.", "error");
 		return;
 	}
+	port.setStatus(
+		`observer · saving ${prepared.prepared.records.length} Notebook records`,
+	);
 	const saved = await saves.commit({
 		state: current.state,
 		prepared: prepared.prepared,
@@ -946,13 +1013,16 @@ async function saveCommand(
 		},
 	});
 	if (!saved.ok) {
-		port.notify(`Notebook save failed: ${saved.issue.message}`, "error");
+		port.notify(
+			`Notebook save failed. ${saveIssueSummary(saved.issue)} The reviewed proposal remains available for recovery.`,
+			"error",
+		);
 		return;
 	}
 	if (!appendLifecycle(port, current, saveCommitted(saved.value.receipt)))
 		return;
 	port.notify(
-		`Saved ${saved.value.receipt.records.length} Notebook records · Episode settled`,
+		`Saved ${saved.value.receipt.records.length} Notebook records${saveReceiptSummary(review)} · Episode settled · Git commit/push not performed`,
 		"info",
 	);
 }
@@ -1249,6 +1319,7 @@ async function installPreparedCommand(input: {
 	readonly value: unknown;
 	readonly port: ObserverCommandPort;
 	readonly notebooks: NotebookService;
+	readonly saves: SaveService;
 	readonly operationalIssue?: string;
 }): Promise<boolean> {
 	const snapshot = reconstructObserverPiState(input.port.branchEntries());
@@ -1277,6 +1348,17 @@ async function installPreparedCommand(input: {
 	if (!matchingOpenEpisode(snapshot, decoded.value)) {
 		input.port.notify(
 			"Prepared save target이 현재 open episode와 다릅니다.",
+			"error",
+		);
+		return false;
+	}
+	const preflight = await input.saves.preflight({
+		state: snapshot.state,
+		prepared: decoded.value.prepared,
+	});
+	if (!preflight.ok) {
+		input.port.notify(
+			`Review could not prepare a valid proposal. ${saveIssueSummary(preflight.issue)} The Episode and working state were preserved.`,
 			"error",
 		);
 		return false;
@@ -1432,6 +1514,7 @@ export function createObserverController(
 				value,
 				port,
 				notebooks,
+				saves,
 				...(operationalIssue ? { operationalIssue } : {}),
 			});
 		},

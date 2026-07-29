@@ -2,9 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { type Component, visibleWidth } from "@earendil-works/pi-tui";
+import {
+	type Component,
+	type Keybinding,
+	type KeybindingsManager,
+	type KeyId,
+	matchesKey,
+	visibleWidth,
+} from "@earendil-works/pi-tui";
 
 import { observerCommandPresentation } from "../extensions/observer.ts";
+import { SaveProposalReviewSurface } from "../extensions/save-proposal-tui.ts";
 import {
 	OBSERVER_HYPOTHESIS_DRAFT,
 	OBSERVER_OBSERVE_MATERIAL_DRAFT,
@@ -17,6 +25,7 @@ import {
 	showObserverControl,
 } from "../extensions/tui.ts";
 import type { ObserverStatusView } from "../src/observer-status.ts";
+import type { SaveProposalReview } from "../src/save-review.ts";
 
 interface InteractiveTestComponent extends Component {
 	handleInput(data: string): void;
@@ -28,6 +37,32 @@ type TestComponentFactory = (
 	keybindings: unknown,
 	done: (value: unknown) => void,
 ) => InteractiveTestComponent | Promise<InteractiveTestComponent>;
+
+const keybindings = {
+	matches(data: string, binding: Keybinding): boolean {
+		const keys: Partial<Record<Keybinding, KeyId>> = {
+			"tui.select.up": "up",
+			"tui.select.down": "down",
+			"tui.select.pageUp": "pageUp",
+			"tui.select.pageDown": "pageDown",
+			"tui.select.confirm": "enter",
+			"tui.select.cancel": "escape",
+		};
+		const key = keys[binding];
+		return key ? matchesKey(data, key) : false;
+	},
+	getKeys(binding: Keybinding): string[] {
+		const labels: Partial<Record<Keybinding, string>> = {
+			"tui.select.up": "↑",
+			"tui.select.down": "↓",
+			"tui.select.pageUp": "PgUp",
+			"tui.select.pageDown": "PgDn",
+			"tui.select.confirm": "Enter",
+			"tui.select.cancel": "Esc",
+		};
+		return [labels[binding] ?? binding];
+	},
+} as KeybindingsManager;
 
 const theme = {
 	bold: (text: string) => text,
@@ -93,6 +128,45 @@ function openView(mode: "on" | "off" = "on"): ObserverStatusView {
 		openInquiries: "2",
 		zettelCandidates: "1",
 	});
+}
+
+function proposalReview(): SaveProposalReview {
+	return {
+		proposalId: "proposal-tui-test",
+		summary: "Create one source and revise one inquiry without partial saves.",
+		notebookRoot: "/Users/me/notes/observer",
+		outputLanguage: "ko",
+		records: [
+			{
+				operation: "update",
+				recordId: "inquiry-tui-test",
+				recordType: "inquiry",
+				title: "Bounded review surfaces\u001b[31m",
+				relativePath: "records/inquiry-tui-test.md",
+				beforeMarkdown: "---\ntitle: Old title\n---\n# Old title\nold body\n",
+				proposedMarkdown: [
+					"---",
+					"title: Bounded review surfaces",
+					"---",
+					"# Bounded review surfaces",
+					...Array.from(
+						{ length: 40 },
+						(_, index) => `new body line ${index + 1}`,
+					),
+				].join("\n"),
+			},
+			{
+				operation: "create",
+				recordId: "source-tui-test",
+				recordType: "source",
+				title: "Terminal interaction evidence",
+				relativePath: "records/source-tui-test.md",
+				beforeMarkdown: null,
+				proposedMarkdown:
+					"---\ntitle: Terminal interaction evidence\n---\n# Terminal interaction evidence\nExact Markdown\n",
+			},
+		],
+	};
 }
 
 test("TUI uses /observe as a control center while preserving non-TUI commands", () => {
@@ -360,22 +434,124 @@ test("control surface returns a canonical activation action", async () => {
 	assert.ok(rendered.split("\n").every((line) => visibleWidth(line) <= 78));
 });
 
-test("status panel is complete, width-bounded, and keyboard dismissible", () => {
-	let closed = false;
-	const panel = new ObserverStatusPanel(openView(), theme, () => {
-		closed = true;
+test("save proposal review is bounded, inspectable, and safe by default", () => {
+	let decision: string | undefined;
+	let renders = 0;
+	const surface = new SaveProposalReviewSurface({
+		review: proposalReview(),
+		theme,
+		keybindings,
+		done(value) {
+			decision = value;
+		},
+		requestRender() {
+			renders += 1;
+		},
 	});
-	const lines = panel.render(62);
-	const output = lines.join("\n");
-	assert.match(output, /Observer status/);
-	assert.match(output, /Current flow/);
-	assert.match(output, /Notebook/);
-	assert.match(output, /Working set/);
-	assert.match(output, /Recovery and persistence/);
-	assert.match(output, /Pending observations · 0/);
-	assert.match(output, /Working Memos · 3/);
-	assert.match(output, /Keep working normally/);
-	assert.ok(lines.every((line) => visibleWidth(line) <= 62));
+
+	const overview = surface.render(72, 20);
+	assert.equal(overview.length, 20);
+	assert.ok(overview.every((line) => visibleWidth(line) <= 72));
+	assert.match(overview.join("\n"), /Validated/u);
+	assert.match(overview.join("\n"), /␛\[31m/u);
+	assert.doesNotMatch(overview.join("\n"), /\u001b\[31m/u);
+	assert.equal(decision, undefined);
+
+	surface.handleInput("\r");
+	const diff = surface.render(72, 20).join("\n");
+	assert.match(diff, /records\/inquiry-tui-test\.md/u);
+	assert.match(diff, /\[Diff\]/u);
+	assert.match(diff, /- .*Old title/u);
+	assert.match(diff, /\+ .*Bounded review surfaces/u);
+	assert.equal(
+		decision,
+		undefined,
+		"Enter inspects the first record; it does not save",
+	);
+
+	surface.handleInput("\u001b[6~");
+	const paged = surface.render(72, 20).join("\n");
+	assert.notEqual(paged, diff);
+	surface.handleInput("\r");
+	assert.match(surface.render(72, 20).join("\n"), /\[Final Markdown\]/u);
+	surface.handleInput("\u001b");
+	assert.match(surface.render(72, 20).join("\n"), /keep this proposal ready/u);
+	surface.handleInput("\u001b");
+	assert.equal(decision, "back");
+	assert.ok(renders >= 4);
+});
+
+test("save proposal review requires explicit navigation to batch approval", () => {
+	const decisions: string[] = [];
+	const surface = new SaveProposalReviewSurface({
+		review: proposalReview(),
+		theme,
+		keybindings,
+		done(value) {
+			decisions.push(value);
+		},
+		requestRender() {},
+	});
+	for (let index = 0; index < 4; index += 1) surface.handleInput("\u001b[B");
+	surface.handleInput("\r");
+	assert.deepEqual(decisions, ["approve"]);
+});
+
+test("status panel is height-bounded, fully scrollable, and keyboard dismissible", () => {
+	let closed = false;
+	const view = openView();
+	const panel = new ObserverStatusPanel(
+		{
+			...view,
+			memoItems: Array.from({ length: 8 }, (_, index) => ({
+				memoId: `memo-${index}`,
+				title: `Memo ${index}`,
+				disposition: "incubating",
+				content:
+					index === 0
+						? Array.from(
+								{ length: 12 },
+								(_, line) => `Memo 0 content line ${line + 1}`,
+							).join("\n")
+						: `Memo ${index} content`,
+			})),
+			inquiryItems: Array.from({ length: 8 }, (_, index) => ({
+				inquiryId: `inquiry-${index}`,
+				origin: index % 2 === 0 ? "user" : "observer",
+				current: `Inquiry ${index} wording`,
+			})),
+			preparedSave: "proposal-status-test",
+			preparedSaveDetails: {
+				proposalId: "proposal-status-test",
+				summary: "Inspect every record before one batch approval.",
+				recordCount: 4,
+				createCount: 3,
+				updateCount: 1,
+			},
+		},
+		theme,
+		() => {
+			closed = true;
+		},
+		keybindings,
+	);
+	const seen: string[] = [];
+	for (let page = 0; page < 12; page += 1) {
+		const lines = panel.render(62, 18);
+		seen.push(lines.join("\n"));
+		assert.equal(lines.length, 18);
+		assert.ok(lines.every((line) => visibleWidth(line) <= 62));
+		panel.handleInput("\u001b[6~");
+	}
+	const output = seen.join("\n");
+	assert.match(output, /Observer status/u);
+	assert.match(output, /Current flow/u);
+	assert.match(output, /Memo 0 content line 12/u);
+	assert.match(output, /Memo 7/u);
+	assert.match(output, /Inquiry 7/u);
+	assert.match(output, /4 records · create 3 · update 1/u);
+	assert.match(output, /Inspect every record/u);
+	assert.match(output, /Recovery and persistence/u);
 	panel.handleInput("\r");
 	assert.equal(closed, true);
 });
@@ -425,5 +601,19 @@ test("footer and widget expose only action-relevant ambient state", () => {
 	assert.match(
 		new ObserverWidget(pendingReview, theme).render(62).join("\n"),
 		/hypothesis context review pending/u,
+	);
+	const paused = {
+		...active,
+		automaticProcessingPause:
+			"Request memo-request-test failed. Run Memo or Review explicitly to retry.",
+	};
+	assert.equal(
+		renderObserverChromeStatus(paused, theme),
+		"observer · processing paused",
+	);
+	assert.match(observerNextStep(paused), /paused/u);
+	assert.match(
+		new ObserverWidget(paused, theme).render(62).join("\n"),
+		/automatic processing paused/u,
 	);
 });

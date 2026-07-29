@@ -51,7 +51,7 @@ Observer is idle, including before Notebook setup. They appear only while
 observation is active, an Episode is preserved, or review or recovery needs
 attention.
 
-Observer never chooses a Notebook path for you. Setup accepts either an absolute path or a path relative to Pi's current working directory, then initializes a new folder or adopts an existing one without rewriting unrelated files. Direct commands remain available:
+Observer never chooses a Notebook path for you. Setup accepts either an absolute path or a path relative to Pi's current working directory. The TUI shows the resolved path and default output language with a safe **Go back** default before it initializes a new folder or adopts an existing one without rewriting unrelated files. Direct commands remain available:
 
 ```text
 /observe setup ko /Users/me/notes/observer
@@ -89,7 +89,7 @@ Review completes one final Memo pass when needed and prepares the exact Notebook
 /observe save
 ```
 
-Save shows the proposed Markdown, asks for explicit approval, and only then writes, reads back, validates, and settles the Episode. Cancelling Save leaves the Episode and working state open.
+Save opens a bounded proposal viewer. Review each target path and exact final Markdown; updates open on a line diff and can switch to the existing or final document. **Back** keeps the validated proposal ready, **Return to Review** discards only the proposal while preserving working state, and **Save all N records** is the only action that writes. Save revalidates the whole batch, writes, reads back, and settles the Episode. There is no default `Yes` action and partial batch saves are not supported.
 
 Turn observation off without discarding an open Episode:
 
@@ -163,13 +163,15 @@ Observer owns local Source, Inquiry, Memo, and Zettel persistence. It does not o
 - model semantic truth.
 
 Every durable Zettel must have at least one direct Source reference. Invalid
-Markdown is rejected before graph integrity checks. Review ends at a prepared
-proposal; Save follows approval → validation → write → readback validation →
+Markdown is rejected before graph integrity checks. Review validates the final
+Notebook graph before a proposal becomes ready. Save revalidates the current
+target, then follows explicit batch approval → write → readback validation →
 settlement ordering.
 
 The code keeps the product operation and its persistence mechanism separate.
-`SaveService` owns the approved Save contract, lifecycle checks, target recovery,
-and public receipt. Its injected `NotebookPublicationService` owns record
+`SaveService` owns Review-time and Save-time preflight, the approved Save
+contract, lifecycle checks, target recovery, and public receipt. Its injected
+`NotebookPublicationService` owns record
 planning, atomic publication, readback, and rollback. Notebook publication is an
 internal persistence process, not a command, model action, or public protocol.
 

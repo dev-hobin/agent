@@ -47,6 +47,10 @@ import {
 import { inspectSaveAcknowledgment } from "../src/save-acknowledgment.ts";
 import { OBSERVER_SAVE_SCHEMA } from "../src/save-profile.ts";
 import { publicationTransactionActivePath } from "../src/notebook-publication-transaction.ts";
+import type {
+	SaveProposalReview,
+	SaveProposalReviewDecision,
+} from "../src/save-review.ts";
 
 const externalSourceFixture = join(
 	import.meta.dirname,
@@ -72,11 +76,8 @@ class FakePort implements ObserverCommandPort {
 	readonly statuses: Array<string | undefined> = [];
 	readonly inputs: Array<string | undefined> = [];
 	readonly selections: Array<string | undefined> = [];
-	readonly confirmations: boolean[] = [];
-	readonly confirmationPrompts: Array<{
-		readonly title: string;
-		readonly message: string;
-	}> = [];
+	readonly reviewDecisions: SaveProposalReviewDecision[] = [];
+	readonly proposalReviews: SaveProposalReview[] = [];
 	persistedSession = "/tmp/observer-session.jsonl";
 	failCommitAppend = false;
 	failMemoAppliedAppend = false;
@@ -157,9 +158,11 @@ class FakePort implements ObserverCommandPort {
 		return this.selections.shift();
 	}
 
-	async confirm(title: string, message: string): Promise<boolean> {
-		this.confirmationPrompts.push({ title, message });
-		return this.confirmations.shift() ?? false;
+	async reviewSaveProposal(
+		review: SaveProposalReview,
+	): Promise<SaveProposalReviewDecision> {
+		this.proposalReviews.push(review);
+		return this.reviewDecisions.shift() ?? "back";
 	}
 
 	notify(message: string, type: "info" | "warning" | "error" = "info"): void {
@@ -575,9 +578,28 @@ describe("Observer command controller", () => {
 			const root = join(sandbox, "prompt notebook");
 			port.inputs.push(root);
 			port.selections.push("ko");
+			port.selections.push(`Set up ${root} · default output ko`);
 			await controller.command("setup", port);
 			const opened = requireNotebook(await openNotebook(root));
 			assert.equal(opened.manifest.default_language, "ko");
+		});
+	});
+
+	test("backs out of interactive setup before creating a Notebook", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "cancelled prompt notebook");
+			port.inputs.push(root);
+			port.selections.push("ko", "Go back · make no changes");
+
+			await controller.command("setup", port);
+
+			assert.equal((await openNotebook(root)).ok, false);
+			assert.equal(port.entries.length, 0);
 		});
 	});
 
@@ -848,6 +870,96 @@ describe("Observer command controller", () => {
 		});
 	});
 
+	test("rejects an invalid proposal before it becomes ready to save", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "invalid proposal notebook");
+			const initial = await setupAndTurnOn({ controller, port, root });
+			const proposal = handoff({
+				notebookId: initial.prepared.notebook_id,
+				root: initial.prepared.root,
+				markdown: "# Not a valid Observer record\n",
+			});
+
+			assert.equal(await controller.installPrepared(proposal, port), false);
+			const snapshot = reconstructObserverPiState(port.entries);
+			assert.equal(snapshot.state.episode.status, "open");
+			assert.equal(snapshot.prepared, null);
+			assert.match(
+				port.notifications.at(-1)?.message ?? "",
+				/Review could not prepare a valid proposal/u,
+			);
+		});
+	});
+
+	test("backs out of Save inspection without discarding the proposal", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "notebook");
+			const proposal = await setupAndTurnOn({ controller, port, root });
+			assert.equal(await controller.installPrepared(proposal, port), true);
+			port.reviewDecisions.push("back");
+
+			await controller.command("save", port);
+
+			const snapshot = reconstructObserverPiState(port.entries);
+			assert.equal(snapshot.state.episode.status, "reviewing-save");
+			assert.notEqual(snapshot.prepared, null);
+			assert.equal(snapshot.attempt, null);
+			assert.equal(requireNotebook(await openNotebook(root)).recordCount, 0);
+			assert.match(
+				port.notifications.at(-1)?.message ?? "",
+				/proposal remains ready/u,
+			);
+		});
+	});
+
+	test("can return an invalidated reviewed proposal to Review", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "stale proposal notebook");
+			const markdown = await createdSource();
+			const initial = await setupAndTurnOn({ controller, port, root });
+			const proposal = handoff({
+				notebookId: initial.prepared.notebook_id,
+				root: initial.prepared.root,
+				markdown,
+			});
+			assert.equal(await controller.installPrepared(proposal, port), true);
+			await writeFile(
+				join(root, "records", `${CREATED_SOURCE}.md`),
+				markdown,
+				"utf8",
+			);
+			port.selections.push(
+				"Return to Review · discard invalid proposal, preserve working state",
+			);
+
+			await controller.command("save", port);
+
+			const snapshot = reconstructObserverPiState(port.entries);
+			assert.equal(snapshot.state.episode.status, "open");
+			assert.equal(snapshot.prepared, null);
+			assert.equal(snapshot.attempt, null);
+			assert.match(
+				port.notifications.at(-1)?.message ?? "",
+				/invalid proposal was discarded/u,
+			);
+		});
+	});
+
 	test("installs and declines a prepared proposal without record writes", async () => {
 		await withSandbox(async (sandbox) => {
 			const controller = createObserverController({
@@ -858,7 +970,7 @@ describe("Observer command controller", () => {
 			const root = join(sandbox, "notebook");
 			const proposal = await setupAndTurnOn({ controller, port, root });
 			assert.equal(await controller.installPrepared(proposal, port), true);
-			port.confirmations.push(false);
+			port.reviewDecisions.push("reject");
 			await controller.command("save", port);
 			const snapshot = reconstructObserverPiState(port.entries);
 			assert.equal(snapshot.state.mode, "on");
@@ -884,11 +996,15 @@ describe("Observer command controller", () => {
 				markdown,
 			});
 			await controller.installPrepared(proposal, port);
-			port.confirmations.push(true);
+			port.reviewDecisions.push("approve");
 			await controller.command("save", port);
 			assert.match(
-				port.confirmationPrompts[0]?.message ?? "",
+				port.proposalReviews[0]?.records[0]?.proposedMarkdown ?? "",
 				/How to Take Smart Notes/u,
+			);
+			assert.equal(
+				port.proposalReviews[0]?.records[0]?.relativePath,
+				`records/${CREATED_SOURCE}.md`,
 			);
 			const snapshot = reconstructObserverPiState(port.entries);
 			assert.equal(
@@ -942,7 +1058,7 @@ describe("Observer command controller", () => {
 				markdown,
 			});
 			await controller.installPrepared(proposal, port);
-			port.confirmations.push(true);
+			port.reviewDecisions.push("approve");
 			port.failCommitAppend = true;
 			await assert.rejects(controller.command("save", port));
 			const beforeRecovery = reconstructObserverPiState(port.entries);

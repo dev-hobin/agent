@@ -34,6 +34,14 @@ export interface ObserverInquiryStatusItem {
 	readonly current: string;
 }
 
+export interface ObserverPreparedSaveStatus {
+	readonly proposalId: string;
+	readonly summary: string;
+	readonly recordCount: number;
+	readonly createCount: number;
+	readonly updateCount: number;
+}
+
 export interface ObserverStatusView {
 	readonly control: ObserverControlState;
 	readonly mode: "On" | "Off";
@@ -44,6 +52,7 @@ export interface ObserverStatusView {
 	readonly replayHealth: string;
 	readonly sessionPersistence: "Persistent session" | "Ephemeral session";
 	readonly preparedSave: string;
+	readonly preparedSaveDetails?: ObserverPreparedSaveStatus;
 	readonly preparedMemo: string;
 	readonly pendingMemos: string;
 	readonly pendingObservations: number;
@@ -52,6 +61,7 @@ export interface ObserverStatusView {
 	readonly openInquiries: string;
 	readonly inquiryItems: readonly ObserverInquiryStatusItem[];
 	readonly zettelCandidates: string;
+	readonly automaticProcessingPause?: string;
 	readonly operationalIssue?: string;
 }
 
@@ -162,6 +172,24 @@ export function observerStatusView(input: {
 		preparedSave: input.snapshot.prepared
 			? input.snapshot.prepared.handoff.prepared.proposal_id
 			: "None",
+		...(input.snapshot.prepared
+			? {
+					preparedSaveDetails: {
+						proposalId: input.snapshot.prepared.handoff.prepared.proposal_id,
+						summary: input.snapshot.prepared.handoff.summary,
+						recordCount:
+							input.snapshot.prepared.handoff.prepared.records.length,
+						createCount:
+							input.snapshot.prepared.handoff.prepared.records.filter(
+								(record) => record.operation === "create",
+							).length,
+						updateCount:
+							input.snapshot.prepared.handoff.prepared.records.filter(
+								(record) => record.operation === "update",
+							).length,
+					},
+				}
+			: {}),
 		preparedMemo: input.memoSnapshot.prepared?.passId ?? "None",
 		pendingMemos: workingCount(
 			working.passes,
@@ -206,6 +234,12 @@ export function renderObserverStatus(view: ObserverStatusView): string {
 		`Session replay health: ${view.replayHealth}`,
 		`Session persistence: ${view.sessionPersistence}`,
 		`Prepared save proposal: ${view.preparedSave}`,
+		...(view.preparedSaveDetails
+			? [
+					`- ${view.preparedSaveDetails.recordCount} records · create ${view.preparedSaveDetails.createCount} · update ${view.preparedSaveDetails.updateCount}`,
+					`- ${view.preparedSaveDetails.summary}`,
+				]
+			: []),
 		`Prepared Memo pass: ${view.preparedMemo}`,
 		`Pending observations: ${view.pendingObservations}`,
 		`Working Memos: ${view.pendingMemos}`,
@@ -220,6 +254,9 @@ export function renderObserverStatus(view: ObserverStatusView): string {
 				`- [${inquiry.origin}] ${inquiry.current} (${inquiry.inquiryId})`,
 		),
 		`Zettel candidates: ${view.zettelCandidates}`,
+		...(view.automaticProcessingPause
+			? [`Automatic processing paused: ${view.automaticProcessingPause}`]
+			: []),
 		...(view.operationalIssue
 			? [`Recovery required: ${view.operationalIssue}`]
 			: []),

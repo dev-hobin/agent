@@ -22,10 +22,12 @@ import {
 	type SaveProfileIssueCode,
 	type SaveReceipt,
 } from "./save-profile.ts";
+import type { NotebookPublicationPlan } from "./notebook-publication-preflight.ts";
 import {
 	createNotebookPublicationService,
-	type NotebookPublicationService,
 	type NotebookPublicationIssue,
+	type NotebookPublicationService,
+	type PreparedPublication,
 } from "./notebook-publication-service.ts";
 
 export type SaveServiceIssueCode =
@@ -48,6 +50,18 @@ export interface SaveServiceIssue {
 	readonly diagnostics?: readonly ObserverDiagnostic[];
 }
 
+export type SaveServiceFailure = {
+	readonly ok: false;
+	readonly issue: SaveServiceIssue;
+};
+
+export type SavePreflightResult =
+	| {
+			readonly ok: true;
+			readonly value: NotebookPublicationPlan;
+	  }
+	| SaveServiceFailure;
+
 export type SaveServiceResult =
 	| {
 			readonly ok: true;
@@ -57,9 +71,13 @@ export type SaveServiceResult =
 				readonly notebook: NotebookHandle;
 			};
 	  }
-	| { readonly ok: false; readonly issue: SaveServiceIssue };
+	| SaveServiceFailure;
 
 export interface SaveService {
+	preflight(input: {
+		readonly state: ObserverState;
+		readonly prepared: unknown;
+	}): Promise<SavePreflightResult>;
 	commit(input: {
 		readonly state: ObserverState;
 		readonly prepared: unknown;
@@ -76,7 +94,7 @@ function failure(
 		readonly recordId?: string;
 		readonly diagnostics?: readonly ObserverDiagnostic[];
 	},
-): SaveServiceResult {
+): SaveServiceFailure {
 	return {
 		ok: false,
 		issue: {
@@ -90,7 +108,7 @@ function failure(
 	};
 }
 
-function notebookFailure(issue: NotebookServiceIssue): SaveServiceResult {
+function notebookFailure(issue: NotebookServiceIssue): SaveServiceFailure {
 	return failure(issue.code, issue.message, {
 		path: issue.path,
 		diagnostics: issue.diagnostics,
@@ -111,7 +129,7 @@ function saveCodeForPublication(
 
 function publicationFailure(
 	issue: NotebookPublicationIssue,
-): SaveServiceResult {
+): SaveServiceFailure {
 	return failure(saveCodeForPublication(issue), issue.message, {
 		recoveryRequired: issue.recoveryRequired,
 		path: issue.path,
@@ -123,18 +141,28 @@ function publicationFailure(
 function lifecycleTargetCheck(
 	state: ObserverState,
 	prepared: PreparedSave,
-): SaveServiceResult | null {
-	if (state.episode.status !== "reviewing-save") {
+	requireReviewing: boolean,
+): SaveServiceFailure | null {
+	if (
+		state.episode.status !== "open" &&
+		state.episode.status !== "reviewing-save"
+	) {
 		return failure(
 			"save.lifecycle",
-			"Review & Save commit requires an episode reviewing the current proposal.",
+			"Save preflight requires an open Episode or its current reviewed proposal.",
 		);
 	}
-	if (state.episode.proposal.proposalId !== prepared.proposal_id) {
+	if (requireReviewing && state.episode.status !== "reviewing-save") {
 		return failure(
 			"save.lifecycle",
-			"Prepared Review & Save proposal is stale.",
+			"Save commit requires an Episode reviewing the current proposal.",
 		);
+	}
+	if (
+		state.episode.status === "reviewing-save" &&
+		state.episode.proposal.proposalId !== prepared.proposal_id
+	) {
+		return failure("save.lifecycle", "Prepared save proposal is stale.");
 	}
 	if (
 		state.selectedNotebookId !== prepared.notebook_id ||
@@ -169,6 +197,84 @@ function commitEvent(
 	};
 }
 
+interface PreparedSavePublication {
+	readonly publication: PreparedPublication;
+}
+
+type PreparedSavePublicationResult =
+	| { readonly ok: true; readonly value: PreparedSavePublication }
+	| SaveServiceFailure;
+
+async function prepareSavePublication(
+	selectionStore: NotebookSelectionStore,
+	publicationService: NotebookPublicationService,
+	input: {
+		readonly state: ObserverState;
+		readonly prepared: PreparedSave;
+		readonly requireReviewing: boolean;
+	},
+): Promise<PreparedSavePublicationResult> {
+	const targetIssue = lifecycleTargetCheck(
+		input.state,
+		input.prepared,
+		input.requireReviewing,
+	);
+	if (targetIssue) return targetIssue;
+	const notebooks = createNotebookService({ selectionStore });
+	const recovered = await notebooks.recover(input.state);
+	if (!recovered.ok) return notebookFailure(recovered.issue);
+	if (
+		recovered.value.notebook.root !== input.prepared.root ||
+		recovered.value.notebook.manifest.notebook_id !== input.prepared.notebook_id
+	) {
+		return failure(
+			"save.target-mismatch",
+			"Prepared save target differs from the recovered notebook.",
+		);
+	}
+	const inventory = await readNotebookInventory(recovered.value.notebook);
+	if (!inventory.ok) {
+		return failure(inventory.issue.code, inventory.issue.message, {
+			path: inventory.issue.path,
+			diagnostics: inventory.issue.diagnostics,
+		});
+	}
+	const publication = publicationService.prepare({
+		notebook: recovered.value.notebook,
+		inventory: inventory.value,
+		save: input.prepared,
+	});
+	if (!publication.ok) return publicationFailure(publication.issue);
+	return {
+		ok: true,
+		value: { publication: publication.value },
+	};
+}
+
+async function preflightSave(
+	selectionStore: NotebookSelectionStore,
+	publicationService: NotebookPublicationService,
+	input: { readonly state: ObserverState; readonly prepared: unknown },
+): Promise<SavePreflightResult> {
+	const preparedResult = decodePreparedSave(input.prepared);
+	if (!preparedResult.ok) {
+		return failure(preparedResult.issue.code, preparedResult.issue.message, {
+			path: preparedResult.issue.path,
+		});
+	}
+	const prepared = await prepareSavePublication(
+		selectionStore,
+		publicationService,
+		{
+			state: input.state,
+			prepared: preparedResult.value,
+			requireReviewing: false,
+		},
+	);
+	if (!prepared.ok) return prepared;
+	return { ok: true, value: prepared.value.publication.plan };
+}
+
 async function commitSave(
 	selectionStore: NotebookSelectionStore,
 	publicationService: NotebookPublicationService,
@@ -196,53 +302,34 @@ async function commitSave(
 			"Approval proposal does not match prepared save.",
 		);
 	}
-	if (!approvalResult.value.approved) {
-		return failure("save.declined", "Review & Save approval was declined.");
-	}
-	const targetIssue = lifecycleTargetCheck(input.state, preparedResult.value);
-	if (targetIssue) return targetIssue;
-	const notebooks = createNotebookService({ selectionStore });
-	const recovered = await notebooks.recover(input.state);
-	if (!recovered.ok) return notebookFailure(recovered.issue);
-	if (
-		recovered.value.notebook.root !== preparedResult.value.root ||
-		recovered.value.notebook.manifest.notebook_id !==
-			preparedResult.value.notebook_id
-	) {
-		return failure(
-			"save.target-mismatch",
-			"Prepared save target differs from the recovered notebook.",
-		);
-	}
-	const inventory = await readNotebookInventory(recovered.value.notebook);
-	if (!inventory.ok) {
-		return failure(inventory.issue.code, inventory.issue.message, {
-			path: inventory.issue.path,
-			diagnostics: inventory.issue.diagnostics,
-		});
-	}
-	const preparedPublication = publicationService.prepare({
-		notebook: recovered.value.notebook,
-		inventory: inventory.value,
-		save: preparedResult.value,
-	});
-	if (!preparedPublication.ok)
-		return publicationFailure(preparedPublication.issue);
+	if (!approvalResult.value.approved)
+		return failure("save.declined", "Save approval was declined.");
+
+	const prepared = await prepareSavePublication(
+		selectionStore,
+		publicationService,
+		{
+			state: input.state,
+			prepared: preparedResult.value,
+			requireReviewing: true,
+		},
+	);
+	if (!prepared.ok) return prepared;
 	const receiptId = createReceiptId();
 	const event = commitEvent(
 		preparedResult.value.proposal_id,
 		receiptId,
-		preparedPublication.value.recordIds,
+		prepared.value.publication.recordIds,
 	);
 	const projected = applyObserverEvent(input.state, event);
 	if (!projected.applied) {
 		return failure(
 			"save.lifecycle",
-			`Review & Save lifecycle preflight failed: ${projected.reason}.`,
+			`Save lifecycle preflight failed: ${projected.reason}.`,
 		);
 	}
 	const published = await publicationService.commit({
-		prepared: preparedPublication.value,
+		prepared: prepared.value.publication,
 		receiptId,
 	});
 	if (!published.ok) return publicationFailure(published.issue);
@@ -282,6 +369,8 @@ export function createSaveService(input: {
 	const publicationService =
 		input.publicationService ?? createNotebookPublicationService();
 	return {
+		preflight: (preflightInput) =>
+			preflightSave(input.selectionStore, publicationService, preflightInput),
 		commit: (commitInput) =>
 			commitSave(input.selectionStore, publicationService, commitInput),
 	};
