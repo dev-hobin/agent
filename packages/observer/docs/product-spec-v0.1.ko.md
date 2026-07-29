@@ -489,6 +489,14 @@ Observer는 기본적으로 조용히 관찰한다.
 
 사용자는 일반적인 발전 상황을 `memo`와 `save`에서 확인한다.
 
+### 조용함의 표시 경계
+
+성공한 routine `observer_sidecar` call과 result는 Pi TUI transcript에 빈 self-render
+component로 표시되어 행 자체를 만들지 않는다. 실패, recovery 상태, 명시적 receipt,
+Major 알림은 계속 보인다. 이는 표시 정책이며 session log 삭제 정책이 아니다.
+Pi session의 tool message와 Observer custom entry는 model continuity, branch replay,
+audit를 위해 보존한다.
+
 ---
 
 ## 9. Source-first 관찰과 관련성 재활성화

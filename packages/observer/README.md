@@ -71,6 +71,8 @@ Turn observation on, then work with Pi normally:
 
 Read documents, inspect code, retrieve webpages, or discuss a question. Observer stages source candidates, SourceReads, optional Standing Inquiry hydration, semantic observations, and user hypotheses on the current Pi branch. Automatic conversation and tool-result candidates are bounded context clues. Oversized text is split into ordered bounded segments, preserving all captured candidate text instead of dropping the middle or producing a profile error. The original tool result remains the material to inspect before recording Source evidence.
 
+Routine successful `observer_sidecar` protocol calls render no transcript row in the TUI. Failures, recovery state, explicit receipts, and Major notifications remain visible. Pi session history still retains tool and Observer protocol entries for model continuity, branch replay, and audit; visual quietness is presentation, not deletion of the underlying session log.
+
 Reconcile the current working material without writing notebook Markdown:
 
 ```text

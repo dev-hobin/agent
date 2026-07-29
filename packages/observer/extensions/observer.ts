@@ -5,7 +5,9 @@ import {
 	getAgentDir,
 	type ExtensionAPI,
 	type ExtensionContext,
+	type Theme,
 } from "@earendil-works/pi-coding-agent";
+import { Container, Text, type Component } from "@earendil-works/pi-tui";
 import {
 	completeObserveArgs,
 	createObserverController,
@@ -152,6 +154,43 @@ function commandPort(
 			ui.setStatus(OBSERVER_STATUS_KEY, text);
 		},
 	};
+}
+
+function observerToolErrorSummary(value: unknown): string {
+	const text = textFromContent(value)
+		.replaceAll(/\s+/gu, " ")
+		.replaceAll(/[\u0000-\u001f\u007f-\u009f]/gu, "")
+		.trim();
+	return text.length > 240 ? `${text.slice(0, 239)}…` : text;
+}
+
+export function observerSidecarCallComponent(): Component {
+	return new Container();
+}
+
+export function observerSidecarResultComponent(
+	input: {
+		readonly action: unknown;
+		readonly content: unknown;
+		readonly isError: boolean;
+	},
+	theme: Theme,
+): Component {
+	if (!input.isError) return new Container();
+	const action =
+		typeof input.action === "string" && /^[a-z][a-z-]*$/u.test(input.action)
+			? input.action
+			: "operation";
+	const summary = observerToolErrorSummary(input.content);
+	return new Text(
+		[
+			theme.fg("error", `! Observer ${action} failed`),
+			...(summary ? [theme.fg("dim", `  ${summary}`)] : []),
+			theme.fg("dim", "  Open /observe status for recovery."),
+		].join("\n"),
+		0,
+		0,
+	);
 }
 
 export function textFromContent(value: unknown): string {
@@ -1134,6 +1173,20 @@ function registerObserverSidecarTool(input: {
 			"Use model-owned material-review classification only with the exact hidden digest; complete pending hypothesis-context, Memo, and save reviews from their exact current scope.",
 		parameters: observerSidecarParameters,
 		executionMode: "sequential",
+		renderShell: "self",
+		renderCall() {
+			return observerSidecarCallComponent();
+		},
+		renderResult(result, _options, theme, context) {
+			return observerSidecarResultComponent(
+				{
+					action: Reflect.get(context.args, "action"),
+					content: result.content,
+					isError: context.isError,
+				},
+				theme,
+			);
+		},
 		async execute(...execution) {
 			const [, params, , , ctx] = execution;
 			input.turnState.toolUsed = true;

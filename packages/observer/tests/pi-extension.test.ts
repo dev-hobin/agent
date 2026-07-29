@@ -4,11 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import {
+	SessionManager,
+	type Theme,
+} from "@earendil-works/pi-coding-agent";
 import { Value } from "typebox/value";
 
 import observerExtension, {
+	observerSidecarCallComponent,
 	observerSidecarParameters,
+	observerSidecarResultComponent,
 	requireMemoPreparationSuccess,
 	requireObservationToolSuccess,
 	routeAddHypothesisCommand,
@@ -113,6 +118,46 @@ test("exports a loadable Pi extension factory", () => {
 	assert.equal(typeof observerExtension, "function");
 });
 
+test("keeps successful Sidecar protocol rows visually quiet and surfaces errors", () => {
+	const theme = {
+		bold: (text: string) => text,
+		italic: (text: string) => text,
+		underline: (text: string) => text,
+		strikethrough: (text: string) => text,
+		fg: (_color: string, text: string) => text,
+		bg: (_color: string, text: string) => text,
+	} as Theme;
+	assert.deepEqual(observerSidecarCallComponent().render(80), []);
+	assert.deepEqual(
+		observerSidecarResultComponent(
+			{
+				action: "record",
+				content: [{ type: "text", text: "recorded" }],
+				isError: false,
+			},
+			theme,
+		).render(80),
+		[],
+	);
+	const error = observerSidecarResultComponent(
+		{
+			action: "record",
+			content: [
+				{
+					type: "text",
+					text: `domain failed \u001b[31m${" detail".repeat(80)}`,
+				},
+			],
+			isError: true,
+		},
+		theme,
+	).render(80);
+	assert.match(error.join("\n"), /Observer record failed/u);
+	assert.match(error.join("\n"), /domain failed/u);
+	assert.match(error.join("\n"), /Open \/observe status/u);
+	assert.doesNotMatch(error.join("\n"), /\u001b\[31m/u);
+});
+
 test("declares exact Pi package discovery and peer surfaces", async () => {
 	const manifest = JSON.parse(
 		await readFile(join(import.meta.dirname, "..", "package.json"), "utf8"),
@@ -138,6 +183,7 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 	]);
 	assert.match(source, /name: OBSERVER_TOOL_NAME/u);
 	assert.match(source, /executionMode: "sequential"/u);
+	assert.match(source, /renderShell: "self"/u);
 	assert.match(source, /pi\.on\("tool_result"/u);
 	assert.match(source, /event\.toolName === OBSERVER_TOOL_NAME/u);
 	assert.match(schemaSource, /action: Type\.Literal\("memo-scope"\)/u);
