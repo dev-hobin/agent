@@ -9,10 +9,12 @@ import {
 	encodeMaterialReviewEvent,
 	OBSERVER_MATERIAL_REVIEW_ENTRY,
 	OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+	planMaterialReviewCancellation,
 	planMaterialReviewCompletion,
 	planMaterialReviewRequest,
 	reconstructMaterialReviewSession,
 	refineMaterialReviewIntent,
+	type MaterialReviewCancelledEvent,
 	type MaterialReviewCompletedEvent,
 	type MaterialReviewIntent,
 	type MaterialReviewRequestedEvent,
@@ -72,7 +74,9 @@ function requested(intent: MaterialReviewIntent): MaterialReviewRequestedEvent {
 	return planned.value.request;
 }
 
-function complete(request: MaterialReviewRequestedEvent): MaterialReviewCompletedEvent {
+function complete(
+	request: MaterialReviewRequestedEvent,
+): MaterialReviewCompletedEvent {
 	const entries = [custom(encodeMaterialReviewEvent(request))];
 	const planned = planMaterialReviewCompletion({
 		requestId: request.requestId,
@@ -199,9 +203,68 @@ describe("pure material review trigger and session", () => {
 			session,
 		});
 		assert.equal(overlap.ok, false);
-		const duplicate = reconstructMaterialReviewSession([...entries, custom(encoded)]);
+		const duplicate = reconstructMaterialReviewSession([
+			...entries,
+			custom(encoded),
+		]);
 		assert.equal(duplicate.issues.length, 0);
 		assert.equal(duplicate.requests.length, 1);
+	});
+
+	test("cancels one exact pending request and admits a later request", () => {
+		const request = requested(refine(RETRIEVED_TEXT, "retrieved-tool-results"));
+		const requestedEntries = [custom(encodeMaterialReviewEvent(request))];
+		const session = reconstructMaterialReviewSession(requestedEntries);
+		const planned = planMaterialReviewCancellation({
+			requestId: request.requestId,
+			episodeId: request.episodeId,
+			session,
+		});
+		if (!planned.ok) assert.fail(planned.issue.message);
+		const cancellation: MaterialReviewCancelledEvent = planned.value;
+		assert.deepEqual(
+			decodeMaterialReviewEvent(encodeMaterialReviewEvent(cancellation)),
+			{
+				ok: true,
+				value: cancellation,
+			},
+		);
+		const cancelledEntries = [
+			...requestedEntries,
+			custom(encodeMaterialReviewEvent(cancellation)),
+		];
+		const cancelled = reconstructMaterialReviewSession(cancelledEntries);
+		assert.equal(cancelled.issues.length, 0);
+		assert.equal(cancelled.pendingRequest, null);
+		assert.deepEqual(cancelled.cancelledRequestIds, [request.requestId]);
+		assert.equal(cancelled.cancellations[0]?.reason, "user-requested");
+		const duplicate = reconstructMaterialReviewSession([
+			...cancelledEntries,
+			custom(encodeMaterialReviewEvent(cancellation)),
+		]);
+		assert.equal(duplicate.issues.length, 0);
+		assert.equal(duplicate.cancellations.length, 1);
+		const next = planMaterialReviewRequest({
+			intent: refine(INLINE_TEXT, "inline-user-message", OTHER_REQUEST_ID),
+			episodeId: EPISODE_ID,
+			session: cancelled,
+		});
+		assert.equal(next.ok, true);
+		const completionAfterCancel = reconstructMaterialReviewSession([
+			...cancelledEntries,
+			custom(encodeMaterialReviewEvent(complete(request))),
+		]);
+		assert.equal(
+			completionAfterCancel.issues[0]?.code,
+			"material-review.history",
+		);
+		assert.equal(
+			decodeMaterialReviewEvent({
+				...encodeMaterialReviewEvent(cancellation),
+				reason: "timeout",
+			}).ok,
+			false,
+		);
 	});
 
 	test("requires complete candidate-read-observation coverage before completion", () => {
@@ -223,7 +286,10 @@ describe("pure material review trigger and session", () => {
 				{ observationId: OBSERVATION_B, readId: READ_B },
 			],
 		};
-		assert.equal(planMaterialReviewCompletion({ ...base, candidates: [] }).ok, false);
+		assert.equal(
+			planMaterialReviewCompletion({ ...base, candidates: [] }).ok,
+			false,
+		);
 		assert.equal(
 			planMaterialReviewCompletion({
 				...base,
@@ -244,10 +310,13 @@ describe("pure material review trigger and session", () => {
 			OBSERVATION_A,
 			OBSERVATION_B,
 		]);
-		assert.deepEqual(decodeMaterialReviewEvent(encodeMaterialReviewEvent(planned.value)), {
-			ok: true,
-			value: planned.value,
-		});
+		assert.deepEqual(
+			decodeMaterialReviewEvent(encodeMaterialReviewEvent(planned.value)),
+			{
+				ok: true,
+				value: planned.value,
+			},
+		);
 		const completedSession = reconstructMaterialReviewSession([
 			custom(encodeMaterialReviewEvent(request)),
 			custom(encodeMaterialReviewEvent(planned.value)),

@@ -305,6 +305,15 @@ test("routes a scriptable material command without changing Observer Mode", () =
 			submit(request) {
 				submitted.push(request);
 			},
+			retry() {
+				assert.fail("A new request must not retry");
+			},
+			cancel() {
+				assert.fail("A new request must not cancel");
+			},
+			triggerRetry() {
+				assert.fail("A new request must not trigger retry");
+			},
 			notify(message, type) {
 				notifications.push(`${type}:${message}`);
 			},
@@ -319,6 +328,15 @@ test("routes a scriptable material command without changing Observer Mode", () =
 			submit() {
 				assert.fail("Missing material must not be submitted");
 			},
+			retry() {
+				assert.fail("Missing material must not retry");
+			},
+			cancel() {
+				assert.fail("Missing material must not cancel");
+			},
+			triggerRetry() {
+				assert.fail("Missing material must not trigger retry");
+			},
 			notify(message, type) {
 				notifications.push(`${type}:${message}`);
 			},
@@ -331,16 +349,92 @@ test("routes a scriptable material command without changing Observer Mode", () =
 			submit() {
 				assert.fail("Unrelated commands must not be submitted");
 			},
+			retry() {
+				assert.fail("Unrelated commands must not retry");
+			},
+			cancel() {
+				assert.fail("Unrelated commands must not cancel");
+			},
+			triggerRetry() {
+				assert.fail("Unrelated commands must not trigger retry");
+			},
 			notify() {},
 		}),
 		false,
 	);
+
+	const request = {
+		protocol: "observer.material-review/v1",
+		kind: "material-review-requested",
+		requestId: "material-review-00000000-0000-4000-8000-000000000043" as const,
+		episodeId: "episode-extension-material",
+		userMessageDigest: "4".repeat(64),
+		material: "retrieved-tool-results",
+	} as const;
+	const routedRecovery: string[] = [];
+	assert.equal(
+		routeMaterialCommand("material retry", {
+			submit() {
+				assert.fail("Retry must not submit a new request");
+			},
+			retry() {
+				return { ok: true, status: "pending", request };
+			},
+			cancel() {
+				assert.fail("Retry must not cancel");
+			},
+			triggerRetry(value) {
+				routedRecovery.push(`retry:${value.requestId}`);
+			},
+			notify(message, type) {
+				routedRecovery.push(`${type}:${message}`);
+			},
+		}),
+		true,
+	);
+	assert.match(routedRecovery[0] ?? "", /^retry:material-review-/u);
+	assert.match(routedRecovery[1] ?? "", /^info:Material review retry started/u);
+	assert.equal(
+		routeMaterialCommand("material cancel", {
+			submit() {
+				assert.fail("Cancel must not submit a new request");
+			},
+			retry() {
+				assert.fail("Cancel must not retry");
+			},
+			cancel() {
+				return {
+					ok: true,
+					status: "cancelled",
+					cancellation: {
+						protocol: "observer.material-review/v1",
+						kind: "material-review-cancelled",
+						requestId: request.requestId,
+						episodeId: request.episodeId,
+						reason: "user-requested",
+					},
+				};
+			},
+			triggerRetry() {
+				assert.fail("Cancel must not trigger retry");
+			},
+			notify(message, type) {
+				routedRecovery.push(`${type}:${message}`);
+			},
+		}),
+		true,
+	);
+	assert.match(routedRecovery.at(-1) ?? "", /^info:Material review cancelled/u);
 
 	const turnState = {
 		toolUsed: false,
 		latestUser: null,
 		scriptedMaterialRequest: submitted[0] ?? null,
 		blockedRequestId: null,
+		agentRunSequence: 0,
+		activeAgentRunId: null,
+		materialReviewRun: null,
+		stagedMaterialReviewRetry: null,
 	};
 	assert.equal(
 		acceptScriptedMaterialInput({

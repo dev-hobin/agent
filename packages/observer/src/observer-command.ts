@@ -33,7 +33,7 @@ export type ObserveCommandParseResult =
 	| { readonly ok: false; readonly message: string };
 
 const USAGE =
-	"Usage: /observe setup <ko|en> <path> | status | on | off | add-hypothesis <text> | material <request> | memo | review | save | settings";
+	"Usage: /observe setup <ko|en> <path> | status | on | off | add-hypothesis <text> | material <request|retry|cancel> | memo | review | save | settings";
 
 function success(command: ObserveCommand): ObserveCommandParseResult {
 	return { ok: true, command };
@@ -121,6 +121,25 @@ export function completeObserveArgs(prefix: string): Array<{
 	readonly description: string;
 }> | null {
 	const normalized = prefix.trim();
+	if (prefix.trimStart().startsWith("material ")) {
+		const remainder = prefix.trimStart().slice("material ".length).trim();
+		return [
+			{
+				value: "material retry",
+				label: "material retry",
+				description:
+					"Resume the exact pending material review for one agent run",
+			},
+			{
+				value: "material cancel",
+				label: "material cancel",
+				description:
+					"Cancel the pending material review without changing Mode or Episode",
+			},
+		].filter((item) =>
+			item.value.slice("material ".length).startsWith(remainder),
+		);
+	}
 	if (normalized.includes(" ")) return null;
 	const matches = OBSERVE_ACTIONS.filter((action) =>
 		action.startsWith(normalized),

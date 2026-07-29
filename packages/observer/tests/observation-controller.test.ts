@@ -10,7 +10,14 @@ import {
 	observationToolText,
 } from "../extensions/observer.ts";
 import {
+	activateMaterialReviewRun,
+	activeMaterialReviewCaptureRequestId,
+	beginObserverAgentRun,
+	endObserverAgentRun,
 	routeMaterialReviewTool,
+	settleObserverAgentRun,
+	stageMaterialReviewRetry,
+	suspendMaterialReviewRun,
 	type ObserverTurnState,
 } from "../extensions/material-review-runtime.ts";
 import { sha256Text } from "../src/content-hash.ts";
@@ -55,6 +62,7 @@ import {
 } from "../src/pi-session.ts";
 import {
 	OBSERVER_MATERIAL_REVIEW_ENTRY,
+	reconstructMaterialReviewSession,
 	refineMaterialReviewIntent,
 	type MaterialReviewIntent,
 } from "../src/material-review-trigger.ts";
@@ -447,6 +455,46 @@ function externalSourceAction(candidateId: string): Record<string, unknown> {
 }
 
 describe("Observation staged controller", () => {
+	test("bounds material retrieval capture to one explicit agent run and retry", () => {
+		const request = {
+			requestId:
+				"material-review-00000000-0000-4000-8000-000000000399" as const,
+			material: "retrieved-tool-results" as const,
+		};
+		const turnState: ObserverTurnState = {
+			toolUsed: false,
+			latestUser: null,
+			scriptedMaterialRequest: null,
+			blockedRequestId: null,
+			agentRunSequence: 0,
+			activeAgentRunId: null,
+			materialReviewRun: null,
+			stagedMaterialReviewRetry: null,
+		};
+		beginObserverAgentRun(turnState);
+		assert.equal(activateMaterialReviewRun(turnState, request), true);
+		assert.equal(
+			activeMaterialReviewCaptureRequestId(turnState),
+			request.requestId,
+		);
+		stageMaterialReviewRetry(turnState, request);
+		endObserverAgentRun(turnState);
+		assert.equal(activeMaterialReviewCaptureRequestId(turnState), null);
+		assert.equal(
+			turnState.stagedMaterialReviewRetry?.requestId,
+			request.requestId,
+		);
+		beginObserverAgentRun(turnState);
+		assert.equal(
+			activeMaterialReviewCaptureRequestId(turnState),
+			request.requestId,
+		);
+		suspendMaterialReviewRun(turnState);
+		assert.equal(activeMaterialReviewCaptureRequestId(turnState), null);
+		settleObserverAgentRun(turnState);
+		assert.equal(turnState.stagedMaterialReviewRetry, null);
+	});
+
 	test("orchestrates inline material review without changing active Mode", async () => {
 		await withSandbox(async ({ controller, lifecycleController, port }) => {
 			const text = "이 문장을 Observer 관점으로 바로 관찰해 줘.";
@@ -573,8 +621,18 @@ describe("Observation staged controller", () => {
 				assert.fail(started.ok ? "Expected retrieved start" : started.message);
 			assert.equal(started.status, "pending-retrieval");
 			assert.equal(started.candidateId, null);
+			const suspended = materialReviewContext({
+				latestUser: { text, inputSource: "rpc" },
+				entries: port.entries,
+			});
+			assert.match(suspended ?? "", /suspended outside its explicit run/u);
+			assert.match(
+				suspended ?? "",
+				/Continue the user's current task normally/u,
+			);
 			const guidance = materialReviewContext({
 				latestUser: { text, inputSource: "rpc" },
+				activeRequestId: started.requestId,
 				entries: port.entries,
 			});
 			assert.match(guidance ?? "", new RegExp(started.requestId, "u"));
@@ -598,6 +656,10 @@ describe("Observation staged controller", () => {
 				latestUser: { text, inputSource: "interactive" },
 				scriptedMaterialRequest: null,
 				blockedRequestId: null,
+				agentRunSequence: 1,
+				activeAgentRunId: 1,
+				materialReviewRun: null,
+				stagedMaterialReviewRetry: null,
 			};
 			const routed = await routeMaterialReviewTool({
 				value: {
@@ -794,6 +856,35 @@ describe("Observation staged controller", () => {
 			);
 			assert.equal(unrelatedUser.ok, true);
 			if (unrelatedUser.ok) assert.equal(unrelatedUser.status, "ignored");
+			const wrongGrant = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-wrong-material-grant",
+						tool_name: "read",
+					},
+					text: "Wrongly authorized result.",
+					capturedAt: "2026-08-01T10:02:40.000Z",
+					materialReviewRequestId:
+						"material-review-00000000-0000-4000-8000-000000000397",
+				},
+				port,
+			);
+			assert.equal(wrongGrant.ok, false);
+			const staleTool = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-stale-retrieved",
+						tool_name: "read",
+					},
+					text: "A later unrelated technical-reading result.",
+					capturedAt: "2026-08-01T10:02:45.000Z",
+				},
+				port,
+			);
+			assert.equal(staleTool.ok, true);
+			if (staleTool.ok) assert.equal(staleTool.status, "ignored");
 			port.failNextObservationAppend = true;
 			const failed = controller.capture(
 				{
@@ -804,6 +895,7 @@ describe("Observation staged controller", () => {
 					},
 					text: "Exact retrieved source material.",
 					capturedAt: "2026-08-01T10:03:00.000Z",
+					materialReviewRequestId: started.request.requestId,
 				},
 				port,
 			);
@@ -818,6 +910,7 @@ describe("Observation staged controller", () => {
 					},
 					text: "Exact retrieved source material.",
 					capturedAt: "2026-08-01T10:03:00.000Z",
+					materialReviewRequestId: started.request.requestId,
 				},
 				port,
 			);
@@ -831,6 +924,7 @@ describe("Observation staged controller", () => {
 					},
 					text: "Exact retrieved source material.",
 					capturedAt: "2026-08-01T10:03:00.000Z",
+					materialReviewRequestId: started.request.requestId,
 				},
 				port,
 			);
@@ -972,6 +1066,97 @@ describe("Observation staged controller", () => {
 		});
 	});
 
+	test("preserves continuous observation outside a retrieved material run and cancels without closing the Episode", async () => {
+		await withSandbox(async ({ controller, lifecycleController, port }) => {
+			const intent = materialReviewIntent({
+				text: "이 PDF를 이번 material review에서만 읽어 줘.",
+				material: "retrieved-tool-results",
+				requestId: "material-review-00000000-0000-4000-8000-000000000398",
+			});
+			const episode = await materialReviewEpisode({
+				controller: lifecycleController,
+				port,
+				intent,
+			});
+			const started = controller.startMaterialReview(
+				{ intent, episode, capturedAt: "2026-08-01T10:08:00.000Z" },
+				port,
+			);
+			if (!started.ok) assert.fail(started.message);
+			const linked = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-explicit-material",
+						tool_name: "fetch_content",
+					},
+					text: "Explicit material result.",
+					capturedAt: "2026-08-01T10:08:30.000Z",
+					materialReviewRequestId: started.request.requestId,
+				},
+				port,
+			);
+			if (!linked.ok || !linked.candidate)
+				assert.fail("Expected request-linked candidate");
+			const unrelated = controller.capture(
+				{
+					origin: {
+						kind: "tool-result",
+						tool_call_id: "tool-call-later-technical-reading",
+						tool_name: "fetch_content",
+					},
+					text: "Later technical-reading result.",
+					capturedAt: "2026-08-01T10:09:00.000Z",
+				},
+				port,
+			);
+			if (!unrelated.ok || !unrelated.candidate)
+				assert.fail("Expected normal continuous Observer candidate");
+			assert.equal(unrelated.candidate.materialReviewRequestId, undefined);
+			const status = await lifecycleController.inspect(port);
+			assert.equal(status.control.canReview, false);
+			assert.deepEqual(status.pendingMaterialReview, {
+				requestId: started.request.requestId,
+				material: "retrieved-tool-results",
+				phase: "SourceRead required",
+				candidateCount: 1,
+				sourceReadCount: 0,
+				observationCount: 0,
+				runState: "Suspended",
+				recovery:
+					"Run /observe material retry to resume the exact request, or /observe material cancel to discard it.",
+			});
+			const blockedReview = await controller.requestReviewSave(port);
+			assert.equal(blockedReview.ok, false);
+			if (!blockedReview.ok)
+				assert.match(blockedReview.message, /material retry.*material cancel/u);
+			port.failNextMaterialReviewAppend = true;
+			assert.equal(controller.cancelMaterialReview(port).ok, false);
+			port.dropNextMaterialReviewAppend = true;
+			assert.equal(controller.cancelMaterialReview(port).ok, false);
+			assert.equal(
+				reconstructMaterialReviewSession(port.entries).pendingRequest
+					?.requestId,
+				started.request.requestId,
+			);
+			const cancelled = controller.cancelMaterialReview(port);
+			if (!cancelled.ok) assert.fail(cancelled.message);
+			assert.equal(cancelled.status, "cancelled");
+			assert.equal(
+				reconstructMaterialReviewSession(port.entries).pendingRequest,
+				null,
+			);
+			const state = reconstructObserverPiState(port.entries).state;
+			assert.equal(state.mode, "on");
+			assert.equal(state.episode.status, "open");
+			const readAfterCancel = await controller.execute(
+				externalSourceAction(linked.candidate.candidateId),
+				port,
+			);
+			assert.equal(readAfterCancel.ok, false);
+		});
+	});
+
 	test("rejects mixed Sidecar and material review candidate ancestry", async () => {
 		await withSandbox(async ({ controller, lifecycleController, port }) => {
 			const sidecar = controller.capture(
@@ -1013,6 +1198,7 @@ describe("Observation staged controller", () => {
 					},
 					text: "Current material review material.",
 					capturedAt: "2026-08-01T10:10:00.000Z",
+					materialReviewRequestId: started.request.requestId,
 				},
 				port,
 			);

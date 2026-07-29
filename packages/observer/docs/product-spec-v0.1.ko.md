@@ -322,9 +322,43 @@ review를 시작한다.
 
 ### `/observe material <request>`
 
-inline 자료, 경로, URL 또는 retrieval 요청을 명시적인 Observe material turn으로
+inline 자료, 경로, URL 또는 retrieval 요청을 명시적인 Observe material agent run으로
 전달한다. Observer Mode가 ON이면 ON, OFF이면 OFF로 유지하며, command 자체를
 Source evidence로 취급하지 않는다.
+
+retrieved tool result를 request-linked candidate로 포착하는 권한은 material-review-start가
+성공한 현재 agent run에만 존재한다. 같은 agent run 안의 여러 model turn과 retrieval
+호출은 허용하지만, agent run이 settle되거나 무관한 사용자 입력이 도착하면 capture
+window를 닫는다. durable pending request는 유지하되 이후 tool result를 암묵적으로
+가로채지 않는다.
+
+```text
+pending + capture window active
+→ 현재 exact request의 retrieved tool result만 request-linked candidate
+
+pending + capture window suspended + Mode OFF
+→ 이후 tool result 무시
+
+pending + capture window suspended + Mode ON
+→ 이후 tool result는 일반 Sidecar candidate이며 stale request와 연결하지 않음
+```
+
+### `/observe material retry`
+
+현재 exact pending request를 새로 만들지 않고 한 번의 bounded agent run에서 재개한다.
+retrieved material이면 그 run에만 capture window를 다시 열고, inline material이면 기존
+candidate 처리만 재개한다. session reload 뒤 durable pending request는 항상 suspended로
+복구되며 명시적 retry 전에는 retrieval capture를 재개하지 않는다.
+
+### `/observe material cancel`
+
+현재 exact pending request에 durable cancellation event를 기록한다. Mode와 OPEN Episode는
+변경하지 않으며, 취소된 request에 연결된 미완료 candidate는 일반 Sidecar 작업으로
+재사용하지 않는다. cancel 이후에는 새 Observe material request를 시작할 수 있다.
+
+pending material review가 있는 동안 Review는 시작할 수 없다. 사용자는 finish 또는 cancel로
+해소해야 하며, 이 guard는 Episode가 먼저 SETTLED되어 pending request가 고아가 되는 상태를
+막는다.
 
 ### `/observe review`
 
@@ -363,6 +397,9 @@ Episode 상태
 Notebook 위치
 현재 출력 언어
 Pending Memo 수
+Pending material-review request ID, material 종류, coverage phase
+Material capture window active/suspended 상태
+`/observe material retry` / `/observe material cancel` 복구 action
 Open Inquiry 수
 Zettel 후보 수
 Notebook validation health
@@ -395,10 +432,14 @@ Episode EMPTY
     │ on 또는 observe-material
     ▼
 Episode OPEN
+    │ material start
+    ├─ active agent run → finish → Episode OPEN
+    ├─ settle/input → pending suspended → retry → active agent run
+    └─ cancel → Episode OPEN
     │ memo 0..N회
     ▼
 Episode OPEN
-    │ review
+    │ pending material-review 없음 + review
     ▼
 VALIDATED SAVE PROPOSAL
     ├─ Back                  → proposal 유지, 같은 상태

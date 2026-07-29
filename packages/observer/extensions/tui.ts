@@ -37,6 +37,8 @@ export type ObserverControlAction =
 	| { readonly kind: "save" }
 	| { readonly kind: "add-hypothesis" }
 	| { readonly kind: "observe-material" }
+	| { readonly kind: "retry-material" }
+	| { readonly kind: "cancel-material" }
 	| { readonly kind: "status" };
 
 export interface ObserverControlEffects {
@@ -215,6 +217,27 @@ export function observerControlItems(
 			? [activation]
 			: [notebook, language, activation];
 
+	if (view.pendingMaterialReview) {
+		items.push(
+			{
+				id: "retry-material",
+				label: "Pending material review",
+				currentValue: `Retry · ${view.pendingMaterialReview.phase}`,
+				values: [`Retry · ${view.pendingMaterialReview.phase}`],
+				description:
+					"Resume only the exact pending request in one bounded agent run",
+			},
+			{
+				id: "cancel-material",
+				label: "Cancel pending material review",
+				currentValue: "Review cancellation",
+				values: ["Review cancellation"],
+				description:
+					"Discard the pending request without changing Observer Mode or the open Episode",
+			},
+		);
+	}
+
 	if (
 		view.control.notebook === "ready" &&
 		view.control.episode !== "reviewing-save"
@@ -263,7 +286,8 @@ export function observerControlItems(
 	if (view.control.notebook === "ready") items.push(notebook, language);
 	if (
 		view.control.notebook === "ready" &&
-		view.control.episode !== "reviewing-save"
+		view.control.episode !== "reviewing-save" &&
+		!view.pendingMaterialReview
 	) {
 		items.push({
 			id: "observe-material",
@@ -293,6 +317,8 @@ export function observerNextStep(view: ObserverStatusView): string {
 		return "Automatic processing is paused. Run Memo or Review explicitly to retry.";
 	if (view.control.notebook === "unselected")
 		return "Connect a Notebook, then turn Observer on.";
+	if (view.pendingMaterialReview)
+		return `Material review run is ${view.pendingMaterialReview.runState.toLowerCase()}. Retry the exact request or cancel it before Review.`;
 	if (view.control.episode === "reviewing-save")
 		return "Inspect the prepared proposal, then Save or cancel it.";
 	if (view.pendingHypothesisReviews > 0)
@@ -503,6 +529,12 @@ export class ObserverControlSurface extends Container {
 			case "observe-material":
 				this.done({ kind: "observe-material" });
 				break;
+			case "retry-material":
+				this.done({ kind: "retry-material" });
+				break;
+			case "cancel-material":
+				this.done({ kind: "cancel-material" });
+				break;
 			default:
 				break;
 		}
@@ -644,8 +676,7 @@ export class ObserverStatusPanel {
 				this.theme.fg(color, displayTerminalText(value)),
 				contentWidth,
 			);
-			const visible =
-				maxLines === "all" ? wrapped : wrapped.slice(0, maxLines);
+			const visible = maxLines === "all" ? wrapped : wrapped.slice(0, maxLines);
 			if (wrapped.length > visible.length && visible.length > 0) {
 				const last = visible.length - 1;
 				visible[last] =
@@ -697,6 +728,21 @@ export class ObserverStatusPanel {
 			String(this.view.pendingHypothesisReviews),
 			this.view.pendingHypothesisReviews > 0 ? "warning" : "muted",
 		);
+		if (this.view.pendingMaterialReview) {
+			const pending = this.view.pendingMaterialReview;
+			add(
+				"Material review",
+				`${pending.phase} · ${pending.runState}`,
+				"warning",
+				4,
+			);
+			add("Material request", pending.requestId, "muted", 2);
+			add(
+				"Material coverage",
+				`candidates ${pending.candidateCount} · SourceReads ${pending.sourceReadCount} · Observations ${pending.observationCount}`,
+			);
+			add("Material recovery", pending.recovery, "warning", 5);
+		}
 		add("Open Inquiries", this.view.openInquiries);
 		for (const inquiry of this.view.inquiryItems)
 			add(`Inquiry · ${inquiry.origin}`, inquiry.current, "text", "all");
@@ -814,6 +860,18 @@ export function renderObserverChromeStatus(
 			theme.fg("error", "needs attention")
 		);
 	if (view.control.notebook === "unselected") return undefined;
+	if (view.pendingMaterialReview)
+		return (
+			theme.fg("accent", "observer") +
+			separator +
+			theme.fg(
+				"warning",
+				view.pendingMaterialReview.runState ===
+					"Active in current agent run"
+					? "material active"
+					: "material suspended",
+			)
+		);
 	if (view.automaticProcessingPause)
 		return (
 			theme.fg("accent", "observer") +
@@ -849,6 +907,7 @@ export function shouldShowObserverWidget(view: ObserverStatusView): boolean {
 	return Boolean(
 		view.operationalIssue ||
 			view.automaticProcessingPause ||
+			view.pendingMaterialReview ||
 			view.control.notebook === "unhealthy" ||
 			view.control.episode === "reviewing-save" ||
 			view.control.mode === "on" ||
@@ -873,6 +932,19 @@ export class ObserverWidget {
 		) {
 			lines.push(this.theme.fg("error", "! Observer · recovery required"));
 			lines.push(this.theme.fg("dim", "  /observe → Status and health"));
+		} else if (this.view.pendingMaterialReview) {
+			lines.push(
+				this.theme.fg(
+					"warning",
+					`! Observer · material review ${this.view.pendingMaterialReview.runState.toLowerCase()}`,
+				),
+			);
+			lines.push(
+				this.theme.fg(
+					"dim",
+					"  /observe material retry · /observe material cancel",
+				),
+			);
 		} else if (this.view.automaticProcessingPause) {
 			lines.push(
 				this.theme.fg("warning", "! Observer · automatic processing paused"),

@@ -7,6 +7,7 @@ import type {
 	ObserverCommandPort,
 	ObserverController,
 } from "./observer-controller.ts";
+import { reconstructObservationSession } from "./observation-session.ts";
 import { reconstructObserverPiState } from "./pi-session.ts";
 import {
 	decodeMaterialReviewFinishAction,
@@ -208,6 +209,7 @@ export function materialReviewCommandText(
 
 export function materialReviewContext(input: {
 	readonly latestUser: LatestUserMessage | null;
+	readonly activeRequestId?: MaterialReviewRequestId | null;
 	readonly entries: readonly Parameters<
 		typeof reconstructMaterialReviewSession
 	>[0][number][];
@@ -217,17 +219,38 @@ export function materialReviewContext(input: {
 	if (issue)
 		return `Observer material-review history issue: ${issue.code}. Do not start or finish material review until repaired.`;
 	const pending = session.pendingRequest;
-	if (pending)
+	if (pending && input.activeRequestId !== pending.requestId)
 		return [
-			"Observer material-review request is pending.",
+			"Observer material-review is suspended outside its explicit run.",
+			`request_id: ${pending.requestId}`,
+			"Do not attach this turn's tool results to that request and do not resume it automatically.",
+			"Continue the user's current task normally. The user can run /observe material retry or /observe material cancel.",
+		].join("\n");
+	if (pending) {
+		const observation = reconstructObservationSession(input.entries);
+		const candidates = observation.candidates.filter(
+			(candidate) => candidate.materialReviewRequestId === pending.requestId,
+		);
+		const reads = observation.sourceReads.filter(
+			(read) => read.materialReviewRequestId === pending.requestId,
+		);
+		const observedReadIds = new Set(
+			observation.observations.map((item) => item.readId),
+		);
+		return [
+			"Observer material-review request is active for this explicit run.",
 			`request_id: ${pending.requestId}`,
 			`material: ${pending.material}`,
-			"Do not call material-review-start again unless retrying the exact failed start.",
-			"Call source-read for the request-linked candidate; it returns a compact StandingIndex and index digest.",
+			`request_linked_candidate_ids: ${candidates.map((candidate) => candidate.candidateId).join(",") || "none"}`,
+			`request_linked_reads: ${reads.map((read) => `${read.readId}:${observedReadIds.has(read.readId) ? "observed" : "needs-observation"}`).join(",") || "none"}`,
+			"Do not call material-review-start again.",
+			"For retrieved material with no request-linked candidate yet, retrieve it only during this run; unrelated later tool results are outside this request.",
+			"Call source-read for uncovered request-linked candidate IDs; keep ordered contiguous segments from one tool result together in one SourceRead. It returns a compact StandingIndex and index digest.",
 			"If record will use any related_inquiry_ids, first call hydrate for those IDs with this read_id and index_digest, then pass the returned exact hydration_id to record.",
 			"If no hydration is needed, record must use hydration_id=null and related_inquiry_ids=[].",
 			"After exactly one semantic Observation covers each request-linked SourceRead, call material-review-finish with only this request_id.",
 		].join("\n");
+	}
 	if (!input.latestUser) return null;
 	return [
 		"Observer material-review classification is model-owned; do not start automatically.",

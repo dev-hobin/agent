@@ -18,6 +18,11 @@ import {
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
 import {
+	encodeMaterialReviewEvent,
+	OBSERVER_MATERIAL_REVIEW_ENTRY,
+	type MaterialReviewRequestedEvent,
+} from "../src/material-review-trigger.ts";
+import {
 	encodeSaveRequestEvent,
 	OBSERVER_SAVE_REQUEST_ENTRY,
 	type SaveRequestEvent,
@@ -220,6 +225,10 @@ describe("Observer hidden Sidecar context", () => {
 					latestUser: null,
 					scriptedMaterialRequest: null,
 					blockedRequestId: request.requestId,
+					agentRunSequence: 0,
+					activeAgentRunId: null,
+					materialReviewRun: null,
+					stagedMaterialReviewRetry: null,
 				},
 				entries: pendingEntries,
 			}),
@@ -282,6 +291,79 @@ describe("Observer hidden Sidecar context", () => {
 		);
 		assert.equal(context?.includes(request.proposalId), false);
 		assert.equal(context?.includes(request.root), false);
+	});
+
+	test("keeps suspended material candidates out of unrelated technical-reading guidance", () => {
+		const request: MaterialReviewRequestedEvent = {
+			protocol: "observer.material-review/v1",
+			kind: "material-review-requested",
+			requestId: "material-review-00000000-0000-4000-8000-000000000030",
+			episodeId: "episode-prompt-1",
+			userMessageDigest: "3".repeat(64),
+			material: "retrieved-tool-results",
+		};
+		const candidate = event({
+			observer_observation: "observer-observation/v1",
+			kind: "candidate-captured",
+			episode_id: "episode-prompt-1",
+			candidate_id: CANDIDATE_ID,
+			origin: {
+				kind: "tool-result",
+				tool_call_id: "tool-call-material-prompt",
+				tool_name: "fetch_content",
+			},
+			text: "Request-linked PDF material.",
+			content_hash: sha256Text("Request-linked PDF material."),
+			captured_at: "2026-08-01T12:00:00.000Z",
+			one_shot_request_id: request.requestId,
+		});
+		const entries = [
+			...lifecycle(true),
+			{
+				type: "custom" as const,
+				customType: OBSERVER_MATERIAL_REVIEW_ENTRY,
+				data: encodeMaterialReviewEvent(request),
+			},
+			entry(candidate),
+		];
+		const continuous = observerSidecarContext(entries);
+		assert.match(continuous ?? "", /Pending candidates \(0\)/u);
+		assert.doesNotMatch(continuous ?? "", new RegExp(CANDIDATE_ID, "u"));
+		const suspended = observerTurnContext({
+			turnState: {
+				toolUsed: false,
+				latestUser: null,
+				scriptedMaterialRequest: null,
+				blockedRequestId: null,
+				agentRunSequence: 1,
+				activeAgentRunId: null,
+				materialReviewRun: null,
+				stagedMaterialReviewRetry: null,
+			},
+			entries,
+		});
+		assert.match(suspended ?? "", /suspended outside its explicit run/u);
+		assert.doesNotMatch(suspended ?? "", new RegExp(CANDIDATE_ID, "u"));
+		const active = observerTurnContext({
+			turnState: {
+				toolUsed: false,
+				latestUser: null,
+				scriptedMaterialRequest: null,
+				blockedRequestId: null,
+				agentRunSequence: 2,
+				activeAgentRunId: 2,
+				materialReviewRun: {
+					agentRunId: 2,
+					requestId: request.requestId,
+					material: request.material,
+				},
+				stagedMaterialReviewRetry: null,
+			},
+			entries,
+		});
+		assert.match(active ?? "", new RegExp(CANDIDATE_ID, "u"));
+		assert.match(active ?? "", /uncovered request-linked candidate ID/u);
+		assert.doesNotMatch(active ?? "", /<observer-sidecar>/u);
 	});
 
 	test("moves a consumed candidate to the pending read stage", () => {

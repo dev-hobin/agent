@@ -116,7 +116,18 @@ Observe material is independent of continuous Observer Mode. It works while Mode
 /observe material <inline material, path, URL, or retrieval request>
 ```
 
-For a path or URL, Pi must retrieve the material first. The instruction itself is not treated as source evidence; retrieved tool results are linked to the Observe material request. Inline user material may be used as an exact user-message source candidate.
+For a path or URL, Pi must retrieve the material first. The instruction itself is not treated as source evidence. Retrieved tool results are linked only during the agent run that starts or explicitly retries that exact Observe material request. When that run settles—or unrelated user input arrives—the retrieval window closes while the request remains visibly suspended. Later technical-reading tools are therefore ignored when continuous Mode is Off, or remain ordinary Sidecar candidates when Mode is On; they are never silently attached to the stale material request.
+
+If processing stops before completion, use:
+
+```text
+/observe material retry
+/observe material cancel
+```
+
+`retry` resumes the exact pending request for one bounded agent run without creating another request. `cancel` records an explicit cancellation while preserving Observer Mode and the open Episode. Status and the control center show the request ID, coverage phase, capture-window state, and both recovery actions. Review is unavailable until the pending material review is completed or cancelled, preventing Episode settlement from stranding the request.
+
+Inline user material may be used as an exact user-message source candidate.
 
 A completed Observe material pass:
 
@@ -140,6 +151,8 @@ Model/provider behavior is stochastic. Completion receipts prove one recorded re
 | `/observe off` | Disable Sidecar observation without settling the Episode |
 | `/observe add-hypothesis <text>` | Preserve a user hypothesis and trigger its initial current-context review |
 | `/observe material <request>` | Observe inline or retrieved material without changing Observer Mode |
+| `/observe material retry` | Resume the exact pending material review for one bounded agent run |
+| `/observe material cancel` | Cancel the pending material review while preserving Mode and Episode |
 | `/observe memo` | Reconcile current working observations without preparing or writing Markdown |
 | `/observe review` | Reconcile pending work and prepare an inspectable proposal without file writes |
 | `/observe save` | Inspect and approve an already prepared proposal, then persist and settle |

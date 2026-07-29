@@ -372,6 +372,14 @@ describe("Observer command parsing", () => {
 			completeObserveArgs("mat")?.map((item) => item.value),
 			["material"],
 		);
+		assert.deepEqual(
+			completeObserveArgs("material ")?.map((item) => item.value),
+			["material retry", "material cancel"],
+		);
+		assert.deepEqual(
+			completeObserveArgs("material r")?.map((item) => item.value),
+			["material retry"],
+		);
 	});
 });
 

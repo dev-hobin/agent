@@ -67,9 +67,18 @@ export interface MaterialReviewCompletedEvent {
 	readonly digest: string;
 }
 
+export interface MaterialReviewCancelledEvent {
+	readonly protocol: typeof OBSERVER_MATERIAL_REVIEW_PROTOCOL;
+	readonly kind: "material-review-cancelled";
+	readonly requestId: MaterialReviewRequestId;
+	readonly episodeId: string;
+	readonly reason: "user-requested";
+}
+
 export type MaterialReviewEvent =
 	| MaterialReviewRequestedEvent
-	| MaterialReviewCompletedEvent;
+	| MaterialReviewCompletedEvent
+	| MaterialReviewCancelledEvent;
 
 export interface MaterialReviewIssue {
 	readonly code:
@@ -91,8 +100,10 @@ export type MaterialReviewResult<Value> =
 export interface MaterialReviewSession {
 	readonly requests: readonly MaterialReviewRequestedEvent[];
 	readonly completions: readonly MaterialReviewCompletedEvent[];
+	readonly cancellations: readonly MaterialReviewCancelledEvent[];
 	readonly pendingRequest: MaterialReviewRequestedEvent | null;
 	readonly completedRequestIds: readonly MaterialReviewRequestId[];
+	readonly cancelledRequestIds: readonly MaterialReviewRequestId[];
 	readonly issues: readonly MaterialReviewIssue[];
 }
 
@@ -112,6 +123,10 @@ export interface MaterialReviewCoverageRead {
 export interface MaterialReviewCoverageObservation {
 	readonly observationId: string;
 	readonly readId: string;
+}
+
+function assertNever(value: never): never {
+	throw new Error(`Unhandled Material review event: ${String(value)}`);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -299,16 +314,18 @@ function completionDigest(input: {
 export function encodeMaterialReviewEvent(
 	event: MaterialReviewEvent,
 ): Readonly<Record<string, unknown>> {
-	return event.kind === "material-review-requested"
-		? {
+	switch (event.kind) {
+		case "material-review-requested":
+			return {
 				protocol: event.protocol,
 				kind: event.kind,
 				request_id: event.requestId,
 				episode_id: event.episodeId,
 				user_message_digest: event.userMessageDigest,
 				material: event.material,
-			}
-		: {
+			};
+		case "material-review-completed":
+			return {
 				protocol: event.protocol,
 				kind: event.kind,
 				request_id: event.requestId,
@@ -316,6 +333,17 @@ export function encodeMaterialReviewEvent(
 				observation_ids: event.observationIds,
 				digest: event.digest,
 			};
+		case "material-review-cancelled":
+			return {
+				protocol: event.protocol,
+				kind: event.kind,
+				request_id: event.requestId,
+				episode_id: event.episodeId,
+				reason: event.reason,
+			};
+		default:
+			return assertNever(event);
+	}
 }
 
 function decodeRequested(
@@ -406,6 +434,41 @@ function decodeCompleted(
 	};
 }
 
+function decodeCancelled(
+	value: Readonly<Record<string, unknown>>,
+): MaterialReviewResult<MaterialReviewCancelledEvent> {
+	if (
+		!hasExactKeys(value, [
+			"protocol",
+			"kind",
+			"request_id",
+			"episode_id",
+			"reason",
+		])
+	)
+		return failure(
+			"material-review.shape",
+			"Material review cancellation has invalid fields.",
+		);
+	const requestId = decodeMaterialReviewRequestId(value.request_id);
+	const episodeId = nonempty(value.episode_id);
+	if (!requestId || !episodeId || value.reason !== "user-requested")
+		return failure(
+			"material-review.shape",
+			"Material review cancellation has invalid values.",
+		);
+	return {
+		ok: true,
+		value: {
+			protocol: OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+			kind: "material-review-cancelled",
+			requestId,
+			episodeId,
+			reason: "user-requested",
+		},
+	};
+}
+
 export function decodeMaterialReviewEvent(
 	value: unknown,
 ): MaterialReviewResult<MaterialReviewEvent> {
@@ -421,6 +484,7 @@ export function decodeMaterialReviewEvent(
 		);
 	if (value.kind === "material-review-requested") return decodeRequested(value);
 	if (value.kind === "material-review-completed") return decodeCompleted(value);
+	if (value.kind === "material-review-cancelled") return decodeCancelled(value);
 	return failure(
 		"material-review.shape",
 		"Material review event kind is unknown.",
@@ -440,6 +504,7 @@ function sameEvent(
 interface MutableMaterialReviewReplay {
 	readonly requests: MaterialReviewRequestedEvent[];
 	readonly completions: MaterialReviewCompletedEvent[];
+	readonly cancellations: MaterialReviewCancelledEvent[];
 	readonly issues: MaterialReviewIssue[];
 	pending: MaterialReviewRequestedEvent | null;
 }
@@ -504,12 +569,45 @@ function replayCompleted(
 	state.pending = null;
 }
 
+function replayCancelled(
+	event: MaterialReviewCancelledEvent,
+	state: MutableMaterialReviewReplay,
+): void {
+	const existing = state.cancellations.find(
+		(item) => item.requestId === event.requestId,
+	);
+	if (existing && sameEvent(existing, event)) return;
+	if (existing) {
+		state.issues.push({
+			code: "material-review.conflict",
+			message: "Material review cancellation identity conflicts with history.",
+			relatedId: event.requestId,
+		});
+		return;
+	}
+	if (
+		!state.pending ||
+		state.pending.requestId !== event.requestId ||
+		state.pending.episodeId !== event.episodeId
+	) {
+		state.issues.push({
+			code: "material-review.history",
+			message: "Material review cancellation has no matching pending request.",
+			relatedId: event.requestId,
+		});
+		return;
+	}
+	state.cancellations.push(event);
+	state.pending = null;
+}
+
 export function reconstructMaterialReviewSession(
 	entries: readonly PiBranchEntryLike[],
 ): MaterialReviewSession {
 	const state: MutableMaterialReviewReplay = {
 		requests: [],
 		completions: [],
+		cancellations: [],
 		issues: [],
 		pending: null,
 	};
@@ -526,13 +624,17 @@ export function reconstructMaterialReviewSession(
 		}
 		if (decoded.value.kind === "material-review-requested")
 			replayRequested(decoded.value, state);
-		else replayCompleted(decoded.value, state);
+		else if (decoded.value.kind === "material-review-completed")
+			replayCompleted(decoded.value, state);
+		else replayCancelled(decoded.value, state);
 	}
 	return {
 		requests: state.requests,
 		completions: state.completions,
+		cancellations: state.cancellations,
 		pendingRequest: state.pending,
 		completedRequestIds: state.completions.map((event) => event.requestId),
+		cancelledRequestIds: state.cancellations.map((event) => event.requestId),
 		issues: state.issues,
 	};
 }
@@ -595,6 +697,53 @@ export function planMaterialReviewRequest(input: {
 				userMessageDigest: input.intent.userMessageDigest,
 				material: input.intent.material,
 			},
+		},
+	};
+}
+
+export function planMaterialReviewCancellation(input: {
+	readonly requestId: unknown;
+	readonly episodeId: string;
+	readonly session: MaterialReviewSession;
+}): MaterialReviewResult<MaterialReviewCancelledEvent> {
+	if (input.session.issues.length > 0)
+		return failure(
+			"material-review.history",
+			"Material review history must be repaired before cancellation.",
+		);
+	const requestId = decodeMaterialReviewRequestId(input.requestId);
+	const episodeId = nonempty(input.episodeId);
+	if (!requestId || !episodeId)
+		return failure(
+			"material-review.action",
+			"Material review cancellation requires an exact request and Episode.",
+		);
+	const existing = input.session.cancellations.find(
+		(event) => event.requestId === requestId,
+	);
+	if (existing)
+		return existing.episodeId === episodeId
+			? { ok: true, value: existing }
+			: failure(
+					"material-review.conflict",
+					"Persisted Material review cancellation belongs to another Episode.",
+					requestId,
+				);
+	const pending = input.session.pendingRequest;
+	if (pending?.requestId !== requestId || pending.episodeId !== episodeId)
+		return failure(
+			"material-review.pending",
+			"Material review cancellation requires the exact current request.",
+			requestId,
+		);
+	return {
+		ok: true,
+		value: {
+			protocol: OBSERVER_MATERIAL_REVIEW_PROTOCOL,
+			kind: "material-review-cancelled",
+			requestId,
+			episodeId,
+			reason: "user-requested",
 		},
 	};
 }

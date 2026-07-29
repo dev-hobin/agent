@@ -88,13 +88,16 @@ export function observerSidecarContext(
 		usedCandidateIds.add(hypothesis.candidateId);
 	}
 	const pendingCandidates = session.candidates.filter(
-		(candidate) => !usedCandidateIds.has(candidate.candidateId),
+		(candidate) =>
+			!candidate.materialReviewRequestId &&
+			!usedCandidateIds.has(candidate.candidateId),
 	);
 	const observedReadIds = new Set(
 		session.observations.map((observation) => observation.readId),
 	);
 	const pendingReads = session.sourceReads.filter(
-		(read) => !observedReadIds.has(read.readId),
+		(read) =>
+			!read.materialReviewRequestId && !observedReadIds.has(read.readId),
 	);
 	const candidateLines = pendingCandidates
 		.slice(0, MAX_CONTEXT_CANDIDATES)

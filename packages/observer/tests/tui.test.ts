@@ -223,6 +223,40 @@ test("control items progressively disclose only legal work", () => {
 		offItems.find((item) => item.id === "observe-material")?.label,
 		"Observe material",
 	);
+	const pendingMaterialBase = openView("off");
+	const pendingMaterial = {
+		...pendingMaterialBase,
+		control: { ...pendingMaterialBase.control, canReview: false },
+		pendingMaterialReview: {
+			requestId: "material-review-00000000-0000-4000-8000-000000000701",
+			material: "retrieved-tool-results" as const,
+			phase: "Awaiting retrieval" as const,
+			candidateCount: 0,
+			sourceReadCount: 0,
+			observationCount: 0,
+			runState: "Suspended" as const,
+			recovery:
+				"Run /observe material retry to resume, or /observe material cancel.",
+		},
+	};
+	const pendingItems = observerControlItems(pendingMaterial);
+	assert.equal(
+		pendingItems.some((item) => item.id === "retry-material"),
+		true,
+	);
+	assert.equal(
+		pendingItems.some((item) => item.id === "cancel-material"),
+		true,
+	);
+	assert.equal(
+		pendingItems.some((item) => item.id === "observe-material"),
+		false,
+	);
+	assert.equal(
+		pendingItems.some((item) => item.id === "review"),
+		false,
+	);
+	assert.match(observerNextStep(pendingMaterial), /Retry the exact request/u);
 	assert.equal(
 		offItems.some((item) => item.id === "material-review"),
 		false,
@@ -495,6 +529,45 @@ test("save proposal review requires explicit navigation to batch approval", () =
 	for (let index = 0; index < 4; index += 1) surface.handleInput("\u001b[B");
 	surface.handleInput("\r");
 	assert.deepEqual(decisions, ["approve"]);
+});
+
+test("status and widget expose bounded material review recovery", () => {
+	const base = openView("off");
+	const view: ObserverStatusView = {
+		...base,
+		control: { ...base.control, canReview: false },
+		pendingMaterialReview: {
+			requestId: "material-review-00000000-0000-4000-8000-000000000702",
+			material: "retrieved-tool-results",
+			phase: "SourceRead required",
+			candidateCount: 2,
+			sourceReadCount: 1,
+			observationCount: 0,
+			runState: "Suspended",
+			recovery:
+				"Run /observe material retry to resume the exact request, or /observe material cancel to discard it.",
+		},
+	};
+	const panel = new ObserverStatusPanel(view, theme, () => {}, keybindings);
+	let rendered = "";
+	for (let page = 0; page < 12; page += 1) {
+		const lines = panel.render(80, 24);
+		assert.equal(lines.length, 24);
+		assert.ok(lines.every((line) => visibleWidth(line) <= 80));
+		rendered += `\n${lines.join("\n")}`;
+		panel.handleInput("\u001b[6~");
+	}
+	assert.match(rendered, /Material review/u);
+	assert.match(rendered, /material retry/u);
+	assert.match(rendered, /material cancel/u);
+	const widget = new ObserverWidget(view, theme).render(80).join("\n");
+	assert.match(widget, /material review suspended/u);
+	assert.match(widget, /material retry/u);
+	assert.equal(shouldShowObserverWidget(view), true);
+	assert.match(
+		renderObserverChromeStatus(view, theme) ?? "",
+		/material suspended/u,
+	);
 });
 
 test("status panel is height-bounded, fully scrollable, and keyboard dismissible", () => {

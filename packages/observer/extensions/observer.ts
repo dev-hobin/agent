@@ -15,6 +15,8 @@ import {
 import {
 	createObservationController,
 	type MemoRequestControllerResult,
+	type MaterialReviewCancelControllerResult,
+	type MaterialReviewRetryControllerResult,
 	type ObservationControllerIds,
 	type ObservationControllerResult,
 	type TrackUserHypothesisResult,
@@ -33,8 +35,15 @@ import type { SaveRequestEvent } from "../src/save-trigger.ts";
 import { observerSidecarParameters } from "./memo-tool-schema.ts";
 import {
 	acceptScriptedMaterialInput,
+	activeMaterialReviewCaptureRequestId,
+	activeMaterialReviewRequestId,
+	beginObserverAgentRun,
+	endObserverAgentRun,
 	observerTurnContext,
 	routeMaterialReviewTool,
+	settleObserverAgentRun,
+	stageMaterialReviewRetry,
+	suspendMaterialReviewRun,
 	type ObserverMaterialReviewIds,
 	type ObserverTurnState,
 } from "./material-review-runtime.ts";
@@ -450,7 +459,15 @@ export async function routeAddHypothesisCommand(
 
 export interface MaterialCommandEffects {
 	submit(materialRequest: string): void;
-	notify(message: string, type: "warning" | "error"): void;
+	retry(): MaterialReviewRetryControllerResult;
+	cancel(): MaterialReviewCancelControllerResult;
+	triggerRetry(
+		request: Extract<
+			MaterialReviewRetryControllerResult,
+			{ readonly ok: true }
+		>["request"],
+	): void;
+	notify(message: string, type: "info" | "warning" | "error"): void;
 }
 
 export function routeMaterialCommand(
@@ -467,6 +484,36 @@ export function routeMaterialCommand(
 		effects.notify(
 			"Add material or a retrieval request after the command: /observe material <request>",
 			"warning",
+		);
+		return true;
+	}
+	if (materialRequest === "retry") {
+		const retried = effects.retry();
+		if (!retried.ok) {
+			effects.notify(retried.message, "warning");
+			return true;
+		}
+		try {
+			effects.triggerRetry(retried.request);
+			effects.notify(
+				`Material review retry started for ${retried.request.requestId}.`,
+				"info",
+			);
+		} catch (error) {
+			effects.notify(
+				`Material review retry could not start: ${error instanceof Error ? error.message : String(error)}`,
+				"error",
+			);
+		}
+		return true;
+	}
+	if (materialRequest === "cancel") {
+		const cancelled = effects.cancel();
+		effects.notify(
+			cancelled.ok
+				? `Material review cancelled: ${cancelled.cancellation.requestId}`
+				: cancelled.message,
+			cancelled.ok ? "info" : "warning",
 		);
 		return true;
 	}
@@ -607,12 +654,26 @@ function withTurnState(
 	view: ObserverStatusView,
 	turnState: ObserverTurnState | undefined,
 ): ObserverStatusView {
-	return turnState?.blockedRequestId
-		? {
-				...view,
-				automaticProcessingPause: `Request ${turnState.blockedRequestId} failed. Run Memo or Review explicitly to retry.`,
-			}
-		: view;
+	const activeRequestId = turnState
+		? activeMaterialReviewRequestId(turnState)
+		: null;
+	let pendingMaterialReview = view.pendingMaterialReview;
+	if (pendingMaterialReview) {
+		const runState =
+			activeRequestId === pendingMaterialReview.requestId
+				? ("Active in current agent run" as const)
+				: ("Suspended" as const);
+		pendingMaterialReview = { ...pendingMaterialReview, runState };
+	}
+	return {
+		...view,
+		...(pendingMaterialReview ? { pendingMaterialReview } : {}),
+		...(turnState?.blockedRequestId
+			? {
+					automaticProcessingPause: `Request ${turnState.blockedRequestId} failed. Run Memo or Review explicitly to retry.`,
+				}
+			: {}),
+	};
 }
 
 async function refreshObserverChrome(input: {
@@ -689,6 +750,41 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 		return;
 	}
 	const materialHandled = routeMaterialCommand(input.args, {
+		retry() {
+			return input.observation.retryMaterialReview(port);
+		},
+		cancel() {
+			const result = input.observation.cancelMaterialReview(port);
+			if (result.ok) {
+				suspendMaterialReviewRun(input.turnState);
+				input.turnState.stagedMaterialReviewRetry = null;
+			}
+			return result;
+		},
+		triggerRetry(request) {
+			stageMaterialReviewRetry(input.turnState, request);
+			try {
+				input.pi.sendMessage(
+					{
+						customType: "observer.material-retry",
+						content: [
+							"Retry the exact pending Observer material-review request in this agent run.",
+							`request_id=${request.requestId}`,
+							`material=${request.material}`,
+							request.material === "retrieved-tool-results"
+								? "Its retrieval capture window is open only for this agent run. Retrieve the requested source, then complete source-read, optional hydrate, record, and material-review-finish."
+								: "Use the existing inline candidate to complete source-read, optional hydrate, record, and material-review-finish.",
+						].join("\n"),
+						display: false,
+						details: { requestId: request.requestId },
+					},
+					{ deliverAs: "followUp", triggerTurn: true },
+				);
+			} catch (error) {
+				input.turnState.stagedMaterialReviewRetry = null;
+				throw error;
+			}
+		},
 		submit(materialRequest) {
 			input.pi.sendMessage(
 				{
@@ -928,10 +1024,7 @@ async function showObserverControlFlow(
 			case "status":
 				await showObserverStatus(
 					input.ctx,
-					withTurnState(
-						await input.controller.inspect(port),
-						input.turnState,
-					),
+					withTurnState(await input.controller.inspect(port), input.turnState),
 				);
 				break;
 			case "memo":
@@ -965,6 +1058,25 @@ async function showObserverControlFlow(
 				)
 					return;
 				break;
+			case "retry-material":
+				await runObserverCommand({ ...input, args: "material retry" });
+				return;
+			case "cancel-material": {
+				const cancel = "Cancel pending material review";
+				const choice = await input.ctx.ui.select(
+					[
+						"Cancel the pending material review?",
+						"Observer Mode and the open Episode are preserved.",
+						"Request-linked candidates that were not completed will not be reused.",
+					].join("\n"),
+					["Go back · keep pending request", cancel],
+				);
+				if (choice === cancel) {
+					await runObserverCommand({ ...input, args: "material cancel" });
+					return;
+				}
+				break;
+			}
 			default:
 				assertNever(action);
 		}
@@ -1147,6 +1259,8 @@ function registerObserverEvents(input: {
 			})
 		)
 			return;
+		suspendMaterialReviewRun(input.turnState);
+		input.turnState.stagedMaterialReviewRetry = null;
 		if (
 			event.source === "extension" ||
 			event.text.trim().length === 0 ||
@@ -1176,6 +1290,10 @@ function registerObserverEvents(input: {
 		if (event.toolName === OBSERVER_TOOL_NAME) return;
 		const text = textFromContent(event.content);
 		if (!text) return;
+		const materialReviewRequestId = activeMaterialReviewCaptureRequestId(
+			input.turnState,
+		);
+		if (materialReviewRequestId && event.isError) return;
 		reportCaptureFailure(
 			input.observation.capture(
 				{
@@ -1186,11 +1304,22 @@ function registerObserverEvents(input: {
 					},
 					text,
 					capturedAt: new Date().toISOString(),
+					...(materialReviewRequestId ? { materialReviewRequestId } : {}),
 				},
 				commandPort(input.pi, ctx),
 			),
 			ctx,
 		);
+	});
+	input.pi.on("agent_start", () => {
+		beginObserverAgentRun(input.turnState);
+	});
+	input.pi.on("agent_end", () => {
+		endObserverAgentRun(input.turnState);
+	});
+	input.pi.on("agent_settled", async (_event, ctx) => {
+		settleObserverAgentRun(input.turnState);
+		await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("turn_start", () => {
 		input.turnState.toolUsed = false;
@@ -1237,10 +1366,12 @@ function registerObserverEvents(input: {
 		};
 	});
 	input.pi.on("session_start", async (_event, ctx) => {
+		settleObserverAgentRun(input.turnState);
 		await input.controller.bind(commandPort(input.pi, ctx));
 		await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("session_tree", async (_event, ctx) => {
+		settleObserverAgentRun(input.turnState);
 		await input.controller.bind(commandPort(input.pi, ctx));
 		await refreshObserverChrome({ ...input, ctx });
 	});
@@ -1252,6 +1383,7 @@ function registerObserverEvents(input: {
 			await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("session_shutdown", (_event, ctx) => {
+		settleObserverAgentRun(input.turnState);
 		input.controller.unbind();
 		ctx.ui.setStatus(OBSERVER_STATUS_KEY, undefined);
 		ctx.ui.setWidget(OBSERVER_STATUS_KEY, undefined);
@@ -1275,6 +1407,10 @@ export default function observerExtension(pi: ExtensionAPI): void {
 		latestUser: null,
 		scriptedMaterialRequest: null,
 		blockedRequestId: null,
+		agentRunSequence: 0,
+		activeAgentRunId: null,
+		materialReviewRun: null,
+		stagedMaterialReviewRetry: null,
 	};
 
 	registerObserverSidecarTool({

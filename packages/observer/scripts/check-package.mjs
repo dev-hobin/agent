@@ -19,7 +19,7 @@ async function readJson(relativePath) {
 
 const manifest = await readJson("package.json");
 assert.equal(manifest.name, "@hobin/observer");
-assert.equal(manifest.version, "0.1.1");
+assert.equal(manifest.version, "0.1.2");
 assert.equal(manifest.private, undefined);
 assert.deepEqual(manifest.publishConfig, { access: "public" });
 assert.deepEqual(manifest.files, [

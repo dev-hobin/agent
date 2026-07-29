@@ -47,9 +47,10 @@ import {
 } from "./notebook.ts";
 import type { NotebookSelectionStore } from "./notebook-selection-store.ts";
 import { reconstructObservationSession } from "./observation-session.ts";
-import type {
-	MaterialReviewIntent,
-	MaterialReviewRequestId,
+import {
+	reconstructMaterialReviewSession,
+	type MaterialReviewIntent,
+	type MaterialReviewRequestId,
 } from "./material-review-trigger.ts";
 import {
 	observerStatusView,
@@ -408,6 +409,9 @@ async function inspectStatus(
 		snapshot: reconstructObserverPiState(port.branchEntries()),
 		memoSnapshot: reconstructMemoSession(port.branchEntries()),
 		observationSnapshot: reconstructObservationSession(port.branchEntries()),
+		materialReviewSnapshot: reconstructMaterialReviewSession(
+			port.branchEntries(),
+		),
 		notebookStatus: await notebooks.status(),
 		sessionFile: port.sessionFile(),
 		...(operationalIssue ? { operationalIssue } : {}),

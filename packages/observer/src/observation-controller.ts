@@ -75,9 +75,11 @@ import {
 import {
 	encodeMaterialReviewEvent,
 	OBSERVER_MATERIAL_REVIEW_ENTRY,
+	planMaterialReviewCancellation,
 	planMaterialReviewCompletion,
 	planMaterialReviewRequest,
 	reconstructMaterialReviewSession,
+	type MaterialReviewCancelledEvent,
 	type MaterialReviewCompletedEvent,
 	type MaterialReviewFinishAction,
 	type MaterialReviewIntent,
@@ -145,6 +147,22 @@ export type MaterialReviewFinishControllerResult =
 			readonly ok: true;
 			readonly status: "completed" | "resumed";
 			readonly completion: MaterialReviewCompletedEvent;
+	  }
+	| { readonly ok: false; readonly message: string };
+
+export type MaterialReviewRetryControllerResult =
+	| {
+			readonly ok: true;
+			readonly status: "pending";
+			readonly request: MaterialReviewRequestedEvent;
+	  }
+	| { readonly ok: false; readonly message: string };
+
+export type MaterialReviewCancelControllerResult =
+	| {
+			readonly ok: true;
+			readonly status: "cancelled";
+			readonly cancellation: MaterialReviewCancelledEvent;
 	  }
 	| { readonly ok: false; readonly message: string };
 
@@ -269,10 +287,16 @@ export type MemoRequestControllerResult =
 	| { readonly ok: false; readonly message: string };
 
 export interface ObservationController {
+	cancelMaterialReview(
+		port: ObservationCommandPort,
+	): MaterialReviewCancelControllerResult;
 	finishMaterialReview(
 		action: MaterialReviewFinishAction,
 		port: ObservationCommandPort,
 	): MaterialReviewFinishControllerResult;
+	retryMaterialReview(
+		port: ObservationCommandPort,
+	): MaterialReviewRetryControllerResult;
 	startMaterialReview(
 		value: {
 			readonly intent: MaterialReviewIntent;
@@ -286,6 +310,7 @@ export interface ObservationController {
 			readonly origin: unknown;
 			readonly text: unknown;
 			readonly capturedAt: unknown;
+			readonly materialReviewRequestId?: MaterialReviewRequestedEvent["requestId"];
 		},
 		port: ObservationCommandPort,
 	): CandidateCaptureResult;
@@ -513,6 +538,31 @@ function appendMaterialReviewCompletion(
 		: "Material review completion이 replay에서 확인되지 않았습니다.";
 }
 
+function appendMaterialReviewCancellation(
+	port: ObservationCommandPort,
+	cancellation: MaterialReviewCancelledEvent,
+): MaterialReviewCancelledEvent | string {
+	try {
+		port.appendEntry(
+			OBSERVER_MATERIAL_REVIEW_ENTRY,
+			encodeMaterialReviewEvent(cancellation),
+		);
+	} catch (error) {
+		return `Material review cancellation 기록 실패: ${error instanceof Error ? error.message : String(error)}`;
+	}
+	const replayed = reconstructMaterialReviewSession(port.branchEntries());
+	const issue = replayed.issues[0];
+	if (issue) return `Material review cancellation replay 실패: ${issue.code}.`;
+	const confirmed = replayed.cancellations.find(
+		(event) => event.requestId === cancellation.requestId,
+	);
+	return confirmed &&
+		JSON.stringify(encodeMaterialReviewEvent(confirmed)) ===
+			JSON.stringify(encodeMaterialReviewEvent(cancellation))
+		? confirmed
+		: "Material review cancellation이 replay에서 확인되지 않았습니다.";
+}
+
 function materialReviewAttemptIssue(input: {
 	readonly intent: MaterialReviewIntent;
 	readonly episode: MaterialReviewEpisodeCapability;
@@ -570,6 +620,21 @@ function startMaterialReview(input: {
 }): MaterialReviewStartControllerResult {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	const saveRequest = reconstructSaveRequestSession(
+		input.port.branchEntries(),
+	).pendingRequest;
+	if (
+		branch.observation.pendingHypothesisReviews.length > 0 ||
+		branch.observation.pendingMemoRequest ||
+		branch.memo.prepared ||
+		branch.memo.pendingAcknowledgment ||
+		saveRequest
+	)
+		return {
+			ok: false,
+			message:
+				"Finish the current hypothesis, Memo, or Review request before starting a Material review.",
+		};
 	const attemptIssue = materialReviewAttemptIssue({
 		intent: input.value.intent,
 		episode: input.value.episode,
@@ -641,6 +706,51 @@ function startMaterialReview(input: {
 				request,
 				candidate: prepared,
 			};
+}
+
+function retryMaterialReview(input: {
+	readonly port: ObservationCommandPort;
+}): MaterialReviewRetryControllerResult {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	const pending = branch.materialReview.pendingRequest;
+	if (!pending)
+		return { ok: false, message: "No Material review request is pending." };
+	const episode = branch.pi.state.episode;
+	if (episode.status !== "open" || episode.core.episodeId !== pending.episodeId)
+		return {
+			ok: false,
+			message:
+				"Pending Material review does not match the current OPEN Episode.",
+		};
+	return { ok: true, status: "pending", request: pending };
+}
+
+function cancelMaterialReview(input: {
+	readonly port: ObservationCommandPort;
+}): MaterialReviewCancelControllerResult {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	const pending = branch.materialReview.pendingRequest;
+	if (!pending)
+		return { ok: false, message: "No Material review request is pending." };
+	const episode = branch.pi.state.episode;
+	if (episode.status !== "open" || episode.core.episodeId !== pending.episodeId)
+		return {
+			ok: false,
+			message:
+				"Pending Material review does not match the current OPEN Episode.",
+		};
+	const planned = planMaterialReviewCancellation({
+		requestId: pending.requestId,
+		episodeId: episode.core.episodeId,
+		session: branch.materialReview,
+	});
+	if (!planned.ok) return { ok: false, message: planned.issue.message };
+	const appended = appendMaterialReviewCancellation(input.port, planned.value);
+	return typeof appended === "string"
+		? { ok: false, message: appended }
+		: { ok: true, status: "cancelled", cancellation: appended };
 }
 
 function finishMaterialReview(input: {
@@ -1486,6 +1596,12 @@ async function requestSave(input: {
 }): Promise<SaveRequestControllerResult> {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	if (branch.materialReview.pendingRequest)
+		return {
+			ok: false,
+			message:
+				"Resolve the pending Material review before Review: use /observe material retry or /observe material cancel.",
+		};
 	if (
 		branch.pi.prepared ||
 		branch.pi.state.episode.status === "reviewing-save"
@@ -1599,6 +1715,12 @@ async function requestReviewSave(input: {
 }): Promise<SaveRequestControllerResult> {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	if (branch.materialReview.pendingRequest)
+		return {
+			ok: false,
+			message:
+				"Resolve the pending Material review before Review: use /observe material retry or /observe material cancel.",
+		};
 	if (branch.pi.prepared || branch.pi.state.episode.status === "reviewing-save")
 		return requestSave(input);
 	const memoRequired =
@@ -1694,6 +1816,12 @@ async function saveContext(input: {
 > {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	if (branch.materialReview.pendingRequest)
+		return {
+			ok: false,
+			message:
+				"Resolve the pending Material review before preparing a Review proposal.",
+		};
 	const workingSet = await notebookWorkingSetFor(branch, input.notebooks);
 	if (typeof workingSet === "string") return { ok: false, message: workingSet };
 	const requestSession = reconstructSaveRequestSession(
@@ -1948,20 +2076,21 @@ function executeMemoSidecarAction(input: {
 		: memoPrepare({ action, port, notebooks });
 }
 
-function pendingRetrievedCaptureRequest(input: {
+function authorizedRetrievedCaptureRequest(input: {
 	readonly branch: LiveWorkingBranch;
-	readonly port: ObservationCommandPort;
+	readonly requestId: MaterialReviewRequestedEvent["requestId"] | undefined;
 }): MaterialReviewRequestedEvent | string | null {
-	if (
-		input.branch.pi.state.mode !== "off" ||
-		input.branch.pi.state.episode.status !== "open"
-	)
-		return null;
+	if (!input.requestId) return null;
+	const episode = input.branch.pi.state.episode;
 	const pending = input.branch.materialReview.pendingRequest;
-	return pending?.material === "retrieved-tool-results" &&
-		pending.episodeId === input.branch.pi.state.episode.core.episodeId
-		? pending
-		: null;
+	if (
+		episode.status !== "open" ||
+		pending?.requestId !== input.requestId ||
+		pending.episodeId !== episode.core.episodeId ||
+		pending.material !== "retrieved-tool-results"
+	)
+		return "Material review capture authorization is stale or does not match the pending retrieved request.";
+	return pending;
 }
 
 const CANDIDATE_SEGMENT_HEADER_RESERVE = 160;
@@ -1987,6 +2116,7 @@ function captureCandidate(input: {
 		readonly origin: unknown;
 		readonly text: unknown;
 		readonly capturedAt: unknown;
+		readonly materialReviewRequestId?: MaterialReviewRequestedEvent["requestId"];
 	};
 	readonly port: ObservationCommandPort;
 	readonly ids: ObservationControllerIds;
@@ -1994,9 +2124,10 @@ function captureCandidate(input: {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	const sidecarActive = activeEpisode(branch);
-	const materialReviewRequest = sidecarActive
-		? null
-		: pendingRetrievedCaptureRequest({ branch, port: input.port });
+	const materialReviewRequest = authorizedRetrievedCaptureRequest({
+		branch,
+		requestId: input.value.materialReviewRequestId,
+	});
 	if (typeof materialReviewRequest === "string")
 		return { ok: false, message: materialReviewRequest };
 	if (!sidecarActive && !materialReviewRequest)
@@ -2115,8 +2246,14 @@ export function createObservationController(
 		selectionStore: dependencies.selectionStore,
 	});
 	return {
+		cancelMaterialReview(port) {
+			return cancelMaterialReview({ port });
+		},
 		finishMaterialReview(action, port) {
 			return finishMaterialReview({ action, port });
+		},
+		retryMaterialReview(port) {
+			return retryMaterialReview({ port });
 		},
 		startMaterialReview(value, port) {
 			return startMaterialReview({ value, port, ids: dependencies.ids });
