@@ -11,10 +11,10 @@ This file governs maintainer actions for `@hobin/observer`. It is intentionally 
 - Never infer permission to push or publish. Both are explicit maintainer effects.
 - npm versions are immutable. Never retry by overwriting or silently changing the version.
 
-## 0.1.2 candidate contract
+## 0.1.3 candidate contract
 
 ```text
-package: @hobin/observer@0.1.2
+package: @hobin/observer@0.1.3
 npm access/tag: public/latest
 Node: >=22.19.0
 Pi peer: >=0.80.10 <0.83.0
@@ -105,8 +105,8 @@ Supply the write-TFA OTP interactively. Do not store it in scripts, logs, or rep
 Publication is complete only after registry readback and a fresh Pi install:
 
 ```sh
-npm view @hobin/observer@0.1.2 name version dist-tags dist.integrity --json
-pi install npm:@hobin/observer@0.1.2
+npm view @hobin/observer@0.1.3 name version dist-tags dist.integrity --json
+pi install npm:@hobin/observer@0.1.3
 pi list
 ```
 
