@@ -108,7 +108,9 @@ function itemDetailLines(
 	];
 }
 
-function emptySectionText(section: DeveloperWorkbenchSection): readonly string[] {
+function emptySectionText(
+	section: DeveloperWorkbenchSection,
+): readonly string[] {
 	const explanation =
 		section.id === "route"
 			? "No judgment route is currently active. Idle does not imply product completion."

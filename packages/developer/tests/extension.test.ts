@@ -2804,10 +2804,7 @@ test("the no-argument command opens a read-only Workbench only in TUI mode", asy
 	const entriesBeforeInspection = harness.entries.length;
 	await harness.commands.get("developer").handler("", harness.ctx);
 	assert.equal(harness.customCalls(), 1);
-	assert.deepEqual(
-		harness.customOptions.at(-1),
-		FULL_SCREEN_SURFACE_OPTIONS,
-	);
+	assert.deepEqual(harness.customOptions.at(-1), FULL_SCREEN_SURFACE_OPTIONS);
 	assert.equal(harness.entries.length, entriesBeforeInspection);
 
 	await harness.commands.get("developer").handler("on", harness.ctx);
@@ -2961,10 +2958,7 @@ test("TUI question selection focuses the pending question and the next route ass
 	harness.ctx.mode = "tui";
 	harness.setCustomResult(undefined);
 	await harness.commands.get("developer").handler("status", harness.ctx);
-	assert.deepEqual(
-		harness.customOptions.at(-1),
-		FULL_SCREEN_SURFACE_OPTIONS,
-	);
+	assert.deepEqual(harness.customOptions.at(-1), FULL_SCREEN_SURFACE_OPTIONS);
 
 	const customCallsBeforeImplementationQuestion = harness.customCalls();
 	harness.setCustomResults([
@@ -3141,10 +3135,7 @@ test("a multi-question editor cancel returns to the Workbench", async () => {
 		(workbenchQuestionOptions[1] as { overlay?: boolean } | undefined)?.overlay,
 		true,
 	);
-	assert.deepEqual(
-		workbenchQuestionOptions[2],
-		FULL_SCREEN_SURFACE_OPTIONS,
-	);
+	assert.deepEqual(workbenchQuestionOptions[2], FULL_SCREEN_SURFACE_OPTIONS);
 });
 
 test("tool renderers are partial-safe and expose routing evidence when expanded", async () => {

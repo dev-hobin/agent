@@ -714,10 +714,7 @@ test("long choice details page inside a sticky brief before native choice surfac
 	assert.match(renderedControls[0] ?? "", /Write another answer…/);
 	assert.match(renderedControls.at(-1) ?? "", /field-0 · option-0-0/);
 	assert.match(renderedControls.at(-1) ?? "", /field-14 · option-14-0/);
-	assert.match(
-		renderedControls.at(-1) ?? "",
-		/PgUp\/PgDn page · ↑↓ select/u,
-	);
+	assert.match(renderedControls.at(-1) ?? "", /PgUp\/PgDn page · ↑↓ select/u);
 	assert.match(request ?? "", /- field-14: option-14-0 — Option 14\/0/);
 	assert.deepEqual(writes, []);
 });
