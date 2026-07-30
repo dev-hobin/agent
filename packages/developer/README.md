@@ -219,10 +219,13 @@ complete result Markdown with basis and artifacts. Landings index implementation
 judgments without inventing a per-landing `Verified` claim that the event schema
 does not record.
 
-The Workbench is keyboard-complete. Use arrows or `j/k` to move, Enter to open,
-Escape to return one level, Tab to change focus, Page Up/Page Down and Home/End
-to scroll, and `?` for contextual help. Opening and scrolling the Workbench does
-not append session entries, send messages, change active tools, or write files.
+The Workbench is a screen-relative, keyboard-complete viewport; it does not rely
+on terminal scrollback. Use arrows or `j/k` to move, Enter to open, Escape to
+return one level, Tab to change focus, Page Up/Page Down and Home/End to scroll,
+and `?` for contextual help. Pi does not yet expose extension-scoped wheel
+capture, so Developer does not take over the mouse globally. Opening and
+scrolling the Workbench does not append session entries, send messages, change
+active tools, or write files.
 
 Developer keeps consequential unknowns explicit instead of silently turning them
 into assumptions. A Question records who can resolve it, what evidence or answer

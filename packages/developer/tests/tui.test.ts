@@ -156,6 +156,18 @@ function isOverlayRequest(options: unknown): boolean {
 	);
 }
 
+function isScreenSurfaceRequest(options: unknown): boolean {
+	if (!isOverlayRequest(options)) return false;
+	const overlayOptions = Reflect.get(options as object, "overlayOptions");
+	return Boolean(
+		overlayOptions &&
+			typeof overlayOptions === "object" &&
+			Reflect.get(overlayOptions, "anchor") === "top-center" &&
+			Reflect.get(overlayOptions, "width") === "100%" &&
+			Reflect.get(overlayOptions, "maxHeight") === "100%",
+	);
+}
+
 function createSettingsBinding(initial: DeveloperState): {
 	binding: DeveloperSettingsBinding;
 	read(): DeveloperState;
@@ -541,7 +553,7 @@ test("choice response specs render field controls and submit exact structured an
 
 	assert.equal(customCall, 4);
 	assert.equal(isOverlayRequest(customOptions[0]), true);
-	assert.deepEqual(customOptions.slice(1), [undefined, undefined, undefined]);
+	assert.ok(customOptions.slice(1).every(isScreenSurfaceRequest));
 	assert.match(renderedControls[0] ?? "", /Why this decision is required/);
 	assert.match(renderedControls[0] ?? "", /Review scope/);
 	assert.match(renderedControls[0] ?? "", /both product constraints/);
@@ -637,7 +649,7 @@ test("long choice details page inside a sticky brief before native choice surfac
 
 	assert.equal(customCall, 17);
 	assert.equal(isOverlayRequest(customOptions[0]), true);
-	assert.ok(customOptions.slice(1).every((options) => options === undefined));
+	assert.ok(customOptions.slice(1).every(isScreenSurfaceRequest));
 	assert.match(briefPages[0] ?? "", /Why this decision is required/);
 	assert.match(briefPages[0] ?? "", /Review scope/);
 	assert.ok(
@@ -655,7 +667,7 @@ test("long choice details page inside a sticky brief before native choice surfac
 	assert.match(renderedControls.at(-1) ?? "", /field-14 · option-14-0/);
 	assert.match(
 		renderedControls.at(-1) ?? "",
-		/mouse wheel scroll · drag select · Cmd\+C copy/,
+		/PgUp\/PgDn page · ↑↓ select/u,
 	);
 	assert.match(request ?? "", /- field-14: option-14-0 — Option 14\/0/);
 	assert.deepEqual(writes, []);
@@ -709,7 +721,7 @@ test("choice response specs offer a final custom answer and preserve it through 
 
 	assert.equal(customCall, 3);
 	assert.equal(isOverlayRequest(customOptions[0]), true);
-	assert.deepEqual(customOptions.slice(1), [undefined, undefined]);
+	assert.ok(customOptions.slice(1).every(isScreenSurfaceRequest));
 	assert.match(renderedBrief, /Review scope/);
 	assert.doesNotMatch(renderedBrief, /## Review scope/);
 	assert.match(renderedField, /Write another answer…/);
@@ -1034,7 +1046,7 @@ test("destructive activation is commit-after-confirm with canonical rollback", a
 	assert.equal(confirmed.overlayOptions.length, 1);
 });
 
-test("non-overlay pending selection wraps the question and returns its exact protocol ID", async () => {
+test("screen-relative pending selection wraps the question and returns its exact protocol ID", async () => {
 	let rendered = "";
 	let customOptions: unknown;
 	const longQuestion: PendingQuestion = {
@@ -1074,10 +1086,10 @@ test("non-overlay pending selection wraps the question and returns its exact pro
 	assert.doesNotMatch(rendered, /question:route:earlier/);
 	assert.doesNotMatch(rendered, /^╭.*╮$/m);
 	assert.ok(rendered.split("\n").every((line) => visibleWidth(line) <= 52));
-	assert.equal(customOptions, undefined);
+	assert.equal(isScreenSurfaceRequest(customOptions), true);
 });
 
-test("question surface renders every row while wheel packets never change selection", async () => {
+test("question surface owns a bounded viewport while wheel packets never change selection", async () => {
 	const writes: string[] = [];
 	let beforeWheel = "";
 	let afterWheel = "";
@@ -1121,13 +1133,59 @@ test("question surface renders every row while wheel packets never change select
 	);
 	assert.match(beforeWheel, /Question 0/);
 	assert.match(beforeWheel, /Question 14/);
-	assert.match(
-		beforeWheel,
-		/mouse wheel scroll · drag select · Cmd\+C copy · ↑↓ select/,
-	);
+	assert.match(beforeWheel, /PgUp\/PgDn page · ↑↓ select/u);
+	assert.doesNotMatch(beforeWheel, /mouse wheel scroll/u);
 	assert.equal(afterWheel, beforeWheel);
-	assert.equal(customOptions, undefined);
+	assert.equal(isScreenSurfaceRequest(customOptions), true);
 	assert.deepEqual(writes, []);
+});
+
+test("question screen keeps its title and help while paging a bounded viewport", async () => {
+	const questions = Array.from(
+		{ length: 15 },
+		(_, index): PendingQuestion => ({
+			...openQuestion,
+			id: `question:viewport:${index}`,
+			question: `Viewport question ${index}`,
+		}),
+	);
+	let firstPage = "";
+	let lastPage = "";
+	const ctx = {
+		ui: {
+			async custom(factory: TestComponentFactory, options: unknown) {
+				assert.equal(isScreenSurfaceRequest(options), true);
+				let selected: unknown;
+				const component = await factory(
+					{ requestRender() {}, terminal: { rows: 14, write() {} } },
+					theme,
+					keybindings,
+					(value: unknown) => {
+						selected = value;
+					},
+				);
+				firstPage = component.render(52).join("\n");
+				component.handleInput("\u001b[6~");
+				lastPage = component.render(52).join("\n");
+				component.handleInput("\r");
+				return selected;
+			},
+		},
+	};
+
+	assert.equal(
+		await showPendingQuestionSelector(ctx as never, questions),
+		"question:viewport:14",
+	);
+	assert.equal(firstPage.split("\n").length, 14);
+	assert.equal(lastPage.split("\n").length, 14);
+	for (const page of [firstPage, lastPage]) {
+		assert.match(page, /Resolve an open Developer question/u);
+		assert.match(page, /PgUp\/PgDn page/u);
+	}
+	assert.match(firstPage, /Viewport question 0/u);
+	assert.doesNotMatch(firstPage, /Viewport question 14/u);
+	assert.match(lastPage, /Viewport question 14/u);
 });
 
 test("Developer surfaces do not paint full-panel backgrounds", async () => {

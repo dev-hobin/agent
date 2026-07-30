@@ -113,7 +113,7 @@ export function createQaQuestions(): PendingQuestion[] {
 		customAnswerQuestion(),
 		visualQuestion(
 			"question:visual:narrow-question",
-			"Does the non-overlay question surface wrap this long observation onto narrow terminal lines without clipping its final words?",
+			"Does the screen-relative question surface keep its title and controls visible while wrapping this long observation onto narrow terminal lines?",
 		),
 		visualQuestion(
 			"question:visual:ghostty-background",
@@ -401,9 +401,9 @@ export function createQaScenarios(): QaScenario[] {
 		},
 		{
 			id: "resize-scroll",
-			label: "Resize / scroll / mouse cleanup",
+			label: "Resize / focused viewport / mouse cleanup",
 			description:
-				"Resize long Workbench history detail; inspect keyboard scrolling, native selection, and bounded layout",
+				"Resize long Workbench history detail; verify its screen-relative frame stays visible while keyboard scrolling changes only the focused viewport",
 			run: runResizeScenario,
 		},
 		{

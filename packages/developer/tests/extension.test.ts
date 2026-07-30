@@ -35,6 +35,15 @@ const loadedLeaves = loadSkillsFromDir({
 
 initTheme(undefined, false);
 
+const FULL_SCREEN_SURFACE_OPTIONS = {
+	overlay: true,
+	overlayOptions: {
+		anchor: "top-center",
+		width: "100%",
+		maxHeight: "100%",
+	},
+} as const;
+
 const TEST_IMPLEMENTATION_CONTRACT = {
 	movement: "Apply one bounded test movement",
 	stop_condition: "The focused test is green and the route is reviewable",
@@ -2795,7 +2804,10 @@ test("the no-argument command opens a read-only Workbench only in TUI mode", asy
 	const entriesBeforeInspection = harness.entries.length;
 	await harness.commands.get("developer").handler("", harness.ctx);
 	assert.equal(harness.customCalls(), 1);
-	assert.equal(harness.customOptions.at(-1), undefined);
+	assert.deepEqual(
+		harness.customOptions.at(-1),
+		FULL_SCREEN_SURFACE_OPTIONS,
+	);
 	assert.equal(harness.entries.length, entriesBeforeInspection);
 
 	await harness.commands.get("developer").handler("on", harness.ctx);
@@ -2814,7 +2826,10 @@ test("Settings is secondary and returns to the Workbench without hidden state ch
 	await harness.commands.get("developer").handler("settings", harness.ctx);
 
 	assert.equal(harness.customCalls(), callsBefore + 2);
-	assert.deepEqual(harness.customOptions.slice(-2), [undefined, undefined]);
+	assert.deepEqual(harness.customOptions.slice(-2), [
+		undefined,
+		FULL_SCREEN_SURFACE_OPTIONS,
+	]);
 	assert.equal(harness.entries.length, entriesBeforeInspection);
 });
 
@@ -2946,7 +2961,10 @@ test("TUI question selection focuses the pending question and the next route ass
 	harness.ctx.mode = "tui";
 	harness.setCustomResult(undefined);
 	await harness.commands.get("developer").handler("status", harness.ctx);
-	assert.equal(harness.customOptions.at(-1), undefined);
+	assert.deepEqual(
+		harness.customOptions.at(-1),
+		FULL_SCREEN_SURFACE_OPTIONS,
+	);
 
 	const customCallsBeforeImplementationQuestion = harness.customCalls();
 	harness.setCustomResults([
@@ -3085,7 +3103,7 @@ test("a multi-question editor cancel returns to the Workbench", async () => {
 
 	assert.equal(harness.customCalls(), customCallsBeforeQuestions + 5);
 	const questionFlowOptions = harness.customOptions.slice(-5);
-	assert.equal(questionFlowOptions[0], undefined);
+	assert.deepEqual(questionFlowOptions[0], FULL_SCREEN_SURFACE_OPTIONS);
 	assert.equal(
 		(questionFlowOptions[1] as { overlay?: boolean } | undefined)?.overlay,
 		true,
@@ -3094,7 +3112,7 @@ test("a multi-question editor cancel returns to the Workbench", async () => {
 		(questionFlowOptions[2] as { overlay?: boolean } | undefined)?.overlay,
 		true,
 	);
-	assert.equal(questionFlowOptions[3], undefined);
+	assert.deepEqual(questionFlowOptions[3], FULL_SCREEN_SURFACE_OPTIONS);
 	assert.equal(
 		(questionFlowOptions[4] as { overlay?: boolean } | undefined)?.overlay,
 		true,
@@ -3118,12 +3136,15 @@ test("a multi-question editor cancel returns to the Workbench", async () => {
 	await harness.commands.get("developer").handler("", harness.ctx);
 	assert.equal(harness.customCalls(), customCallsBeforeSelectorCancel + 3);
 	const workbenchQuestionOptions = harness.customOptions.slice(-3);
-	assert.equal(workbenchQuestionOptions[0], undefined);
+	assert.deepEqual(workbenchQuestionOptions[0], FULL_SCREEN_SURFACE_OPTIONS);
 	assert.equal(
 		(workbenchQuestionOptions[1] as { overlay?: boolean } | undefined)?.overlay,
 		true,
 	);
-	assert.equal(workbenchQuestionOptions[2], undefined);
+	assert.deepEqual(
+		workbenchQuestionOptions[2],
+		FULL_SCREEN_SURFACE_OPTIONS,
+	);
 });
 
 test("tool renderers are partial-safe and expose routing evidence when expanded", async () => {

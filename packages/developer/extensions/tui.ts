@@ -243,52 +243,70 @@ class WrappedSelectList {
 		);
 	}
 
-	render(width: number): string[] {
-		if (this.items.length === 0)
-			return [this.theme.fg("warning", "  No items")];
+	render(width: number, maximumHeight = this.renderHeight): string[] {
+		const height = Math.max(1, Math.floor(maximumHeight));
+		if (this.items.length === 0) {
+			const empty = [this.theme.fg("warning", "  No items")];
+			while (empty.length < height) empty.push("");
+			return empty.slice(0, height);
+		}
 
-		const lines: string[] = [];
-		const startIndex = Math.max(
-			0,
-			Math.min(
-				this.selectedIndex - Math.floor(this.maxVisible / 2),
-				this.items.length - this.maxVisible,
-			),
-		);
-		const endIndex = Math.min(startIndex + this.maxVisible, this.items.length);
-
-		for (let index = startIndex; index < endIndex; index += 1) {
-			const item = this.items[index];
-			if (!item) continue;
-			if (index !== this.selectedIndex) {
-				lines.push(
-					`  ${truncateToWidth(item.label, Math.max(1, width - 2), "…")}`,
-				);
-				continue;
-			}
-
+		const selected = this.items[this.selectedIndex];
+		if (!selected) return Array.from({ length: height }, () => "");
+		const selectedLines = (() => {
+			const lines: string[] = [];
 			const labels = boundedWrappedLines(
-				this.theme.fg("accent", item.label),
+				this.theme.fg("accent", selected.label),
 				width - 2,
 				this.selectedLabelMaxLines,
 				this.theme.fg("dim", "…"),
 			);
 			lines.push(`${this.theme.fg("accent", "→ ")}${labels[0] ?? ""}`);
 			for (const line of labels.slice(1)) lines.push(`  ${line}`);
-
-			if (item.description) {
+			if (selected.description) {
 				const descriptions = boundedWrappedLines(
-					this.theme.fg("muted", item.description),
+					this.theme.fg("muted", selected.description),
 					width - 4,
 					this.selectedDescriptionMaxLines,
 					this.theme.fg("dim", "…"),
 				);
 				for (const line of descriptions) lines.push(`  ${line}`);
 			}
+			return lines;
+		})();
+		const allRows = this.items.length - 1 + selectedLines.length;
+		const showsEveryItem =
+			this.items.length <= this.maxVisible && allRows <= height;
+		const itemRows = showsEveryItem ? height : Math.max(1, height - 1);
+		const selectedExtraRows = Math.max(0, selectedLines.length - 1);
+		const visibleItems = showsEveryItem
+			? this.items.length
+			: Math.min(
+					this.maxVisible,
+					this.items.length,
+					Math.max(1, itemRows - selectedExtraRows),
+				);
+		const startIndex = Math.max(
+			0,
+			Math.min(
+				this.selectedIndex - Math.floor(visibleItems / 2),
+				this.items.length - visibleItems,
+			),
+		);
+		const endIndex = Math.min(startIndex + visibleItems, this.items.length);
+		const lines: string[] = [];
+		for (let index = startIndex; index < endIndex; index += 1) {
+			const item = this.items[index];
+			if (!item) continue;
+			if (index === this.selectedIndex) lines.push(...selectedLines);
+			else
+				lines.push(
+					`  ${truncateToWidth(item.label, Math.max(1, width - 2), "…")}`,
+				);
 		}
-
-		if (startIndex > 0 || endIndex < this.items.length) {
-			lines.push(
+		const visible = lines.slice(0, itemRows);
+		if (!showsEveryItem) {
+			visible.push(
 				this.theme.fg(
 					"dim",
 					truncateToWidth(
@@ -299,9 +317,8 @@ class WrappedSelectList {
 				),
 			);
 		}
-		const visible = lines.slice(0, this.renderHeight);
-		while (visible.length < this.renderHeight) visible.push("");
-		return visible;
+		while (visible.length < height) visible.push("");
+		return visible.slice(0, height);
 	}
 
 	handleInput(data: string): void {
@@ -358,7 +375,7 @@ async function showSelectDialog(
 				hint.setText(
 					theme.fg(
 						"dim",
-						"mouse wheel scroll · drag select · Cmd+C copy · ↑↓ select · enter open · esc back",
+						"PgUp/PgDn page · ↑↓ select · enter open · esc back · drag select · Cmd+C copy",
 					),
 				);
 			};
@@ -385,9 +402,25 @@ async function showSelectDialog(
 
 			return {
 				render(width: number) {
-					return presentation === "overlay"
-						? renderModalFrame(container, theme, width)
-						: container.render(width);
+					if (presentation === "overlay")
+						return renderModalFrame(container, theme, width);
+					const height = Math.max(1, tui.terminal?.rows ?? 24);
+					const titleLines = title.render(width);
+					const subtitleLines = subtitle.render(width);
+					const hintLines = hint.render(width);
+					const listHeight = Math.max(
+						1,
+						height -
+							titleLines.length -
+							subtitleLines.length -
+							hintLines.length,
+					);
+					return [
+						...titleLines,
+						...subtitleLines,
+						...list.render(width, listHeight),
+						...hintLines,
+					].slice(0, height);
 				},
 				invalidate() {
 					updateText();
@@ -399,18 +432,23 @@ async function showSelectDialog(
 				},
 			};
 		},
-		presentation === "overlay"
-			? {
-					overlay: true,
-					overlayOptions: {
-						anchor: "center",
-						width: options.width,
-						minWidth: options.minWidth,
-						maxHeight: "88%",
-						margin: 1,
-					},
-				}
-			: undefined,
+		{
+			overlay: true,
+			overlayOptions:
+				presentation === "overlay"
+					? {
+							anchor: "center",
+							width: options.width,
+							minWidth: options.minWidth,
+							maxHeight: "88%",
+							margin: 1,
+						}
+					: {
+							anchor: "top-center",
+							width: "100%",
+							maxHeight: "100%",
+						},
+		},
 	);
 	return result ?? undefined;
 }
@@ -870,7 +908,7 @@ export async function showDeveloperQuestionBrief(
 			overlayOptions: {
 				anchor: "center",
 				width: "94%",
-				maxHeight: "90%",
+				maxHeight: "100%",
 				margin: 1,
 			},
 		},
