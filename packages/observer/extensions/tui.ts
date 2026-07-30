@@ -897,28 +897,30 @@ export async function showObserverStatus(
 	ctx: ExtensionContext,
 	view: ObserverStatusView,
 ): Promise<void> {
-	await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
-		const panel = new ObserverStatusPanel(
-			view,
-			theme,
-			() => done(),
-			keybindings,
-			() => tui.requestRender(),
-		);
-		return {
-			render: (width) =>
-				panel.render(width, Math.max(8, tui.terminal.rows)),
-			handleInput: (data) => panel.handleInput(data),
-			invalidate: () => panel.invalidate(),
-		};
-	}, {
-		overlay: true,
-		overlayOptions: {
-			anchor: "top-center",
-			width: "100%",
-			maxHeight: "100%",
+	await ctx.ui.custom<void>(
+		(tui, theme, keybindings, done) => {
+			const panel = new ObserverStatusPanel(
+				view,
+				theme,
+				() => done(),
+				keybindings,
+				() => tui.requestRender(),
+			);
+			return {
+				render: (width) => panel.render(width, Math.max(8, tui.terminal.rows)),
+				handleInput: (data) => panel.handleInput(data),
+				invalidate: () => panel.invalidate(),
+			};
 		},
-	});
+		{
+			overlay: true,
+			overlayOptions: {
+				anchor: "top-center",
+				width: "100%",
+				maxHeight: "100%",
+			},
+		},
+	);
 }
 
 function hasObserverAmbientWork(view: ObserverStatusView): boolean {

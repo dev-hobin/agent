@@ -613,7 +613,9 @@ export class ObserverWorkbenchSurface {
 		this.copy(
 			item
 				? semanticItemText(item)
-				: displayTerminalText(emptySectionText(this.view, section.id).join("\n")),
+				: displayTerminalText(
+						emptySectionText(this.view, section.id).join("\n"),
+					),
 		);
 	}
 

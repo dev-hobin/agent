@@ -936,7 +936,9 @@ async function updateProcessingMode(
 	let next: ObserverProcessingPolicy;
 	if (mode === "local") {
 		await input.ctx.modelRegistry.refresh();
-		const models = sessionAvailableModels(input.ctx).filter(isLocalObserverModel);
+		const models = sessionAvailableModels(input.ctx).filter(
+			isLocalObserverModel,
+		);
 		if (models.length === 0) {
 			input.ctx.ui.notify(
 				"No loopback Pi model is available. Configure llama.cpp, Ollama, LM Studio, or vLLM first; the current processing selection is unchanged.",
