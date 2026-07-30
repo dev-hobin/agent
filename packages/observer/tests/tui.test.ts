@@ -931,6 +931,40 @@ test("workbench renders bounded responsive sections and read-only detail", () =>
 	assert.ok(renders >= 4);
 });
 
+test("workbench copies the focused semantic selection without viewport chrome", () => {
+	const copies: string[] = [];
+	const surface = new ObserverWorkbenchSurface({
+		view: workbenchView(),
+		theme,
+		keybindings,
+		done() {},
+		copy: (text) => copies.push(text),
+		requestRender() {},
+	});
+
+	surface.handleInput("y");
+	assert.equal(copies[0], "Overview\nOn");
+	surface.handleInput("\r");
+	surface.handleInput("y");
+	assert.match(copies[1] ?? "", /^Current inquiry\n/u);
+	assert.match(copies[1] ?? "", /Publication\nProposal:/u);
+
+	surface.handleInput("\u001b");
+	surface.handleInput("\u001b[B");
+	surface.handleInput("\r");
+	surface.handleInput("y");
+	surface.handleInput("\r");
+	surface.render(40, 12);
+	surface.handleInput("\u001b[6~");
+	surface.handleInput("y");
+
+	assert.equal(copies[2], copies[3]);
+	assert.match(copies[3] ?? "", /^Inspectable terminal workbench\n/u);
+	assert.match(copies[3] ?? "", /Faithful summary\nLine 1/u);
+	assert.match(copies[3] ?? "", /Line 10/u);
+	assert.doesNotMatch(copies[3] ?? "", /[│╭╮╰╯…]|\u001b\[/u);
+});
+
 test("workbench keeps Settings secondary and requires a contextual Save key", () => {
 	const actions: (ObserverWorkbenchAction | null)[] = [];
 	const proposalView = workbenchView({

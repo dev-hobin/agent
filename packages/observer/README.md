@@ -45,13 +45,17 @@ In Pi's TUI, run `/observer` with no arguments. It opens a keyboard-first, read-
 
 The Workbench is a screen-relative viewport; it does not rely on terminal
 scrollback. Use ↑/↓ or `j/k` to move, Enter to inspect, Tab to move between
-sections and content, PageUp/PageDown or Home/End to scroll, `?` for contextual
-help, and Esc to return one level. Pi does not yet expose extension-scoped wheel
-capture, so Observer does not take over the mouse globally. Wide terminals show
-stable section and content panes together; narrow terminals use list/detail
-navigation. Opening a record is always read-only. Contextual keys expose only
-legal actions—for example `r` in Proposal to prepare Review and `s` only for a
-ready Save batch.
+sections and content, PageUp/PageDown or Home/End to scroll, `y` to copy the
+focused semantic selection, `?` for contextual help, and Esc to return one
+level. Copying a section yields its identity; copying an item or detail yields
+the complete unwrapped record without borders, neighboring panes, terminal
+styling, or viewport truncation. Pi does not yet expose extension-scoped wheel
+capture, so Observer does not take over the mouse globally; native terminal drag
+selection therefore remains screen-wide rather than pane-bounded. Wide terminals
+show stable section and content panes together; narrow terminals use list/detail
+navigation. Opening and copying a record is always read-only. Contextual keys
+expose only legal actions—for example `r` in Proposal to prepare Review and `s`
+only for a ready Save batch.
 
 Settings is secondary to inquiry state. `/observer settings` opens it directly;
 Esc returns to the workbench. Observer On/Off is a toggle; language is not.

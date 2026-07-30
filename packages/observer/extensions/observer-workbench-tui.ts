@@ -1,4 +1,8 @@
-import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
+import {
+	copyToClipboard,
+	type ExtensionContext,
+	type Theme,
+} from "@earendil-works/pi-coding-agent";
 import {
 	type Keybinding,
 	type KeybindingsManager,
@@ -35,6 +39,7 @@ interface ObserverWorkbenchSurfaceOptions {
 	readonly theme: Theme;
 	readonly keybindings?: KeybindingsManager;
 	readonly done: (action: ObserverWorkbenchAction | null) => void;
+	readonly copy?: (text: string) => void;
 	readonly requestRender: () => void;
 }
 
@@ -143,6 +148,18 @@ function blockLines(
 	];
 }
 
+function semanticItemText(item: ObserverWorkbenchItem): string {
+	const state = item.state ? ` · ${item.state}` : "";
+	return displayTerminalText(
+		[
+			item.title,
+			`${item.label}${state}`,
+			item.summary,
+			...item.blocks.flatMap((block) => ["", block.heading, ...block.lines]),
+		].join("\n"),
+	).trimEnd();
+}
+
 function itemDetailLines(
 	item: ObserverWorkbenchItem,
 	width: number,
@@ -171,53 +188,51 @@ function processingWaitReason(view: ObserverWorkbenchView): string {
 	}
 }
 
-function overviewLines(
-	view: ObserverWorkbenchView,
-	width: number,
-	theme: Theme,
-): readonly string[] {
+function overviewText(view: ObserverWorkbenchView): readonly string[] {
 	const proposal = proposalValue(view);
 	const issue =
 		view.status.operationalIssue ??
 		view.status.processingIssue ??
 		view.status.backgroundIssue;
-	const plainLines = (lines: readonly string[]) =>
-		lines.flatMap((line) => wrap(line, width));
 	return [
-		theme.fg("accent", theme.bold("Current inquiry")),
-		...plainLines([
-			`Mode: ${view.status.mode}`,
-			`Episode: ${view.status.episode}`,
-			`Processing: ${view.status.processingMode} · ${view.status.processingDetail}`,
-			`Notebook: ${view.status.notebook}`,
-			"",
-		]),
-		theme.fg("accent", theme.bold("Working set")),
-		...plainLines([
-			`Activity: ${view.activity.length}`,
-			`Pending observations: ${view.status.pendingObservations}`,
-			`Inquiries: ${view.inquiries.length}`,
-			`Memos: ${view.memos.length}`,
-			`Hypothesis reviews pending: ${view.status.pendingHypothesisReviews}`,
-			"",
-		]),
-		theme.fg("accent", theme.bold("Publication")),
-		...plainLines([
-			`Proposal: ${proposal}`,
-			`Saved Notebook records: ${view.notebook.length}`,
-			...(view.notebookInventoryIssue
-				? [`Notebook inspection issue: ${view.notebookInventoryIssue}`]
-				: []),
-			...(issue ? ["", `Recovery: ${issue}`] : []),
-		]),
+		"Current inquiry",
+		`Mode: ${view.status.mode}`,
+		`Episode: ${view.status.episode}`,
+		`Processing: ${view.status.processingMode} · ${view.status.processingDetail}`,
+		`Notebook: ${view.status.notebook}`,
+		"",
+		"Working set",
+		`Activity: ${view.activity.length}`,
+		`Pending observations: ${view.status.pendingObservations}`,
+		`Inquiries: ${view.inquiries.length}`,
+		`Memos: ${view.memos.length}`,
+		`Hypothesis reviews pending: ${view.status.pendingHypothesisReviews}`,
+		"",
+		"Publication",
+		`Proposal: ${proposal}`,
+		`Saved Notebook records: ${view.notebook.length}`,
+		...(view.notebookInventoryIssue
+			? [`Notebook inspection issue: ${view.notebookInventoryIssue}`]
+			: []),
+		...(issue ? ["", `Recovery: ${issue}`] : []),
 	];
 }
 
-function proposalStateLines(
+function overviewLines(
 	view: ObserverWorkbenchView,
 	width: number,
 	theme: Theme,
 ): readonly string[] {
+	return overviewText(view).flatMap((line) =>
+		line === "Current inquiry" ||
+		line === "Working set" ||
+		line === "Publication"
+			? [theme.fg("accent", theme.bold(line))]
+			: wrap(line, width),
+	);
+}
+
+function proposalStateText(view: ObserverWorkbenchView): readonly string[] {
 	const proposal = view.proposal;
 	let lines: string[];
 	switch (proposal.kind) {
@@ -273,10 +288,42 @@ function proposalStateLines(
 		default:
 			return assertNever(proposal);
 	}
+	return [`Proposal · ${proposalValue(view)}`, "", ...lines];
+}
+
+function proposalStateLines(
+	view: ObserverWorkbenchView,
+	width: number,
+	theme: Theme,
+): readonly string[] {
+	const [heading = "", ...detail] = proposalStateText(view);
 	return [
-		theme.fg("accent", theme.bold(`Proposal · ${proposalValue(view)}`)),
+		theme.fg("accent", theme.bold(heading)),
+		...detail.flatMap((line) => wrap(line, width)),
+	];
+}
+
+function emptySectionText(
+	view: ObserverWorkbenchView,
+	section: ObserverWorkbenchSectionId,
+): readonly string[] {
+	if (section === "overview") return overviewText(view);
+	if (section === "proposal") return proposalStateText(view);
+	if (section === "notebook" && view.notebookInventoryIssue)
+		return ["Notebook inspection failed", view.notebookInventoryIssue];
+	if (section === "settings")
+		return [
+			"Settings",
+			"",
+			"Observer activation, processing policy, output language, and Notebook setup live here.",
+			"Press Enter to open Settings. Esc returns to this workbench.",
+		];
+	return [
+		"No items in this section.",
 		"",
-		...lines.flatMap((line) => wrap(line, width)),
+		section === "activity"
+			? "Observer remains quiet until SourceReads or semantic observations are recorded."
+			: "The current branch contains no working records of this type.",
 	];
 }
 
@@ -288,25 +335,15 @@ function emptySectionLines(
 ): readonly string[] {
 	if (section === "overview") return overviewLines(view, width, theme);
 	if (section === "proposal") return proposalStateLines(view, width, theme);
-	if (section === "notebook" && view.notebookInventoryIssue)
+	const [heading = "", ...detail] = emptySectionText(view, section);
+	if (section === "notebook")
 		return [
-			theme.fg("error", theme.bold("Notebook inspection failed")),
-			...wrap(view.notebookInventoryIssue, width),
+			theme.fg("error", theme.bold(heading)),
+			...detail.flatMap((line) => wrap(line, width)),
 		];
 	if (section === "settings")
-		return [
-			theme.fg("accent", theme.bold("Settings")),
-			"",
-			"Observer activation, processing policy, output language, and Notebook setup live here.",
-			"Press Enter to open Settings. Esc returns to this workbench.",
-		];
-	return [
-		theme.fg("muted", "No items in this section."),
-		"",
-		section === "activity"
-			? "Observer remains quiet until SourceReads or semantic observations are recorded."
-			: "The current branch contains no working records of this type.",
-	];
+		return [theme.fg("accent", theme.bold(heading)), ...detail];
+	return [theme.fg("muted", heading), ...detail];
 }
 
 interface WorkbenchActionRule {
@@ -362,29 +399,31 @@ export function observerWorkbenchActionForKey(
 	return rule.action;
 }
 
+const OBSERVER_HELP_LINES = [
+	"Navigation",
+	"↑/↓ or j/k  Move selection or scroll detail",
+	"Enter        Open selected section or item",
+	"Esc          Return one level; close from Sections",
+	"Tab          Move between Sections and current content",
+	"PgUp/PgDn   Scroll detail by one page",
+	"Home/End     First/last item or top/bottom of detail",
+	"y            Copy the focused semantic selection",
+	"?            Open or close this contextual help",
+	"",
+	"Contextual actions",
+	"m            Reconcile pending work into Memos",
+	"r            Review and prepare publication proposal",
+	"s            Inspect and authorize ready Save batch",
+	"h            Draft a user hypothesis",
+	"o            Draft material for explicit observation",
+	"t/x          Retry/cancel a pending material review",
+	"",
+	"Safety",
+	"Opening items is read-only. Save requires a separate explicit batch approval. Partial proposal output is never shown as ready Markdown.",
+] as const;
+
 function helpLines(width: number, theme: Theme): readonly string[] {
-	const lines = [
-		"Navigation",
-		"↑/↓ or j/k  Move selection or scroll detail",
-		"Enter        Open selected section or item",
-		"Esc          Return one level; close from Sections",
-		"Tab          Move between Sections and current content",
-		"PgUp/PgDn   Scroll detail by one page",
-		"Home/End     First/last item or top/bottom of detail",
-		"?            Open or close this contextual help",
-		"",
-		"Contextual actions",
-		"m            Reconcile pending work into Memos",
-		"r            Review and prepare publication proposal",
-		"s            Inspect and authorize ready Save batch",
-		"h            Draft a user hypothesis",
-		"o            Draft material for explicit observation",
-		"t/x          Retry/cancel a pending material review",
-		"",
-		"Safety",
-		"Opening items is read-only. Save requires a separate explicit batch approval. Partial proposal output is never shown as ready Markdown.",
-	];
-	return lines.flatMap((line) => {
+	return OBSERVER_HELP_LINES.flatMap((line) => {
 		if (
 			line === "Navigation" ||
 			line === "Contextual actions" ||
@@ -397,6 +436,7 @@ function helpLines(width: number, theme: Theme): readonly string[] {
 }
 
 export class ObserverWorkbenchSurface {
+	private readonly copy: ((text: string) => void) | undefined;
 	private readonly done: (action: ObserverWorkbenchAction | null) => void;
 	private readonly keybindings: KeybindingsManager | undefined;
 	private readonly requestRender: () => void;
@@ -419,6 +459,7 @@ export class ObserverWorkbenchSurface {
 		this.theme = options.theme;
 		this.keybindings = options.keybindings;
 		this.done = options.done;
+		this.copy = options.copy;
 		this.requestRender = options.requestRender;
 		this.sections = observerWorkbenchSections(options.view);
 	}
@@ -553,6 +594,29 @@ export class ObserverWorkbenchSurface {
 		this.detailScroll = 0;
 	}
 
+	private copyFocusedSelection(): void {
+		if (!this.copy) return;
+		if (this.pane === "help") {
+			this.copy(OBSERVER_HELP_LINES.join("\n"));
+			return;
+		}
+		const section = this.section();
+		if (this.pane === "sections") {
+			this.copy(
+				displayTerminalText(
+					[section.label, section.value].filter(Boolean).join("\n"),
+				),
+			);
+			return;
+		}
+		const item = section.items[this.selectedIndex(section)];
+		this.copy(
+			item
+				? semanticItemText(item)
+				: displayTerminalText(emptySectionText(this.view, section.id).join("\n")),
+		);
+	}
+
 	private routeInput(data: string): boolean {
 		if (this.matches(data, "tui.select.cancel", "escape")) this.back();
 		else if (this.matches(data, "tui.select.confirm", "enter"))
@@ -593,6 +657,10 @@ export class ObserverWorkbenchSurface {
 	handleInput(data: string): void {
 		if (matchesKey(data, "ctrl+c")) {
 			this.done(null);
+			return;
+		}
+		if (data === "y") {
+			this.copyFocusedSelection();
 			return;
 		}
 		if (data === "?") {
@@ -663,7 +731,7 @@ export class ObserverWorkbenchSurface {
 
 	private footer(): string {
 		if (this.pane === "help")
-			return `${this.key("tui.select.up", "↑")}/${this.key("tui.select.down", "↓")} scroll · ${this.key("tui.select.pageUp", "PgUp")}/${this.key("tui.select.pageDown", "PgDn")} page · ?/${this.key("tui.select.cancel", "Esc")} back`;
+			return `${this.key("tui.select.up", "↑")}/${this.key("tui.select.down", "↓")} scroll · ${this.key("tui.select.pageUp", "PgUp")}/${this.key("tui.select.pageDown", "PgDn")} page · y copy · ?/${this.key("tui.select.cancel", "Esc")} back`;
 		const base =
 			this.pane === "detail"
 				? `${this.key("tui.select.up", "↑")}/${this.key("tui.select.down", "↓")} scroll · PgUp/PgDn page · Esc back`
@@ -680,7 +748,7 @@ export class ObserverWorkbenchSurface {
 		if (section === "inquiries") contextual.push("h Hypothesis");
 		if (this.view.status.pendingMaterialReview)
 			contextual.push("t retry", "x cancel");
-		contextual.push("? help");
+		contextual.push("y copy", "? help");
 		return `${base} · ${contextual.join(" · ")}`;
 	}
 
@@ -771,6 +839,20 @@ export async function showObserverWorkbench(
 				theme,
 				keybindings,
 				done,
+				copy: (text) => {
+					void copyToClipboard(text).then(
+						() =>
+							ctx.ui.notify(
+								"Focused Observer content copied to clipboard.",
+								"info",
+							),
+						(error: unknown) =>
+							ctx.ui.notify(
+								`Could not copy focused Observer content: ${error instanceof Error ? error.message : String(error)}`,
+								"error",
+							),
+					);
+				},
 				requestRender: () => tui.requestRender(),
 			});
 			return {
