@@ -45,7 +45,7 @@ project's `.pi/settings.json` instead of the user profile:
 pi install -l npm:@hobin/developer
 ```
 
-Developer 0.1.14 has been exercised against Pi 0.80.10 and 0.82.1. Consult each
+Developer 0.1.15 has been exercised against Pi 0.80.10 and 0.82.1. Consult each
 package README for its current verification matrix. Pi core imports are peer
 dependencies supplied by the host and are not bundled into npm artifacts.
 
@@ -92,7 +92,7 @@ pi remove npm:@hobin/learning
 ```
 
 An unversioned npm install follows future package updates. Install a specific
-version, such as `npm:@hobin/developer@0.1.14`, when you want it pinned.
+version, such as `npm:@hobin/developer@0.1.15`, when you want it pinned.
 
 ## Repository layout
 
