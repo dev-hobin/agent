@@ -907,10 +907,17 @@ export async function showObserverStatus(
 		);
 		return {
 			render: (width) =>
-				panel.render(width, Math.max(8, tui.terminal.rows - 2)),
+				panel.render(width, Math.max(8, tui.terminal.rows)),
 			handleInput: (data) => panel.handleInput(data),
 			invalidate: () => panel.invalidate(),
 		};
+	}, {
+		overlay: true,
+		overlayOptions: {
+			anchor: "top-center",
+			width: "100%",
+			maxHeight: "100%",
+		},
 	});
 }
 

@@ -15,9 +15,13 @@ import { observerCommandPresentation } from "../extensions/observer.ts";
 import {
 	ObserverWorkbenchSurface,
 	observerWorkbenchSections,
+	showObserverWorkbench,
 	type ObserverWorkbenchAction,
 } from "../extensions/observer-workbench-tui.ts";
-import { SaveProposalReviewSurface } from "../extensions/save-proposal-tui.ts";
+import {
+	SaveProposalReviewSurface,
+	showSaveProposalReview,
+} from "../extensions/save-proposal-tui.ts";
 import {
 	OBSERVER_HYPOTHESIS_DRAFT,
 	OBSERVER_OBSERVE_MATERIAL_DRAFT,
@@ -28,6 +32,7 @@ import {
 	renderObserverChromeStatus,
 	shouldShowObserverWidget,
 	showObserverControl,
+	showObserverStatus,
 } from "../extensions/tui.ts";
 import type { ObserverStatusView } from "../src/observer-status.ts";
 import type { ObserverWorkbenchView } from "../src/observer-workbench.ts";
@@ -38,7 +43,10 @@ interface InteractiveTestComponent extends Component {
 }
 
 type TestComponentFactory = (
-	tui: { requestRender(): void },
+	tui: {
+		requestRender(): void;
+		terminal?: { rows: number };
+	},
 	theme: Theme,
 	keybindings: unknown,
 	done: (value: unknown) => void,
@@ -78,6 +86,19 @@ const theme = {
 	fg: (_color: string, text: string) => text,
 	bg: (_color: string, text: string) => text,
 } as Theme;
+
+function isScreenSurfaceRequest(options: unknown): boolean {
+	if (!options || typeof options !== "object") return false;
+	const overlayOptions = Reflect.get(options, "overlayOptions");
+	return Boolean(
+		Reflect.get(options, "overlay") === true &&
+			overlayOptions &&
+			typeof overlayOptions === "object" &&
+			Reflect.get(overlayOptions, "anchor") === "top-center" &&
+			Reflect.get(overlayOptions, "width") === "100%" &&
+			Reflect.get(overlayOptions, "maxHeight") === "100%",
+	);
+}
 
 function statusView(
 	overrides: Partial<ObserverStatusView> = {},
@@ -221,6 +242,39 @@ function proposalReview(): SaveProposalReview {
 		],
 	};
 }
+
+test("long Observer surfaces use a screen-relative viewport above Pi chrome", async () => {
+	const options: unknown[] = [];
+	const renderHeights: number[] = [];
+	const ctx = {
+		ui: {
+			async custom(factory: TestComponentFactory, customOptions: unknown) {
+				options.push(customOptions);
+				let selected: unknown;
+				const component = await factory(
+					{ requestRender() {}, terminal: { rows: 18 } },
+					theme,
+					keybindings,
+					(value: unknown) => {
+						selected = value;
+					},
+				);
+				renderHeights.push(component.render(72).length);
+				component.handleInput("\u001b");
+				return selected;
+			},
+		},
+	};
+
+	await showObserverWorkbench(ctx as never, workbenchView());
+	await showObserverStatus(ctx as never, openView());
+	assert.equal(
+		await showSaveProposalReview(ctx as never, proposalReview()),
+		"back",
+	);
+	assert.ok(options.every(isScreenSurfaceRequest));
+	assert.deepEqual(renderHeights, [18, 18, 18]);
+});
 
 test("TUI uses /observer as a workbench while preserving non-TUI commands", () => {
 	assert.equal(observerCommandPresentation("", "tui"), "control");
@@ -838,7 +892,8 @@ test("workbench renders bounded responsive sections and read-only detail", () =>
 	const ansiTheme = {
 		...theme,
 		bold: (text: string) => `\u001b[1m${text}\u001b[22m`,
-		fg: (_color: string, text: string) => `\u001b[38;2;138;190;183m${text}\u001b[39m`,
+		fg: (_color: string, text: string) =>
+			`\u001b[38;2;138;190;183m${text}\u001b[39m`,
 	} as Theme;
 	const colored = new ObserverWorkbenchSurface({
 		view,

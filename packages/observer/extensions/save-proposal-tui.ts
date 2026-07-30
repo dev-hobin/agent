@@ -434,10 +434,18 @@ export async function showSaveProposalReview(
 			});
 			return {
 				render: (width) =>
-					surface.render(width, Math.max(12, tui.terminal.rows - 2)),
+					surface.render(width, Math.max(12, tui.terminal.rows)),
 				handleInput: (data) => surface.handleInput(data),
 				invalidate: () => surface.invalidate(),
 			};
+		},
+		{
+			overlay: true,
+			overlayOptions: {
+				anchor: "top-center",
+				width: "100%",
+				maxHeight: "100%",
+			},
 		},
 	);
 	return decision ?? "back";
