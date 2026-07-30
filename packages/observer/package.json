@@ -1,6 +1,6 @@
 {
   "name": "@hobin/observer",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A local-first observation mode for durable inquiry, memo reconciliation, and Zettelkasten promotion in Pi.",
   "type": "module",
   "keywords": [
@@ -48,8 +48,8 @@
     "extensions": ["./extensions/observer.ts"]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.80.10 <0.83.0",
-    "@earendil-works/pi-tui": ">=0.80.10 <0.83.0",
+    "@earendil-works/pi-coding-agent": ">=0.80.10 <0.84.0",
+    "@earendil-works/pi-tui": ">=0.80.10 <0.84.0",
     "typebox": "^1.3.6"
   },
   "dependencies": {

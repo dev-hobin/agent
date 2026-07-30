@@ -84,6 +84,33 @@ test("bounded overflow defers the evicted job instead of dropping it silently", 
 	assert.deepEqual(settled, ["oldest:deferred"]);
 });
 
+test("provider failures are deferred once instead of retried in the same run", async () => {
+	const starts: string[] = [];
+	const settled: string[] = [];
+	const queue = createObserverBackgroundQueue<TestJob>({
+		run(job) {
+			starts.push(job.id);
+			throw new Error("provider returned an unmapped terminal stop reason");
+		},
+		settled(job, result) {
+			settled.push(
+				`${job.id}:${result.status}:${result.status === "deferred" ? result.message : ""}`,
+			);
+		},
+	});
+
+	queue.enqueue({ id: "provider-error" });
+	queue.resume();
+	await nextTask();
+	await nextTask();
+
+	assert.deepEqual(starts, ["provider-error"]);
+	assert.deepEqual(settled, [
+		"provider-error:deferred:provider returned an unmapped terminal stop reason",
+	]);
+	assert.equal(queue.snapshot().state, "idle");
+});
+
 test("foreground pause aborts and requeues active Observer work", async () => {
 	const starts: string[] = [];
 	const settled: string[] = [];

@@ -11,18 +11,22 @@ This file governs maintainer actions for `@hobin/observer`. It is intentionally 
 - Never infer permission to push or publish. Both are explicit maintainer effects.
 - npm versions are immutable. Never retry by overwriting or silently changing the version.
 
-## 0.1.4 candidate contract
+## 0.1.5 candidate contract
 
 ```text
-package: @hobin/observer@0.1.4
+package: @hobin/observer@0.1.5
 npm access/tag: public/latest
 Node: >=22.19.0
-Pi peer: >=0.80.10 <0.83.0
+Pi peer: >=0.80.10 <0.84.0
 TypeBox peer: ^1.3.6
 pack: exactly 54 allowlisted files; no tests or scripts
 ```
 
-The supported Pi matrix is `0.80.10`, `0.81.1`, and `0.82.1`. Pi `0.79.10` is the lower-bound counterexample: strict peer resolution must reject it before runtime.
+The supported Pi matrix is `0.80.10`, `0.81.1`, `0.82.1`, and `0.83.0`.
+Pi `0.79.10` is the lower-bound counterexample: strict peer resolution must
+reject it before runtime. Pi 0.83 coverage includes bundled TypeBox 1.3.7
+compiled validation of Observer's nullable tool arguments and session-scoped
+local-model selection.
 
 ## Candidate preparation
 
@@ -52,6 +56,7 @@ Create each consumer under `/tmp`, install the packed candidate with strict peer
 Pi 0.80.10 + supported Node + resolved TypeBox → RPC smoke
 Pi 0.81.1  + supported Node + resolved TypeBox → RPC smoke
 Pi 0.82.1  + supported Node + resolved TypeBox → RPC smoke
+Pi 0.83.0  + supported Node + bundled TypeBox 1.3.7 → RPC + compiled tool-schema smoke
 Pi 0.79.10 + strict peer handling             → ERESOLVE
 ```
 
@@ -105,8 +110,8 @@ Supply the write-TFA OTP interactively. Do not store it in scripts, logs, or rep
 Publication is complete only after registry readback and a fresh Pi install:
 
 ```sh
-npm view @hobin/observer@0.1.4 name version dist-tags dist.integrity --json
-pi install npm:@hobin/observer@0.1.4
+npm view @hobin/observer@0.1.5 name version dist-tags dist.integrity --json
+pi install npm:@hobin/observer@0.1.5
 pi list
 ```
 

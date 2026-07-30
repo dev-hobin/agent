@@ -50,8 +50,10 @@ import {
 	DEFAULT_OBSERVER_PROCESSING_POLICY,
 	fileObserverProcessingPolicyStore,
 	isLocalObserverModel,
+	modelsInObserverSessionScope,
 	observerLocalModelRef,
 	processingPolicy,
+	type ObserverModelIdentity,
 	type ObserverProcessingPolicy,
 	type ObserverProcessingPolicyStore,
 } from "../src/observer-processing-policy.ts";
@@ -883,13 +885,34 @@ interface ObserverCommandInput {
 	readonly processingStore: ObserverProcessingPolicyStore;
 }
 
+function sessionScopedModels(
+	ctx: ExtensionContext,
+): readonly ObserverModelIdentity[] | undefined {
+	const scoped = Reflect.get(ctx, "scopedModels");
+	if (!Array.isArray(scoped)) return undefined;
+	return scoped.map((entry) =>
+		Reflect.get(entry as object, "model"),
+	) as ObserverModelIdentity[];
+}
+
+function sessionAvailableModels(ctx: ExtensionContext) {
+	return modelsInObserverSessionScope(
+		ctx.modelRegistry.getAvailable(),
+		sessionScopedModels(ctx),
+	);
+}
+
 function localProcessingModel(
 	processing: ObserverProcessingRuntime,
 	ctx: ExtensionContext,
 ) {
 	const selected = processing.policy.local_model;
 	if (!selected) return undefined;
-	const model = ctx.modelRegistry.find(selected.provider, selected.model_id);
+	const model = sessionAvailableModels(ctx).find(
+		(candidate) =>
+			candidate.provider === selected.provider &&
+			candidate.id === selected.model_id,
+	);
 	return model && isLocalObserverModel(model) ? model : undefined;
 }
 
@@ -913,9 +936,7 @@ async function updateProcessingMode(
 	let next: ObserverProcessingPolicy;
 	if (mode === "local") {
 		await input.ctx.modelRegistry.refresh();
-		const models = input.ctx.modelRegistry
-			.getAvailable()
-			.filter(isLocalObserverModel);
+		const models = sessionAvailableModels(input.ctx).filter(isLocalObserverModel);
 		if (models.length === 0) {
 			input.ctx.ui.notify(
 				"No loopback Pi model is available. Configure llama.cpp, Ollama, LM Studio, or vLLM first; the current processing selection is unchanged.",

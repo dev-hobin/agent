@@ -19,7 +19,7 @@ async function readJson(relativePath) {
 
 const manifest = await readJson("package.json");
 assert.equal(manifest.name, "@hobin/observer");
-assert.equal(manifest.version, "0.1.4");
+assert.equal(manifest.version, "0.1.5");
 assert.equal(manifest.private, undefined);
 assert.deepEqual(manifest.publishConfig, { access: "public" });
 assert.deepEqual(manifest.files, [
@@ -50,8 +50,8 @@ assert.deepEqual(manifest.pi, {
 	extensions: ["./extensions/observer.ts"],
 });
 assert.deepEqual(manifest.peerDependencies, {
-	"@earendil-works/pi-coding-agent": ">=0.80.10 <0.83.0",
-	"@earendil-works/pi-tui": ">=0.80.10 <0.83.0",
+	"@earendil-works/pi-coding-agent": ">=0.80.10 <0.84.0",
+	"@earendil-works/pi-tui": ">=0.80.10 <0.84.0",
 	typebox: "^1.3.6",
 });
 

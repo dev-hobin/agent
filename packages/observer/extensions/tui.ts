@@ -914,10 +914,22 @@ export async function showObserverStatus(
 	});
 }
 
+function hasObserverAmbientWork(view: ObserverStatusView): boolean {
+	return Boolean(
+		view.control.mode === "on" ||
+			view.control.episode !== "empty" ||
+			view.pendingMaterialReview ||
+			view.automaticProcessingPause ||
+			view.backgroundWork?.state === "Running" ||
+			view.backgroundWork?.state === "Queued",
+	);
+}
+
 export function renderObserverChromeStatus(
 	view: ObserverStatusView,
 	theme: Theme,
 ): string | undefined {
+	if (!hasObserverAmbientWork(view)) return undefined;
 	const separator = theme.fg("dim", " · ");
 	if (
 		view.processingIssue ||
@@ -985,6 +997,7 @@ export function renderObserverChromeStatus(
 }
 
 export function shouldShowObserverWidget(view: ObserverStatusView): boolean {
+	if (!hasObserverAmbientWork(view)) return false;
 	return Boolean(
 		view.operationalIssue ||
 			view.processingIssue ||
@@ -1017,8 +1030,8 @@ export class ObserverWidget {
 			this.view.operationalIssue ||
 			this.view.control.notebook === "unhealthy"
 		) {
-			lines.push(this.theme.fg("error", "! Observer · recovery required"));
-			lines.push(this.theme.fg("dim", "  /observer → Status and health"));
+			lines.push(this.theme.fg("error", "! Observer · needs attention"));
+			lines.push(this.theme.fg("dim", "  /observer → Overview"));
 		} else if (this.view.pendingMaterialReview) {
 			lines.push(
 				this.theme.fg(

@@ -48,10 +48,10 @@ importers:
   packages/observer:
     dependencies:
       '@earendil-works/pi-coding-agent':
-        specifier: '>=0.80.10 <0.83.0'
+        specifier: '>=0.80.10 <0.84.0'
         version: 0.80.10(ws@8.21.1)(zod@4.4.3)
       '@earendil-works/pi-tui':
-        specifier: '>=0.80.10 <0.83.0'
+        specifier: '>=0.80.10 <0.84.0'
         version: 0.80.10
       ajv:
         specifier: ^8.17.1

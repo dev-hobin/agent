@@ -181,29 +181,36 @@ function overviewLines(
 		view.status.operationalIssue ??
 		view.status.processingIssue ??
 		view.status.backgroundIssue;
-	const lines = [
+	const plainLines = (lines: readonly string[]) =>
+		lines.flatMap((line) => wrap(line, width));
+	return [
 		theme.fg("accent", theme.bold("Current inquiry")),
-		`Mode: ${view.status.mode}`,
-		`Episode: ${view.status.episode}`,
-		`Processing: ${view.status.processingMode} · ${view.status.processingDetail}`,
-		`Notebook: ${view.status.notebook}`,
-		"",
+		...plainLines([
+			`Mode: ${view.status.mode}`,
+			`Episode: ${view.status.episode}`,
+			`Processing: ${view.status.processingMode} · ${view.status.processingDetail}`,
+			`Notebook: ${view.status.notebook}`,
+			"",
+		]),
 		theme.fg("accent", theme.bold("Working set")),
-		`Activity: ${view.activity.length}`,
-		`Pending observations: ${view.status.pendingObservations}`,
-		`Inquiries: ${view.inquiries.length}`,
-		`Memos: ${view.memos.length}`,
-		`Hypothesis reviews pending: ${view.status.pendingHypothesisReviews}`,
-		"",
+		...plainLines([
+			`Activity: ${view.activity.length}`,
+			`Pending observations: ${view.status.pendingObservations}`,
+			`Inquiries: ${view.inquiries.length}`,
+			`Memos: ${view.memos.length}`,
+			`Hypothesis reviews pending: ${view.status.pendingHypothesisReviews}`,
+			"",
+		]),
 		theme.fg("accent", theme.bold("Publication")),
-		`Proposal: ${proposal}`,
-		`Saved Notebook records: ${view.notebook.length}`,
-		...(view.notebookInventoryIssue
-			? [`Notebook inspection issue: ${view.notebookInventoryIssue}`]
-			: []),
-		...(issue ? ["", `Recovery: ${issue}`] : []),
+		...plainLines([
+			`Proposal: ${proposal}`,
+			`Saved Notebook records: ${view.notebook.length}`,
+			...(view.notebookInventoryIssue
+				? [`Notebook inspection issue: ${view.notebookInventoryIssue}`]
+				: []),
+			...(issue ? ["", `Recovery: ${issue}`] : []),
+		]),
 	];
-	return lines.flatMap((line) => wrap(line, width));
 }
 
 function proposalStateLines(

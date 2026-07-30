@@ -9,6 +9,7 @@ import {
 	decodeObserverProcessingPolicy,
 	fileObserverProcessingPolicyStore,
 	isLocalObserverModel,
+	modelsInObserverSessionScope,
 	processingPolicy,
 } from "../src/observer-processing-policy.ts";
 
@@ -40,6 +41,27 @@ describe("Observer processing policy", () => {
 				baseUrl: "https://api.example.test/v1",
 			}),
 			false,
+		);
+	});
+
+	test("honors Pi session model scope while retaining old and unscoped fallback", () => {
+		const available = [
+			{ provider: "ollama", id: "allowed" },
+			{ provider: "llama.cpp", id: "outside-scope" },
+		];
+		assert.deepEqual(modelsInObserverSessionScope(available, undefined), available);
+		assert.deepEqual(modelsInObserverSessionScope(available, []), available);
+		assert.deepEqual(
+			modelsInObserverSessionScope(available, [
+				{ provider: "ollama", id: "allowed" },
+			]),
+			[available[0]],
+		);
+		assert.deepEqual(
+			modelsInObserverSessionScope(available, [
+				{ provider: "ollama", id: "missing" },
+			]),
+			[],
 		);
 	});
 

@@ -12,7 +12,9 @@ All three paths use the same Episode and Memo flow. Review prepares an inspectab
 
 ## Install
 
-Requires Node.js 22.19 or newer. The 0.1.x compatibility window is Pi 0.80.10 through 0.82.x; release checks exercise Pi 0.80.10, 0.81.1, and 0.82.1.
+Requires Node.js 22.19 or newer. The 0.1.x compatibility window is Pi
+0.80.10 through 0.83.x; release checks exercise Pi 0.80.10, 0.81.1, 0.82.1,
+and 0.83.0.
 
 ```sh
 pi install npm:@hobin/observer
@@ -43,7 +45,15 @@ In Pi's TUI, run `/observer` with no arguments. It opens a keyboard-first, read-
 
 Use ↑/↓ or `j/k` to move, Enter to inspect, Tab to move between sections and content, PageUp/PageDown or Home/End to scroll, `?` for contextual help, and Esc to return one level. Wide terminals show stable section and content panes together; narrow terminals use list/detail navigation. Opening a record is always read-only. Contextual keys expose only legal actions—for example `r` in Proposal to prepare Review and `s` only for a ready Save batch.
 
-Settings is secondary to inquiry state. `/observer settings` opens it directly; Esc returns to the workbench. Observer On/Off is a toggle; language is not. Enter on the language row opens an explicit `English (en)` / `Korean (ko)` chooser with the current choice preselected. On/Off and language changes update in place. The footer and small widget stay hidden while Observer is idle, including before Notebook setup. They appear only while observation is active, an Episode is preserved, or review or recovery needs attention.
+Settings is secondary to inquiry state. `/observer settings` opens it directly;
+Esc returns to the workbench. Observer On/Off is a toggle; language is not.
+Enter on the language row opens an explicit `English (en)` / `Korean (ko)`
+chooser with the current choice preselected. On/Off and language changes update
+in place. The footer and small widget stay hidden while Observer is idle,
+including before Notebook setup and when only a remembered Notebook selection
+needs recovery. Notebook health remains inspectable in the workbench. Ambient
+status appears only while observation is active, an Episode or explicit request
+is preserved, or active work needs recovery.
 
 Observer never chooses a Notebook path for you. Setup distinguishes absolute paths, paths relative to Pi's current working directory, and `~` / `~/…` paths relative to your home directory. For example, `~/coding/archive` resolves to `$HOME/coding/archive`; it is never treated as a literal `~` folder under the current project. `~user/…` syntax is rejected rather than guessed. The TUI shows both the input kind and resolved absolute path, with a safe **Go back** default, before it initializes a new folder or adopts an existing one without rewriting unrelated files. The selected Notebook is then stored and locked as its canonical absolute path for Review and Save. Direct commands remain available:
 

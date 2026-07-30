@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { SessionManager, type Theme } from "@earendil-works/pi-coding-agent";
+import { Compile } from "typebox/compile";
 import { Value } from "typebox/value";
 
 import observerExtension, {
@@ -169,8 +170,8 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 		extensions: ["./extensions/observer.ts"],
 	});
 	assert.deepEqual(manifest.peerDependencies, {
-		"@earendil-works/pi-coding-agent": ">=0.80.10 <0.83.0",
-		"@earendil-works/pi-tui": ">=0.80.10 <0.83.0",
+		"@earendil-works/pi-coding-agent": ">=0.80.10 <0.84.0",
+		"@earendil-works/pi-tui": ">=0.80.10 <0.84.0",
 		typebox: "^1.3.6",
 	});
 	assert.equal(manifest.files.includes("extensions"), true);
@@ -226,6 +227,8 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 	assert.match(agentEndHandler, /localProcessingModel/u);
 	assert.doesNotMatch(agentEndHandler, /ctx\.model/u);
 	assert.match(source, /isLocalObserverModel/u);
+	assert.match(source, /modelsInObserverSessionScope/u);
+	assert.match(source, /sessionScopedModels/u);
 	assert.doesNotMatch(source, /model: input\.ctx\.model/u);
 	assert.match(source, /Piggyback\. No separate model request is started/u);
 	assert.match(
@@ -898,7 +901,7 @@ test("separates ordinary records from independent Observer hypotheses", () => {
 	);
 });
 
-test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {
+test("preserves explicit null through converted and compiled TypeBox validation", () => {
 	const value = {
 		observer_action: "observer-sidecar/v1",
 		action: "source-read",
@@ -916,7 +919,9 @@ test("preserves explicit null through Pi 0.80.10 TypeBox conversion", () => {
 		faithful_summary: "Explicit absence survives validation.",
 		claims: [{ text: "One claim.", locator: null }],
 	};
-	Value.Convert(observerSidecarParameters, value);
+	Value.Convert(observerRuntimeSidecarParameters, value);
+	const validator = Compile(observerRuntimeSidecarParameters);
+	assert.equal(validator.Check(value), true);
 	assert.equal(value.claims[0]?.locator, null);
 });
 

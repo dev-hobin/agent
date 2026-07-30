@@ -714,6 +714,18 @@ test("footer and widget expose only action-relevant ambient state", () => {
 	assert.equal(renderObserverChromeStatus(idle, theme), undefined);
 	assert.equal(shouldShowObserverWidget(idle), false);
 
+	const dormantUnhealthy = statusView({
+		control: {
+			...statusView().control,
+			notebook: "unhealthy",
+			canChangeNotebook: true,
+		},
+		notebook: "Selection needs attention",
+		operationalIssue: "The remembered Notebook path is unavailable.",
+	});
+	assert.equal(renderObserverChromeStatus(dormantUnhealthy, theme), undefined);
+	assert.equal(shouldShowObserverWidget(dormantUnhealthy), false);
+
 	const active = openView();
 	assert.equal(
 		renderObserverChromeStatus(active, theme),
@@ -725,6 +737,22 @@ test("footer and widget expose only action-relevant ambient state", () => {
 	assert.match(activeLines.join("\n"), /on · ko/);
 	assert.match(activeLines.join("\n"), /Memo 3 · Inquiry 2/);
 	assert.ok(activeLines.every((line) => visibleWidth(line) <= 52));
+
+	const activeUnhealthy = {
+		...active,
+		control: { ...active.control, notebook: "unhealthy" as const },
+		operationalIssue: "The selected Notebook needs recovery.",
+	};
+	assert.equal(
+		renderObserverChromeStatus(activeUnhealthy, theme),
+		"observer · needs attention",
+	);
+	const recoveryWidget = new ObserverWidget(activeUnhealthy, theme)
+		.render(52)
+		.join("\n");
+	assert.match(recoveryWidget, /Observer · needs attention/u);
+	assert.match(recoveryWidget, /\/observer → Overview/u);
+	assert.doesNotMatch(recoveryWidget, /\/observe(?:\s|$)/u);
 
 	const off = openView("off");
 	assert.equal(
@@ -806,6 +834,24 @@ test("workbench renders bounded responsive sections and read-only detail", () =>
 	const wide = surface.render(120, 20);
 	assert.equal(wide.length, 20);
 	assert.ok(wide.every((line) => visibleWidth(line) <= 120));
+
+	const ansiTheme = {
+		...theme,
+		bold: (text: string) => `\u001b[1m${text}\u001b[22m`,
+		fg: (_color: string, text: string) => `\u001b[38;2;138;190;183m${text}\u001b[39m`,
+	} as Theme;
+	const colored = new ObserverWorkbenchSurface({
+		view,
+		theme: ansiTheme,
+		keybindings,
+		done: () => {},
+		requestRender: () => {},
+	})
+		.render(120, 20)
+		.join("\n");
+	assert.match(colored, /\u001b\[1mCurrent inquiry\u001b\[22m/u);
+	assert.doesNotMatch(colored, /␛\[/u);
+
 	const narrow = surface.render(40, 18);
 	assert.equal(narrow.length, 18);
 	assert.ok(narrow.every((line) => visibleWidth(line) <= 40));

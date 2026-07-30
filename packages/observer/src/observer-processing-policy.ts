@@ -39,10 +39,32 @@ export interface ObserverProcessingPolicyStore {
 	save(policy: ObserverProcessingPolicy): Promise<void>;
 }
 
-interface ObserverModelLike {
+export interface ObserverModelIdentity {
 	readonly provider: string;
 	readonly id: string;
+}
+
+interface ObserverModelLike extends ObserverModelIdentity {
 	readonly baseUrl: string;
+}
+
+/**
+ * Pi 0.83 exposes a resolved session scope. An absent scope (older Pi) and an
+ * explicit empty scope both mean that every available model remains eligible.
+ */
+export function modelsInObserverSessionScope<
+	Model extends ObserverModelIdentity,
+>(
+	available: readonly Model[],
+	scoped: readonly ObserverModelIdentity[] | undefined,
+): Model[] {
+	if (!scoped || scoped.length === 0) return [...available];
+	const allowed = new Set(
+		scoped.map((model) => `${model.provider}\u0000${model.id}`),
+	);
+	return available.filter((model) =>
+		allowed.has(`${model.provider}\u0000${model.id}`),
+	);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
