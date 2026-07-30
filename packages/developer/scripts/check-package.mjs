@@ -46,6 +46,7 @@ assert.match(
 assert.deepEqual(manifest.files, [
 	"extensions",
 	"skills",
+	"docs",
 	"README.md",
 	"REFERENCE_ROUTING.md",
 	"LICENSE",
@@ -71,7 +72,7 @@ const skills = entries
 	.map((entry) => entry.name)
 	.sort();
 assert.deepEqual(skills, expectedSkills);
-assert.equal(skills.includes("develop"), false);
+assert.equal(skills.includes("developer"), false);
 
 const loaded = loadSkillsFromDir({
 	dir: join(root, "skills"),
@@ -448,7 +449,7 @@ const evalLive = await readFile(join(root, "scripts/eval-live.mjs"), "utf8");
 assert.match(evalJson, /createEvalEventMonitor/);
 assert.match(
 	evalJson,
-	/"--skill",\s*skills,\s*fixture\.request,\s*"--develop"/,
+	/"--skill",\s*skills,\s*fixture\.request,\s*"--developer"/,
 	"JSON eval must place the positional prompt before the extension flag",
 );
 assert.match(evalEventMonitor, /createFixtureBudgetMonitor/);
@@ -484,6 +485,8 @@ const markdownDocuments = [
 	"source-audits/cross-source-judgment-integration-2026-07-24.md",
 	"source-audits/parse-dont-validate-2019-11-05.md",
 	"extensions/references/behavior-preserving-structural-change.md",
+	"README.md",
+	"docs/terminal-judgment-workbench-study-v0.1.ko.md",
 ];
 for (const documentPath of markdownDocuments) {
 	const absoluteDocumentPath = join(root, documentPath);
@@ -500,7 +503,10 @@ const extension = await readFile(
 );
 assert.match(extension, /name: ROUTE_TOOL/);
 assert.match(extension, /name: JUDGMENT_TOOL/);
-assert.match(extension, /registerCommand\("develop"/);
+assert.match(extension, /registerCommand\("developer"/);
+assert.doesNotMatch(extension, /registerCommand\("develop"/);
+assert.match(extension, /registerFlag\("developer"/);
+assert.doesNotMatch(extension, /registerFlag\("develop"/);
 assert.match(extension, /getArgumentCompletions/);
 assert.match(extension, /ctx\.ui\.confirm/);
 assert.match(extension, /event\.systemPromptOptions\.skills/);
@@ -548,9 +554,34 @@ assert.match(sourceTrace, /## Intentionally Not Imported As Universal Rules/);
 
 const tui = await readFile(join(root, "extensions", "tui.ts"), "utf8");
 assert.match(tui, /SelectList/);
-assert.match(tui, /DeveloperStatusPanel/);
 assert.match(tui, /showPendingQuestionSelector/);
 assert.match(tui, /overlay:\s*true/);
+assert.doesNotMatch(tui, /DeveloperStatusPanel|DeveloperHistoryDetailPanel/);
+
+const workbench = await readFile(
+	join(root, "extensions", "developer-workbench.ts"),
+	"utf8",
+);
+assert.match(workbench, /inspectDeveloperWorkbench/);
+assert.match(
+	workbench,
+	/Overview[\s\S]*Active route[\s\S]*Questions[\s\S]*Judgments[\s\S]*Landings[\s\S]*Settings/,
+);
+assert.match(workbench, /no per-landing Verified claim is inferred/);
+
+const workbenchTui = await readFile(
+	join(root, "extensions", "developer-workbench-tui.ts"),
+	"utf8",
+);
+assert.match(workbenchTui, /DeveloperWorkbenchSurface/);
+assert.match(workbenchTui, /PgUp\/PgDn[\s\S]*Contextual actions/);
+
+const command = await readFile(
+	join(root, "extensions", "developer-command.ts"),
+	"utf8",
+);
+assert.match(command, /parseDeveloperCommand/);
+assert.match(command, /completeDeveloperArgs/);
 
 const state = await readFile(join(root, "extensions", "state.ts"), "utf8");
 assert.match(state, /developer\/v5/);

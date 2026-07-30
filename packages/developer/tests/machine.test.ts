@@ -26,6 +26,9 @@ const route = (
 	reason: "The route matches the current evidence.",
 	knownEvidence: [],
 	consideredAlternatives: [],
+	availableReferences: [],
+	referenceRoutes: [],
+	loadedReferences: [],
 });
 
 const judgment = (
@@ -45,6 +48,7 @@ const judgment = (
 	artifacts: [],
 	changedArtifacts: false,
 	...overrides,
+	referenceBasis: overrides.referenceBasis ?? [],
 });
 
 test("the machine exposes orthogonal activation, route, question, and completion regions", () => {
@@ -57,7 +61,10 @@ test("the machine exposes orthogonal activation, route, question, and completion
 	state = applyDeveloperEvent(state, inspection);
 	let snapshot = developerSnapshot(state);
 
-	assert.equal(snapshot.matches({ activation: "enabled", route: "judgment" }), true);
+	assert.equal(
+		snapshot.matches({ activation: "enabled", route: "judgment" }),
+		true,
+	);
 	assert.equal(snapshot.hasTag("execute"), true);
 	assert.equal(snapshot.hasTag("mutate"), false);
 

@@ -88,7 +88,7 @@ function runFixture(fixture) {
 				"--skill",
 				skills,
 				fixture.request,
-				"--develop",
+				"--developer",
 			],
 			{
 				cwd,

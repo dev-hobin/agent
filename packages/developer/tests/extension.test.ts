@@ -61,6 +61,8 @@ function createHarness() {
 	const handlers = new Map<string, Array<(event: any, ctx: any) => any>>();
 	const tools = new Map<string, any>();
 	const commands = new Map<string, any>();
+	const flags = new Map<string, any>();
+	const flagValues = new Map<string, unknown>();
 	const entries: Array<{ customType: string; data: unknown }> = [];
 	const statuses: Array<{ key: string; value: unknown }> = [];
 	const widgets: Array<{ key: string; value: unknown; options?: unknown }> = [];
@@ -110,9 +112,11 @@ function createHarness() {
 		registerCommand(name: string, command: any) {
 			commands.set(name, command);
 		},
-		registerFlag() {},
-		getFlag() {
-			return undefined;
+		registerFlag(name: string, flag: any) {
+			flags.set(name, flag);
+		},
+		getFlag(name: string) {
+			return flagValues.get(name);
 		},
 		appendEntry(customType: string, data: unknown) {
 			entries.push({ customType, data });
@@ -194,6 +198,7 @@ function createHarness() {
 		api,
 		tools,
 		commands,
+		flags,
 		entries,
 		ctx,
 		statuses,
@@ -224,6 +229,9 @@ function createHarness() {
 		activeTools: () => [...activeTools],
 		setActiveTools(names: string[]) {
 			activeTools = [...names];
+		},
+		setFlag(name: string, value: unknown) {
+			flagValues.set(name, value);
 		},
 		setBranch(entries: HarnessBranchEntry[]) {
 			branchEntries = [...entries];
@@ -305,7 +313,7 @@ async function startHarness(loadedSkills: Skill[] = loadedLeaves) {
 		type: "session_start",
 		reason: "startup",
 	});
-	await harness.commands.get("develop").handler("on", harness.ctx);
+	await harness.commands.get("developer").handler("on", harness.ctx);
 	await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "test",
@@ -335,7 +343,7 @@ test("tool contract failures throw so Pi records them as errors", async () => {
 		/protocol is off/,
 	);
 
-	await harness.commands.get("develop").handler("on", harness.ctx);
+	await harness.commands.get("developer").handler("on", harness.ctx);
 	await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "test",
@@ -1395,7 +1403,7 @@ test("the protocol prompt lists only skills Pi made available", async () => {
 		type: "session_start",
 		reason: "startup",
 	});
-	await harness.commands.get("develop").handler("on", harness.ctx);
+	await harness.commands.get("developer").handler("on", harness.ctx);
 	const result = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "test",
@@ -1534,9 +1542,9 @@ test("uninjected continuity survives settlement, restores from branch, and is ca
 	});
 	assert.equal(projection.messages[0].details.compactionId, "compact:reload");
 
-	await harness.commands.get("develop").handler("off", harness.ctx);
+	await harness.commands.get("developer").handler("off", harness.ctx);
 	assert.equal(entryKind(harness.entries.at(-1)!), "continuity-consumed");
-	await harness.commands.get("develop").handler("on", harness.ctx);
+	await harness.commands.get("developer").handler("on", harness.ctx);
 	projection = await harness.emit("context", {
 		type: "context",
 		messages: [],
@@ -1782,7 +1790,7 @@ test("a changed implementation landing creates verification debt", async () => {
 		recorded.content[0].text,
 		/verify is required before claiming completion/,
 	);
-	await harness.commands.get("develop").handler("status", harness.ctx);
+	await harness.commands.get("developer").handler("status", harness.ctx);
 	const status = harness.notifications.at(-1)?.message ?? "";
 	assert.match(status, /developer: on · target: none · needs-routing/);
 	assert.match(status, /checkpoint: reroute required/);
@@ -1858,7 +1866,7 @@ test("implementation evidence can resolve an unfocused agent question through qu
 
 	assert.equal(implemented.details.questionUpdates[0].questionId, questionId);
 	harness.ctx.mode = "tui";
-	await harness.commands.get("develop").handler("questions", harness.ctx);
+	await harness.commands.get("developer").handler("questions", harness.ctx);
 	assert.equal(
 		harness.notifications.at(-1)?.message,
 		"Developer has no open questions on the current branch.",
@@ -2440,7 +2448,7 @@ test("a before-completion question allows implementation work but keeps completi
 		undefined,
 		harness.ctx,
 	);
-	await harness.commands.get("develop").handler("status", harness.ctx);
+	await harness.commands.get("developer").handler("status", harness.ctx);
 	const status = harness.notifications.at(-1)?.message ?? "";
 	assert.match(status, /needs-answer/);
 	assert.match(status, /verification: required/);
@@ -2504,7 +2512,7 @@ test("a sole unrelated pending question is not implicitly focused or resolved", 
 		undefined,
 		harness.ctx,
 	);
-	await harness.commands.get("develop").handler("questions", harness.ctx);
+	await harness.commands.get("developer").handler("questions", harness.ctx);
 	assert.ok((harness.notifications.at(-1)?.message ?? "").includes(questionId));
 });
 
@@ -2539,7 +2547,7 @@ test("an unsafe in-process upgrade requires restart instead of silently strandin
 		false,
 	);
 
-	await harness.commands.get("develop").handler("on", harness.ctx);
+	await harness.commands.get("developer").handler("on", harness.ctx);
 	assert.deepEqual(harness.activeTools(), ["read"]);
 	assert.equal(
 		harness.entries.some((entry) => entryKind(entry) === "activation"),
@@ -2582,7 +2590,7 @@ test("a fresh Pi startup accepts an older branch and establishes reload-safe own
 		),
 		false,
 	);
-	await harness.commands.get("develop").handler("on", harness.ctx);
+	await harness.commands.get("developer").handler("on", harness.ctx);
 	assert.equal(harness.activeTools().includes("edit"), false);
 
 	await harness.emit("session_shutdown", {
@@ -2608,7 +2616,7 @@ test("a released tool delta is claimed safely by the reloaded extension instance
 		type: "session_start",
 		reason: "startup",
 	});
-	await first.commands.get("develop").handler("on", first.ctx);
+	await first.commands.get("developer").handler("on", first.ctx);
 	await first.emit("session_shutdown", {
 		type: "session_shutdown",
 		reason: "reload",
@@ -2648,7 +2656,7 @@ test("shutdown restores only built-ins that Developer actually withheld", async 
 		type: "session_start",
 		reason: "startup",
 	});
-	await harness.commands.get("develop").handler("on", harness.ctx);
+	await harness.commands.get("developer").handler("on", harness.ctx);
 	await harness.emit("session_shutdown", {
 		type: "session_shutdown",
 		reason: "reload",
@@ -2666,7 +2674,7 @@ test("implementation routing uses additive built-in activation and preserves unr
 		type: "session_start",
 		reason: "startup",
 	});
-	await harness.commands.get("develop").handler("on", harness.ctx);
+	await harness.commands.get("developer").handler("on", harness.ctx);
 	assert.equal(harness.activeTools().includes("edit"), false);
 
 	const beforeImplementation = [
@@ -2742,7 +2750,35 @@ test("persistent TUI state stays compact and disappears when routing is idle", a
 	assert.equal(harness.widgets.at(-1)?.value, undefined);
 });
 
-test("the no-argument command uses a non-overlay settings surface only in TUI mode", async () => {
+test("the canonical command and startup flag replace the old public names", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+
+	assert.equal(harness.commands.has("developer"), true);
+	assert.equal(harness.commands.has("develop"), false);
+	assert.equal(harness.flags.has("developer"), true);
+	assert.equal(harness.flags.has("develop"), false);
+});
+
+test("the canonical startup flag enables Developer", async () => {
+	const harness = createHarness();
+	harness.setFlag("developer", true);
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+
+	assert.equal(
+		harness.entries.some(
+			(entry) => entryKind(entry) === "activation" && entryEnabled(entry),
+		),
+		true,
+	);
+	assert.match(harness.statuses.at(-1)?.value as string, /developer/);
+});
+
+test("the no-argument command opens a read-only Workbench only in TUI mode", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
 	await harness.emit("session_start", {
@@ -2750,43 +2786,39 @@ test("the no-argument command uses a non-overlay settings surface only in TUI mo
 		reason: "startup",
 	});
 
-	await harness.commands.get("develop").handler("", harness.ctx);
+	await harness.commands.get("developer").handler("", harness.ctx);
 	assert.equal(harness.customCalls(), 0);
 	assert.match(harness.notifications.at(-1)?.message ?? "", /developer: off/);
 
 	harness.ctx.mode = "tui";
 	harness.setCustomResult(undefined);
-	await harness.commands.get("develop").handler("", harness.ctx);
+	const entriesBeforeInspection = harness.entries.length;
+	await harness.commands.get("developer").handler("", harness.ctx);
 	assert.equal(harness.customCalls(), 1);
 	assert.equal(harness.customOptions.at(-1), undefined);
-	assert.equal(
-		harness.entries.filter((entry) => entryKind(entry) === "activation").length,
-		0,
-	);
+	assert.equal(harness.entries.length, entriesBeforeInspection);
 
-	await harness.commands.get("develop").handler("on", harness.ctx);
+	await harness.commands.get("developer").handler("on", harness.ctx);
 	const latestEntry = harness.entries.at(-1);
 	assert.equal(latestEntry ? entryEnabled(latestEntry) : undefined, true);
 	assert.equal(harness.activeTools().includes("edit"), false);
 });
 
-test("the no-argument command returns from status to Developer control before closing", async () => {
+test("Settings is secondary and returns to the Workbench without hidden state changes", async () => {
 	const harness = await startHarness();
 	harness.ctx.mode = "tui";
-	const customCallsBeforeStatus = harness.customCalls();
-	harness.setCustomResults([{ kind: "status" }, undefined, undefined]);
+	const entriesBeforeInspection = harness.entries.length;
+	const callsBefore = harness.customCalls();
+	harness.setCustomResults([undefined, undefined]);
 
-	await harness.commands.get("develop").handler("", harness.ctx);
+	await harness.commands.get("developer").handler("settings", harness.ctx);
 
-	assert.equal(harness.customCalls(), customCallsBeforeStatus + 3);
-	assert.deepEqual(harness.customOptions.slice(-3), [
-		undefined,
-		undefined,
-		undefined,
-	]);
+	assert.equal(harness.customCalls(), callsBefore + 2);
+	assert.deepEqual(harness.customOptions.slice(-2), [undefined, undefined]);
+	assert.equal(harness.entries.length, entriesBeforeInspection);
 });
 
-test("the no-argument command returns from history detail to the same list and then Settings", async () => {
+test("Workbench history inspection is read-only", async () => {
 	const harness = await startHarness();
 	harness.ctx.mode = "tui";
 	const route = await harness.tools.get(ROUTE_TOOL).execute(
@@ -2815,30 +2847,37 @@ test("the no-argument command returns from history detail to the same list and t
 	);
 	const entriesBeforeInspection = harness.entries.length;
 	const customCallsBeforeInspection = harness.customCalls();
-	harness.setCustomResults([
-		{ kind: "history" },
-		route.details.routeId,
-		undefined,
-		undefined,
-		undefined,
-	]);
+	harness.setCustomResult(undefined);
 
-	await harness.commands.get("develop").handler("", harness.ctx);
+	await harness.commands.get("developer").handler("", harness.ctx);
 
-	assert.equal(harness.customCalls(), customCallsBeforeInspection + 5);
-	assert.deepEqual(harness.customOptions.slice(-5), [
-		undefined,
-		undefined,
-		undefined,
-		undefined,
-		undefined,
-	]);
+	assert.equal(harness.customCalls(), customCallsBeforeInspection + 1);
 	assert.equal(harness.entries.length, entriesBeforeInspection);
 });
 
-test("/develop completes actions and confirms before discarding active TUI state", async () => {
+test("Workbench rejects a stale Question action without branch mutation", async () => {
 	const harness = await startHarness();
-	const command = harness.commands.get("develop");
+	harness.ctx.mode = "tui";
+	const entriesBefore = harness.entries.length;
+	const callsBefore = harness.customCalls();
+	harness.setCustomResults([
+		{ kind: "question", questionId: "question:stale" },
+		undefined,
+	]);
+
+	await harness.commands.get("developer").handler("", harness.ctx);
+
+	assert.equal(harness.customCalls(), callsBefore + 2);
+	assert.equal(harness.entries.length, entriesBefore);
+	assert.equal(
+		harness.notifications.at(-1)?.message,
+		"That Developer question is no longer open on the current branch.",
+	);
+});
+
+test("/developer completes actions and confirms before discarding active TUI state", async () => {
+	const harness = await startHarness();
+	const command = harness.commands.get("developer");
 	assert.deepEqual(command.getArgumentCompletions("st"), [
 		{ value: "status", label: "status" },
 	]);
@@ -2906,13 +2945,17 @@ test("TUI question selection focuses the pending question and the next route ass
 
 	harness.ctx.mode = "tui";
 	harness.setCustomResult(undefined);
-	await harness.commands.get("develop").handler("status", harness.ctx);
+	await harness.commands.get("developer").handler("status", harness.ctx);
 	assert.equal(harness.customOptions.at(-1), undefined);
 
 	const customCallsBeforeImplementationQuestion = harness.customCalls();
-	harness.setCustomResults([{ kind: "questions" }, "defer", undefined]);
+	harness.setCustomResults([
+		{ kind: "question", questionId },
+		"defer",
+		undefined,
+	]);
 	harness.setEditorResult(undefined);
-	await harness.commands.get("develop").handler("", harness.ctx);
+	await harness.commands.get("developer").handler("", harness.ctx);
 	assert.equal(
 		harness.customCalls(),
 		customCallsBeforeImplementationQuestion + 3,
@@ -2922,7 +2965,7 @@ test("TUI question selection focuses the pending question and the next route ass
 	const customCallsBeforeSingleQuestionCancel = harness.customCalls();
 	harness.setCustomResults(["continue", "defer"]);
 	harness.setEditorResult(undefined);
-	await harness.commands.get("develop").handler("questions", harness.ctx);
+	await harness.commands.get("developer").handler("questions", harness.ctx);
 	assert.equal(
 		harness.customCalls(),
 		customCallsBeforeSingleQuestionCancel + 2,
@@ -2934,7 +2977,7 @@ test("TUI question selection focuses the pending question and the next route ass
 	harness.setEditorResult(
 		"Resolve this open Developer question.\n\nQuestion: Which browser observation remains?\n\nAnswer/evidence: the value remains visible.",
 	);
-	await harness.commands.get("develop").handler("questions", harness.ctx);
+	await harness.commands.get("developer").handler("questions", harness.ctx);
 	assert.equal(
 		harness.customCalls(),
 		customCallsBeforeSingleQuestionCommand + 1,
@@ -2987,14 +3030,14 @@ test("TUI question selection focuses the pending question and the next route ass
 		undefined,
 		harness.ctx,
 	);
-	await harness.commands.get("develop").handler("questions", harness.ctx);
+	await harness.commands.get("developer").handler("questions", harness.ctx);
 	assert.equal(
 		harness.notifications.at(-1)?.message,
 		"Developer has no open questions on the current branch.",
 	);
 });
 
-test("a multi-question editor cancel returns to the question selector", async () => {
+test("a multi-question editor cancel returns to the Workbench", async () => {
 	const harness = await startHarness();
 	const routed = await harness.tools.get(ROUTE_TOOL).execute(
 		"multi-question-picker",
@@ -3038,7 +3081,7 @@ test("a multi-question editor cancel returns to the question selector", async ()
 	]);
 	const customCallsBeforeQuestions = harness.customCalls();
 
-	await harness.commands.get("develop").handler("questions", harness.ctx);
+	await harness.commands.get("developer").handler("questions", harness.ctx);
 
 	assert.equal(harness.customCalls(), customCallsBeforeQuestions + 5);
 	const questionFlowOptions = harness.customOptions.slice(-5);
@@ -3067,14 +3110,20 @@ test("a multi-question editor cancel returns to the question selector", async ()
 	);
 
 	const customCallsBeforeSelectorCancel = harness.customCalls();
-	harness.setCustomResults([{ kind: "questions" }, undefined, undefined]);
-	await harness.commands.get("develop").handler("", harness.ctx);
-	assert.equal(harness.customCalls(), customCallsBeforeSelectorCancel + 3);
-	assert.deepEqual(harness.customOptions.slice(-3), [
-		undefined,
+	harness.setCustomResults([
+		{ kind: "question", questionId: narrowQuestion.id },
 		undefined,
 		undefined,
 	]);
+	await harness.commands.get("developer").handler("", harness.ctx);
+	assert.equal(harness.customCalls(), customCallsBeforeSelectorCancel + 3);
+	const workbenchQuestionOptions = harness.customOptions.slice(-3);
+	assert.equal(workbenchQuestionOptions[0], undefined);
+	assert.equal(
+		(workbenchQuestionOptions[1] as { overlay?: boolean } | undefined)?.overlay,
+		true,
+	);
+	assert.equal(workbenchQuestionOptions[2], undefined);
 });
 
 test("tool renderers are partial-safe and expose routing evidence when expanded", async () => {

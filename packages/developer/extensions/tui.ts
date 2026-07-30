@@ -22,22 +22,13 @@ import {
 } from "@earendil-works/pi-tui";
 
 import {
-	formatInvariantHandling,
 	protocolState,
 	type ChoiceResponseField,
 	type ChoiceResponseOption,
 	type DeveloperState,
-	type JudgmentEvent,
-	type JudgmentStatus,
 	type PendingQuestion,
 	type ProtocolState,
-	type RouteEvent,
 } from "./state.ts";
-
-export type DeveloperSettingsNavigation =
-	| { kind: "status" }
-	| { kind: "questions" }
-	| { kind: "history" };
 
 export interface DeveloperSettingsBinding {
 	read(): DeveloperState;
@@ -76,22 +67,6 @@ function protocolColor(value: ProtocolState): ThemeColor {
 	return "dim";
 }
 
-function judgmentColor(status: JudgmentStatus): ThemeColor {
-	if (status === "blocked") return "error";
-	if (status === "needs-evidence") return "warning";
-	if (status === "resolved") return "success";
-	return "muted";
-}
-
-function judgmentSummary(result: string): string {
-	return (
-		result
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.find((line) => line && !line.startsWith("```")) ?? result
-	);
-}
-
 export function renderDeveloperFooter(
 	state: DeveloperState,
 	theme: Theme,
@@ -113,46 +88,16 @@ export function hasDiscardableDeveloperWork(state: DeveloperState): boolean {
 }
 
 export function developerSettingItems(state: DeveloperState): SettingItem[] {
-	const currentProtocol = protocolState(state);
-	const items: SettingItem[] = [
+	return [
 		{
 			id: "activation",
 			label: "Developer",
 			currentValue: state.enabled ? "On" : "Off",
 			values: ["On", "Off"],
 			description:
-				"Route judgments and control Pi built-in bash, edit, and write",
-		},
-		{
-			id: "status",
-			label: "Status",
-			currentValue: currentProtocol,
-			values: [currentProtocol],
-			description:
-				"Inspect the current route, evidence, debt, and active tools",
+				"Enable judgment routing and route-bound access to Pi mutation tools",
 		},
 	];
-	if (state.judgmentHistory.length > 0) {
-		const count = String(state.judgmentHistory.length);
-		items.push({
-			id: "history",
-			label: "History",
-			currentValue: count,
-			values: [count],
-			description: "Inspect complete route and judgment records",
-		});
-	}
-	if (state.pendingQuestions.length > 0) {
-		const count = String(state.pendingQuestions.length);
-		items.push({
-			id: "questions",
-			label: "Open questions",
-			currentValue: count,
-			values: [count],
-			description: "Review and answer unresolved Developer questions",
-		});
-	}
-	return items;
 }
 
 function settingsListTheme(theme: Theme): SettingsListTheme {
@@ -201,34 +146,6 @@ export function pendingQuestionItems(
 			description: `${question.status} · ${question.resolutionOwner} · ${question.gate} · ${action}`,
 		};
 	});
-}
-
-export interface DeveloperHistoryEntry {
-	id: string;
-	judgment: JudgmentEvent;
-	route?: RouteEvent;
-}
-
-export function developerHistoryEntries(
-	state: DeveloperState,
-): DeveloperHistoryEntry[] {
-	return state.judgmentHistory.toReversed().map((judgment) => ({
-		id: judgment.routeId,
-		judgment,
-		route: state.routeHistory.find(
-			(candidate) => candidate.routeId === judgment.routeId,
-		),
-	}));
-}
-
-export function historySelectItems(
-	entries: DeveloperHistoryEntry[],
-): SelectItem[] {
-	return entries.map(({ id, judgment }) => ({
-		value: id,
-		label: `${judgment.target} · ${judgment.status} · ${judgment.question}`,
-		description: judgmentSummary(judgment.result),
-	}));
 }
 
 interface SelectDialogOptions {
@@ -540,7 +457,7 @@ export class DeveloperSettingsSurface extends Container {
 	private activationPending = false;
 	private readonly binding: DeveloperSettingsBinding;
 	private readonly ctx: ExtensionCommandContext;
-	private readonly done: (result: DeveloperSettingsNavigation | null) => void;
+	private readonly done: () => void;
 	private readonly requestRender: () => void;
 	private settings!: SettingsList;
 	private state: DeveloperState;
@@ -550,7 +467,7 @@ export class DeveloperSettingsSurface extends Container {
 		ctx: ExtensionCommandContext,
 		binding: DeveloperSettingsBinding,
 		theme: Theme,
-		done: (result: DeveloperSettingsNavigation | null) => void,
+		done: () => void,
 		requestRender: () => void,
 	) {
 		super();
@@ -570,7 +487,10 @@ export class DeveloperSettingsSurface extends Container {
 		);
 		this.addChild(
 			new Text(
-				this.theme.fg("muted", "Current branch settings and protocol details"),
+				this.theme.fg(
+					"muted",
+					"Activation settings · current branch work stays in the Workbench",
+				),
 				0,
 				0,
 			),
@@ -583,44 +503,19 @@ export class DeveloperSettingsSurface extends Container {
 			items.length,
 			settingsListTheme(this.theme),
 			(id, value) => {
-				if (id === "activation") {
-					this.sync(this.binding.read());
-					this.requestRender();
-					void this.requestActivation(value === "On");
-					return;
-				}
-				if (id === "status") {
-					this.done({ kind: "status" });
-					return;
-				}
-				if (id === "history") {
-					this.done({ kind: "history" });
-					return;
-				}
-				if (id === "questions") this.done({ kind: "questions" });
+				if (id !== "activation") return;
+				this.sync(this.binding.read());
+				this.requestRender();
+				void this.requestActivation(value === "On");
 			},
-			() => this.done(null),
+			() => this.done(),
 		);
 		this.addChild(this.settings);
 	}
 
 	private sync(next: DeveloperState): void {
-		const questionsShapeChanged =
-			this.state.pendingQuestions.length > 0 !==
-			next.pendingQuestions.length > 0;
 		this.state = next;
-		if (questionsShapeChanged) {
-			this.rebuild();
-			return;
-		}
 		this.settings.updateValue("activation", next.enabled ? "On" : "Off");
-		this.settings.updateValue("status", protocolState(next));
-		if (next.pendingQuestions.length > 0) {
-			this.settings.updateValue(
-				"questions",
-				String(next.pendingQuestions.length),
-			);
-		}
 		this.invalidate();
 	}
 
@@ -658,14 +553,17 @@ export class DeveloperSettingsSurface extends Container {
 export async function showDeveloperSettings(
 	ctx: ExtensionCommandContext,
 	binding: DeveloperSettingsBinding,
-): Promise<DeveloperSettingsNavigation | undefined> {
-	const result = await ctx.ui.custom<DeveloperSettingsNavigation | null>(
+): Promise<void> {
+	await ctx.ui.custom<null>(
 		(tui, theme, _keybindings, done) =>
-			new DeveloperSettingsSurface(ctx, binding, theme, done, () =>
-				tui.requestRender(),
+			new DeveloperSettingsSurface(
+				ctx,
+				binding,
+				theme,
+				() => done(null),
+				() => tui.requestRender(),
 			),
 	);
-	return result ?? undefined;
 }
 
 export function showPendingQuestionSelector(
@@ -685,31 +583,6 @@ export function showPendingQuestionSelector(
 			maxVisible: questions.length,
 			selectedLabelMaxLines: 5,
 			selectedDescriptionMaxLines: 3,
-		},
-		"surface",
-	);
-}
-
-export function showDeveloperHistorySelector(
-	ctx: ExtensionCommandContext,
-	state: DeveloperState,
-	initialRouteId?: string,
-): Promise<string | undefined> {
-	const entries = developerHistoryEntries(state);
-	if (entries.length === 0) return Promise.resolve(undefined);
-	return showSelectDialog(
-		ctx,
-		{
-			title: `Developer history · ${entries.length}`,
-			subtitle:
-				"Enter opens complete route and judgment evidence; drag selects terminal text",
-			items: historySelectItems(entries),
-			width: "92%",
-			minWidth: 72,
-			maxVisible: entries.length,
-			selectedLabelMaxLines: 4,
-			selectedDescriptionMaxLines: 3,
-			initialValue: initialRouteId,
 		},
 		"surface",
 	);
@@ -1402,403 +1275,6 @@ export class DeveloperWidget {
 	}
 
 	invalidate(): void {}
-}
-
-export class DeveloperHistoryDetailPanel {
-	private cachedLines?: string[];
-	private cachedWidth?: number;
-	private readonly entry: DeveloperHistoryEntry;
-	private readonly onClose: () => void;
-	private readonly theme: Theme;
-
-	constructor(entry: DeveloperHistoryEntry, theme: Theme, onClose: () => void) {
-		this.entry = entry;
-		this.theme = theme;
-		this.onClose = onClose;
-	}
-
-	handleInput(data: string): void {
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c"))
-			this.onClose();
-	}
-
-	render(width: number): string[] {
-		if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
-
-		const panelWidth = Math.max(1, width);
-		const innerWidth = Math.max(1, panelWidth - 2);
-		const body: string[] = [];
-		const border = (text: string) => this.theme.fg("borderAccent", text);
-		const row = (content = "") =>
-			`${border("│")}${truncateToWidth(content, innerWidth, "", true)}${border("│")}`;
-		const section = (title: string) =>
-			body.push(row(`  ${this.theme.fg("accent", this.theme.bold(title))}`));
-		const addField = (
-			label: string,
-			value: string,
-			color: ThemeColor = "text",
-		) => {
-			const labelText = `${label} ·`;
-			const plainPrefix = `  ${labelText} `;
-			const styledPrefix = `  ${this.theme.fg("dim", labelText)} `;
-			const contentWidth = Math.max(1, innerWidth - visibleWidth(plainPrefix));
-			const wrapped = wrapTextWithAnsi(
-				this.theme.fg(color, value.length > 0 ? value : "(none)"),
-				contentWidth,
-			);
-			body.push(row(styledPrefix + (wrapped[0] ?? "")));
-			const indent = " ".repeat(visibleWidth(plainPrefix));
-			for (const line of wrapped.slice(1)) body.push(row(indent + line));
-		};
-		const addValues = (label: string, values: string[]) => {
-			if (values.length === 0) {
-				addField(label, "(none)", "dim");
-				return;
-			}
-			values.forEach((value, index) => {
-				addField(`${label} ${index + 1}`, value, "muted");
-			});
-		};
-
-		const { judgment, route } = this.entry;
-		section("Route");
-		addField("id", judgment.routeId, "dim");
-		if (route) {
-			addField("target", route.target, "accent");
-			addField("question", route.question);
-			addField("reason", route.reason, "muted");
-			addField(
-				"method",
-				route.methodLocation ?? "implementation action",
-				"dim",
-			);
-			if (route.executionProfile)
-				addField("execution profile", route.executionProfile, "dim");
-			if (route.targetQuestionId)
-				addField("target question", route.targetQuestionId, "dim");
-			if (route.implementationStep) {
-				addField("movement", route.implementationStep.movement);
-				addField("stop condition", route.implementationStep.stopCondition);
-				addField("verification", route.implementationStep.verification);
-				addField(
-					"invariant handling",
-					formatInvariantHandling(route.implementationStep.invariantHandling),
-				);
-			}
-			addValues("known evidence", route.knownEvidence);
-			addValues(
-				"considered alternative",
-				route.consideredAlternatives.map(
-					(alternative) => `${alternative.target} · ${alternative.reason}`,
-				),
-			);
-		} else {
-			addField(
-				"details",
-				"Route details unavailable for this recorded judgment.",
-				"warning",
-			);
-		}
-
-		body.push(row());
-		section("Judgment");
-		addField("target", judgment.target, "accent");
-		addField("status", judgment.status, judgmentColor(judgment.status));
-		addField("question", judgment.question);
-		addField("result", judgment.result);
-		addField(
-			"changed artifacts",
-			judgment.changedArtifacts ? "yes" : "no",
-			judgment.changedArtifacts ? "warning" : "dim",
-		);
-		addValues("basis", judgment.basis);
-		for (const [index, question] of judgment.openedQuestions.entries()) {
-			addField(
-				`opened question ${index + 1}`,
-				`${question.id} · ${question.status} · ${question.resolutionOwner} · ${question.gate} · ${question.question}`,
-				"warning",
-			);
-			addField("source route", question.sourceRouteId, "dim");
-			if (question.context) addField("context", question.context, "muted");
-			addField("resolves when", question.resolutionCriteria, "muted");
-			if (question.responseSpec)
-				addField("response spec", JSON.stringify(question.responseSpec), "dim");
-		}
-		for (const [index, update] of judgment.questionUpdates.entries()) {
-			addField(
-				`question update ${index + 1}`,
-				`${update.questionId} · ${update.status} · ${update.result}`,
-				"accent",
-			);
-			addValues("update basis", update.basis);
-		}
-		addValues("artifact", judgment.artifacts);
-
-		const header = [
-			border(`╭${"─".repeat(innerWidth)}╮`),
-			row(
-				`  ${this.theme.fg("accent", this.theme.bold("◆ Developer history detail"))}`,
-			),
-		];
-		const hint = wrapTextWithAnsi(
-			this.theme.fg(
-				"dim",
-				"mouse wheel scroll · drag select · Cmd+C copy · esc back",
-			),
-			Math.max(1, innerWidth - 2),
-		).map((line) => row(`  ${line}`));
-		const lines = [
-			...header,
-			...body,
-			...hint,
-			border(`╰${"─".repeat(innerWidth)}╯`),
-		];
-		this.cachedWidth = width;
-		this.cachedLines = lines;
-		return lines;
-	}
-
-	invalidate(): void {
-		this.cachedLines = undefined;
-		this.cachedWidth = undefined;
-	}
-}
-
-export async function showDeveloperHistoryDetail(
-	ctx: ExtensionCommandContext,
-	entry: DeveloperHistoryEntry,
-): Promise<void> {
-	await ctx.ui.custom<void>(
-		(_tui, theme, _keybindings, done) =>
-			new DeveloperHistoryDetailPanel(entry, theme, () => done()),
-	);
-}
-
-interface DeveloperStatusView {
-	state: DeveloperState;
-	activeTools: string[];
-	availableSkills: string[];
-}
-
-export class DeveloperStatusPanel {
-	private cachedWidth?: number;
-	private cachedLines?: string[];
-	private readonly view: DeveloperStatusView;
-	private readonly theme: Theme;
-	private readonly onClose: () => void;
-
-	constructor(view: DeveloperStatusView, theme: Theme, onClose: () => void) {
-		this.view = view;
-		this.theme = theme;
-		this.onClose = onClose;
-	}
-
-	handleInput(data: string): void {
-		if (
-			matchesKey(data, "escape") ||
-			matchesKey(data, "enter") ||
-			matchesKey(data, "ctrl+c")
-		)
-			this.onClose();
-	}
-
-	render(width: number): string[] {
-		if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
-
-		const panelWidth = Math.max(1, width);
-		const innerWidth = Math.max(1, panelWidth - 2);
-		const rows: string[] = [];
-		const border = (text: string) => this.theme.fg("borderAccent", text);
-		const row = (content = "") =>
-			`${border("│")}${truncateToWidth(content, innerWidth, "…", true)}${border("│")}`;
-		const addWrapped = (
-			label: string,
-			value: string,
-			color: ThemeColor = "muted",
-			maxLines = 2,
-		) => {
-			const labelText = `${label} ·`;
-			const plainPrefix = `  ${labelText} `;
-			const styledPrefix = `  ${this.theme.fg("dim", labelText)} `;
-			const contentWidth = Math.max(1, innerWidth - visibleWidth(plainPrefix));
-			const wrapped = wrapTextWithAnsi(
-				this.theme.fg(color, value.trim()),
-				contentWidth,
-			);
-			const visible = wrapped.slice(0, Math.max(1, maxLines));
-			if (wrapped.length > visible.length && visible.length > 0) {
-				const last = visible.length - 1;
-				visible[last] =
-					truncateToWidth(
-						visible[last] ?? "",
-						Math.max(1, contentWidth - 1),
-						"",
-					) + this.theme.fg("dim", "…");
-			}
-			rows.push(row(styledPrefix + (visible[0] ?? "")));
-			const hangingIndent = " ".repeat(visibleWidth(plainPrefix));
-			for (const line of visible.slice(1)) rows.push(row(hangingIndent + line));
-		};
-		const section = (title: string) =>
-			rows.push(row(`  ${this.theme.fg("accent", this.theme.bold(title))}`));
-
-		rows.push(border(`╭${"─".repeat(innerWidth)}╮`));
-		rows.push(
-			row(
-				`  ${this.theme.fg("accent", this.theme.bold("◆ Developer status"))}`,
-			),
-		);
-		rows.push(row());
-
-		const state = this.view.state;
-		const currentProtocol = protocolState(state);
-		const summary =
-			`Developer ${this.theme.fg(state.enabled ? "success" : "dim", state.enabled ? "on" : "off")}` +
-			this.theme.fg("dim", " · ") +
-			`protocol ${this.theme.fg(protocolColor(currentProtocol), currentProtocol)}` +
-			this.theme.fg("dim", " · ") +
-			`target ${this.theme.fg("muted", state.activeRoute?.target ?? "none")}`;
-		for (const line of wrapTextWithAnsi(summary, Math.max(1, innerWidth - 2)))
-			rows.push(row(`  ${line}`));
-		rows.push(row());
-
-		section("Active route");
-		if (state.activeRoute) {
-			addWrapped("id", state.activeRoute.routeId, "dim", 1);
-			addWrapped("question", state.activeRoute.question, "text", 3);
-			addWrapped("reason", state.activeRoute.reason, "muted", 2);
-			addWrapped(
-				"skill",
-				state.activeRoute.methodLocation ?? "implementation action",
-				"dim",
-				1,
-			);
-			addWrapped(
-				"known evidence",
-				String(state.activeRoute.knownEvidence.length),
-				"muted",
-				1,
-			);
-		} else {
-			addWrapped(
-				"state",
-				"No route is currently waiting for judgment.",
-				"dim",
-				2,
-			);
-		}
-
-		rows.push(row());
-		section(`Open questions · ${state.pendingQuestions.length}`);
-		if (state.pendingQuestions.length === 0) {
-			addWrapped("state", "No unresolved Developer questions.", "dim", 2);
-		} else {
-			for (const question of state.pendingQuestions.slice(0, 4)) {
-				addWrapped(
-					`${question.status} · ${question.resolutionOwner} · ${question.gate}`,
-					question.question,
-					question.status === "blocked" ? "error" : "warning",
-					2,
-				);
-				addWrapped("resolves when", question.resolutionCriteria, "dim", 2);
-			}
-			if (state.pendingQuestions.length > 4) {
-				addWrapped(
-					"more",
-					`${state.pendingQuestions.length - 4} additional open questions`,
-					"dim",
-					1,
-				);
-			}
-		}
-
-		rows.push(row());
-		section(`Judgment history · ${state.judgmentHistory.length}`);
-		if (state.judgmentHistory.length === 0) {
-			addWrapped(
-				"state",
-				"No judgment has been recorded on this branch.",
-				"dim",
-				2,
-			);
-		} else {
-			const recentJudgments = state.judgmentHistory.slice(-10).toReversed();
-			for (const judgment of recentJudgments) {
-				const route = state.routeHistory.find(
-					(candidate) => candidate.routeId === judgment.routeId,
-				);
-				addWrapped(
-					`${judgment.target} ${judgment.status}`,
-					`${judgment.question} → ${judgmentSummary(judgment.result)}`,
-					judgmentColor(judgment.status),
-					3,
-				);
-				if (route) addWrapped("route reason", route.reason, "dim", 2);
-				for (const alternative of route?.consideredAlternatives ?? []) {
-					addWrapped(
-						`considered ${alternative.target}`,
-						alternative.reason,
-						"dim",
-						2,
-					);
-				}
-				for (const update of judgment.questionUpdates ?? []) {
-					addWrapped(
-						`question ${update.status}`,
-						`${update.questionId} → ${update.result}`,
-						"accent",
-						2,
-					);
-				}
-			}
-			if (state.judgmentHistory.length > recentJudgments.length) {
-				addWrapped(
-					"earlier",
-					`${state.judgmentHistory.length - recentJudgments.length} earlier judgments`,
-					"dim",
-					1,
-				);
-			}
-		}
-
-		rows.push(row());
-		addWrapped(
-			"resources",
-			`${this.view.availableSkills.length} skills · ${this.view.activeTools.length} active tools`,
-			"dim",
-			1,
-		);
-		rows.push(row());
-
-		for (const line of wrapTextWithAnsi(
-			this.theme.fg(
-				"dim",
-				"mouse wheel scroll · drag select · Cmd+C copy · enter/esc close",
-			),
-			Math.max(1, innerWidth - 2),
-		))
-			rows.push(row(`  ${line}`));
-		rows.push(border(`╰${"─".repeat(innerWidth)}╯`));
-
-		this.cachedWidth = width;
-		this.cachedLines = rows;
-		return rows;
-	}
-
-	invalidate(): void {
-		this.cachedWidth = undefined;
-		this.cachedLines = undefined;
-	}
-}
-
-export async function showDeveloperStatus(
-	ctx: ExtensionCommandContext,
-	view: DeveloperStatusView,
-): Promise<void> {
-	await ctx.ui.custom<void>(
-		(_tui, theme, _keybindings, done) =>
-			new DeveloperStatusPanel(view, theme, () => done()),
-	);
 }
 
 export function questionResolutionPrompt(question: PendingQuestion): string {

@@ -11,24 +11,19 @@ import {
 	type DeveloperState,
 	type PendingQuestion,
 } from "../extensions/state.ts";
+import { inspectDeveloperWorkbench } from "../extensions/developer-workbench.ts";
+import { DeveloperWorkbenchSurface } from "../extensions/developer-workbench-tui.ts";
 import {
-	DeveloperHistoryDetailPanel,
 	DeveloperQuestionBriefPanel,
-	DeveloperStatusPanel,
 	DeveloperWidget,
-	developerHistoryEntries,
 	developerSettingItems,
 	type DeveloperSettingsBinding,
 	editQuestionResolutionRequest,
-	historySelectItems,
 	pendingQuestionItems,
 	promptImmediateUserQuestion,
 	questionResolutionPrompt,
 	renderDeveloperFooter,
-	showDeveloperHistoryDetail,
-	showDeveloperHistorySelector,
 	showDeveloperSettings,
-	showDeveloperStatus,
 	showPendingQuestionSelector,
 } from "../extensions/tui.ts";
 
@@ -62,6 +57,15 @@ const ansiTheme = {
 } as Theme;
 
 const keybindings = {
+	getKeys(binding: string): string[] {
+		if (binding === "tui.select.up") return ["↑"];
+		if (binding === "tui.select.down") return ["↓"];
+		if (binding === "tui.select.pageUp") return ["PgUp"];
+		if (binding === "tui.select.pageDown") return ["PgDn"];
+		if (binding === "tui.select.confirm") return ["Enter"];
+		if (binding === "tui.select.cancel") return ["Esc"];
+		return [];
+	},
 	matches(data: string, binding: string): boolean {
 		if (binding === "tui.select.up") return data === "\u001b[A";
 		if (binding === "tui.select.down") return data === "\u001b[B";
@@ -226,7 +230,63 @@ function activeState(): DeveloperState {
 	};
 }
 
-test("Developer assigns footer, widget, settings, and pending lists distinct information roles", () => {
+test("Developer Workbench renders responsive, bounded, read-only state", () => {
+	const snapshot = inspectDeveloperWorkbench(activeState(), {
+		activeTools: ["read", "bash", "developer_route_question"],
+		availableSkills: ["verify", "specify"],
+	});
+	for (const [width, height] of [
+		[40, 18],
+		[80, 22],
+		[120, 36],
+	] as const) {
+		const surface = new DeveloperWorkbenchSurface({
+			snapshot,
+			theme,
+			keybindings: keybindings as never,
+			done() {},
+			requestRender() {},
+		});
+		const lines = surface.render(width, height);
+		assert.equal(lines.length, height);
+		assert.ok(lines.every((line) => visibleWidth(line) <= width));
+		assert.match(lines.join("\n"), /Developer workbench/);
+	}
+});
+
+test("Developer Workbench scopes question actions and help to the focused detail", () => {
+	const snapshot = inspectDeveloperWorkbench(activeState(), {
+		activeTools: [],
+		availableSkills: ["verify"],
+	});
+	let result: unknown;
+	const surface = new DeveloperWorkbenchSurface({
+		snapshot,
+		theme,
+		keybindings: keybindings as never,
+		done(value) {
+			result = value;
+		},
+		requestRender() {},
+	});
+
+	surface.handleInput("\u001b[B");
+	surface.handleInput("\u001b[B");
+	surface.handleInput("\r");
+	assert.match(surface.render(80, 22).join("\n"), /Which browser observation/);
+	surface.handleInput("?");
+	surface.handleInput("a");
+	assert.equal(result, undefined);
+	assert.match(surface.render(80, 22).join("\n"), /Contextual actions/);
+	surface.handleInput("?");
+	surface.handleInput("a");
+	assert.deepEqual(result, {
+		kind: "question",
+		questionId: openQuestion.id,
+	});
+});
+
+test("Developer assigns footer, widget, secondary settings, and pending lists distinct information roles", () => {
 	const state = activeState();
 	assert.equal(
 		renderDeveloperFooter(state, theme),
@@ -244,20 +304,9 @@ test("Developer assigns footer, widget, settings, and pending lists distinct inf
 	const settings = developerSettingItems(state);
 	assert.deepEqual(
 		settings.map((item) => item.id),
-		["activation", "status", "history", "questions"],
+		["activation"],
 	);
-	assert.equal(
-		settings.find((item) => item.id === "activation")?.currentValue,
-		"On",
-	);
-	assert.equal(
-		settings.find((item) => item.id === "questions")?.currentValue,
-		"1",
-	);
-	assert.equal(
-		settings.some((item) => item.id === openQuestion.id),
-		false,
-	);
+	assert.equal(settings[0]?.currentValue, "On");
 
 	const questions = pendingQuestionItems(state.pendingQuestions);
 	assert.equal(questions[0]?.value, openQuestion.id);
@@ -266,7 +315,7 @@ test("Developer assigns footer, widget, settings, and pending lists distinct inf
 	assert.match(questions[0]?.description ?? "", /ask Pi to investigate/);
 });
 
-test("Developer settings keep Status available and hide empty question lists", () => {
+test("Developer settings expose activation without duplicating Workbench objects", () => {
 	const offState = {
 		...activeState(),
 		enabled: false,
@@ -276,19 +325,11 @@ test("Developer settings keep Status available and hide empty question lists", (
 	};
 	assert.deepEqual(
 		developerSettingItems(offState).map((item) => [item.id, item.currentValue]),
-		[
-			["activation", "Off"],
-			["status", "idle"],
-		],
+		[["activation", "Off"]],
 	);
-
-	const onWithoutQuestions = {
-		...activeState(),
-		pendingQuestions: [],
-	};
 	assert.deepEqual(
-		developerSettingItems(onWithoutQuestions).map((item) => item.id),
-		["activation", "status", "history"],
+		developerSettingItems(activeState()).map((item) => item.id),
+		["activation"],
 	);
 });
 
@@ -850,9 +891,8 @@ test("escape from the immediate answer editor returns to the explanation brief",
 	assert.equal(editorCalls, 1);
 });
 
-test("Developer control uses a non-overlay SettingsList with current values", async () => {
+test("Developer Settings is a non-overlay secondary activation surface", async () => {
 	let rendered = "";
-	let renderedAfterNavigation = "";
 	let overlayOptions: unknown;
 	const ctx = {
 		ui: {
@@ -868,27 +908,21 @@ test("Developer control uses a non-overlay SettingsList with current values", as
 					},
 				);
 				rendered = component.render(78).join("\n");
-				component.handleInput("\u001b[B");
-				renderedAfterNavigation = component.render(78).join("\n");
-				component.handleInput("\r");
+				component.handleInput("\u001b");
 				return selected;
 			},
 		},
 	};
 
 	const { binding } = createSettingsBinding(activeState());
-	const result = await showDeveloperSettings(ctx as never, binding);
-	assert.deepEqual(result, { kind: "status" });
+	await showDeveloperSettings(ctx as never, binding);
 	assert.match(rendered, /◆ Developer/);
 	assert.match(rendered, /Developer\s+On/);
-	assert.match(rendered, /Status\s+needs-judgment/);
-	assert.match(rendered, /History\s+1/);
-	assert.match(rendered, /Open questions\s+1/);
-	assert.doesNotMatch(rendered, /Which browser observation is still missing\?/);
-	assert.doesNotMatch(rendered, /Selected detail|scroll detail/);
-	assert.doesNotMatch(rendered, /^╭.*╮$/m);
+	assert.match(rendered, /Activation settings/);
+	assert.doesNotMatch(rendered, /Status\s+needs-judgment/);
+	assert.doesNotMatch(rendered, /History\s+1/);
+	assert.doesNotMatch(rendered, /Open questions\s+1/);
 	assert.ok(rendered.split("\n").every((line) => visibleWidth(line) <= 78));
-	assert.match(renderedAfterNavigation, /Inspect the current route/);
 	assert.equal(overlayOptions, undefined);
 });
 
@@ -987,7 +1021,7 @@ test("destructive activation is commit-after-confirm with canonical rollback", a
 	assert.deepEqual(cancelled.events, []);
 	assert.equal(cancelled.state.enabled, true);
 	assert.match(cancelled.renderedAfterDecision, /Developer\s+On/);
-	assert.match(cancelled.renderedAfterDecision, /Open questions\s+1/);
+	assert.doesNotMatch(cancelled.renderedAfterDecision, /Open questions/);
 	assert.equal(cancelled.overlayOptions.length, 1);
 
 	const confirmed = await run(true);
@@ -996,7 +1030,6 @@ test("destructive activation is commit-after-confirm with canonical rollback", a
 	assert.equal(confirmed.state.activeRoute, undefined);
 	assert.deepEqual(confirmed.state.pendingQuestions, []);
 	assert.match(confirmed.renderedAfterDecision, /Developer\s+Off/);
-	assert.doesNotMatch(confirmed.renderedAfterDecision, /History/);
 	assert.doesNotMatch(confirmed.renderedAfterDecision, /Open questions/);
 	assert.equal(confirmed.overlayOptions.length, 1);
 });
@@ -1042,152 +1075,6 @@ test("non-overlay pending selection wraps the question and returns its exact pro
 	assert.doesNotMatch(rendered, /^╭.*╮$/m);
 	assert.ok(rendered.split("\n").every((line) => visibleWidth(line) <= 52));
 	assert.equal(customOptions, undefined);
-});
-
-test("Developer history projects judgments latest-first and preserves orphan records", () => {
-	const state = activeState();
-	const earlierJudgment = state.judgmentHistory[0];
-	assert.ok(earlierJudgment);
-	const newerJudgment = {
-		...earlierJudgment,
-		routeId: "route:active",
-		question: "Is the active route now verified?",
-		status: "resolved" as const,
-		result: "The active route is verified.",
-	};
-	const entries = developerHistoryEntries({
-		...state,
-		judgmentHistory: [earlierJudgment, newerJudgment],
-	});
-
-	assert.deepEqual(
-		entries.map((entry) => entry.id),
-		["route:active", "route:earlier"],
-	);
-	assert.equal(entries[0]?.route?.routeId, "route:active");
-	assert.match(historySelectItems(entries)[0]?.label ?? "", /resolved/);
-
-	const orphan = developerHistoryEntries({ ...state, routeHistory: [] });
-	assert.equal(orphan.length, 1);
-	assert.equal(orphan[0]?.route, undefined);
-});
-
-test("history selection preserves its route identity without enabling mouse tracking", async () => {
-	const writes: string[] = [];
-	let rendered = "";
-	const state = activeState();
-	const earlierJudgment = state.judgmentHistory[0];
-	assert.ok(earlierJudgment);
-	const judgments = Array.from({ length: 15 }, (_, index) => ({
-		...earlierJudgment,
-		routeId: `route:history:${index}`,
-		question: `History judgment ${index}`,
-		status: "resolved" as const,
-		result: `History result ${index}`,
-	}));
-	const ctx = {
-		ui: {
-			async custom(factory: TestComponentFactory, options: unknown) {
-				assert.equal(options, undefined);
-				let selected: unknown;
-				const component = await factory(
-					{
-						requestRender() {},
-						terminal: { rows: 40, write: (data: string) => writes.push(data) },
-					},
-					theme,
-					keybindings,
-					(value: unknown) => {
-						selected = value;
-					},
-				);
-				rendered = component.render(78).join("\n");
-				component.handleInput("\r");
-				return selected;
-			},
-		},
-	};
-
-	assert.equal(
-		await showDeveloperHistorySelector(
-			ctx as never,
-			{ ...state, judgmentHistory: judgments },
-			"route:history:0",
-		),
-		"route:history:0",
-	);
-	assert.match(rendered, /Developer history · 15/);
-	assert.match(rendered, /History judgment 0/);
-	assert.match(rendered, /History judgment 14/);
-	assert.match(
-		rendered,
-		/mouse wheel scroll · drag select · Cmd\+C copy · ↑↓ select/,
-	);
-	assert.deepEqual(writes, []);
-});
-
-test("history detail renders complete scrollable evidence and tolerates a missing route", () => {
-	const state = activeState();
-	const judgment = state.judgmentHistory[0];
-	assert.ok(judgment);
-	const entry = developerHistoryEntries({
-		...state,
-		judgmentHistory: [
-			{
-				...judgment,
-				result: `Start ${"long evidence ".repeat(30)}END_RESULT`,
-				artifacts: ["END_ARTIFACT"],
-			},
-		],
-	})[0];
-	assert.ok(entry);
-	const panel = new DeveloperHistoryDetailPanel(entry, theme, () => {});
-	const document = panel.render(56).join("\n");
-	assert.match(document, /Developer history detail/);
-	assert.match(document, /Is the implementation complete/);
-	assert.match(document, /END_RESULT/);
-	assert.match(document, /END_ARTIFACT/);
-	assert.match(document, /mouse wheel scroll · drag select · Cmd\+C copy/);
-	assert.match(document, /back/);
-
-	const orphan = developerHistoryEntries({ ...state, routeHistory: [] })[0];
-	assert.ok(orphan);
-	const orphanOutput = new DeveloperHistoryDetailPanel(orphan, theme, () => {})
-		.render(88)
-		.join("\n");
-	assert.match(orphanOutput, /Route details unavailable/);
-	assert.match(orphanOutput, /A browser observation remains/);
-});
-
-test("history detail host leaves mouse tracking disabled for drag-copy", async () => {
-	const writes: string[] = [];
-	let closed = false;
-	const entry = developerHistoryEntries(activeState())[0];
-	assert.ok(entry);
-	const ctx = {
-		ui: {
-			async custom(factory: TestComponentFactory, options: unknown) {
-				assert.equal(options, undefined);
-				const component = await factory(
-					{
-						requestRender() {},
-						terminal: { rows: 40, write: (data: string) => writes.push(data) },
-					},
-					theme,
-					keybindings,
-					() => {
-						closed = true;
-					},
-				);
-				component.render(88);
-				component.handleInput("\u001b");
-			},
-		},
-	};
-
-	await showDeveloperHistoryDetail(ctx as never, entry);
-	assert.equal(closed, true);
-	assert.deepEqual(writes, []);
 });
 
 test("question surface renders every row while wheel packets never change selection", async () => {
@@ -1243,109 +1130,6 @@ test("question surface renders every row while wheel packets never change select
 	assert.deepEqual(writes, []);
 });
 
-test("non-overlay status leaves mouse tracking disabled for terminal drag selection", async () => {
-	const writes: string[] = [];
-	let closed = false;
-	let customOptions: unknown;
-	const ctx = {
-		ui: {
-			async custom(factory: TestComponentFactory, options: unknown) {
-				customOptions = options;
-				const component = await factory(
-					{
-						requestRender() {},
-						terminal: { rows: 40, write: (data: string) => writes.push(data) },
-					},
-					theme,
-					keybindings,
-					() => {
-						closed = true;
-					},
-				);
-				component.render(88);
-				component.handleInput("\u001b[<65;12;8M");
-				component.handleInput("\r");
-			},
-		},
-	};
-
-	await showDeveloperStatus(ctx as never, {
-		state: activeState(),
-		activeTools: ["read"],
-		availableSkills: ["verify"],
-	});
-	assert.equal(closed, true);
-	assert.equal(customOptions, undefined);
-	assert.deepEqual(writes, []);
-});
-
-test("status panel is bounded, branch-grounded, and keyboard dismissible", () => {
-	let closed = false;
-	const panel = new DeveloperStatusPanel(
-		{
-			state: activeState(),
-			activeTools: [
-				"read",
-				"developer_route_question",
-				"developer_record_judgment",
-			],
-			availableSkills: ["verify", "specify"],
-		},
-		theme,
-		() => {
-			closed = true;
-		},
-	);
-	const lines = panel.render(88);
-	const output = lines.join("\n");
-	assert.match(output, /Developer status/);
-	assert.match(
-		output,
-		/Does the rendered interface preserve the product invariant/,
-	);
-	assert.match(output, /Open questions · 1/);
-	assert.match(output, /Judgment history · 1/);
-	assert.match(output, /A browser observation/);
-	assert.match(output, /remains\./);
-	assert.match(output, /2 skills · 3 active tools/);
-	assert.match(
-		output,
-		/mouse wheel scroll · drag select · Cmd\+C copy · enter\/esc close/,
-	);
-	assert.ok(lines.every((line) => visibleWidth(line) <= 88));
-
-	const narrowLines = panel.render(52);
-	assert.match(
-		narrowLines.join("\n"),
-		/question · Does the rendered interface preserve/,
-	);
-	assert.match(narrowLines.join("\n"), / {13}the product invariant\?/);
-	assert.ok(narrowLines.every((line) => visibleWidth(line) <= 52));
-	panel.handleInput("\r");
-	assert.equal(closed, true);
-});
-
-test("status renders its complete document for terminal-native wheel scrolling", () => {
-	const panel = new DeveloperStatusPanel(
-		{
-			state: activeState(),
-			activeTools: ["read"],
-			availableSkills: ["verify"],
-		},
-		theme,
-		() => {},
-	);
-	const document = panel.render(72);
-	const output = document.join("\n");
-
-	assert.ok(document.length > 14);
-	assert.match(output, /Active route/);
-	assert.match(output, /resources · 1 skills · 1 active tools/);
-	assert.match(output, /mouse wheel scroll · drag select · Cmd\+C copy/);
-	panel.handleInput("\u001b[<64;12;8M");
-	assert.deepEqual(panel.render(72), document);
-});
-
 test("Developer surfaces do not paint full-panel backgrounds", async () => {
 	let backgroundCalls = 0;
 	const transparentTheme = {
@@ -1370,13 +1154,19 @@ test("Developer surfaces do not paint full-panel backgrounds", async () => {
 		},
 	};
 
-	const { binding } = createSettingsBinding(activeState());
+	const state = activeState();
+	const { binding } = createSettingsBinding(state);
 	await showDeveloperSettings(ctx as never, binding);
-	new DeveloperStatusPanel(
-		{ state: activeState(), activeTools: [], availableSkills: [] },
-		transparentTheme,
-		() => {},
-	).render(78);
+	new DeveloperWorkbenchSurface({
+		snapshot: inspectDeveloperWorkbench(state, {
+			activeTools: [],
+			availableSkills: [],
+		}),
+		theme: transparentTheme,
+		keybindings: keybindings as never,
+		done() {},
+		requestRender() {},
+	}).render(78, 22);
 	assert.equal(backgroundCalls, 0);
 });
 

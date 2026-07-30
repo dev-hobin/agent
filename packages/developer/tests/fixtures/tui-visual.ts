@@ -12,14 +12,12 @@ import {
 	type PendingQuestion,
 	type RouteEvent,
 } from "../../extensions/state.ts";
+import { inspectDeveloperWorkbench } from "../../extensions/developer-workbench.ts";
+import { showDeveloperWorkbench } from "../../extensions/developer-workbench-tui.ts";
 import {
-	developerHistoryEntries,
 	editQuestionResolutionRequest,
 	promptImmediateUserQuestion,
-	showDeveloperHistoryDetail,
-	showDeveloperHistorySelector,
 	showDeveloperSettings,
-	showDeveloperStatus,
 	showPendingQuestionSelector,
 	type DeveloperSettingsBinding,
 } from "../../extensions/tui.ts";
@@ -119,7 +117,7 @@ export function createQaQuestions(): PendingQuestion[] {
 		),
 		visualQuestion(
 			"question:visual:ghostty-background",
-			"Do Settings, Status, and Questions leave Ghostty's Catppuccin background untouched outside their rendered rows?",
+			"Do the Workbench, Settings, and Question surfaces leave Ghostty's Catppuccin background untouched outside their rendered rows?",
 		),
 		visualQuestion(
 			"question:visual:compact-decision",
@@ -136,7 +134,7 @@ export function createQaQuestions(): PendingQuestion[] {
 		),
 		visualQuestion(
 			"question:visual:height",
-			"Does Status stay compact and scroll predictably instead of expanding into mostly empty space?",
+			"Does Workbench detail stay bounded and scroll predictably instead of expanding into mostly empty space?",
 		),
 	];
 }
@@ -169,7 +167,7 @@ export function createRichQaState(): DeveloperState {
 	);
 	const activeRoute = qaRoute(
 		"route:visual:active",
-		"Do Developer Settings, Status, Questions, and compact decisions preserve truthful state, focus depth, alignment, and bounded footprint in Ghostty?",
+		"Do the Developer Workbench, Settings, Questions, and compact decisions preserve truthful state, focus depth, alignment, and bounded footprint in Ghostty?",
 	);
 	const lastJudgment: JudgmentEvent = {
 		protocol: PROTOCOL,
@@ -277,26 +275,6 @@ async function inspectQuestions(
 	}
 }
 
-async function inspectHistory(
-	ctx: ExtensionCommandContext,
-	state: DeveloperState,
-): Promise<void> {
-	let selectedRouteId: string | undefined;
-	while (true) {
-		const routeId = await showDeveloperHistorySelector(
-			ctx,
-			state,
-			selectedRouteId,
-		);
-		if (!routeId) return;
-		selectedRouteId = routeId;
-		const entry = developerHistoryEntries(state).find(
-			(candidate) => candidate.id === routeId,
-		);
-		if (entry) await showDeveloperHistoryDetail(ctx, entry);
-	}
-}
-
 async function runActivationScenario(
 	ctx: ExtensionCommandContext,
 ): Promise<void> {
@@ -313,11 +291,9 @@ async function runNavigationScenario(
 ): Promise<void> {
 	const binding = new FixtureSettingsBinding(createRichQaState());
 	while (true) {
-		const navigation = await showDeveloperSettings(ctx, binding);
-		if (!navigation) return;
-		if (navigation.kind === "status") {
-			await showDeveloperStatus(ctx, {
-				state: binding.read(),
+		const action = await showDeveloperWorkbench(
+			ctx,
+			inspectDeveloperWorkbench(binding.read(), {
 				activeTools: [
 					"read",
 					"bash",
@@ -326,14 +302,24 @@ async function runNavigationScenario(
 					"developer_route_question",
 				],
 				availableSkills: ["verify", "specify", "model", "sketch", "signal"],
-			});
+			}),
+		);
+		if (!action) return;
+		if (action.kind === "settings") {
+			await showDeveloperSettings(ctx, binding);
 			continue;
 		}
-		if (navigation.kind === "history") {
-			await inspectHistory(ctx, binding.read());
-			continue;
-		}
-		await inspectQuestions(ctx, binding.read().pendingQuestions);
+		const question = binding
+			.read()
+			.pendingQuestions.find((candidate) => candidate.id === action.questionId);
+		if (!question) continue;
+		const request = await editQuestionResolutionRequest(ctx, question);
+		if (request === undefined) continue;
+		ctx.ui.notify(
+			`Prepared ${request.length} characters for visual inspection; no state or model message was written.`,
+			"info",
+		);
+		return;
 	}
 }
 
@@ -356,20 +342,20 @@ async function runAnswerImeScenario(
 }
 
 async function runResizeScenario(ctx: ExtensionCommandContext): Promise<void> {
-	const state = createLongQaState();
-	await showDeveloperStatus(ctx, {
-		state,
-		activeTools: ["read", "bash", "developer_route_question"],
-		availableSkills: [
-			"verify",
-			"specify",
-			"model",
-			"sketch",
-			"signal",
-			"visualize",
-		],
-	});
-	await inspectHistory(ctx, state);
+	await showDeveloperWorkbench(
+		ctx,
+		inspectDeveloperWorkbench(createLongQaState(), {
+			activeTools: ["read", "bash", "developer_route_question"],
+			availableSkills: [
+				"verify",
+				"specify",
+				"model",
+				"sketch",
+				"signal",
+				"visualize",
+			],
+		}),
+	);
 }
 
 async function runUnicodeFootprintScenario(
@@ -401,7 +387,7 @@ export function createQaScenarios(): QaScenario[] {
 		},
 		{
 			id: "navigation",
-			label: "Settings / Status / History / Questions",
+			label: "Workbench / Settings / Questions",
 			description:
 				"Exercise one-level Escape, history detail, drag-copy, and parent focus restoration",
 			run: runNavigationScenario,
@@ -417,7 +403,7 @@ export function createQaScenarios(): QaScenario[] {
 			id: "resize-scroll",
 			label: "Resize / scroll / mouse cleanup",
 			description:
-				"Resize long Status and History documents; inspect native wheel scrollback and drag-copy",
+				"Resize long Workbench history detail; inspect keyboard scrolling, native selection, and bounded layout",
 			run: runResizeScenario,
 		},
 		{

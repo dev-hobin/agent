@@ -19,6 +19,15 @@ import { Container, Markdown, Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 
 import {
+	completeDeveloperArgs,
+	parseDeveloperCommand,
+} from "./developer-command.ts";
+import { inspectDeveloperWorkbench } from "./developer-workbench.ts";
+import {
+	showDeveloperWorkbench,
+	type DeveloperWorkbenchAction,
+} from "./developer-workbench-tui.ts";
+import {
 	COMPACTION_LANGUAGE_ENTRY,
 	applyCompactionLanguageEvent,
 	continuityConsumed,
@@ -93,14 +102,10 @@ import {
 } from "./tool-policy.ts";
 import {
 	DeveloperWidget,
-	developerHistoryEntries,
 	editQuestionResolutionRequest,
 	promptImmediateUserQuestion,
 	renderDeveloperFooter,
-	showDeveloperHistoryDetail,
-	showDeveloperHistorySelector,
 	showDeveloperSettings,
-	showDeveloperStatus,
 	showPendingQuestionSelector,
 	type ImmediateQuestionDisposition,
 } from "./tui.ts";
@@ -119,9 +124,8 @@ const MAX_QUESTION_CONTEXT_CHARS = 8_000;
 const MAX_EVIDENCE_CHARS = 2_000;
 const MAX_RESULT_CHARS = 12_000;
 const MAX_ARTIFACT_CHARS = 4_096;
-const DEVELOPER_COMMAND_ACTIONS = ["on", "status", "questions", "off"] as const;
 const TOOL_POLICY_RESTART_MESSAGE =
-	"Developer detected an in-process package reload from a version without reload-safe tool handoff. Restart the Pi process before enabling Developer; /reload and /develop off/on cannot safely reconstruct the prior built-in tool selection.";
+	"Developer detected an in-process package reload from a version without reload-safe tool handoff. Restart the Pi process before enabling Developer; /reload and /developer off/on cannot safely reconstruct the prior built-in tool selection.";
 
 function textResult<T>(text: string, details: T) {
 	return {
@@ -703,8 +707,8 @@ export default async function developer(pi: ExtensionAPI) {
 	let toolPolicyMemory: ToolPolicyMemory = { withheldBuiltins: new Set() };
 	let toolPolicyRestartRequired = false;
 
-	pi.registerFlag("develop", {
-		description: "Start with the Developer protocol enabled",
+	pi.registerFlag("developer", {
+		description: "Start with Developer enabled",
 		type: "boolean",
 		default: false,
 	});
@@ -1147,7 +1151,7 @@ export default async function developer(pi: ExtensionAPI) {
 		renderShell: "self",
 		async execute(toolCallId, params, _signal, _onUpdate, ctx) {
 			if (!state.enabled)
-				fail("Developer protocol is off. Run /develop on first.");
+				fail("Developer protocol is off. Run /developer on first.");
 			if (state.activeRoute || routeOpening) {
 				if (!state.activeRoute)
 					fail(
@@ -2328,19 +2332,11 @@ export default async function developer(pi: ExtensionAPI) {
 		);
 	};
 
-	pi.registerCommand("develop", {
+	const developerCommand = {
 		description:
-			"Control or inspect Developer: /develop on | status | questions | off",
-		getArgumentCompletions(prefix) {
-			const normalized = prefix.trim();
-			const matches = DEVELOPER_COMMAND_ACTIONS.filter((action) =>
-				action.startsWith(normalized),
-			);
-			return matches.length > 0
-				? matches.map((action) => ({ value: action, label: action }))
-				: null;
-		},
-		handler: async (args, ctx) => {
+			"Open Developer's branch-aware judgment workbench or run a focused action",
+		getArgumentCompletions: completeDeveloperArgs,
+		handler: async (args: string, ctx: ExtensionCommandContext) => {
 			const submitQuestionResolution = async (
 				question: PendingQuestion,
 			): Promise<boolean> => {
@@ -2391,49 +2387,6 @@ export default async function developer(pi: ExtensionAPI) {
 				return true;
 			};
 
-			const inspectStatus = async () => {
-				if (toolPolicyRestartRequired) {
-					ctx.ui.notify(TOOL_POLICY_RESTART_MESSAGE, "error");
-					refreshUI(ctx);
-					return;
-				}
-				refreshAvailableSkills(ctx);
-				if (ctx.mode === "tui") {
-					await showDeveloperStatus(ctx, {
-						state,
-						activeTools: pi.getActiveTools(),
-						availableSkills: [...availableSkills.keys()],
-					});
-				} else {
-					ctx.ui.notify(statusMessage(), "info");
-				}
-			};
-
-			const inspectHistory = async (): Promise<void> => {
-				if (state.judgmentHistory.length === 0) {
-					ctx.ui.notify(
-						"Developer has no judgment history on this branch.",
-						"info",
-					);
-					return;
-				}
-				let selectedRouteId: string | undefined;
-				while (true) {
-					const routeId = await showDeveloperHistorySelector(
-						ctx,
-						state,
-						selectedRouteId,
-					);
-					if (!routeId) return;
-					selectedRouteId = routeId;
-					const entry = developerHistoryEntries(state).find(
-						(candidate) => candidate.id === routeId,
-					);
-					if (!entry) continue;
-					await showDeveloperHistoryDetail(ctx, entry);
-				}
-			};
-
 			const answerPendingQuestion = async (): Promise<boolean> => {
 				if (state.pendingQuestions.length === 0) {
 					ctx.ui.notify(
@@ -2473,49 +2426,110 @@ export default async function developer(pi: ExtensionAPI) {
 				return false;
 			};
 
-			const action = args.trim();
-			if (!action && ctx.mode === "tui") {
-				refreshAvailableSkills(ctx);
-				while (true) {
-					const selection = await showDeveloperSettings(ctx, {
-						read: () => state,
-						commitActivation(enabled) {
-							setAndNotifyEnabled(enabled);
-							return state;
-						},
-					});
-					if (!selection) return;
-					if (selection.kind === "questions") {
-						if (await answerPendingQuestion()) return;
-						continue;
-					}
-					if (selection.kind === "history") {
-						await inspectHistory();
-						continue;
-					}
-					await inspectStatus();
-				}
-			}
+			const inspectSettings = async (): Promise<void> => {
+				await showDeveloperSettings(ctx, {
+					read: () => state,
+					commitActivation(enabled) {
+						setAndNotifyEnabled(enabled);
+						return state;
+					},
+				});
+			};
 
-			if (!action || action === "status") {
+			const inspectWorkbench = async (
+				initialSection?: "overview",
+			): Promise<void> => {
+				let section = initialSection;
+				while (true) {
+					refreshAvailableSkills(ctx);
+					const action: DeveloperWorkbenchAction | undefined =
+						await showDeveloperWorkbench(
+							ctx,
+							inspectDeveloperWorkbench(state, {
+								activeTools: pi.getActiveTools(),
+								availableSkills: [...availableSkills.keys()],
+								restartIssue: toolPolicyRestartRequired
+									? TOOL_POLICY_RESTART_MESSAGE
+									: undefined,
+							}),
+							section,
+						);
+					section = undefined;
+					if (!action) return;
+					if (action.kind === "settings") {
+						await inspectSettings();
+						continue;
+					}
+					const question = state.pendingQuestions.find(
+						(candidate) => candidate.id === action.questionId,
+					);
+					if (!question) {
+						ctx.ui.notify(
+							"That Developer question is no longer open on the current branch.",
+							"warning",
+						);
+						continue;
+					}
+					if (await submitQuestionResolution(question)) return;
+				}
+			};
+
+			const inspectStatus = async (): Promise<void> => {
+				refreshAvailableSkills(ctx);
+				if (ctx.mode === "tui") {
+					await inspectWorkbench("overview");
+					return;
+				}
+				ctx.ui.notify(
+					toolPolicyRestartRequired
+						? `${TOOL_POLICY_RESTART_MESSAGE}\n${statusMessage()}`
+						: statusMessage(),
+					toolPolicyRestartRequired ? "error" : "info",
+				);
+			};
+
+			const parsed = parseDeveloperCommand(args);
+			if (!parsed.ok) {
+				ctx.ui.notify(
+					"Usage: /developer [status | questions | settings | on | off]",
+					"warning",
+				);
+				return;
+			}
+			const action = parsed.command.kind;
+			if (action === "workbench") {
+				if (ctx.mode === "tui") await inspectWorkbench();
+				else await inspectStatus();
+				return;
+			}
+			if (action === "status") {
 				await inspectStatus();
-				return;
-			}
-			if (action === "on") {
-				setAndNotifyEnabled(true);
-				return;
-			}
-			if (action === "off") {
-				await turnOff();
 				return;
 			}
 			if (action === "questions") {
 				await answerPendingQuestion();
 				return;
 			}
-			ctx.ui.notify("Usage: /develop on | status | questions | off", "warning");
+			if (action === "settings") {
+				if (ctx.mode === "tui") {
+					await inspectSettings();
+					await inspectWorkbench();
+				} else {
+					ctx.ui.notify(
+						`Developer settings: activation ${state.enabled ? "on" : "off"}`,
+						"info",
+					);
+				}
+				return;
+			}
+			if (action === "on") {
+				setAndNotifyEnabled(true);
+				return;
+			}
+			if (action === "off") await turnOff();
 		},
-	});
+	};
+	pi.registerCommand("developer", developerCommand);
 
 	const entryRendererAPI = pi as ExtensionAPI & {
 		registerEntryRenderer?: ExtensionAPI["registerEntryRenderer"];
@@ -2663,7 +2677,7 @@ export default async function developer(pi: ExtensionAPI) {
 			ctx.ui.notify(TOOL_POLICY_RESTART_MESSAGE, "error");
 			return;
 		}
-		const startEnabled = pi.getFlag("develop");
+		const startEnabled = pi.getFlag("developer");
 		if (startEnabled === true && !state.enabled) setEnabled(true, ctx);
 	});
 	pi.on("session_tree", (_event, ctx) => reconstruct(ctx));

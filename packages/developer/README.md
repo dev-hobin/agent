@@ -1,7 +1,8 @@
 # Developer for Pi
 
-Developer helps [Pi](https://pi.dev) stop guessing, choose the right design or
-review method, make one justified change, and show the evidence behind it.
+Developer is a branch-aware judgment workbench that helps [Pi](https://pi.dev)
+stop guessing, choose the right design or review method, make one justified
+change, and show the evidence behind it.
 
 Use it when a task may hide product rules, consequential cases, ownership,
 compatibility, structural timing, or pass-but-wrong verification. Developer:
@@ -17,7 +18,8 @@ through a fixed plan, design, implementation, and review sequence.
 
 ## Install
 
-Requires Node.js 22.19 or newer. Tested with Pi 0.80.3 and 0.80.10.
+Requires Node.js 22.19 or newer. The 0.1.14 Workbench was verified with Pi
+0.80.10 and 0.82.1; the verified TypeBox resolution was 1.3.6.
 
 ```sh
 pi install npm:@hobin/developer
@@ -32,7 +34,7 @@ pi -e npm:@hobin/developer
 Start Pi and enable Developer:
 
 ```text
-/develop on
+/developer on
 ```
 
 Run `pi list` if you want to confirm that the package is installed.
@@ -43,7 +45,7 @@ Describe the product task normally. You do not need to name a skill or call an
 internal protocol tool.
 
 ```text
-/develop on
+/developer on
 The selected payment method disappears after navigating back to checkout.
 Find the cause and fix it.
 ```
@@ -179,39 +181,63 @@ replaces their methods with one giant checklist.
 
 | Command | Effect |
 | --- | --- |
-| `/develop` | Open Developer settings |
-| `/develop on` | Enable adaptive routing and route-bound tool access |
-| `/develop status` | Inspect current branch state and recent route history |
-| `/develop questions` | Review or investigate an unresolved question |
-| `/develop off` | Disable Developer and clear current protocol state |
+| `/developer` | Open the branch-aware judgment Workbench |
+| `/developer status` | Open Workbench Overview, or print current state outside TUI mode |
+| `/developer questions` | Review, answer, or investigate an unresolved Question |
+| `/developer settings` | Open activation Settings, then return to the Workbench |
+| `/developer on` | Enable adaptive routing and route-bound tool access |
+| `/developer off` | Disable Developer and clear current protocol state |
 
 Start a preconfigured session with Developer enabled:
 
 ```sh
-pi --develop
+pi --developer
 ```
+
+Developer 0.1.14 intentionally replaces the old `/develop` command and
+`--develop` startup flag without aliases. Commands use Pi's normal
+`/developer <action>` grammar; colon-style command names are not registered.
 
 Turning Developer off while work or questions remain asks for confirmation in
 interactive mode. Historical session entries remain; only current protocol state
 is cleared.
 
-## Questions and visible state
+## Workbench and visible state
+
+`/developer` makes the current judgment state visible without changing it:
+
+```text
+Overview → Active Route → Questions → Judgments → Landings → Settings
+```
+
+Overview shows the current obligation, mutation authority, gates, active target,
+next action, runtime resources, and verification debt. Active Route exposes the
+route question, reason, known evidence, alternatives, reference provenance, and
+one bounded implementation contract when mutation is authorized. Judgments keep
+complete result Markdown with basis and artifacts. Landings index implementation
+judgments without inventing a per-landing `Verified` claim that the event schema
+does not record.
+
+The Workbench is keyboard-complete. Use arrows or `j/k` to move, Enter to open,
+Escape to return one level, Tab to change focus, Page Up/Page Down and Home/End
+to scroll, and `?` for contextual help. Opening and scrolling the Workbench does
+not append session entries, send messages, change active tools, or write files.
 
 Developer keeps consequential unknowns explicit instead of silently turning them
-into assumptions. A question records who can resolve it, what evidence or answer
+into assumptions. A Question records who can resolve it, what evidence or answer
 would close it, and whether it blocks implementation or completion.
 
-`/develop questions` opens a bounded decision brief with the Markdown
+`/developer questions` opens a bounded decision brief with the Markdown
 explanation visible in the initial viewport and answer/defer actions pinned below
 it. Page Up and Page Down move through longer detail without displacing those
-actions. User-owned questions accept an answer, agent-owned questions can be sent
-back to Pi for investigation, and environment-owned questions identify access or
-observations that must come from outside the session.
+actions. User-owned Questions accept an answer, agent-owned Questions can be
+sent back to Pi for investigation, and environment-owned Questions identify
+access or observations that must come from outside the session.
 
 The footer shows activation and the current route. A compact widget appears only
-while a route or unresolved question exists. `/develop status` and
-`/develop questions` expose the details without requiring users to remember
-internal IDs.
+while a route or unresolved Question exists. `/developer status` and
+`/developer questions` remain direct accelerators for explicit inspection and
+action.
 
 Visible routing states include:
 
@@ -261,7 +287,10 @@ Reference and policy hashes make that application replayable on the current
 branch; they do not by themselves prove source fidelity.
 
 See [Reference routing](./REFERENCE_ROUTING.md) for the runtime contract and
-policy schema.
+policy schema. See the
+[Terminal Judgment Workbench study](./docs/terminal-judgment-workbench-study-v0.1.ko.md)
+for the product meaning, comparative terminal research, transfer boundaries, and
+inspection contract behind the Workbench.
 
 ## Branches, compaction, and reloads
 

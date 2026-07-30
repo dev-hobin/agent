@@ -24,6 +24,7 @@
   "files": [
     "extensions",
     "skills",
+    "docs",
     "README.md",
     "REFERENCE_ROUTING.md",
     "LICENSE"

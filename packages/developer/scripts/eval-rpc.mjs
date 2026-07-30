@@ -206,14 +206,14 @@ async function command(message) {
 
 async function currentDeveloperStatus() {
 	const start = events.length;
-	await command("/develop status");
+	await command("/developer status");
 	const notification = events
 		.slice(start)
 		.find(
 			(event) =>
 				event.type === "extension_ui_request" && event.method === "notify",
 		);
-	assert.ok(notification, "Expected /develop status notification");
+	assert.ok(notification, "Expected /developer status notification");
 	return parseDeveloperStatus(notification.message);
 }
 
@@ -223,8 +223,19 @@ try {
 	const commands = commandsResponse.data.commands;
 	assert.ok(
 		commands.some(
-			(entry) => entry.name === "develop" && entry.source === "extension",
+			(entry) => entry.name === "developer" && entry.source === "extension",
 		),
+		"Expected canonical /developer extension command",
+	);
+	assert.equal(
+		commands.some((entry) => entry.name === "develop"),
+		false,
+		"Removed /develop command must not remain registered",
+	);
+	assert.equal(
+		commands.some((entry) => String(entry.name).startsWith("developer:")),
+		false,
+		"Developer actions must use normal command arguments, not colon commands",
 	);
 
 	const allLoadedSkills = commands.filter((entry) => entry.source === "skill");
@@ -237,7 +248,7 @@ try {
 		true,
 	);
 	assert.equal(
-		packageSkills.some((entry) => entry.name === "develop"),
+		packageSkills.some((entry) => entry.name === "developer"),
 		false,
 	);
 	for (const entry of packageSkills) {
@@ -249,7 +260,7 @@ try {
 	}
 
 	const eventStart = events.length;
-	await command("/develop on");
+	await command("/developer on");
 	assert.ok(
 		events
 			.slice(eventStart)
@@ -259,12 +270,12 @@ try {
 					event.method === "setStatus" &&
 					String(event.statusText).includes("developer: on"),
 			),
-		"Expected /develop on to publish branch-visible status",
+		"Expected /developer on to publish branch-visible status",
 	);
 	console.log("RPC smoke: command, skills, and activation state are available");
 
 	const enabledStatusStart = events.length;
-	await command("/develop status");
+	await command("/developer status");
 	const enabledStatus = events
 		.slice(enabledStatusStart)
 		.find(
@@ -318,9 +329,9 @@ try {
 			"Enabled idle Developer exposed controlled tool " + tool,
 		);
 	}
-	await command("/develop off");
+	await command("/developer off");
 	const disabledStatusStart = events.length;
-	await command("/develop status");
+	await command("/developer status");
 	const disabledStatus = events
 		.slice(disabledStatusStart)
 		.find(
@@ -343,13 +354,13 @@ try {
 			"Disabling Developer did not restore " + tool,
 		);
 	}
-	await command("/develop on");
+	await command("/developer on");
 	console.log("RPC smoke: route-bound active-tool gating is available");
 
 	if (live) {
 		for (const fixture of fixtures) {
-			await command("/develop off");
-			await command("/develop on");
+			await command("/developer off");
+			await command("/developer on");
 			const start = events.length;
 			const casePath = join(workspace, fixture.id);
 			const workspaceBefore = await snapshotWorkspace(casePath);

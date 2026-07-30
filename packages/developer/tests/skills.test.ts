@@ -38,7 +38,7 @@ test("Pi's loaded skill metadata is the package leaf catalog", () => {
 	}).skills;
 	assert.deepEqual(catalog.map((skill) => skill.name).sort(), expected);
 	assert.equal(
-		catalog.some((skill) => skill.name === "develop"),
+		catalog.some((skill) => skill.name === "developer"),
 		false,
 	);
 	for (const skill of catalog) {

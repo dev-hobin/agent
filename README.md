@@ -11,7 +11,7 @@ Pi package.
 
 | Package | What it adds | Start here |
 | --- | --- | --- |
-| [`@hobin/developer`](./packages/developer) | A branch-aware development protocol, ten independently routed judgment skills, strict mutation gating, and Pi-native TUI controls | `/develop on` |
+| [`@hobin/developer`](./packages/developer) | A branch-aware judgment workbench, eleven independently routed skills, strict mutation gating, and inspectable Pi-native state | `/developer on` |
 | [`@hobin/learning`](./packages/learning) | Five source-grounded learning skills, an optional TUI chooser, and a read-only learning-artifact validator | `/learning` or a normal learning request |
 
 Install only the package you need. Do not run `pi install` against the monorepo
@@ -45,9 +45,9 @@ project's `.pi/settings.json` instead of the user profile:
 pi install -l npm:@hobin/developer
 ```
 
-The packages have been exercised against Pi 0.80.3 and 0.80.10. Their Pi core
-imports are peer dependencies supplied by the host and are not bundled into the
-npm artifacts.
+Developer 0.1.14 has been exercised against Pi 0.80.10 and 0.82.1. Consult each
+package README for its current verification matrix. Pi core imports are peer
+dependencies supplied by the host and are not bundled into npm artifacts.
 
 ## What to expect
 
@@ -92,7 +92,7 @@ pi remove npm:@hobin/learning
 ```
 
 An unversioned npm install follows future package updates. Install a specific
-version, such as `npm:@hobin/developer@0.1.2`, when you want it pinned.
+version, such as `npm:@hobin/developer@0.1.14`, when you want it pinned.
 
 ## Repository layout
 
