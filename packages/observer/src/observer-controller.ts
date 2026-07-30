@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { notebookPathKindLabel, resolveNotebookPath } from "./notebook-path.ts";
 
 import {
 	applyObserverEvent,
@@ -33,9 +33,9 @@ import {
 	type MemoSessionSnapshot,
 } from "./memo-session.ts";
 import {
-	completeObserveArgs,
-	parseObserveCommand,
-	type ObserveCommand,
+	completeObserverArgs,
+	parseObserverCommand,
+	type ObserverCommand,
 } from "./observer-command.ts";
 import {
 	createNotebookService,
@@ -59,6 +59,11 @@ import {
 	renderObserverStatus,
 	type ObserverStatusView,
 } from "./observer-status.ts";
+import {
+	observerWorkbenchView,
+	type ObserverWorkbenchProposalInspection,
+	type ObserverWorkbenchView,
+} from "./observer-workbench.ts";
 import {
 	decodePreparedSaveHandoff,
 	OBSERVER_LIFECYCLE_ENTRY,
@@ -90,10 +95,13 @@ import {
 	type SaveProposalReview,
 	type SaveProposalReviewDecision,
 } from "./save-review.ts";
+import { reconstructSaveRequestSession } from "./save-trigger.ts";
 
 export interface ObserverCommandPort {
 	/** Pi's current working directory. Relative Notebook paths resolve from here. */
 	readonly cwd?: string;
+	/** Optional home override for adapters/tests. `~` paths use the OS home otherwise. */
+	readonly home?: string;
 	branchEntries(): readonly PiBranchEntryLike[];
 	sessionFile(): string | undefined;
 	appendEntry(customType: string, data: unknown): void;
@@ -160,6 +168,7 @@ export interface ObserverController {
 	bind(port: ObserverCommandPort): Promise<void>;
 	refresh(port: ObserverCommandPort): Promise<void>;
 	inspect(port: ObserverCommandPort): Promise<ObserverStatusView>;
+	inspectWorkbench(port: ObserverCommandPort): Promise<ObserverWorkbenchView>;
 	updateDefaultLanguage(
 		language: EpisodeLanguage,
 		port: ObserverCommandPort,
@@ -180,7 +189,7 @@ export interface ObserverController {
 	unbind(): void;
 }
 
-export { completeObserveArgs };
+export { completeObserverArgs };
 
 interface ControllerDependencies {
 	readonly selectionStore: NotebookSelectionStore;
@@ -334,10 +343,10 @@ function matchingOpenEpisode(
 
 async function promptSetup(
 	port: ObserverCommandPort,
-): Promise<ObserveCommand | null> {
+): Promise<ObserverCommand | null> {
 	const root = await port.input(
 		"Observer Notebook path",
-		"Absolute, or relative to the current Pi working directory",
+		"Absolute, ~/… from home, or relative to the current Pi working directory",
 	);
 	if (root === undefined) return null;
 	const language = await port.select("Default output language", ["en", "ko"]);
@@ -349,26 +358,35 @@ async function promptSetup(
 		);
 		return null;
 	}
-	const resolvedRoot = resolve(port.cwd ?? process.cwd(), root.trim());
-	const proceed = `Set up ${resolvedRoot} · default output ${language}`;
+	const resolved = resolveNotebookPath(
+		root,
+		port.cwd ?? process.cwd(),
+		port.home,
+	);
+	if (!resolved.ok) {
+		port.notify(resolved.message, "warning");
+		return null;
+	}
+	const proceed = `Set up ${resolved.path} · default output ${language}`;
 	const choice = await port.select(
 		[
 			"Review Observer Notebook setup",
-			`Resolved path: ${resolvedRoot}`,
+			`Input kind: ${notebookPathKindLabel(resolved.kind)}`,
+			`Resolved path: ${resolved.path}`,
 			`Default Memo/Zettel language: ${language}`,
 			"A new Notebook is initialized; an existing folder is adopted without rewriting unrelated files.",
 		].join("\n"),
 		["Go back · make no changes", proceed],
 	);
 	if (choice !== proceed) return null;
-	return { kind: "setup", root: resolvedRoot, lang: language };
+	return { kind: "setup", root: resolved.path, lang: language };
 }
 
 function resolveCommand(
 	args: string,
 	port: ObserverCommandPort,
-): Promise<ObserveCommand | null> {
-	const parsed = parseObserveCommand(args);
+): Promise<ObserverCommand | null> {
+	const parsed = parseObserverCommand(args);
 	if (!parsed.ok) {
 		port.notify(parsed.message, "warning");
 		return Promise.resolve(null);
@@ -378,11 +396,9 @@ function resolveCommand(
 }
 
 function saveIssueSummary(issue: SaveServiceIssue): string {
-	const subject = issue.recordId
-		? ` Record: ${issue.recordId}.`
-		: issue.path
-			? ` Path: ${issue.path}.`
-			: "";
+	let subject = "";
+	if (issue.recordId) subject = ` Record: ${issue.recordId}.`;
+	else if (issue.path) subject = ` Path: ${issue.path}.`;
 	const diagnostic = issue.diagnostics?.[0]?.message;
 	return `${issue.message}${subject}${diagnostic ? ` ${diagnostic}` : ""}`;
 }
@@ -415,6 +431,68 @@ async function inspectStatus(
 		notebookStatus: await notebooks.status(),
 		sessionFile: port.sessionFile(),
 		...(operationalIssue ? { operationalIssue } : {}),
+	});
+}
+
+async function inspectWorkbench(
+	port: ObserverCommandPort,
+	notebooks: NotebookService,
+	saves: SaveService,
+	operationalIssue?: string,
+): Promise<ObserverWorkbenchView> {
+	const entries = port.branchEntries();
+	const snapshot = reconstructObserverPiState(entries);
+	const memoSnapshot = reconstructMemoSession(entries);
+	const observationSnapshot = reconstructObservationSession(entries);
+	const materialReviewSnapshot = reconstructMaterialReviewSession(entries);
+	const notebookStatus = await notebooks.status();
+	const status = observerStatusView({
+		snapshot,
+		memoSnapshot,
+		observationSnapshot,
+		materialReviewSnapshot,
+		notebookStatus,
+		sessionFile: port.sessionFile(),
+		...(operationalIssue ? { operationalIssue } : {}),
+	});
+	let inventory: readonly NotebookInventoryEntry[] = [];
+	let notebookInventoryIssue: string | undefined;
+	if (notebookStatus.status === "ready") {
+		const inspected = await readNotebookInventory(notebookStatus.notebook);
+		if (inspected.ok) inventory = inspected.value;
+		else notebookInventoryIssue = inspected.issue.message;
+	}
+	let proposalInspection: ObserverWorkbenchProposalInspection = {
+		kind: "none",
+	};
+	if (snapshot.prepared) {
+		const preflight = await saves.preflight({
+			state: snapshot.state,
+			prepared: snapshot.prepared.handoff.prepared,
+		});
+		proposalInspection = preflight.ok
+			? {
+					kind: "ready",
+					review: saveProposalReview(
+						snapshot.prepared.handoff,
+						preflight.value,
+					),
+				}
+			: {
+					kind: "invalid",
+					proposalId: snapshot.prepared.handoff.prepared.proposal_id,
+					reason: saveIssueSummary(preflight.issue),
+				};
+	}
+	return observerWorkbenchView({
+		status,
+		observationSnapshot,
+		memoSnapshot,
+		materialReviewSnapshot,
+		saveRequestSession: reconstructSaveRequestSession(entries),
+		inventory,
+		proposalInspection,
+		...(notebookInventoryIssue ? { notebookInventoryIssue } : {}),
 	});
 }
 
@@ -608,14 +686,22 @@ async function synchronize(
 }
 
 async function setupCommand(
-	command: Extract<ObserveCommand, { readonly kind: "setup" }>,
+	command: Extract<ObserverCommand, { readonly kind: "setup" }>,
 	snapshot: ObserverPiSnapshot,
 	port: ObserverCommandPort,
 	notebooks: NotebookService,
 ): Promise<void> {
-	const root = resolve(port.cwd ?? process.cwd(), command.root);
+	const resolved = resolveNotebookPath(
+		command.root,
+		port.cwd ?? process.cwd(),
+		port.home,
+	);
+	if (!resolved.ok) {
+		port.notify(`Notebook setup failed: ${resolved.message}`, "error");
+		return;
+	}
 	const setup = await notebooks.setup({
-		root,
+		root: resolved.path,
 		defaultLanguage: command.lang,
 		state: snapshot.state,
 	});
@@ -929,7 +1015,7 @@ async function saveCommand(
 		!snapshot.prepared
 	) {
 		port.notify(
-			"There is no reviewed proposal to save. Run /observe review first.",
+			"There is no prepared proposal yet. Open Observer and choose Review.",
 			"warning",
 		);
 		return;
@@ -1378,7 +1464,7 @@ async function installPreparedCommand(input: {
 	if (notifyReplayIssue(withPrepared, input.port)) return false;
 	if (!appendLifecycle(input.port, withPrepared, proposal)) return false;
 	input.port.notify(
-		"Review completed. The proposal is ready; run /observe save to inspect and approve it.",
+		"Review completed. Open the Observer workbench (/observer) and choose Review prepared proposal. Nothing is written until you approve it.",
 		"info",
 	);
 	await refreshStatus(input.port, input.notebooks, input.operationalIssue);
@@ -1493,6 +1579,9 @@ export function createObserverController(
 		},
 		inspect(port) {
 			return inspectStatus(port, notebooks, operationalIssue);
+		},
+		inspectWorkbench(port) {
+			return inspectWorkbench(port, notebooks, saves, operationalIssue);
 		},
 		updateDefaultLanguage(language, port) {
 			return updateDefaultLanguageCommand({

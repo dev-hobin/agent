@@ -190,20 +190,22 @@ export const savePrepareActionSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
+export const memoSubmissionSchema = Type.Object(
+	{
+		evidence: Type.Array(memoEvidenceItemSchema),
+		hypothesis_outcomes: Type.Array(hypothesisOutcomeSchema),
+		memo_outcomes: Type.Array(memoOutcomeSchema),
+		dispositions: Type.Array(observationDispositionSchema),
+	},
+	{ additionalProperties: false },
+);
+
 export const memoPrepareActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
 		action: Type.Literal("memo-prepare"),
 		request_id: memoRequestId,
-		submission: Type.Object(
-			{
-				evidence: Type.Array(memoEvidenceItemSchema),
-				hypothesis_outcomes: Type.Array(hypothesisOutcomeSchema),
-				memo_outcomes: Type.Array(memoOutcomeSchema),
-				dispositions: Type.Array(observationDispositionSchema),
-			},
-			{ additionalProperties: false },
-		),
+		submission: memoSubmissionSchema,
 	},
 	{ additionalProperties: false },
 );
@@ -307,81 +309,250 @@ export const nominateToolResultsActionSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
+export const sourceReadActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("source-read"),
+		candidate_ids: Type.Array(Type.String()),
+		source: sourceSchema,
+		faithful_summary: Type.String(),
+		claims: Type.Array(claimSchema),
+	},
+	{ additionalProperties: false },
+);
+
+export const hydrateActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("hydrate"),
+		read_id: Type.String(),
+		index_digest: Type.String(),
+		inquiry_ids: Type.Array(Type.String()),
+	},
+	{ additionalProperties: false },
+);
+
+const observationStanceSchema = Type.Union([
+	Type.Literal("supports"),
+	Type.Literal("challenges"),
+	Type.Literal("refines"),
+	Type.Literal("boundary"),
+	Type.Literal("uncertain"),
+]);
+
+export const recordObservationActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("record"),
+		read_id: Type.String(),
+		hydration_id: nullableString,
+		related_inquiry_ids: Type.Array(Type.String()),
+		stance: observationStanceSchema,
+		movement: Type.Union([
+			Type.Literal("repeated-support"),
+			Type.Literal("minor-refinement"),
+			Type.Literal("uncertain-association"),
+			Type.Literal("material-boundary-change"),
+			Type.Literal("core-counterexample"),
+			Type.Literal("major-direction-change"),
+			Type.Literal("missed-important-mismatch"),
+		]),
+		rationale: Type.String(),
+		observer_hypothesis: Type.Null({
+			description:
+				"Must be null for record. Use record-new-hypothesis for an independent Observer hypothesis.",
+		}),
+	},
+	{ additionalProperties: false },
+);
+
+export const recordNewHypothesisActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("record-new-hypothesis"),
+		read_id: Type.String(),
+		hydration_id: nullableString,
+		related_inquiry_ids: Type.Array(Type.String()),
+		stance: observationStanceSchema,
+		rationale: Type.String(),
+		observer_hypothesis: Type.String({ minLength: 1, maxLength: 20_000 }),
+	},
+	{ additionalProperties: false },
+);
+
+export const userHypothesisActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("user-hypothesis"),
+		candidate_id: Type.String(),
+		existing_inquiry_id: nullableString,
+		original: Type.String(),
+		context: Type.String(),
+	},
+	{ additionalProperties: false },
+);
+
+const memoScopeActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("memo-scope"),
+		request_id: Type.String(),
+	},
+	{ additionalProperties: false },
+);
+
+const piggybackNominationSchema = Type.Object(
+	{
+		tool_call_id: Type.String({ minLength: 1, maxLength: 300 }),
+		reason: Type.String({ minLength: 1, maxLength: 4_000 }),
+	},
+	{ additionalProperties: false },
+);
+
+const piggybackObservationSchema = Type.Object(
+	{
+		candidate_ids: Type.Array(Type.String(), { maxItems: 16 }),
+		nominations: Type.Array(piggybackNominationSchema, { maxItems: 8 }),
+		source: sourceSchema,
+		faithful_summary: Type.String(),
+		claims: Type.Array(claimSchema),
+		related_inquiry_ids: Type.Array(Type.String(), { maxItems: 8 }),
+		stance: observationStanceSchema,
+		record: Type.Union([
+			Type.Object(
+				{
+					kind: Type.Literal("observation"),
+					movement: Type.Union([
+						Type.Literal("repeated-support"),
+						Type.Literal("minor-refinement"),
+						Type.Literal("uncertain-association"),
+						Type.Literal("material-boundary-change"),
+						Type.Literal("core-counterexample"),
+						Type.Literal("major-direction-change"),
+						Type.Literal("missed-important-mismatch"),
+					]),
+					rationale: Type.String(),
+				},
+				{ additionalProperties: false },
+			),
+			Type.Object(
+				{
+					kind: Type.Literal("new-hypothesis"),
+					rationale: Type.String(),
+					observer_hypothesis: Type.String({
+						minLength: 1,
+						maxLength: 20_000,
+					}),
+				},
+				{ additionalProperties: false },
+			),
+		]),
+	},
+	{ additionalProperties: false },
+);
+
+const piggybackHypothesisReviewSchema = Type.Object(
+	{
+		hypothesis_observation_id: stableId("observation"),
+		assessment: Type.Union([
+			Type.Literal("supports"),
+			Type.Literal("challenges"),
+			Type.Literal("mixed"),
+			Type.Literal("insufficient-context"),
+		]),
+		supporting_clues: Type.Array(Type.String()),
+		challenging_clues: Type.Array(Type.String()),
+		missing_information: Type.Array(Type.String()),
+		source_ids: Type.Array(stableId("source")),
+		interpretation_boundary: Type.String(),
+	},
+	{ additionalProperties: false },
+);
+
+export const observerCommitActionSchema = Type.Object(
+	{
+		observer_action: Type.Literal("observer-sidecar/v1"),
+		action: Type.Literal("observer-commit"),
+		episode_id: Type.String({ minLength: 1, maxLength: 300 }),
+		observations: Type.Array(piggybackObservationSchema, { maxItems: 4 }),
+		hypothesis_context_reviews: Type.Array(piggybackHypothesisReviewSchema, {
+			maxItems: 8,
+		}),
+		memo: Type.Union([
+			Type.Null(),
+			Type.Object(
+				{
+					request_id: memoRequestId,
+					submission: memoSubmissionSchema,
+				},
+				{ additionalProperties: false },
+			),
+		]),
+		save: Type.Union([
+			Type.Null(),
+			Type.Object(
+				{
+					request_id: saveRequestId,
+					summary: Type.String(),
+					records: Type.Array(preparedRecordSchema),
+				},
+				{ additionalProperties: false },
+			),
+		]),
+	},
+	{ additionalProperties: false },
+);
+
+export const observerMaterialSidecarParameters = Type.Union([
+	materialReviewStartActionSchema,
+	materialReviewFinishActionSchema,
+	sourceReadActionSchema,
+	hydrateActionSchema,
+	recordObservationActionSchema,
+	recordNewHypothesisActionSchema,
+]);
+
+export const observerRoutineSidecarParameters = Type.Union([
+	nominateToolResultsActionSchema,
+	sourceReadActionSchema,
+	hydrateActionSchema,
+	recordObservationActionSchema,
+	recordNewHypothesisActionSchema,
+	userHypothesisActionSchema,
+	hypothesisContextReviewActionSchema,
+]);
+
+export const observerRequestSidecarParameters = Type.Union([
+	hypothesisContextReviewActionSchema,
+	memoScopeActionSchema,
+	memoPrepareActionSchema,
+	saveScopeActionSchema,
+	savePrepareActionSchema,
+]);
+
 export const observerSidecarParameters = Type.Union([
 	materialReviewStartActionSchema,
 	materialReviewFinishActionSchema,
 	nominateToolResultsActionSchema,
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("source-read"),
-			candidate_ids: Type.Array(Type.String()),
-			source: sourceSchema,
-			faithful_summary: Type.String(),
-			claims: Type.Array(claimSchema),
-		},
-		{ additionalProperties: false },
-	),
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("hydrate"),
-			read_id: Type.String(),
-			index_digest: Type.String(),
-			inquiry_ids: Type.Array(Type.String()),
-		},
-		{ additionalProperties: false },
-	),
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("record"),
-			read_id: Type.String(),
-			hydration_id: nullableString,
-			related_inquiry_ids: Type.Array(Type.String()),
-			stance: Type.Union([
-				Type.Literal("supports"),
-				Type.Literal("challenges"),
-				Type.Literal("refines"),
-				Type.Literal("boundary"),
-				Type.Literal("uncertain"),
-			]),
-			movement: Type.Union([
-				Type.Literal("repeated-support"),
-				Type.Literal("minor-refinement"),
-				Type.Literal("uncertain-association"),
-				Type.Literal("material-boundary-change"),
-				Type.Literal("core-counterexample"),
-				Type.Literal("independent-new-hypothesis"),
-				Type.Literal("major-direction-change"),
-				Type.Literal("missed-important-mismatch"),
-			]),
-			rationale: Type.String(),
-			observer_hypothesis: nullableString,
-		},
-		{ additionalProperties: false },
-	),
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("user-hypothesis"),
-			candidate_id: Type.String(),
-			existing_inquiry_id: nullableString,
-			original: Type.String(),
-			context: Type.String(),
-		},
-		{ additionalProperties: false },
-	),
+	sourceReadActionSchema,
+	hydrateActionSchema,
+	recordObservationActionSchema,
+	recordNewHypothesisActionSchema,
+	userHypothesisActionSchema,
 	hypothesisContextReviewActionSchema,
-	Type.Object(
-		{
-			observer_action: Type.Literal("observer-sidecar/v1"),
-			action: Type.Literal("memo-scope"),
-			request_id: Type.String(),
-		},
-		{ additionalProperties: false },
-	),
+	memoScopeActionSchema,
 	memoPrepareActionSchema,
 	saveScopeActionSchema,
 	savePrepareActionSchema,
+	observerCommitActionSchema,
+]);
+
+/**
+ * Pi validates this permissive envelope before execute. Domain decoding remains
+ * strict inside the tool so malformed model output can terminate quietly
+ * instead of triggering a paid repair turn.
+ */
+export const observerRuntimeSidecarParameters = Type.Union([
+	observerSidecarParameters,
+	Type.Record(Type.String(), Type.Unknown()),
 ]);

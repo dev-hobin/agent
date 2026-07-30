@@ -11,7 +11,6 @@ import {
 	type MaterialReviewCommandPort,
 	type MaterialReviewCommandResult,
 } from "../src/material-review-command.ts";
-import { observerSidecarContext } from "../src/observer-prompt.ts";
 import type { PiBranchEntryLike } from "../src/pi-session.ts";
 import type {
 	LatestUserMessage,
@@ -32,6 +31,8 @@ export interface NominatableToolResult {
 	readonly toolName: string;
 	readonly isError: boolean;
 	readonly capturedAt: string;
+	readonly input?: Readonly<Record<string, unknown>>;
+	readonly content?: readonly unknown[];
 }
 
 export interface ResolvedToolResultNomination extends NominatableToolResult {
@@ -51,6 +52,7 @@ export interface ObserverTurnState {
 	latestUser: LatestUserMessage | null;
 	scriptedMaterialRequest: string | null;
 	blockedRequestId: string | null;
+	backgroundIssue?: string | null;
 	agentRunSequence: number;
 	activeAgentRunId: number | null;
 	materialReviewRun: MaterialReviewRun | null;
@@ -352,19 +354,9 @@ export function observerTurnContext(input: {
 	readonly entries: readonly PiBranchEntryLike[];
 }): string | null {
 	const activeRequestId = activeMaterialReviewRequestId(input.turnState);
-	const guidance = [
-		materialReviewContext({
-			latestUser: input.turnState.latestUser,
-			activeRequestId,
-			entries: input.entries,
-		}),
-		input.turnState.blockedRequestId || activeRequestId
-			? null
-			: observerSidecarContext(input.entries, [
-					...input.turnState.nominatableToolResults.values(),
-				]),
-	]
-		.filter((item) => item !== null)
-		.join("\n\n");
-	return guidance.length > 0 ? guidance : null;
+	return materialReviewContext({
+		latestUser: input.turnState.latestUser,
+		activeRequestId,
+		entries: input.entries,
+	});
 }

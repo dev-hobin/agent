@@ -4,6 +4,7 @@ import {
 	hydrateMemoScope,
 	type MemoReconciliationCoverage,
 	type MemoScopeSnapshot,
+	type WorkingHypothesis,
 	type WorkingSourceBasis,
 } from "./memo-reconciliation.ts";
 import type { MemoSessionSnapshot } from "./memo-session.ts";
@@ -495,6 +496,57 @@ function memoPassIdForRequest(requestId: MemoRequestId): MemoPassId | null {
 	return decodeMemoPassId(`memo-pass-${suffix}`);
 }
 
+function preparationCoverage(input: {
+	readonly context: ObservationMemoContext;
+	readonly memo: MemoSessionSnapshot;
+}): MemoReconciliationCoverage {
+	const base = describeMemoReconciliationCoverage(
+		input.memo.state,
+		input.context.memoScope,
+	);
+	const hypotheses = new Map(
+		base.hypotheses.map(
+			(hypothesis): readonly [InquiryId, WorkingHypothesis] => [
+				hypothesis.inquiryId,
+				hypothesis,
+			],
+		),
+	);
+	for (const observation of input.context.observations) {
+		let pending: WorkingHypothesis | null = null;
+		if (observation.kind === "user-hypothesis-recorded") {
+			pending = {
+				inquiryId: observation.inquiryId,
+				episodeId: observation.episodeId,
+				origin: "user",
+				original: observation.original,
+				current: observation.original,
+				revisionReason: null,
+				evidenceIds: [],
+			};
+		} else if (observation.observerHypothesis) {
+			pending = {
+				inquiryId: observation.observerHypothesis.inquiryId,
+				episodeId: observation.episodeId,
+				origin: "observer",
+				original: observation.observerHypothesis.original,
+				current: observation.observerHypothesis.original,
+				revisionReason: null,
+				evidenceIds: [],
+			};
+		}
+		if (pending && !hypotheses.has(pending.inquiryId)) {
+			hypotheses.set(pending.inquiryId, pending);
+		}
+	}
+	return {
+		hypotheses: [...hypotheses.values()].toSorted((left, right) =>
+			left.inquiryId.localeCompare(right.inquiryId),
+		),
+		memos: base.memos,
+	};
+}
+
 export function buildObservationMemoPreparationGuide(input: {
 	readonly context: ObservationMemoContext;
 	readonly observation: ObservationSessionSnapshot;
@@ -540,10 +592,10 @@ export function buildObservationMemoPreparationGuide(input: {
 				request_digest: request.requestDigest,
 				observation_ids: request.observationIds,
 			},
-			required_coverage: describeMemoReconciliationCoverage(
-				input.memo.state,
-				scope,
-			),
+			required_coverage: preparationCoverage({
+				context: input.context,
+				memo: input.memo,
+			}),
 			evidence_sources: [...sources.values()].toSorted((left, right) =>
 				left.source_id.localeCompare(right.source_id),
 			),

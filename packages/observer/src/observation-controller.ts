@@ -124,6 +124,10 @@ export interface ObservationControllerIds {
 	saveProposalId(): SaveProposalId;
 }
 
+export type StandingIndexControllerResult =
+	| { readonly ok: true; readonly index: StandingIndex }
+	| { readonly ok: false; readonly message: string };
+
 export type CandidateCaptureResult =
 	| {
 			readonly ok: true;
@@ -306,6 +310,9 @@ export interface ObservationController {
 		},
 		port: ObservationCommandPort,
 	): MaterialReviewStartControllerResult;
+	inspectStandingIndex(
+		port: ObservationCommandPort,
+	): Promise<StandingIndexControllerResult>;
 	capture(
 		value: {
 			readonly origin: unknown;
@@ -876,6 +883,20 @@ function currentIndex(input: {
 		memo: input.branch.memo.state,
 		observation: input.branch.observation,
 	});
+}
+
+async function inspectStandingIndex(input: {
+	readonly port: ObservationCommandPort;
+	readonly notebooks: NotebookService;
+}): Promise<StandingIndexControllerResult> {
+	const branch = liveBranch(input.port);
+	if (!isLiveBranch(branch)) return { ok: false, message: branch };
+	if (branch.pi.state.episode.status !== "open") {
+		return { ok: false, message: "StandingIndex requires an open Episode." };
+	}
+	const inventory = await inventoryFor(branch, input.notebooks);
+	if (!isInventory(inventory)) return { ok: false, message: inventory };
+	return { ok: true, index: currentIndex({ branch, inventory }) };
 }
 
 function prepareSourceRead(input: {
@@ -1572,7 +1593,8 @@ function requestMemo(input: {
 			return {
 				ok: true,
 				status: "resumed",
-				message: `기존 Memo request를 재개합니다: ${planned.value.request.requestId}`,
+				message:
+					"기존 Memo 조정을 백그라운드에서 재개했습니다. 작업을 계속해도 됩니다.",
 				request: planned.value.request,
 			};
 		case "append": {
@@ -1582,7 +1604,8 @@ function requestMemo(input: {
 				: {
 						ok: true,
 						status: "requested",
-						message: `Memo request를 기록했습니다: ${planned.value.request.requestId}`,
+						message:
+							"Memo 조정을 백그라운드에서 시작했습니다. 작업을 계속해도 됩니다.",
 						request: planned.value.request,
 					};
 		}
@@ -1602,7 +1625,7 @@ async function requestSave(input: {
 		return {
 			ok: false,
 			message:
-				"Resolve the pending Material review before Review: use /observe material retry or /observe material cancel.",
+				"Resolve the pending Material review before Review: use /observer material retry or /observer material cancel.",
 		};
 	if (
 		branch.pi.prepared ||
@@ -1611,7 +1634,7 @@ async function requestSave(input: {
 		return {
 			ok: true,
 			status: "delegate",
-			message: "The reviewed proposal is ready for Save.",
+			message: "The prepared proposal is ready for your inspection.",
 			request: null,
 		};
 	}
@@ -1634,7 +1657,8 @@ async function requestSave(input: {
 		return {
 			ok: true,
 			status: "resumed",
-			message: `Resuming the existing Review request: ${planned.value.request.requestId}`,
+			message:
+				"Observer resumed proposal preparation in the background. You can keep working.",
 			request: planned.value.request,
 		};
 	}
@@ -1666,7 +1690,8 @@ async function requestSave(input: {
 	return {
 		ok: true,
 		status: "requested",
-		message: `Save request recorded: ${confirmed.requestId}`,
+		message:
+			"Observer is preparing an inspectable proposal in the background. You can keep working; no files will be written without your approval.",
 		request: confirmed,
 	};
 }
@@ -1721,7 +1746,7 @@ async function requestReviewSave(input: {
 		return {
 			ok: false,
 			message:
-				"Resolve the pending Material review before Review: use /observe material retry or /observe material cancel.",
+				"Resolve the pending Material review before Review: use /observer material retry or /observer material cancel.",
 		};
 	if (branch.pi.prepared || branch.pi.state.episode.status === "reviewing-save")
 		return requestSave(input);
@@ -1754,7 +1779,7 @@ async function requestReviewSave(input: {
 		ok: true,
 		status: memo.status === "requested" ? "memo-requested" : "memo-resumed",
 		message:
-			"Review is running its final Memo reconciliation before preparing the proposal.",
+			"Observer is reconciling Memo and preparing the proposal in the background. You can keep working; no files will be written without approval.",
 		request: null,
 		memoRequest,
 	};
@@ -2368,6 +2393,9 @@ export function createObservationController(
 		},
 		requestMemo(port) {
 			return requestMemo({ port, ids: dependencies.ids });
+		},
+		inspectStandingIndex(port) {
+			return inspectStandingIndex({ port, notebooks });
 		},
 		capture(value, port) {
 			return captureCandidate({ value, port, ids: dependencies.ids });

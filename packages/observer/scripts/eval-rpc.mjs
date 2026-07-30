@@ -10,13 +10,26 @@ const piEntry = fileURLToPath(
 	import.meta.resolve("@earendil-works/pi-coding-agent"),
 );
 const piCli = join(dirname(piEntry), "cli.js");
+async function packageVersion(path) {
+	try {
+		const parsed = JSON.parse(await readFile(path, "utf8"));
+		return typeof parsed?.version === "string" ? parsed.version : "unknown";
+	} catch {
+		return "unknown";
+	}
+}
+const piVersion = await packageVersion(
+	join(dirname(piEntry), "..", "package.json"),
+);
 const sandbox = await mkdtemp(join(tmpdir(), "observer-rpc-"));
 const configDir = join(sandbox, "agent");
 const workspace = join(sandbox, "workspace");
-const notebook = join(sandbox, "Observer Notes");
+const home = join(sandbox, "home");
+const notebook = join(home, "Observer Notes");
 await Promise.all([
 	mkdir(configDir, { recursive: true }),
 	mkdir(workspace, { recursive: true }),
+	mkdir(home, { recursive: true }),
 ]);
 await writeFile(
 	join(configDir, "settings.json"),
@@ -28,7 +41,7 @@ const child = spawn(
 	[piCli, "--mode", "rpc", "--offline", "--no-session"],
 	{
 		cwd: workspace,
-		env: { ...process.env, PI_CODING_AGENT_DIR: configDir },
+		env: { ...process.env, HOME: home, PI_CODING_AGENT_DIR: configDir },
 		stdio: ["pipe", "pipe", "pipe"],
 	},
 );
@@ -95,12 +108,23 @@ try {
 	assert.equal(commands.success, true, commands.error);
 	assert.ok(
 		commands.data.commands.some(
-			(command) => command.name === "observe" && command.source === "extension",
+			(command) =>
+				command.name === "observer" && command.source === "extension",
 		),
-		"Pi did not discover /observe from the package",
+		"Pi did not discover /observer from the package",
+	);
+	assert.ok(
+		commands.data.commands.every((command) => command.name !== "observe"),
+		"The removed /observe compatibility command is still registered",
+	);
+	assert.ok(
+		commands.data.commands.every(
+			(command) => !command.name.startsWith("observer:"),
+		),
+		"A forbidden /observer:<action> command is registered",
 	);
 
-	await prompt(`/observe setup en ${notebook}`);
+	await prompt("/observer setup en ~/Observer Notes");
 	const manifest = JSON.parse(
 		await readFile(join(notebook, ".observer", "notebook.json"), "utf8"),
 	);
@@ -110,8 +134,19 @@ try {
 	);
 	assert.equal(selection.notebook_id, manifest.notebook_id);
 
+	await prompt("/observer processing off");
+	let processing = JSON.parse(
+		await readFile(join(configDir, "observer", "processing.json"), "utf8"),
+	);
+	assert.equal(processing.mode, "off");
+	await prompt("/observer processing piggyback");
+	processing = JSON.parse(
+		await readFile(join(configDir, "observer", "processing.json"), "utf8"),
+	);
+	assert.equal(processing.mode, "piggyback");
+
 	const onStart = events.length;
-	await prompt("/observe on");
+	await prompt("/observer on");
 	assert.ok(
 		events
 			.slice(onStart)
@@ -121,11 +156,11 @@ try {
 					event.method === "setStatus" &&
 					String(event.statusText).includes("On · Open"),
 			),
-		"/observe on did not publish live status",
+		"/observer on did not publish live status",
 	);
 
 	const statusStart = events.length;
-	await prompt("/observe status");
+	await prompt("/observer status");
 	assert.ok(
 		events
 			.slice(statusStart)
@@ -134,21 +169,21 @@ try {
 					event.type === "extension_ui_request" &&
 					event.method === "notify" &&
 					String(event.message).includes("Observer mode: On") &&
-					String(event.message).includes("Pending Memos: Not counted yet"),
+					String(event.message).includes("Working Memos: Not counted yet"),
 			),
-		"/observe status did not expose honest Korean status",
+		"/observer status did not expose honest Korean status",
 	);
 
 	const memoEntriesBefore = await send({ type: "get_entries" });
 	assert.equal(memoEntriesBefore.success, true, memoEntriesBefore.error);
 	const memoStart = events.length;
-	await prompt("/observe memo");
+	await prompt("/observer memo");
 	const memoEntriesAfter = await send({ type: "get_entries" });
 	assert.equal(memoEntriesAfter.success, true, memoEntriesAfter.error);
 	assert.equal(
 		memoEntriesAfter.data.entries.length,
 		memoEntriesBefore.data.entries.length,
-		"/observe memo without a prepared pass appended a session entry",
+		"/observer memo without a prepared pass appended a session entry",
 	);
 	assert.equal(memoEntriesAfter.data.leafId, memoEntriesBefore.data.leafId);
 	assert.ok(
@@ -162,11 +197,11 @@ try {
 						"There is no new prepared reconciliation",
 					),
 			),
-		"/observe memo did not report the append-free no-prepared result",
+		"/observer memo did not report the append-free no-prepared result",
 	);
 
 	const offStart = events.length;
-	await prompt("/observe off");
+	await prompt("/observer off");
 	assert.ok(
 		events
 			.slice(offStart)
@@ -176,10 +211,10 @@ try {
 					event.method === "setStatus" &&
 					String(event.statusText).includes("Off · Open"),
 			),
-		"/observe off did not preserve the open episode",
+		"/observer off did not preserve the open episode",
 	);
 	process.stdout.write(
-		"Observer RPC smoke: package discovery, setup, status, on, memo stutter, and off passed on Pi 0.80.10\n",
+		`Observer RPC smoke: package discovery, ~/ setup, processing policy, status, on, memo stutter, and off passed on Pi ${piVersion}\n`,
 	);
 } finally {
 	child.kill("SIGTERM");

@@ -12,6 +12,11 @@ import {
 } from "@earendil-works/pi-tui";
 
 import { observerCommandPresentation } from "../extensions/observer.ts";
+import {
+	ObserverWorkbenchSurface,
+	observerWorkbenchSections,
+	type ObserverWorkbenchAction,
+} from "../extensions/observer-workbench-tui.ts";
 import { SaveProposalReviewSurface } from "../extensions/save-proposal-tui.ts";
 import {
 	OBSERVER_HYPOTHESIS_DRAFT,
@@ -25,6 +30,7 @@ import {
 	showObserverControl,
 } from "../extensions/tui.ts";
 import type { ObserverStatusView } from "../src/observer-status.ts";
+import type { ObserverWorkbenchView } from "../src/observer-workbench.ts";
 import type { SaveProposalReview } from "../src/save-review.ts";
 
 interface InteractiveTestComponent extends Component {
@@ -102,6 +108,8 @@ function statusView(
 		openInquiries: "Not counted yet",
 		inquiryItems: [],
 		zettelCandidates: "Not counted yet",
+		processingMode: "Piggyback",
+		processingDetail: "No additional model request",
 		...overrides,
 	};
 }
@@ -128,6 +136,51 @@ function openView(mode: "on" | "off" = "on"): ObserverStatusView {
 		openInquiries: "2",
 		zettelCandidates: "1",
 	});
+}
+
+function workbenchView(
+	overrides: Partial<ObserverWorkbenchView> = {},
+): ObserverWorkbenchView {
+	return {
+		status: openView(),
+		activity: [
+			{
+				id: "source-read-test",
+				kind: "source-read",
+				label: "SourceRead",
+				title: "Inspectable terminal workbench",
+				summary: "Working meaning remains visible before publication.",
+				state: "Sidecar",
+				blocks: [
+					{
+						heading: "Faithful summary",
+						lines: [
+							"Line 1",
+							"Line 2",
+							"Line 3",
+							"Line 4",
+							"Line 5",
+							"Line 6",
+							"Line 7",
+							"Line 8",
+							"Line 9",
+							"Line 10",
+						],
+					},
+				],
+			},
+		],
+		inquiries: [],
+		memos: [],
+		proposal: {
+			kind: "needs-reconciliation",
+			observationCount: 1,
+			memoCount: 0,
+		},
+		notebook: [],
+		materialReviewPending: false,
+		...overrides,
+	};
 }
 
 function proposalReview(): SaveProposalReview {
@@ -169,7 +222,7 @@ function proposalReview(): SaveProposalReview {
 	};
 }
 
-test("TUI uses /observe as a control center while preserving non-TUI commands", () => {
+test("TUI uses /observer as a workbench while preserving non-TUI commands", () => {
 	assert.equal(observerCommandPresentation("", "tui"), "control");
 	assert.equal(observerCommandPresentation("settings", "tui"), "control");
 	assert.equal(observerCommandPresentation("status", "tui"), "status");
@@ -180,7 +233,7 @@ test("TUI uses /observe as a control center while preserving non-TUI commands", 
 test("control items progressively disclose only legal work", () => {
 	assert.deepEqual(
 		observerControlItems(statusView()).map((item) => item.id),
-		["notebook", "language", "activation", "status"],
+		["notebook", "language", "activation", "processing", "status"],
 	);
 	const setupLanguage = observerControlItems(statusView()).find(
 		(item) => item.id === "language",
@@ -196,6 +249,7 @@ test("control items progressively disclose only legal work", () => {
 		activeItems.map((item) => item.id),
 		[
 			"activation",
+			"processing",
 			"add-hypothesis",
 			"memo",
 			"review",
@@ -210,6 +264,14 @@ test("control items progressively disclose only legal work", () => {
 		"ko",
 	);
 	assert.match(observerNextStep(openView()), /Keep working normally/u);
+	assert.equal(
+		activeItems.find((item) => item.id === "processing")?.currentValue,
+		"Piggyback",
+	);
+	assert.match(
+		activeItems.find((item) => item.id === "processing")?.description ?? "",
+		/no separate inference request/u,
+	);
 	assert.equal(
 		activeItems.find((item) => item.id === "add-hypothesis")?.label,
 		"Add a hypothesis",
@@ -236,7 +298,7 @@ test("control items progressively disclose only legal work", () => {
 			observationCount: 0,
 			runState: "Suspended" as const,
 			recovery:
-				"Run /observe material retry to resume, or /observe material cancel.",
+				"Run /observer material retry to resume, or /observer material cancel.",
 		},
 	};
 	const pendingItems = observerControlItems(pendingMaterial);
@@ -261,8 +323,8 @@ test("control items progressively disclose only legal work", () => {
 		offItems.some((item) => item.id === "material-review"),
 		false,
 	);
-	assert.equal(OBSERVER_HYPOTHESIS_DRAFT, "/observe add-hypothesis ");
-	assert.equal(OBSERVER_OBSERVE_MATERIAL_DRAFT, "/observe material ");
+	assert.equal(OBSERVER_HYPOTHESIS_DRAFT, "/observer add-hypothesis ");
+	assert.equal(OBSERVER_OBSERVE_MATERIAL_DRAFT, "/observer material ");
 
 	const reviewingBase = openView("off");
 	const reviewing: ObserverStatusView = {
@@ -285,7 +347,7 @@ test("control items progressively disclose only legal work", () => {
 	);
 	assert.equal(
 		reviewingItems.find((item) => item.id === "save")?.currentValue,
-		"Inspect and approve",
+		"Inspect · approve or discard",
 	);
 
 	const pendingReview: ObserverStatusView = {
@@ -328,8 +390,8 @@ test("control surface keeps adding a hypothesis distinct from observing material
 		return showObserverControl(ctx as never, openView("off"));
 	}
 
-	assert.deepEqual(await choose(1), { kind: "add-hypothesis" });
-	assert.deepEqual(await choose(6), { kind: "observe-material" });
+	assert.deepEqual(await choose(2), { kind: "add-hypothesis" });
+	assert.deepEqual(await choose(7), { kind: "observe-material" });
 });
 
 test("control surface dispatches Notebook setup from the first row", async () => {
@@ -381,7 +443,7 @@ test("activation and language update in place without closing the control surfac
 				afterActivation = component.render(90).join("\n");
 				assert.equal(doneCalls, 0);
 
-				for (let index = 0; index < 5; index += 1)
+				for (let index = 0; index < 6; index += 1)
 					component.handleInput("\u001b[B");
 				component.handleInput("\r");
 				languageChoices = component.render(90).join("\n");
@@ -545,7 +607,7 @@ test("status and widget expose bounded material review recovery", () => {
 			observationCount: 0,
 			runState: "Suspended",
 			recovery:
-				"Run /observe material retry to resume the exact request, or /observe material cancel to discard it.",
+				"Run /observer material retry to resume the exact request, or /observer material cancel to discard it.",
 		},
 	};
 	const panel = new ObserverStatusPanel(view, theme, () => {}, keybindings);
@@ -675,6 +737,31 @@ test("footer and widget expose only action-relevant ambient state", () => {
 		new ObserverWidget(pendingReview, theme).render(62).join("\n"),
 		/hypothesis context review pending/u,
 	);
+	const background = {
+		...active,
+		backgroundWork: { state: "Running" as const, queued: 1 },
+	};
+	assert.equal(
+		renderObserverChromeStatus(background, theme),
+		"observer · working in background",
+	);
+	assert.match(observerNextStep(background), /Keep working normally/u);
+	const deferred = {
+		...active,
+		backgroundWork: { state: "Deferred" as const, queued: 0 },
+		backgroundIssue: "invalid background proposal",
+	};
+	assert.equal(
+		renderObserverChromeStatus(deferred, theme),
+		"observer · on · Open",
+	);
+	assert.match(observerNextStep(deferred), /Status and health/u);
+	assert.equal(
+		observerControlItems(deferred).find((item) => item.id === "status")
+			?.currentValue,
+		"Needs attention",
+	);
+
 	const paused = {
 		...active,
 		automaticProcessingPause:
@@ -689,4 +776,123 @@ test("footer and widget expose only action-relevant ambient state", () => {
 		new ObserverWidget(paused, theme).render(62).join("\n"),
 		/automatic processing paused/u,
 	);
+});
+
+test("workbench renders bounded responsive sections and read-only detail", () => {
+	const actions: (ObserverWorkbenchAction | null)[] = [];
+	let renders = 0;
+	const view = workbenchView();
+	const surface = new ObserverWorkbenchSurface({
+		view,
+		theme,
+		keybindings,
+		done: (action) => actions.push(action),
+		requestRender: () => {
+			renders += 1;
+		},
+	});
+	assert.deepEqual(
+		observerWorkbenchSections(view).map((section) => section.label),
+		[
+			"Overview",
+			"Activity",
+			"Inquiries",
+			"Memos",
+			"Proposal",
+			"Notebook",
+			"Settings",
+		],
+	);
+	const wide = surface.render(120, 20);
+	assert.equal(wide.length, 20);
+	assert.ok(wide.every((line) => visibleWidth(line) <= 120));
+	const narrow = surface.render(40, 18);
+	assert.equal(narrow.length, 18);
+	assert.ok(narrow.every((line) => visibleWidth(line) <= 40));
+
+	surface.handleInput("\u001b[B");
+	surface.handleInput("\r");
+	assert.match(
+		surface.render(72, 16).join("\n"),
+		/Inspectable terminal workbench/u,
+	);
+	surface.handleInput("\r");
+	const beforeScroll = surface.render(72, 12).join("\n");
+	assert.match(beforeScroll, /Faithful summary/u);
+	assert.equal(
+		actions.length,
+		0,
+		"opening detail must not authorize an action",
+	);
+	surface.handleInput("\u001b[6~");
+	const afterScroll = surface.render(72, 12).join("\n");
+	assert.notEqual(afterScroll, beforeScroll);
+	assert.ok(renders >= 4);
+});
+
+test("workbench keeps Settings secondary and requires a contextual Save key", () => {
+	const actions: (ObserverWorkbenchAction | null)[] = [];
+	const proposalView = workbenchView({
+		status: {
+			...openView(),
+			control: {
+				...openView().control,
+				episode: "reviewing-save",
+				canReview: false,
+				canSave: true,
+			},
+			episode: "Ready to save",
+		},
+		proposal: {
+			kind: "ready",
+			proposalId: "proposal-test",
+			summary: "One complete proposal",
+			createCount: 1,
+			updateCount: 0,
+			records: [
+				{
+					id: "proposal:memo-test",
+					kind: "proposal-record",
+					label: "create memo",
+					title: "Proposed Memo",
+					summary: "records/memo-test.md",
+					state: "create",
+					blocks: [
+						{ heading: "Diff", lines: ["+ # Proposed Memo"] },
+						{ heading: "Proposed Markdown", lines: ["# Proposed Memo"] },
+					],
+				},
+			],
+		},
+	});
+	const proposalSurface = new ObserverWorkbenchSurface({
+		view: proposalView,
+		theme,
+		keybindings,
+		done: (action) => actions.push(action),
+		requestRender: () => {},
+	});
+	for (let index = 0; index < 4; index += 1)
+		proposalSurface.handleInput("\u001b[B");
+	proposalSurface.handleInput("\r");
+	proposalSurface.handleInput("\r");
+	assert.equal(actions.length, 0, "Enter only inspects a proposal record");
+	proposalSurface.handleInput("?");
+	proposalSurface.handleInput("s");
+	assert.equal(actions.length, 0, "help intercepts underlying Save shortcuts");
+	proposalSurface.handleInput("?");
+	proposalSurface.handleInput("s");
+	assert.deepEqual(actions, [{ kind: "save" }]);
+
+	const settingsActions: (ObserverWorkbenchAction | null)[] = [];
+	const settingsSurface = new ObserverWorkbenchSurface({
+		view: workbenchView(),
+		theme,
+		keybindings,
+		done: (action) => settingsActions.push(action),
+		requestRender: () => {},
+	});
+	settingsSurface.handleInput("\u001b[F");
+	settingsSurface.handleInput("\r");
+	assert.deepEqual(settingsActions, [{ kind: "settings" }]);
 });

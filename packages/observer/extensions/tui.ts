@@ -26,12 +26,16 @@ import {
 import type { EpisodeLanguage } from "../src/lifecycle.ts";
 import type { ObserverStatusView } from "../src/observer-status.ts";
 
-export const OBSERVER_HYPOTHESIS_DRAFT = "/observe add-hypothesis ";
-export const OBSERVER_OBSERVE_MATERIAL_DRAFT = "/observe material ";
+export const OBSERVER_HYPOTHESIS_DRAFT = "/observer add-hypothesis ";
+export const OBSERVER_OBSERVE_MATERIAL_DRAFT = "/observer material ";
 export type ObserverControlAction =
 	| { readonly kind: "activation"; readonly enabled: boolean }
 	| { readonly kind: "setup" }
 	| { readonly kind: "language"; readonly language: EpisodeLanguage }
+	| {
+			readonly kind: "processing";
+			readonly mode: "off" | "piggyback" | "local";
+	  }
 	| { readonly kind: "memo" }
 	| { readonly kind: "review" }
 	| { readonly kind: "save" }
@@ -45,6 +49,28 @@ export interface ObserverControlEffects {
 	applyActivation(enabled: boolean): Promise<ObserverStatusView>;
 	applyLanguage(language: EpisodeLanguage): Promise<ObserverStatusView>;
 	onError(error: unknown): void;
+}
+
+function processingModeFromLabel(value: string): "off" | "piggyback" | "local" {
+	switch (value) {
+		case "Off":
+			return "off";
+		case "Local background":
+			return "local";
+		default:
+			return "piggyback";
+	}
+}
+
+function pendingProcessingRecovery(view: ObserverStatusView): string {
+	switch (view.processingMode) {
+		case "Local background":
+			return "  Local Observer will resume when the foreground is idle";
+		case "Piggyback":
+			return "  The next ordinary model turn can complete one bounded step";
+		case "Off":
+			return "  Model processing is Off; open /observer to change it";
+	}
 }
 
 function displayTerminalText(value: string): string {
@@ -212,10 +238,18 @@ export function observerControlItems(
 		values: ["On", "Off"],
 		description: activationDescription(view),
 	};
+	const processing: SettingItem = {
+		id: "processing",
+		label: "Model processing",
+		currentValue: view.processingMode,
+		values: ["Piggyback", "Off", "Local background"],
+		description:
+			"Piggyback: no separate inference request (small token overhead) · Local: selected loopback model only · Off: no model interpretation",
+	};
 	const items: SettingItem[] =
 		view.control.notebook === "ready"
-			? [activation]
-			: [notebook, language, activation];
+			? [activation, processing]
+			: [notebook, language, activation, processing];
 
 	if (view.pendingMaterialReview) {
 		items.push(
@@ -275,11 +309,11 @@ export function observerControlItems(
 	if (view.control.canSave) {
 		items.push({
 			id: "save",
-			label: "Save",
-			currentValue: "Inspect and approve",
-			values: ["Inspect and approve"],
+			label: "Review prepared proposal",
+			currentValue: "Inspect · approve or discard",
+			values: ["Inspect · approve or discard"],
 			description:
-				"Inspect the exact proposed Notebook changes, then approve or cancel",
+				"See every proposed Notebook change first; writing occurs only after approval",
 		});
 	}
 
@@ -298,7 +332,11 @@ export function observerControlItems(
 				"Analyze supplied or retrieved material without changing continuous Observer Mode",
 		});
 	}
-	const healthy = view.replayHealth === "Healthy" && !view.operationalIssue;
+	const healthy =
+		view.replayHealth === "Healthy" &&
+		!view.operationalIssue &&
+		!view.processingIssue &&
+		!view.backgroundIssue;
 	items.push({
 		id: "status",
 		label: "Status and health",
@@ -311,16 +349,24 @@ export function observerControlItems(
 }
 
 export function observerNextStep(view: ObserverStatusView): string {
+	if (view.processingIssue)
+		return "Open Model processing or Status and health; no background inference was started.";
 	if (view.operationalIssue || view.control.notebook === "unhealthy")
 		return "Open Status and health first to inspect the recovery cause.";
 	if (view.automaticProcessingPause)
-		return "Automatic processing is paused. Run Memo or Review explicitly to retry.";
+		return "Automatic processing is paused. Open Observer to inspect the cause and retry.";
+	if (view.backgroundWork?.state === "Running")
+		return "Observer is reconciling in the background. Keep working normally.";
+	if (view.backgroundWork?.state === "Queued")
+		return "Observer work is queued and will start when the foreground is idle.";
+	if (view.backgroundWork?.state === "Deferred")
+		return "Background work was deferred. Open Status and health to inspect it when convenient.";
 	if (view.control.notebook === "unselected")
 		return "Connect a Notebook, then turn Observer on.";
 	if (view.pendingMaterialReview)
 		return `Material review run is ${view.pendingMaterialReview.runState.toLowerCase()}. Retry the exact request or cancel it before Review.`;
 	if (view.control.episode === "reviewing-save")
-		return "Inspect the prepared proposal, then Save or cancel it.";
+		return "Open Review prepared proposal, inspect every change, then approve or discard it.";
 	if (view.pendingHypothesisReviews > 0)
 		return `Review the current context through ${view.pendingHypothesisReviews} ${view.pendingHypothesisReviews === 1 ? "added hypothesis" : "added hypotheses"} before Memo reconciliation.`;
 	if (view.control.mode === "on")
@@ -514,6 +560,12 @@ export class ObserverControlSurface extends Container {
 			case "language":
 				if (value === "ko" || value === "en") void this.requestLanguage(value);
 				break;
+			case "processing":
+				this.done({
+					kind: "processing",
+					mode: processingModeFromLabel(value),
+				});
+				break;
 			case "memo":
 				this.done({ kind: "memo" });
 				break;
@@ -577,7 +629,11 @@ export async function showObserverControl(
 }
 
 function healthColor(view: ObserverStatusView): ThemeColor {
-	if (view.operationalIssue || view.control.notebook === "unhealthy")
+	if (
+		view.processingIssue ||
+		view.operationalIssue ||
+		view.control.notebook === "unhealthy"
+	)
 		return "error";
 	if (view.replayHealth !== "Healthy" || view.notebookHealth !== "Healthy")
 		return "warning";
@@ -699,6 +755,12 @@ export class ObserverStatusPanel {
 			this.view.control.mode === "on" ? "success" : "dim",
 		);
 		add("Episode", this.view.episode, "text");
+		add(
+			"Model processing",
+			`${this.view.processingMode} · ${this.view.processingDetail}`,
+			this.view.processingMode === "Off" ? "dim" : "text",
+			4,
+		);
 		add("Output language", this.view.outputLanguage);
 		add("Next", observerNextStep(this.view), "accent", 4);
 
@@ -766,6 +828,10 @@ export class ObserverStatusPanel {
 		section("Recovery and persistence");
 		add("Branch replay", this.view.replayHealth, healthColor(this.view));
 		add("Pi session", this.view.sessionPersistence);
+		if (this.view.processingIssue)
+			add("Processing settings", this.view.processingIssue, "warning", 5);
+		if (this.view.backgroundIssue)
+			add("Local background deferred", this.view.backgroundIssue, "warning", 5);
 		if (this.view.automaticProcessingPause)
 			add(
 				"Automatic processing paused",
@@ -853,7 +919,11 @@ export function renderObserverChromeStatus(
 	theme: Theme,
 ): string | undefined {
 	const separator = theme.fg("dim", " · ");
-	if (view.operationalIssue || view.control.notebook === "unhealthy")
+	if (
+		view.processingIssue ||
+		view.operationalIssue ||
+		view.control.notebook === "unhealthy"
+	)
 		return (
 			theme.fg("accent", "observer") +
 			separator +
@@ -866,8 +936,7 @@ export function renderObserverChromeStatus(
 			separator +
 			theme.fg(
 				"warning",
-				view.pendingMaterialReview.runState ===
-					"Active in current agent run"
+				view.pendingMaterialReview.runState === "Active in current agent run"
 					? "material active"
 					: "material suspended",
 			)
@@ -877,6 +946,18 @@ export function renderObserverChromeStatus(
 			theme.fg("accent", "observer") +
 			separator +
 			theme.fg("warning", "processing paused")
+		);
+	if (view.backgroundWork?.state === "Running")
+		return (
+			theme.fg("accent", "observer") +
+			separator +
+			theme.fg("muted", "working in background")
+		);
+	if (view.backgroundWork?.state === "Queued")
+		return (
+			theme.fg("accent", "observer") +
+			separator +
+			theme.fg("muted", "background work queued")
 		);
 	if (view.control.episode === "reviewing-save")
 		return (
@@ -906,6 +987,7 @@ export function renderObserverChromeStatus(
 export function shouldShowObserverWidget(view: ObserverStatusView): boolean {
 	return Boolean(
 		view.operationalIssue ||
+			view.processingIssue ||
 			view.automaticProcessingPause ||
 			view.pendingMaterialReview ||
 			view.control.notebook === "unhealthy" ||
@@ -926,12 +1008,17 @@ export class ObserverWidget {
 
 	render(width: number): string[] {
 		const lines: string[] = [];
-		if (
+		if (this.view.processingIssue) {
+			lines.push(
+				this.theme.fg("warning", "! Observer · processing unavailable"),
+			);
+			lines.push(this.theme.fg("dim", "  /observer → Model processing"));
+		} else if (
 			this.view.operationalIssue ||
 			this.view.control.notebook === "unhealthy"
 		) {
 			lines.push(this.theme.fg("error", "! Observer · recovery required"));
-			lines.push(this.theme.fg("dim", "  /observe → Status and health"));
+			lines.push(this.theme.fg("dim", "  /observer → Status and health"));
 		} else if (this.view.pendingMaterialReview) {
 			lines.push(
 				this.theme.fg(
@@ -942,7 +1029,7 @@ export class ObserverWidget {
 			lines.push(
 				this.theme.fg(
 					"dim",
-					"  /observe material retry · /observe material cancel",
+					"  /observer material retry · /observer material cancel",
 				),
 			);
 		} else if (this.view.automaticProcessingPause) {
@@ -950,19 +1037,19 @@ export class ObserverWidget {
 				this.theme.fg("warning", "! Observer · automatic processing paused"),
 			);
 			lines.push(
-				this.theme.fg("dim", "  /observe → Memo or Review to retry explicitly"),
+				this.theme.fg(
+					"dim",
+					"  /observer → Memo or Review to retry explicitly",
+				),
 			);
 		} else if (this.view.control.episode === "reviewing-save") {
 			lines.push(
-				this.theme.fg(
-					"warning",
-					"! Observer · reviewed proposal awaiting Save",
-				),
+				this.theme.fg("warning", "! Observer · proposal ready for your review"),
 			);
 			lines.push(
 				this.theme.fg(
 					"dim",
-					"  /observe → Save → inspect and approve or cancel",
+					"  /observer → Review prepared proposal → inspect · approve or discard",
 				),
 			);
 		} else if (this.view.pendingHypothesisReviews > 0) {
@@ -972,12 +1059,7 @@ export class ObserverWidget {
 					`! Observer · ${this.view.pendingHypothesisReviews} hypothesis context review${this.view.pendingHypothesisReviews === 1 ? "" : "s"} pending`,
 				),
 			);
-			lines.push(
-				this.theme.fg(
-					"dim",
-					"  The next agent turn resumes the exact tracked hypothesis",
-				),
-			);
+			lines.push(this.theme.fg("dim", pendingProcessingRecovery(this.view)));
 		} else if (this.view.control.mode === "on") {
 			lines.push(
 				this.theme.fg("success", "◆ Observer · on") +
@@ -994,7 +1076,7 @@ export class ObserverWidget {
 			lines.push(
 				this.theme.fg(
 					"dim",
-					"  Open Episode preserved · use /observe to turn On, Memo, or Review",
+					"  Open Episode preserved · use /observer to turn On, Memo, or Review",
 				),
 			);
 		}

@@ -408,18 +408,28 @@ function parseStored(
 	const requestId = decodeMemoRequestId(value.request_id);
 	const pass = decodePreparedMemoPass(value.pass);
 	const dispositions = parseDispositions(value.dispositions);
-	if (
-		!requestId ||
-		!isSha256(value.request_digest) ||
-		!pass.ok ||
-		isInstructionFailure(dispositions)
-	) {
+	if (!requestId) {
 		return failure(
 			"memo-instruction.shape",
-			"/",
-			"Memo instruction has invalid request, pass, or dispositions.",
+			"/request_id",
+			"Memo instruction request ID is invalid.",
 		);
 	}
+	if (!isSha256(value.request_digest)) {
+		return failure(
+			"memo-instruction.shape",
+			"/request_digest",
+			"Memo instruction request digest is invalid.",
+		);
+	}
+	if (!pass.ok) {
+		return failure(
+			"memo-instruction.shape",
+			pass.issue.path === "/" ? "/pass" : `/pass${pass.issue.path}`,
+			`Prepared Memo pass is invalid: ${pass.issue.message}`,
+		);
+	}
+	if (isInstructionFailure(dispositions)) return dispositions;
 	if (pass.value.instructionId !== requestId) {
 		return failure(
 			"memo-instruction.context",

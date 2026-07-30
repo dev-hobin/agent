@@ -311,7 +311,17 @@ describe("pure Observation Memo trigger", () => {
 		);
 		assert.equal(first.value.instruction_seed.pass.instruction_id, REQUEST_ID);
 		assert.deepEqual(first.value.required_coverage, {
-			hypotheses: [],
+			hypotheses: [
+				{
+					inquiryId: USER_INQUIRY_ID,
+					episodeId: EPISODE_ID,
+					origin: "user",
+					original: "기록 시점이 재진입 비용을 바꾼다.",
+					current: "기록 시점이 재진입 비용을 바꾼다.",
+					revisionReason: null,
+					evidenceIds: [],
+				},
+			],
 			memos: [],
 		});
 		assert.deepEqual(first.value.submission_seed, {

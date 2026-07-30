@@ -343,6 +343,47 @@ describe("pure Memo reconciliation", () => {
 		assert.equal(result.receipt.changes.created, 2);
 	});
 
+	test("accepts a reasoned refinement when creating a hypothesis", () => {
+		const state = initialMemoWorkingState();
+		const scope = requireScope(state, [], []);
+		const hypothesis = {
+			inquiry_id: "inquiry-00000000-0000-4000-8000-000000000079",
+			episode_id: EPISODE_ID,
+			origin: "user",
+			original: "Capture timing changes re-entry cost.",
+			current: "Delayed capture increases the cost of re-entering a problem.",
+			revision_reason:
+				"The current context narrows the claim to delayed capture.",
+			evidence_ids: [],
+		};
+		const raw = preparedRaw({
+			scope,
+			state,
+			passId: "memo-pass-00000000-0000-4000-8000-000000000080",
+			hypothesisOutcomes: [{ kind: "create", hypothesis }],
+		});
+		const result = requireReconciled({
+			state,
+			scope,
+			pass: requirePass(raw),
+			seed: "reasoned-create",
+		});
+		assert.equal(
+			result.state.hypotheses[0]?.revisionReason,
+			"The current context narrows the claim to delayed capture.",
+		);
+		const invalid = decodePreparedMemoPass({
+			...raw,
+			hypothesis_outcomes: [
+				{
+					kind: "create",
+					hypothesis: { ...hypothesis, revision_reason: null },
+				},
+			],
+		});
+		assert.equal(invalid.ok, false);
+	});
+
 	test("allows evidence-empty user registration but requires WorkingSource evidence for Observer hypotheses", () => {
 		const state = initialMemoWorkingState();
 		const sourceId = "source-00000000-0000-4000-8000-000000000081";

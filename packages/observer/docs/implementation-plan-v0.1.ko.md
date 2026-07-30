@@ -735,11 +735,11 @@ Prepared data로 최초 local durable vertical slice가 증명된 상태. 충족
 
 ```text
 Pi extension entry
-/observe setup
-/observe status
-/observe on
-/observe off
-/observe save (prepared proposal 사용)
+/observer setup
+/observer status
+/observer on
+/observer off
+/observer save (prepared proposal 사용)
 session entry encoding/decoding
 branch replay
 compact status/footer
@@ -784,7 +784,7 @@ before-state 자동 write 금지, mixed/active state recovery-required
 same-file ancestry, persisted restart, extracted branch isolation
 compaction entry 전후 lifecycle stutter
 status의 notebook/replay/persistence/prepared health와 정직한 미집계 semantic counts
-package `/observe` discovery와 extension shutdown status cleanup
+package `/observer` discovery와 extension shutdown status cleanup
 ```
 
 Pi branch 기준 데이터는 `getBranch()` ancestry의 `observer.lifecycle`, `observer.prepared-save`, `observer.save-attempt` custom entry다. Compaction summary나 LLM context는 lifecycle 기준 데이터가 아니다. Observer-owned entry decode/transition issue가 하나라도 있으면 status 외 mutation을 진행하지 않는다.
@@ -881,7 +881,7 @@ src/observer-status.ts
 extensions/observer.ts
 ```
 
-Prepared semantic pass는 strict unknown decoder와 `installPreparedMemo(...)` handoff를 통과한다. `/observe memo`는 notebook을 read-only hydrate하고, complete coverage·basis·provenance 검증 뒤 applied working custom entry를 먼저 기록한다. compact lifecycle `memo-reconciled` acknowledgment는 그 뒤에 기록되며, 두 effect 사이의 실패는 다음 bind에서 pass 재적용 없이 acknowledgment만 복구한다.
+Prepared semantic pass는 strict unknown decoder와 `installPreparedMemo(...)` handoff를 통과한다. `/observer memo`는 notebook을 read-only hydrate하고, complete coverage·basis·provenance 검증 뒤 applied working custom entry를 먼저 기록한다. compact lifecycle `memo-reconciled` acknowledgment는 그 뒤에 기록되며, 두 effect 사이의 실패는 다음 bind에서 pass 재적용 없이 acknowledgment만 복구한다.
 
 Memo working state는 Pi current branch의 custom entry replay 결과다. Compaction summary는 기준 데이터가 아니고, fork는 전달된 ancestry만 복원한다. Durable Markdown Memo/Zettel 저장, source-first relevance 판단, semantic pass 생성, Hybrid 개입은 Slice 7 이후 책임이다.
 
@@ -986,12 +986,12 @@ packed artifact에서 observer_sidecar staged contract 확인
 save 후 fresh-session standing Inquiry re-entry
 ```
 
-Landing 7A는 visible candidate를 source-first로 판정하고 중요한 변화만 append 후 알리는 경계까지 닫는다. Durable Memo/Zettel 저장과 Episode settlement는 여전히 기존 `/observe memo`와 `/observe save`의 명시적 경계를 통과해야 한다.
+Landing 7A는 visible candidate를 source-first로 판정하고 중요한 변화만 append 후 알리는 경계까지 닫는다. Durable Memo/Zettel 저장과 Episode settlement는 여전히 기존 `/observer memo`와 `/observer save`의 명시적 경계를 통과해야 한다.
 
 ### Landing 7B — Pure Memo request/context/instruction contract
 
 ```text
-[x] `/observe memo`용 exact all-eligible request planner
+[x] `/observer memo`용 exact all-eligible request planner
 [x] OPEN Episode에서 Mode와 독립적인 one-pending-request policy
 [x] episode/base revision/ordered Observation event digest를 묶는 request digest
 [x] pending retry stutter와 later Observation next-batch 분리
@@ -1017,7 +1017,7 @@ Changed Observer TypeScript `as` token: 0
 Remaining Slice 7 work:
 
 ```text
-`/observe memo` request append/replay와 nontruth Pi agent trigger
+`/observer memo` request append/replay와 nontruth Pi agent trigger
 `observer_sidecar memo-scope` / `memo-prepare` sequential action
 instruction → prepared → applied → acknowledgment failure recovery
 memo → continue → save 실제 Sidecar transcript
@@ -1026,11 +1026,11 @@ packed artifact contract와 fresh-session re-entry
 
 Landing 7B는 raw semantic preparation이 complete Observation disposition과 exact request/scope를 보존하는 refined instruction이 되는 pure 경계를 닫는다.
 
-### Landing 7C — `/observe memo` request trigger와 `memo-scope`
+### Landing 7C — `/observer memo` request trigger와 `memo-scope`
 
 ```text
 [x] strict `memo-scope` Sidecar action과 TypeBox tool variant
-[x] `/observe memo`가 prepared/pending apply path를 기존 controller로 delegate
+[x] `/observer memo`가 prepared/pending apply path를 기존 controller로 delegate
 [x] eligible Observation이 있으면 exact request append + replay confirmation
 [x] exact retry는 request append 없이 같은 request resume
 [x] request 확인 뒤에만 nontruth `pi.sendMessage` trigger
@@ -1063,7 +1063,7 @@ memo → continue → save 실제 Sidecar transcript
 packed artifact contract와 fresh-session re-entry
 ```
 
-Landing 7C는 command가 semantic request를 durable-in-session truth로 만든 뒤 request-only context를 agent에 제공하는 순서까지 닫는다. Semantic preparation 제출과 Memo 적용은 아직 연결하지 않았으므로 `/observe memo` completion을 주장하지 않는다.
+Landing 7C는 command가 semantic request를 durable-in-session truth로 만든 뒤 request-only context를 agent에 제공하는 순서까지 닫는다. Semantic preparation 제출과 Memo 적용은 아직 연결하지 않았으므로 `/observer memo` completion을 주장하지 않는다.
 
 ### Landing 7D — strict `memo-prepare` install/apply/ack
 
@@ -1075,7 +1075,7 @@ Landing 7C는 command가 semantic request를 durable-in-session truth로 만든 
 [x] exact instruction retry는 append-free resume
 [x] replay-confirmed instruction만 PreparedMemoPass encoder/install 경계에 전달
 [x] install 성공 뒤에만 existing Memo apply/ack command 실행
-[x] instruction/install/apply/ack gap에서 duplicate 없이 `/observe memo` 복구
+[x] instruction/install/apply/ack gap에서 duplicate 없이 `/observer memo` 복구
 [x] applied+acknowledged 뒤에만 requested Observation consumption
 [x] Mode OFF + Episode OPEN을 유지하고 notebook Markdown exact equality
 ```
@@ -1310,7 +1310,7 @@ save 후 fresh-session standing Inquiry re-entry
 
 Landing 7F-5는 model semantic truth나 exact-one을 TypeBox로 증명하지 않는다. Disposition omission만 raw variant에서 불가능하게 만들고, duplicate/completeness 의미는 기존 contextual decoder가 계속 fail-closed한다.
 
-7F-5 bounded rerun에서 provider는 첫 시도에 `revise-incubating`을 정확히 사용했고 instruction/prepared install까지 성공했다. 그러나 `/observe memo` apply revalidation이 별도 `workingSourceBases: []` 경로를 사용해 다시 stale basis로 실패했다. 기존 integration fixture의 WorkingSource ID가 durable Source ID와 우연히 같아 이 차이를 가리고 있었다.
+7F-5 bounded rerun에서 provider는 첫 시도에 `revise-incubating`을 정확히 사용했고 instruction/prepared install까지 성공했다. 그러나 `/observer memo` apply revalidation이 별도 `workingSourceBases: []` 경로를 사용해 다시 stale basis로 실패했다. 기존 integration fixture의 WorkingSource ID가 durable Source ID와 우연히 같아 이 차이를 가리고 있었다.
 
 ### Landing 7F-6 — Apply-time request scope replay
 
@@ -1425,7 +1425,7 @@ Changed Observer TypeScript `as` token: 0
 Remaining Slice 7 work:
 
 ```text
-/observe save request append/replay + nontruth trigger
+/observer save request append/replay + nontruth trigger
 observer_sidecar save-scope/save-prepare schema and producer assembly
 approval/save/ack recovery tests
 bounded real-provider save transcript
@@ -1437,7 +1437,7 @@ Landing 7G-1은 model Markdown을 승인하거나 저장하지 않는다. 다음
 ### Landing 7G-2 — Pi Review & Save request and read-only scope
 
 ```text
-[x] /observe save가 existing prepared review와 new/resumed request를 구분
+[x] /observer save가 existing prepared review와 new/resumed request를 구분
 [x] refined observer.save-request append 후 exact replay 확인
 [x] append throw/drop과 stale/pending/conflict fail-closed
 [x] request 확인 뒤에만 nontruth observer.save-trigger follow-up
@@ -1542,7 +1542,7 @@ Review & Save round bash calls: 0
 [x] persisted selection + local Markdown만 process boundary를 통과
 [x] 서로 다른 workspace의 Pi process 2, 둘 다 --no-session
 [x] selection bytes process 전후 동일
-[x] fresh /observe on → Mode ON + Episode OPEN
+[x] fresh /observer on → Mode ON + Episode OPEN
 [x] 다음 source-read StandingIndex에 exact durable Inquiry ID/current marker
 [x] hydrate/record가 같은 fresh process에서 후속 진행
 ```
@@ -1943,7 +1943,7 @@ final closure commit differs from evidence head only in README/implementation-pl
 **Status:** Complete
 
 ```text
-[x] TUI의 인자 없는 /observe와 /observe settings가 같은 control center를 엶
+[x] TUI의 인자 없는 /observer와 /observer settings가 같은 control center를 엶
 [x] 현재 상태에서 legal한 Mode/Memo/Review & Save/Notebook/language action만 단계적으로 노출
 [x] Notebook path는 절대 경로와 Pi cwd 기준 상대 경로를 모두 지원
 [x] 기본 출력 언어를 Notebook path와 분리하고 Memo/Zettel Markdown에만 적용
@@ -1955,9 +1955,9 @@ final closure commit differs from evidence head only in README/implementation-pl
 [x] context review는 supports/challenges/mixed/insufficient-context, clues, missing info, Source IDs, boundary를 기록
 [x] pending hypothesis context review는 정확한 hypothesis ID로 재개하고 Memo를 선행 차단
 [x] Mode ON/OFF 모두에서 Observe material editor 초안을 제공하고 기존 Mode 유지
-[x] `/observe add-hypothesis <text>`와 `/observe material <request>` scriptable command 제공
+[x] `/observer add-hypothesis <text>`와 `/observer material <request>` scriptable command 제공
 [x] 기존 단발 관찰 사용자/모델 표현과 action을 Observe material/material-review로 교체
-[x] Review & Save를 UI·command·model action의 유일한 public 표현으로 사용하고 `/observe save`를 command로 제공
+[x] Review & Save를 UI·command·model action의 유일한 public 표현으로 사용하고 `/observer save`를 command로 제공
 [x] `SaveService` public policy와 `NotebookPublicationService` atomic persistence process를 인터페이스로 분리
 [x] publication preflight/transaction issue를 stable save issue로 boundary mapping
 [x] Review & Save가 미정리 working state의 마지막 Memo reconciliation 뒤 proposal로 연속 진행
@@ -1995,6 +1995,70 @@ focus, footer 패턴을 UX reference로 사용하되 구현은 Pi의 `SettingsLi
 명시적 choice selector를 분리하고, 현재 선택을 preselect/mark하며, parent
 surface를 유지하는 패턴을 채택했다. Observer lifecycle, Markdown persistence,
 approval ordering은 변경하지 않는다.
+
+---
+
+## Post-v0.1 — Inquiry Workbench
+
+**Status:** Read-only workbench slice complete
+
+```text
+[x] product/workbench canonical root를 `/observer`로 변경
+[x] 하위 action을 `/observer <action>` grammar로 유지하고 `/observe`, `/observer:<action>` 미등록
+[x] parser/completion/API 이름을 ObserverCommand/parseObserverCommand/completeObserverArgs로 정렬
+[x] /observer 기본 화면을 SettingsList 중심 control center에서 inquiry workbench로 전환
+[x] Overview / Activity / Inquiries / Memos / Proposal / Notebook / Settings hierarchy
+[x] replay snapshot과 Notebook inventory에서만 파생되는 ObserverWorkbenchView projection
+[x] SourceRead faithful summary, claims, provenance, semantic Observation rationale inspect
+[x] user hypothesis와 context review clues/boundary inspect
+[x] working Inquiry original/current/revision/evidence inspect
+[x] working Memo complete content/relation/revision inspect
+[x] Preparing scope와 processing wait reason 표시, partial model output 비노출
+[x] Ready proposal record의 Diff / proposed Markdown / existing Markdown inspect
+[x] existing Notebook record의 exact saved Markdown inspect
+[x] wide master/detail와 narrow list/detail responsive rendering
+[x] focus-local ↑/↓, j/k, PgUp/PgDn, Home/End, Tab, Esc, ? help
+[x] help가 열린 동안 underlying Save shortcut 차단
+[x] Enter는 inspect만 수행하고 Save는 Proposal section의 별도 s action
+[x] /observer settings는 Settings를 직접 열고 Esc 뒤 workbench로 복귀
+[x] Notebook inventory와 proposal preflight inspection은 branch event/file write 없음
+[x] 기존 batch approval, all-or-nothing Save, stale target revalidation 보존
+[deferred] raw mouse reporting — Pi에 scoped TUI mouse lifecycle API가 없음
+```
+
+Implementation:
+
+```text
+src/observer-workbench.ts
+  pure read-only domain projection and proposal state
+
+src/observer-controller.ts:inspectWorkbench
+  on-demand Notebook inventory + current proposal preflight
+
+extensions/observer-workbench-tui.ts
+  responsive route/focus/scroll surface and contextual action intents
+
+extensions/observer.ts
+  /observer workbench orchestration; existing Settings and Save viewers remain boundaries
+```
+
+Verification:
+
+```text
+projection tests: Working / Preparing / Ready separation
+TUI tests: bounded wide+narrow render, detail scroll, Settings route, help input scope,
+           Enter-does-not-save and contextual Save
+controller test: exact saved Markdown inspection with unchanged branch entry count
+Observer package: 253/253 after initial implementation pass
+TypeScript LSP: package clean
+```
+
+UX evidence and rejected alternatives are recorded in
+`docs/terminal-workbench-ux-study-v0.1.ko.md`. Lazygit contributes
+context-owned actions and stale-view protection, K9s contributes resource-first
+history/detail navigation, Posting contributes saved/working/result separation,
+and Textual contributes modal/focus/scroll ownership. Observer does not adopt
+partial record Save or extension-owned raw terminal mouse mode.
 
 ---
 
@@ -2083,14 +2147,14 @@ Green test는 claim과 연결될 때만 evidence로 사용한다.
 ### 현재 승인된 human surface
 
 ```text
-/observe
-/observe setup
-/observe status
-/observe settings
-/observe on
-/observe off
-/observe memo
-/observe save
+/observer
+/observer setup
+/observer status
+/observer settings
+/observer on
+/observer off
+/observer memo
+/observer save
 ```
 
 ### 승인된 자연어 surface
@@ -2279,7 +2343,7 @@ Stop:
 - Memo effect ordering은 prepared → applied working event → compact lifecycle acknowledgment다.
 - Post-applied/pre-ack gap은 다음 bind에서 acknowledgment만 보충하고 pass를 재적용하지 않는다.
 - Exact duplicate/no-prepared memo는 append-free stutter고 malformed/stale/conflicting branch history는 fail-closed다.
-- `/observe memo` request는 exact Observation batch를 묶고 `memo-scope` → parser-refined `memo-prepare`만 기존 prepared → applied → acknowledgment 경계에 위임한다.
+- `/observer memo` request는 exact Observation batch를 묶고 `memo-scope` → parser-refined `memo-prepare`만 기존 prepared → applied → acknowledgment 경계에 위임한다.
 - Memo instruction append/replay 전에는 prepared effect를 허용하지 않으며 exact retry와 install/apply/ack gap은 duplicate 없이 복구한다.
 - Memo completion은 Mode/Episode와 durable Markdown을 변경하지 않고 acknowledged request의 Observation만 consumed 처리한다.
 - 일반 tool execution은 Observation이 아니다. Mode ON의 tool result는 current agent run에

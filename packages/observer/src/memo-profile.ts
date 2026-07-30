@@ -310,8 +310,7 @@ function parseHypothesisDraft(
 		!original ||
 		!current ||
 		(value.revision_reason !== null && !reason) ||
-		current !== original ||
-		reason !== null ||
+		(current === original) !== (reason === null) ||
 		!evidenceIds
 	) {
 		return failure(
@@ -328,7 +327,7 @@ function parseHypothesisDraft(
 			origin: value.origin,
 			original,
 			current,
-			revisionReason: null,
+			revisionReason: reason,
 			evidenceIds,
 		},
 	};
@@ -727,23 +726,45 @@ export function decodePreparedMemoPass(value: unknown): MemoProfileResult {
 		parseMemoOutcome,
 		"/memo_outcomes",
 	);
-	if (
-		!id ||
-		!episode ||
-		base === undefined ||
-		!basisDigest ||
-		!related ||
-		instruction === undefined ||
-		!evidence.ok ||
-		!hypotheses.ok ||
-		!memos.ok
-	) {
+	if (!id)
 		return failure(
 			"memo-profile.shape",
-			"/",
-			"Prepared Memo pass has invalid values.",
+			"/pass_id",
+			"Memo pass ID is invalid.",
 		);
-	}
+	if (!episode)
+		return failure(
+			"memo-profile.shape",
+			"/episode_id",
+			"Memo pass Episode ID is invalid.",
+		);
+	if (base === undefined)
+		return failure(
+			"memo-profile.shape",
+			"/base_revision_id",
+			"Memo pass base revision is invalid.",
+		);
+	if (!basisDigest)
+		return failure(
+			"memo-profile.shape",
+			"/basis_digest",
+			"Memo pass basis digest is invalid.",
+		);
+	if (!related)
+		return failure(
+			"memo-profile.shape",
+			"/related_inquiry_ids",
+			"Memo pass related Inquiry IDs are invalid.",
+		);
+	if (instruction === undefined)
+		return failure(
+			"memo-profile.shape",
+			"/instruction_id",
+			"Memo pass instruction ID is invalid.",
+		);
+	if (!evidence.ok) return evidence;
+	if (!hypotheses.ok) return hypotheses;
+	if (!memos.ok) return memos;
 	const normalizedEvidence = evidence.value.toSorted((left, right) =>
 		left.evidenceId.localeCompare(right.evidenceId),
 	);

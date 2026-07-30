@@ -121,7 +121,7 @@ Observer ON 또는 OFF
 
 ```text
 Observer ON 또는 OFF
-→ `/observe material <자료 또는 retrieval 요청>`
+→ `/observer material <자료 또는 retrieval 요청>`
 → 해당 요청 동안 scoped Observe material 수행
 → 기존 standing inquiry를 실제 working state에서 업데이트
 → 요청한 결과 반환
@@ -129,7 +129,7 @@ Observer ON 또는 OFF
 → 이후 Memo·Review에서 누적 결과를 재조정하고 별도 Save 승인으로 저장
 ```
 
-Observe material은 단순한 read-only 분석이 아니다. 관련 가설과 Memo의 pending revision을 실제 working state에 남긴다. 다만 `/observe save` 승인 전에는 장기 Zettel 기록으로 승격하지 않는다.
+Observe material은 단순한 read-only 분석이 아니다. 관련 가설과 Memo의 pending revision을 실제 working state에 남긴다. 다만 `/observer save` 승인 전에는 장기 Zettel 기록으로 승격하지 않는다.
 
 ### 4.5 Review·Save와 Notebook publication 경계
 
@@ -225,29 +225,39 @@ direct-observation
 
 ## 6. 사용자 명령과 스크립트
 
-### `/observe`
+### `/observer`
 
-Pi TUI에서는 인자 없이 실행하면 현재 상태에 맞는 Observer 제어판을 연다.
+`/observer`는 제품 이름과 workbench namespace를 나타내는 유일한 canonical root command다. 하위 action은 Pi의 일반 command grammar에 맞춰 `/observer on`, `/observer material <request>`처럼 공백으로 구분한다. `/observe` compatibility command와 `/observer:on` 형태의 colon command는 등록하지 않는다.
+
+Pi TUI에서는 인자 없이 실행하면 현재 branch의 Observer inquiry workbench를 연다.
 
 ```text
-Notebook 미선택
-→ Notebook 설정, 기본 출력 언어, Observer 활성화, 상태 확인만 노출
+Overview
+→ Mode, Episode, processing, health, publication 상태
 
-Episode OPEN
-→ Mode, Add a hypothesis, Observe material, Memo, Review,
-  고정 Notebook, 현재 출력 언어, 상태를 노출
+Activity
+→ SourceRead, faithful summary, claims, semantic Observation,
+  user hypothesis와 context review
 
-Validated proposal ready
-→ Mode 상태와 capture suspended 경계, Save, proposal 요약, 상태를 노출
+Inquiries / Memos
+→ original/current/revision/evidence와 complete working content
+
+Proposal
+→ Not requested / Needs reconciliation / Preparing / Ready / Invalid
+→ Ready일 때 record별 Diff / exact proposed Markdown / existing Markdown
+
+Notebook
+→ 기존 records/*.md inventory와 exact saved Markdown
+
+Settings
+→ Notebook, Observer On/Off, 기본 출력 언어, processing policy
 ```
 
-제어판은 새로운 lifecycle effect를 만들지 않고 아래의 기존 명령과 같은
-경계를 사용한다. 현재 상태에서 허용되지 않는 action은 기본 목록에 노출하지
-않는다. Mode와 기본 출력 언어 변경은 제어판을 닫았다 다시 열지 않고 같은
-surface에서 적용 결과를 갱신한다. TUI가 아닌 RPC/print/json mode에서 인자 없는 `/observe`는 기존처럼
-read-only status를 반환한다. `/observe settings`는 TUI에서 같은 제어판을 연다.
+Workbench projection은 branch replay와 Notebook inventory를 read-only로 해석한다. item을 Enter로 여는 동작은 lifecycle event나 파일 write를 만들지 않는다. Wide terminal에서는 section/content pane을 함께 보이고, narrow terminal에서는 list/detail route를 사용한다. focus된 list/detail이 ↑/↓, `j/k`, PageUp/PageDown, Home/End를 소유하며 Esc는 detail → section → Pi 순서로 한 단계씩 돌아간다. `?` help가 열린 동안 아래 workbench action은 실행되지 않는다.
 
-### `/observe setup`
+State-changing action은 현재 section에서 legal할 때만 contextual key로 노출한다. Proposal의 `s`는 기존 별도 batch approval viewer를 열 뿐 즉시 저장하지 않는다. Save 전에는 current branch와 Notebook target을 다시 검증한다. TUI가 아닌 RPC/print/json mode에서 인자 없는 `/observer`는 기존처럼 read-only status를 반환한다. `/observer settings`는 Settings를 직접 열고 Esc 뒤 workbench로 돌아간다.
+
+### `/observer setup`
 
 최초 Notebook 위치와 기본 출력 언어를 설정한다. TUI에서는 두 설정을
 별도 option으로 노출한다. Mode On/Off만 toggle로 취급한다. 기본 출력 언어는
@@ -268,7 +278,7 @@ adopt한다.
 - Git 저장소 생성 없음
 ```
 
-### `/observe on`
+### `/observer on`
 
 Observer의 지속 관찰을 활성화한다.
 
@@ -280,7 +290,7 @@ Observer의 지속 관찰을 활성화한다.
 - Hybrid 개입 정책 활성화
 ```
 
-### `/observe off`
+### `/observer off`
 
 지속 관찰만 비활성화한다.
 
@@ -291,7 +301,7 @@ Observer의 지속 관찰을 활성화한다.
 - working state는 recovery 가능하게 보존
 ```
 
-### `/observe memo`
+### `/observer memo`
 
 현재 episode와 관련 standing inquiry에 연결된 모든 미승격 Memo를 현재까지의 관련 컨텍스트로 재검토·재조정한다.
 
@@ -314,7 +324,7 @@ Observer의 지속 관찰을 활성화한다.
 
 `memo`는 Mode가 OFF여도 열린 episode에 적용할 수 있다.
 
-### `/observe add-hypothesis <text>`
+### `/observer add-hypothesis <text>`
 
 사용자 가설 원문을 즉시 추가하고 선택적 `Context:`를 분리해 보존한다.
 Observer Mode와 무관하게 같은 OPEN Episode를 사용하며 최초 current-context
@@ -340,10 +350,10 @@ bounded tool-call reference만 일시적으로 유지하고, 모델이 다음 �
 품질은 model-owned judgment이며 runtime은 current-run ownership, exact branch result,
 non-empty bounded reason만 구조적으로 보장한다.
 
-명시적 retrieved `/observe material`은 사용자가 exact 자료 retrieval을 요청했으므로 이
+명시적 retrieved `/observer material`은 사용자가 exact 자료 retrieval을 요청했으므로 이
 선별 규칙의 유일한 자동 capture 예외다.
 
-### `/observe material <request>`
+### `/observer material <request>`
 
 inline 자료, 경로, URL 또는 retrieval 요청을 명시적인 Observe material agent run으로
 전달한다. Observer Mode가 ON이면 ON, OFF이면 OFF로 유지하며, command 자체를
@@ -367,14 +377,14 @@ pending + capture window suspended + Mode ON
   명시적으로 nominate되기 전에는 candidate가 아니고 stale request와 연결하지 않음
 ```
 
-### `/observe material retry`
+### `/observer material retry`
 
 현재 exact pending request를 새로 만들지 않고 한 번의 bounded agent run에서 재개한다.
 retrieved material이면 그 run에만 capture window를 다시 열고, inline material이면 기존
 candidate 처리만 재개한다. session reload 뒤 durable pending request는 항상 suspended로
 복구되며 명시적 retry 전에는 retrieval capture를 재개하지 않는다.
 
-### `/observe material cancel`
+### `/observer material cancel`
 
 현재 exact pending request에 durable cancellation event를 기록한다. Mode와 OPEN Episode는
 변경하지 않으며, 취소된 request에 연결된 미완료 candidate는 일반 Sidecar 작업으로
@@ -384,16 +394,16 @@ pending material review가 있는 동안 Review는 시작할 수 없다. 사용�
 해소해야 하며, 이 guard는 Episode가 먼저 SETTLED되어 pending request가 고아가 되는 상태를
 막는다.
 
-### `/observe review`
+### `/observer review`
 
 현재 working state를 하나의 저장 가능한 proposal로 정리한다. 필요하면 마지막 Memo
 reconciliation을 먼저 수행한 뒤, 모든 create/update Markdown과 최종 Notebook graph를
 검증한다. 유효한 proposal만 `Ready to save` 상태가 된다. Review는 Notebook 파일을
 변경하지 않고 Save UI를 자동으로 열지도 않는다.
 
-### `/observe save`
+### `/observer save`
 
-`/observe review`가 준비·검증한 proposal만 검토하고 저장한다. Save는 최종
+`/observer review`가 준비·검증한 proposal만 검토하고 저장한다. Save는 최종
 reconciliation이나 proposal 생성을 암묵적으로 시작하지 않는다.
 
 ```text
@@ -411,7 +421,7 @@ reconciliation이나 proposal 생성을 암묵적으로 시작하지 않는다.
 Review`는 proposal만 폐기하고 Episode와 working state를 OPEN으로 유지한다. `Save all
 N records`만 파일을 변경한다. record별 검토는 지원하지만 부분 저장은 지원하지 않는다.
 
-### `/observe status`
+### `/observer status`
 
 최소한 다음을 보여준다.
 
@@ -423,22 +433,40 @@ Notebook 위치
 Pending Memo 수
 Pending material-review request ID, material 종류, coverage phase
 Material capture window active/suspended 상태
-`/observe material retry` / `/observe material cancel` 복구 action
+`/observer material retry` / `/observer material cancel` 복구 action
 Open Inquiry 수
 Zettel 후보 수
 Notebook validation health
 ```
 
-### `/observe settings`
+### `/observer settings`
 
-Notebook과 기본 출력 언어를 서로 구분된 option으로 확인·변경한다.
-기본 출력 언어는 Memo와 Zettel Markdown 생성 언어이며 TUI 표시 언어가 아니다.
+Workbench의 secondary section으로 Notebook과 기본 출력 언어를 서로 구분된 option으로 확인·변경한다. `/observer settings`는 이 section의 기존 Settings surface를 직접 연다. 기본 출력 언어는 Memo와 Zettel Markdown 생성 언어이며 TUI 표시 언어가 아니다.
 
 - 여러 notebook이 존재할 수 있다.
 - 한 시점에는 하나만 선택한다.
 - 열린 episode에 pending work가 있으면 notebook을 조용히 변경할 수 없다.
 - 출력 언어 변경은 Episode 경계와 무관하게 새 Memo·Zettel 작업에 즉시 적용한다.
 - 이미 준비된 Memo·Review & Save 작업은 승인·재시도 scope에 잠긴 언어를 유지한다.
+
+### Workbench 표시 상태
+
+```text
+Working
+→ SourceRead, Observation, Inquiry, Memo 같은 session working state
+
+Preparing
+→ locked request scope, 현재 processing mode와 wait reason
+→ model partial output은 proposal Markdown으로 표시하지 않음
+
+Ready
+→ atomic preparation과 current local preflight를 통과한 exact proposal
+
+Saved
+→ Notebook inventory에서 다시 읽은 durable Markdown
+```
+
+Quietness는 push notification 빈도를 낮추는 정책이지 working state를 숨기는 정책이 아니다. Review는 이미 inspectable한 working state를 publication scope로 freeze하고 검증하는 경계이며, working state를 처음 보여주는 화면이 아니다.
 
 ---
 
@@ -447,10 +475,10 @@ Notebook과 기본 출력 언어를 서로 구분된 option으로 확인·변경
 ### 7.1 Mode와 Episode의 직교 상태
 
 ```text
-                 /observe on
+                 /observer on
 Mode OFF ─────────────────────────→ Mode ON
 Mode OFF ←───────────────────────── Mode ON
-                 /observe off
+                 /observer off
 
 Episode EMPTY
     │ on 또는 observe-material
@@ -1136,20 +1164,20 @@ v0.1 core에 graph DB나 RDF runtime을 넣지 않는다.
 ### 21.1 최초 설정과 Sidecar
 
 ```text
-/observe setup
+/observer setup
 → notebook 위치 선택
 → ko/en 선택
 
-/observe on
+/observer on
 → standing inquiry 복구
 → technical-reading 수행
 → 사용자 가설 등록
 → Hybrid 중요 변화 알림
-→ /observe memo
+→ /observer memo
 → 계속 학습
-→ /observe review
+→ /observer review
 → validated proposal ready, 파일 변경 없음
-→ /observe save
+→ /observer save
 → target path·diff·exact Markdown 검토
 → Save all N records 승인
 → Source/Memo/Inquiry/Zettel 로컬 저장
@@ -1160,10 +1188,10 @@ v0.1 core에 graph DB나 RDF runtime을 넣지 않는다.
 
 ```text
 Observer ON + Episode OPEN
-→ /observe off
+→ /observer off
 → Mode OFF, Episode OPEN 유지
 → 새 세션
-→ /observe on
+→ /observer on
 → 같은 episode와 pending context 재개
 ```
 
@@ -1171,7 +1199,7 @@ Observer ON + Episode OPEN
 
 ```text
 Observer ON 또는 OFF
-→ /observe add-hypothesis <가설>
+→ /observer add-hypothesis <가설>
 → optional Context: <사용자 이유>
 → original + user context 즉시 보존
 → 현재 context lens review trigger
@@ -1184,14 +1212,14 @@ Observer ON 또는 OFF
 
 ```text
 Observer ON 또는 OFF
-→ /observe material <자료 또는 retrieval 요청>
+→ /observer material <자료 또는 retrieval 요청>
 → scoped Observe material
 → 관련 standing inquiry pending revision
 → 기존 Mode 유지
 → 여러 Observe material 요청 누적 가능
 → 완료된 hypothesis context review와 Observe material 결과를 memo에서 재조정
-→ /observe review로 proposal 준비·검증
-→ /observe save에서 batch 승인 후 로컬 저장
+→ /observer review로 proposal 준비·검증
+→ /observer save에서 batch 승인 후 로컬 저장
 ```
 
 ### 21.5 Fresh-session re-entry
@@ -1199,7 +1227,7 @@ Observer ON 또는 OFF
 ```text
 이전 Episode Review & Save 완료
 → 새 Pi 세션
-→ /observe on
+→ /observer on
 → compact standing inquiry index 복구
 → 새 자료 관찰
 → 관련 inquiry와 incubating Memo 자동 foreground

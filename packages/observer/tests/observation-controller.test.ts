@@ -8,6 +8,7 @@ import {
 	completeMemoPreparation,
 	captureOrStageToolResult,
 	completeSavePreparation,
+	executeObserverCommit,
 	observationToolText,
 } from "../extensions/observer.ts";
 import {
@@ -45,6 +46,7 @@ import {
 } from "../src/observation-controller.ts";
 import {
 	createObserverController,
+	type ObserverCommandPort,
 	type ObserverController,
 	type ObserverControllerIds,
 	type MaterialReviewEpisodeCapability,
@@ -459,6 +461,138 @@ function externalSourceAction(candidateId: string): Record<string, unknown> {
 }
 
 describe("Observation staged controller", () => {
+	test("commits source-read and semantic record together, and discards a failed staged pipeline", async () => {
+		await withSandbox(
+			async ({ sandbox, port, controller, lifecycleController }) => {
+				const commitPort: ObserverCommandPort = {
+					cwd: sandbox,
+					branchEntries: port.branchEntries.bind(port),
+					sessionFile: () => undefined,
+					appendEntry: port.appendEntry.bind(port),
+					input: () => Promise.resolve(undefined),
+					select: () => Promise.resolve(undefined),
+					reviewSaveProposal: () => Promise.resolve("back"),
+					notify: port.notify.bind(port),
+					setStatus() {},
+				};
+				const turnState: ObserverTurnState = {
+					toolUsed: false,
+					latestUser: null,
+					scriptedMaterialRequest: null,
+					blockedRequestId: null,
+					agentRunSequence: 1,
+					activeAgentRunId: 1,
+					materialReviewRun: null,
+					nominatableToolResults: new Map(),
+					stagedMaterialReviewRetry: null,
+				};
+				const capture = controller.capture(
+					{
+						origin: { kind: "user-input", input_source: "interactive" },
+						text: "Piggyback should commit one source and observation together.",
+						capturedAt: "2026-08-01T12:00:00.000Z",
+					},
+					port,
+				);
+				if (!capture.ok || !capture.candidate)
+					assert.fail("Expected candidate");
+				const params = {
+					observer_action: "observer-sidecar/v1",
+					action: "observer-commit",
+					episode_id: "episode-sidecar-1",
+					observations: [
+						{
+							candidate_ids: [capture.candidate.candidateId],
+							nominations: [],
+							source: {
+								kind: "direct-observation",
+								title: "Piggyback transaction fixture",
+								lang: "en",
+								observed_at: "2026-08-01T12:00:00.000Z",
+								observed_by: "observer-test",
+								fact: "One proposal owns source-read and record.",
+								conditions:
+									"Current branch remains unchanged during validation.",
+								interpretation_boundary: "Test fixture only.",
+							},
+							faithful_summary:
+								"The fixture states one bounded transaction fact.",
+							claims: [{ text: "One bounded fact.", locator: null }],
+							related_inquiry_ids: [],
+							stance: "refines",
+							record: {
+								kind: "observation",
+								movement: "minor-refinement",
+								rationale: "The transaction boundary is directly exercised.",
+							},
+						},
+					],
+					hypothesis_context_reviews: [],
+					memo: null,
+					save: null,
+				};
+				const committed = await executeObserverCommit({
+					params,
+					port: commitPort,
+					nominationEntries: port.entries,
+					controller: lifecycleController,
+					observation: controller,
+					materialReviewIds: {
+						requestId: () =>
+							"material-review-00000000-0000-4000-8000-000000000777",
+					},
+					turnState,
+				});
+				assert.equal((committed.details as { ok?: boolean }).ok, true);
+				assert.equal(committed.terminate, true);
+				const snapshot = reconstructObservationSession(port.entries);
+				assert.equal(snapshot.sourceReads.length, 1);
+				assert.equal(snapshot.observations.length, 1);
+
+				const failedCapture = controller.capture(
+					{
+						origin: { kind: "user-input", input_source: "interactive" },
+						text: "This staged source must be discarded after hydration failure.",
+						capturedAt: "2026-08-01T12:01:00.000Z",
+					},
+					port,
+				);
+				if (!failedCapture.ok || !failedCapture.candidate)
+					assert.fail("Expected second candidate");
+				const beforeFailure = port.entries.length;
+				const failed = await executeObserverCommit({
+					params: {
+						...params,
+						observations: [
+							{
+								...params.observations[0],
+								candidate_ids: [failedCapture.candidate.candidateId],
+								related_inquiry_ids: [
+									"inquiry-00000000-0000-4000-8000-000000000999",
+								],
+							},
+						],
+					},
+					port: commitPort,
+					nominationEntries: port.entries,
+					controller: lifecycleController,
+					observation: controller,
+					materialReviewIds: {
+						requestId: () =>
+							"material-review-00000000-0000-4000-8000-000000000778",
+					},
+					turnState,
+				});
+				assert.equal((failed.details as { ok?: boolean }).ok, false);
+				assert.equal(failed.terminate, true);
+				assert.equal(port.entries.length, beforeFailure);
+				const afterFailure = reconstructObservationSession(port.entries);
+				assert.equal(afterFailure.sourceReads.length, 1);
+				assert.equal(afterFailure.observations.length, 1);
+			},
+		);
+	});
+
 	test("bounds material retrieval capture to one explicit agent run and retry", () => {
 		const request = {
 			requestId:
@@ -1286,7 +1420,7 @@ describe("Observation staged controller", () => {
 				observationCount: 0,
 				runState: "Suspended",
 				recovery:
-					"Run /observe material retry to resume the exact request, or /observe material cancel to discard it.",
+					"Run /observer material retry to resume the exact request, or /observer material cancel to discard it.",
 			});
 			const blockedReview = await controller.requestReviewSave(port);
 			assert.equal(blockedReview.ok, false);

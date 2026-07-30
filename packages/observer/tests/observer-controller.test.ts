@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	readFile,
+	realpath,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -15,8 +22,8 @@ import {
 	type ObserverControllerIds,
 } from "../src/observer-controller.ts";
 import {
-	completeObserveArgs,
-	parseObserveCommand,
+	completeObserverArgs,
+	parseObserverCommand,
 } from "../src/observer-command.ts";
 import {
 	decodeNotebookId,
@@ -25,6 +32,7 @@ import {
 } from "../src/notebook.ts";
 import { createNotebookService } from "../src/notebook-service.ts";
 import {
+	decodeNotebookSelection,
 	fileNotebookSelectionStore,
 	type NotebookSelectionStore,
 } from "../src/notebook-selection-store.ts";
@@ -68,6 +76,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 class FakePort implements ObserverCommandPort {
 	cwd = process.cwd();
+	home: string | undefined;
 	readonly entries: PiBranchEntryLike[] = [];
 	readonly notifications: Array<{
 		readonly message: string;
@@ -333,52 +342,60 @@ async function emptyPreparedMemoPass(input: {
 
 describe("Observer command parsing", () => {
 	test("parses exact actions and preserves absolute or relative paths", () => {
-		assert.deepEqual(parseObserveCommand(""), {
+		assert.deepEqual(parseObserverCommand(""), {
 			ok: true,
 			command: { kind: "status" },
 		});
-		assert.deepEqual(parseObserveCommand("setup ko /tmp/My Notes"), {
+		assert.deepEqual(parseObserverCommand("setup ko /tmp/My Notes"), {
 			ok: true,
 			command: { kind: "setup", lang: "ko", root: "/tmp/My Notes" },
 		});
-		assert.deepEqual(parseObserveCommand("setup en ./Observer Notes"), {
+		assert.deepEqual(parseObserverCommand("setup en ./Observer Notes"), {
 			ok: true,
 			command: { kind: "setup", lang: "en", root: "./Observer Notes" },
 		});
-		assert.deepEqual(parseObserveCommand("memo"), {
+		assert.deepEqual(parseObserverCommand("memo"), {
 			ok: true,
 			command: { kind: "memo" },
 		});
-		assert.deepEqual(parseObserveCommand("review"), {
+		assert.deepEqual(parseObserverCommand("review"), {
 			ok: true,
 			command: { kind: "review" },
 		});
-		assert.deepEqual(parseObserveCommand("save"), {
+		assert.deepEqual(parseObserverCommand("save"), {
 			ok: true,
 			command: { kind: "save" },
 		});
-		assert.equal(parseObserveCommand("wrap").ok, false);
-		assert.equal(parseObserveCommand("on extra").ok, false);
-		assert.equal(parseObserveCommand("setup /tmp/missing-language").ok, false);
+		assert.equal(parseObserverCommand("wrap").ok, false);
+		assert.equal(parseObserverCommand("on extra").ok, false);
+		assert.equal(parseObserverCommand("setup /tmp/missing-language").ok, false);
 		assert.deepEqual(
-			completeObserveArgs("st")?.map((item) => item.value),
+			completeObserverArgs("st")?.map((item) => item.value),
 			["status"],
 		);
 		assert.deepEqual(
-			completeObserveArgs("add")?.map((item) => item.value),
+			completeObserverArgs("add")?.map((item) => item.value),
 			["add-hypothesis"],
 		);
 		assert.deepEqual(
-			completeObserveArgs("mat")?.map((item) => item.value),
+			completeObserverArgs("mat")?.map((item) => item.value),
 			["material"],
 		);
 		assert.deepEqual(
-			completeObserveArgs("material ")?.map((item) => item.value),
+			completeObserverArgs("material ")?.map((item) => item.value),
 			["material retry", "material cancel"],
 		);
 		assert.deepEqual(
-			completeObserveArgs("material r")?.map((item) => item.value),
+			completeObserverArgs("material r")?.map((item) => item.value),
 			["material retry"],
+		);
+		assert.deepEqual(
+			completeObserverArgs("proc")?.map((item) => item.value),
+			["processing"],
+		);
+		assert.deepEqual(
+			completeObserverArgs("processing p")?.map((item) => item.value),
+			["processing piggyback"],
 		);
 	});
 });
@@ -576,6 +593,34 @@ describe("Observer command controller", () => {
 		});
 	});
 
+	test("expands ~/ Notebook paths from home instead of creating a literal tilde folder", async () => {
+		await withSandbox(async (sandbox) => {
+			const store = selectionStore(sandbox);
+			const controller = createObserverController({
+				selectionStore: store,
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			port.cwd = join(sandbox, "project");
+			port.home = join(sandbox, "home");
+			await controller.command("setup en ~/coding/archive", port);
+			const expected = join(port.home, "coding", "archive");
+			const canonicalExpected = await realpath(expected);
+			const opened = requireNotebook(await openNotebook(expected));
+			assert.equal(opened.root, canonicalExpected);
+			const persisted = await store.load();
+			if (!persisted.found)
+				assert.fail("Expected persisted Notebook selection");
+			const decodedSelection = decodeNotebookSelection(persisted.value);
+			if (!decodedSelection.ok) assert.fail(decodedSelection.issue.message);
+			assert.equal(decodedSelection.value.root, canonicalExpected);
+			assert.equal(
+				(await openNotebook(join(port.cwd, "~", "coding", "archive"))).ok,
+				false,
+			);
+		});
+	});
+
 	test("supports interactive setup without applying hidden defaults", async () => {
 		await withSandbox(async (sandbox) => {
 			const controller = createObserverController({
@@ -681,6 +726,40 @@ describe("Observer command controller", () => {
 			const text = port.notifications.at(-1)?.message ?? "";
 			assert.match(text, /Ephemeral session/u);
 			assert.match(text, /Working Memos: Not counted yet/u);
+		});
+	});
+
+	test("inspects exact saved Notebook Markdown without mutating the branch", async () => {
+		await withSandbox(async (sandbox) => {
+			const controller = createObserverController({
+				selectionStore: selectionStore(sandbox),
+				ids: deterministicIds(),
+			});
+			const port = new FakePort();
+			const root = join(sandbox, "workbench notebook");
+			await controller.command(`setup en ${root}`, port);
+			const markdown = await readFile(externalSourceFixture, "utf8");
+			await writeFile(
+				join(root, "records", `${ORIGINAL_SOURCE}.md`),
+				markdown,
+				"utf8",
+			);
+			const before = port.entries.length;
+
+			const workbench = await controller.inspectWorkbench(port);
+
+			assert.equal(port.entries.length, before);
+			assert.equal(workbench.notebook.length, 1);
+			assert.equal(
+				workbench.notebook[0]?.title,
+				"How to Take Smart Notes, second edition",
+			);
+			assert.equal(
+				workbench.notebook[0]?.blocks
+					.find((block) => block.heading === "Saved Markdown")
+					?.lines.join("\n"),
+				markdown,
+			);
 		});
 	});
 
@@ -873,7 +952,7 @@ describe("Observer command controller", () => {
 			assert.equal(port.entries.length, before);
 			assert.match(
 				port.notifications.at(-1)?.message ?? "",
-				/Run \/observe review first/u,
+				/Open Observer and choose Review/u,
 			);
 		});
 	});

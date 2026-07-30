@@ -78,6 +78,14 @@ export interface ObserverStatusView {
 	readonly openInquiries: string;
 	readonly inquiryItems: readonly ObserverInquiryStatusItem[];
 	readonly zettelCandidates: string;
+	readonly processingMode: "Off" | "Piggyback" | "Local background";
+	readonly processingDetail: string;
+	readonly processingIssue?: string;
+	readonly backgroundWork?: {
+		readonly state: "Queued" | "Running" | "Deferred";
+		readonly queued: number;
+	};
+	readonly backgroundIssue?: string;
 	readonly automaticProcessingPause?: string;
 	readonly operationalIssue?: string;
 }
@@ -195,7 +203,7 @@ function pendingMaterialReviewStatus(input: {
 		observationCount: observations.length,
 		runState: "Suspended",
 		recovery:
-			"Run /observe material retry to resume the exact request, or /observe material cancel to discard it.",
+			"Run /observer material retry to resume the exact request, or /observer material cancel to discard it.",
 	};
 }
 
@@ -268,14 +276,18 @@ export function observerStatusView(input: {
 		),
 		pendingObservations:
 			input.observationSnapshot.unconsumedObservationIds.length,
-		memoItems: working.memos
-			.filter((memo) => memo.disposition !== "superseded")
-			.map((memo) => ({
-				memoId: memo.memoId,
-				title: memo.title,
-				disposition: memo.disposition,
-				content: memo.content,
-			})),
+		memoItems: working.memos.flatMap((memo) =>
+			memo.disposition === "superseded"
+				? []
+				: [
+						{
+							memoId: memo.memoId,
+							title: memo.title,
+							disposition: memo.disposition,
+							content: memo.content,
+						},
+					],
+		),
 		pendingHypothesisReviews:
 			input.observationSnapshot.pendingHypothesisReviews.length,
 		...(pendingMaterialReview ? { pendingMaterialReview } : {}),
@@ -290,6 +302,8 @@ export function observerStatusView(input: {
 			working.memos.filter((memo) => memo.disposition === "promotion-candidate")
 				.length,
 		),
+		processingMode: "Piggyback",
+		processingDetail: "No additional model request",
 		...(input.operationalIssue
 			? { operationalIssue: input.operationalIssue }
 			: {}),
@@ -334,6 +348,18 @@ export function renderObserverStatus(view: ObserverStatusView): string {
 				`- [${inquiry.origin}] ${inquiry.current} (${inquiry.inquiryId})`,
 		),
 		`Zettel candidates: ${view.zettelCandidates}`,
+		`Model processing: ${view.processingMode} · ${view.processingDetail}`,
+		...(view.processingIssue
+			? [`Processing settings: ${view.processingIssue}`]
+			: []),
+		...(view.backgroundWork
+			? [
+					`Background Observer: ${view.backgroundWork.state} · queued ${view.backgroundWork.queued}`,
+				]
+			: []),
+		...(view.backgroundIssue
+			? [`Background work deferred: ${view.backgroundIssue}`]
+			: []),
 		...(view.automaticProcessingPause
 			? [`Automatic processing paused: ${view.automaticProcessingPause}`]
 			: []),

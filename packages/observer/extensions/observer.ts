@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
 import {
 	getAgentDir,
@@ -8,8 +8,10 @@ import {
 	type Theme,
 } from "@earendil-works/pi-coding-agent";
 import { Container, Text, type Component } from "@earendil-works/pi-tui";
+import type { Static } from "typebox";
+import { Value } from "typebox/value";
 import {
-	completeObserveArgs,
+	completeObserverArgs,
 	createObserverController,
 	type ObserverCommandPort,
 	type ObserverControllerIds,
@@ -25,20 +27,54 @@ import {
 	type TrackUserHypothesisResult,
 	type SaveRequestControllerResult,
 } from "../src/observation-controller.ts";
+import { sha256Text } from "../src/content-hash.ts";
 import type { PreparedObservationMemoInstruction } from "../src/memo-instruction.ts";
 import { encodePreparedMemoPass } from "../src/memo-profile.ts";
 import { reconstructObservationSession } from "../src/observation-session.ts";
 import type { ObservationMemoRequestedEvent } from "../src/observation-profile.ts";
-import type {
-	PiBranchEntryLike,
-	PreparedSaveHandoff,
+import { observerSidecarContext } from "../src/observer-prompt.ts";
+import {
+	reconstructObserverPiState,
+	type PiBranchEntryLike,
+	type PreparedSaveHandoff,
 } from "../src/pi-session.ts";
-import { parseObserveCommand } from "../src/observer-command.ts";
+import { parseObserverCommand } from "../src/observer-command.ts";
 import type { ObserverStatusView } from "../src/observer-status.ts";
 import { renderSaveProposalReview } from "../src/save-review.ts";
 import { fileNotebookSelectionStore } from "../src/notebook-selection-store.ts";
-import type { SaveRequestEvent } from "../src/save-trigger.ts";
-import { observerSidecarParameters } from "./memo-tool-schema.ts";
+import {
+	notebookPathKindLabel,
+	resolveNotebookPath,
+} from "../src/notebook-path.ts";
+import {
+	DEFAULT_OBSERVER_PROCESSING_POLICY,
+	fileObserverProcessingPolicyStore,
+	isLocalObserverModel,
+	observerLocalModelRef,
+	processingPolicy,
+	type ObserverProcessingPolicy,
+	type ObserverProcessingPolicyStore,
+} from "../src/observer-processing-policy.ts";
+import {
+	reconstructSaveRequestSession,
+	type SaveRequestEvent,
+} from "../src/save-trigger.ts";
+import {
+	createObserverBackgroundQueue,
+	type ObserverBackgroundQueue,
+} from "../src/observer-background-queue.ts";
+import { observerWorkerMaterial } from "../src/observer-worker-material.ts";
+import {
+	observerCommitActionSchema,
+	observerRequestSidecarParameters,
+	observerRoutineSidecarParameters,
+	observerRuntimeSidecarParameters,
+} from "./memo-tool-schema.ts";
+import {
+	runObserverAgentBackgroundJob,
+	type ObserverAgentBackgroundJob,
+	type ObserverBackgroundToolResult,
+} from "./observer-background.ts";
 import {
 	acceptScriptedMaterialInput,
 	activeMaterialReviewCaptureRequestId,
@@ -60,12 +96,17 @@ import {
 import {
 	OBSERVER_HYPOTHESIS_DRAFT,
 	OBSERVER_OBSERVE_MATERIAL_DRAFT,
+	type ObserverControlAction,
 	ObserverWidget,
 	renderObserverChromeStatus,
 	shouldShowObserverWidget,
 	showObserverControl,
 	showObserverStatus,
 } from "./tui.ts";
+import {
+	showObserverWorkbench,
+	type ObserverWorkbenchAction,
+} from "./observer-workbench-tui.ts";
 import { showSaveProposalReview } from "./save-proposal-tui.ts";
 
 const OBSERVER_STATUS_KEY = "observer";
@@ -164,6 +205,155 @@ function commandPort(
 	};
 }
 
+function backgroundCommandPort(
+	port: ObserverCommandPort,
+	signal: AbortSignal,
+	mode: "routine" | "requests",
+): {
+	readonly port: ObserverCommandPort;
+	flush(success: boolean): void;
+} {
+	const pending: Array<{
+		readonly message: string;
+		readonly type?: "info" | "warning" | "error";
+	}> = [];
+	return {
+		port: {
+			...port,
+			appendEntry(customType, data) {
+				if (signal.aborted) {
+					throw new Error(
+						"Observer background commit was cancelled by foreground activity.",
+					);
+				}
+				port.appendEntry(customType, data);
+			},
+			notify(message, type) {
+				if (signal.aborted) return;
+				if (mode === "routine") pending.push({ message, type });
+				else port.notify(message, type);
+			},
+		},
+		flush(success) {
+			if (!success || signal.aborted) return;
+			for (const notification of pending) {
+				port.notify(notification.message, notification.type);
+			}
+		},
+	};
+}
+
+function backgroundTurnState(turnState: ObserverTurnState): ObserverTurnState {
+	return {
+		toolUsed: false,
+		latestUser: null,
+		scriptedMaterialRequest: null,
+		blockedRequestId: null,
+		backgroundIssue: null,
+		agentRunSequence: turnState.agentRunSequence,
+		activeAgentRunId: turnState.activeAgentRunId ?? turnState.agentRunSequence,
+		materialReviewRun: null,
+		nominatableToolResults: new Map(turnState.nominatableToolResults),
+		stagedMaterialReviewRetry: null,
+	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function createObserverAgentBackgroundJob(input: {
+	readonly id: string;
+	readonly mode: "routine" | "requests";
+	readonly model: NonNullable<ExtensionContext["model"]>;
+	readonly ctx: ExtensionContext;
+	readonly pi: ExtensionAPI;
+	readonly controller: ReturnType<typeof createObserverController>;
+	readonly observation: ReturnType<typeof createObservationController>;
+	readonly materialReviewIds: ObserverMaterialReviewIds;
+	readonly turnState: ObserverTurnState;
+	readonly refresh: () => Promise<void>;
+}): ObserverAgentBackgroundJob {
+	const port = commandPort(input.pi, input.ctx);
+	const nominationEntries = [...input.ctx.sessionManager.getBranch()];
+	const workerState = backgroundTurnState(input.turnState);
+	return {
+		id: input.id,
+		mode: input.mode,
+		cwd: input.ctx.cwd,
+		model: input.model,
+		parameters:
+			input.mode === "routine"
+				? observerRoutineSidecarParameters
+				: observerRequestSidecarParameters,
+		material() {
+			const entries = port.branchEntries();
+			const nominations = [...workerState.nominatableToolResults.values()];
+			const guidance = observerSidecarContext(entries, nominations, {
+				includeRoutine: input.mode === "routine",
+				includeRequests: input.mode === "requests",
+			});
+			if (!guidance) return null;
+			const workerGuidance = guidance.replaceAll(
+				"observer_sidecar",
+				"observer_background_sidecar",
+			);
+			const material =
+				input.mode === "routine"
+					? observerWorkerMaterial({
+							entries,
+							nominatableToolResults: nominations,
+						})
+					: { text: "", images: [] };
+			return {
+				text: [workerGuidance, material.text].filter(Boolean).join("\n\n"),
+				images: material.images,
+			};
+		},
+		async execute(value, signal) {
+			if (!isRecord(value)) {
+				return {
+					content: [
+						{
+							type: "text",
+							text: "Observer background action must be an object.",
+						},
+					],
+					details: {
+						ok: false,
+						message: "Observer background action must be an object.",
+					},
+					terminate: true,
+				};
+			}
+			const command = backgroundCommandPort(port, signal, input.mode);
+			const result = await executeObserverSidecarAction({
+				params: value,
+				port: command.port,
+				nominationEntries,
+				controller: input.controller,
+				observation: input.observation,
+				materialReviewIds: input.materialReviewIds,
+				turnState: workerState,
+				background: true,
+				allowForegroundRoutine: false,
+			});
+			const succeeded =
+				!isRecord(result.details) ||
+				Reflect.get(result.details, "ok") !== false;
+			command.flush(succeeded);
+			return result;
+		},
+		refresh: input.refresh,
+		notifyDeferred() {
+			input.ctx.ui.notify(
+				"Observer could not complete the requested background work. Open /observer → Status and health to inspect or retry.",
+				"warning",
+			);
+		},
+	};
+}
+
 function observerToolErrorSummary(value: unknown): string {
 	const text = textFromContent(value)
 		.replaceAll(/\s+/gu, " ")
@@ -194,7 +384,7 @@ export function observerSidecarResultComponent(
 		[
 			theme.fg("error", `! Observer ${action} failed`),
 			...(summary ? [theme.fg("dim", `  ${summary}`)] : []),
-			theme.fg("dim", "  Open /observe status for recovery."),
+			theme.fg("dim", "  Open /observer status for recovery."),
 		].join("\n"),
 		0,
 		0,
@@ -356,13 +546,13 @@ export async function completeMemoPreparation(
 					ok: true,
 					status: "recovery-required",
 					message:
-						"Memo 적용이 완료되지 않았습니다. /observe memo로 복구할 수 있습니다.",
+						"Memo 적용이 완료되지 않았습니다. Observer를 열어 상태를 확인하고 다시 시도할 수 있습니다.",
 				};
 	} catch (error) {
 		return {
 			ok: true,
 			status: "recovery-required",
-			message: `Memo 적용 중단: ${error instanceof Error ? error.message : String(error)}. /observe memo로 복구할 수 있습니다.`,
+			message: `Memo 적용 중단: ${error instanceof Error ? error.message : String(error)}. Observer를 열어 상태를 확인할 수 있습니다.`,
 		};
 	}
 }
@@ -397,14 +587,14 @@ export async function completeSavePreparation(
 			status: "prepared",
 			proposalId,
 			message:
-				"Review is complete. The proposal is ready; run /observe save to inspect and approve it.",
+				"Review is complete. Open the Observer workbench (/observer) and choose Review prepared proposal. Nothing is written until you approve it.",
 		};
 	} catch (error) {
 		return {
 			ok: true,
 			status: "recovery-required",
 			proposalId,
-			message: `Review preparation was interrupted: ${error instanceof Error ? error.message : String(error)}. Run /observe review to recover.`,
+			message: `Review preparation was interrupted: ${error instanceof Error ? error.message : String(error)}. Open Observer to inspect and retry.`,
 		};
 	}
 }
@@ -482,7 +672,7 @@ export async function routeAddHypothesisCommand(
 	);
 	if (!draft) {
 		effects.notify(
-			"Add the hypothesis after the command: /observe add-hypothesis <text>",
+			"Add the hypothesis after the command: /observer add-hypothesis <text>",
 			"warning",
 		);
 		return true;
@@ -529,7 +719,7 @@ export function routeMaterialCommand(
 		boundary === -1 ? "" : normalized.slice(boundary).trim();
 	if (!materialRequest) {
 		effects.notify(
-			"Add material or a retrieval request after the command: /observe material <request>",
+			"Add material or a retrieval request after the command: /observer material <request>",
 			"warning",
 		);
 		return true;
@@ -588,7 +778,7 @@ export async function routeReviewCommand(
 	args: string,
 	effects: ReviewCommandEffects,
 ): Promise<boolean> {
-	const parsed = parseObserveCommand(args);
+	const parsed = parseObserverCommand(args);
 	if (!parsed.ok || parsed.command.kind !== "review") return false;
 	let requested = await effects.request();
 	if (!requested.ok) {
@@ -604,10 +794,7 @@ export async function routeReviewCommand(
 		}
 	}
 	if (requested.status === "delegate") {
-		effects.notify(
-			`${requested.message} Run /observe save to inspect and approve it.`,
-			"info",
-		);
+		await effects.delegateSave();
 		return true;
 	}
 	if (
@@ -619,7 +806,7 @@ export async function routeReviewCommand(
 			effects.notify(requested.message, "info");
 		} catch (error) {
 			effects.notify(
-				`The final Review Memo request was recorded, but the agent trigger failed: ${error instanceof Error ? error.message : String(error)}`,
+				`The final Review Memo request was preserved, but Observer processing could not start: ${error instanceof Error ? error.message : String(error)}`,
 				"warning",
 			);
 		}
@@ -637,7 +824,7 @@ export async function routeReviewCommand(
 		effects.notify(requested.message, "info");
 	} catch (error) {
 		effects.notify(
-			`The Review request was recorded, but the agent trigger failed: ${error instanceof Error ? error.message : String(error)}`,
+			`The Review request was preserved, but Observer processing could not start: ${error instanceof Error ? error.message : String(error)}`,
 			"warning",
 		);
 	}
@@ -648,7 +835,7 @@ export async function routeMemoCommand(
 	args: string,
 	effects: MemoCommandEffects,
 ): Promise<boolean> {
-	const parsed = parseObserveCommand(args);
+	const parsed = parseObserverCommand(args);
 	if (!parsed.ok || parsed.command.kind !== "memo") return false;
 	const requested = effects.request();
 	if (!requested.ok) {
@@ -668,20 +855,141 @@ export async function routeMemoCommand(
 		effects.notify(requested.message, "info");
 	} catch (error) {
 		effects.notify(
-			`Memo request는 기록됐지만 agent trigger에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`,
+			`Memo request는 보존됐지만 Observer 처리를 시작하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
 			"warning",
 		);
 	}
 	return true;
 }
 
-interface ObserveCommandInput {
+type ObserverAgentBackgroundQueue =
+	ObserverBackgroundQueue<ObserverAgentBackgroundJob>;
+
+interface ObserverProcessingRuntime {
+	policy: ObserverProcessingPolicy;
+	issue: string | null;
+}
+
+interface ObserverCommandInput {
 	readonly args: string;
 	readonly ctx: ExtensionContext;
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
 	readonly observation: ReturnType<typeof createObservationController>;
+	readonly materialReviewIds: ObserverMaterialReviewIds;
 	readonly turnState: ObserverTurnState;
+	readonly background: ObserverAgentBackgroundQueue;
+	readonly processing: ObserverProcessingRuntime;
+	readonly processingStore: ObserverProcessingPolicyStore;
+}
+
+function localProcessingModel(
+	processing: ObserverProcessingRuntime,
+	ctx: ExtensionContext,
+) {
+	const selected = processing.policy.local_model;
+	if (!selected) return undefined;
+	const model = ctx.modelRegistry.find(selected.provider, selected.model_id);
+	return model && isLocalObserverModel(model) ? model : undefined;
+}
+
+function processingModeNotification(
+	mode: "off" | "piggyback" | "local",
+): string {
+	switch (mode) {
+		case "piggyback":
+			return "Observer processing: Piggyback. No separate model request is started.";
+		case "local":
+			return "Observer processing: Local background. Only the selected loopback model may run.";
+		case "off":
+			return "Observer model processing is Off; local candidate staging remains available.";
+	}
+}
+
+async function updateProcessingMode(
+	input: ObserverCommandInput,
+	mode: "off" | "piggyback" | "local",
+): Promise<boolean> {
+	let next: ObserverProcessingPolicy;
+	if (mode === "local") {
+		await input.ctx.modelRegistry.refresh();
+		const models = input.ctx.modelRegistry
+			.getAvailable()
+			.filter(isLocalObserverModel);
+		if (models.length === 0) {
+			input.ctx.ui.notify(
+				"No loopback Pi model is available. Configure llama.cpp, Ollama, LM Studio, or vLLM first; the current processing selection is unchanged.",
+				"warning",
+			);
+			return false;
+		}
+		const labels = models.map(
+			(model) => `${model.provider}/${model.id} · ${model.name}`,
+		);
+		const choice = await input.ctx.ui.select(
+			"Local background model · only loopback endpoints are eligible",
+			["Go back · keep current processing", ...labels],
+		);
+		const index = choice ? labels.indexOf(choice) : -1;
+		const model = index >= 0 ? models[index] : undefined;
+		if (!model) return false;
+		next = processingPolicy("local", observerLocalModelRef(model));
+	} else {
+		next = processingPolicy(mode);
+	}
+	await input.processingStore.save(next);
+	input.processing.policy = next;
+	input.processing.issue = null;
+	input.turnState.backgroundIssue = null;
+	input.background.reset();
+	if (mode === "local") input.background.resume();
+	else input.background.pause();
+	input.ctx.ui.notify(processingModeNotification(mode), "info");
+	return true;
+}
+
+function enqueueObserverRequest(
+	input: ObserverCommandInput,
+	jobId: string,
+): boolean {
+	if (input.processing.policy.mode === "off") return false;
+	input.turnState.blockedRequestId = null;
+	input.turnState.backgroundIssue = null;
+	if (input.processing.policy.mode === "piggyback") {
+		input.pi.sendMessage(
+			{
+				customType: "observer.piggyback-request",
+				content: [
+					"Complete the exact pending Observer request in this user-requested foreground turn.",
+					"Use the locally precomputed current-branch scope from hidden Observer context.",
+					"Make at most one Observer sidecar call and make it the final tool call; it terminates without a follow-up model request.",
+				].join("\n"),
+				display: false,
+				details: { jobId },
+			},
+			{ deliverAs: "followUp", triggerTurn: true },
+		);
+		return true;
+	}
+	const model = localProcessingModel(input.processing, input.ctx);
+	if (!model) return false;
+	const job = createObserverAgentBackgroundJob({
+		id: `request-${jobId}`,
+		mode: "requests",
+		model,
+		ctx: input.ctx,
+		pi: input.pi,
+		controller: input.controller,
+		observation: input.observation,
+		materialReviewIds: input.materialReviewIds,
+		turnState: input.turnState,
+		refresh() {
+			return refreshObserverChrome(input);
+		},
+	});
+	input.background.enqueue(job);
+	input.background.resume();
+	return true;
 }
 
 export type ObserverCommandPresentation = "control" | "status" | "command";
@@ -697,9 +1005,30 @@ export function observerCommandPresentation(
 	return "command";
 }
 
+function processingStatus(policy: ObserverProcessingPolicy): {
+	readonly mode: ObserverStatusView["processingMode"];
+	readonly detail: string;
+} {
+	switch (policy.mode) {
+		case "off":
+			return { mode: "Off", detail: "No model-backed interpretation" };
+		case "piggyback":
+			return { mode: "Piggyback", detail: "No additional model request" };
+		case "local":
+			return {
+				mode: "Local background",
+				detail: policy.local_model
+					? `${policy.local_model.provider}/${policy.local_model.model_id} · loopback only`
+					: "Local model not configured",
+			};
+	}
+}
+
 function withTurnState(
 	view: ObserverStatusView,
 	turnState: ObserverTurnState | undefined,
+	background?: ObserverAgentBackgroundQueue,
+	processing?: ObserverProcessingRuntime,
 ): ObserverStatusView {
 	const activeRequestId = turnState
 		? activeMaterialReviewRequestId(turnState)
@@ -712,14 +1041,37 @@ function withTurnState(
 				: ("Suspended" as const);
 		pendingMaterialReview = { ...pendingMaterialReview, runState };
 	}
+	const backgroundSnapshot = background?.snapshot();
+	let backgroundWork: ObserverStatusView["backgroundWork"];
+	if (backgroundSnapshot?.activeJobId) {
+		backgroundWork = {
+			state: "Running",
+			queued: backgroundSnapshot.queued,
+		};
+	} else if (backgroundSnapshot && backgroundSnapshot.queued > 0) {
+		backgroundWork = {
+			state: "Queued",
+			queued: backgroundSnapshot.queued,
+		};
+	} else if (turnState?.backgroundIssue) {
+		backgroundWork = { state: "Deferred", queued: 0 };
+	}
+	const automaticProcessingPause = turnState?.blockedRequestId
+		? `Request ${turnState.blockedRequestId} failed. Open Observer to retry.`
+		: undefined;
+	const policy = processing?.policy ?? DEFAULT_OBSERVER_PROCESSING_POLICY;
+	const processingView = processingStatus(policy);
 	return {
 		...view,
+		processingMode: processingView.mode,
+		processingDetail: processingView.detail,
+		...(processing?.issue ? { processingIssue: processing.issue } : {}),
 		...(pendingMaterialReview ? { pendingMaterialReview } : {}),
-		...(turnState?.blockedRequestId
-			? {
-					automaticProcessingPause: `Request ${turnState.blockedRequestId} failed. Run Memo or Review explicitly to retry.`,
-				}
+		...(backgroundWork ? { backgroundWork } : {}),
+		...(turnState?.backgroundIssue
+			? { backgroundIssue: turnState.backgroundIssue }
 			: {}),
+		...(automaticProcessingPause ? { automaticProcessingPause } : {}),
 	};
 }
 
@@ -728,6 +1080,8 @@ async function refreshObserverChrome(input: {
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
 	readonly turnState?: ObserverTurnState;
+	readonly background?: ObserverAgentBackgroundQueue;
+	readonly processing?: ObserverProcessingRuntime;
 }): Promise<void> {
 	const port = commandPort(input.pi, input.ctx);
 	if (input.ctx.mode !== "tui") {
@@ -737,6 +1091,8 @@ async function refreshObserverChrome(input: {
 	const view = withTurnState(
 		await input.controller.inspect(port),
 		input.turnState,
+		input.background,
+		input.processing,
 	);
 	input.ctx.ui.setStatus(
 		OBSERVER_STATUS_KEY,
@@ -751,8 +1107,36 @@ async function refreshObserverChrome(input: {
 	);
 }
 
-async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
+async function routeProcessingCommand(
+	input: ObserverCommandInput,
+): Promise<boolean> {
+	const normalized = input.args.trim().replaceAll(/\s+/gu, " ");
+	if (normalized === "processing") {
+		input.ctx.ui.notify(
+			`Observer model processing: ${input.processing.policy.mode}. Piggyback starts no separate model request; Local background uses only a selected loopback model.`,
+			"info",
+		);
+		return true;
+	}
+	if (!normalized.startsWith("processing ")) return false;
+	const value = normalized.slice("processing ".length);
+	if (value !== "off" && value !== "piggyback" && value !== "local") {
+		input.ctx.ui.notify(
+			"Usage: /observer processing <off|piggyback|local>",
+			"warning",
+		);
+		return true;
+	}
+	await updateProcessingMode(input, value);
+	return true;
+}
+
+async function runObserverCommand(input: ObserverCommandInput): Promise<void> {
 	const port = commandPort(input.pi, input.ctx);
+	if (await routeProcessingCommand(input)) {
+		await refreshObserverChrome(input);
+		return;
+	}
 	const hypothesisHandled = await routeAddHypothesisCommand(input.args, {
 		async add(draft) {
 			const episode = await input.controller.ensureUserHypothesisEpisode(port);
@@ -770,25 +1154,11 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 			);
 		},
 		triggerReview(result) {
-			input.pi.sendMessage(
-				{
-					customType: "observer.hypothesis-context-review-trigger",
-					content: [
-						"A user hypothesis needs its initial current-context review.",
-						`hypothesis_observation_id=${result.hypothesis.observationId}`,
-						`hypothesis=${result.hypothesis.original}`,
-						`user_context=${result.hypothesis.context}`,
-						"Re-read the visible Pi context and current Observer working state through this hypothesis as a lens.",
-						"Preserve user-provided context separately from your interpretation.",
-						"Call observer_sidecar with action hypothesis-context-review. Record supporting clues, challenging clues, missing information, genuine Source IDs when available, and the interpretation boundary.",
-					].join("\n"),
-					display: false,
-					details: {
-						hypothesisObservationId: result.hypothesis.observationId,
-					},
-				},
-				{ deliverAs: "followUp", triggerTurn: true },
-			);
+			if (!enqueueObserverRequest(input, result.hypothesis.observationId)) {
+				throw new Error(
+					"Observer model processing is Off or the selected local model is unavailable.",
+				);
+			}
 		},
 		notify: input.ctx.ui.notify.bind(input.ctx.ui),
 	});
@@ -870,22 +1240,11 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 			return input.controller.command(input.args, port);
 		},
 		trigger(request) {
-			input.pi.sendMessage(
-				{
-					customType: "observer.memo-trigger",
-					content: [
-						"Observer Memo request is pending.",
-						`request_id=${request.requestId}`,
-						"Call observer_sidecar with action memo-scope for this request.",
-					].join("\n"),
-					display: false,
-					details: {
-						requestId: request.requestId,
-						requestDigest: request.requestDigest,
-					},
-				},
-				{ deliverAs: "followUp", triggerTurn: true },
-			);
+			if (!enqueueObserverRequest(input, request.requestId)) {
+				throw new Error(
+					"Observer model processing is Off or the selected local model is unavailable.",
+				);
+			}
 		},
 		notify: input.ctx.ui.notify.bind(input.ctx.ui),
 	});
@@ -899,47 +1258,24 @@ async function runObserverCommand(input: ObserveCommandInput): Promise<void> {
 			return input.observation.requestReviewSave(port);
 		},
 		delegateSave() {
-			return input.controller.command(input.args, port);
+			return input.controller.command("save", port);
 		},
 		delegateMemo() {
 			return input.controller.command("memo", port);
 		},
 		triggerMemo(request) {
-			input.pi.sendMessage(
-				{
-					customType: "observer.final-memo-trigger",
-					content: [
-						"Review requires one final Memo reconciliation.",
-						`request_id=${request.requestId}`,
-						"Call observer_sidecar with action memo-scope for this request. Successful completion continues to an inspectable save proposal without writing files.",
-					].join("\n"),
-					display: false,
-					details: {
-						requestId: request.requestId,
-						requestDigest: request.requestDigest,
-						continuation: "review-save",
-					},
-				},
-				{ deliverAs: "followUp", triggerTurn: true },
-			);
+			if (!enqueueObserverRequest(input, request.requestId)) {
+				throw new Error(
+					"Observer model processing is Off or the selected local model is unavailable.",
+				);
+			}
 		},
 		triggerSave(request) {
-			input.pi.sendMessage(
-				{
-					customType: "observer.save-trigger",
-					content: [
-						"Observer Review request is pending.",
-						`request_id=${request.requestId}`,
-						"Call observer_sidecar with action save-scope for this request. Prepare the proposal only; do not approve or save it.",
-					].join("\n"),
-					display: false,
-					details: {
-						requestId: request.requestId,
-						requestDigest: request.requestDigest,
-					},
-				},
-				{ deliverAs: "followUp", triggerTurn: true },
-			);
+			if (!enqueueObserverRequest(input, request.requestId)) {
+				throw new Error(
+					"Observer model processing is Off or the selected local model is unavailable.",
+				);
+			}
 		},
 		notify: input.ctx.ui.notify.bind(input.ctx.ui),
 	});
@@ -970,81 +1306,150 @@ async function setObserverDraft(
 }
 
 async function setupNotebookFromControl(
-	input: ObserveCommandInput,
+	input: ObserverCommandInput,
 	port: ObserverCommandPort,
 	language: "ko" | "en",
 ): Promise<boolean> {
 	const root = await input.ctx.ui.input(
 		"Observer Notebook path",
-		`Absolute, or relative to ${input.ctx.cwd}`,
+		`Absolute, ~/… from home, or relative to ${input.ctx.cwd}`,
 	);
 	if (root === undefined) return false;
 	if (!root.trim()) {
 		input.ctx.ui.notify("Enter a Notebook path.", "warning");
 		return false;
 	}
-	const resolvedRoot = resolve(input.ctx.cwd, root.trim());
-	const setup = `Set up ${resolvedRoot} · default output ${language}`;
+	const resolved = resolveNotebookPath(root, input.ctx.cwd);
+	if (!resolved.ok) {
+		input.ctx.ui.notify(resolved.message, "warning");
+		return false;
+	}
+	const setup = `Set up ${resolved.path} · default output ${language}`;
 	const choice = await input.ctx.ui.select(
 		[
 			"Review Observer Notebook setup",
-			`Resolved path: ${resolvedRoot}`,
+			`Input kind: ${notebookPathKindLabel(resolved.kind)}`,
+			`Resolved path: ${resolved.path}`,
 			`Default Memo/Zettel language: ${language}`,
 			"A new Notebook is initialized; an existing folder is adopted without rewriting unrelated files.",
 		].join("\n"),
 		["Go back · make no changes", setup],
 	);
 	if (choice !== setup) return false;
-	await input.controller.command(`setup ${language} ${resolvedRoot}`, port);
+	await input.controller.command(`setup ${language} ${resolved.path}`, port);
 	const view = await input.controller.inspect(port);
 	return view.control.notebook === "ready";
 }
 
-async function showObserverControlFlow(
-	input: ObserveCommandInput,
-): Promise<void> {
-	const port = commandPort(input.pi, input.ctx);
-	let pendingLanguage: "ko" | "en" = "en";
-	while (true) {
-		const view = withTurnState(
-			await input.controller.inspect(port),
-			input.turnState,
-		);
-		if (view.control.notebookDefaultLanguage)
-			pendingLanguage = view.control.notebookDefaultLanguage;
-		const action = await showObserverControl(input.ctx, view, pendingLanguage, {
+async function showObserverSettings(input: {
+	readonly command: ObserverCommandInput;
+	readonly port: ObserverCommandPort;
+	readonly view: ObserverStatusView;
+	readonly pendingLanguage: "ko" | "en";
+}): Promise<{
+	readonly action: ObserverControlAction | undefined;
+	readonly pendingLanguage: "ko" | "en";
+}> {
+	let pendingLanguage = input.pendingLanguage;
+	const action = await showObserverControl(
+		input.command.ctx,
+		input.view,
+		pendingLanguage,
+		{
 			async applyActivation(enabled) {
-				await input.controller.command(enabled ? "on" : "off", port);
-				await refreshObserverChrome(input);
+				await input.command.controller.command(
+					enabled ? "on" : "off",
+					input.port,
+				);
+				await refreshObserverChrome(input.command);
 				return withTurnState(
-					await input.controller.inspect(port),
-					input.turnState,
+					await input.command.controller.inspect(input.port),
+					input.command.turnState,
+					input.command.background,
+					input.command.processing,
 				);
 			},
 			async applyLanguage(language) {
 				const current = withTurnState(
-					await input.controller.inspect(port),
-					input.turnState,
+					await input.command.controller.inspect(input.port),
+					input.command.turnState,
+					input.command.background,
+					input.command.processing,
 				);
-				const applied =
-					current.control.notebook === "ready"
-						? await input.controller.updateDefaultLanguage(language, port)
-						: true;
+				let applied = true;
+				if (current.control.notebook === "ready") {
+					applied = await input.command.controller.updateDefaultLanguage(
+						language,
+						input.port,
+					);
+				}
 				if (applied) pendingLanguage = language;
-				await refreshObserverChrome(input);
+				await refreshObserverChrome(input.command);
 				return withTurnState(
-					await input.controller.inspect(port),
-					input.turnState,
+					await input.command.controller.inspect(input.port),
+					input.command.turnState,
+					input.command.background,
+					input.command.processing,
 				);
 			},
 			onError(error) {
-				input.ctx.ui.notify(
+				input.command.ctx.ui.notify(
 					`Observer setting failed: ${error instanceof Error ? error.message : String(error)}`,
 					"error",
 				);
 			},
-		});
-		if (!action) return;
+		},
+	);
+	return { action, pendingLanguage };
+}
+
+async function showObserverControlFlow(
+	input: ObserverCommandInput,
+	startInSettings = false,
+): Promise<void> {
+	const port = commandPort(input.pi, input.ctx);
+	let pendingLanguage: "ko" | "en" = "en";
+	let openSettings = startInSettings;
+	while (true) {
+		let view: ObserverStatusView;
+		let workbenchAction: ObserverWorkbenchAction | undefined;
+		if (openSettings) {
+			openSettings = false;
+			view = withTurnState(
+				await input.controller.inspect(port),
+				input.turnState,
+				input.background,
+				input.processing,
+			);
+			workbenchAction = { kind: "settings" };
+		} else {
+			const projected = await input.controller.inspectWorkbench(port);
+			view = withTurnState(
+				projected.status,
+				input.turnState,
+				input.background,
+				input.processing,
+			);
+			workbenchAction = await showObserverWorkbench(input.ctx, {
+				...projected,
+				status: view,
+			});
+			if (!workbenchAction) return;
+		}
+		if (view.control.notebookDefaultLanguage)
+			pendingLanguage = view.control.notebookDefaultLanguage;
+		let action: ObserverControlAction | undefined;
+		if (workbenchAction.kind === "settings") {
+			const settings = await showObserverSettings({
+				command: input,
+				port,
+				view,
+				pendingLanguage,
+			});
+			pendingLanguage = settings.pendingLanguage;
+			action = settings.action;
+		} else action = workbenchAction;
+		if (!action) continue;
 		switch (action.kind) {
 			case "activation": {
 				if (action.enabled && view.control.notebook !== "ready") {
@@ -1068,10 +1473,19 @@ async function showObserverControlFlow(
 				await refreshObserverChrome(input);
 				break;
 			}
+			case "processing":
+				await updateProcessingMode(input, action.mode);
+				await refreshObserverChrome(input);
+				break;
 			case "status":
 				await showObserverStatus(
 					input.ctx,
-					withTurnState(await input.controller.inspect(port), input.turnState),
+					withTurnState(
+						await input.controller.inspect(port),
+						input.turnState,
+						input.background,
+						input.processing,
+					),
 				);
 				break;
 			case "memo":
@@ -1130,16 +1544,20 @@ async function showObserverControlFlow(
 	}
 }
 
-async function handleObserveCommand(input: ObserveCommandInput): Promise<void> {
+async function handleObserverCommand(
+	input: ObserverCommandInput,
+): Promise<void> {
 	const presentation = observerCommandPresentation(input.args, input.ctx.mode);
 	if (presentation === "control") {
-		await showObserverControlFlow(input);
+		await showObserverControlFlow(input, input.args.trim() === "settings");
 		return;
 	}
 	if (presentation === "status") {
 		const view = withTurnState(
 			await input.controller.inspect(commandPort(input.pi, input.ctx)),
 			input.turnState,
+			input.background,
+			input.processing,
 		);
 		await refreshObserverChrome(input);
 		await showObserverStatus(input.ctx, view);
@@ -1224,21 +1642,553 @@ function executeToolResultNomination(input: {
 	};
 }
 
+type ObserverCommitAction = Static<typeof observerCommitActionSchema>;
+
+function observerBranchFingerprint(
+	entries: readonly PiBranchEntryLike[],
+): string {
+	return sha256Text(
+		JSON.stringify(
+			entries.filter(
+				(entry) =>
+					typeof entry.customType === "string" &&
+					entry.customType.startsWith("observer."),
+			),
+		),
+	);
+}
+
+export function stagedObserverCommandPort(port: ObserverCommandPort): {
+	readonly port: ObserverCommandPort;
+	commit():
+		| { readonly ok: true }
+		| { readonly ok: false; readonly message: string };
+} {
+	const baseEntries = [...port.branchEntries()];
+	const baseFingerprint = observerBranchFingerprint(baseEntries);
+	const stagedEntries: Array<{
+		readonly customType: string;
+		readonly data: unknown;
+	}> = [];
+	const notifications: Array<{
+		readonly message: string;
+		readonly type?: "info" | "warning" | "error";
+	}> = [];
+	let status: string | undefined;
+	return {
+		port: {
+			...port,
+			branchEntries() {
+				return [
+					...baseEntries,
+					...stagedEntries.map((entry) => ({
+						type: "custom" as const,
+						customType: entry.customType,
+						data: entry.data,
+					})),
+				];
+			},
+			appendEntry(customType, data) {
+				stagedEntries.push({ customType, data });
+			},
+			notify(message, type) {
+				notifications.push({ message, type });
+			},
+			setStatus(text) {
+				status = text;
+			},
+		},
+		commit() {
+			if (observerBranchFingerprint(port.branchEntries()) !== baseFingerprint) {
+				return {
+					ok: false,
+					message:
+						"Observer branch changed while the Piggyback proposal was being validated.",
+				};
+			}
+			for (const entry of stagedEntries) {
+				port.appendEntry(entry.customType, entry.data);
+			}
+			for (const notification of notifications) {
+				port.notify(notification.message, notification.type);
+			}
+			if (status !== undefined) port.setStatus(status);
+			return { ok: true };
+		},
+	};
+}
+
+function commitFailure(message: string): ObserverBackgroundToolResult {
+	return {
+		content: [
+			{
+				type: "text",
+				text: JSON.stringify({
+					ok: false,
+					message,
+					retry: false,
+					next: "Keep the work pending for a later ordinary user turn.",
+				}),
+			},
+		],
+		details: { ok: false, message },
+		terminate: true,
+	};
+}
+
+function observerRequestResultIssue(value: unknown): string | null {
+	if (!isRecord(value)) return null;
+	if (Reflect.get(value, "ok") === false) {
+		const message = Reflect.get(value, "message");
+		return typeof message === "string" ? message : "Observer request failed.";
+	}
+	const completion = Reflect.get(value, "completion");
+	if (
+		isRecord(completion) &&
+		Reflect.get(completion, "status") === "recovery-required"
+	) {
+		const message = Reflect.get(completion, "message");
+		return typeof message === "string"
+			? message
+			: "Observer request requires recovery.";
+	}
+	return null;
+}
+
+function nominatedCandidateIds(value: unknown): Map<string, readonly string[]> {
+	const result = new Map<string, readonly string[]>();
+	if (!isRecord(value)) return result;
+	const nominations = Reflect.get(value, "nominations");
+	if (!Array.isArray(nominations)) return result;
+	for (const nomination of nominations) {
+		if (!isRecord(nomination)) continue;
+		const toolCallId = Reflect.get(nomination, "tool_call_id");
+		const candidateIds = Reflect.get(nomination, "candidate_ids");
+		if (
+			typeof toolCallId === "string" &&
+			Array.isArray(candidateIds) &&
+			candidateIds.every((candidateId) => typeof candidateId === "string")
+		) {
+			result.set(toolCallId, candidateIds);
+		}
+	}
+	return result;
+}
+
+export async function executeObserverCommit(input: {
+	readonly params: unknown;
+	readonly port: ObserverCommandPort;
+	readonly nominationEntries: readonly PiBranchEntryLike[];
+	readonly controller: ReturnType<typeof createObserverController>;
+	readonly observation: ReturnType<typeof createObservationController>;
+	readonly materialReviewIds: ObserverMaterialReviewIds;
+	readonly turnState: ObserverTurnState;
+}): Promise<ObserverBackgroundToolResult> {
+	if (!Value.Check(observerCommitActionSchema, input.params)) {
+		return commitFailure("Observer Piggyback proposal has an invalid shape.");
+	}
+	const action = input.params as ObserverCommitAction;
+	if (
+		action.observations.length === 0 &&
+		action.hypothesis_context_reviews.length === 0 &&
+		!action.memo &&
+		!action.save
+	) {
+		return commitFailure("Observer Piggyback proposal contains no work.");
+	}
+	if (action.memo && action.save) {
+		return commitFailure(
+			"Memo and Save preparation cannot share one Piggyback commit because Save scope depends on the completed Memo.",
+		);
+	}
+	const initial = reconstructObserverPiState(input.port.branchEntries());
+	if (
+		initial.issues.length > 0 ||
+		initial.state.episode.status !== "open" ||
+		initial.state.episode.core.episodeId !== action.episode_id
+	) {
+		return commitFailure(
+			"Observer Piggyback proposal is stale for the current Episode.",
+		);
+	}
+	const staged = stagedObserverCommandPort(input.port);
+	try {
+		const selections = action.observations.flatMap(
+			(observation) => observation.nominations,
+		);
+		if (
+			new Set(selections.map((selection) => selection.tool_call_id)).size !==
+			selections.length
+		) {
+			return commitFailure(
+				"A tool result may appear only once in one Observer Piggyback commit.",
+			);
+		}
+		let nominated = new Map<string, readonly string[]>();
+		if (selections.length > 0) {
+			const result = executeToolResultNomination({
+				selections,
+				entries: input.nominationEntries,
+				turnState: input.turnState,
+				observation: input.observation,
+				port: staged.port,
+			});
+			nominated = nominatedCandidateIds(result.details);
+		}
+		const observationIds: string[] = [];
+		const usedCandidateIds = new Set<string>();
+		for (const proposal of action.observations) {
+			const candidateIds = [
+				...proposal.candidate_ids,
+				...proposal.nominations.flatMap(
+					(nomination) => nominated.get(nomination.tool_call_id) ?? [],
+				),
+			];
+			if (
+				candidateIds.length === 0 ||
+				new Set(candidateIds).size !== candidateIds.length ||
+				candidateIds.some((candidateId) => usedCandidateIds.has(candidateId))
+			) {
+				return commitFailure(
+					"Each Piggyback observation needs a nonempty, disjoint candidate set.",
+				);
+			}
+			for (const candidateId of candidateIds) usedCandidateIds.add(candidateId);
+			const read = await input.observation.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "source-read",
+					candidate_ids: candidateIds,
+					source: proposal.source,
+					faithful_summary: proposal.faithful_summary,
+					claims: proposal.claims,
+				},
+				staged.port,
+			);
+			if (!read.ok || read.action !== "source-read") {
+				return commitFailure(read.message);
+			}
+			let hydrationId: string | null = null;
+			if (proposal.related_inquiry_ids.length > 0) {
+				const hydration = await input.observation.execute(
+					{
+						observer_action: "observer-sidecar/v1",
+						action: "hydrate",
+						read_id: read.read.readId,
+						index_digest: read.index.digest,
+						inquiry_ids: proposal.related_inquiry_ids,
+					},
+					staged.port,
+				);
+				if (!hydration.ok || hydration.action !== "hydrate") {
+					return commitFailure(hydration.message);
+				}
+				hydrationId = hydration.hydration.hydrationId;
+			}
+			const recordValue =
+				proposal.record.kind === "observation"
+					? {
+							observer_action: "observer-sidecar/v1",
+							action: "record",
+							read_id: read.read.readId,
+							hydration_id: hydrationId,
+							related_inquiry_ids: proposal.related_inquiry_ids,
+							stance: proposal.stance,
+							movement: proposal.record.movement,
+							rationale: proposal.record.rationale,
+							observer_hypothesis: null,
+						}
+					: {
+							observer_action: "observer-sidecar/v1",
+							action: "record-new-hypothesis",
+							read_id: read.read.readId,
+							hydration_id: hydrationId,
+							related_inquiry_ids: proposal.related_inquiry_ids,
+							stance: proposal.stance,
+							rationale: proposal.record.rationale,
+							observer_hypothesis: proposal.record.observer_hypothesis,
+						};
+			const recorded = await input.observation.execute(
+				recordValue,
+				staged.port,
+			);
+			if (!recorded.ok || recorded.action !== "record") {
+				return commitFailure(recorded.message);
+			}
+			observationIds.push(recorded.observation.observationId);
+		}
+		for (const review of action.hypothesis_context_reviews) {
+			const reviewed = await input.observation.execute(
+				{
+					observer_action: "observer-sidecar/v1",
+					action: "hypothesis-context-review",
+					...review,
+				},
+				staged.port,
+			);
+			if (!reviewed.ok || reviewed.action !== "hypothesis-context-review") {
+				return commitFailure(reviewed.message);
+			}
+		}
+		let requestResult: ObserverBackgroundToolResult | null = null;
+		if (action.memo) {
+			requestResult = await executeObserverSidecarAction({
+				params: {
+					observer_action: "observer-sidecar/v1",
+					action: "memo-prepare",
+					request_id: action.memo.request_id,
+					submission: action.memo.submission,
+				},
+				port: staged.port,
+				nominationEntries: input.nominationEntries,
+				controller: input.controller,
+				observation: input.observation,
+				materialReviewIds: input.materialReviewIds,
+				turnState: input.turnState,
+				background: false,
+				allowForegroundRoutine: true,
+			});
+		}
+		if (action.save) {
+			requestResult = await executeObserverSidecarAction({
+				params: {
+					observer_action: "observer-sidecar/v1",
+					action: "save-prepare",
+					request_id: action.save.request_id,
+					summary: action.save.summary,
+					records: action.save.records,
+				},
+				port: staged.port,
+				nominationEntries: input.nominationEntries,
+				controller: input.controller,
+				observation: input.observation,
+				materialReviewIds: input.materialReviewIds,
+				turnState: input.turnState,
+				background: false,
+				allowForegroundRoutine: true,
+			});
+		}
+		const requestIssue = requestResult
+			? observerRequestResultIssue(requestResult.details)
+			: null;
+		if (requestIssue) return commitFailure(requestIssue);
+		const committed = staged.commit();
+		if (!committed.ok) return commitFailure(committed.message);
+		return {
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify({
+						ok: true,
+						action: "observer-commit",
+						observation_ids: observationIds,
+						hypothesis_reviews: action.hypothesis_context_reviews.length,
+						memo_prepared: Boolean(action.memo),
+						save_prepared: Boolean(action.save),
+					}),
+				},
+			],
+			details: {
+				ok: true,
+				action: "observer-commit",
+				observationIds,
+			},
+			terminate: true,
+		};
+	} catch (error) {
+		return commitFailure(
+			error instanceof Error ? error.message : String(error),
+		);
+	}
+}
+
+async function executeObserverSidecarAction(input: {
+	readonly params: Readonly<Record<string, unknown>>;
+	readonly port: ObserverCommandPort;
+	readonly nominationEntries: readonly PiBranchEntryLike[];
+	readonly controller: ReturnType<typeof createObserverController>;
+	readonly observation: ReturnType<typeof createObservationController>;
+	readonly materialReviewIds: ObserverMaterialReviewIds;
+	readonly turnState: ObserverTurnState;
+	readonly background: boolean;
+	readonly allowForegroundRoutine?: boolean;
+}): Promise<ObserverBackgroundToolResult> {
+	const materialReview = await routeMaterialReviewTool({
+		value: input.params,
+		capturedAt: new Date().toISOString(),
+		port: input.port,
+		lifecycle: input.controller,
+		observation: input.observation,
+		ids: input.materialReviewIds,
+		turnState: input.turnState,
+	});
+	if (materialReview) {
+		return {
+			content: [{ type: "text", text: materialReview.text }],
+			details: materialReview.result,
+		};
+	}
+	if (
+		!input.background &&
+		!input.allowForegroundRoutine &&
+		!activeMaterialReviewRequestId(input.turnState)
+	) {
+		return {
+			content: [
+				{
+					type: "text",
+					text: "Foreground Observer action is not authorized by the current processing policy.",
+				},
+			],
+			details: { ok: false, message: "Observer action not authorized." },
+			terminate: true,
+		};
+	}
+	if (input.params.action === "nominate-tool-results") {
+		return executeToolResultNomination({
+			selections: input.params.selections,
+			entries: input.nominationEntries,
+			turnState: input.turnState,
+			observation: input.observation,
+			port: input.port,
+		});
+	}
+	const executionResult = await input.observation.execute(
+		input.params,
+		input.port,
+	);
+	if (!executionResult.ok) {
+		const requestId = input.params.request_id;
+		const requestAction =
+			input.params.action === "memo-scope" ||
+			input.params.action === "memo-prepare" ||
+			input.params.action === "save-scope" ||
+			input.params.action === "save-prepare";
+		if (!requestAction || typeof requestId !== "string") {
+			if (!input.background && !input.allowForegroundRoutine) {
+				return {
+					content: [{ type: "text", text: executionResult.message }],
+					details: executionResult,
+					terminate: true,
+				};
+			}
+			return {
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify({
+							ok: false,
+							message: executionResult.message,
+							retry: false,
+							next: input.background
+								? "Defer Observer and stop this local background run."
+								: "Defer Observer until a later ordinary user turn.",
+						}),
+					},
+				],
+				details: executionResult,
+				terminate: true,
+			};
+		}
+		input.turnState.blockedRequestId = requestId;
+		const failure = {
+			ok: false,
+			message: executionResult.message,
+			retry: false,
+			automatic_observer_request_paused: true,
+			next: input.background
+				? "Stop this background run. The request remains recoverable."
+				: "Continue the user's requested task. Open Observer to inspect and retry when convenient.",
+		};
+		return {
+			content: [{ type: "text", text: JSON.stringify(failure) }],
+			details: executionResult,
+			...(input.background ? { terminate: true } : {}),
+		};
+	}
+	input.turnState.blockedRequestId = null;
+	const result = executionResult;
+	if (result.action === "save-prepare") {
+		const completion = requireSavePreparationSuccess(
+			await completeSavePreparation(result.handoff, {
+				install(value) {
+					return input.controller.installPrepared(value, input.port);
+				},
+			}),
+		);
+		return {
+			content: [{ type: "text", text: JSON.stringify(completion) }],
+			details: { preparation: result, completion },
+		};
+	}
+	if (result.action === "memo-prepare") {
+		const completion = requireMemoPreparationSuccess(
+			await completeMemoPreparation(result.instruction, {
+				install(value) {
+					return input.controller.installPreparedMemo(value, input.port);
+				},
+				apply() {
+					return input.controller.command("memo", input.port);
+				},
+				completed(requestId) {
+					return memoPreparationCompleted(
+						input.port.branchEntries(),
+						requestId,
+					);
+				},
+			}),
+		);
+		const continuation =
+			completion.status === "completed"
+				? await input.observation.continueReviewSaveAfterMemo(
+						result.instruction.requestId,
+						input.port,
+					)
+				: null;
+		let next:
+			| { readonly action: "save-scope"; readonly request_id: string }
+			| { readonly action: "review-existing-save" }
+			| null = null;
+		if (continuation?.ok && continuation.request) {
+			next = {
+				action: "save-scope",
+				request_id: continuation.request.requestId,
+			};
+		} else if (continuation?.ok && continuation.status === "delegate") {
+			next = { action: "review-existing-save" };
+		}
+		const payload = {
+			completion,
+			...(continuation ? { continuation } : {}),
+			...(next ? { next_action: next } : {}),
+		};
+		return {
+			content: [{ type: "text", text: JSON.stringify(payload) }],
+			details: { preparation: result, ...payload },
+		};
+	}
+	return {
+		content: [{ type: "text", text: observationToolText(result) }],
+		details: result,
+	};
+}
+
 function registerObserverSidecarTool(input: {
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
 	readonly observation: ReturnType<typeof createObservationController>;
 	readonly materialReviewIds: ObserverMaterialReviewIds;
 	readonly turnState: ObserverTurnState;
+	readonly processing: ObserverProcessingRuntime;
 }): void {
 	input.pi.registerTool({
 		name: OBSERVER_TOOL_NAME,
 		label: "Observer Sidecar",
 		description:
-			"Nominate only meaning-bearing tool results from the active agent run, start or finish an exact material review, review current context through a user hypothesis, or stage source-faithful Observer work. Use source-read before StandingIndex hydration, record semantic movement, then complete exact Memo and Review proposal requests from their locked scope.",
+			"Execute the exact hidden Observer material-review or Piggyback action. Under Piggyback, finish the user's task first and call this at most once as the final tool; the result terminates without another model request.",
 		promptSnippet:
-			"Nominate tool results only when hidden Observer guidance lists their exact IDs and they contribute evidence; use model-owned material-review classification only with the exact hidden digest; complete pending hypothesis-context, Memo, and save reviews from their exact current scope.",
-		parameters: observerSidecarParameters,
+			"Use only for exact hidden Observer guidance. Piggyback actions are final, single, non-retrying tool calls; material review follows its exact active request.",
+		parameters: observerRuntimeSidecarParameters,
 		executionMode: "sequential",
 		renderShell: "self",
 		renderCall() {
@@ -1258,116 +2208,41 @@ function registerObserverSidecarTool(input: {
 			const [, params, , , ctx] = execution;
 			input.turnState.toolUsed = true;
 			const port = commandPort(input.pi, ctx);
-			const materialReview = await routeMaterialReviewTool({
-				value: params,
-				capturedAt: new Date().toISOString(),
-				port,
-				lifecycle: input.controller,
-				observation: input.observation,
-				ids: input.materialReviewIds,
-				turnState: input.turnState,
-			});
-			if (materialReview)
-				return {
-					content: [{ type: "text", text: materialReview.text }],
-					details: materialReview.result,
-				};
-			if (params.action === "nominate-tool-results") {
-				return executeToolResultNomination({
-					selections: params.selections,
-					entries: ctx.sessionManager.getBranch(),
-					turnState: input.turnState,
-					observation: input.observation,
+			const action = Reflect.get(params, "action");
+			if (action === "observer-commit") {
+				if (input.processing.policy.mode !== "piggyback") {
+					return commitFailure(
+						"observer-commit is available only under the Piggyback processing policy.",
+					);
+				}
+				return executeObserverCommit({
+					params,
 					port,
+					nominationEntries: ctx.sessionManager.getBranch(),
+					controller: input.controller,
+					observation: input.observation,
+					materialReviewIds: input.materialReviewIds,
+					turnState: input.turnState,
 				});
 			}
-			const executionResult = await input.observation.execute(params, port);
-			if (!executionResult.ok) {
-				const action = Reflect.get(params, "action");
-				const requestId = Reflect.get(params, "request_id");
-				const requestAction =
-					action === "memo-scope" ||
-					action === "memo-prepare" ||
-					action === "save-scope" ||
-					action === "save-prepare";
-				if (!requestAction || typeof requestId !== "string") {
-					throw new Error(executionResult.message);
-				}
-				input.turnState.blockedRequestId = requestId;
-				const failure = {
-					ok: false,
-					message: executionResult.message,
-					retry: false,
-					automatic_observer_request_paused: true,
-					next: "Continue the user's requested task. Retry Observer explicitly with /observe memo or /observe review.",
-				};
-				return {
-					content: [{ type: "text", text: JSON.stringify(failure) }],
-					details: executionResult,
-				};
-			}
-			input.turnState.blockedRequestId = null;
-			const result = executionResult;
-			if (result.action === "save-prepare") {
-				const completion = requireSavePreparationSuccess(
-					await completeSavePreparation(result.handoff, {
-						install(value) {
-							return input.controller.installPrepared(value, port);
-						},
-					}),
-				);
-				return {
-					content: [{ type: "text", text: JSON.stringify(completion) }],
-					details: { preparation: result, completion },
-				};
-			}
-			if (result.action === "memo-prepare") {
-				const completion = requireMemoPreparationSuccess(
-					await completeMemoPreparation(result.instruction, {
-						install(value) {
-							return input.controller.installPreparedMemo(value, port);
-						},
-						apply() {
-							return input.controller.command("memo", port);
-						},
-						completed(requestId) {
-							return memoPreparationCompleted(
-								ctx.sessionManager.getBranch(),
-								requestId,
-							);
-						},
-					}),
-				);
-				const continuation =
-					completion.status === "completed"
-						? await input.observation.continueReviewSaveAfterMemo(
-								result.instruction.requestId,
-								port,
-							)
-						: null;
-				const next =
-					continuation?.ok && continuation.request
-						? {
-								action: "save-scope" as const,
-								request_id: continuation.request.requestId,
-							}
-						: continuation?.ok && continuation.status === "delegate"
-							? { action: "review-existing-save" as const }
-							: null;
-				const payload = {
-					completion,
-					...(continuation ? { continuation } : {}),
-					...(next ? { next_action: next } : {}),
-				};
-				return {
-					content: [{ type: "text", text: JSON.stringify(payload) }],
-					details: { preparation: result, ...payload },
-				};
-			}
-			return {
-				content: [{ type: "text", text: observationToolText(result) }],
-				details: result,
-			};
+			const materialAction =
+				action === "material-review-start" ||
+				action === "material-review-finish" ||
+				Boolean(activeMaterialReviewRequestId(input.turnState));
+			const piggyback =
+				!materialAction && input.processing.policy.mode === "piggyback";
+			const result = await executeObserverSidecarAction({
+				params,
+				port,
+				nominationEntries: ctx.sessionManager.getBranch(),
+				controller: input.controller,
+				observation: input.observation,
+				materialReviewIds: input.materialReviewIds,
+				turnState: input.turnState,
+				background: false,
+				allowForegroundRoutine: piggyback,
+			});
+			return piggyback ? { ...result, terminate: true } : result;
 		},
 	});
 }
@@ -1377,6 +2252,8 @@ export function captureOrStageToolResult(input: {
 	readonly toolName: string;
 	readonly text: string;
 	readonly isError: boolean;
+	readonly toolInput?: Readonly<Record<string, unknown>>;
+	readonly toolContent?: readonly unknown[];
 	readonly capturedAt: string;
 	readonly entries: readonly PiBranchEntryLike[];
 	readonly port: ObservationCommandPort;
@@ -1416,18 +2293,83 @@ export function captureOrStageToolResult(input: {
 			toolName: input.toolName,
 			isError: input.isError,
 			capturedAt: input.capturedAt,
+			...(input.toolInput ? { input: input.toolInput } : {}),
+			...(input.toolContent ? { content: input.toolContent } : {}),
 		},
 	});
 	return null;
+}
+
+async function piggybackSidecarContext(input: {
+	readonly ctx: ExtensionContext;
+	readonly pi: ExtensionAPI;
+	readonly observation: ReturnType<typeof createObservationController>;
+	readonly turnState: ObserverTurnState;
+}): Promise<string | null> {
+	const entries = input.ctx.sessionManager.getBranch();
+	const observationSession = reconstructObservationSession(entries);
+	const saveSession = reconstructSaveRequestSession(entries);
+	if (observationSession.issues.length > 0 || saveSession.issues.length > 0) {
+		return null;
+	}
+	const port = commandPort(input.pi, input.ctx);
+	let memoScope: string | null = null;
+	if (observationSession.pendingMemoRequest) {
+		const scoped = await input.observation.execute(
+			{
+				observer_action: "observer-sidecar/v1",
+				action: "memo-scope",
+				request_id: observationSession.pendingMemoRequest.requestId,
+			},
+			port,
+		);
+		if (scoped.ok && scoped.action === "memo-scope") {
+			memoScope = observationToolText(scoped);
+		}
+	}
+	let saveScope: string | null = null;
+	if (saveSession.pendingRequest) {
+		const scoped = await input.observation.execute(
+			{
+				observer_action: "observer-sidecar/v1",
+				action: "save-scope",
+				request_id: saveSession.pendingRequest.requestId,
+			},
+			port,
+		);
+		if (scoped.ok && scoped.action === "save-scope") {
+			saveScope = observationToolText(scoped);
+		}
+	}
+	const nominations = [...input.turnState.nominatableToolResults.values()];
+	const options = {
+		piggyback: true,
+		memoScope,
+		saveScope,
+	} as const;
+	const preliminary = observerSidecarContext(entries, nominations, options);
+	if (!preliminary) return null;
+	const standing = await input.observation.inspectStandingIndex(port);
+	return standing.ok
+		? observerSidecarContext(entries, nominations, {
+				...options,
+				standingIndex: JSON.stringify(standing.index),
+			})
+		: preliminary;
 }
 
 function registerObserverEvents(input: {
 	readonly pi: ExtensionAPI;
 	readonly controller: ReturnType<typeof createObserverController>;
 	readonly observation: ReturnType<typeof createObservationController>;
+	readonly materialReviewIds: ObserverMaterialReviewIds;
 	readonly turnState: ObserverTurnState;
+	readonly background: ObserverAgentBackgroundQueue;
+	readonly processing: ObserverProcessingRuntime;
+	readonly processingStore: ObserverProcessingPolicyStore;
 }): void {
 	input.pi.on("input", (event, ctx) => {
+		input.background.pause();
 		clearToolResultNominations(input.turnState);
 		if (
 			acceptScriptedMaterialInput({
@@ -1443,7 +2385,7 @@ function registerObserverEvents(input: {
 		if (
 			event.source === "extension" ||
 			event.text.trim().length === 0 ||
-			event.text.trimStart().startsWith("/observe")
+			event.text.trimStart().startsWith("/observer")
 		) {
 			input.turnState.scriptedMaterialRequest = null;
 			input.turnState.latestUser = null;
@@ -1474,6 +2416,8 @@ function registerObserverEvents(input: {
 			toolName: event.toolName,
 			text,
 			isError: event.isError,
+			toolInput: event.input,
+			toolContent: event.content,
 			capturedAt: new Date().toISOString(),
 			entries: ctx.sessionManager.getBranch(),
 			port: commandPort(input.pi, ctx),
@@ -1483,13 +2427,40 @@ function registerObserverEvents(input: {
 		if (capture) reportCaptureFailure(capture, ctx);
 	});
 	input.pi.on("agent_start", () => {
+		input.background.pause();
 		beginObserverAgentRun(input.turnState);
 	});
-	input.pi.on("agent_end", () => {
+	input.pi.on("agent_end", (_event, ctx) => {
+		const model = localProcessingModel(input.processing, ctx);
+		if (
+			input.processing.policy.mode === "local" &&
+			model &&
+			!activeMaterialReviewRequestId(input.turnState)
+		) {
+			const runId = input.turnState.activeAgentRunId;
+			input.background.enqueue(
+				createObserverAgentBackgroundJob({
+					id: `routine-${runId ?? input.turnState.agentRunSequence}`,
+					mode: "routine",
+					model,
+					ctx,
+					pi: input.pi,
+					controller: input.controller,
+					observation: input.observation,
+					materialReviewIds: input.materialReviewIds,
+					turnState: input.turnState,
+					refresh() {
+						return refreshObserverChrome({ ...input, ctx });
+					},
+				}),
+			);
+		}
 		endObserverAgentRun(input.turnState);
 	});
 	input.pi.on("agent_settled", async (_event, ctx) => {
 		settleObserverAgentRun(input.turnState);
+		if (input.processing.policy.mode === "local") input.background.resume();
+		else input.background.pause();
 		await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("turn_start", () => {
@@ -1517,11 +2488,23 @@ function registerObserverEvents(input: {
 			ctx,
 		);
 	});
-	input.pi.on("context", (event, ctx) => {
-		const guidance = observerTurnContext({
+	input.pi.on("context", async (event, ctx) => {
+		const materialGuidance = observerTurnContext({
 			turnState: input.turnState,
 			entries: ctx.sessionManager.getBranch(),
 		});
+		const piggybackGuidance =
+			input.processing.policy.mode === "piggyback"
+				? await piggybackSidecarContext({
+						ctx,
+						pi: input.pi,
+						observation: input.observation,
+						turnState: input.turnState,
+					})
+				: null;
+		const guidance = [materialGuidance, piggybackGuidance]
+			.filter((value): value is string => Boolean(value))
+			.join("\n\n");
 		if (!guidance) return;
 		return {
 			messages: [
@@ -1537,16 +2520,29 @@ function registerObserverEvents(input: {
 		};
 	});
 	input.pi.on("session_start", async (_event, ctx) => {
+		input.background.reset();
+		const loaded = await input.processingStore.load();
+		input.processing.policy = loaded.policy;
+		input.processing.issue = loaded.ok ? null : loaded.message;
+		if (
+			loaded.policy.mode === "local" &&
+			!localProcessingModel(input.processing, ctx)
+		) {
+			input.processing.issue =
+				"The selected local model is unavailable; no background inference was started.";
+		}
 		settleObserverAgentRun(input.turnState);
 		await input.controller.bind(commandPort(input.pi, ctx));
 		await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("session_tree", async (_event, ctx) => {
+		input.background.reset();
 		settleObserverAgentRun(input.turnState);
 		await input.controller.bind(commandPort(input.pi, ctx));
 		await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("session_compact", async (_event, ctx) => {
+		input.background.reset();
 		await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("tool_execution_end", async (event, ctx) => {
@@ -1554,6 +2550,7 @@ function registerObserverEvents(input: {
 			await refreshObserverChrome({ ...input, ctx });
 	});
 	input.pi.on("session_shutdown", (_event, ctx) => {
+		input.background.dispose();
 		settleObserverAgentRun(input.turnState);
 		input.controller.unbind();
 		ctx.ui.setStatus(OBSERVER_STATUS_KEY, undefined);
@@ -1578,36 +2575,90 @@ export default function observerExtension(pi: ExtensionAPI): void {
 		latestUser: null,
 		scriptedMaterialRequest: null,
 		blockedRequestId: null,
+		backgroundIssue: null,
 		agentRunSequence: 0,
 		activeAgentRunId: null,
 		materialReviewRun: null,
 		nominatableToolResults: new Map(),
 		stagedMaterialReviewRetry: null,
 	};
+	const materialReviewIds = systemMaterialReviewIds();
+	const processingStore = fileObserverProcessingPolicyStore(
+		join(getAgentDir(), "observer", "processing.json"),
+	);
+	const processing: ObserverProcessingRuntime = {
+		policy: DEFAULT_OBSERVER_PROCESSING_POLICY,
+		issue: null,
+	};
+	const background = createObserverBackgroundQueue<ObserverAgentBackgroundJob>({
+		run: runObserverAgentBackgroundJob,
+		async settled(job, result) {
+			if (result.status === "deferred") {
+				turnState.backgroundIssue = result.message.slice(0, 500);
+			} else if (result.status === "completed") {
+				turnState.backgroundIssue = null;
+			}
+			if (result.status === "deferred" && job.mode === "requests") {
+				job.notifyDeferred();
+			}
+			try {
+				await job.refresh();
+			} catch {
+				// The captured UI context may have been invalidated by session replacement.
+			}
+		},
+	});
 
 	registerObserverSidecarTool({
 		pi,
 		controller,
 		observation,
-		materialReviewIds: systemMaterialReviewIds(),
+		materialReviewIds,
 		turnState,
+		processing,
 	});
 
-	pi.registerCommand("observe", {
+	pi.registerCommand("observer", {
 		description:
-			"Configure Observer, reconcile Memo, Review proposed changes, and Save separately",
-		getArgumentCompletions: completeObserveArgs,
-		handler(args, ctx) {
-			return handleObserveCommand({
-				args,
-				ctx,
-				pi,
-				controller,
-				observation,
-				turnState,
-			});
+			"Open the Observer inquiry workbench or run an Observer action",
+		getArgumentCompletions: completeObserverArgs,
+		async handler(args, ctx) {
+			try {
+				await handleObserverCommand({
+					args,
+					ctx,
+					pi,
+					controller,
+					observation,
+					materialReviewIds,
+					turnState,
+					background,
+					processing,
+					processingStore,
+				});
+			} finally {
+				if (processing.policy.mode === "local") background.resume();
+				else background.pause();
+				await refreshObserverChrome({
+					ctx,
+					pi,
+					controller,
+					turnState,
+					background,
+					processing,
+				});
+			}
 		},
 	});
 
-	registerObserverEvents({ pi, controller, observation, turnState });
+	registerObserverEvents({
+		pi,
+		controller,
+		observation,
+		materialReviewIds,
+		turnState,
+		background,
+		processing,
+		processingStore,
+	});
 }

@@ -224,7 +224,7 @@ export function materialReviewContext(input: {
 			"Observer material-review is suspended outside its explicit run.",
 			`request_id: ${pending.requestId}`,
 			"Do not attach this turn's tool results to that request and do not resume it automatically.",
-			"Continue the user's current task normally. The user can run /observe material retry or /observe material cancel.",
+			"Continue the user's current task normally. The user can run /observer material retry or /observer material cancel.",
 		].join("\n");
 	if (pending) {
 		const observation = reconstructObservationSession(input.entries);

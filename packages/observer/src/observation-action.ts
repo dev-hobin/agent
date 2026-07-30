@@ -593,6 +593,7 @@ function parseHydrate(
 
 function parseRecord(
 	value: Readonly<Record<string, unknown>>,
+	allowIndependentHypothesis = false,
 ): ObservationActionResult {
 	if (
 		!hasExactKeys(value, [
@@ -621,19 +622,62 @@ function parseRecord(
 		value.observer_hypothesis === null
 			? null
 			: boundedText(value.observer_hypothesis);
+	if (!readId) return failure("/read_id", "Record SourceRead ID is invalid.");
+	if (value.hydration_id !== null && !hydrationId) {
+		return failure("/hydration_id", "Record hydration ID is invalid.");
+	}
+	if (!relatedInquiryIds) {
+		return failure(
+			"/related_inquiry_ids",
+			"Record related Inquiry IDs are invalid.",
+		);
+	}
+	if (!isStance(value.stance)) {
+		return failure("/stance", "Record stance is invalid.");
+	}
+	if (!isMovement(value.movement)) {
+		return failure("/movement", "Record movement is invalid.");
+	}
+	if (!rationale) return failure("/rationale", "Record rationale is invalid.");
+	if (value.observer_hypothesis !== null && !observerHypothesis) {
+		return failure(
+			"/observer_hypothesis",
+			"Record Observer hypothesis is invalid.",
+		);
+	}
+	if (relatedInquiryIds.length > 0 !== (hydrationId !== null)) {
+		return failure(
+			"/hydration_id",
+			"Record hydration must be present exactly when related Inquiry IDs are present.",
+		);
+	}
 	if (
-		!readId ||
-		(value.hydration_id !== null && !hydrationId) ||
-		!relatedInquiryIds ||
-		!isStance(value.stance) ||
-		!isMovement(value.movement) ||
-		!rationale ||
-		(value.observer_hypothesis !== null && !observerHypothesis) ||
-		relatedInquiryIds.length > 0 !== (hydrationId !== null) ||
-		(value.movement === "independent-new-hypothesis") !==
-			(observerHypothesis !== null)
-	)
-		return failure("/", "Record action has invalid values.");
+		value.movement === "independent-new-hypothesis" &&
+		!allowIndependentHypothesis
+	) {
+		return failure(
+			"/movement",
+			"Independent Observer hypotheses require action record-new-hypothesis.",
+		);
+	}
+	if (
+		value.movement === "independent-new-hypothesis" &&
+		observerHypothesis === null
+	) {
+		return failure(
+			"/observer_hypothesis",
+			"Independent-new-hypothesis movement requires an Observer hypothesis.",
+		);
+	}
+	if (
+		value.movement !== "independent-new-hypothesis" &&
+		observerHypothesis !== null
+	) {
+		return failure(
+			"/observer_hypothesis",
+			"Observer hypothesis is allowed only for independent-new-hypothesis movement; use record-new-hypothesis.",
+		);
+	}
 	return {
 		ok: true,
 		value: markRecord({
@@ -648,6 +692,33 @@ function parseRecord(
 			observerHypothesis,
 		}),
 	};
+}
+
+function parseRecordNewHypothesis(
+	value: Readonly<Record<string, unknown>>,
+): ObservationActionResult {
+	if (
+		!hasExactKeys(value, [
+			"observer_action",
+			"action",
+			"read_id",
+			"hydration_id",
+			"related_inquiry_ids",
+			"stance",
+			"rationale",
+			"observer_hypothesis",
+		])
+	) {
+		return failure("/", "Record-new-hypothesis action has invalid fields.");
+	}
+	return parseRecord(
+		{
+			...value,
+			action: "record",
+			movement: "independent-new-hypothesis",
+		},
+		true,
+	);
 }
 
 function parseMemoScope(
@@ -908,6 +979,8 @@ export function decodeObservationAction(
 			return parseHydrate(value);
 		case "record":
 			return parseRecord(value);
+		case "record-new-hypothesis":
+			return parseRecordNewHypothesis(value);
 		case "user-hypothesis":
 			return parseUserHypothesis(value);
 		case "hypothesis-context-review":

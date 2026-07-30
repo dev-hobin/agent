@@ -87,6 +87,26 @@ function entry(value: ObservationEvent): PiBranchEntryLike {
 }
 
 describe("Observer hidden Sidecar context", () => {
+	test("keeps routine Sidecar work out of the foreground agent context", () => {
+		assert.equal(
+			observerTurnContext({
+				turnState: {
+					toolUsed: false,
+					latestUser: null,
+					scriptedMaterialRequest: null,
+					blockedRequestId: null,
+					agentRunSequence: 1,
+					activeAgentRunId: 1,
+					materialReviewRun: null,
+					nominatableToolResults: new Map(),
+					stagedMaterialReviewRetry: null,
+				},
+				entries: lifecycle(true),
+			}),
+			null,
+		);
+	});
+
 	test("is absent when OFF and exposes only pending staged identifiers when ON", () => {
 		const candidate = event({
 			observer_observation: "observer-observation/v1",
@@ -229,6 +249,22 @@ describe("Observer hidden Sidecar context", () => {
 		assert.match(context ?? "", /Never combine any revise kind/u);
 		assert.doesNotMatch(context ?? "", /final Memo reconciliation/u);
 		assert.doesNotMatch(context ?? "", /<observer-sidecar>/u);
+		const piggyback = observerSidecarContext(pendingEntries, [], {
+			piggyback: true,
+			memoScope: '{"ok":true,"memo_preparation":{"required_coverage":[]}}',
+			standingIndex:
+				'{"digest":"standing-digest","inquiries":[{"inquiryId":"inquiry-visible"}]}',
+		});
+		assert.match(piggyback ?? "", /computed memo-scope locally/u);
+		assert.match(piggyback ?? "", /Set observer-commit\.memo/u);
+		assert.match(piggyback ?? "", /at most one observer_sidecar call/u);
+		assert.match(piggyback ?? "", /without a follow-up model request/u);
+		assert.match(piggyback ?? "", /current_standing_index=/u);
+		assert.match(piggyback ?? "", /inquiry-visible/u);
+		assert.doesNotMatch(
+			piggyback ?? "",
+			/Call observer_sidecar action memo-scope/u,
+		);
 		if (request.kind !== "memo-requested") assert.fail("Expected Memo request");
 		assert.equal(
 			observerTurnContext({
@@ -304,6 +340,27 @@ describe("Observer hidden Sidecar context", () => {
 		);
 		assert.equal(context?.includes(request.proposalId), false);
 		assert.equal(context?.includes(request.root), false);
+		const piggyback = observerSidecarContext(
+			[
+				...lifecycle(false),
+				{
+					type: "custom",
+					customType: OBSERVER_SAVE_REQUEST_ENTRY,
+					data: encodeSaveRequestEvent(request),
+				},
+			],
+			[],
+			{
+				piggyback: true,
+				saveScope: '{"ok":true,"save_preparation":{"required_records":[]}}',
+			},
+		);
+		assert.match(piggyback ?? "", /computed save-scope locally/u);
+		assert.match(piggyback ?? "", /Set observer-commit\.save/u);
+		assert.doesNotMatch(
+			piggyback ?? "",
+			/Call observer_sidecar action save-scope/u,
+		);
 	});
 
 	test("keeps suspended material candidates out of unrelated technical-reading guidance", () => {

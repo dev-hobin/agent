@@ -1,19 +1,20 @@
 import type { EpisodeLanguage } from "./lifecycle.ts";
 
-export const OBSERVE_ACTIONS = [
+export const OBSERVER_ACTIONS = [
 	"setup",
 	"status",
 	"on",
 	"off",
 	"add-hypothesis",
 	"material",
+	"processing",
 	"memo",
 	"review",
 	"save",
 	"settings",
 ];
 
-export type ObserveCommand =
+export type ObserverCommand =
 	| {
 			readonly kind: "setup";
 			readonly root: string;
@@ -28,18 +29,18 @@ export type ObserveCommand =
 	| { readonly kind: "memo" }
 	| { readonly kind: "settings-unavailable" };
 
-export type ObserveCommandParseResult =
-	| { readonly ok: true; readonly command: ObserveCommand }
+export type ObserverCommandParseResult =
+	| { readonly ok: true; readonly command: ObserverCommand }
 	| { readonly ok: false; readonly message: string };
 
 const USAGE =
-	"Usage: /observe setup <ko|en> <path> | status | on | off | add-hypothesis <text> | material <request|retry|cancel> | memo | review | save | settings";
+	"Usage: /observer setup <ko|en> <path> | status | on | off | add-hypothesis <text> | material <request|retry|cancel> | processing <off|piggyback|local> | memo | review | save | settings";
 
-function success(command: ObserveCommand): ObserveCommandParseResult {
+function success(command: ObserverCommand): ObserverCommandParseResult {
 	return { ok: true, command };
 }
 
-function failure(message = USAGE): ObserveCommandParseResult {
+function failure(message = USAGE): ObserverCommandParseResult {
 	return { ok: false, message };
 }
 
@@ -55,7 +56,7 @@ function actionAndRemainder(input: string): {
 	};
 }
 
-function parseSetup(remainder: string): ObserveCommandParseResult {
+function parseSetup(remainder: string): ObserverCommandParseResult {
 	if (!remainder) return success({ kind: "setup-prompt" });
 	const split = actionAndRemainder(remainder);
 	if ((split.action !== "ko" && split.action !== "en") || !split.remainder) {
@@ -70,12 +71,12 @@ function parseSetup(remainder: string): ObserveCommandParseResult {
 
 function noArguments(
 	remainder: string,
-	command: ObserveCommand,
-): ObserveCommandParseResult {
+	command: ObserverCommand,
+): ObserverCommandParseResult {
 	return remainder ? failure() : success(command);
 }
 
-export function parseObserveCommand(args: string): ObserveCommandParseResult {
+export function parseObserverCommand(args: string): ObserverCommandParseResult {
 	const normalized = args.trim();
 	if (!normalized) return success({ kind: "status" });
 	const { action, remainder } = actionAndRemainder(normalized);
@@ -101,26 +102,57 @@ export function parseObserveCommand(args: string): ObserveCommandParseResult {
 	}
 }
 
-const OBSERVE_ACTION_DESCRIPTIONS: Readonly<Record<string, string>> = {
-	setup: "Create or select a Notebook (absolute or relative path)",
+const OBSERVER_ACTION_DESCRIPTIONS: Readonly<Record<string, string>> = {
+	setup: "Create or select a Notebook (absolute, ~/…, or relative path)",
 	status: "Inspect Episode, working set, and Notebook health",
 	on: "Start or resume continuous Sidecar observation",
 	off: "Turn Observer Off while preserving the Episode",
 	"add-hypothesis": "Add a hypothesis and review current context through it",
 	material:
 		"Observe supplied or retrieved material without changing Observer Mode",
+	processing:
+		"Choose Off, Piggyback (no extra request), or a loopback local background model",
 	memo: "Reconcile working Memos and Inquiries without preparing a save",
 	review: "Reconcile pending work and prepare an inspectable save proposal",
 	save: "Inspect and approve an already prepared proposal",
-	settings: "Open the Observer control center",
+	settings: "Open Observer Settings, then return to the inquiry workbench",
 };
 
-export function completeObserveArgs(prefix: string): Array<{
+function processingCompletionDescription(value: string): string {
+	switch (value) {
+		case "processing piggyback":
+			return "Use existing foreground turns; start no separate model request";
+		case "processing local":
+			return "Select an available loopback model for background work";
+		default:
+			return "Disable model-backed interpretation";
+	}
+}
+
+export function completeObserverArgs(prefix: string): Array<{
 	readonly value: string;
 	readonly label: string;
 	readonly description: string;
 }> | null {
 	const normalized = prefix.trim();
+	if (prefix.trimStart().startsWith("processing ")) {
+		const remainder = prefix.trimStart().slice("processing ".length).trim();
+		return [
+			"processing off",
+			"processing piggyback",
+			"processing local",
+		].flatMap((value) =>
+			value.slice("processing ".length).startsWith(remainder)
+				? [
+						{
+							value,
+							label: value,
+							description: processingCompletionDescription(value),
+						},
+					]
+				: [],
+		);
+	}
 	if (prefix.trimStart().startsWith("material ")) {
 		const remainder = prefix.trimStart().slice("material ".length).trim();
 		return [
@@ -141,14 +173,14 @@ export function completeObserveArgs(prefix: string): Array<{
 		);
 	}
 	if (normalized.includes(" ")) return null;
-	const matches = OBSERVE_ACTIONS.filter((action) =>
+	const matches = OBSERVER_ACTIONS.filter((action) =>
 		action.startsWith(normalized),
 	);
 	return matches.length > 0
 		? matches.map((action) => ({
 				value: action,
 				label: action,
-				description: OBSERVE_ACTION_DESCRIPTIONS[action] ?? action,
+				description: OBSERVER_ACTION_DESCRIPTIONS[action] ?? action,
 			}))
 		: null;
 }
