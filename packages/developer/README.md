@@ -18,7 +18,7 @@ through a fixed plan, design, implementation, and review sequence.
 
 ## Install
 
-Requires Node.js 22.19 or newer. The 0.1.15 Workbench was verified with Pi
+Requires Node.js 22.19 or newer. The 0.1.16 Workbench was verified with Pi
 0.80.10, 0.82.1, and 0.83.0; the corresponding bundled TypeBox resolutions
 included 1.3.6 and 1.3.7.
 
@@ -195,7 +195,7 @@ Start a preconfigured session with Developer enabled:
 pi --developer
 ```
 
-Developer 0.1.15 intentionally replaces the old `/develop` command and
+Developer 0.1.15 and later intentionally replace the old `/develop` command and
 `--develop` startup flag without aliases. Commands use Pi's normal
 `/developer <action>` grammar; colon-style command names are not registered.
 
