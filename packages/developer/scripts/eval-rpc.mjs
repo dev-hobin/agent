@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -25,6 +25,16 @@ const extension = join(packageUnderTest, "extensions", "developer.ts");
 const observerExtension = join(root, "scripts", "eval-observer.ts");
 const skills = join(packageUnderTest, "skills");
 const piBin = process.env.PI_BIN || "pi";
+const piVersionResult = spawnSync(piBin, ["--version"], {
+	encoding: "utf8",
+});
+if (piVersionResult.status !== 0) {
+	throw new Error(
+		`Could not resolve Pi version from ${piBin}: ${piVersionResult.stderr || "unknown error"}`,
+	);
+}
+const piVersion = piVersionResult.stdout.trim();
+if (!piVersion) throw new Error(`Pi ${piBin} returned an empty version.`);
 const live = process.env.DEVELOPER_EVAL_LIVE === "1";
 const liveThinking = process.env.DEVELOPER_EVAL_THINKING || "medium";
 const fixtureTimeoutMs = Number(
@@ -272,7 +282,9 @@ try {
 			),
 		"Expected /developer on to publish branch-visible status",
 	);
-	console.log("RPC smoke: command, skills, and activation state are available");
+	console.log(
+		`RPC smoke: command, skills, and activation state are available on Pi ${piVersion}`,
+	);
 
 	const enabledStatusStart = events.length;
 	await command("/developer status");
@@ -355,7 +367,9 @@ try {
 		);
 	}
 	await command("/developer on");
-	console.log("RPC smoke: route-bound active-tool gating is available");
+	console.log(
+		`RPC smoke: route-bound active-tool gating is available on Pi ${piVersion}`,
+	);
 
 	if (live) {
 		for (const fixture of fixtures) {

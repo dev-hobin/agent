@@ -19,7 +19,8 @@ through a fixed plan, design, implementation, and review sequence.
 ## Install
 
 Requires Node.js 22.19 or newer. The 0.1.15 Workbench was verified with Pi
-0.80.10 and 0.82.1; the verified TypeBox resolution was 1.3.6.
+0.80.10, 0.82.1, and 0.83.0; the corresponding bundled TypeBox resolutions
+included 1.3.6 and 1.3.7.
 
 ```sh
 pi install npm:@hobin/developer
@@ -345,7 +346,9 @@ pi -e ./packages/developer
 `check` validates package structure and deterministic behavior. `eval` exercises
 the real Pi RPC surface without a model. Model-dependent evaluations are
 probabilistic and must not be interpreted as proof from a single successful
-sample.
+sample. Set `PI_BIN` to bind the RPC compatibility smoke to an exact Pi
+installation; the smoke reports that installation's `pi --version` in its
+output.
 
 The published npm package contains the runtime extension, skills, user-facing
 documentation, and license. Source audits, evaluation fixtures, scripts, and
