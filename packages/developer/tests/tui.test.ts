@@ -266,6 +266,55 @@ test("Developer Workbench renders responsive, bounded, read-only state", () => {
 	}
 });
 
+test("Developer Workbench copies the focused semantic selection without viewport chrome", () => {
+	const secondQuestion: PendingQuestion = {
+		...openQuestion,
+		id: "question:copy:user",
+		question: "Which product policy should be preserved?",
+		resolutionOwner: "user",
+		resolutionCriteria: "The product owner identifies the preserved policy.",
+	};
+	const snapshot = inspectDeveloperWorkbench(
+		{
+			...activeState(),
+			pendingQuestions: [openQuestion, secondQuestion],
+		},
+		{
+			activeTools: [],
+			availableSkills: ["verify"],
+		},
+	);
+	const copies: string[] = [];
+	const surface = new DeveloperWorkbenchSurface({
+		snapshot,
+		theme: ansiTheme,
+		keybindings: keybindings as never,
+		done() {},
+		copy: (text) => copies.push(text),
+		requestRender() {},
+	});
+
+	surface.handleInput("y");
+	assert.match(copies[0] ?? "", /^Overview\n/u);
+
+	surface.handleInput("\u001b[B");
+	surface.handleInput("\u001b[B");
+	surface.handleInput("\r");
+	surface.handleInput("y");
+	surface.handleInput("\u001b[B");
+	surface.handleInput("y");
+	surface.handleInput("\r");
+	surface.render(42, 12);
+	surface.handleInput("\u001b[6~");
+	surface.handleInput("y");
+
+	assert.notEqual(copies[1], copies[2]);
+	assert.equal(copies[2], copies[3]);
+	assert.match(copies[3] ?? "", /Resolution contract/u);
+	assert.match(copies[3] ?? "", /Resolves when:/u);
+	assert.doesNotMatch(copies[3] ?? "", /[│╭╮╰╯…]|\u001b\[/u);
+});
+
 test("Developer Workbench scopes question actions and help to the focused detail", () => {
 	const snapshot = inspectDeveloperWorkbench(activeState(), {
 		activeTools: [],

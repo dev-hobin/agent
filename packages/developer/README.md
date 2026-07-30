@@ -222,9 +222,13 @@ does not record.
 The Workbench is a screen-relative, keyboard-complete viewport; it does not rely
 on terminal scrollback. Use arrows or `j/k` to move, Enter to open, Escape to
 return one level, Tab to change focus, Page Up/Page Down and Home/End to scroll,
-and `?` for contextual help. Pi does not yet expose extension-scoped wheel
-capture, so Developer does not take over the mouse globally. Opening and
-scrolling the Workbench does not append session entries, send messages, change
+`y` to copy the focused semantic selection, and `?` for contextual help. Copying
+a section yields its identity; copying an item or detail yields the complete
+unwrapped record without borders, neighboring panes, terminal styling, or
+viewport truncation. Pi does not yet expose extension-scoped wheel capture, so
+Developer does not take over the mouse globally; native terminal drag selection
+therefore remains screen-wide rather than pane-bounded. Opening, scrolling, and
+copying Workbench content does not append session entries, send messages, change
 active tools, or write files.
 
 Developer keeps consequential unknowns explicit instead of silently turning them

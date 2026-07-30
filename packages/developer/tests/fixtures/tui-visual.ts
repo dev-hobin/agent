@@ -389,21 +389,21 @@ export function createQaScenarios(): QaScenario[] {
 			id: "navigation",
 			label: "Workbench / Settings / Questions",
 			description:
-				"Exercise one-level Escape, history detail, drag-copy, and parent focus restoration",
+				"Exercise one-level Escape, history detail, y semantic copy without pane chrome, and parent focus restoration",
 			run: runNavigationScenario,
 		},
 		{
 			id: "answer-ime",
 			label: "Questions / choices / review / Korean IME",
 			description:
-				"Page through sticky Markdown detail while actions remain visible, then exercise drag-copy, custom input, review, edit, and Escape",
+				"Page through sticky Markdown detail while actions remain visible, then exercise semantic copy, custom input, review, edit, and Escape",
 			run: runAnswerImeScenario,
 		},
 		{
 			id: "resize-scroll",
 			label: "Resize / focused viewport / mouse cleanup",
 			description:
-				"Resize long Workbench history detail; verify its screen-relative frame stays visible while keyboard scrolling changes only the focused viewport",
+				"Resize long Workbench history detail; verify its frame stays visible, keyboard scrolling stays focused, and y copies the complete record without pane chrome",
 			run: runResizeScenario,
 		},
 		{

@@ -1,4 +1,8 @@
-import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
+import {
+	copyToClipboard,
+	type ExtensionContext,
+	type Theme,
+} from "@earendil-works/pi-coding-agent";
 import {
 	type Keybinding,
 	type KeybindingsManager,
@@ -30,6 +34,7 @@ interface DeveloperWorkbenchSurfaceOptions {
 	readonly keybindings?: KeybindingsManager;
 	readonly initialSection?: DeveloperWorkbenchSectionId;
 	readonly done: (action: DeveloperWorkbenchAction | null) => void;
+	readonly copy?: (text: string) => void;
 	readonly requestRender: () => void;
 }
 
@@ -76,6 +81,18 @@ function blockLines(
 	];
 }
 
+function semanticItemText(item: DeveloperWorkbenchItem): string {
+	const state = item.state ? ` · ${item.state}` : "";
+	return displayTerminalText(
+		[
+			item.title,
+			`${item.label}${state}`,
+			item.summary,
+			...item.blocks.flatMap((block) => ["", block.heading, ...block.lines]),
+		].join("\n"),
+	).trimEnd();
+}
+
 function itemDetailLines(
 	item: DeveloperWorkbenchItem,
 	width: number,
@@ -91,19 +108,23 @@ function itemDetailLines(
 	];
 }
 
+function emptySectionText(section: DeveloperWorkbenchSection): readonly string[] {
+	const explanation =
+		section.id === "route"
+			? "No judgment route is currently active. Idle does not imply product completion."
+			: "The current branch contains no records in this section.";
+	return ["No items in this section.", "", explanation];
+}
+
 function emptySectionLines(
 	section: DeveloperWorkbenchSection,
 	width: number,
 	theme: Theme,
 ): readonly string[] {
-	const explanation =
-		section.id === "route"
-			? "No judgment route is currently active. Idle does not imply product completion."
-			: "The current branch contains no records in this section.";
+	const [heading = "", ...detail] = emptySectionText(section);
 	return [
-		theme.fg("muted", "No items in this section."),
-		"",
-		...wrap(explanation, width),
+		theme.fg("muted", heading),
+		...detail.flatMap((line) => wrap(line, width)),
 	];
 }
 
@@ -116,25 +137,27 @@ function questionActionLabel(
 	return "classify";
 }
 
+const DEVELOPER_HELP_LINES = [
+	"Navigation",
+	"↑/↓ or j/k  Move selection or scroll detail",
+	"Enter        Open selected section or item",
+	"Esc          Return one level; close from Sections",
+	"Tab          Move between Sections and current content",
+	"PgUp/PgDn   Scroll detail by one page",
+	"Home/End     First/last item or top/bottom of detail",
+	"y            Copy the focused semantic selection",
+	"?            Open or close this help",
+	"",
+	"Contextual actions",
+	"a            Answer or investigate the selected Question",
+	"s            Open Settings from the Settings section",
+	"",
+	"Safety",
+	"Opening the workbench, sections, and details is read-only. Question actions re-check the current branch before sending a response. Developer protocol state is not a product-completion claim.",
+] as const;
+
 function helpLines(width: number, theme: Theme): readonly string[] {
-	const lines = [
-		"Navigation",
-		"↑/↓ or j/k  Move selection or scroll detail",
-		"Enter        Open selected section or item",
-		"Esc          Return one level; close from Sections",
-		"Tab          Move between Sections and current content",
-		"PgUp/PgDn   Scroll detail by one page",
-		"Home/End     First/last item or top/bottom of detail",
-		"?            Open or close this help",
-		"",
-		"Contextual actions",
-		"a            Answer or investigate the selected Question",
-		"s            Open Settings from the Settings section",
-		"",
-		"Safety",
-		"Opening the workbench, sections, and details is read-only. Question actions re-check the current branch before sending a response. Developer protocol state is not a product-completion claim.",
-	];
-	return lines.flatMap((line) => {
+	return DEVELOPER_HELP_LINES.flatMap((line) => {
 		if (
 			line === "Navigation" ||
 			line === "Contextual actions" ||
@@ -147,6 +170,7 @@ function helpLines(width: number, theme: Theme): readonly string[] {
 }
 
 export class DeveloperWorkbenchSurface {
+	private readonly copy: ((text: string) => void) | undefined;
 	private detailScroll = 0;
 	private detailScrollMaximum = 0;
 	private readonly done: (action: DeveloperWorkbenchAction | null) => void;
@@ -169,6 +193,7 @@ export class DeveloperWorkbenchSurface {
 		this.theme = options.theme;
 		this.keybindings = options.keybindings;
 		this.done = options.done;
+		this.copy = options.copy;
 		this.requestRender = options.requestRender;
 		this.sections = options.snapshot.sections;
 		const initial = options.initialSection
@@ -317,6 +342,29 @@ export class DeveloperWorkbenchSurface {
 		this.detailScroll = 0;
 	}
 
+	private copyFocusedSelection(): void {
+		if (!this.copy) return;
+		if (this.pane === "help") {
+			this.copy(DEVELOPER_HELP_LINES.join("\n"));
+			return;
+		}
+		const section = this.section();
+		if (this.pane === "sections") {
+			this.copy(
+				displayTerminalText(
+					[section.label, section.value].filter(Boolean).join("\n"),
+				),
+			);
+			return;
+		}
+		const item = this.selectedItem();
+		this.copy(
+			item
+				? semanticItemText(item)
+				: displayTerminalText(emptySectionText(section).join("\n")),
+		);
+	}
+
 	private routeInput(data: string): boolean {
 		if (this.matches(data, "tui.select.cancel", "escape")) this.back();
 		else if (this.matches(data, "tui.select.confirm", "enter"))
@@ -357,6 +405,10 @@ export class DeveloperWorkbenchSurface {
 	handleInput(data: string): void {
 		if (matchesKey(data, "ctrl+c")) {
 			this.done(null);
+			return;
+		}
+		if (data === "y") {
+			this.copyFocusedSelection();
 			return;
 		}
 		if (data === "?") {
@@ -424,7 +476,7 @@ export class DeveloperWorkbenchSurface {
 
 	private footer(): string {
 		if (this.pane === "help")
-			return `${this.key("tui.select.up", "↑")}/${this.key("tui.select.down", "↓")} scroll · PgUp/PgDn page · ?/${this.key("tui.select.cancel", "Esc")} back`;
+			return `${this.key("tui.select.up", "↑")}/${this.key("tui.select.down", "↓")} scroll · PgUp/PgDn page · y copy · ?/${this.key("tui.select.cancel", "Esc")} back`;
 		const base =
 			this.pane === "detail"
 				? `${this.key("tui.select.up", "↑")}/${this.key("tui.select.down", "↓")} scroll · PgUp/PgDn page · Esc back`
@@ -439,7 +491,7 @@ export class DeveloperWorkbenchSurface {
 		)
 			contextual.push(`a ${questionActionLabel(item.questionAction)}`);
 		if (section.id === "settings") contextual.push("s Settings");
-		contextual.push("? help");
+		contextual.push("y copy", "? help");
 		return `${base} · ${contextual.join(" · ")}`;
 	}
 
@@ -537,6 +589,20 @@ export async function showDeveloperWorkbench(
 				keybindings,
 				initialSection,
 				done,
+				copy: (text) => {
+					void copyToClipboard(text).then(
+						() =>
+							ctx.ui.notify(
+								"Focused Developer content copied to clipboard.",
+								"info",
+							),
+						(error: unknown) =>
+							ctx.ui.notify(
+								`Could not copy focused Developer content: ${error instanceof Error ? error.message : String(error)}`,
+								"error",
+							),
+					);
+				},
 				requestRender: () => tui.requestRender(),
 			});
 			return {
