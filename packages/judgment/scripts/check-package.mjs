@@ -3,7 +3,6 @@ import { access, readdir, readFile } from "node:fs/promises";
 import { dirname, extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 import {
 	JudgmentAuthoringJsonSchema,
 	parseJudgmentAuthoringPolicyJson,
@@ -23,8 +22,6 @@ assert.equal(manifest.version, "0.1.0");
 assert.equal(manifest.private, true);
 assert.deepEqual(manifest.publishConfig, { access: "public" });
 assert.deepEqual(manifest.files, [
-	"extensions",
-	"skills",
 	"schemas",
 	"docs",
 	"src",
@@ -35,15 +32,8 @@ assert.deepEqual(manifest.files, [
 ]);
 assert.deepEqual(manifest.bin, { judgment: "./bin/judgment.mjs" });
 assert.equal(manifest.types, "./src/index.ts");
-assert.deepEqual(manifest.pi, {
-	extensions: ["./extensions/judgment.ts"],
-	skills: ["./skills"],
-});
-assert.deepEqual(manifest.peerDependencies, {
-	"@earendil-works/pi-ai": "*",
-	"@earendil-works/pi-coding-agent": "*",
-	typebox: "*",
-});
+assert.deepEqual(manifest.pi, {});
+assert.deepEqual(manifest.peerDependencies, { typebox: "*" });
 assert.deepEqual(manifest.dependencies, {});
 assert.deepEqual(manifest.exports, {
 	".": {
@@ -57,20 +47,33 @@ assert.deepEqual(manifest.exports, {
 		default: "./dist/index.mjs",
 	},
 	"./pi-context": {
-		types: "./extensions/pi-context.ts",
+		types: "./src/pi-context/index.ts",
 		import: "./dist/index.mjs",
 		default: "./dist/index.mjs",
 	},
 	"./schema": "./schemas/judgment-authoring.schema.json",
 });
+await assert.rejects(access(join(root, "extensions")));
+await assert.rejects(access(join(root, "skills")));
 const publicApi = await readFile(join(root, "dist/index.mjs"), "utf8");
 assert.doesNotMatch(publicApi, /(?:from\s+|import\()["'][^"']+\.ts["']/u);
 for (const symbol of [
 	"parseJudgmentAuthoringPolicyJson",
 	"createNodeLocalReferenceReader",
 	"ContextAttempt",
-])
+	"buildPiContextInventory",
+]) {
 	assert.match(publicApi, new RegExp(`\\b${symbol}\\b`, "u"));
+}
+for (const removedRuntime of [
+	"judgment_open_context",
+	"judgment_assess_applicability",
+	"judgment_select_context",
+	"judgment_assess_coverage",
+	"judgment_conclude",
+]) {
+	assert.doesNotMatch(publicApi, new RegExp(`\\b${removedRuntime}\\b`, "u"));
+}
 assert.deepEqual(
 	await readJson(join(root, "schemas/judgment-authoring.schema.json")),
 	JudgmentAuthoringJsonSchema,
@@ -105,75 +108,16 @@ assert.equal(parsed.specVersion, "0.1");
 assert.ok(parsed.when.length > 0);
 assert.ok(parsed.unless.length > 0);
 assert.ok(parsed.references.length > 0);
-for (const legacy of [
-	"decisionUnit",
-	"questions",
-	"needs",
-	"sourceIds",
-	"canInform",
-	"routeId",
-	"useWhen",
-	"useFor",
-])
-	assert.doesNotMatch(example, new RegExp(`"${legacy}"`, "u"));
 const readme = markdown.get("README.md");
-assert.match(readme, /Judgment Authoring Policy Schema 0\.1/u);
+assert.match(readme, /side-effect-free engine/u);
 assert.match(readme, /External Context Composition/u);
-assert.match(readme, /Runtime Flow/u);
-assert.match(readme, /"specVersion": "0\.1"/u);
-const decision = authoring;
-assert.match(decision, /`unless` is an exclusion/u);
-assert.match(
-	decision,
-	/Runtime questions are created from the current task and evidence/u,
-);
-assert.match(decision, /Every reference `when` statement must name both/u);
-
-const loaded = loadSkillsFromDir({
-	dir: join(root, "skills"),
-	source: "@hobin/judgment",
-});
-assert.deepEqual(loaded.diagnostics, []);
-assert.deepEqual(
-	loaded.skills.map((skill) => skill.name),
-	["judgment"],
-);
-const extension = await readFile(join(root, "extensions/judgment.ts"), "utf8");
-for (const tool of [
-	"judgment_open_context",
-	"judgment_assess_applicability",
-	"judgment_select_context",
-	"judgment_assess_coverage",
-	"judgment_conclude",
-])
-	assert.match(extension, new RegExp(`name: ["']${tool}["']`));
-assert.equal(
-	(extension.match(/executionMode: "sequential"/gu) ?? []).length,
-	5,
-);
-assert.match(extension, /before_agent_start/u);
-assert.match(extension, /getAllTools\(\)/u);
-assert.match(extension, /getBranch\(\)/u);
-assert.match(extension, /loadOptionalJudgmentPolicyFile/u);
+assert.doesNotMatch(readme, /Direct Pi package/u);
 const cli = await readFile(join(root, "bin/judgment.mjs"), "utf8");
-for (const command of ["check", "compile", "explain"])
+for (const command of ["check", "compile", "explain"]) {
 	assert.match(cli, new RegExp(`"${command}"`, "u"));
+}
 assert.doesNotMatch(cli, /(?:from\s+|import\()["'][^"']+\.ts["']/u);
 
-for (const removed of [
-	"contract.ts",
-	"node/read-context-contract.ts",
-	"admission.ts",
-	"guidance.ts",
-	"runtime.ts",
-	"spec.ts",
-	"state.ts",
-	"synthesis.ts",
-	"reducer.ts",
-	"machine.ts",
-	"node/load-guidance-set.ts",
-])
-	await assert.rejects(access(join(root, "src", removed)));
 async function* files(directory) {
 	for (const entry of await readdir(directory, { withFileTypes: true })) {
 		if (entry.name === "node_modules") continue;
@@ -198,5 +142,5 @@ for await (const path of files(root)) {
 }
 assert.match(await readFile(join(root, "LICENSE"), "utf8"), /^MIT License$/m);
 process.stdout.write(
-	"judgment authoring policy, dynamic runtime, skill, and adapter are consistent\n",
+	"judgment authoring policy and side-effect-free engine are consistent\n",
 );

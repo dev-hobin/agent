@@ -3,24 +3,28 @@
 > **Development status:** first-public `0.1.0` remains private pending an
 > explicitly approved publication from the real committed clean worktree.
 
-`@hobin/judgment` gives Pi packages an exact, replayable boundary between a
-small human-authored optional policy and task-specific runtime judgment.
+`@hobin/judgment` is a side-effect-free engine for composing task-specific
+judgment from exact internal and external context.
 
 ```text
 optional judgment.json
-→ JudgmentAuthoringPolicy + externally supplied PolicyOwner
+→ externally supplied PolicyOwner
 → CompiledJudgmentPolicy
 → DynamicJudgmentQuestion
 → ContextInventory + ObservedContext
 → ContextSelection + SealedContext
 → ContextContribution + ContextCoverage
-→ optional ContextualJudgment | NeedsEvidence | EmergentQuestion
+→ ContextualJudgment | NeedsEvidence | EmergentQuestion
 ```
 
+The package registers no Pi Skill, extension, tool, prompt, command, or UI.
+Domain adapters own those product surfaces and use this engine as an ordinary
+dependency.
+
 Judgment owns exact parsing, policy identity, provenance, selection, sealing,
-assurance, replay, and optional closure. It does not rank skills, crawl foreign
-resources, infer policy from prose, activate hidden tools, choose a domain
-method, authorize mutation, or manufacture evaluator/user authority.
+coverage, and optional closure. It does not rank Skills, crawl foreign
+resources, choose a domain method, authorize mutation, or manufacture evaluator
+or user authority.
 
 ## Documentation
 
@@ -32,8 +36,8 @@ method, authorize mutation, or manufacture evaluator/user authority.
 
 ## Authoring policy
 
-A capability owns `judgment.json` only when it has conditional packaged
-references.
+A capability uses `judgment.json` when conditional packaged references can
+materially change a caller's dynamic judgment.
 
 ```json
 {
@@ -56,21 +60,19 @@ references.
 }
 ```
 
-Root `unless` wins. Each reference condition is independent and must combine an
-observable pressure with the material distinction the reference can add.
-Catalog membership never makes a reference mandatory or authoritative.
+Root `unless` wins. References are independent candidates, never mandatory or
+authoritative by catalog membership.
 
 ```text
-judgment.json absent  → normal complete Pi skill
+judgment.json absent  → normal complete Skill or context source
 valid file             → policy-aware prepared-reference selection
 present invalid file   → explicit fail-closed diagnostic
 ```
 
-Owner identity comes from `SKILL.md`, adapter registration, or the compiler
-caller. Authors do not write runtime questions, source graphs, roles,
-assurances, coverage wiring, tool catalogs, or generated IDs/hashes.
+The caller supplies exact owner provenance. Authors do not write runtime
+questions, assurances, source graphs, tool catalogs, or generated identities.
 
-## Pi-free core
+## Engine API
 
 ```ts
 import {
@@ -86,13 +88,13 @@ const owner = parsePolicyOwner(
   decodePolicyOwnerData(
     jsonValueFromUnknown({
       kind: "pi-skill",
-      namespace: "example",
-      name: "sketch",
+      namespace: "project-skills",
+      name: "api-conventions",
       provenance: {
-        source: "example",
+        source: "project-skills",
         scope: "project",
         origin: "top-level",
-        path: "/skills/sketch/SKILL.md",
+        path: "/skills/api-conventions/SKILL.md",
       },
     }),
   ),
@@ -100,56 +102,52 @@ const owner = parsePolicyOwner(
 const compiled = compileJudgmentPolicy({ owner, policy });
 ```
 
-External and persisted representations are decoded and parsed into immutable
-invariant-carrying values. The core exposes no validate-then-cast construction
-path.
+External and persisted representations are parsed into immutable,
+invariant-carrying values. A successful parse returns the stronger
+representation; validation followed by an unchecked assertion is not an engine
+boundary.
 
 Use `@hobin/judgment/node` for optional contained policy loading, physical
-reference containment, fatal UTF-8 handling, byte bounds, and atomic context
-sealing.
+reference containment, fatal UTF-8 handling, byte bounds, and atomic sealing.
+Use `@hobin/judgment/pi-context` to adapt Pi-visible Skill descriptors, context
+files, tools, and active-branch observations into engine inputs without
+registering Pi resources.
 
-## Runtime guarantees
+## External Context Composition
+
+One adapter-owned judgment may admit zero, one, or several nominated context
+Skills.
+
+```text
+Pi-visible Skill descriptors
+→ agent nominates relevant sources
+→ adapter opens bounded SKILL.md and optional judgment.json
+→ policy is visible before source applicability
+→ applicable prepared references join one inventory
+→ one exact selection/sealing/coverage/outcome
+```
+
+The engine does not scan every co-located policy. Adapters open only exact
+nominated sources. A Skill may be a primary capability in one request and an
+external method, constraint, evidence source, or guidance source in another.
+
+## Guarantees
 
 - `$schema` and representation-only array order do not alter semantic identity.
 - Selected descriptor/content drift fails; unrelated inventory growth does not.
 - Selection and sealing commit atomically.
-- Active-branch tool observations retain arguments, result order, and content
-  identity; cross-branch or absent results cannot be nominated.
+- Active-branch observations retain call/result and content identity.
 - Error or truncated results cannot become selected positive context.
-- Every usable selected material contributes to the dynamic question through
-  `constraint`, `evidence`, `decision`, `method`, or `guidance`.
+- Every usable selected material contributes through `constraint`, `evidence`,
+  `decision`, `method`, or `guidance`.
 - `domain-verified` requires matching typed evaluator evidence.
 - `user-accepted` requires a matching selected user event.
-- Sufficient coverage cannot retain conflicts; needs-evidence coverage names
-  explicit conflicts or limitations.
+- Sufficient coverage cannot retain conflicts.
 - Outcomes cite contribution identity rather than catalog membership.
-- `judgment-event/v1` and `judgment-session/v1` replay exact accepted commands;
-  unsupported history receives a restart diagnostic.
-
-## Direct Pi package
-
-The package registers one Agent Skill and five sequential tools:
-
-- `judgment_open_context`
-- `judgment_assess_applicability`
-- `judgment_select_context`
-- `judgment_assess_coverage`
-- `judgment_conclude`
-
-`judgment_open_context` resolves one Pi-visible skill and reveals its co-located
-optional policy before `judgment_assess_applicability` records the semantic
-applicability result. It generates runtime identity from the actual tool call and
-current branch anchor. Startup inventories metadata only; prepared reference
-content is read after explicit nomination.
-
-Project skills remain normal Pi peers. A project skill is not promoted into a
-consumer package's private owner catalog, and its policy cannot grant mutation
-authority.
 
 ## Schema and command line
 
-The public authoring schema is exported as `@hobin/judgment/schema` and committed
-at `schemas/judgment-authoring.schema.json`.
+The authoring schema is exported as `@hobin/judgment/schema`.
 
 ```bash
 judgment check path/to/judgment.json
@@ -157,17 +155,14 @@ judgment compile path/to/judgment.json
 judgment explain path/to/judgment.json
 ```
 
-`check` parses the exact policy and verifies contained packaged references.
-`compile` emits owner-bound canonical data. `explain` shows applicability,
-winning exclusions, prepared-reference conditions, and derived identity.
+The CLI is author tooling and does not activate Pi behavior.
 
 ## Development
 
 ```bash
 pnpm --filter @hobin/judgment check
-pnpm --filter @hobin/judgment eval
 pnpm pack --dry-run
 ```
 
-Publication still requires explicit approval, a committed clean real worktree,
-and deliberate removal of the package's private release guard.
+Publication still requires explicit approval, a committed clean worktree, and
+deliberate removal of the private release guard.

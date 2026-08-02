@@ -51,8 +51,13 @@ interface DynamicJudgmentQuestion {
 }
 ```
 
-A skill without a policy still supports a dynamic question. It simply has no
-prepared-reference inventory.
+A skill without a policy still supports a dynamic question or external context
+role. It simply has no prepared-reference inventory.
+
+The dynamic question has one owning capability, but its inventory may include
+prepared references from several independently opened and applicable context
+Skills. Each reference retains its own owner and `policySha256`; admission does
+not transfer ownership of the question.
 
 ## Material identity
 

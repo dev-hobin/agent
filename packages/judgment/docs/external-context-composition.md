@@ -1,6 +1,6 @@
 # External Context Composition
 
-Status: design decision revised after author review; implementation is pending.
+Status: implemented by the side-effect-free engine and its stateful-adapter interfaces.
 
 ## Invariant
 
@@ -17,9 +17,9 @@ selection                      ≠ authority
 authority                      ≠ semantic correctness
 ```
 
-## Current implementation
+## Engine and adapter implementation
 
-The current candidate already has a package-neutral acquisition seam:
+The engine exposes a package-neutral acquisition seam:
 
 - inventory includes packaged references, visible Pi skills, and Pi-loaded
   context files;
@@ -28,12 +28,12 @@ The current candidate already has a package-neutral acquisition seam:
 - selection and sealing preserve exact chosen content;
 - assurance keeps `agent-asserted`, `domain-verified`, and `user-accepted`
   distinct; and
-- Observer creates typed domain observations through its own adapter.
+- typed domain adapters may create exact evaluator observations.
 
-Its authoring defect is that every policy must predeclare source slots,
-`toolNames`, roles, assurances, questions, needs, and `canInform` links. That
-closed graph rejects useful context the author did not predict and makes runtime
-mechanics part of package authorship.
+A stateful adapter keeps Pi-visible Skills as descriptor-only candidates until
+the agent nominates exact source IDs. It then opens one or several bounded Skill
+methods and optional policies, assesses each policy independently, and admits
+applicable references into the same selection and coverage lifecycle.
 
 ## Context lanes
 
@@ -151,14 +151,15 @@ in human authoring.
 
 ```text
 1. Pi supplies ambient constraints and current branch context.
-2. Pi/Developer considers an owning capability using SKILL.md discovery and policy applicability.
-3. Runtime forms the exact task-specific judgment question from the current gap.
-4. The agent matches package references by their independent when statements.
-5. Pi acquires selected local references and useful repository, runtime, web, user, evaluator, or peer context.
-6. The agent nominates exact materials and states their contributions; adapters bound authority.
-7. Judgment selects and seals only context actually used.
-8. The capability executes under labeled constraints, evidence, decisions, method, and guidance.
-9. The outcome cites selected contributions and states any material limitation.
+2. The adapter chooses one owning capability and forms the exact task-specific question.
+3. The agent nominates zero or more Pi-visible context Skills by exact descriptor identity.
+4. The adapter opens their bounded methods and optional policies before source applicability.
+5. The agent matches applicable provider references by their independent `when` statements.
+6. Pi acquires selected local references and useful repository, runtime, web, user, evaluator, or peer context.
+7. The agent nominates exact materials and states their contributions; adapters bound authority.
+8. Judgment selects and seals only context actually used.
+9. The capability executes under labeled constraints, evidence, decisions, method, and guidance.
+10. The outcome cites selected contributions and states any material limitation.
 ```
 
 Pi owns discovery and physical acquisition. Agents own semantic nomination.

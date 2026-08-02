@@ -182,9 +182,9 @@ not freeze a generic substitute.
 | `unless` | yes | Explicit exclusions that override matching `when` statements. |
 | `references` | yes | Independently selectable package-local prepared references. |
 
-Owner identity is absent. Developer and Learning derive it from the Pi skill;
-Observer derives it from its registered adapter operation; a generic integration
-supplies it to the compiler.
+Owner identity is absent. A Pi adapter derives it from the exact loaded Skill;
+a typed domain adapter derives it from its registered operation. Every caller
+supplies the refined owner to the compiler.
 
 A capability with no conditional packaged references should not own this file.
 Its `SKILL.md` or adapter contract remains complete without Judgment authoring
@@ -373,14 +373,14 @@ basis, ordering, and policy hash. It does not derive static routes, questions,
 needs, or external source catalogs. Runtime persists the task-specific question,
 selected material, contributions, assurance, and sealing identities.
 
-## Migration fit
+## Consumer fit
 
-| Consumer | Migration |
+| Consumer depth | Use |
 | --- | --- |
-| Developer | Fold each local reference's current triggers and coherent contribution into complete reference `when` statements; map skill applicability to root `when`/`unless`; remove static question IDs and four policies with no packaged references. |
-| Learning | Map ten local references to independent entries and retain deterministic generated directions. |
-| Observer | Own no policy because it has no conditional packaged references; keep domain and user authority in adapter-owned runtime context. |
-| Judgment skill | No self-policy is required. |
+| Stateful adapter | Build one dynamic question, admit applicable context sources, seal selected material, and persist its own lifecycle. |
+| Build-time generator | Parse policy and emit deterministic directions without runtime state. |
+| Typed domain adapter | Keep non-agent assurance and mutation gates in its own protocol. |
+| Capability without conditional references | Own no policy and remain complete in `SKILL.md` or its adapter contract. |
 
 Current multi-reference questions become independently matchable references.
 When several statements match, runtime may select all useful files without an

@@ -53,6 +53,7 @@ const PiSkillDescriptorDataSchema = exactObject({
 	policyPath: Type.Optional(
 		Type.String({ minLength: 1, maxLength: 2_000, pattern: "\\S" }),
 	),
+	contentSha256: Type.Optional(Sha256Schema),
 });
 const PiContextFileDescriptorDataSchema = exactObject({
 	...SourceBase,
@@ -198,6 +199,7 @@ export type ContextSourceDescriptor =
 	| (SourceDescriptorBase & {
 			readonly kind: "pi-skill";
 			readonly policyPath?: string;
+			readonly contentSha256?: string;
 	  })
 	| (SourceDescriptorBase & {
 			readonly kind: "pi-context-file";
@@ -214,6 +216,7 @@ type SourceDescriptorValue =
 	| (Omit<SourceDescriptorBase, "descriptorSha256"> & {
 			readonly kind: "pi-skill";
 			readonly policyPath?: string;
+			readonly contentSha256?: string;
 	  })
 	| (Omit<SourceDescriptorBase, "descriptorSha256"> & {
 			readonly kind: "pi-context-file";
@@ -460,6 +463,9 @@ function sourceIdentity(
 			return {
 				...base,
 				...(source.policyPath ? { policyPath: source.policyPath } : {}),
+				...(source.contentSha256
+					? { contentSha256: source.contentSha256 }
+					: {}),
 			};
 		case "pi-context-file":
 			return {
@@ -501,6 +507,7 @@ function parseSource(
 				...(data.policyPath
 					? { policyPath: text(data.policyPath, `${path}/policyPath`) }
 					: {}),
+				...(data.contentSha256 ? { contentSha256: data.contentSha256 } : {}),
 			});
 			break;
 		case "pi-context-file":
@@ -828,8 +835,13 @@ export function selectContext(input: {
 	readonly inventory: ContextInventory;
 	readonly observedContext: ObservedContext;
 	readonly proposal: ContextSelectionProposal;
+	readonly admittedPolicySha256s?: readonly string[];
 }): ContextSelection {
 	const { question, inventory, observedContext, proposal } = input;
+	const admittedPolicies = new Set([
+		...(question.policySha256 ? [question.policySha256] : []),
+		...(input.admittedPolicySha256s ?? []),
+	]);
 	if (proposal.questionSha256 !== question.questionSha256)
 		throw new JudgmentParseError(
 			"Context selection proposal names another dynamic question.",
@@ -858,10 +870,10 @@ export function selectContext(input: {
 				);
 			if (
 				source.kind === "prepared-reference" &&
-				source.policySha256 !== question.policySha256
+				!admittedPolicies.has(source.policySha256)
 			)
 				throw new JudgmentParseError(
-					`Prepared reference belongs to another policy: ${source.id}.`,
+					`Prepared reference belongs to an unadmitted policy: ${source.id}.`,
 				);
 			let expectedContentSha256: string | undefined;
 			if (source.kind === "prepared-reference") {
@@ -877,6 +889,15 @@ export function selectContext(input: {
 				)
 					throw new JudgmentParseError(
 						`Pi context-file nomination has a conflicting content digest: ${source.id}.`,
+					);
+				expectedContentSha256 = source.contentSha256;
+			} else if (source.contentSha256) {
+				if (
+					nomination.contentSha256 &&
+					nomination.contentSha256 !== source.contentSha256
+				)
+					throw new JudgmentParseError(
+						`Pi skill nomination has a conflicting content digest: ${source.id}.`,
 					);
 				expectedContentSha256 = source.contentSha256;
 			} else if (nomination.contentSha256)

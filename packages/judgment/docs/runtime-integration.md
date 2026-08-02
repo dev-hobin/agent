@@ -1,18 +1,20 @@
 # Runtime Integration
 
-Judgment consumers use only the depth they own.
+`@hobin/judgment` provides a complete engine without registering Pi resources.
+Each consumer owns only the integration depth it needs.
 
-| Consumer | Owned depth |
+| Consumer | Owned integration |
 | --- | --- |
-| Learning | parse policy and generate deterministic model-visible directions |
-| Observer | typed domain relations and mutation gate; no authoring policy without packaged references |
-| Developer | dynamic question, exact context, replay, separate mutation authorization and landing |
-| Generic Judgment | complete Pi lifecycle |
+| Stateful Pi adapter | tools, dynamic question, external source admission, replay, UI, and domain authority |
+| Build-time consumer | parse policy and generate deterministic directions |
+| Typed sidecar | typed domain relations whose exact results may become observed context |
+| Future adapter | its own tools, persistence, UI, and authority over the common engine |
 
-## Lifecycle
+## Engine sequence
 
 ```text
 optional CompiledJudgmentPolicy
++ zero or more admitted external Skill policies
 → DynamicJudgmentQuestion
 → ContextInventory + ObservedContext
 → ContextSelection
@@ -21,193 +23,113 @@ optional CompiledJudgmentPolicy
 → optional outcome
 ```
 
-### Open
+### Open the owning question
 
-The caller supplies current question text and exact basis. Runtime supplies owner,
-branch anchor, generated `judgmentId`, optional policy identity, and
-`questionSha256`.
+The adapter supplies exact owner, current question, branch anchor, and known
+basis. A Skill without policy remains complete; it simply contributes no
+prepared references.
 
-For Pi skills, co-located policy discovery has three exact results:
+### Discover context candidates
 
-```text
-absent  → normal skill
-loaded  → compiled policy and prepared references
-invalid → fail closed for that selected policy
-```
+Pi supplies loaded Skill descriptors, ambient context files, and tool metadata.
+Judgment does not search or rank them. The agent nominates exact candidate IDs.
+
+### Open context Skills
+
+For each nominated Skill, the adapter performs a bounded `SKILL.md` read and
+optional contained `judgment.json` load. The parser returns either a refined
+compiled policy, normal absence, or a fail-closed diagnostic. Policy prose is
+visible before source applicability is submitted.
+
+Several context Skills may be opened for one question. Their methods and
+applicable references enter the same selection; they do not create child
+Judgment workflows.
 
 ### Inventory
 
-Pi supplies loaded skill metadata, ambient context files, and tool capability
-metadata. A compiled policy contributes only its prepared-reference descriptors.
-Neither source catalog is a required set.
+A compiled provider policy contributes only prepared-reference descriptors.
+Only sources assessed `applicable` may contribute positive method/reference
+material. `not-applicable` and `needs-context` remain explicit adapter basis or
+limitations.
 
-Startup inventory does not read prepared-reference content. Selection resolves
-explicit source identity. Observed tool and user context resolves only from the
-active branch.
+Inventory creation does not read reference content. Selection resolves exact
+source identity. Observed tool and user context resolves only from the active
+branch.
 
 ### Selection and sealing
 
 Selection commits:
 
 - dynamic question identity;
-- optional policy identity;
+- owning policy identity when present;
+- admitted external policy identities;
 - selected descriptor identity;
 - selected expected content identity when available;
-- current branch;
+- current branch; and
 - explicit selection basis.
 
-Unrelated inventory additions do not invalidate selected work. Selected
-descriptor, policy, question, observed result, or content drift does.
+Unrelated inventory additions do not invalidate selected work. Selected source,
+policy, question, or content drift does.
 
-Physical acquisition then checks lexical and real-path containment, file type,
-UTF-8, cancellation, member bytes, aggregate bytes, exact ordered content, and
-error/truncation state. A failed acquisition records neither selection nor seal.
+Each prepared reference is acquired through a reader bound to its own policy
+root. Acquisition checks lexical and real-path containment, file type, fatal
+UTF-8, cancellation, member bytes, aggregate bytes, and error/truncation state.
+A failed acquisition commits neither selection nor seal.
 
-### Coverage
+### Coverage and outcome
 
-Coverage accepts current-question contribution relations, not authored static
-needs.
+Every selected usable material must have one exact current-question
+contribution:
 
 ```text
-materialId
-+ useAs
-+ concrete contribution
-+ assurance
+materialId + useAs + contribution + bounded assurance
 ```
 
-Every selected usable material must contribute. Domain assurance requires one
-selected typed evaluator observation with the declared evaluator identity. User
-assurance requires the exact selected user event. Agent prose can assert only
-`agent-asserted`.
+A contextual outcome requires sufficient coverage and cites contribution IDs.
+A needs-evidence outcome accounts for exact conflict/limitation IDs. An emergent
+question must differ from the current question.
 
-Conflict and limitation identities are derived. `sufficient` rejects conflicts;
-`needs-evidence` requires at least one conflict or limitation.
+## Parse, do not validate
 
-### Outcome
+Adapters pass raw tool and persisted inputs through engine or adapter parsers.
+Successful parsing returns immutable values carrying owner, policy, descriptor,
+content, and lifecycle invariants. No adapter may validate a raw object and then
+recover the refined representation through an assertion.
 
-- `contextual-judgment`: sufficient coverage and valid contribution citations
-- `needs-evidence`: exact conflict/limitation accounting and next evidence
-- `emergent-question`: a genuinely distinct next question
+Batch context-source opening follows the same rule:
 
-Selection, sealed context, coverage, and outcome hashes must describe one
-question and one branch basis.
-
-## Generic Pi tools
-
-### `judgment_open_context`
-
-```json
-{
-  "skillName": "sketch",
-  "question": "Which interface preserves the callers' observable behavior?",
-  "basisMaterialIds": ["request:current"]
-}
+```text
+raw source IDs
+→ exact Pi descriptors
+→ bounded method reads
+→ optional policy parsing/compilation
+→ immutable opened-source values
+→ one state transition
 ```
 
-Runtime resolves the selected Pi skill, derives owner identity, loads its
-optional policy, and returns generated judgment identity plus bounded inventory.
-This is the first point where a project skill's exact policy becomes model-visible.
+No dependent state update occurs before every source in the accepted batch has
+been refined.
 
-### `judgment_assess_applicability`
+## Stateful adapter boundary
 
-```json
-{
-  "judgmentId": "judgment-…",
-  "applicability": {
-    "kind": "applicable",
-    "basis": ["Caller-facing shape remains unresolved and no exclusion matches."]
-  }
-}
-```
+A stateful adapter may expose one operation to open the owning question, an
+operation to open zero or more batches of context sources, and a conclusion
+operation. Domain authorization, mutation, landing, and verification remain
+outside the engine and inside that adapter.
 
-Applicability is recorded only after the policy is visible. A matching root
-`unless` requires `not-applicable`; ambiguous evidence uses `needs-context`.
-
-### `judgment_select_context`
-
-```json
-{
-  "judgmentId": "judgment-…",
-  "nominations": [
-    { "kind": "inventory-source", "inventorySourceId": "reference-…" },
-    { "kind": "tool-result", "toolCallId": "call-…" },
-    { "kind": "user-decision", "userEventId": "event-…" }
-  ],
-  "selectionBasis": ["Each item can change the dynamic judgment."]
-}
-```
-
-### `judgment_assess_coverage`
-
-```json
-{
-  "judgmentId": "judgment-…",
-  "proposal": {
-    "status": "sufficient",
-    "contributions": [
-      {
-        "materialId": "observed-context:result-…",
-        "useAs": "evidence",
-        "contribution": "The exact result falsifies the stale-content assumption.",
-        "assurance": "agent-asserted"
-      }
-    ],
-    "conflicts": [],
-    "limitations": []
-  }
-}
-```
-
-### `judgment_conclude`
-
-A contextual proposal cites `contributionId`, not inventory membership. A
-needs-evidence proposal names the exact derived unresolved IDs.
-
-## Replay
-
-Each accepted transition is persisted as `judgment-session/v1` containing a
-`judgment-event/v1` event. Replay reparses the dynamic question, reloads and
-recompiles a present policy, rebuilds current inventory, reacquires selected
-content, reruns coverage and outcome parsers, and compares every derived hash.
-
-Old static-contract candidate history is not reinterpreted. It receives an
-explicit restart diagnostic.
-
-## Consumer boundaries
-
-### Learning
-
-Learning uses authoring parser plus deterministic directions during package
-build/check. Its package remains stateless and does not bundle the Judgment
-runtime.
-
-### Observer
-
-Observer's source-reading and memo requirements are adapter-owned typed domain
-relations. Because Observer has no conditional packaged references, it owns no
-`judgment.json`. Its basis remains exact and replayable; generic prose cannot
-forge domain or user authority.
-
-### Developer
-
-Developer derives optional policy owner from the bundled Pi skill. A skill with
-no policy still opens a dynamic judgment. Project skills remain normal Pi peers
-and can contribute observed method or guidance context; they do not become
-Developer-owned methods.
-
-`ActiveJudgment` permits evidence work. Only `AuthorizedChange` permits bounded
-mutation. Landing records changed paths and evidence but does not prove
+An active engine judgment permits evidence work only. An adapter-owned
+authorization value may permit bounded mutation. Landing still does not prove
 completion.
 
 ## Common mistakes
 
 - synthesizing an empty policy when `judgment.json` is absent;
 - treating a malformed present policy as absent;
+- crawling every Pi-visible Skill policy before nomination;
+- creating a second Judgment lifecycle for an external context Skill;
 - using policy membership as relevance, authority, or completion;
-- asking authors to write runtime question IDs or coverage graphs;
-- assigning permanent semantic role to a source rather than a contribution;
-- accepting selected error/truncated output as positive evidence;
-- validating a stored hash and then casting instead of reconstructing the
-  invariant-carrying value;
-- broadening a project skill into a consumer's private owner catalog;
+- assigning one permanent role to a Skill rather than a question-specific contribution;
+- selecting an errored, truncated, excluded, or unresolved source positively;
+- validating persisted data and then casting it;
+- using one policy-root reader for references owned by another Skill;
 - treating landing as verification.

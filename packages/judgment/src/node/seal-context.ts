@@ -46,7 +46,14 @@ export interface AcquiredContextData {
 }
 
 export interface ContextAcquisition {
-	readonly localReferenceReader: LocalReferenceReader;
+	readonly acquirePreparedReference: (
+		source: Extract<ContextSourceDescriptor, { kind: "prepared-reference" }>,
+		signal?: AbortSignal,
+	) => Promise<AcquiredContextData>;
+	readonly acquireSkill?: (
+		source: Extract<ContextSourceDescriptor, { kind: "pi-skill" }>,
+		signal?: AbortSignal,
+	) => Promise<AcquiredContextData>;
 	readonly acquireContextFile?: (
 		source: Extract<ContextSourceDescriptor, { kind: "pi-context-file" }>,
 		signal?: AbortSignal,
@@ -162,20 +169,17 @@ async function acquireInventorySource(
 ): Promise<AcquiredContextData> {
 	switch (source.kind) {
 		case "prepared-reference":
-			return {
-				parts: [
-					{
-						kind: "text",
-						text: await acquisition.localReferenceReader.read(source, {
-							maxBytes: MAX_SEALED_MEMBER_BYTES,
-							...(signal ? { signal } : {}),
-						}),
-					},
-				],
-				isError: false,
-				truncated: false,
-			};
+			return acquisition.acquirePreparedReference(source, signal);
 		case "pi-skill":
+			if (source.contentSha256) {
+				if (!acquisition.acquireSkill) {
+					throw new ContextSealError(
+						`No Pi skill acquisition is available for ${source.id}.`,
+						{ sourceId: source.id },
+					);
+				}
+				return acquisition.acquireSkill(source, signal);
+			}
 			return skillMetadata(source);
 		case "pi-context-file":
 			if (!acquisition.acquireContextFile) {

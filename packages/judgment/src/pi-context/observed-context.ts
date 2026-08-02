@@ -3,11 +3,11 @@ import {
 	parseObservedContext,
 	type ObservedContext,
 	type ObservedContextEntry,
-} from "../src/context.ts";
-import { JudgmentParseError } from "../src/errors.ts";
-import { canonicalJson, jsonValueFromUnknown, sha256 } from "../src/json.ts";
-import type { AcquiredContextData } from "../src/node/seal-context.ts";
-import type { ContextContentPartData } from "../src/sealed-context.ts";
+} from "../context.ts";
+import { JudgmentParseError } from "../errors.ts";
+import { canonicalJson, jsonValueFromUnknown, sha256 } from "../json.ts";
+import type { AcquiredContextData } from "../node/seal-context.ts";
+import type { ContextContentPartData } from "../sealed-context.ts";
 
 export interface PiBranchEntryInput {
 	readonly id?: string;
@@ -21,6 +21,9 @@ export interface ToolResultNominationInput {
 export interface UserDecisionNominationInput {
 	readonly userEventId: string;
 }
+export type ObservedContextNominationData =
+	| ({ readonly kind: "tool-result" } & ToolResultNominationInput)
+	| ({ readonly kind: "user-decision" } & UserDecisionNominationInput);
 export interface ResolvedObservedContext {
 	readonly observedContext: ObservedContext;
 	acquireObservedContext(

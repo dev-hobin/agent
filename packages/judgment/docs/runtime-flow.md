@@ -1,34 +1,54 @@
-# Judgment Runtime Flow
+# Judgment Engine Flow
 
-This is the smallest package-level map of how authored policy becomes one exact,
-replayable judgment. It describes runtime order and ownership; it does not imply
-that a completed lifecycle makes the domain conclusion true.
+`@hobin/judgment` is a side-effect-free engine. An adapter owns discovery,
+interaction, persistence, UI, and domain authority.
 
 ## Policy loading
 
 ```mermaid
 flowchart LR
-  S[Selected Pi skill] --> P{judgment.json}
-  P -->|absent| N[Normal complete skill]
-  P -->|present + valid| C[Compiled policy]
-  P -->|present + invalid| X[Fail closed]
-  C --> O[Owner from Pi metadata or adapter]
-  O --> I[Prepared-reference inventory]
+  C[Pi-visible Skill candidate] --> N[Agent nomination]
+  N --> P{co-located judgment.json}
+  P -->|absent| S[Normal complete Skill source]
+  P -->|present + valid| V[Compiled policy]
+  P -->|present + invalid| X[Reject this source]
+  V --> A[Policy visible before applicability]
+  A --> R[Applicable prepared references]
 ```
 
-Only a selected capability's policy is loaded. Reference content is not read at
-startup and catalog membership creates neither obligation nor authority.
+Adapters inspect only exact nominated Skills. The engine does not crawl every
+policy or read reference content at inventory time.
 
-## Judgment lifecycle
+## One judgment, several context sources
+
+```mermaid
+flowchart TD
+  Q[One dynamic question] --> I[Internal prepared context]
+  Q --> E1[External Skill 1]
+  Q --> E2[External Skill 2]
+  Q --> O[Observed branch context]
+  E1 --> P1[Optional policy + references]
+  E2 --> P2[Optional policy + references]
+  I & P1 & P2 & O --> S[One selection and atomic seal]
+  S --> C[One contribution coverage]
+  C --> J[One outcome]
+```
+
+A Skill may be a primary capability in one request and a context method,
+constraint, evidence source, or guidance source in another. `judgment.json`
+describes applicability and reference relevance; it does not start another
+workflow.
+
+## Engine lifecycle
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Started: open dynamic question
+  [*] --> Started: parse dynamic question
   Started --> SelectionOpen: applicable
   Started --> NotApplicable: excluded
   Started --> NeedsContext: applicability unresolved
-  SelectionOpen --> Selected: exact nomination
-  Selected --> Sealed: acquisition succeeds
+  SelectionOpen --> Selected: exact nominations
+  Selected --> Sealed: bounded acquisition succeeds
   Sealed --> Covered: contributions assessed
   Covered --> Outcome: conclude
   Covered --> Selected: revise selection
@@ -37,25 +57,14 @@ stateDiagram-v2
   Outcome --> [*]
 ```
 
-The generic Pi operation order is:
-
-```text
-judgment_open_context
-→ judgment_assess_applicability
-→ judgment_select_context
-→ judgment_assess_coverage
-→ judgment_conclude
-```
-
-`open` reveals the exact optional policy before applicability is assessed. Root
-`unless` wins. Selection and sealing commit atomically; failed acquisition adds
-neither event.
+Selection and sealing commit atomically. Failed acquisition leaves the attempt
+at its prior immutable state.
 
 ## Material and authority
 
 ```mermaid
 flowchart TD
-  M[Selected material] --> U[useAs relation]
+  M[Selected material] --> U[useAs]
   U --> K[constraint]
   U --> E[evidence]
   U --> D[decision]
@@ -69,18 +78,19 @@ flowchart TD
 ```
 
 Every selected usable material needs a contribution. Generic prose cannot create
-`domain-verified` or `user-accepted` assurance. Policy and guidance cannot grant
-mutation authority.
+`domain-verified` or `user-accepted` assurance. The engine never grants mutation
+authority; the owning adapter does.
 
-## Replay identity
+## Identity
 
 ```text
-policy + owner
+owner + policy
 → question + branch
+→ admitted source policies
 → selected descriptors + selected content
 → contributions + conflicts + limitations
 → outcome
 ```
 
-Each arrow produces a canonical hash. Selected policy, question, descriptor, or
-content drift invalidates replay. Unrelated inventory growth does not.
+Selected policy, question, descriptor, or content drift fails. Unrelated
+inventory growth does not.

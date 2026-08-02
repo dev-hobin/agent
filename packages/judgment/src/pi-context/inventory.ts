@@ -1,10 +1,10 @@
-import type { CompiledJudgmentPolicy } from "../src/compiled-policy.ts";
+import type { CompiledJudgmentPolicy } from "../compiled-policy.ts";
 import {
 	decodeContextInventoryData,
 	parseContextInventory,
 	type ContextInventory,
-} from "../src/context.ts";
-import { canonicalJson, jsonValueFromUnknown, sha256 } from "../src/json.ts";
+} from "../context.ts";
+import { canonicalJson, jsonValueFromUnknown, sha256 } from "../json.ts";
 
 export interface PiSourceInfoInput {
 	readonly path: string;
@@ -19,6 +19,7 @@ export interface PiSkillInventoryInput {
 	readonly filePath: string;
 	readonly disableModelInvocation: boolean;
 	readonly policyPath?: string;
+	readonly contentSha256?: string;
 	readonly sourceInfo: PiSourceInfoInput;
 }
 export interface PiContextFileInventoryInput {
@@ -30,9 +31,12 @@ export interface PiToolInventoryInput {
 	readonly description: string;
 	readonly sourceInfo: PiSourceInfoInput;
 }
+export interface PreparedContextProviderInput {
+	readonly policyRoot: string;
+	readonly policy: CompiledJudgmentPolicy;
+}
 export interface PiContextInventoryInput {
-	readonly policyRoot?: string;
-	readonly policy?: CompiledJudgmentPolicy;
+	readonly preparedProviders: readonly PreparedContextProviderInput[];
 	readonly skills: readonly PiSkillInventoryInput[];
 	readonly contextFiles: readonly PiContextFileInventoryInput[];
 	readonly tools: readonly PiToolInventoryInput[];
@@ -50,27 +54,26 @@ function provenance(sourceInfo: PiSourceInfoInput) {
 	};
 }
 function preparedReferences(input: PiContextInventoryInput) {
-	const policy = input.policy;
-	const policyRoot = input.policyRoot;
-	if (!policy || !policyRoot) return [];
-	return policy.references.map((reference) => ({
-		id: descriptorId("reference", {
-			policySha256: policy.policySha256,
+	return input.preparedProviders.flatMap(({ policy, policyRoot }) =>
+		policy.references.map((reference) => ({
+			id: descriptorId("reference", {
+				policySha256: policy.policySha256,
+				path: reference.path,
+			}),
+			kind: "prepared-reference",
+			title: reference.path,
+			description: `Prepared reference for ${policy.owner.name}.`,
+			provenance: {
+				source: policy.owner.provenance.source,
+				scope: policy.owner.provenance.scope,
+				origin: policy.owner.provenance.origin,
+				path: `${policyRoot}/${reference.path}`,
+			},
 			path: reference.path,
-		}),
-		kind: "prepared-reference",
-		title: reference.path,
-		description: `Prepared reference for ${policy.owner.name}.`,
-		provenance: {
-			source: policy.owner.provenance.source,
-			scope: policy.owner.provenance.scope,
-			origin: policy.owner.provenance.origin,
-			path: `${policyRoot}/${reference.path}`,
-		},
-		path: reference.path,
-		when: reference.when,
-		policySha256: policy.policySha256,
-	}));
+			when: reference.when,
+			policySha256: policy.policySha256,
+		})),
+	);
 }
 function skills(values: readonly PiSkillInventoryInput[]) {
 	return values.flatMap((skill) => {
@@ -91,6 +94,7 @@ function skills(values: readonly PiSkillInventoryInput[]) {
 				description: skill.description,
 				provenance: skillProvenance,
 				...(skill.policyPath ? { policyPath: skill.policyPath } : {}),
+				...(skill.contentSha256 ? { contentSha256: skill.contentSha256 } : {}),
 			},
 		];
 	});

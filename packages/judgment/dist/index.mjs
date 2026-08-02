@@ -8396,7 +8396,8 @@ var PiSkillDescriptorDataSchema = exactObject3({
   kind: typebox_exports.Literal("pi-skill"),
   policyPath: typebox_exports.Optional(
     typebox_exports.String({ minLength: 1, maxLength: 2e3, pattern: "\\S" })
-  )
+  ),
+  contentSha256: typebox_exports.Optional(Sha256Schema)
 });
 var PiContextFileDescriptorDataSchema = exactObject3({
   ...SourceBase,
@@ -8593,7 +8594,8 @@ function sourceIdentity(source) {
     case "pi-skill":
       return {
         ...base,
-        ...source.policyPath ? { policyPath: source.policyPath } : {}
+        ...source.policyPath ? { policyPath: source.policyPath } : {},
+        ...source.contentSha256 ? { contentSha256: source.contentSha256 } : {}
       };
     case "pi-context-file":
       return {
@@ -8628,7 +8630,8 @@ function parseSource(data, index) {
       source = Object.freeze({
         ...base,
         kind: data.kind,
-        ...data.policyPath ? { policyPath: text(data.policyPath, `${path}/policyPath`) } : {}
+        ...data.policyPath ? { policyPath: text(data.policyPath, `${path}/policyPath`) } : {},
+        ...data.contentSha256 ? { contentSha256: data.contentSha256 } : {}
       });
       break;
     case "pi-context-file":
@@ -8904,6 +8907,10 @@ function bindingIdentity(binding) {
 }
 function selectContext(input) {
   const { question, inventory, observedContext, proposal } = input;
+  const admittedPolicies = /* @__PURE__ */ new Set([
+    ...question.policySha256 ? [question.policySha256] : [],
+    ...input.admittedPolicySha256s ?? []
+  ]);
   if (proposal.questionSha256 !== question.questionSha256)
     throw new JudgmentParseError(
       "Context selection proposal names another dynamic question."
@@ -8930,9 +8937,9 @@ function selectContext(input) {
         throw new JudgmentParseError(
           `Selected inventory source changed: ${source.id}.`
         );
-      if (source.kind === "prepared-reference" && source.policySha256 !== question.policySha256)
+      if (source.kind === "prepared-reference" && !admittedPolicies.has(source.policySha256))
         throw new JudgmentParseError(
-          `Prepared reference belongs to another policy: ${source.id}.`
+          `Prepared reference belongs to an unadmitted policy: ${source.id}.`
         );
       let expectedContentSha256;
       if (source.kind === "prepared-reference") {
@@ -8945,6 +8952,12 @@ function selectContext(input) {
         if (nomination.contentSha256 && nomination.contentSha256 !== source.contentSha256)
           throw new JudgmentParseError(
             `Pi context-file nomination has a conflicting content digest: ${source.id}.`
+          );
+        expectedContentSha256 = source.contentSha256;
+      } else if (source.contentSha256) {
+        if (nomination.contentSha256 && nomination.contentSha256 !== source.contentSha256)
+          throw new JudgmentParseError(
+            `Pi skill nomination has a conflicting content digest: ${source.id}.`
           );
         expectedContentSha256 = source.contentSha256;
       } else if (nomination.contentSha256)
@@ -10508,20 +10521,17 @@ Description: ${source.description}`
 async function acquireInventorySource(source, acquisition, signal) {
   switch (source.kind) {
     case "prepared-reference":
-      return {
-        parts: [
-          {
-            kind: "text",
-            text: await acquisition.localReferenceReader.read(source, {
-              maxBytes: MAX_SEALED_MEMBER_BYTES,
-              ...signal ? { signal } : {}
-            })
-          }
-        ],
-        isError: false,
-        truncated: false
-      };
+      return acquisition.acquirePreparedReference(source, signal);
     case "pi-skill":
+      if (source.contentSha256) {
+        if (!acquisition.acquireSkill) {
+          throw new ContextSealError(
+            `No Pi skill acquisition is available for ${source.id}.`,
+            { sourceId: source.id }
+          );
+        }
+        return acquisition.acquireSkill(source, signal);
+      }
       return skillMetadata(source);
     case "pi-context-file":
       if (!acquisition.acquireContextFile) {
@@ -10650,242 +10660,123 @@ function assertNever5(value) {
   );
 }
 
-// extensions/session.ts
-var JUDGMENT_SESSION_PROTOCOL = "judgment-session/v1";
-function exactObject9(properties) {
-  return typebox_exports.Object(properties, { additionalProperties: false });
-}
-var Base3 = {
-  protocol: typebox_exports.Literal(CONTEXT_JUDGMENT_EVENT_PROTOCOL),
-  judgmentId: IdentifierSchema
-};
-var AttemptOpened = exactObject9({
-  ...Base3,
-  kind: typebox_exports.Literal("attempt-opened"),
-  policyPath: typebox_exports.Optional(typebox_exports.String({ minLength: 1, maxLength: 2e3 })),
-  question: DynamicJudgmentQuestionDataSchema,
-  questionSha256: Sha256Schema
-});
-var ApplicabilityRecorded = exactObject9({
-  ...Base3,
-  kind: typebox_exports.Literal("applicability-recorded"),
-  applicability: ContextApplicabilityDataSchema
-});
-var ObservedContextNominationDataSchema = typebox_exports.Union([
-  exactObject9({
-    kind: typebox_exports.Literal("tool-result"),
-    toolCallId: typebox_exports.String({ minLength: 1, maxLength: 300 }),
-    inventorySourceId: typebox_exports.Optional(IdentifierSchema)
-  }),
-  exactObject9({
-    kind: typebox_exports.Literal("user-decision"),
-    userEventId: typebox_exports.String({ minLength: 1, maxLength: 300 })
-  })
-]);
-var SelectionRecorded = exactObject9({
-  ...Base3,
-  kind: typebox_exports.Literal("selection-recorded"),
-  proposal: ContextSelectionProposalDataSchema,
-  observedNominations: typebox_exports.Array(ObservedContextNominationDataSchema, {
-    maxItems: 256
-  }),
-  selectionSha256: Sha256Schema
-});
-var SealedRecorded = exactObject9({
-  ...Base3,
-  kind: typebox_exports.Literal("sealed-context-recorded"),
-  selectionSha256: Sha256Schema,
-  sealedContextSha256: Sha256Schema
-});
-var CoverageRecorded = exactObject9({
-  ...Base3,
-  kind: typebox_exports.Literal("coverage-recorded"),
-  proposal: ContextCoverageProposalDataSchema,
-  coverageSha256: Sha256Schema
-});
-var OutcomeRecorded = exactObject9({
-  ...Base3,
-  kind: typebox_exports.Literal("outcome-recorded"),
-  proposal: JudgmentProposalDataSchema,
-  outcomeSha256: Sha256Schema
-});
-var ContextSessionEventDataSchema = typebox_exports.Union([
-  AttemptOpened,
-  ApplicabilityRecorded,
-  SelectionRecorded,
-  SealedRecorded,
-  CoverageRecorded,
-  OutcomeRecorded
-]);
-var JudgmentSessionRecordDataSchema = exactObject9({
-  protocol: typebox_exports.Literal(JUDGMENT_SESSION_PROTOCOL),
-  event: ContextSessionEventDataSchema
-});
-function judgmentSessionRecord(event) {
-  return Object.freeze({ protocol: JUDGMENT_SESSION_PROTOCOL, event });
-}
-var EMPTY_SELECTION_BASIS = Object.freeze([
-  "No context material was applicable to this dynamic question."
-]);
-
-// extensions/context-attempt.ts
+// src/pi-context/context-attempt.ts
 var ContextAttempt = class _ContextAttempt {
   current;
-  history;
-  constructor(state, history) {
+  constructor(state) {
     this.current = state;
-    this.history = [...history];
   }
   static open(input) {
-    const questionData = decodeDynamicJudgmentQuestionData(input.question);
-    const question = parseDynamicJudgmentQuestion(questionData);
-    const initial = startJudgment(question);
-    const openedRecord = judgmentSessionRecord({
-      protocol: "judgment-event/v1",
-      judgmentId: question.judgmentId,
-      kind: "attempt-opened",
-      ...input.policyPath ? { policyPath: input.policyPath } : {},
-      question: questionData,
-      questionSha256: question.questionSha256
-    });
-    const attempt = new _ContextAttempt(initial, [openedRecord]);
-    if (input.applicability === void 0)
-      return Object.freeze({
-        value: attempt,
-        records: Object.freeze([openedRecord])
-      });
+    const question = parseDynamicJudgmentQuestion(
+      decodeDynamicJudgmentQuestionData(input.question)
+    );
+    const attempt = new _ContextAttempt(startJudgment(question));
+    if (input.applicability === void 0) {
+      return Object.freeze({ value: attempt, events: Object.freeze([]) });
+    }
     const applicability = attempt.recordApplicability(input.applicability);
     return Object.freeze({
       value: attempt,
-      records: Object.freeze([openedRecord, ...applicability.records])
+      events: applicability.events
     });
   }
   get state() {
     return this.current;
   }
-  get records() {
-    return Object.freeze([...this.history]);
-  }
   recordApplicability(value) {
-    const applicabilityData = decodeContextApplicabilityData(value);
-    const applicability = parseContextApplicability(applicabilityData);
-    const next = transitionJudgment(
-      this.current,
-      applicabilityRecorded({ state: this.current, applicability })
+    const applicability = parseContextApplicability(
+      decodeContextApplicabilityData(value)
     );
-    const record = judgmentSessionRecord({
-      protocol: "judgment-event/v1",
-      judgmentId: this.current.question.judgmentId,
-      kind: "applicability-recorded",
-      applicability: applicabilityData
+    const event = applicabilityRecorded({
+      state: this.current,
+      applicability
     });
+    const next = transitionJudgment(this.current, event);
     this.current = next;
-    this.history.push(record);
-    return Object.freeze({ value: next, records: Object.freeze([record]) });
+    return Object.freeze({
+      value: next,
+      events: Object.freeze([event])
+    });
   }
   async selectAndSeal(input) {
-    const proposalData = decodeContextSelectionProposalData(input.proposal);
-    const proposal = parseContextSelectionProposal(proposalData);
+    const proposal = parseContextSelectionProposal(
+      decodeContextSelectionProposalData(input.proposal)
+    );
     const selection = selectContext({
       question: this.current.question,
       inventory: input.inventory,
       observedContext: input.observedContext,
-      proposal
+      proposal,
+      ...input.admittedPolicySha256s ? { admittedPolicySha256s: input.admittedPolicySha256s } : {}
     });
     const sealedContext = await sealContext(
       selection,
       input.acquisition,
       input.signal ? { signal: input.signal } : {}
     );
-    const selectedState = transitionJudgment(
-      this.current,
-      selectionRecorded({ state: this.current, selection })
-    );
-    const sealedState = transitionJudgment(
-      selectedState,
-      sealedContextRecorded({ state: selectedState, sealedContext })
-    );
-    const records = [
-      judgmentSessionRecord({
-        protocol: "judgment-event/v1",
-        judgmentId: this.current.question.judgmentId,
-        kind: "selection-recorded",
-        proposal: proposalData,
-        observedNominations: [...input.observedNominations],
-        selectionSha256: selection.selectionSha256
-      }),
-      judgmentSessionRecord({
-        protocol: "judgment-event/v1",
-        judgmentId: this.current.question.judgmentId,
-        kind: "sealed-context-recorded",
-        selectionSha256: selection.selectionSha256,
-        sealedContextSha256: sealedContext.sealedContextSha256
-      })
-    ];
+    const selectedEvent = selectionRecorded({
+      state: this.current,
+      selection
+    });
+    const selectedState = transitionJudgment(this.current, selectedEvent);
+    const sealedEvent = sealedContextRecorded({
+      state: selectedState,
+      sealedContext
+    });
+    const sealedState = transitionJudgment(selectedState, sealedEvent);
     this.current = sealedState;
-    this.history.push(...records);
     return Object.freeze({
       value: sealedState,
-      records: Object.freeze(records)
+      events: Object.freeze([selectedEvent, sealedEvent])
     });
   }
   assessCoverage(proposalValue) {
-    if (!this.current.sealedContext)
+    if (!this.current.sealedContext) {
       throw new JudgmentTransitionError(
         `Coverage requires sealed context, not ${this.current.status}.`
       );
-    const proposalData = decodeContextCoverageProposalData(proposalValue);
-    const proposal = parseContextCoverageProposal(proposalData);
+    }
+    const proposal = parseContextCoverageProposal(
+      decodeContextCoverageProposalData(proposalValue)
+    );
     const coverage = assessContextCoverage({
       selectedContext: this.current.sealedContext,
       proposal
     });
-    const next = transitionJudgment(
-      this.current,
-      coverageRecorded({ state: this.current, coverage })
-    );
-    const record = judgmentSessionRecord({
-      protocol: "judgment-event/v1",
-      judgmentId: this.current.question.judgmentId,
-      kind: "coverage-recorded",
-      proposal: proposalData,
-      coverageSha256: coverage.coverageSha256
-    });
+    const event = coverageRecorded({ state: this.current, coverage });
+    const next = transitionJudgment(this.current, event);
     this.current = next;
-    this.history.push(record);
-    return Object.freeze({ value: next, records: Object.freeze([record]) });
+    return Object.freeze({
+      value: next,
+      events: Object.freeze([event])
+    });
   }
   conclude(proposalValue) {
-    if (!this.current.sealedContext || !this.current.coverage)
+    if (!this.current.sealedContext || !this.current.coverage) {
       throw new JudgmentTransitionError(
         `Outcome requires assessed coverage, not ${this.current.status}.`
       );
-    const proposalData = decodeJudgmentProposalData(proposalValue);
-    const proposal = parseJudgmentProposal(proposalData);
+    }
+    const proposal = parseJudgmentProposal(
+      decodeJudgmentProposalData(proposalValue)
+    );
     const outcome = concludeJudgment({
       question: this.current.question,
       selectedContext: this.current.sealedContext,
       coverage: this.current.coverage,
       proposal
     });
-    const next = transitionJudgment(
-      this.current,
-      outcomeRecorded({ state: this.current, outcome })
-    );
-    const record = judgmentSessionRecord({
-      protocol: "judgment-event/v1",
-      judgmentId: this.current.question.judgmentId,
-      kind: "outcome-recorded",
-      proposal: proposalData,
-      outcomeSha256: outcome.outcomeSha256
-    });
+    const event = outcomeRecorded({ state: this.current, outcome });
+    const next = transitionJudgment(this.current, event);
     this.current = next;
-    this.history.push(record);
-    return Object.freeze({ value: next, records: Object.freeze([record]) });
+    return Object.freeze({
+      value: next,
+      events: Object.freeze([event])
+    });
   }
 };
 
-// extensions/inventory.ts
+// src/pi-context/inventory.ts
 function descriptorId(prefix, identity2) {
   return `${prefix}-${sha256(canonicalJson(jsonValueFromUnknown(identity2))).slice(0, 24)}`;
 }
@@ -10898,27 +10789,26 @@ function provenance2(sourceInfo) {
   };
 }
 function preparedReferences(input) {
-  const policy = input.policy;
-  const policyRoot = input.policyRoot;
-  if (!policy || !policyRoot) return [];
-  return policy.references.map((reference2) => ({
-    id: descriptorId("reference", {
-      policySha256: policy.policySha256,
-      path: reference2.path
-    }),
-    kind: "prepared-reference",
-    title: reference2.path,
-    description: `Prepared reference for ${policy.owner.name}.`,
-    provenance: {
-      source: policy.owner.provenance.source,
-      scope: policy.owner.provenance.scope,
-      origin: policy.owner.provenance.origin,
-      path: `${policyRoot}/${reference2.path}`
-    },
-    path: reference2.path,
-    when: reference2.when,
-    policySha256: policy.policySha256
-  }));
+  return input.preparedProviders.flatMap(
+    ({ policy, policyRoot }) => policy.references.map((reference2) => ({
+      id: descriptorId("reference", {
+        policySha256: policy.policySha256,
+        path: reference2.path
+      }),
+      kind: "prepared-reference",
+      title: reference2.path,
+      description: `Prepared reference for ${policy.owner.name}.`,
+      provenance: {
+        source: policy.owner.provenance.source,
+        scope: policy.owner.provenance.scope,
+        origin: policy.owner.provenance.origin,
+        path: `${policyRoot}/${reference2.path}`
+      },
+      path: reference2.path,
+      when: reference2.when,
+      policySha256: policy.policySha256
+    }))
+  );
 }
 function skills(values) {
   return values.flatMap((skill) => {
@@ -10938,7 +10828,8 @@ function skills(values) {
         title: skill.name,
         description: skill.description,
         provenance: skillProvenance,
-        ...skill.policyPath ? { policyPath: skill.policyPath } : {}
+        ...skill.policyPath ? { policyPath: skill.policyPath } : {},
+        ...skill.contentSha256 ? { contentSha256: skill.contentSha256 } : {}
       }
     ];
   });
@@ -10992,7 +10883,7 @@ function buildPiContextInventory(input) {
   );
 }
 
-// extensions/observed-context.ts
+// src/pi-context/observed-context.ts
 function objectValue(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : void 0;
 }
