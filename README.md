@@ -1,19 +1,48 @@
 # Hobin packages for Pi
 
-Four focused packages for making Pi's work easier to inspect: contextual judgment,
-safer development decisions, source-grounded learning, and local-first inquiry
-notes.
+English | [한국어](./README.ko.md)
 
-Each package stands on its own. Install only the capability you want.
+A monorepo of four independently versioned packages for contextual judgment,
+safer development decisions, source-grounded learning, and local-first inquiry
+notes in [Pi](https://pi.dev).
+
+Install only the capability you need. This repository root is a development
+workspace, not one combined Pi package.
+
+## Quick start
+
+Pi-facing packages require Pi. All packages require Node.js 22.19 or newer.
+
+```sh
+pi install npm:@hobin/developer
+pi install npm:@hobin/learning
+pi install npm:@hobin/observer
+```
+
+Try a Pi-facing package for one run:
+
+```sh
+pi -e npm:@hobin/developer
+```
+
+`@hobin/judgment` is a library and CLI, not a Pi user interface:
+
+```sh
+npm install @hobin/judgment
+```
 
 ## Packages
 
-| Package | Use it for | Start with |
-| --- | --- | --- |
-| [`@hobin/developer`](./packages/developer) | Clarifying consequential coding decisions, gating mutation, and verifying what a change proves | `/developer on` |
-| [`@hobin/learning`](./packages/learning) | Reading technical sources and repositories, forming concepts and patterns, and designing practice | `/learning` or `/skill:<name>` |
-| [`@hobin/observer`](./packages/observer) | Following an inquiry across a Pi session and publishing reviewed Markdown to a local notebook | `/observer` |
-| [`@hobin/judgment`](./packages/judgment) | Building context-sensitive judgment into another adapter or tool | npm API or `judgment check` |
+| Package | Kind | Use it for | Install |
+| --- | --- | --- | --- |
+| [`@hobin/developer`](./packages/developer) | Pi extension + Skills | Clarifying consequential coding decisions, gating mutation, and verifying what a change proves | `pi install npm:@hobin/developer` |
+| [`@hobin/learning`](./packages/learning) | Pi extension + Skills | Reading technical sources and repositories, forming concepts and patterns, and designing practice | `pi install npm:@hobin/learning` |
+| [`@hobin/observer`](./packages/observer) | Pi extension | Following an inquiry across a Pi session and publishing reviewed Markdown to a local notebook | `pi install npm:@hobin/observer` |
+| [`@hobin/judgment`](./packages/judgment) | Library + CLI | Building policy-aware context selection, sealing, coverage, and outcomes into another adapter | `npm install @hobin/judgment` |
+
+Every package has its own manifest, version, README, documentation, checks, and
+publication boundary. Package READMEs are standalone consumer landing pages; the
+root README is a catalog and repository guide.
 
 ```mermaid
 flowchart LR
@@ -22,42 +51,14 @@ flowchart LR
   U --> O[Observer]
   D --> J[Judgment engine]
   O --> J
-  L -. policy compiler at development time .-> J
+  L -. authoring compiler at development time .-> J
 
   classDef engine fill:#f4f4f4,stroke:#666,color:#111;
   class J engine;
 ```
 
 The arrows show dependencies, not a required workflow. Developer, Learning, and
-Observer do not become phases of one larger product.
-
-## Install
-
-Requires [Pi](https://pi.dev) and Node.js 22.19 or newer.
-
-```sh
-pi install npm:@hobin/developer
-pi install npm:@hobin/learning
-pi install npm:@hobin/observer
-```
-
-Try a package for one run:
-
-```sh
-pi -e npm:@hobin/developer
-```
-
-Use `-l` for a project-local install recorded in `.pi/settings.json`:
-
-```sh
-pi install -l npm:@hobin/learning
-```
-
-`@hobin/judgment` is a library and CLI, not a Pi user interface:
-
-```sh
-npm install @hobin/judgment
-```
+Observer remain separate products.
 
 ## Which package should I choose?
 
@@ -72,13 +73,32 @@ npm install @hobin/judgment
 | Review an exact Markdown batch before saving it locally | Observer |
 | Add policy, provenance, selection, sealing, and coverage to another adapter | Judgment |
 
-## Design boundaries
+## Installation scope
+
+Use `-l` to record a package in project-local `.pi/settings.json`:
+
+```sh
+pi install -l npm:@hobin/learning
+```
+
+Do not install the repository root expecting all four packages to register. The
+root has no combined Pi manifest. Install a published package individually, or
+run an exact package directory from a source checkout:
+
+```sh
+pi -e ./packages/developer
+```
+
+This prevents a monorepo checkout from silently changing which extensions or
+Skills a user receives.
+
+## Package boundaries
 
 ```mermaid
 flowchart TB
   subgraph Pi-facing packages
     D[Developer\njudgment + mutation authority]
-    L[Learning\nfive independent skills]
+    L[Learning\nfive independent Skills]
     O[Observer\ninquiry + notebook publication]
   end
 
@@ -87,7 +107,7 @@ flowchart TB
   end
 
   subgraph Host
-    P[Pi\ntools, sessions, skills, UI]
+    P[Pi\ntools, sessions, Skills, UI]
   end
 
   P --> D
@@ -97,7 +117,7 @@ flowchart TB
   O --> J
 ```
 
-- **Judgment** has no Pi Skill, command, tool, prompt, or UI.
+- **Judgment** registers no Pi Skill, command, tool, prompt, or UI.
 - **Developer** owns its questions, workbench, tool gating, authorization, and
   landing protocol.
 - **Learning** owns no persistent learning session or notebook.
@@ -111,15 +131,26 @@ flowchart TB
 ```text
 packages/
 ├── judgment/   reusable engine, schema, API, and CLI
-├── developer/  Pi extension, workbench, protocol, and eleven skills
-├── learning/   Pi chooser and five independent learning skills
+├── developer/  Pi extension, workbench, protocol, and eleven Skills
+├── learning/   Pi chooser and five independent learning Skills
 └── observer/   Pi sidecar, inquiry workbench, and notebook publisher
 ```
 
-Every package README is the consumer landing page. Its `docs/` directory contains
-mechanism and maintainer detail.
+Repository-wide scripts coordinate checks only. Runtime ownership and package
+resources remain inside each package.
 
-## Develop
+## Documentation languages
+
+English is the default GitHub, npm, and Pi-gallery landing language. Korean is a
+first-class sibling translation:
+
+- repository and package landing pages: `README.md` and `README.ko.md`;
+- detailed package documentation: `docs/*.md` and mirrored `docs/ko/*.md`;
+- a language switch appears at the top of every translated document.
+
+Update an English/Korean pair together when behavior or boundaries change.
+
+## Development
 
 This is a private pnpm workspace. Package versions and publication are managed
 independently.
