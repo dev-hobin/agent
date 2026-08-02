@@ -5,14 +5,15 @@ development, source-grounded learning, and local-first observation without one
 universal workflow.
 
 This repository is a pnpm monorepo. The repository root is for development only;
-each directory under `packages/` is an independently installable and publishable
-Pi package.
+each directory under `packages/` is an independently publishable package;
+Developer, Learning, and Observer expose Pi resources while Judgment is their
+side-effect-free engine dependency.
 
 ## Packages
 
 | Package | What it adds | Start here |
 | --- | --- | --- |
-| [`@hobin/judgment@0.1.0`](./packages/judgment) | Minimal optional authoring policy, dynamic context selection/sealing/contribution core, and generic Pi runtime | `/skill:judgment` or its tools |
+| [`@hobin/judgment@0.1.0`](./packages/judgment) | Optional policy authoring, dynamic context selection/sealing, contribution coverage, and adapter APIs without Pi side effects | npm API or `judgment check` |
 | [`@hobin/developer@0.1.17`](./packages/developer) | A branch-aware judgment workbench, eleven independently routed skills, strict mutation gating, and inspectable Pi-native state | `/developer on` |
 | [`@hobin/learning@0.1.1`](./packages/learning) | Five independently complete source-grounded learning skills and an optional TUI chooser | `/learning` or a normal learning request |
 | [`@hobin/observer@0.1.6`](./packages/observer) | Local-first inquiry observation, Memo reconciliation, proposal review, and explicit Notebook publication | `/observer` |
@@ -36,7 +37,6 @@ Requirements:
 Install packages globally for your Pi user profile:
 
 ```sh
-pi install npm:@hobin/judgment
 pi install npm:@hobin/developer
 pi install npm:@hobin/learning
 pi install npm:@hobin/observer
@@ -45,7 +45,6 @@ pi install npm:@hobin/observer
 Or try a package for one run without adding it to settings:
 
 ```sh
-pi -e npm:@hobin/judgment
 pi -e npm:@hobin/developer
 pi -e npm:@hobin/learning
 pi -e npm:@hobin/observer
@@ -78,12 +77,14 @@ implementation tools.
 `@hobin/learning` provides optional discovery UI but does not claim a persistent
 learning phase, completion percentage, notebook, graph, or persistence owner.
 
-`@hobin/judgment` is the neutral foundation for contextual selection and
-judgment. It separates Pi's available skill/tool environment from explicit
-current-branch nomination, selected and sealed material, contribution coverage,
-and optional closure. Developer and Observer bundle only the core they own without
-exposing nested generic Pi resources; Learning compiles deterministic Context
-Directions at development time and remains stateless.
+`@hobin/judgment` is the neutral, side-effect-free engine for contextual
+selection and judgment. It separates Pi's available Skill/tool environment from
+explicit current-branch nomination, selected and sealed material, contribution
+coverage, and optional closure. Developer consumes it as an ordinary dependency
+and admits nominated external Skill methods and optional `judgment.json`
+references into one Developer lifecycle. Observer uses only its exact utility
+surface; Learning compiles deterministic Context Directions at development time
+and remains stateless.
 
 See each package README for commands, examples, state semantics, and boundaries.
 
@@ -96,8 +97,8 @@ repository:
 - Developer can change Pi's active built-in tool set while its protocol is on.
 - Observer can publish only an explicitly reviewed, validated Notebook batch.
 - Learning's chooser prepares prompts but owns no persistence protocol.
-- Judgment loads only a selected skill's optional policy and reads prepared
-  references only after explicit nomination through its bounded adapter.
+- Judgment itself registers no Pi resources; adapters load only nominated Skill
+  policies and read prepared references after explicit selection.
 - No package is a security sandbox.
 
 See the [Pi package security and installation
@@ -108,11 +109,9 @@ model](https://pi.dev/docs/latest/packages) for host-level behavior.
 ```sh
 pi list
 pi config
-pi update npm:@hobin/judgment
 pi update npm:@hobin/developer
 pi update npm:@hobin/learning
 pi update npm:@hobin/observer
-pi remove npm:@hobin/judgment
 pi remove npm:@hobin/developer
 pi remove npm:@hobin/learning
 pi remove npm:@hobin/observer
@@ -126,7 +125,7 @@ version, such as `npm:@hobin/developer@0.1.17`, when you want it pinned.
 ```text
 agent/
 ├── packages/
-│   ├── judgment/    # neutral core, generic extension, schema/docs, tests
+│   ├── judgment/    # side-effect-free engine, schema, CLI, docs, tests
 │   ├── developer/   # extension, v7 protocol, migration docs, TUI, skills, evals
 │   ├── learning/    # chooser, independent skills, guidance specs, tests
 │   └── observer/    # observation, inquiry, Memo, save, TUI, tests, evals
@@ -169,20 +168,19 @@ After installing workspace dependencies, load a package directly into Pi during
 development:
 
 ```sh
-pi -e ./packages/judgment
 pi -e ./packages/developer
 pi -e ./packages/learning
 pi -e ./packages/observer
 ```
 
-The packages are versioned and published independently. Publish
-`@hobin/judgment@0.1.0` before dependent domain packages. Domain source
-manifests use the exact `workspace:0.1.0` protocol so local development cannot
-silently resolve a registry copy. The pinned pnpm `pack` and `publish` commands
-rewrite that protocol to `0.1.0` and bundle Judgment for Pi installation. Direct
-`npm pack` or `npm publish` is therefore not a supported maintainer path. pnpm
-requires the workspace's hoisted linker when packing `bundledDependencies`;
-source-level package isolation remains enforced by `pnpm check:isolation`.
+The packages are versioned and published independently. Publish the
+side-effect-free `@hobin/judgment@0.1.0` engine before dependent domain
+packages. Domain source manifests use `workspace:^0.1.0`; the pinned pnpm
+`pack` and `publish` commands rewrite it to the ordinary public `^0.1.0` range.
+Judgment is an ordinary dependency rather than bundled Pi resources, so pnpm's
+default isolated linker remains supported. Direct `npm pack` or `npm publish`
+is not the maintainer release path. Source-level package isolation remains
+enforced by `pnpm check:isolation`.
 
 ## License
 

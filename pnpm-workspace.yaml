@@ -1,7 +1,5 @@
 packages:
   - "packages/*"
-# pnpm pack requires this linker for bundledDependencies.
-nodeLinker: hoisted
 allowBuilds:
   "@google/genai": false
   esbuild: true
