@@ -1,78 +1,35 @@
 # @hobin/judgment
 
-> **Development status:** first-public `0.1.0` remains private pending an
-> explicitly approved publication from the real committed clean worktree.
+A side-effect-free engine for turning exact context into an inspectable,
+task-specific judgment.
 
-`@hobin/judgment` is a side-effect-free engine for composing task-specific
-judgment from exact internal and external context.
+Judgment is for adapter authors. It provides policy parsing, dynamic questions,
+context inventory, exact selection and sealing, contribution coverage, and
+contextual outcomes without registering any Pi command, Skill, tool, prompt, or
+UI.
 
-```text
-optional judgment.json
-→ externally supplied PolicyOwner
-→ CompiledJudgmentPolicy
-→ DynamicJudgmentQuestion
-→ ContextInventory + ObservedContext
-→ ContextSelection + SealedContext
-→ ContextContribution + ContextCoverage
-→ ContextualJudgment | NeedsEvidence | EmergentQuestion
+## Install
+
+```sh
+npm install @hobin/judgment
 ```
 
-The package registers no Pi Skill, extension, tool, prompt, command, or UI.
-Domain adapters own those product surfaces and use this engine as an ordinary
-dependency.
+The package also ships the `judgment` authoring CLI:
 
-Judgment owns exact parsing, policy identity, provenance, selection, sealing,
-coverage, and optional closure. It does not rank Skills, crawl foreign
-resources, choose a domain method, authorize mutation, or manufacture evaluator
-or user authority.
-
-## Documentation
-
-- [Judgment Authoring Policy Schema 0.1](./docs/authoring-schema-v0.1.md)
-- [Runtime Flow](./docs/runtime-flow.md)
-- [Compiled Policy and Runtime](./docs/compiled-policy-and-runtime.md)
-- [Runtime Integration](./docs/runtime-integration.md)
-- [External Context Composition](./docs/external-context-composition.md)
-
-## Authoring policy
-
-A capability uses `judgment.json` when conditional packaged references can
-materially change a caller's dynamic judgment.
-
-```json
-{
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
-  "specVersion": "0.1",
-  "when": [
-    "Caller-facing operations, ownership, or data flow still need an implementation shape."
-  ],
-  "unless": [
-    "A concrete candidate already exists and only its stability must be reviewed."
-  ],
-  "references": [
-    {
-      "path": "references/boundaries.md",
-      "when": [
-        "A dependency boundary needs explicit caller, owner, hidden-mechanism, and direction distinctions."
-      ]
-    }
-  ]
-}
+```sh
+npx judgment check path/to/judgment.json
+npx judgment explain path/to/judgment.json
+npx judgment compile path/to/judgment.json
 ```
 
-Root `unless` wins. References are independent candidates, never mandatory or
-authoritative by catalog membership.
+Do not install Judgment expecting a Pi workflow. Its `pi` manifest is empty so it
+registers no Pi resources. Install a Pi-facing adapter when you want an
+interactive product.
 
-```text
-judgment.json absent  → normal complete Skill or context source
-valid file             → policy-aware prepared-reference selection
-present invalid file   → explicit fail-closed diagnostic
-```
+## Try this first
 
-The caller supplies exact owner provenance. Authors do not write runtime
-questions, assurances, source graphs, tool catalogs, or generated identities.
-
-## Engine API
+A policy says when a capability applies and when each packaged reference may add
+something useful. The caller supplies the capability's real identity.
 
 ```ts
 import {
@@ -83,7 +40,7 @@ import {
   parsePolicyOwner,
 } from "@hobin/judgment";
 
-const policy = parseJudgmentAuthoringPolicyJson(source);
+const policy = parseJudgmentAuthoringPolicyJson(policyJson);
 const owner = parsePolicyOwner(
   decodePolicyOwnerData(
     jsonValueFromUnknown({
@@ -99,70 +56,100 @@ const owner = parsePolicyOwner(
     }),
   ),
 );
+
 const compiled = compileJudgmentPolicy({ owner, policy });
+console.log(compiled.policySha256);
 ```
 
-External and persisted representations are parsed into immutable,
-invariant-carrying values. A successful parse returns the stronger
-representation; validation followed by an unchecked assertion is not an engine
-boundary.
+External representations cross parsers and return immutable values carrying the
+invariants learned at that boundary. Judgment does not validate raw input and
+then recover discarded information with a cast.
 
-Use `@hobin/judgment/node` for optional contained policy loading, physical
-reference containment, fatal UTF-8 handling, byte bounds, and atomic sealing.
-Use `@hobin/judgment/pi-context` to adapt Pi-visible Skill descriptors, context
-files, tools, and active-branch observations into engine inputs without
-registering Pi resources.
+## What it does
 
-## External Context Composition
-
-One adapter-owned judgment may admit zero, one, or several nominated context
-Skills.
-
-```text
-Pi-visible Skill descriptors
-→ agent nominates relevant sources
-→ adapter opens bounded SKILL.md and optional judgment.json
-→ policy is visible before source applicability
-→ applicable prepared references join one inventory
-→ one exact selection/sealing/coverage/outcome
+```mermaid
+flowchart LR
+  P[optional judgment.json] --> C[compiled owner-bound policy]
+  C --> Q[dynamic question]
+  Q --> I[context inventory]
+  I --> S[selection + atomic seal]
+  S --> V[contribution coverage]
+  V --> O[contextual outcome]
 ```
 
-The engine does not scan every co-located policy. Adapters open only exact
-nominated sources. A Skill may be a primary capability in one request and an
-external method, constraint, evidence source, or guidance source in another.
+| Capability | What Judgment guarantees |
+| --- | --- |
+| Policy authoring | Exact `when`, winning `unless`, and independent reference conditions |
+| Owner binding | A policy cannot replace the owner supplied by its adapter |
+| Context inventory | Prepared and observed sources keep distinct identities and provenance |
+| Selection | Only exact nominations enter the selected set |
+| Sealing | Content is bounded, contained, hashed, and committed atomically with selection |
+| Coverage | Every usable selected item has a concrete role and contribution |
+| Assurance | Agent, domain-evaluator, and user authority remain distinct |
+| Outcome | Conclusions cite contribution identities and preserve limitations |
 
-## Guarantees
+## One question, many context sources
 
-- `$schema` and representation-only array order do not alter semantic identity.
-- Selected descriptor/content drift fails; unrelated inventory growth does not.
-- Selection and sealing commit atomically.
-- Active-branch observations retain call/result and content identity.
-- Error or truncated results cannot become selected positive context.
-- Every usable selected material contributes through `constraint`, `evidence`,
-  `decision`, `method`, or `guidance`.
-- `domain-verified` requires matching typed evaluator evidence.
-- `user-accepted` requires a matching selected user event.
-- Sufficient coverage cannot retain conflicts.
-- Outcomes cite contribution identity rather than catalog membership.
+An adapter may use one primary capability and zero or more external Pi Skills as
+context providers:
 
-## Schema and command line
-
-The authoring schema is exported as `@hobin/judgment/schema`.
-
-```bash
-judgment check path/to/judgment.json
-judgment compile path/to/judgment.json
-judgment explain path/to/judgment.json
+```mermaid
+flowchart TD
+  Q[One dynamic question] --> O[Owning capability]
+  Q --> E1[External Skill A]
+  Q --> E2[External Skill B]
+  Q --> B[Active-branch observations]
+  O & E1 & E2 & B --> S[One selection and seal]
+  S --> C[One coverage assessment]
+  C --> R[One outcome]
 ```
 
-The CLI is author tooling and does not activate Pi behavior.
+Judgment never crawls every Skill. The adapter first exposes lightweight Skill
+descriptors; the agent nominates candidates; only those exact `SKILL.md` and
+optional `judgment.json` files are opened. A context Skill does not create a
+second Judgment lifecycle.
+
+## Package exports
+
+| Export | Use |
+| --- | --- |
+| `@hobin/judgment` | Policy, question, context, coverage, lifecycle, and outcome types/parsers |
+| `@hobin/judgment/node` | Contained file readers and bounded atomic context sealing |
+| `@hobin/judgment/pi-context` | Pi descriptor/observation adapters and `ContextAttempt` |
+| `@hobin/judgment/schema` | JSON Schema for `judgment.json` |
+
+## What it deliberately does not do
+
+Judgment does not:
+
+- choose or rank a domain capability;
+- crawl Skills, policies, or references;
+- own a Pi session protocol, UI, or persistence format;
+- authorize code mutation;
+- treat reference availability as relevance or completeness;
+- turn generic model prose into domain-verified or user-accepted authority.
+
+Those responsibilities stay with the adapter that owns the user workflow.
+
+## Documentation
+
+| Document | For |
+| --- | --- |
+| [Architecture](./docs/architecture.md) | Understanding the engine's data model, lifecycle, and identity chain |
+| [Policy authoring](./docs/policy-authoring.md) | Writing and checking optional `judgment.json` files |
+| [Adapter guide](./docs/adapter-guide.md) | Integrating one or many context providers into an owning workflow |
+| [Security and invariants](./docs/security-and-invariants.md) | Containment, drift, assurance, and fail-closed behavior |
 
 ## Development
 
-```bash
+```sh
 pnpm --filter @hobin/judgment check
-pnpm pack --dry-run
+pnpm --filter @hobin/judgment pack
 ```
 
-Publication still requires explicit approval, a committed clean worktree, and
-deliberate removal of the private release guard.
+The generated `dist/index.mjs` and `bin/judgment.mjs` are deterministic build
+artifacts checked into the package.
+
+## License
+
+[MIT](./LICENSE)

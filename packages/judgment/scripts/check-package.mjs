@@ -82,11 +82,10 @@ await assert.rejects(access(join(root, "schemas/judgment.schema.json")));
 
 const markdownPaths = [
 	"README.md",
-	"docs/compiled-policy-and-runtime.md",
-	"docs/runtime-integration.md",
-	"docs/runtime-flow.md",
-	"docs/authoring-schema-v0.1.md",
-	"docs/external-context-composition.md",
+	"docs/architecture.md",
+	"docs/policy-authoring.md",
+	"docs/adapter-guide.md",
+	"docs/security-and-invariants.md",
 ];
 const markdown = new Map();
 for (const path of markdownPaths) {
@@ -97,10 +96,10 @@ for (const path of markdownPaths) {
 		await readFile(join(dirname(join(root, path)), match[1]), "utf8");
 	}
 }
-const authoring = markdown.get("docs/authoring-schema-v0.1.md");
+const authoring = markdown.get("docs/policy-authoring.md");
 assert.equal(typeof authoring, "string");
 const example = authoring.match(
-	/## Canonical authored shape\s*```json\s*([^]*?)```/u,
+	/## Complete example\s*```json\s*([^]*?)```/u,
 )?.[1];
 assert.ok(example);
 const parsed = parseJudgmentAuthoringPolicyJson(example);
@@ -110,7 +109,7 @@ assert.ok(parsed.unless.length > 0);
 assert.ok(parsed.references.length > 0);
 const readme = markdown.get("README.md");
 assert.match(readme, /side-effect-free engine/u);
-assert.match(readme, /External Context Composition/u);
+assert.match(readme, /One question, many context sources/u);
 assert.doesNotMatch(readme, /Direct Pi package/u);
 const cli = await readFile(join(root, "bin/judgment.mjs"), "utf8");
 for (const command of ["check", "compile", "explain"]) {

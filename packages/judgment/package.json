@@ -1,7 +1,7 @@
 {
   "name": "@hobin/judgment",
   "version": "0.1.0",
-  "description": "Composable contextual judgment engine and policy authoring tools.",
+  "description": "A side-effect-free engine for policy-aware context selection, sealing, coverage, and outcomes.",
   "type": "module",
   "private": true,
   "publishConfig": {
