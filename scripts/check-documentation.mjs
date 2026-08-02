@@ -64,16 +64,16 @@ for (const pair of pairs) {
 		/^# .+\n\n\[English\]\([^\n]+\) \| 한국어/u,
 		`Missing Korean-to-English language switch: ${pair.korean}`,
 	);
-	for (const [label, pattern] of [
-		["code fences", /^```/gmu],
-		["Mermaid diagrams", /^```mermaid$/gmu],
-	]) {
-		assert.equal(
-			count(korean, pattern),
-			count(english, pattern),
-			`${label} must match between ${pair.english} and ${pair.korean}.`,
-		);
-	}
+	assert.equal(
+		count(korean, /^```/gmu),
+		count(english, /^```/gmu),
+		`Code fences must match between ${pair.english} and ${pair.korean}.`,
+	);
+	assert.doesNotMatch(
+		`${english}\n${korean}`,
+		/^```mermaid$/gmu,
+		`Documentation should explain the mechanism directly instead of relying on Mermaid: ${pair.english}.`,
+	);
 	await Promise.all([
 		checkLocalLinks(pair.english, english),
 		checkLocalLinks(pair.korean, korean),
