@@ -59,6 +59,7 @@ assert.deepEqual(manifest.files, [
 	"src",
 	"docs",
 	"README.md",
+	"README.ko.md",
 	"LICENSE",
 ]);
 assert.deepEqual(manifest.exports, { ".": "./src/index.ts" });
@@ -100,11 +101,24 @@ assert.deepEqual(
 	loaded.skills.map((skill) => skill.name).sort(),
 	expectedSkills,
 );
+const englishDocNames = (await readdir(join(root, "docs"), {
+	withFileTypes: true,
+}))
+	.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+	.map((entry) => entry.name)
+	.sort();
+const koreanDocNames = (await readdir(join(root, "docs/ko"), {
+	withFileTypes: true,
+}))
+	.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+	.map((entry) => entry.name)
+	.sort();
+assert.deepEqual(koreanDocNames, englishDocNames);
 const markdownDocuments = [
 	"README.md",
-	...(await readdir(join(root, "docs"), { withFileTypes: true }))
-		.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-		.map((entry) => `docs/${entry.name}`),
+	"README.ko.md",
+	...englishDocNames.map((name) => `docs/${name}`),
+	...koreanDocNames.map((name) => `docs/ko/${name}`),
 ];
 
 for (const skillName of skillNames) {
@@ -198,13 +212,17 @@ for (const documentPath of markdownDocuments) {
 }
 
 const readme = await readFile(join(root, "README.md"), "utf8");
-for (const path of [
-	"docs/user-guide.md",
-	"docs/architecture.md",
-	"docs/context-and-evidence.md",
-	"docs/runtime-protocol.md",
-])
+const documentedGuides = [
+	"user-guide.md",
+	"architecture.md",
+	"context-and-evidence.md",
+	"runtime-protocol.md",
+];
+for (const path of documentedGuides.map((name) => `docs/${name}`))
 	assert.match(readme, new RegExp(path.replaceAll("/", "\\/"), "u"));
+const koreanReadme = await readFile(join(root, "README.ko.md"), "utf8");
+for (const path of documentedGuides.map((name) => `docs/ko/${name}`))
+	assert.match(koreanReadme, new RegExp(path.replaceAll("/", "\\/"), "u"));
 assert.match(readme, /Try this first/u);
 assert.match(readme, /External Skill context/u);
 

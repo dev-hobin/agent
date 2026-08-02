@@ -1,5 +1,7 @@
 # Developer architecture
 
+English | [한국어](./ko/architecture.md)
+
 **Audience:** maintainers and reviewers.
 
 Developer is a Pi adapter around one branch-local state machine. It combines

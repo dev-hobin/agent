@@ -28,6 +28,7 @@
     "src",
     "docs",
     "README.md",
+    "README.ko.md",
     "LICENSE"
   ],
   "engines": {

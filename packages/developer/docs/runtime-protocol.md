@@ -1,5 +1,7 @@
 # Developer runtime protocol
 
+English | [한국어](./ko/runtime-protocol.md)
+
 **Audience:** maintainers, automation authors, and reviewers of persisted session
 behavior.
 

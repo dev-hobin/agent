@@ -1,5 +1,7 @@
 # Context and evidence
 
+English | [한국어](./ko/context-and-evidence.md)
+
 **Audience:** users who need auditability and maintainers changing Skill policies
 or context integration.
 
