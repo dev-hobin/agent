@@ -1,5 +1,7 @@
 # Adapter guide
 
+English | [한국어](./ko/adapter-guide.md)
+
 **Audience:** maintainers integrating Judgment into a stateful Pi extension,
 build-time generator, or typed domain sidecar.
 

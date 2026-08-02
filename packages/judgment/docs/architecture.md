@@ -1,5 +1,7 @@
 # Judgment architecture
 
+English | [한국어](./ko/architecture.md)
+
 **Audience:** adapter authors and maintainers.
 
 Judgment is a reusable decision engine. It owns the representation and

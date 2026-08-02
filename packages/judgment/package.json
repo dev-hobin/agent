@@ -33,6 +33,7 @@
     "dist",
     "bin",
     "README.md",
+    "README.ko.md",
     "LICENSE"
   ],
   "bin": {

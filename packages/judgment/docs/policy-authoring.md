@@ -1,5 +1,7 @@
 # Policy authoring
 
+English | [한국어](./ko/policy-authoring.md)
+
 **Audience:** Skill authors and package maintainers.
 
 A `judgment.json` file has two jobs:

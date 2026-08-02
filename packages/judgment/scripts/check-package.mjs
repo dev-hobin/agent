@@ -28,6 +28,7 @@ assert.deepEqual(manifest.files, [
 	"dist",
 	"bin",
 	"README.md",
+	"README.ko.md",
 	"LICENSE",
 ]);
 assert.deepEqual(manifest.bin, { judgment: "./bin/judgment.mjs" });
@@ -80,13 +81,14 @@ assert.deepEqual(
 );
 await assert.rejects(access(join(root, "schemas/judgment.schema.json")));
 
-const markdownPaths = [
-	"README.md",
+const englishDocs = [
 	"docs/architecture.md",
 	"docs/policy-authoring.md",
 	"docs/adapter-guide.md",
 	"docs/security-and-invariants.md",
 ];
+const koreanDocs = englishDocs.map((path) => path.replace("docs/", "docs/ko/"));
+const markdownPaths = ["README.md", "README.ko.md", ...englishDocs, ...koreanDocs];
 const markdown = new Map();
 for (const path of markdownPaths) {
 	const source = await readFile(join(root, path), "utf8");

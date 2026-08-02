@@ -1,5 +1,7 @@
 # @hobin/judgment
 
+English | [한국어](./README.ko.md)
+
 A side-effect-free engine for turning exact context into an inspectable,
 task-specific judgment.
 

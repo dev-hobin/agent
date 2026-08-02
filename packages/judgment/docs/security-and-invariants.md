@@ -1,5 +1,7 @@
 # Security and invariants
 
+English | [한국어](./ko/security-and-invariants.md)
+
 **Audience:** adapter authors, reviewers, and maintainers.
 
 Judgment preserves evidence identity and workflow integrity. It is not a sandbox,
