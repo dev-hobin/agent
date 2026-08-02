@@ -59,16 +59,17 @@ Developer가 모델에 알려 줍니다.
 따라서 landing은 “이 승인 아래 이 파일들이 바뀌었다”는 기록이지 “작업 완료”라는
 표시가 아닙니다.
 
-전체 예시는 [Developer 동작 방식](./docs/ko/how-it-works.md)에서 볼 수 있습니다.
+이 구분이 branch event replay, state transition, tool projection으로 실제 강제되는 방식은
+[Developer의 동작 원리](./docs/ko/how-it-works.md)에서 설명합니다.
 
 ## 도구가 열리는 때
 
 | 현재 상태 | `bash` | Built-in `edit` / `write` |
 | --- | --- | --- |
-| Developer가 켜졌지만 idle | 요청에서 이미 알려진 범위만 조사 | 닫힘 |
+| Developer가 켜졌지만 idle | 닫힘 | 닫힘 |
 | 판단 진행 중 | 근거를 찾는 데 사용 가능 | 닫힘 |
 | 변경 승인됨 | 사용 가능 | 승인한 변경 범위에서 사용 가능 |
-| Landing 기록됨 | 다음 판단에 필요한 만큼만 사용 | 다시 닫힘 |
+| Landing 기록됨 | 다음 판단을 열 때까지 닫힘 | 다시 닫힘 |
 
 이 기능은 작업 순서를 지키게 하는 장치이지 운영체제 sandbox가 아닙니다. Shell
 command와 다른 extension은 여전히 Pi 프로세스 권한으로 실행됩니다.
@@ -127,8 +128,8 @@ session event나 파일을 만들지 않습니다.
 
 ## 문서
 
-- [Developer 동작 방식](./docs/ko/how-it-works.md) — 질문부터 변경 승인, landing,
-  검증까지 이어지는 실제 예
+- [Developer의 동작 원리](./docs/ko/how-it-works.md) — branch replay, authority
+  transition, tool projection, context basis, verification debt
 - [사용자 가이드](./docs/ko/user-guide.md) — 명령, 질문, 복구 방법
 - [Runtime protocol](./docs/ko/runtime-protocol.md) — maintainer를 위한 정확한
   operation과 replay 규칙

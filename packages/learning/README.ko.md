@@ -80,8 +80,8 @@ method와 directions를 모델에 보여 줄 뿐입니다.
 ## 문서
 
 - [Skill 고르기](./docs/ko/choosing-a-skill.md) — 다섯 결과를 구분하는 기준
-- [Learning 동작 방식](./docs/ko/how-it-works.md) — 선택기, Skill loading, 참고 자료,
-  저장 경계
+- [Learning의 동작 원리](./docs/ko/how-it-works.md) — Pi resource discovery,
+  editor staging, prompt-time Skill 실행, authoring/runtime 경계
 
 ## 개발
 

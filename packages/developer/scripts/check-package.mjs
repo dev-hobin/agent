@@ -230,11 +230,12 @@ assert.match(readme, /External Skill context/u);
 
 const howItWorks = await readFile(join(root, "docs/how-it-works.md"), "utf8");
 for (const term of [
-	"Gather evidence without editing",
-	"Close the judgment with its evidence",
-	"Authorize one bounded change",
-	"Record the landing",
-	"Verify the completion claim separately",
+	"Branch events, not a mutable singleton",
+	"State projects the next operations and tool access",
+	"A Skill owns a question",
+	"Authorization is a capability",
+	"Landing consumes authorization",
+	"Verify is a separate judgment",
 ])
 	assert.match(howItWorks, new RegExp(term, "u"));
 

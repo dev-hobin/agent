@@ -61,7 +61,8 @@ to publish it.
 7. `/observer review` prepares a complete Notebook proposal.
 8. Explicit approval stages, publishes, reads back, and settles the entire batch.
 
-See [How Observer works](./docs/how-it-works.md) for the exact runtime flow.
+See [Observer operating principles](./docs/how-it-works.md) for branch replay,
+typed relations, staged commit, and Notebook publication mechanics.
 
 ## Three ways to start inquiry work
 
@@ -133,8 +134,8 @@ recovery state rather than overwriting unknown changes.
 
 ## Documentation
 
-- [How Observer works](./docs/how-it-works.md) — candidate capture, SourceReads,
-  observations, Memos, and processing
+- [Observer operating principles](./docs/how-it-works.md) — branch replay,
+  capture windows, typed relations, staged commit, and publication
 - [User guide](./docs/user-guide.md) — setup, commands, and recovery
 - [Notebook publication](./docs/notebook-publication.md) — record rules and the
   save transaction

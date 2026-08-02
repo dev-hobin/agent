@@ -58,16 +58,17 @@ Suppose the request leaves one product rule unclear.
 A landing is therefore “these files changed under this authorization,” not “the
 task is complete.”
 
-See [How Developer works](./docs/how-it-works.md) for a complete walkthrough.
+See [Developer operating principles](./docs/how-it-works.md) for the branch
+replay, state transitions, and tool projection that enforce this separation.
 
 ## Tool access
 
 | Current state | `bash` | Built-in `edit` / `write` |
 | --- | --- | --- |
-| Developer enabled but idle | Restricted to already known context | Withheld |
+| Developer enabled but idle | Withheld | Withheld |
 | Active judgment | Available for evidence gathering | Withheld |
 | Authorized change | Available | Available for the bounded movement |
-| Landing recorded | Available only as the next judgment requires | Withheld again |
+| Landing recorded | Withheld until the next judgment opens | Withheld again |
 
 This is workflow gating, not an operating-system sandbox. Shell commands and
 third-party extensions still run with Pi's process permissions.
@@ -126,8 +127,8 @@ copying a record does not append events or write files.
 
 ## Documentation
 
-- [How Developer works](./docs/how-it-works.md) — one request from question to
-  authorization, landing, and verification
+- [Developer operating principles](./docs/how-it-works.md) — branch replay,
+  authority transitions, tool projection, context basis, and verification debt
 - [User guide](./docs/user-guide.md) — commands, questions, and recovery
 - [Runtime protocol](./docs/runtime-protocol.md) — exact operations and replay
   rules for maintainers

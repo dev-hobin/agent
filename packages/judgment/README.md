@@ -55,7 +55,8 @@ The result includes stable identities for the question, selection, sealed
 content, coverage, and outcome. Those hashes detect drift; they do not prove that
 a source or conclusion is true.
 
-See [How Judgment works](./docs/how-it-works.md) for a concrete example.
+See [Judgment operating principles](./docs/how-it-works.md) for the immutable
+value pipeline, acquisition boundary, identity chain, and coverage rules.
 
 ## Optional policy
 
@@ -107,8 +108,8 @@ must decide what the outcome permits and how it is shown or stored.
 
 ## Documentation
 
-- [How Judgment works](./docs/how-it-works.md) — the values and transitions in one
-  complete attempt
+- [Judgment operating principles](./docs/how-it-works.md) — refined values,
+  identity chain, atomic sealing, and contribution coverage
 - [Policy authoring](./docs/policy-authoring.md) — exact `judgment.json` rules
 - [Adapter guide](./docs/adapter-guide.md) — integrating the engine into a host
 

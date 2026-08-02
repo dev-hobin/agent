@@ -62,7 +62,8 @@ Pi와 평소처럼 작업하면 됩니다.
 8. 사용자가 승인하면 전체 batch를 stage하고, publish하고, 다시 읽어 확인한 뒤
    Episode를 끝냅니다.
 
-세부 흐름은 [Observer 동작 방식](./docs/ko/how-it-works.md)에 설명합니다.
+이 표현들이 branch event, typed relation, staged commit, publication transaction으로
+이어지는 원리는 [Observer의 동작 원리](./docs/ko/how-it-works.md)에 설명합니다.
 
 ## 탐구를 시작하는 세 가지 방법
 
@@ -135,8 +136,8 @@ rollback하고, 다른 process가 바꾼 byte를 덮어쓸 수 있다면 복구�
 
 ## 문서
 
-- [Observer 동작 방식](./docs/ko/how-it-works.md) — candidate capture,
-  SourceRead, observation, Memo, processing
+- [Observer의 동작 원리](./docs/ko/how-it-works.md) — branch replay, capture
+  window, typed relation, staged commit, publication transaction
 - [사용자 가이드](./docs/ko/user-guide.md) — setup, command, recovery
 - [Notebook 저장](./docs/ko/notebook-publication.md) — record 규칙과 save transaction
 

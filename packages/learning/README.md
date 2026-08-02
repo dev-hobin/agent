@@ -82,8 +82,9 @@ method and directions to the model as normal Skill content.
 
 - [Choosing a Skill](./docs/choosing-a-skill.md) — the distinction between the
   five results
-- [How Learning works](./docs/how-it-works.md) — chooser, Skill loading, optional
-  references, and saving
+- [Learning operating principles](./docs/how-it-works.md) — Pi resource
+  discovery, editor staging, prompt-time Skill execution, and the
+  authoring/runtime boundary
 
 ## Development
 

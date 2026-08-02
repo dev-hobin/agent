@@ -53,8 +53,8 @@ Judgment는 이 질문에 답할 수 있는 값을 만들어 호출자에게 돌
 Hash는 내용이 달라졌는지 확인하는 장치이지, 자료나 결론이 참이라는 증명은
 아닙니다.
 
-실제 값이 어떻게 이어지는지는 [Judgment 동작 방식](./docs/ko/how-it-works.md)에서
-예로 설명합니다.
+각 단계가 왜 별도의 immutable value인지, 선택과 원문 획득이 어떻게 분리되고 다시
+묶이는지는 [Judgment의 동작 원리](./docs/ko/how-it-works.md)에서 설명합니다.
 
 ## 선택적 정책 파일
 
@@ -107,7 +107,8 @@ Judgment는 어떤 기능을 쓸지 고르거나, 모든 Skill을 찾거나, 화
 
 ## 문서
 
-- [Judgment 동작 방식](./docs/ko/how-it-works.md) — 질문 하나가 처리되는 실제 순서
+- [Judgment의 동작 원리](./docs/ko/how-it-works.md) — 값의 정제, identity chain,
+  원자적 sealing, contribution coverage
 - [정책 작성](./docs/ko/policy-authoring.md) — `judgment.json`의 정확한 규칙
 - [Adapter 연결](./docs/ko/adapter-guide.md) — 다른 프로그램에 엔진을 넣는 방법
 
