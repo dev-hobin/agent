@@ -134,10 +134,10 @@ const report = await inspectPack();
 assert.equal(report.filename, "hobin-observer-0.1.6.tgz");
 assert.equal(
 	report.manifest.dependencies?.["@hobin/judgment"],
-	"0.1.0",
-	"pnpm pack must rewrite the workspace protocol to the public version.",
+	"^0.1.0",
+	"pnpm pack must rewrite the workspace protocol to the public range.",
 );
-assert.deepEqual(report.manifest.bundledDependencies, ["@hobin/judgment"]);
+assert.equal(report.manifest.bundledDependencies, undefined);
 const packagePaths = report.paths.filter(
 	(path) => !path.startsWith("node_modules/"),
 );
@@ -145,13 +145,10 @@ assert.deepEqual(packagePaths.toSorted(), EXPECTED_FILES.toSorted());
 const judgmentPaths = report.paths.filter((path) =>
 	path.startsWith("node_modules/@hobin/judgment/"),
 );
-assert.ok(
-	judgmentPaths.includes("node_modules/@hobin/judgment/package.json"),
-	"Observer pack must bundle the Judgment runtime dependency.",
-);
-assert.ok(
-	judgmentPaths.includes("node_modules/@hobin/judgment/dist/index.mjs"),
-	"Observer pack must bundle the executable Judgment public entry point.",
+assert.deepEqual(
+	judgmentPaths,
+	[],
+	"Observer must declare Judgment as an ordinary dependency, not bundle it.",
 );
 
 process.stdout.write(

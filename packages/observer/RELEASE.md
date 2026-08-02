@@ -44,7 +44,7 @@ pnpm run release:check
 pnpm publish --dry-run
 ```
 
-`release:check` must run from a clean tree. It executes the full package check, runs `pnpm pack`, and enforces the versioned filename, exact file allowlist, bundled Judgment files, and the packed manifest rewrite from `workspace:0.1.0` to `0.1.0`. Run it through the repository's pinned pnpm workspace: pnpm requires the configured hoisted linker to pack `bundledDependencies`.
+`release:check` must run from a clean tree. It executes the full package check, runs `pnpm pack`, and enforces the versioned filename, exact file allowlist, absence of bundled dependencies, and the packed manifest rewrite from `workspace:^0.1.0` to `^0.1.0`. Run it through the repository's pinned pnpm workspace with the default isolated linker.
 
 Inspect the diff from the last verified runtime commit. Release-only preparation must not hide runtime changes.
 

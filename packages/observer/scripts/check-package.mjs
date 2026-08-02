@@ -42,13 +42,13 @@ assert.equal(
 );
 assert.equal(manifest.scripts.prepublishOnly, "pnpm run release:check");
 assert.deepEqual(manifest.dependencies, {
-	"@hobin/judgment": "workspace:0.1.0",
+	"@hobin/judgment": "workspace:^0.1.0",
 	ajv: "^8.17.1",
 	"ajv-formats": "^3.0.1",
 	xstate: "5.32.5",
 	yaml: "^2.9.0",
 });
-assert.deepEqual(manifest.bundledDependencies, ["@hobin/judgment"]);
+assert.equal(manifest.bundledDependencies, undefined);
 assert.deepEqual(manifest.pi, {
 	extensions: ["./extensions/observer.ts"],
 });

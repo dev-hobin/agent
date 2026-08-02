@@ -104,7 +104,7 @@ semantic stance and movement remain `agent-asserted`, and user-owned policy
 requires an explicit user event. Coverage is assessed before
 `appendObservation` or Memo preparation. Missing or conflicting context blocks
 semantic mutation. Compact `ContextBasisData` travels in `observer_sidecar`
-details without copying source content or generic Judgment event lists.
+details without copying source content or reusable Judgment engine events.
 
 The public sidecar sequence is `record-source-reading`, optional
 `load-inquiry-context`, then `record-observation` (or the distinct independent
