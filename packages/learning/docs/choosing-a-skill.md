@@ -1,5 +1,7 @@
 # Choosing a Learning Skill
 
+English | [한국어](./ko/choosing-a-skill.md)
+
 The five Learning Skills are distinguished by the result you need, not by a
 mandatory study sequence.
 

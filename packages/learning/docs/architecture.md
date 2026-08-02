@@ -1,5 +1,7 @@
 # Learning architecture
 
+English | [한국어](./ko/architecture.md)
+
 **Audience:** users who need the package boundary and maintainers changing the
 chooser or Skill set.
 

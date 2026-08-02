@@ -1,5 +1,7 @@
 # @hobin/learning
 
+English | [한국어](./README.ko.md)
+
 Five independent Pi Skills for reading technical sources, studying repositories,
 forming concepts and patterns, and designing deliberate practice.
 

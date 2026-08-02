@@ -25,6 +25,7 @@
     "skills",
     "docs",
     "README.md",
+    "README.ko.md",
     "LICENSE"
   ],
   "publishConfig": {

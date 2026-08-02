@@ -39,6 +39,7 @@ assert.deepEqual(manifest.files, [
 	"skills",
 	"docs",
 	"README.md",
+	"README.ko.md",
 	"LICENSE",
 ]);
 assert.deepEqual(manifest.pi.extensions, ["./extensions/learning.ts"]);
@@ -78,12 +79,25 @@ assert.deepEqual(
 
 const codexSyntax =
 	/\$learning:|\$(?:technical-reading|opensource-reading|conceptualize|patternize|exercise)|learning:(?:technical-reading|opensource-reading|conceptualize|patternize|exercise)/;
+const englishDocNames = (await readdir(join(root, "docs"), {
+	withFileTypes: true,
+}))
+	.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+	.map((entry) => entry.name)
+	.sort();
+const koreanDocNames = (await readdir(join(root, "docs/ko"), {
+	withFileTypes: true,
+}))
+	.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+	.map((entry) => entry.name)
+	.sort();
+assert.deepEqual(koreanDocNames, englishDocNames);
 const markdownDocuments = [
 	"README.md",
+	"README.ko.md",
 	"references/skill-boundaries.md",
-	...(await readdir(join(root, "docs"), { withFileTypes: true }))
-		.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-		.map((entry) => `docs/${entry.name}`),
+	...englishDocNames.map((name) => `docs/${name}`),
+	...koreanDocNames.map((name) => `docs/ko/${name}`),
 ];
 
 for (const name of skills) {

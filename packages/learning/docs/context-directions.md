@@ -1,5 +1,7 @@
 # Context Directions
 
+English | [한국어](./ko/context-directions.md)
+
 **Audience:** maintainers of Learning Skills and their optional references.
 
 Every Learning Skill has a complete method in `SKILL.md`. A small
