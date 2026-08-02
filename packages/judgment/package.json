@@ -1,0 +1,91 @@
+{
+  "name": "@hobin/judgment",
+  "version": "0.1.0",
+  "description": "Context selection and replayable contextual judgment for Pi.",
+  "type": "module",
+  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "judgment",
+    "guidance"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dev-hobin/agent.git",
+    "directory": "packages/judgment"
+  },
+  "homepage": "https://github.com/dev-hobin/agent/tree/main/packages/judgment#readme",
+  "bugs": {
+    "url": "https://github.com/dev-hobin/agent/issues"
+  },
+  "files": [
+    "extensions",
+    "skills",
+    "schemas",
+    "docs",
+    "src",
+    "dist",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "judgment": "./bin/judgment.mjs"
+  },
+  "types": "./src/index.ts",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "check": "node scripts/build-cli.mjs --check && node scripts/build-public-api.mjs --check && node scripts/check-package.mjs && node --test tests/*.test.ts",
+    "eval": "node scripts/eval-rpc.mjs",
+    "schema:write": "node scripts/write-schema.mjs",
+    "cli:build": "node scripts/build-cli.mjs",
+    "api:build": "node scripts/build-public-api.mjs",
+    "prepack": "node scripts/build-cli.mjs --check && node scripts/build-public-api.mjs --check"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./node": {
+      "types": "./src/node/seal-context.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./pi-context": {
+      "types": "./extensions/pi-context.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./schema": "./schemas/judgment-authoring.schema.json"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/judgment.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  },
+  "dependencies": {}
+}
