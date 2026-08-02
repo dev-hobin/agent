@@ -11,6 +11,7 @@ import {
 	reconstructMemoInstructionSession,
 } from "../src/memo-instruction.ts";
 import { reconstructMemoSession } from "../src/memo-session.ts";
+import { decodePreparedMemoPass } from "../src/memo-profile.ts";
 import {
 	buildObservationMemoPreparationGuide,
 	hydrateObservationMemoContext,
@@ -36,6 +37,10 @@ import {
 	OBSERVER_LIFECYCLE_ENTRY,
 	type PiBranchEntryLike,
 } from "../src/pi-session.ts";
+import {
+	memoContextBasisDataFixture,
+	observationContextBasisFixture,
+} from "./fixtures/context-basis.ts";
 
 const EPISODE_ID = "episode-memo-trigger-1";
 const REQUEST_ID: MemoRequestId =
@@ -50,6 +55,17 @@ const USER_INQUIRY_ID = "inquiry-00000000-0000-4000-8000-000000000508";
 const EVIDENCE_ID = "evidence-00000000-0000-4000-8000-000000000509";
 const PASS_ID = "memo-pass-00000000-0000-4000-8000-000000000510";
 const INDEX_DIGEST = sha256Text("memo-trigger-empty-index");
+const BASE_OBSERVATION_CONTEXT_BASIS = await observationContextBasisFixture({
+	sourceReading: {
+		readingId: READ_ID,
+		episodeId: EPISODE_ID,
+		sourceId: SOURCE_ID,
+		faithfulSummary: "The source reports one bounded condition.",
+		claims: [{ text: "One bounded condition.", locator: "result" }],
+	},
+	inquiryContext: null,
+	relatedInquiryIds: [],
+});
 
 function custom(customType: string, data: unknown): PiBranchEntryLike {
 	return { type: "custom", customType, data };
@@ -142,6 +158,7 @@ function baseEntries(): {
 		movement: "uncertain-association",
 		rationale: "The condition may matter but does not yet revise an Inquiry.",
 		observer_hypothesis: null,
+		context_basis: BASE_OBSERVATION_CONTEXT_BASIS,
 	});
 	if (semantic.kind !== "semantic-observation-recorded") {
 		assert.fail("Expected semantic observation");
@@ -213,6 +230,35 @@ function requestedScenario(): {
 	});
 	if (!context.ok) assert.fail(context.issue.message);
 	return { entries, context: context.value };
+}
+
+async function decodeInstructionWithContext(
+	value: Record<string, unknown>,
+	context: ObservationMemoContext,
+) {
+	const pass = decodePreparedMemoPass(Reflect.get(value, "pass"));
+	if (!pass.ok) assert.fail(pass.issue.message);
+	const dispositions = Reflect.get(value, "dispositions");
+	if (!Array.isArray(dispositions)) assert.fail("Expected dispositions array");
+	const contextBasis = await memoContextBasisDataFixture({
+		scopeId: context.request.requestId,
+		episodeId: pass.value.episodeId,
+		basisDigest: pass.value.basisDigest,
+		relatedInquiryIds: pass.value.relatedInquiryIds,
+		knownEvidenceIds: [
+			...context.priorEvidenceIds,
+			...pass.value.evidence.map((evidence) => evidence.evidenceId),
+		].toSorted((left, right) => left.localeCompare(right)),
+		passDigest: pass.value.digest,
+		outcomeCount:
+			pass.value.hypothesisOutcomes.length + pass.value.memoOutcomes.length,
+		dispositionCount: dispositions.length,
+	});
+	return decodePreparedObservationMemoInstruction({
+		value,
+		context,
+		contextBasis,
+	});
 }
 
 function instructionRaw(
@@ -340,8 +386,19 @@ describe("pure Observation Memo trigger", () => {
 		]);
 	});
 
-	test("treats an Inquiry created by one requested Observation as pending when a later Observation relates to it", () => {
+	test("treats an Inquiry created by one requested Observation as pending when a later Observation relates to it", async () => {
 		const pendingInquiryId = "inquiry-00000000-0000-4000-8000-000000000530";
+		const firstContextBasis = await observationContextBasisFixture({
+			sourceReading: {
+				readingId: "source-read-00000000-0000-4000-8000-000000000532",
+				episodeId: EPISODE_ID,
+				sourceId: "source-00000000-0000-4000-8000-000000000533",
+				faithfulSummary: "The first source suggests a new hypothesis.",
+				claims: [{ text: "A new hypothesis is plausible.", locator: null }],
+			},
+			inquiryContext: null,
+			relatedInquiryIds: [],
+		});
 		const firstCandidate = candidate({
 			id: "candidate-00000000-0000-4000-8000-000000000531",
 			text: "first source",
@@ -390,6 +447,7 @@ describe("pure Observation Memo trigger", () => {
 				inquiry_id: pendingInquiryId,
 				original: "The new question remains useful across sources.",
 			},
+			context_basis: firstContextBasis,
 		});
 		if (hypothesisObservation.kind !== "semantic-observation-recorded")
 			assert.fail("Expected hypothesis Observation");
@@ -440,6 +498,22 @@ describe("pure Observation Memo trigger", () => {
 		});
 		if (hydration.kind !== "inquiry-hydrated")
 			assert.fail("Expected hydration");
+		const secondContextBasis = await observationContextBasisFixture({
+			sourceReading: {
+				readingId: secondRead.readId,
+				episodeId: EPISODE_ID,
+				sourceId: secondRead.source.sourceId,
+				faithfulSummary: secondRead.faithfulSummary,
+				claims: secondRead.claims,
+			},
+			inquiryContext: {
+				inquiryContextId: hydration.hydrationId,
+				readingId: hydration.readId,
+				inquiryIds: hydration.inquiryIds,
+				contextDigest: hydration.contextDigest,
+			},
+			relatedInquiryIds: [pendingInquiryId],
+		});
 		const relatedObservation = event({
 			observer_observation: "observer-observation/v1",
 			kind: "semantic-observation-recorded",
@@ -452,6 +526,7 @@ describe("pure Observation Memo trigger", () => {
 			movement: "repeated-support",
 			rationale: "A later source supports the pending hypothesis.",
 			observer_hypothesis: null,
+			context_basis: secondContextBasis,
 		});
 		const entries = [
 			lifecycle({
@@ -489,7 +564,7 @@ describe("pure Observation Memo trigger", () => {
 		assert.equal(context.value.observations.length, 2);
 	});
 
-	test("plans one exact all-eligible request, resumes it, and leaves later observations for the next batch", () => {
+	test("plans one exact all-eligible request, resumes it, and leaves later observations for the next batch", async () => {
 		const emptyEntries = baseEntries().entries.slice(0, 2);
 		const empty = plan(emptyEntries);
 		assert.deepEqual(empty, { ok: true, value: { kind: "none" } });
@@ -562,6 +637,17 @@ describe("pure Observation Memo trigger", () => {
 		if (laterRead.kind !== "source-read-recorded") {
 			assert.fail("Expected later SourceRead");
 		}
+		const laterContextBasis = await observationContextBasisFixture({
+			sourceReading: {
+				readingId: laterRead.readId,
+				episodeId: EPISODE_ID,
+				sourceId: laterRead.source.sourceId,
+				faithfulSummary: laterRead.faithfulSummary,
+				claims: laterRead.claims,
+			},
+			inquiryContext: null,
+			relatedInquiryIds: [],
+		});
 		const laterSemantic = event({
 			observer_observation: "observer-observation/v1",
 			kind: "semantic-observation-recorded",
@@ -574,6 +660,7 @@ describe("pure Observation Memo trigger", () => {
 			movement: "uncertain-association",
 			rationale: "This later Observation belongs to the next batch.",
 			observer_hypothesis: null,
+			context_basis: laterContextBasis,
 		});
 		const withLater = [
 			...requested,
@@ -693,19 +780,27 @@ describe("pure Observation Memo trigger", () => {
 		);
 	});
 
-	test("refines complete instructions and rejects missing coverage, missing references, and hypothesis mismatch", () => {
+	test("refines complete instructions and rejects missing coverage, missing references, and hypothesis mismatch", async () => {
 		const scenario = requestedScenario();
-		const valid = decodePreparedObservationMemoInstruction({
-			value: instructionRaw(scenario.context),
-			context: scenario.context,
-		});
+		const valid = await decodeInstructionWithContext(
+			instructionRaw(scenario.context),
+			scenario.context,
+		);
 		if (!valid.ok) assert.fail(valid.issue.message);
 		const encoded = encodeObservationMemoInstruction(valid.value);
 		const stored = decodeStoredObservationMemoInstruction(encoded);
 		assert.equal(stored.ok, true);
+		const oldHistory = structuredClone(encoded);
+		assert.ok(typeof oldHistory === "object" && oldHistory !== null);
+		Reflect.deleteProperty(oldHistory, "context_basis");
+		const unsupported = decodeStoredObservationMemoInstruction(oldHistory);
+		assert.equal(unsupported.ok, false);
+		if (!unsupported.ok) {
+			assert.equal(unsupported.issue.code, "memo-instruction.shape");
+		}
 
-		const missing = decodePreparedObservationMemoInstruction({
-			value: instructionRaw(scenario.context, {
+		const missing = await decodeInstructionWithContext(
+			instructionRaw(scenario.context, {
 				dispositions: [
 					{
 						observation_id: SEMANTIC_ID,
@@ -717,14 +812,14 @@ describe("pure Observation Memo trigger", () => {
 					},
 				],
 			}),
-			context: scenario.context,
-		});
+			scenario.context,
+		);
 		assert.equal(missing.ok, false);
 		if (!missing.ok)
 			assert.equal(missing.issue.code, "memo-instruction.coverage");
 
-		const absentReference = decodePreparedObservationMemoInstruction({
-			value: instructionRaw(scenario.context, {
+		const absentReference = await decodeInstructionWithContext(
+			instructionRaw(scenario.context, {
 				dispositions: [
 					{
 						observation_id: SEMANTIC_ID,
@@ -744,15 +839,15 @@ describe("pure Observation Memo trigger", () => {
 					},
 				],
 			}),
-			context: scenario.context,
-		});
+			scenario.context,
+		);
 		assert.equal(absentReference.ok, false);
 		if (!absentReference.ok) {
 			assert.equal(absentReference.issue.code, "memo-instruction.reference");
 		}
 
-		const hypothesisMismatch = decodePreparedObservationMemoInstruction({
-			value: instructionRaw(scenario.context, {
+		const hypothesisMismatch = await decodeInstructionWithContext(
+			instructionRaw(scenario.context, {
 				dispositions: [
 					{
 						observation_id: SEMANTIC_ID,
@@ -772,20 +867,20 @@ describe("pure Observation Memo trigger", () => {
 					},
 				],
 			}),
-			context: scenario.context,
-		});
+			scenario.context,
+		);
 		assert.equal(hypothesisMismatch.ok, false);
 		if (!hypothesisMismatch.ok) {
 			assert.equal(hypothesisMismatch.issue.code, "memo-instruction.coverage");
 		}
 	});
 
-	test("replays instruction order, exact duplicates, conflicts, and fork ancestry", () => {
+	test("replays instruction order, exact duplicates, conflicts, and fork ancestry", async () => {
 		const scenario = requestedScenario();
-		const first = decodePreparedObservationMemoInstruction({
-			value: instructionRaw(scenario.context),
-			context: scenario.context,
-		});
+		const first = await decodeInstructionWithContext(
+			instructionRaw(scenario.context),
+			scenario.context,
+		);
 		if (!first.ok) assert.fail(first.issue.message);
 		const firstEntry = custom(
 			OBSERVER_MEMO_INSTRUCTION_ENTRY,
@@ -806,8 +901,8 @@ describe("pure Observation Memo trigger", () => {
 		]);
 		assert.equal(reordered.issues[0]?.code, "memo-instruction-session.order");
 
-		const changed = decodePreparedObservationMemoInstruction({
-			value: instructionRaw(scenario.context, {
+		const changed = await decodeInstructionWithContext(
+			instructionRaw(scenario.context, {
 				dispositions: [
 					{
 						observation_id: SEMANTIC_ID,
@@ -827,8 +922,8 @@ describe("pure Observation Memo trigger", () => {
 					},
 				],
 			}),
-			context: scenario.context,
-		});
+			scenario.context,
+		);
 		if (!changed.ok) assert.fail(changed.issue.message);
 		const conflict = reconstructMemoInstructionSession([
 			...scenario.entries,

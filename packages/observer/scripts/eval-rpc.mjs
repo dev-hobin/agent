@@ -1,26 +1,32 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const piEntry = fileURLToPath(
-	import.meta.resolve("@earendil-works/pi-coding-agent"),
+const packageUnderTest = process.env.OBSERVER_EVAL_PACKAGE_PATH || root;
+const configuredPiBin = process.env.PI_BIN
+	? resolve(process.env.PI_BIN)
+	: undefined;
+const piEntry = configuredPiBin
+	? undefined
+	: fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
+const piCli = piEntry ? join(dirname(piEntry), "cli.js") : undefined;
+const piCommand = configuredPiBin || process.execPath;
+const piArgs = piCli
+	? [piCli, "--mode", "rpc", "--offline", "--no-session"]
+	: ["--mode", "rpc", "--offline", "--no-session"];
+const version = spawnSync(
+	piCommand,
+	piCli ? [piCli, "--version"] : ["--version"],
+	{ encoding: "utf8" },
 );
-const piCli = join(dirname(piEntry), "cli.js");
-async function packageVersion(path) {
-	try {
-		const parsed = JSON.parse(await readFile(path, "utf8"));
-		return typeof parsed?.version === "string" ? parsed.version : "unknown";
-	} catch {
-		return "unknown";
-	}
+if (version.status !== 0) {
+	throw new Error(`Could not resolve Pi version: ${version.stderr}`);
 }
-const piVersion = await packageVersion(
-	join(dirname(piEntry), "..", "package.json"),
-);
+const piVersion = version.stdout.trim();
 const sandbox = await mkdtemp(join(tmpdir(), "observer-rpc-"));
 const configDir = join(sandbox, "agent");
 const workspace = join(sandbox, "workspace");
@@ -33,18 +39,14 @@ await Promise.all([
 ]);
 await writeFile(
 	join(configDir, "settings.json"),
-	JSON.stringify({ packages: [root] }, null, 2),
+	JSON.stringify({ packages: [packageUnderTest] }, null, 2),
 );
 
-const child = spawn(
-	process.execPath,
-	[piCli, "--mode", "rpc", "--offline", "--no-session"],
-	{
-		cwd: workspace,
-		env: { ...process.env, HOME: home, PI_CODING_AGENT_DIR: configDir },
-		stdio: ["pipe", "pipe", "pipe"],
-	},
-);
+const child = spawn(piCommand, piArgs, {
+	cwd: workspace,
+	env: { ...process.env, HOME: home, PI_CODING_AGENT_DIR: configDir },
+	stdio: ["pipe", "pipe", "pipe"],
+});
 
 let stderr = "";
 let buffer = "";

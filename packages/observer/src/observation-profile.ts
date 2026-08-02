@@ -9,6 +9,11 @@ import {
 	decodeMaterialReviewRequestId,
 	type MaterialReviewRequestId,
 } from "./material-review-trigger.ts";
+import {
+	decodeContextBasisData,
+	encodeContextBasisData,
+	type ContextBasisData,
+} from "./observer-context.ts";
 
 export const OBSERVER_OBSERVATION_PROTOCOL: "observer-observation/v1" =
 	"observer-observation/v1";
@@ -145,6 +150,7 @@ export interface SemanticObservationRecordedEvent extends ObservationEventBase {
 	readonly movement: ObservationMovement;
 	readonly rationale: string;
 	readonly observerHypothesis: ObserverHypothesisCandidate | null;
+	readonly contextBasis: ContextBasisData;
 	readonly visibility: ObservationVisibility;
 }
 
@@ -964,6 +970,7 @@ function parseSemanticObservation(
 					"movement",
 					"rationale",
 					"observer_hypothesis",
+					"context_basis",
 				],
 				persisted,
 			),
@@ -987,6 +994,7 @@ function parseSemanticObservation(
 	);
 	const rationale = boundedText(value.rationale);
 	const observerHypothesis = parseObserverHypothesis(value.observer_hypothesis);
+	const contextBasis = decodeContextBasisData(value.context_basis);
 	if (
 		!observationId ||
 		!readId ||
@@ -997,6 +1005,7 @@ function parseSemanticObservation(
 		!isMovement(value.movement) ||
 		!rationale ||
 		observerHypothesis === undefined ||
+		!contextBasis.ok ||
 		relatedInquiryIds.length > 0 !== (hydrationId !== null) ||
 		(value.movement === "independent-new-hypothesis") !==
 			(observerHypothesis !== null)
@@ -1019,6 +1028,7 @@ function parseSemanticObservation(
 		movement: value.movement,
 		rationale,
 		observerHypothesis,
+		contextBasis: contextBasis.value,
 		visibility: visibilityFor(value.movement),
 	});
 }
@@ -1432,6 +1442,7 @@ function eventPayload(event: ObservationEvent): Record<string, unknown> {
 							original: event.observerHypothesis.original,
 						}
 					: null,
+				context_basis: encodeContextBasisData(event.contextBasis),
 			};
 		case "user-hypothesis-recorded":
 			return {

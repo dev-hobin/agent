@@ -53,6 +53,7 @@ import {
 	buildStandingIndex,
 	hydrateStandingContext,
 } from "../src/standing-index.ts";
+import { observationContextBasisFixture } from "./fixtures/context-basis.ts";
 
 const EPISODE_ID = "episode-observation-1";
 const CANDIDATE_USER = "candidate-00000000-0000-4000-8000-000000000301";
@@ -73,6 +74,49 @@ const REVISION_ID =
 const RECEIPT_ID = "memo-receipt-00000000-0000-4000-8000-000000000311";
 const INDEX_DIGEST = sha256Text("standing-index");
 const CONTEXT_DIGEST = sha256Text("standing-context");
+const SEMANTIC_CONTEXT_BASIS = await observationContextBasisFixture({
+	sourceReading: {
+		readingId: READ_ID,
+		episodeId: EPISODE_ID,
+		sourceId: SOURCE_ID,
+		faithfulSummary:
+			"The source reports that capture can interrupt reading under specific timing conditions.",
+		claims: [
+			{
+				text: "Capture timing changes interruption cost.",
+				locator: "result section",
+			},
+		],
+	},
+	inquiryContext: {
+		inquiryContextId: HYDRATION_ID,
+		readingId: READ_ID,
+		inquiryIds: [DURABLE_INQUIRY],
+		contextDigest: CONTEXT_DIGEST,
+	},
+	relatedInquiryIds: [DURABLE_INQUIRY],
+});
+const FOREIGN_BRANCH_CONTEXT_BASIS = await observationContextBasisFixture({
+	sourceReading: {
+		readingId: READ_ID,
+		episodeId: EPISODE_ID,
+		sourceId: SOURCE_ID,
+		faithfulSummary: "A parallel branch changed the source-reading basis.",
+		claims: [
+			{
+				text: "Capture timing changes interruption cost.",
+				locator: "result section",
+			},
+		],
+	},
+	inquiryContext: {
+		inquiryContextId: HYDRATION_ID,
+		readingId: READ_ID,
+		inquiryIds: [DURABLE_INQUIRY],
+		contextDigest: CONTEXT_DIGEST,
+	},
+	relatedInquiryIds: [DURABLE_INQUIRY],
+});
 const FIXTURES = join(
 	import.meta.dirname,
 	"fixtures",
@@ -217,6 +261,7 @@ function workingTrace(): {
 		rationale:
 			"The boundary condition contradicts the unconditional hypothesis.",
 		observer_hypothesis: null,
+		context_basis: SEMANTIC_CONTEXT_BASIS,
 	});
 	const userHypothesis = requireWorkingEvent({
 		observer_observation: "observer-observation/v1",
@@ -476,7 +521,24 @@ describe("Observation Profile v1", () => {
 		assert.equal(reordered.issues[0]?.code, "observation-session.order");
 	});
 
-	test("rejects self-tool candidates and inconsistent observation branches", () => {
+	test("rejects self-tool candidates, old basis-less history, and inconsistent branches", () => {
+		const legacy = prepareObservationEvent({
+			observer_observation: "observer-observation/v1",
+			kind: "semantic-observation-recorded",
+			episode_id: EPISODE_ID,
+			observation_id: OBSERVATION_MAJOR,
+			read_id: READ_ID,
+			hydration_id: HYDRATION_ID,
+			related_inquiry_ids: [DURABLE_INQUIRY],
+			stance: "supports",
+			movement: "minor-refinement",
+			rationale: "Old adapter history has no persisted context basis.",
+			observer_hypothesis: null,
+		});
+		assert.equal(legacy.ok, false);
+		if (!legacy.ok)
+			assert.equal(legacy.issue.code, "observation-profile.shape");
+
 		const self = prepareObservationEvent({
 			observer_observation: "observer-observation/v1",
 			kind: "candidate-captured",
@@ -504,6 +566,7 @@ describe("Observation Profile v1", () => {
 			movement: "minor-refinement",
 			rationale: "This incorrectly omits hydration.",
 			observer_hypothesis: null,
+			context_basis: SEMANTIC_CONTEXT_BASIS,
 		});
 		assert.equal(inconsistent.ok, false);
 	});
@@ -605,6 +668,39 @@ describe("Observation current-branch session", () => {
 			OBSERVATION_USER,
 		]);
 		assert.deepEqual(committed.pendingHypotheses, []);
+	});
+
+	test("rejects a valid context basis copied from another branch", () => {
+		const trace = workingTrace();
+		const foreignSemantic = requireWorkingEvent({
+			observer_observation: "observer-observation/v1",
+			kind: "semantic-observation-recorded",
+			episode_id: EPISODE_ID,
+			observation_id: OBSERVATION_MAJOR,
+			read_id: READ_ID,
+			hydration_id: HYDRATION_ID,
+			related_inquiry_ids: [DURABLE_INQUIRY],
+			stance: "challenges",
+			movement: "core-counterexample",
+			rationale:
+				"The boundary condition contradicts the unconditional hypothesis.",
+			observer_hypothesis: null,
+			context_basis: FOREIGN_BRANCH_CONTEXT_BASIS,
+		});
+		const branch = trace.entries.map((entry) =>
+			entry.customType === OBSERVER_OBSERVATION_ENTRY &&
+			typeof entry.data === "object" &&
+			entry.data !== null &&
+			Reflect.get(entry.data, "kind") === "semantic-observation-recorded"
+				? observationEntry(foreignSemantic)
+				: entry,
+		);
+		const replay = reconstructObservationSession(branch);
+		assert.equal(
+			replay.issues.some((issue) => issue.code === "observation-session.order"),
+			true,
+		);
+		assert.equal(replay.observations.length, 0);
 	});
 
 	test("stutters exact duplicates and fails closed for conflicts/reordering/forks", () => {

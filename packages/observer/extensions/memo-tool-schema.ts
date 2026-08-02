@@ -150,10 +150,10 @@ const observationDispositionSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
-export const saveScopeActionSchema = Type.Object(
+export const loadSaveContextActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("save-scope"),
+		action: Type.Literal("load-save-context"),
 		request_id: saveRequestId,
 	},
 	{ additionalProperties: false },
@@ -179,10 +179,10 @@ const preparedRecordSchema = Type.Union([
 	),
 ]);
 
-export const savePrepareActionSchema = Type.Object(
+export const prepareSaveProposalActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("save-prepare"),
+		action: Type.Literal("prepare-save-proposal"),
 		request_id: saveRequestId,
 		summary: Type.String(),
 		records: Type.Array(preparedRecordSchema),
@@ -200,10 +200,10 @@ export const memoSubmissionSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
-export const memoPrepareActionSchema = Type.Object(
+export const reconcileMemoActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("memo-prepare"),
+		action: Type.Literal("reconcile-memo"),
 		request_id: memoRequestId,
 		submission: memoSubmissionSchema,
 	},
@@ -312,7 +312,7 @@ export const nominateToolResultsActionSchema = Type.Object(
 export const sourceReadActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("source-read"),
+		action: Type.Literal("record-source-reading"),
 		candidate_ids: Type.Array(Type.String()),
 		source: sourceSchema,
 		faithful_summary: Type.String(),
@@ -324,7 +324,7 @@ export const sourceReadActionSchema = Type.Object(
 export const hydrateActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("hydrate"),
+		action: Type.Literal("load-inquiry-context"),
 		read_id: Type.String(),
 		index_digest: Type.String(),
 		inquiry_ids: Type.Array(Type.String()),
@@ -343,7 +343,7 @@ const observationStanceSchema = Type.Union([
 export const recordObservationActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("record"),
+		action: Type.Literal("record-observation"),
 		read_id: Type.String(),
 		hydration_id: nullableString,
 		related_inquiry_ids: Type.Array(Type.String()),
@@ -392,10 +392,10 @@ export const userHypothesisActionSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
-const memoScopeActionSchema = Type.Object(
+const loadMemoContextActionSchema = Type.Object(
 	{
 		observer_action: Type.Literal("observer-sidecar/v1"),
-		action: Type.Literal("memo-scope"),
+		action: Type.Literal("load-memo-context"),
 		request_id: Type.String(),
 	},
 	{ additionalProperties: false },
@@ -524,10 +524,10 @@ export const observerRoutineSidecarParameters = Type.Union([
 
 export const observerRequestSidecarParameters = Type.Union([
 	hypothesisContextReviewActionSchema,
-	memoScopeActionSchema,
-	memoPrepareActionSchema,
-	saveScopeActionSchema,
-	savePrepareActionSchema,
+	loadMemoContextActionSchema,
+	reconcileMemoActionSchema,
+	loadSaveContextActionSchema,
+	prepareSaveProposalActionSchema,
 ]);
 
 export const observerSidecarParameters = Type.Union([
@@ -540,10 +540,10 @@ export const observerSidecarParameters = Type.Union([
 	recordNewHypothesisActionSchema,
 	userHypothesisActionSchema,
 	hypothesisContextReviewActionSchema,
-	memoScopeActionSchema,
-	memoPrepareActionSchema,
-	saveScopeActionSchema,
-	savePrepareActionSchema,
+	loadMemoContextActionSchema,
+	reconcileMemoActionSchema,
+	loadSaveContextActionSchema,
+	prepareSaveProposalActionSchema,
 	observerCommitActionSchema,
 ]);
 

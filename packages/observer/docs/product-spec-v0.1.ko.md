@@ -6,7 +6,7 @@
 >
 > 제외: 구현 언어, Pi extension API, JSON Schema 코드, graph DB, vector DB, Git 자동화
 >
-> 실행 현황: [`implementation-plan-v0.1.ko.md`](implementation-plan-v0.1.ko.md)
+> 현재 런타임 순서: [`runtime-flow.md`](runtime-flow.md)
 
 ---
 
@@ -91,7 +91,7 @@ Thinking tool은 내부적으로 필요할 때만 사용하며, 사용자가 따
 
 ```text
 Observer ON
-→ technical-reading 또는 다른 학습 작업 수행
+→ 자료 읽기 또는 다른 사용자 작업 수행
 → Observer가 자료와 상호작용을 함께 관찰
 → 중요한 변화만 알림
 → memo로 중간 재조정
@@ -1170,7 +1170,7 @@ v0.1 core에 graph DB나 RDF runtime을 넣지 않는다.
 
 /observer on
 → standing inquiry 복구
-→ technical-reading 수행
+→ 자료 읽기 수행
 → 사용자 가설 등록
 → Hybrid 중요 변화 알림
 → /observer memo
@@ -1296,30 +1296,30 @@ Subagent는 제3자 관찰 관점을 구현할 후보지만 v0.1 설계와 구�
 
 ---
 
-## 24. 승인 후의 작은 구현 순서
+## 24. 구현된 런타임 표면
 
-상세 순서, 현재 slice, evidence, stable landing은 [`implementation-plan-v0.1.ko.md`](implementation-plan-v0.1.ko.md)가 소유한다.
+현재 패키지는 다음 제품 표면을 구현한다.
 
 ```text
-Slice 0: Package와 제품 계약 — Complete
-Slice 1: Markdown Profile Fixtures와 Validation — Next
-Slice 2: Pure Observer Lifecycle Machine
-Slice 3: Notebook Setup과 Language Binding
-Slice 4: Review & Save Local Persistence
-Slice 5: Pi Commands와 Branch Replay
-Slice 6: Memo Reconciliation
-Slice 7: Sidecar Golden Path
-Slice 8: Observe material Golden Path
-Slice 9: v0.1 Golden Path Verification
+Package와 제품 계약
+→ Markdown Profile과 validation
+→ branch-local Observer lifecycle
+→ Notebook setup과 language binding
+→ Review/Save local persistence
+→ Memo reconciliation
+→ Sidecar와 Observe material 진입점
+→ proposal inspection, explicit batch approval, readback
 ```
 
-각 slice는 Claim/Scope/Non-scope/Evidence/Stop을 가지며 stable landing에서 멈춘다. Graph DB, vector DB, Git, subagent는 이 순서에 추가하지 않는다.
+실제 상태와 write boundary는 [`runtime-flow.md`](runtime-flow.md)가 요약한다.
+Graph DB, vector DB, Git 자동화, subagent는 여전히 범위 밖이다.
 
 ---
 
-## 25. 아직 기술 규격으로 내려야 할 항목
+## 25. 제품 명세 밖의 기술 규격
 
-제품 의미는 이 문서에서 검토하되 다음은 승인 후 별도 기술 artifact로 만든다.
+다음 세부 사항은 현재 코드, schema, test가 소유하며 이 제품 명세의
+사용자 의미와 분리한다.
 
 ```text
 - 정확한 UUID 형식
@@ -1333,7 +1333,8 @@ Slice 9: v0.1 Golden Path Verification
 - 실제 Pi extension에서 다른 skill output을 관찰하는 방법
 ```
 
-이 항목은 제품 계약을 바꾸지 않는 범위에서만 설계한다. 제품 의미를 바꿔야 한다면 구현을 중단하고 이 문서를 먼저 수정한다.
+이 항목을 변경할 때도 제품 계약을 바꾸지 않는다. 사용자 의미를 바꿔야
+한다면 이 문서를 먼저 수정하고 다시 검토한다.
 
 ---
 

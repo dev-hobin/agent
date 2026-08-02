@@ -10,6 +10,7 @@ import {
 import type { MemoSessionSnapshot } from "./memo-session.ts";
 import {
 	decodeMemoPassId,
+	type EvidenceId,
 	type InquiryId,
 	type MemoPassId,
 } from "./memo-profile.ts";
@@ -67,6 +68,7 @@ export interface ObservationMemoContext {
 	readonly request: ObservationMemoRequestedEvent;
 	readonly observations: readonly MemoRequestObservation[];
 	readonly memoScope: MemoScopeSnapshot;
+	readonly priorEvidenceIds: readonly EvidenceId[];
 }
 
 export type ObservationMemoContextResult =
@@ -486,6 +488,11 @@ export function hydrateObservationMemoContext(input: {
 			request,
 			observations,
 			memoScope: scope.value,
+			priorEvidenceIds: Object.freeze(
+				input.memo.state.evidence
+					.map((evidence) => evidence.evidenceId)
+					.toSorted((left, right) => left.localeCompare(right)),
+			),
 			[OBSERVATION_MEMO_CONTEXT_MARKER]: true,
 		},
 	};

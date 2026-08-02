@@ -9,7 +9,11 @@ import {
 } from "./memo-instruction.ts";
 import { reconstructMemoSession } from "./memo-session.ts";
 import { reconcileMemoPass } from "./memo-reconciliation.ts";
-import type { InquiryId, SourceId } from "./memo-profile.ts";
+import {
+	decodePreparedMemoPass,
+	type InquiryId,
+	type SourceId,
+} from "./memo-profile.ts";
 import {
 	readNotebookInventory,
 	type NotebookHandle,
@@ -24,6 +28,7 @@ import type {
 	MaterialReviewEpisodeCapability,
 	UserHypothesisEpisodeCapability,
 } from "./observer-controller.ts";
+import * as observerContext from "./observer-context.ts";
 import {
 	buildObservationMemoPreparationGuide,
 	hydrateObservationMemoContext,
@@ -35,11 +40,11 @@ import {
 	decodeObservationAction,
 	type HydrateAction,
 	type HypothesisContextReviewAction,
-	type MemoPrepareAction,
-	type MemoScopeAction,
+	type ReconcileMemoAction,
+	type LoadMemoContextAction,
 	type ObservationAction,
-	type SaveScopeAction,
-	type SavePrepareAction,
+	type LoadSaveContextAction,
+	type PrepareSaveProposalAction,
 	type RecordObservationAction,
 	type RegisterUserHypothesisAction,
 	type SourceReadAction,
@@ -188,23 +193,24 @@ export type MaterialReviewStartControllerResult =
 export type ObservationControllerResult =
 	| {
 			readonly ok: true;
-			readonly action: "source-read";
+			readonly action: "record-source-reading";
 			readonly message: string;
 			readonly read: SourceReadRecordedEvent;
 			readonly index: StandingIndex;
 	  }
 	| {
 			readonly ok: true;
-			readonly action: "hydrate";
+			readonly action: "load-inquiry-context";
 			readonly message: string;
 			readonly hydration: InquiryHydratedEvent;
 			readonly context: StandingContext;
 	  }
 	| {
 			readonly ok: true;
-			readonly action: "record";
+			readonly action: "record-observation";
 			readonly message: string;
 			readonly observation: SemanticObservationRecordedEvent;
+			readonly contextBasis: observerContext.ContextBasisData;
 	  }
 	| {
 			readonly ok: true;
@@ -220,32 +226,37 @@ export type ObservationControllerResult =
 	  }
 	| {
 			readonly ok: true;
-			readonly action: "memo-scope";
+			readonly action: "load-memo-context";
 			readonly message: string;
 			readonly context: ObservationMemoContext;
 			readonly guide: MemoPreparationGuide;
 	  }
 	| {
 			readonly ok: true;
-			readonly action: "save-scope";
+			readonly action: "load-save-context";
 			readonly message: string;
 			readonly context: SavePreparationContext;
 			readonly guide: SavePreparationGuide;
 	  }
 	| {
 			readonly ok: true;
-			readonly action: "save-prepare";
+			readonly action: "prepare-save-proposal";
 			readonly message: string;
 			readonly handoff: PreparedSaveHandoff;
 	  }
 	| {
 			readonly ok: true;
-			readonly action: "memo-prepare";
+			readonly action: "reconcile-memo";
 			readonly status: "prepared" | "resumed";
 			readonly message: string;
 			readonly instruction: PreparedObservationMemoInstruction;
+			readonly contextBasis: observerContext.ContextBasisData;
 	  }
-	| { readonly ok: false; readonly message: string };
+	| {
+			readonly ok: false;
+			readonly message: string;
+			readonly contextBasis?: observerContext.ContextBasisData;
+	  };
 
 export type SaveRequestControllerResult =
 	| {
@@ -495,6 +506,13 @@ function appendEvent(
 			JSON.stringify(encodeObservationEvent(event))
 		? replayed
 		: "Observer working entry가 replay에서 확인되지 않았습니다.";
+}
+
+function appendObservation(
+	port: ObservationCommandPort,
+	event: SemanticObservationRecordedEvent,
+): ObservationSessionSnapshot | string {
+	return appendEvent(port, event);
 }
 
 function appendMaterialReviewRequest(
@@ -1011,7 +1029,7 @@ async function sourceRead(input: {
 	if (typeof appended === "string") return { ok: false, message: appended };
 	return {
 		ok: true,
-		action: "source-read",
+		action: "record-source-reading",
 		message: `Source-first reading 기록 완료: ${prepared.readId}`,
 		read: prepared,
 		index,
@@ -1077,7 +1095,7 @@ async function hydrate(input: {
 	if (existing) {
 		return {
 			ok: true,
-			action: "hydrate",
+			action: "load-inquiry-context",
 			message: `이미 활성화된 Standing Inquiry context: ${existing.inquiryIds.length}개`,
 			hydration: existing,
 			context: context.value,
@@ -1104,7 +1122,7 @@ async function hydrate(input: {
 	if (typeof appended === "string") return { ok: false, message: appended };
 	return {
 		ok: true,
-		action: "hydrate",
+		action: "load-inquiry-context",
 		message: `Standing Inquiry context 활성화: ${prepared.inquiryIds.length}개`,
 		hydration: prepared,
 		context: context.value,
@@ -1153,30 +1171,47 @@ async function record(input: {
 			message: "해당 SourceRead에는 이미 Observation이 있습니다.",
 		};
 	}
-	if (input.action.hydrationId) {
-		const hydration = branch.observation.hydrations.find(
-			(item) => item.hydrationId === input.action.hydrationId,
-		);
-		if (
-			!hydration ||
-			hydration.readId !== input.action.readId ||
-			hydration.inquiryIds.length !== input.action.relatedInquiryIds.length ||
-			!hydration.inquiryIds.every(
-				(id, position) => id === input.action.relatedInquiryIds[position],
+	const hydration = input.action.hydrationId
+		? branch.observation.hydrations.find(
+				(item) => item.hydrationId === input.action.hydrationId,
 			)
-		) {
-			return {
-				ok: false,
-				message: "Observation hydration이 SourceRead/Inquiry scope와 다릅니다.",
-			};
-		}
+		: undefined;
+	const observationId = input.ids.observationId();
+	const sourceReading: observerContext.SourceReading = {
+		readingId: read.readId,
+		episodeId: episode.core.episodeId,
+		sourceId: read.source.sourceId,
+		faithfulSummary: read.faithfulSummary,
+		claims: read.claims.map((claim) => ({
+			text: claim.text,
+			locator: claim.locator,
+		})),
+	};
+	const inquiryContext: observerContext.InquiryContext | null = hydration
+		? {
+				inquiryContextId: hydration.hydrationId,
+				readingId: hydration.readId,
+				inquiryIds: hydration.inquiryIds,
+				contextDigest: hydration.contextDigest,
+			}
+		: null;
+	const contextAssessment = await observerContext.assessObservationContext({
+		sourceReading,
+		inquiryContext,
+		relatedInquiryIds: input.action.relatedInquiryIds,
+	});
+	if (!contextAssessment.ok) {
+		return {
+			ok: false,
+			message: `Observation context is incomplete: missing=${contextAssessment.missing.join(",") || "none"}; conflicts=${contextAssessment.conflicts.join(",") || "none"}.`,
+		};
 	}
 	const prepared = refinedEvent(
 		{
 			observer_observation: "observer-observation/v1",
 			kind: "semantic-observation-recorded",
 			episode_id: episode.core.episodeId,
-			observation_id: input.ids.observationId(),
+			observation_id: observationId,
 			read_id: input.action.readId,
 			hydration_id: input.action.hydrationId,
 			related_inquiry_ids: input.action.relatedInquiryIds,
@@ -1189,6 +1224,9 @@ async function record(input: {
 						original: input.action.observerHypothesis,
 					}
 				: null,
+			context_basis: observerContext.encodeContextBasisData(
+				contextAssessment.basis,
+			),
 		},
 		"semantic-observation-recorded",
 	);
@@ -1196,19 +1234,20 @@ async function record(input: {
 	if (prepared.kind !== "semantic-observation-recorded") {
 		return { ok: false, message: "Semantic observation refinement failed." };
 	}
-	const appended = appendEvent(input.port, prepared);
+	const appended = appendObservation(input.port, prepared);
 	if (typeof appended === "string") return { ok: false, message: appended };
 	if (prepared.visibility === "alert") {
 		input.port.notify(renderHybridAlert(prepared), "warning");
 	}
 	return {
 		ok: true,
-		action: "record",
+		action: "record-observation",
 		message:
 			prepared.visibility === "alert"
 				? "중요 변화를 기록하고 알렸습니다."
 				: "관찰을 조용히 working ledger에 누적했습니다.",
 		observation: prepared,
+		contextBasis: contextAssessment.basis,
 	};
 }
 
@@ -1873,8 +1912,8 @@ async function saveContext(input: {
 		: { ok: false, message: context.issue.message };
 }
 
-async function saveScope(input: {
-	readonly action: SaveScopeAction;
+async function loadSaveContext(input: {
+	readonly action: LoadSaveContextAction;
 	readonly port: ObservationCommandPort;
 	readonly notebooks: NotebookService;
 }): Promise<ObservationControllerResult> {
@@ -1886,15 +1925,15 @@ async function saveScope(input: {
 	if (!context.ok) return context;
 	return {
 		ok: true,
-		action: "save-scope",
-		message: `Save request scope activated: ${input.action.requestId}`,
+		action: "load-save-context",
+		message: `Save context loaded: ${input.action.requestId}`,
 		context: context.value,
 		guide: buildSavePreparationGuide(context.value),
 	};
 }
 
-async function savePrepare(input: {
-	readonly action: SavePrepareAction;
+async function prepareSaveProposal(input: {
+	readonly action: PrepareSaveProposalAction;
 	readonly port: ObservationCommandPort;
 	readonly notebooks: NotebookService;
 }): Promise<ObservationControllerResult> {
@@ -1912,21 +1951,24 @@ async function savePrepare(input: {
 	if (!prepared.ok) return { ok: false, message: prepared.issue.message };
 	return {
 		ok: true,
-		action: "save-prepare",
+		action: "prepare-save-proposal",
 		message: `Review proposal prepared: ${prepared.value.prepared.proposal_id}`,
 		handoff: prepared.value,
 	};
 }
 
-async function memoScope(input: {
-	readonly action: MemoScopeAction;
+async function loadMemoContext(input: {
+	readonly action: LoadMemoContextAction;
 	readonly port: ObservationCommandPort;
 	readonly notebooks: NotebookService;
 }): Promise<ObservationControllerResult> {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return { ok: false, message: branch };
 	if (branch.pi.state.episode.status !== "open") {
-		return { ok: false, message: "Memo scope에는 열린 Episode가 필요합니다." };
+		return {
+			ok: false,
+			message: "Memo context에는 열린 Episode가 필요합니다.",
+		};
 	}
 	const inventory = await inventoryFor(branch, input.notebooks);
 	if (!isInventory(inventory)) return { ok: false, message: inventory };
@@ -1945,28 +1987,29 @@ async function memoScope(input: {
 	return guide.ok
 		? {
 				ok: true,
-				action: "memo-scope",
-				message: `Memo request scope 활성화: ${context.value.request.requestId}`,
+				action: "load-memo-context",
+				message: `Memo context를 불러왔습니다: ${context.value.request.requestId}`,
 				context: context.value,
 				guide: guide.value,
 			}
 		: { ok: false, message: guide.issue.message };
 }
 
-interface DecodedMemoPreparation {
+interface PreparedMemoReconciliation {
 	readonly instruction: PreparedObservationMemoInstruction;
 	readonly priorSession: MemoInstructionSessionSnapshot;
+	readonly contextBasis: observerContext.ContextBasisData;
 }
 
-async function decodeMemoPreparation(input: {
-	readonly action: MemoPrepareAction;
+async function prepareMemoReconciliation(input: {
+	readonly action: ReconcileMemoAction;
 	readonly port: ObservationCommandPort;
 	readonly notebooks: NotebookService;
-}): Promise<DecodedMemoPreparation | string> {
+}): Promise<PreparedMemoReconciliation | string> {
 	const branch = liveBranch(input.port);
 	if (!isLiveBranch(branch)) return branch;
 	if (branch.pi.state.episode.status !== "open") {
-		return "Memo preparation에는 열린 Episode가 필요합니다.";
+		return "Memo reconciliation에는 열린 Episode가 필요합니다.";
 	}
 	const priorSession = reconstructMemoInstructionSession(
 		input.port.branchEntries(),
@@ -1990,18 +2033,41 @@ async function decodeMemoPreparation(input: {
 	});
 	if (!guide.ok) return guide.issue.message;
 	const seed = guide.value.instruction_seed;
-	const decoded = decodePreparedObservationMemoInstruction({
-		value: {
-			...seed,
-			pass: {
-				...seed.pass,
-				evidence: input.action.submission.evidence,
-				hypothesis_outcomes: input.action.submission.hypothesisOutcomes,
-				memo_outcomes: input.action.submission.memoOutcomes,
-			},
-			dispositions: input.action.submission.dispositions,
+	const proposedValue = {
+		...seed,
+		pass: {
+			...seed.pass,
+			evidence: input.action.submission.evidence,
+			hypothesis_outcomes: input.action.submission.hypothesisOutcomes,
+			memo_outcomes: input.action.submission.memoOutcomes,
 		},
+		dispositions: input.action.submission.dispositions,
+	};
+	const proposedPass = decodePreparedMemoPass(proposedValue.pass);
+	if (!proposedPass.ok) return proposedPass.issue.message;
+	const knownEvidenceIds = [
+		...branch.memo.state.evidence.map((evidence) => evidence.evidenceId),
+		...proposedPass.value.evidence.map((evidence) => evidence.evidenceId),
+	].toSorted((left, right) => left.localeCompare(right));
+	const contextAssessment = await observerContext.assessMemoContext({
+		scopeId: input.action.requestId,
+		episodeId: proposedPass.value.episodeId,
+		basisDigest: proposedPass.value.basisDigest,
+		relatedInquiryIds: proposedPass.value.relatedInquiryIds,
+		knownEvidenceIds,
+		passDigest: proposedPass.value.digest,
+		outcomeCount:
+			proposedPass.value.hypothesisOutcomes.length +
+			proposedPass.value.memoOutcomes.length,
+		dispositionCount: input.action.submission.dispositions.length,
+	});
+	if (!contextAssessment.ok) {
+		return `Memo context is incomplete: missing=${contextAssessment.missing.join(",") || "none"}; conflicts=${contextAssessment.conflicts.join(",") || "none"}.`;
+	}
+	const decoded = decodePreparedObservationMemoInstruction({
+		value: proposedValue,
 		context: context.value,
+		contextBasis: contextAssessment.basis,
 	});
 	if (!decoded.ok) return decoded.issue.message;
 	const reconciled = reconcileMemoPass({
@@ -2017,17 +2083,22 @@ async function decodeMemoPreparation(input: {
 			},
 		},
 	});
-	return reconciled.ok
-		? { instruction: decoded.value, priorSession }
-		: `Memo instruction domain validation failed: ${reconciled.issue.message}`;
+	if (!reconciled.ok) {
+		return `Memo reconciliation deferred: ${reconciled.issue.message}`;
+	}
+	return {
+		instruction: decoded.value,
+		priorSession,
+		contextBasis: contextAssessment.basis,
+	};
 }
 
-async function memoPrepare(input: {
-	readonly action: MemoPrepareAction;
+async function reconcileMemo(input: {
+	readonly action: ReconcileMemoAction;
 	readonly port: ObservationCommandPort;
 	readonly notebooks: NotebookService;
 }): Promise<ObservationControllerResult> {
-	const decoded = await decodeMemoPreparation(input);
+	const decoded = await prepareMemoReconciliation(input);
 	if (typeof decoded === "string") return { ok: false, message: decoded };
 	const existing = decoded.priorSession.instructions.find(
 		(instruction) => instruction.requestId === input.action.requestId,
@@ -2036,10 +2107,11 @@ async function memoPrepare(input: {
 		return existing.digest === decoded.instruction.digest
 			? {
 					ok: true,
-					action: "memo-prepare",
+					action: "reconcile-memo",
 					status: "resumed",
 					message: `기존 Memo instruction을 재개합니다: ${existing.requestId}`,
 					instruction: decoded.instruction,
+					contextBasis: decoded.contextBasis,
 				}
 			: {
 					ok: false,
@@ -2077,19 +2149,22 @@ async function memoPrepare(input: {
 	}
 	return {
 		ok: true,
-		action: "memo-prepare",
+		action: "reconcile-memo",
 		status: "prepared",
 		message: `Memo instruction을 기록했습니다: ${confirmed.requestId}`,
 		instruction: decoded.instruction,
+		contextBasis: decoded.contextBasis,
 	};
 }
 
-type MemoSidecarAction = MemoScopeAction | MemoPrepareAction;
+type MemoSidecarAction = LoadMemoContextAction | ReconcileMemoAction;
 
 function isMemoSidecarAction(
 	action: ObservationAction,
 ): action is MemoSidecarAction {
-	return action.action === "memo-scope" || action.action === "memo-prepare";
+	return (
+		action.action === "load-memo-context" || action.action === "reconcile-memo"
+	);
 }
 
 function executeMemoSidecarAction(input: {
@@ -2098,9 +2173,9 @@ function executeMemoSidecarAction(input: {
 	readonly notebooks: NotebookService;
 }): Promise<ObservationControllerResult> {
 	const { action, port, notebooks } = input;
-	return action.action === "memo-scope"
-		? memoScope({ action, port, notebooks })
-		: memoPrepare({ action, port, notebooks });
+	return action.action === "load-memo-context"
+		? loadMemoContext({ action, port, notebooks })
+		: reconcileMemo({ action, port, notebooks });
 }
 
 function authorizedRetrievedCaptureRequest(input: {
@@ -2308,21 +2383,21 @@ function executeObservationAction(input: {
 		});
 	}
 	switch (input.action.action) {
-		case "source-read":
+		case "record-source-reading":
 			return sourceRead({
 				action: input.action,
 				port: input.port,
 				notebooks: input.notebooks,
 				ids: input.ids,
 			});
-		case "hydrate":
+		case "load-inquiry-context":
 			return hydrate({
 				action: input.action,
 				port: input.port,
 				notebooks: input.notebooks,
 				ids: input.ids,
 			});
-		case "record":
+		case "record-observation":
 			return record({
 				action: input.action,
 				port: input.port,
@@ -2341,14 +2416,14 @@ function executeObservationAction(input: {
 				port: input.port,
 				notebooks: input.notebooks,
 			});
-		case "save-scope":
-			return saveScope({
+		case "load-save-context":
+			return loadSaveContext({
 				action: input.action,
 				port: input.port,
 				notebooks: input.notebooks,
 			});
-		case "save-prepare":
-			return savePrepare({
+		case "prepare-save-proposal":
+			return prepareSaveProposal({
 				action: input.action,
 				port: input.port,
 				notebooks: input.notebooks,

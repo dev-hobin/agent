@@ -5,16 +5,16 @@ This file governs maintainer actions for `@hobin/observer`. It is intentionally 
 ## Release invariants
 
 - Publish only an exact, clean commit already visible at the repository/homepage path.
-- Treat `npm pack` and `npm publish --dry-run` as packaging evidence, not publication evidence.
+- Treat `pnpm pack` and `pnpm publish --dry-run` as packaging evidence, not publication evidence.
 - Never bypass `prepublishOnly` or the exact pack allowlist.
 - Do not publish with an unexplained high or critical fresh-consumer advisory.
 - Never infer permission to push or publish. Both are explicit maintainer effects.
 - npm versions are immutable. Never retry by overwriting or silently changing the version.
 
-## 0.1.5 candidate contract
+## 0.1.6 candidate contract
 
 ```text
-package: @hobin/observer@0.1.5
+package: @hobin/observer@0.1.6
 npm access/tag: public/latest
 Node: >=22.19.0
 Pi peer: >=0.80.10 <0.84.0
@@ -40,11 +40,11 @@ pnpm --filter @hobin/observer check
 From `packages/observer`:
 
 ```sh
-npm run release:check
-npm publish --dry-run
+pnpm run release:check
+pnpm publish --dry-run
 ```
 
-`release:check` must run from a clean tree. It executes the full package check, decodes `npm pack --dry-run --ignore-scripts --json`, and enforces the versioned filename and exact file allowlist.
+`release:check` must run from a clean tree. It executes the full package check, runs `pnpm pack`, and enforces the versioned filename, exact file allowlist, bundled Judgment files, and the packed manifest rewrite from `workspace:0.1.0` to `0.1.0`. Run it through the repository's pinned pnpm workspace: pnpm requires the configured hoisted linker to pack `bundledDependencies`.
 
 Inspect the diff from the last verified runtime commit. Release-only preparation must not hide runtime changes.
 
@@ -100,7 +100,7 @@ For the first release, registry E404 is expected only if scope ownership and aut
 With explicit publication approval and all gates green:
 
 ```sh
-npm publish --access public
+pnpm publish --access public
 ```
 
 Supply the write-TFA OTP interactively. Do not store it in scripts, logs, or repository files.
@@ -110,8 +110,8 @@ Supply the write-TFA OTP interactively. Do not store it in scripts, logs, or rep
 Publication is complete only after registry readback and a fresh Pi install:
 
 ```sh
-npm view @hobin/observer@0.1.5 name version dist-tags dist.integrity --json
-pi install npm:@hobin/observer@0.1.5
+npm view @hobin/observer@0.1.6 name version dist-tags dist.integrity --json
+pi install npm:@hobin/observer@0.1.6
 pi list
 ```
 

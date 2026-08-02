@@ -423,21 +423,21 @@ export function observationToolText(
 		return JSON.stringify({ ok: false, message: result.message });
 	}
 	switch (result.action) {
-		case "source-read":
+		case "record-source-reading":
 			return JSON.stringify({
 				ok: true,
 				message: result.message,
 				read_id: result.read.readId,
 				standing_index: result.index,
 			});
-		case "hydrate":
+		case "load-inquiry-context":
 			return JSON.stringify({
 				ok: true,
 				message: result.message,
 				hydration_id: result.hydration.hydrationId,
 				standing_context: result.context,
 			});
-		case "record":
+		case "record-observation":
 			return JSON.stringify({
 				ok: true,
 				message: result.message,
@@ -458,37 +458,37 @@ export function observationToolText(
 				hypothesis_observation_id: result.review.hypothesisObservationId,
 				assessment: result.review.assessment,
 			});
-		case "memo-scope":
+		case "load-memo-context":
 			return JSON.stringify({
 				ok: true,
 				message: result.message,
 				request_id: result.context.request.requestId,
 				request_digest: result.context.request.requestDigest,
 				observations: result.context.observations,
-				memo_scope: result.context.memoScope,
-				memo_preparation: result.guide,
+				memo_context: result.context.memoScope,
+				memo_reconciliation: result.guide,
 			});
-		case "save-scope":
+		case "load-save-context":
 			return JSON.stringify({
 				ok: true,
 				message: result.message,
 				next_action: {
-					action: "save-prepare",
+					action: "prepare-save-proposal",
 					request_id: result.context.request.requestId,
 					submit_only: ["request_id", "summary", "records"],
-					do_not_repeat: "save-scope",
+					do_not_repeat: "load-save-context",
 				},
 				request_id: result.context.request.requestId,
 				request_digest: result.context.request.requestDigest,
-				save_preparation: result.guide,
+				save_context: result.guide,
 			});
-		case "save-prepare":
+		case "prepare-save-proposal":
 			return JSON.stringify({
 				ok: true,
 				message: result.message,
 				proposal_id: result.handoff.prepared.proposal_id,
 			});
-		case "memo-prepare":
+		case "reconcile-memo":
 			return JSON.stringify({
 				ok: true,
 				message: result.message,
@@ -926,6 +926,8 @@ function processingModeNotification(
 			return "Observer processing: Local background. Only the selected loopback model may run.";
 		case "off":
 			return "Observer model processing is Off; local candidate staging remains available.";
+		default:
+			return assertNever(mode);
 	}
 }
 
@@ -1044,6 +1046,8 @@ function processingStatus(policy: ObserverProcessingPolicy): {
 					? `${policy.local_model.provider}/${policy.local_model.model_id} · loopback only`
 					: "Local model not configured",
 			};
+		default:
+			return assertNever(policy.mode);
 	}
 }
 
@@ -1212,8 +1216,8 @@ async function runObserverCommand(input: ObserverCommandInput): Promise<void> {
 							`request_id=${request.requestId}`,
 							`material=${request.material}`,
 							request.material === "retrieved-tool-results"
-								? "Its retrieval capture window is open only for this agent run. Retrieve the requested source, then complete source-read, optional hydrate, record, and material-review-finish."
-								: "Use the existing inline candidate to complete source-read, optional hydrate, record, and material-review-finish.",
+								? "Its retrieval capture window is open only for this agent run. Retrieve the requested source, then complete record-source-reading, optional load-inquiry-context, record-observation, and material-review-finish."
+								: "Use the existing inline candidate to complete record-source-reading, optional load-inquiry-context, record-observation, and material-review-finish.",
 						].join("\n"),
 						display: false,
 						details: { requestId: request.requestId },
@@ -1657,7 +1661,7 @@ function executeToolResultNomination(input: {
 	const payload = {
 		action: "nominate-tool-results" as const,
 		nominations,
-		next: "Call source-read only for the returned candidate_ids after faithfully reconstructing their source meaning.",
+		next: "Call record-source-reading only for the returned candidate_ids after faithfully reconstructing their source meaning.",
 	};
 	return {
 		content: [{ type: "text", text: JSON.stringify(payload) }],
@@ -1741,7 +1745,10 @@ export function stagedObserverCommandPort(port: ObserverCommandPort): {
 	};
 }
 
-function commitFailure(message: string): ObserverBackgroundToolResult {
+function commitFailure(
+	message: string,
+	contextBases: readonly unknown[] = [],
+): ObserverBackgroundToolResult {
 	return {
 		content: [
 			{
@@ -1754,9 +1761,23 @@ function commitFailure(message: string): ObserverBackgroundToolResult {
 				}),
 			},
 		],
-		details: { ok: false, message },
+		details: {
+			ok: false,
+			message,
+			...(contextBases.length > 0 ? { contextBases } : {}),
+		},
 		terminate: true,
 	};
+}
+
+function observerContextBasesFromDetails(value: unknown): unknown[] {
+	if (!isRecord(value)) return [];
+	const candidates = [
+		value.contextBasis,
+		...(Array.isArray(value.contextBases) ? value.contextBases : []),
+		...(isRecord(value.preparation) ? [value.preparation.contextBasis] : []),
+	];
+	return candidates.filter((candidate) => isRecord(candidate));
 }
 
 function observerRequestResultIssue(value: unknown): string | null {
@@ -1859,6 +1880,7 @@ export async function executeObserverCommit(input: {
 			nominated = nominatedCandidateIds(result.details);
 		}
 		const observationIds: string[] = [];
+		const contextBases: unknown[] = [];
 		const usedCandidateIds = new Set<string>();
 		for (const proposal of action.observations) {
 			const candidateIds = [
@@ -1880,7 +1902,7 @@ export async function executeObserverCommit(input: {
 			const read = await input.observation.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "source-read",
+					action: "record-source-reading",
 					candidate_ids: candidateIds,
 					source: proposal.source,
 					faithful_summary: proposal.faithful_summary,
@@ -1888,7 +1910,7 @@ export async function executeObserverCommit(input: {
 				},
 				staged.port,
 			);
-			if (!read.ok || read.action !== "source-read") {
+			if (!read.ok || read.action !== "record-source-reading") {
 				return commitFailure(read.message);
 			}
 			let hydrationId: string | null = null;
@@ -1896,14 +1918,14 @@ export async function executeObserverCommit(input: {
 				const hydration = await input.observation.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "hydrate",
+						action: "load-inquiry-context",
 						read_id: read.read.readId,
 						index_digest: read.index.digest,
 						inquiry_ids: proposal.related_inquiry_ids,
 					},
 					staged.port,
 				);
-				if (!hydration.ok || hydration.action !== "hydrate") {
+				if (!hydration.ok || hydration.action !== "load-inquiry-context") {
 					return commitFailure(hydration.message);
 				}
 				hydrationId = hydration.hydration.hydrationId;
@@ -1912,7 +1934,7 @@ export async function executeObserverCommit(input: {
 				proposal.record.kind === "observation"
 					? {
 							observer_action: "observer-sidecar/v1",
-							action: "record",
+							action: "record-observation",
 							read_id: read.read.readId,
 							hydration_id: hydrationId,
 							related_inquiry_ids: proposal.related_inquiry_ids,
@@ -1935,10 +1957,17 @@ export async function executeObserverCommit(input: {
 				recordValue,
 				staged.port,
 			);
-			if (!recorded.ok || recorded.action !== "record") {
+			if (!recorded.ok) {
+				return commitFailure(
+					recorded.message,
+					recorded.contextBasis ? [recorded.contextBasis] : [],
+				);
+			}
+			if (recorded.action !== "record-observation") {
 				return commitFailure(recorded.message);
 			}
 			observationIds.push(recorded.observation.observationId);
+			contextBases.push(recorded.contextBasis);
 		}
 		for (const review of action.hypothesis_context_reviews) {
 			const reviewed = await input.observation.execute(
@@ -1958,7 +1987,7 @@ export async function executeObserverCommit(input: {
 			requestResult = await executeObserverSidecarAction({
 				params: {
 					observer_action: "observer-sidecar/v1",
-					action: "memo-prepare",
+					action: "reconcile-memo",
 					request_id: action.memo.request_id,
 					submission: action.memo.submission,
 				},
@@ -1976,7 +2005,7 @@ export async function executeObserverCommit(input: {
 			requestResult = await executeObserverSidecarAction({
 				params: {
 					observer_action: "observer-sidecar/v1",
-					action: "save-prepare",
+					action: "prepare-save-proposal",
 					request_id: action.save.request_id,
 					summary: action.save.summary,
 					records: action.save.records,
@@ -1994,7 +2023,19 @@ export async function executeObserverCommit(input: {
 		const requestIssue = requestResult
 			? observerRequestResultIssue(requestResult.details)
 			: null;
-		if (requestIssue) return commitFailure(requestIssue);
+		if (requestIssue) {
+			return commitFailure(
+				requestIssue,
+				requestResult
+					? observerContextBasesFromDetails(requestResult.details)
+					: [],
+			);
+		}
+		if (requestResult) {
+			contextBases.push(
+				...observerContextBasesFromDetails(requestResult.details),
+			);
+		}
 		const committed = staged.commit();
 		if (!committed.ok) return commitFailure(committed.message);
 		return {
@@ -2015,6 +2056,7 @@ export async function executeObserverCommit(input: {
 				ok: true,
 				action: "observer-commit",
 				observationIds,
+				contextBases,
 			},
 			terminate: true,
 		};
@@ -2083,10 +2125,10 @@ async function executeObserverSidecarAction(input: {
 	if (!executionResult.ok) {
 		const requestId = input.params.request_id;
 		const requestAction =
-			input.params.action === "memo-scope" ||
-			input.params.action === "memo-prepare" ||
-			input.params.action === "save-scope" ||
-			input.params.action === "save-prepare";
+			input.params.action === "load-memo-context" ||
+			input.params.action === "reconcile-memo" ||
+			input.params.action === "load-save-context" ||
+			input.params.action === "prepare-save-proposal";
 		if (!requestAction || typeof requestId !== "string") {
 			if (!input.background && !input.allowForegroundRoutine) {
 				return {
@@ -2131,7 +2173,7 @@ async function executeObserverSidecarAction(input: {
 	}
 	input.turnState.blockedRequestId = null;
 	const result = executionResult;
-	if (result.action === "save-prepare") {
+	if (result.action === "prepare-save-proposal") {
 		const completion = requireSavePreparationSuccess(
 			await completeSavePreparation(result.handoff, {
 				install(value) {
@@ -2144,7 +2186,7 @@ async function executeObserverSidecarAction(input: {
 			details: { preparation: result, completion },
 		};
 	}
-	if (result.action === "memo-prepare") {
+	if (result.action === "reconcile-memo") {
 		const completion = requireMemoPreparationSuccess(
 			await completeMemoPreparation(result.instruction, {
 				install(value) {
@@ -2169,12 +2211,12 @@ async function executeObserverSidecarAction(input: {
 					)
 				: null;
 		let next:
-			| { readonly action: "save-scope"; readonly request_id: string }
+			| { readonly action: "load-save-context"; readonly request_id: string }
 			| { readonly action: "review-existing-save" }
 			| null = null;
 		if (continuation?.ok && continuation.request) {
 			next = {
-				action: "save-scope",
+				action: "load-save-context",
 				request_id: continuation.request.requestId,
 			};
 		} else if (continuation?.ok && continuation.status === "delegate") {
@@ -2341,12 +2383,12 @@ async function piggybackSidecarContext(input: {
 		const scoped = await input.observation.execute(
 			{
 				observer_action: "observer-sidecar/v1",
-				action: "memo-scope",
+				action: "load-memo-context",
 				request_id: observationSession.pendingMemoRequest.requestId,
 			},
 			port,
 		);
-		if (scoped.ok && scoped.action === "memo-scope") {
+		if (scoped.ok && scoped.action === "load-memo-context") {
 			memoScope = observationToolText(scoped);
 		}
 	}
@@ -2355,12 +2397,12 @@ async function piggybackSidecarContext(input: {
 		const scoped = await input.observation.execute(
 			{
 				observer_action: "observer-sidecar/v1",
-				action: "save-scope",
+				action: "load-save-context",
 				request_id: saveSession.pendingRequest.requestId,
 			},
 			port,
 		);
-		if (scoped.ok && scoped.action === "save-scope") {
+		if (scoped.ok && scoped.action === "load-save-context") {
 			saveScope = observationToolText(scoped);
 		}
 	}

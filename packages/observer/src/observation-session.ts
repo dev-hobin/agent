@@ -6,6 +6,7 @@ import {
 	type ObserverState,
 } from "./lifecycle.ts";
 import { reconstructMemoSession } from "./memo-session.ts";
+import { observationContextInputSha256 } from "./observer-context.ts";
 import type { WorkingSourceBasis } from "./memo-reconciliation.ts";
 import type { InquiryId } from "./memo-profile.ts";
 import {
@@ -369,8 +370,41 @@ function applySemanticObservation(input: {
 			hydration.readId === input.event.readId &&
 			sameStrings(hydration.inquiryIds, input.event.relatedInquiryIds);
 	}
+	const expectedSourceIds = input.event.hydrationId
+		? ["inquiry-context-evidence", "source-reading-evidence"]
+		: ["source-reading-evidence"];
+	const contextInputMatches = Boolean(
+		read &&
+			input.event.contextBasis.questionId === "interpret-source-reading" &&
+			input.event.contextBasis.coverage.missing.length === 0 &&
+			input.event.contextBasis.coverage.conflicts.length === 0 &&
+			sameStrings(
+				input.event.contextBasis.selectedSourceIds,
+				expectedSourceIds,
+			) &&
+			input.event.contextBasis.inputSha256 ===
+				observationContextInputSha256({
+					sourceReading: {
+						readingId: read.readId,
+						episodeId: read.episodeId,
+						sourceId: read.source.sourceId,
+						faithfulSummary: read.faithfulSummary,
+						claims: read.claims,
+					},
+					inquiryContext: hydration
+						? {
+								inquiryContextId: hydration.hydrationId,
+								readingId: hydration.readId,
+								inquiryIds: hydration.inquiryIds,
+								contextDigest: hydration.contextDigest,
+							}
+						: null,
+					relatedInquiryIds: input.event.relatedInquiryIds,
+				}),
+	);
 	if (
 		!read ||
+		!contextInputMatches ||
 		!readAuthorized({
 			lifecycle: input.lifecycle,
 			read,

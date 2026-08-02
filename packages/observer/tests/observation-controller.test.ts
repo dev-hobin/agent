@@ -438,7 +438,7 @@ async function withSandbox(
 function externalSourceAction(candidateId: string): Record<string, unknown> {
 	return {
 		observer_action: "observer-sidecar/v1",
-		action: "source-read",
+		action: "record-source-reading",
 		candidate_ids: [candidateId],
 		source: {
 			kind: "external-material",
@@ -544,6 +544,27 @@ describe("Observation staged controller", () => {
 					turnState,
 				});
 				assert.equal((committed.details as { ok?: boolean }).ok, true);
+				assert.equal(
+					(
+						committed.details as {
+							contextBases?: Array<{
+								questionId?: string;
+								coverage?: { missing?: unknown[] };
+							}>;
+						}
+					).contextBases?.[0]?.questionId,
+					"interpret-source-reading",
+				);
+				assert.deepEqual(
+					(
+						committed.details as {
+							contextBases?: Array<{
+								coverage?: { missing?: unknown[] };
+							}>;
+						}
+					).contextBases?.[0]?.coverage?.missing,
+					[],
+				);
 				assert.equal(committed.terminate, true);
 				const snapshot = reconstructObservationSession(port.entries);
 				assert.equal(snapshot.sourceReads.length, 1);
@@ -851,7 +872,7 @@ describe("Observation staged controller", () => {
 				status: "inline-captured",
 				request_id: started.requestId,
 				candidate_id: started.candidateId,
-				next_action: "source-read",
+				next_action: "record-source-reading",
 			});
 			const afterStarted = port.entries.length;
 			const resumed = await executeMaterialReviewStart({
@@ -975,7 +996,7 @@ describe("Observation staged controller", () => {
 			});
 			if (!routed || routed.result.action !== "material-review-start")
 				assert.fail("Expected routed material review start");
-			assert.match(routed.text, /"next_action":"source-read"/u);
+			assert.match(routed.text, /"next_action":"record-source-reading"/u);
 			assert.equal(
 				await routeMaterialReviewTool({
 					value: { action: "not-material-review" },
@@ -1172,7 +1193,7 @@ describe("Observation staged controller", () => {
 						tool_call_id: "tool-call-stale-retrieved",
 						tool_name: "read",
 					},
-					text: "A later unrelated technical-reading result.",
+					text: "A later unrelated tool result.",
 					capturedAt: "2026-08-01T10:02:45.000Z",
 				},
 				port,
@@ -1257,7 +1278,7 @@ describe("Observation staged controller", () => {
 				externalSourceAction(captured.candidate.candidateId),
 				port,
 			);
-			if (!read.ok || read.action !== "source-read")
+			if (!read.ok || read.action !== "record-source-reading")
 				assert.fail(read.ok ? "Expected material review read" : read.message);
 			assert.equal(
 				read.read.materialReviewRequestId,
@@ -1266,21 +1287,21 @@ describe("Observation staged controller", () => {
 			const hydrated = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "hydrate",
+					action: "load-inquiry-context",
 					read_id: read.read.readId,
 					index_digest: read.index.digest,
 					inquiry_ids: [DURABLE_INQUIRY],
 				},
 				port,
 			);
-			if (!hydrated.ok || hydrated.action !== "hydrate")
+			if (!hydrated.ok || hydrated.action !== "load-inquiry-context")
 				assert.fail(
 					hydrated.ok ? "Expected material review hydration" : hydrated.message,
 				);
 			const recorded = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "record",
+					action: "record-observation",
 					read_id: read.read.readId,
 					hydration_id: hydrated.hydration.hydrationId,
 					related_inquiry_ids: [DURABLE_INQUIRY],
@@ -1292,7 +1313,7 @@ describe("Observation staged controller", () => {
 				},
 				port,
 			);
-			if (!recorded.ok || recorded.action !== "record")
+			if (!recorded.ok || recorded.action !== "record-observation")
 				assert.fail(
 					recorded.ok ? "Expected material review record" : recorded.message,
 				);
@@ -1396,10 +1417,10 @@ describe("Observation staged controller", () => {
 				{
 					origin: {
 						kind: "tool-result",
-						tool_call_id: "tool-call-later-technical-reading",
+						tool_call_id: "tool-call-later-unrelated-read",
 						tool_name: "fetch_content",
 					},
-					text: "Later technical-reading result.",
+					text: "Later unrelated reading result.",
 					capturedAt: "2026-08-01T10:09:00.000Z",
 					nominationReason:
 						"It contributes source evidence to the open Episode.",
@@ -1538,7 +1559,7 @@ describe("Observation staged controller", () => {
 				externalSourceAction(captured.candidate.candidateId),
 				port,
 			);
-			if (!read.ok || read.action !== "source-read")
+			if (!read.ok || read.action !== "record-source-reading")
 				assert.fail("Expected read");
 			assert.equal(read.read.materialReviewRequestId, undefined);
 			await lifecycleController.command("off", port);
@@ -1546,7 +1567,7 @@ describe("Observation staged controller", () => {
 			const hydrate = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "hydrate",
+					action: "load-inquiry-context",
 					read_id: read.read.readId,
 					index_digest: read.index.digest,
 					inquiry_ids: [DURABLE_INQUIRY],
@@ -1557,7 +1578,7 @@ describe("Observation staged controller", () => {
 			const record = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "record",
+					action: "record-observation",
 					read_id: read.read.readId,
 					hydration_id: null,
 					related_inquiry_ids: [],
@@ -1726,7 +1747,7 @@ describe("Observation staged controller", () => {
 				externalSourceAction(captured.candidate.candidateId),
 				port,
 			);
-			if (!read.ok || read.action !== "source-read") {
+			if (!read.ok || read.action !== "record-source-reading") {
 				assert.fail(read.ok ? "Expected source-read" : read.message);
 			}
 			assert.equal(port.entries.length, beforeReadEntries + 1);
@@ -1738,7 +1759,7 @@ describe("Observation staged controller", () => {
 			const unknown = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "hydrate",
+					action: "load-inquiry-context",
 					read_id: read.read.readId,
 					index_digest: read.index.digest,
 					inquiry_ids: ["inquiry-00000000-0000-4000-8000-000000000099"],
@@ -1751,14 +1772,14 @@ describe("Observation staged controller", () => {
 			const hydrated = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "hydrate",
+					action: "load-inquiry-context",
 					read_id: read.read.readId,
 					index_digest: read.index.digest,
 					inquiry_ids: [DURABLE_INQUIRY],
 				},
 				port,
 			);
-			if (!hydrated.ok || hydrated.action !== "hydrate") {
+			if (!hydrated.ok || hydrated.action !== "load-inquiry-context") {
 				assert.fail(hydrated.ok ? "Expected hydrate" : hydrated.message);
 			}
 			assert.equal(hydrated.context.inquiries.length, 1);
@@ -1773,7 +1794,7 @@ describe("Observation staged controller", () => {
 			const duplicateHydration = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "hydrate",
+					action: "load-inquiry-context",
 					read_id: read.read.readId,
 					index_digest: read.index.digest,
 					inquiry_ids: [DURABLE_INQUIRY],
@@ -1867,26 +1888,29 @@ describe("Observation staged controller", () => {
 				externalSourceAction(first.candidate.candidateId),
 				port,
 			);
-			if (!firstRead.ok || firstRead.action !== "source-read") {
+			if (!firstRead.ok || firstRead.action !== "record-source-reading") {
 				assert.fail(firstRead.ok ? "Expected read" : firstRead.message);
 			}
 			const firstHydration = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "hydrate",
+					action: "load-inquiry-context",
 					read_id: firstRead.read.readId,
 					index_digest: firstRead.index.digest,
 					inquiry_ids: [DURABLE_INQUIRY],
 				},
 				port,
 			);
-			if (!firstHydration.ok || firstHydration.action !== "hydrate") {
+			if (
+				!firstHydration.ok ||
+				firstHydration.action !== "load-inquiry-context"
+			) {
 				assert.fail("Expected first hydration");
 			}
 			const minor = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "record",
+					action: "record-observation",
 					read_id: firstRead.read.readId,
 					hydration_id: firstHydration.hydration.hydrationId,
 					related_inquiry_ids: [DURABLE_INQUIRY],
@@ -1919,25 +1943,28 @@ describe("Observation staged controller", () => {
 				externalSourceAction(second.candidate.candidateId),
 				port,
 			);
-			if (!secondRead.ok || secondRead.action !== "source-read") {
+			if (!secondRead.ok || secondRead.action !== "record-source-reading") {
 				assert.fail("Expected second read");
 			}
 			const secondHydration = await controller.execute(
 				{
 					observer_action: "observer-sidecar/v1",
-					action: "hydrate",
+					action: "load-inquiry-context",
 					read_id: secondRead.read.readId,
 					index_digest: secondRead.index.digest,
 					inquiry_ids: [DURABLE_INQUIRY],
 				},
 				port,
 			);
-			if (!secondHydration.ok || secondHydration.action !== "hydrate") {
+			if (
+				!secondHydration.ok ||
+				secondHydration.action !== "load-inquiry-context"
+			) {
 				assert.fail("Expected second hydration");
 			}
 			const majorAction = {
 				observer_action: "observer-sidecar/v1",
-				action: "record",
+				action: "record-observation",
 				read_id: secondRead.read.readId,
 				hydration_id: secondHydration.hydration.hydrationId,
 				related_inquiry_ids: [DURABLE_INQUIRY],
@@ -1985,26 +2012,29 @@ describe("Observation staged controller", () => {
 					externalSourceAction(sourceCandidate.candidate.candidateId),
 					port,
 				);
-				if (!sourceRead.ok || sourceRead.action !== "source-read")
+				if (!sourceRead.ok || sourceRead.action !== "record-source-reading")
 					assert.fail(
 						sourceRead.ok ? "Expected source read" : sourceRead.message,
 					);
 				const sourceHydration = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "hydrate",
+						action: "load-inquiry-context",
 						read_id: sourceRead.read.readId,
 						index_digest: sourceRead.index.digest,
 						inquiry_ids: [DURABLE_INQUIRY],
 					},
 					port,
 				);
-				if (!sourceHydration.ok || sourceHydration.action !== "hydrate")
+				if (
+					!sourceHydration.ok ||
+					sourceHydration.action !== "load-inquiry-context"
+				)
 					assert.fail("Expected source hydration");
 				const sourceObservation = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "record",
+						action: "record-observation",
 						read_id: sourceRead.read.readId,
 						hydration_id: sourceHydration.hydration.hydrationId,
 						related_inquiry_ids: [DURABLE_INQUIRY],
@@ -2015,7 +2045,10 @@ describe("Observation staged controller", () => {
 					},
 					port,
 				);
-				if (!sourceObservation.ok || sourceObservation.action !== "record")
+				if (
+					!sourceObservation.ok ||
+					sourceObservation.action !== "record-observation"
+				)
 					assert.fail("Expected source observation");
 
 				const captured = controller.capture(
@@ -2135,7 +2168,7 @@ describe("Observation staged controller", () => {
 				const malformed = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-scope",
+						action: "load-memo-context",
 						request_id: requested.request.requestId,
 						extra: true,
 					},
@@ -2147,7 +2180,7 @@ describe("Observation staged controller", () => {
 				const unknown = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-scope",
+						action: "load-memo-context",
 						request_id: "memo-request-00000000-0000-4000-8000-000000000999",
 					},
 					port,
@@ -2158,12 +2191,12 @@ describe("Observation staged controller", () => {
 				const scoped = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-scope",
+						action: "load-memo-context",
 						request_id: requested.request.requestId,
 					},
 					port,
 				);
-				if (!scoped.ok || scoped.action !== "memo-scope") {
+				if (!scoped.ok || scoped.action !== "load-memo-context") {
 					assert.fail(scoped.ok ? "Expected Memo scope" : scoped.message);
 				}
 				assert.deepEqual(
@@ -2180,7 +2213,7 @@ describe("Observation staged controller", () => {
 				assert.equal(payload.request_id, requested.request.requestId);
 				assert.equal(payload.request_digest, requested.request.requestDigest);
 				assert.equal(payload.observations.length, 2);
-				assert.deepEqual(payload.memo_preparation, scoped.guide);
+				assert.deepEqual(payload.memo_reconciliation, scoped.guide);
 				assert.equal(
 					scoped.guide.instruction_seed.pass.instruction_id,
 					requested.request.requestId,
@@ -2257,7 +2290,7 @@ describe("Observation staged controller", () => {
 				const noOpHypothesisRevision = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-prepare",
+						action: "reconcile-memo",
 						request_id: requested.request.requestId,
 						submission: {
 							...submission,
@@ -2296,7 +2329,7 @@ describe("Observation staged controller", () => {
 				const legacyRevise = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-prepare",
+						action: "reconcile-memo",
 						request_id: requested.request.requestId,
 						submission: {
 							...submission,
@@ -2323,7 +2356,7 @@ describe("Observation staged controller", () => {
 				const additionalReviseField = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-prepare",
+						action: "reconcile-memo",
 						request_id: requested.request.requestId,
 						submission: {
 							...submission,
@@ -2344,7 +2377,7 @@ describe("Observation staged controller", () => {
 				const malformedPreparation = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-prepare",
+						action: "reconcile-memo",
 						request_id: requested.request.requestId,
 						submission: { ...submission, dispositions: [] },
 					},
@@ -2355,7 +2388,7 @@ describe("Observation staged controller", () => {
 				const attemptedLockedOverride = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-prepare",
+						action: "reconcile-memo",
 						request_id: requested.request.requestId,
 						submission,
 						instruction,
@@ -2368,7 +2401,7 @@ describe("Observation staged controller", () => {
 				const failedInstructionAppend = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-prepare",
+						action: "reconcile-memo",
 						request_id: requested.request.requestId,
 						submission,
 					},
@@ -2380,7 +2413,7 @@ describe("Observation staged controller", () => {
 				const droppedInstructionAppend = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-prepare",
+						action: "reconcile-memo",
 						request_id: requested.request.requestId,
 						submission,
 					},
@@ -2392,13 +2425,13 @@ describe("Observation staged controller", () => {
 				const prepared = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-prepare",
+						action: "reconcile-memo",
 						request_id: requested.request.requestId,
 						submission,
 					},
 					port,
 				);
-				if (!prepared.ok || prepared.action !== "memo-prepare") {
+				if (!prepared.ok || prepared.action !== "reconcile-memo") {
 					assert.fail(
 						prepared.ok ? "Expected Memo preparation" : prepared.message,
 					);
@@ -2426,7 +2459,7 @@ describe("Observation staged controller", () => {
 				const resumedPreparation = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "memo-prepare",
+						action: "reconcile-memo",
 						request_id: requested.request.requestId,
 						submission,
 					},
@@ -2434,7 +2467,7 @@ describe("Observation staged controller", () => {
 				);
 				if (
 					!resumedPreparation.ok ||
-					resumedPreparation.action !== "memo-prepare"
+					resumedPreparation.action !== "reconcile-memo"
 				) {
 					assert.fail("Expected resumed Memo preparation");
 				}
@@ -2564,7 +2597,7 @@ describe("Observation staged controller", () => {
 				const malformedSaveScope = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "save-scope",
+						action: "load-save-context",
 						request_id: saveRequested.request.requestId,
 						extra: true,
 					},
@@ -2575,12 +2608,12 @@ describe("Observation staged controller", () => {
 				const saveScoped = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "save-scope",
+						action: "load-save-context",
 						request_id: saveRequested.request.requestId,
 					},
 					port,
 				);
-				if (!saveScoped.ok || saveScoped.action !== "save-scope")
+				if (!saveScoped.ok || saveScoped.action !== "load-save-context")
 					assert.fail(
 						saveScoped.ok ? "Expected Review & Save scope" : saveScoped.message,
 					);
@@ -2593,12 +2626,12 @@ describe("Observation staged controller", () => {
 				const savePayload = toolPayload(saveScoped);
 				assert.equal(savePayload.request_id, saveRequested.request.requestId);
 				assert.deepEqual(savePayload.next_action, {
-					action: "save-prepare",
+					action: "prepare-save-proposal",
 					request_id: saveRequested.request.requestId,
 					submit_only: ["request_id", "summary", "records"],
-					do_not_repeat: "save-scope",
+					do_not_repeat: "load-save-context",
 				});
-				assert.deepEqual(savePayload.save_preparation, saveScoped.guide);
+				assert.deepEqual(savePayload.save_context, saveScoped.guide);
 				assert.equal(
 					reconstructSaveRequestSession(port.entries).pendingRequest?.requestId,
 					saveRequested.request.requestId,
@@ -2651,7 +2684,7 @@ describe("Observation staged controller", () => {
 				const missingCoverage = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "save-prepare",
+						action: "prepare-save-proposal",
 						request_id: saveRequested.request.requestId,
 						summary: "Incomplete proposal",
 						records: [],
@@ -2662,7 +2695,7 @@ describe("Observation staged controller", () => {
 				const lockedOverride = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "save-prepare",
+						action: "prepare-save-proposal",
 						request_id: saveRequested.request.requestId,
 						summary: "Locked override",
 						records: recordsFor(saveScoped.guide),
@@ -2675,14 +2708,14 @@ describe("Observation staged controller", () => {
 				const preparedSave = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "save-prepare",
+						action: "prepare-save-proposal",
 						request_id: saveRequested.request.requestId,
 						summary: "Persist one source and the reconciled inquiry state.",
 						records: recordsFor(saveScoped.guide),
 					},
 					port,
 				);
-				if (!preparedSave.ok || preparedSave.action !== "save-prepare")
+				if (!preparedSave.ok || preparedSave.action !== "prepare-save-proposal")
 					assert.fail(
 						preparedSave.ok
 							? "Expected Review & Save preparation"
@@ -2732,12 +2765,12 @@ describe("Observation staged controller", () => {
 				const retryScope = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "save-scope",
+						action: "load-save-context",
 						request_id: retryRequest.request.requestId,
 					},
 					port,
 				);
-				if (!retryScope.ok || retryScope.action !== "save-scope")
+				if (!retryScope.ok || retryScope.action !== "load-save-context")
 					assert.fail(
 						retryScope.ok
 							? "Expected retry Review & Save scope"
@@ -2746,14 +2779,17 @@ describe("Observation staged controller", () => {
 				const retryPrepared = await controller.execute(
 					{
 						observer_action: "observer-sidecar/v1",
-						action: "save-prepare",
+						action: "prepare-save-proposal",
 						request_id: retryRequest.request.requestId,
 						summary: "Approved durable reconciliation.",
 						records: recordsFor(retryScope.guide),
 					},
 					port,
 				);
-				if (!retryPrepared.ok || retryPrepared.action !== "save-prepare")
+				if (
+					!retryPrepared.ok ||
+					retryPrepared.action !== "prepare-save-proposal"
+				)
 					assert.fail(
 						retryPrepared.ok
 							? "Expected retry Review & Save preparation"

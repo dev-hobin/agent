@@ -240,7 +240,7 @@ describe("Observer hidden Sidecar context", () => {
 			context ?? "",
 			/memo-request-00000000-0000-4000-8000-000000000023/u,
 		);
-		assert.match(context ?? "", /action memo-scope/u);
+		assert.match(context ?? "", /action load-memo-context/u);
 		assert.match(context ?? "", /submission_seed/u);
 		assert.match(context ?? "", /never resend or nest locked fields/u);
 		assert.match(context ?? "", /required_coverage/u);
@@ -251,11 +251,11 @@ describe("Observer hidden Sidecar context", () => {
 		assert.doesNotMatch(context ?? "", /<observer-sidecar>/u);
 		const piggyback = observerSidecarContext(pendingEntries, [], {
 			piggyback: true,
-			memoScope: '{"ok":true,"memo_preparation":{"required_coverage":[]}}',
+			memoScope: '{"ok":true,"memo_reconciliation":{"required_coverage":[]}}',
 			standingIndex:
 				'{"digest":"standing-digest","inquiries":[{"inquiryId":"inquiry-visible"}]}',
 		});
-		assert.match(piggyback ?? "", /computed memo-scope locally/u);
+		assert.match(piggyback ?? "", /loaded Memo context locally/u);
 		assert.match(piggyback ?? "", /Set observer-commit\.memo/u);
 		assert.match(piggyback ?? "", /at most one observer_sidecar call/u);
 		assert.match(piggyback ?? "", /without a follow-up model request/u);
@@ -263,7 +263,7 @@ describe("Observer hidden Sidecar context", () => {
 		assert.match(piggyback ?? "", /inquiry-visible/u);
 		assert.doesNotMatch(
 			piggyback ?? "",
-			/Call observer_sidecar action memo-scope/u,
+			/Call observer_sidecar action load-memo-context/u,
 		);
 		if (request.kind !== "memo-requested") assert.fail("Expected Memo request");
 		assert.equal(
@@ -328,11 +328,11 @@ describe("Observer hidden Sidecar context", () => {
 		]);
 		assert.match(context ?? "", /<observer-save-request>/u);
 		assert.equal(context?.includes(request.requestId), true);
-		assert.match(context ?? "", /action save-scope/u);
+		assert.match(context ?? "", /action load-save-context/u);
 		assert.match(context ?? "", /exactly once unless it returns an error/u);
 		assert.match(
 			context ?? "",
-			/After a successful scope, do not call save-scope again/u,
+			/After loading context successfully, do not call load-save-context again/u,
 		);
 		assert.match(
 			context ?? "",
@@ -352,18 +352,18 @@ describe("Observer hidden Sidecar context", () => {
 			[],
 			{
 				piggyback: true,
-				saveScope: '{"ok":true,"save_preparation":{"required_records":[]}}',
+				saveScope: '{"ok":true,"save_context":{"required_records":[]}}',
 			},
 		);
-		assert.match(piggyback ?? "", /computed save-scope locally/u);
+		assert.match(piggyback ?? "", /loaded save context locally/u);
 		assert.match(piggyback ?? "", /Set observer-commit\.save/u);
 		assert.doesNotMatch(
 			piggyback ?? "",
-			/Call observer_sidecar action save-scope/u,
+			/Call observer_sidecar action load-save-context/u,
 		);
 	});
 
-	test("keeps suspended material candidates out of unrelated technical-reading guidance", () => {
+	test("keeps suspended material candidates out of unrelated tool guidance", () => {
 		const request: MaterialReviewRequestedEvent = {
 			protocol: "observer.material-review/v1",
 			kind: "material-review-requested",

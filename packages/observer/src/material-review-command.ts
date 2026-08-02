@@ -186,7 +186,7 @@ export function materialReviewCommandText(
 		const nextAction =
 			result.status === "pending-retrieval"
 				? "retrieve-source-material"
-				: "source-read";
+				: "record-source-reading";
 		return JSON.stringify({
 			ok: true,
 			action: result.action,

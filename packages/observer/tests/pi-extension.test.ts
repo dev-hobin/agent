@@ -26,7 +26,7 @@ import {
 	hypothesisContextReviewActionSchema,
 	hypothesisOutcomeSchema,
 	memoOutcomeSchema,
-	memoPrepareActionSchema,
+	reconcileMemoActionSchema,
 	materialReviewFinishActionSchema,
 	materialReviewStartActionSchema,
 	observerCommitActionSchema,
@@ -34,8 +34,8 @@ import {
 	observerRuntimeSidecarParameters,
 	recordNewHypothesisActionSchema,
 	recordObservationActionSchema,
-	savePrepareActionSchema,
-	saveScopeActionSchema,
+	prepareSaveProposalActionSchema,
+	loadSaveContextActionSchema,
 } from "../extensions/memo-tool-schema.ts";
 import { OBSERVER_PROTOCOL, type ObserverEvent } from "../src/lifecycle.ts";
 import { decodeObservationAction } from "../src/observation-action.ts";
@@ -135,7 +135,7 @@ test("keeps successful Sidecar protocol rows visually quiet and surfaces errors"
 	assert.deepEqual(
 		observerSidecarResultComponent(
 			{
-				action: "record",
+				action: "record-observation",
 				content: [{ type: "text", text: "recorded" }],
 				isError: false,
 			},
@@ -145,7 +145,7 @@ test("keeps successful Sidecar protocol rows visually quiet and surfaces errors"
 	);
 	const error = observerSidecarResultComponent(
 		{
-			action: "record",
+			action: "record-observation",
 			content: [
 				{
 					type: "text",
@@ -156,7 +156,7 @@ test("keeps successful Sidecar protocol rows visually quiet and surfaces errors"
 		},
 		theme,
 	).render(80);
-	assert.match(error.join("\n"), /Observer record failed/u);
+	assert.match(error.join("\n"), /Observer record-observation failed/u);
 	assert.match(error.join("\n"), /domain failed/u);
 	assert.match(error.join("\n"), /Open \/observer status/u);
 	assert.doesNotMatch(error.join("\n"), /\u001b\[31m/u);
@@ -194,7 +194,7 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 	assert.match(source, /renderShell: "self"/u);
 	assert.match(source, /pi\.on\("tool_result"/u);
 	assert.match(source, /event\.toolName === OBSERVER_TOOL_NAME/u);
-	assert.match(schemaSource, /action: Type\.Literal\("memo-scope"\)/u);
+	assert.match(schemaSource, /action: Type\.Literal\("load-memo-context"\)/u);
 	assert.match(
 		schemaSource,
 		/action: Type\.Literal\("hypothesis-context-review"\)/u,
@@ -209,8 +209,9 @@ test("declares exact Pi package discovery and peer surfaces", async () => {
 	);
 	assert.match(source, /parsed\.command\.kind !== "memo"/u);
 	assert.match(source, /parsed\.command\.kind !== "review"/u);
-	assert.match(schemaSource, /saveScopeActionSchema/u);
-	assert.match(schemaSource, /savePrepareActionSchema/u);
+	assert.match(schemaSource, /loadSaveContextActionSchema/u);
+	assert.match(schemaSource, /prepareSaveProposalActionSchema/u);
+	assert.match(schemaSource, /reconcileMemoActionSchema/u);
 	assert.match(source, /pi\.on\("context"/u);
 	assert.match(source, /observation\.requestMemo\(port\)/u);
 	assert.match(source, /createObserverBackgroundQueue/u);
@@ -742,17 +743,17 @@ test("routes Review preparation before triggers and delegates an existing propos
 
 	const scope = {
 		observer_action: "observer-sidecar/v1",
-		action: "save-scope",
+		action: "load-save-context",
 		request_id: request.requestId,
 	};
-	assert.equal(Value.Check(saveScopeActionSchema, scope), true);
+	assert.equal(Value.Check(loadSaveContextActionSchema, scope), true);
 	assert.equal(
-		Value.Check(saveScopeActionSchema, { ...scope, extra: true }),
+		Value.Check(loadSaveContextActionSchema, { ...scope, extra: true }),
 		false,
 	);
 	const prepare = {
 		observer_action: "observer-sidecar/v1",
-		action: "save-prepare",
+		action: "prepare-save-proposal",
 		request_id: request.requestId,
 		summary: "Prepare one required record.",
 		records: [
@@ -763,9 +764,9 @@ test("routes Review preparation before triggers and delegates an existing propos
 			},
 		],
 	};
-	assert.equal(Value.Check(savePrepareActionSchema, prepare), true);
+	assert.equal(Value.Check(prepareSaveProposalActionSchema, prepare), true);
 	assert.equal(
-		Value.Check(savePrepareActionSchema, {
+		Value.Check(prepareSaveProposalActionSchema, {
 			...prepare,
 			proposal_id: request.proposalId,
 		}),
@@ -835,7 +836,7 @@ test("describes one atomic Piggyback commit envelope", () => {
 test("separates ordinary records from independent Observer hypotheses", () => {
 	const ordinary = {
 		observer_action: "observer-sidecar/v1",
-		action: "record",
+		action: "record-observation",
 		read_id: "source-read-00000000-0000-4000-8000-000000000090",
 		hydration_id: null,
 		related_inquiry_ids: [],
@@ -884,14 +885,14 @@ test("separates ordinary records from independent Observer hypotheses", () => {
 	assert.equal(
 		Value.Check(observerMaterialSidecarParameters, {
 			observer_action: "observer-sidecar/v1",
-			action: "memo-scope",
+			action: "load-memo-context",
 			request_id: "memo-request-00000000-0000-4000-8000-000000000099",
 		}),
 		false,
 	);
 	const decoded = decodeObservationAction(independent);
 	assert.equal(decoded.ok, true);
-	if (!decoded.ok || decoded.value.action !== "record") {
+	if (!decoded.ok || decoded.value.action !== "record-observation") {
 		assert.fail("Expected persisted record compatibility");
 	}
 	assert.equal(decoded.value.movement, "independent-new-hypothesis");
@@ -904,7 +905,7 @@ test("separates ordinary records from independent Observer hypotheses", () => {
 test("preserves explicit null through converted and compiled TypeBox validation", () => {
 	const value = {
 		observer_action: "observer-sidecar/v1",
-		action: "source-read",
+		action: "record-source-reading",
 		candidate_ids: ["candidate-00000000-0000-4000-8000-000000000091"],
 		source: {
 			kind: "direct-observation",
@@ -1076,7 +1077,7 @@ test("describes every Memo outcome and rejects locked-field injection", () => {
 	}
 	const action = {
 		observer_action: "observer-sidecar/v1",
-		action: "memo-prepare",
+		action: "reconcile-memo",
 		request_id: "memo-request-00000000-0000-4000-8000-000000000091",
 		submission: {
 			evidence: [
@@ -1101,11 +1102,11 @@ test("describes every Memo outcome and rejects locked-field injection", () => {
 			],
 		},
 	};
-	Value.Convert(memoPrepareActionSchema, action);
-	assert.equal(Value.Check(memoPrepareActionSchema, action), true);
+	Value.Convert(reconcileMemoActionSchema, action);
+	assert.equal(Value.Check(reconcileMemoActionSchema, action), true);
 	assert.equal(action.submission.evidence[0]?.source_id, null);
 	const decoded = decodeObservationAction(action);
-	if (!decoded.ok || decoded.value.action !== "memo-prepare")
+	if (!decoded.ok || decoded.value.action !== "reconcile-memo")
 		assert.fail(decoded.ok ? "Expected Memo action" : decoded.issue.message);
 	assert.deepEqual(decoded.value.submission.memoOutcomes[1], {
 		kind: "revise",
@@ -1133,7 +1134,7 @@ test("describes every Memo outcome and rejects locked-field injection", () => {
 			],
 		},
 	};
-	assert.equal(Value.Check(memoPrepareActionSchema, legacyRevise), false);
+	assert.equal(Value.Check(reconcileMemoActionSchema, legacyRevise), false);
 	assert.equal(decodeObservationAction(legacyRevise).ok, false);
 	const additionalField = {
 		...action,
@@ -1142,14 +1143,14 @@ test("describes every Memo outcome and rejects locked-field injection", () => {
 			memo_outcomes: [{ ...memoOutcomes[1], disposition: "incubating" }],
 		},
 	};
-	assert.equal(Value.Check(memoPrepareActionSchema, additionalField), false);
+	assert.equal(Value.Check(reconcileMemoActionSchema, additionalField), false);
 	assert.equal(decodeObservationAction(additionalField).ok, false);
 	const wrongRequest = structuredClone(action);
 	wrongRequest.request_id = "request-00000000-0000-4000-8000-000000000091";
-	assert.equal(Value.Check(memoPrepareActionSchema, wrongRequest), false);
+	assert.equal(Value.Check(reconcileMemoActionSchema, wrongRequest), false);
 	const lockedOverride = structuredClone(action);
 	Reflect.set(lockedOverride, "instruction", {});
-	assert.equal(Value.Check(memoPrepareActionSchema, lockedOverride), false);
+	assert.equal(Value.Check(reconcileMemoActionSchema, lockedOverride), false);
 });
 
 test("maps domain and installation rejection to actual tool errors", () => {

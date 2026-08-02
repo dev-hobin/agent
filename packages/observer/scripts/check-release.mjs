@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -10,9 +12,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const EXPECTED_FILES = [
 	"LICENSE",
 	"README.md",
-	"docs/implementation-plan-v0.1.ko.md",
 	"docs/product-spec-v0.1.ko.md",
-	"docs/terminal-workbench-ux-study-v0.1.ko.md",
+	"docs/runtime-flow.md",
 	"extensions/memo-tool-schema.ts",
 	"extensions/observer-background.ts",
 	"extensions/observer-workbench-tui.ts",
@@ -40,6 +41,7 @@ const EXPECTED_FILES = [
 	"src/notebook.ts",
 	"src/observation-action.ts",
 	"src/observation-controller.ts",
+	"src/observer-context.ts",
 	"src/observation-profile.ts",
 	"src/observation-session.ts",
 	"src/observer-background-queue.ts",
@@ -68,42 +70,6 @@ function failure(message) {
 	return new Error(`Observer release check failed: ${message}`);
 }
 
-function isRecord(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function decodePackFile(value, index) {
-	if (!isRecord(value) || typeof value.path !== "string" || !value.path) {
-		throw failure(`npm pack file ${index} has no nonempty path.`);
-	}
-	return value.path;
-}
-
-function decodePackReport(raw) {
-	let value;
-	try {
-		value = JSON.parse(raw);
-	} catch (error) {
-		throw failure(
-			`npm pack did not return JSON: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
-	if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) {
-		throw failure("npm pack must return exactly one package report.");
-	}
-	const report = value[0];
-	if (typeof report.filename !== "string" || !report.filename) {
-		throw failure("npm pack report has no nonempty filename.");
-	}
-	if (!Array.isArray(report.files)) {
-		throw failure("npm pack report has no files array.");
-	}
-	return {
-		filename: report.filename,
-		paths: report.files.map(decodePackFile),
-	};
-}
-
 async function requireCleanRepository() {
 	const { stdout } = await run("git", ["status", "--porcelain=v1"], {
 		cwd: root,
@@ -115,27 +81,85 @@ async function requireCleanRepository() {
 }
 
 async function inspectPack() {
-	const { stdout } = await run(
-		"npm",
-		["pack", "--dry-run", "--ignore-scripts", "--json"],
-		{
+	const destination = await mkdtemp(join(tmpdir(), "observer-release-pack-"));
+	try {
+		await run("pnpm", ["pack", "--pack-destination", destination], {
 			cwd: root,
 			encoding: "utf8",
 			maxBuffer: 10 * 1024 * 1024,
-		},
-	);
-	return decodePackReport(stdout);
+		});
+		const archives = (await readdir(destination)).filter((path) =>
+			path.endsWith(".tgz"),
+		);
+		if (archives.length !== 1 || !archives[0]) {
+			throw failure("pnpm pack must produce exactly one tarball.");
+		}
+		const filename = archives[0];
+		const archive = join(destination, filename);
+		const [{ stdout }, { stdout: manifestJson }] = await Promise.all([
+			run("tar", ["-tzf", archive], {
+				encoding: "utf8",
+				maxBuffer: 10 * 1024 * 1024,
+			}),
+			run("tar", ["-xOf", archive, "package/package.json"], {
+				encoding: "utf8",
+				maxBuffer: 1024 * 1024,
+			}),
+		]);
+		const paths = stdout
+			.split("\n")
+			.filter(Boolean)
+			.map((path) => path.replace(/^package\//u, ""));
+		if (paths.some((path) => path.startsWith("../"))) {
+			throw failure(
+				"packed dependency paths must not escape the package root.",
+			);
+		}
+		let manifest;
+		try {
+			manifest = JSON.parse(manifestJson);
+		} catch (error) {
+			throw failure(
+				`packed package.json is invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+		return { filename, paths, manifest };
+	} finally {
+		await rm(destination, { recursive: true, force: true });
+	}
 }
 
 await requireCleanRepository();
 const report = await inspectPack();
-assert.equal(report.filename, "hobin-observer-0.1.5.tgz");
-assert.deepEqual(report.paths.toSorted(), EXPECTED_FILES.toSorted());
+assert.equal(report.filename, "hobin-observer-0.1.6.tgz");
+assert.equal(
+	report.manifest.dependencies?.["@hobin/judgment"],
+	"0.1.0",
+	"pnpm pack must rewrite the workspace protocol to the public version.",
+);
+assert.deepEqual(report.manifest.bundledDependencies, ["@hobin/judgment"]);
+const packagePaths = report.paths.filter(
+	(path) => !path.startsWith("node_modules/"),
+);
+assert.deepEqual(packagePaths.toSorted(), EXPECTED_FILES.toSorted());
+const judgmentPaths = report.paths.filter((path) =>
+	path.startsWith("node_modules/@hobin/judgment/"),
+);
+assert.ok(
+	judgmentPaths.includes("node_modules/@hobin/judgment/package.json"),
+	"Observer pack must bundle the Judgment runtime dependency.",
+);
+assert.ok(
+	judgmentPaths.includes("node_modules/@hobin/judgment/dist/index.mjs"),
+	"Observer pack must bundle the executable Judgment public entry point.",
+);
 
 process.stdout.write(
 	`${JSON.stringify({
 		ok: true,
 		filename: report.filename,
 		fileCount: report.paths.length,
+		packageFileCount: packagePaths.length,
+		judgmentFileCount: judgmentPaths.length,
 	})}\n`,
 );

@@ -113,7 +113,7 @@ export interface SavePreparationGuide {
 	readonly inventory: readonly SaveInventoryProjection[];
 	readonly required_records: readonly SaveRequiredRecord[];
 	readonly submission_contract: {
-		readonly action: "save-prepare";
+		readonly action: "prepare-save-proposal";
 		readonly submit_only: readonly ["request_id", "summary", "records"];
 		readonly create_record_fields: readonly [
 			"operation",
@@ -683,7 +683,7 @@ export function buildSavePreparationGuide(
 		locked_target: context.lockedTarget,
 		required_records: context.requiredRecords,
 		submission_contract: {
-			action: "save-prepare",
+			action: "prepare-save-proposal",
 			submit_only: ["request_id", "summary", "records"],
 			create_record_fields: ["operation", "record_id", "markdown"],
 			update_record_fields: [

@@ -24,6 +24,12 @@ import {
 	isObservationMemoContext,
 	type ObservationMemoContext,
 } from "./memo-trigger.ts";
+import {
+	decodeContextBasisData,
+	encodeContextBasisData,
+	memoContextInputSha256,
+	type ContextBasisData,
+} from "./observer-context.ts";
 import type { PiBranchEntryLike } from "./pi-session.ts";
 
 export const OBSERVER_MEMO_INSTRUCTION_PROTOCOL: "observer.memo-instruction/v1" =
@@ -55,6 +61,7 @@ export interface StoredObservationMemoInstruction {
 	readonly requestDigest: string;
 	readonly pass: PreparedMemoPass;
 	readonly dispositions: readonly ObservationDisposition[];
+	readonly contextBasis: ContextBasisData;
 	readonly digest: string;
 }
 
@@ -344,6 +351,7 @@ function instructionPayload(input: {
 	readonly requestDigest: string;
 	readonly pass: PreparedMemoPass;
 	readonly dispositions: readonly ObservationDisposition[];
+	readonly contextBasis: ContextBasisData;
 }): Readonly<Record<string, unknown>> {
 	return {
 		observer_memo_instruction: OBSERVER_MEMO_INSTRUCTION_PROTOCOL,
@@ -351,6 +359,7 @@ function instructionPayload(input: {
 		request_digest: input.requestDigest,
 		pass: encodePreparedMemoPass(input.pass),
 		dispositions: input.dispositions.map(dispositionPayload),
+		context_basis: encodeContextBasisData(input.contextBasis),
 	};
 }
 
@@ -359,6 +368,7 @@ function finishStored(input: {
 	readonly requestDigest: string;
 	readonly pass: PreparedMemoPass;
 	readonly dispositions: readonly ObservationDisposition[];
+	readonly contextBasis: ContextBasisData;
 }): StoredObservationMemoInstruction {
 	const digest = sha256Text(JSON.stringify(instructionPayload(input)));
 	return {
@@ -367,6 +377,7 @@ function finishStored(input: {
 		requestDigest: input.requestDigest,
 		pass: input.pass,
 		dispositions: input.dispositions,
+		contextBasis: input.contextBasis,
 		digest,
 		[STORED_MEMO_INSTRUCTION_MARKER]: true,
 	};
@@ -375,6 +386,7 @@ function finishStored(input: {
 function parseStored(
 	value: unknown,
 	persisted: boolean,
+	providedContextBasis?: ContextBasisData,
 ): StoredMemoInstructionResult {
 	if (!isObject(value)) {
 		return failure(
@@ -389,7 +401,7 @@ function parseStored(
 		"request_digest",
 		"pass",
 		"dispositions",
-		...(persisted ? ["digest"] : []),
+		...(persisted ? ["context_basis", "digest"] : []),
 	];
 	if (!hasExactKeys(value, expected)) {
 		return failure(
@@ -408,6 +420,11 @@ function parseStored(
 	const requestId = decodeMemoRequestId(value.request_id);
 	const pass = decodePreparedMemoPass(value.pass);
 	const dispositions = parseDispositions(value.dispositions);
+	const decodedContextBasis = persisted
+		? decodeContextBasisData(value.context_basis)
+		: providedContextBasis
+			? { ok: true as const, value: providedContextBasis }
+			: { ok: false as const, message: "Context basis is required." };
 	if (!requestId) {
 		return failure(
 			"memo-instruction.shape",
@@ -430,6 +447,13 @@ function parseStored(
 		);
 	}
 	if (isInstructionFailure(dispositions)) return dispositions;
+	if (!decodedContextBasis.ok) {
+		return failure(
+			"memo-instruction.context",
+			"/context_basis",
+			decodedContextBasis.message,
+		);
+	}
 	if (pass.value.instructionId !== requestId) {
 		return failure(
 			"memo-instruction.context",
@@ -448,6 +472,7 @@ function parseStored(
 		requestDigest: value.request_digest,
 		pass: pass.value,
 		dispositions,
+		contextBasis: decodedContextBasis.value,
 	});
 	if (persisted && value.digest !== stored.digest) {
 		return failure(
@@ -491,6 +516,36 @@ function contextualFailure(input: {
 			"memo-instruction.context",
 			"/",
 			"Memo instruction does not match its request and hydrated scope.",
+			request.requestId,
+		);
+	}
+	const expectedInputSha256 = memoContextInputSha256({
+		scopeId: request.requestId,
+		episodeId: pass.episodeId,
+		basisDigest: pass.basisDigest,
+		relatedInquiryIds: pass.relatedInquiryIds,
+		knownEvidenceIds: [
+			...input.context.priorEvidenceIds,
+			...pass.evidence.map((evidence) => evidence.evidenceId),
+		].toSorted((left, right) => left.localeCompare(right)),
+		passDigest: pass.digest,
+		outcomeCount: pass.hypothesisOutcomes.length + pass.memoOutcomes.length,
+		dispositionCount: input.instruction.dispositions.length,
+	});
+	if (
+		input.instruction.contextBasis.questionId !== "reconcile-memo-pass" ||
+		input.instruction.contextBasis.inputSha256 !== expectedInputSha256 ||
+		input.instruction.contextBasis.coverage.missing.length > 0 ||
+		input.instruction.contextBasis.coverage.conflicts.length > 0 ||
+		!sameStrings(input.instruction.contextBasis.selectedSourceIds, [
+			"memo-pass-evidence",
+			"memo-scope-evidence",
+		])
+	) {
+		return failure(
+			"memo-instruction.context",
+			"/context_basis",
+			"Memo context basis does not match its current branch input.",
 			request.requestId,
 		);
 	}
@@ -567,8 +622,9 @@ export function refineStoredObservationMemoInstruction(input: {
 export function decodePreparedObservationMemoInstruction(input: {
 	readonly value: unknown;
 	readonly context: ObservationMemoContext;
+	readonly contextBasis: ContextBasisData;
 }): PreparedMemoInstructionResult {
-	const stored = parseStored(input.value, false);
+	const stored = parseStored(input.value, false, input.contextBasis);
 	if (!stored.ok) return stored;
 	return refineStoredObservationMemoInstruction({
 		instruction: stored.value,

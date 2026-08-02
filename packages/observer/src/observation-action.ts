@@ -58,7 +58,7 @@ interface SidecarActionBase {
 }
 
 export interface SourceReadAction extends SidecarActionBase {
-	readonly action: "source-read";
+	readonly action: "record-source-reading";
 	readonly candidateIds: readonly CandidateId[];
 	readonly source: WorkingSourceDraft;
 	readonly faithfulSummary: string;
@@ -66,14 +66,14 @@ export interface SourceReadAction extends SidecarActionBase {
 }
 
 export interface HydrateAction extends SidecarActionBase {
-	readonly action: "hydrate";
+	readonly action: "load-inquiry-context";
 	readonly readId: SourceReadId;
 	readonly indexDigest: string;
 	readonly inquiryIds: readonly InquiryId[];
 }
 
 export interface RecordObservationAction extends SidecarActionBase {
-	readonly action: "record";
+	readonly action: "record-observation";
 	readonly readId: SourceReadId;
 	readonly hydrationId: HydrationId | null;
 	readonly relatedInquiryIds: readonly InquiryId[];
@@ -102,18 +102,18 @@ export interface HypothesisContextReviewAction extends SidecarActionBase {
 	readonly interpretationBoundary: string;
 }
 
-export interface MemoScopeAction extends SidecarActionBase {
-	readonly action: "memo-scope";
+export interface LoadMemoContextAction extends SidecarActionBase {
+	readonly action: "load-memo-context";
 	readonly requestId: MemoRequestId;
 }
 
-export interface SaveScopeAction extends SidecarActionBase {
-	readonly action: "save-scope";
+export interface LoadSaveContextAction extends SidecarActionBase {
+	readonly action: "load-save-context";
 	readonly requestId: SaveRequestId;
 }
 
-export interface SavePrepareAction extends SidecarActionBase {
-	readonly action: "save-prepare";
+export interface PrepareSaveProposalAction extends SidecarActionBase {
+	readonly action: "prepare-save-proposal";
 	readonly requestId: SaveRequestId;
 	readonly summary: string;
 	readonly records: readonly unknown[];
@@ -151,8 +151,8 @@ type ModelMemoOutcome =
 	  }
 	| { readonly kind: "create"; readonly memo: unknown };
 
-export interface MemoPrepareAction extends SidecarActionBase {
-	readonly action: "memo-prepare";
+export interface ReconcileMemoAction extends SidecarActionBase {
+	readonly action: "reconcile-memo";
 	readonly requestId: MemoRequestId;
 	readonly submission: MemoSemanticSubmission;
 }
@@ -163,10 +163,10 @@ export type ObservationAction =
 	| RecordObservationAction
 	| RegisterUserHypothesisAction
 	| HypothesisContextReviewAction
-	| MemoScopeAction
-	| MemoPrepareAction
-	| SaveScopeAction
-	| SavePrepareAction;
+	| LoadMemoContextAction
+	| ReconcileMemoAction
+	| LoadSaveContextAction
+	| PrepareSaveProposalAction;
 
 export interface ObservationActionIssue {
 	readonly code: "observation-action.object" | "observation-action.shape";
@@ -499,27 +499,27 @@ function markHypothesisContextReview(
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
-function markMemoScope(
-	value: Omit<MemoScopeAction, typeof OBSERVATION_ACTION_MARKER>,
-): MemoScopeAction {
+function markLoadMemoContext(
+	value: Omit<LoadMemoContextAction, typeof OBSERVATION_ACTION_MARKER>,
+): LoadMemoContextAction {
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
-function markSaveScope(
-	value: Omit<SaveScopeAction, typeof OBSERVATION_ACTION_MARKER>,
-): SaveScopeAction {
+function markLoadSaveContext(
+	value: Omit<LoadSaveContextAction, typeof OBSERVATION_ACTION_MARKER>,
+): LoadSaveContextAction {
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
-function markSavePrepare(
-	value: Omit<SavePrepareAction, typeof OBSERVATION_ACTION_MARKER>,
-): SavePrepareAction {
+function markPrepareSaveProposal(
+	value: Omit<PrepareSaveProposalAction, typeof OBSERVATION_ACTION_MARKER>,
+): PrepareSaveProposalAction {
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
-function markMemoPrepare(
-	value: Omit<MemoPrepareAction, typeof OBSERVATION_ACTION_MARKER>,
-): MemoPrepareAction {
+function markReconcileMemo(
+	value: Omit<ReconcileMemoAction, typeof OBSERVATION_ACTION_MARKER>,
+): ReconcileMemoAction {
 	return { ...value, [OBSERVATION_ACTION_MARKER]: true };
 }
 
@@ -550,7 +550,7 @@ function parseSourceRead(
 		ok: true,
 		value: markSourceRead({
 			protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
-			action: "source-read",
+			action: "record-source-reading",
 			candidateIds,
 			source,
 			faithfulSummary,
@@ -583,7 +583,7 @@ function parseHydrate(
 		ok: true,
 		value: markHydrate({
 			protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
-			action: "hydrate",
+			action: "load-inquiry-context",
 			readId,
 			indexDigest: value.index_digest,
 			inquiryIds,
@@ -682,7 +682,7 @@ function parseRecord(
 		ok: true,
 		value: markRecord({
 			protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
-			action: "record",
+			action: "record-observation",
 			readId,
 			hydrationId,
 			relatedInquiryIds,
@@ -714,14 +714,14 @@ function parseRecordNewHypothesis(
 	return parseRecord(
 		{
 			...value,
-			action: "record",
+			action: "record-observation",
 			movement: "independent-new-hypothesis",
 		},
 		true,
 	);
 }
 
-function parseMemoScope(
+function parseLoadMemoContext(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
 	if (!hasExactKeys(value, ["observer_action", "action", "request_id"])) {
@@ -731,16 +731,16 @@ function parseMemoScope(
 	return requestId
 		? {
 				ok: true,
-				value: markMemoScope({
+				value: markLoadMemoContext({
 					protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
-					action: "memo-scope",
+					action: "load-memo-context",
 					requestId,
 				}),
 			}
 		: failure("/request_id", "Memo-scope request ID is invalid.");
 }
 
-function parseSaveScope(
+function parseLoadSaveContext(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
 	if (!hasExactKeys(value, ["observer_action", "action", "request_id"])) {
@@ -750,16 +750,16 @@ function parseSaveScope(
 	return requestId
 		? {
 				ok: true,
-				value: markSaveScope({
+				value: markLoadSaveContext({
 					protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
-					action: "save-scope",
+					action: "load-save-context",
 					requestId,
 				}),
 			}
 		: failure("/request_id", "Save-scope request ID is invalid.");
 }
 
-function parseSavePrepare(
+function parsePrepareSaveProposal(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
 	if (
@@ -783,9 +783,9 @@ function parseSavePrepare(
 		return failure("/", "Save-prepare action has invalid values.");
 	return {
 		ok: true,
-		value: markSavePrepare({
+		value: markPrepareSaveProposal({
 			protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
-			action: "save-prepare",
+			action: "prepare-save-proposal",
 			requestId,
 			summary,
 			records: value.records,
@@ -793,7 +793,7 @@ function parseSavePrepare(
 	};
 }
 
-function parseMemoPrepare(
+function parseReconcileMemo(
 	value: Readonly<Record<string, unknown>>,
 ): ObservationActionResult {
 	if (
@@ -826,9 +826,9 @@ function parseMemoPrepare(
 	}
 	return {
 		ok: true,
-		value: markMemoPrepare({
+		value: markReconcileMemo({
 			protocol: OBSERVER_SIDECAR_ACTION_PROTOCOL,
-			action: "memo-prepare",
+			action: "reconcile-memo",
 			requestId,
 			submission: {
 				evidence: value.submission.evidence,
@@ -973,11 +973,11 @@ export function decodeObservationAction(
 		);
 	}
 	switch (value.action) {
-		case "source-read":
+		case "record-source-reading":
 			return parseSourceRead(value);
-		case "hydrate":
+		case "load-inquiry-context":
 			return parseHydrate(value);
-		case "record":
+		case "record-observation":
 			return parseRecord(value);
 		case "record-new-hypothesis":
 			return parseRecordNewHypothesis(value);
@@ -985,14 +985,14 @@ export function decodeObservationAction(
 			return parseUserHypothesis(value);
 		case "hypothesis-context-review":
 			return parseHypothesisContextReview(value);
-		case "memo-scope":
-			return parseMemoScope(value);
-		case "memo-prepare":
-			return parseMemoPrepare(value);
-		case "save-scope":
-			return parseSaveScope(value);
-		case "save-prepare":
-			return parseSavePrepare(value);
+		case "load-memo-context":
+			return parseLoadMemoContext(value);
+		case "reconcile-memo":
+			return parseReconcileMemo(value);
+		case "load-save-context":
+			return parseLoadSaveContext(value);
+		case "prepare-save-proposal":
+			return parsePrepareSaveProposal(value);
 		default:
 			return failure("/action", "Observer Sidecar action is unknown.");
 	}

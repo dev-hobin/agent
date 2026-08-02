@@ -1,5 +1,9 @@
 # @hobin/observer
 
+> **Development status:** `0.1.6` is a private patch candidate. Context-basis
+> replay, sidecar workflows, and the Pi 0.80.10–0.83.0 source/packed matrix are
+> green. Publication still requires explicit approval.
+
 Observer is a local-first inquiry sidecar for [Pi](https://pi.dev). It follows standing questions across source material, keeps working observations and memos in the current Pi session, and saves approved, source-linked Markdown to a notebook you choose.
 
 Observer supports three entry paths:
@@ -12,9 +16,8 @@ All three paths use the same Episode and Memo flow. Review prepares an inspectab
 
 ## Install
 
-Requires Node.js 22.19 or newer. The 0.1.x compatibility window is Pi
-0.80.10 through 0.83.x; release checks exercise Pi 0.80.10, 0.81.1, 0.82.1,
-and 0.83.0.
+Requires Node.js 22.19 or newer. Observer `0.1.6` targets Pi 0.80.10 through
+0.83.x; the release check reruns package and clean-tree gates.
 
 ```sh
 pi install npm:@hobin/observer
@@ -91,6 +94,23 @@ Read documents, inspect code, retrieve webpages, or discuss a question. Observer
 
 Oversized nominated results are split into ordered bounded segments, preserving all selected text instead of dropping the middle or producing a profile error. Repeated nomination of the same tool result and content resumes the existing candidates rather than duplicating them. Explicit retrieved `/observer material` is the exception: its bounded active retrieval run captures successful exact tool results automatically because the user requested that material directly.
 
+Observation interpretation and Memo reconciliation use adapter-owned typed
+domain contracts rather than authored `judgment.json`. Observer has no
+conditional packaged references and therefore owns no authoring policy. Refined
+`SourceReading`, `InquiryContext`, Memo scope, and parser-refined pass values
+become exact domain material. Observer's named evaluators establish only declared
+source/inquiry identity and memo relations with `domain-verified` assurance;
+semantic stance and movement remain `agent-asserted`, and user-owned policy
+requires an explicit user event. Coverage is assessed before
+`appendObservation` or Memo preparation. Missing or conflicting context blocks
+semantic mutation. Compact `ContextBasisData` travels in `observer_sidecar`
+details without copying source content or generic Judgment event lists.
+
+The public sidecar sequence is `record-source-reading`, optional
+`load-inquiry-context`, then `record-observation` (or the distinct independent
+hypothesis action). Persisted Observer v1 source-read and hydration event IDs stay
+readable; the vocabulary change does not rewrite user-owned Notebook data.
+
 The default **Piggyback** policy never creates a separate model session or provider request. Observer stages candidates locally, injects bounded pending work into an existing foreground model turn, and permits at most one final `observer-commit`. One commit can combine meaning-bearing tool-result nominations, SourceRead, optional Inquiry hydration, semantic records, hypothesis context reviews, and one currently scoped Memo or proposal preparation. All resulting session entries are staged and validated together, then the current Observer branch is revalidated immediately before serialized append. A proposal rejected before that boundary appends none of its staged entries and is not retried in the same run. The tool terminates without a follow-up model request; a Save stage that depends on a newly completed Memo waits for a later ordinary turn. The tool schema and bounded context add some tokens to that existing request, so Piggyback means “no additional inference request,” not literally zero token overhead.
 
 **Off** keeps local candidate staging but performs no model-backed interpretation. **Local background** is opt-in and can select only a Pi model whose endpoint is loopback (`localhost`, `127.0.0.0/8`, or `::1`). Cost metadata alone is never trusted as evidence that a model is local. The local worker remains concurrency one, yields to foreground input, validates actions, and does not retry a rejected action in the same run.
@@ -126,7 +146,7 @@ Observe material is independent of continuous Observer Mode. It works while Mode
 /observer material <inline material, path, URL, or retrieval request>
 ```
 
-For a path or URL, Pi must retrieve the material first. The instruction itself is not treated as source evidence. Retrieved tool results are linked only during the agent run that starts or explicitly retries that exact Observe material request. When that run settles—or unrelated user input arrives—the retrieval window closes while the request remains visibly suspended. Later technical-reading tools are therefore ignored when continuous Mode is Off, or become nomination-eligible references only for their own active agent run when Mode is On; they are never silently captured or attached to the stale material request.
+For a path or URL, Pi must retrieve the material first. The instruction itself is not treated as source evidence. Retrieved tool results are linked only during the agent run that starts or explicitly retries that exact Observe material request. When that run settles—or unrelated user input arrives—the retrieval window closes while the request remains visibly suspended. Later unrelated tool results are therefore ignored when continuous Mode is Off, or become nomination-eligible references only for their own active agent run when Mode is On; they are never silently captured or attached to the stale material request.
 
 If processing stops before completion, use:
 
@@ -180,7 +200,9 @@ Observer Markdown Profile v1 is the durable source of truth. Pi events and
 working session entries provide branch-local coordination and replay; they do
 not replace the notebook.
 
-Observer owns local Source, Inquiry, Memo, and Zettel persistence. It does not own:
+Observer owns local Source, Inquiry, Memo, and Zettel persistence. Compact
+context bases are branch coordination and provenance, not durable Notebook
+records. Observer does not own:
 
 - Git, GitHub, remote sync, or backup;
 - graph or vector databases;
@@ -220,9 +242,8 @@ Pi packages execute with the Pi process's system access. Review package source b
 
 ## Documentation
 
+- [Observer Runtime Flow](docs/runtime-flow.md)
 - [Observer v0.1 product specification (Korean)](docs/product-spec-v0.1.ko.md)
-- [Observer terminal workbench UX study and application design (Korean)](docs/terminal-workbench-ux-study-v0.1.ko.md)
-- [Observer v0.1 implementation plan and evidence (Korean)](docs/implementation-plan-v0.1.ko.md)
 
 ## Development
 

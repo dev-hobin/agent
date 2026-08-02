@@ -22,6 +22,7 @@ import {
 	type ObserverWorkbenchProposalInspection,
 } from "../src/observer-workbench.ts";
 import type { SaveRequestSession } from "../src/save-trigger.ts";
+import { observationContextBasisFixture } from "./fixtures/context-basis.ts";
 
 const EPISODE_ID = "episode-workbench";
 const CANDIDATE_ID = "candidate-00000000-0000-4000-8000-000000000101";
@@ -33,6 +34,22 @@ const MEMO_ID = "memo-00000000-0000-4000-8000-000000000106";
 const SAVE_REQUEST_ID = "save-request-00000000-0000-4000-8000-000000000107";
 const PROPOSAL_ID = "proposal-00000000-0000-4000-8000-000000000108";
 const MEMO_REQUEST_ID = "memo-request-00000000-0000-4000-8000-000000000109";
+const WORKBENCH_CONTEXT_BASIS = await observationContextBasisFixture({
+	sourceReading: {
+		readingId: READ_ID,
+		episodeId: EPISODE_ID,
+		sourceId: SOURCE_ID,
+		faithfulSummary: "Working meaning remains visible before publication.",
+		claims: [
+			{
+				text: "Inspection and persistence are separate boundaries.",
+				locator: "section 2",
+			},
+		],
+	},
+	inquiryContext: null,
+	relatedInquiryIds: [],
+});
 
 function requireEvent(value: unknown): ObservationEvent {
 	const result = prepareObservationEvent(value);
@@ -120,6 +137,7 @@ function workingSnapshots(): {
 		movement: "minor-refinement",
 		rationale: "The source supports pull-based inspection.",
 		observer_hypothesis: null,
+		context_basis: WORKBENCH_CONTEXT_BASIS,
 	});
 	if (
 		sourceRead.kind !== "source-read-recorded" ||
