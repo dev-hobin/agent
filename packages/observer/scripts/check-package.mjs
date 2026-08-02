@@ -75,9 +75,8 @@ assert.deepEqual(schema.properties.observer_schema, {
 });
 
 const documentNames = [
+	"how-it-works.md",
 	"user-guide.md",
-	"architecture.md",
-	"evidence-and-processing.md",
 	"notebook-publication.md",
 ];
 const readme = await readFile(join(root, "README.md"), "utf8");

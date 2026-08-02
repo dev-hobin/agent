@@ -2,168 +2,121 @@
 
 English | [한국어](./ko/user-guide.md)
 
-Observer follows one local inquiry across source material and publishes only a
-reviewed Notebook batch.
+## Create or select a Notebook
 
-## Set up a Notebook
+Open **Settings** in the Workbench or use a command:
 
-Open the Workbench and choose **Settings**:
+```text
+/observer setup ko ~/notes/observer
+/observer setup en ./notes/observer
+```
+
+Path resolution is explicit:
+
+| Input | Resolved location |
+| --- | --- |
+| `/absolute/path` | Used as written |
+| `./notes` or `notes` | Relative to Pi's current working directory |
+| `~` or `~/notes` | Relative to the current user's home directory |
+| `~other-user/notes` | Rejected instead of guessed |
+
+Observer shows the absolute path before creating or adopting a folder. Adopting
+an existing folder does not rewrite unrelated files.
+
+`ko` and `en` choose the language of newly saved Memo and Zettel records. They do
+not change the Workbench UI or existing records.
+
+## Workbench
 
 ```text
 /observer
 ```
 
-Or use a command:
-
-```text
-/observer setup en ~/notes/observer
-/observer setup ko ./notes/observer
-```
-
-Path interpretation is explicit:
-
-| Input | Resolution |
+| View | Contents |
 | --- | --- |
-| `/absolute/path` | Used as written |
-| `./relative/path` or `notes/observer` | Resolved from Pi's current working directory |
-| `~` or `~/notes` | Resolved from the current user's home directory |
-| `~other-user/notes` | Rejected rather than guessed |
+| Overview | Notebook health, mode, Episode, and next action |
+| Activity | SourceReads, observations, material reviews, hypothesis reviews |
+| Inquiries | Original wording, current hypothesis, and evidence |
+| Memos | Complete working Memo content and relations |
+| Proposal | Preparation state and existing/diff/final Markdown |
+| Notebook | Saved records and exact Markdown |
+| Settings | Notebook, language, and processing mode |
 
-Observer shows the resolved absolute path before initializing a new folder or
-adopting an existing one. It does not rewrite unrelated files in an adopted
-folder.
-
-`en` and `ko` select the language of newly written Memo and Zettel records. They
-do not change the Workbench UI, and existing records keep their own language.
-
-## Workbench
-
-```text
-Overview
-├── Notebook health, mode, Episode, processing, next action
-Activity
-├── SourceReads, observations, material reviews, hypothesis reviews
-Inquiries
-├── original/current hypotheses and evidence
-Memos
-├── complete working Memo content and relations
-Proposal
-├── preparation status or exact diff/existing/final Markdown
-Notebook
-├── durable records and exact Markdown
-Settings
-└── Notebook, Sidecar mode, language, processing policy
-```
+Main keys:
 
 | Key | Action |
 | --- | --- |
-| `↑` / `↓`, `j` / `k` | Move selection |
-| Enter | Inspect or activate contextual action |
-| Escape | Return one level |
-| Tab | Move between sections/content |
-| Page Up / Page Down | Scroll viewport |
-| Home / End | Jump within viewport |
-| `y` | Copy complete focused semantic record |
-| `?` | Contextual help |
+| `↑` / `↓`, `j` / `k` | Move |
+| Enter | Inspect or run the current contextual action |
+| Escape | Go back |
+| Tab | Move between regions |
+| Page Up / Page Down | Scroll |
+| Home / End | Jump to beginning or end |
+| `y` | Copy the complete selected record |
+| `?` | Show help |
 
-The Workbench is read-only except for explicit contextual actions. Opening,
-scrolling, or copying records does not append events or write Notebook files.
+Opening, scrolling, and copying records is read-only.
 
-## Sidecar workflow
+## Collect evidence during ordinary work
 
-```mermaid
-flowchart LR
-  O["/observer on"] --> W[Work with Pi normally]
-  W --> N[Meaningful tool result nominated]
-  N --> R[SourceRead]
-  R --> S[Semantic observation]
-  S --> M[Memo]
-  M --> V[Review]
-  V --> A[Approve Save all]
+```text
+/observer on
 ```
 
-A normal tool result is only eligible evidence. During the same agent run the
-model must nominate its exact tool-call ID with a reason. Routine navigation,
-listings, write acknowledgments, repeated reads, and diagnostics remain
-unselected.
-
-Turn Sidecar observation off without discarding the open Episode:
+Then use Pi normally. Observer holds current-run tool results as candidates. Only
+results that the model nominates as materially relevant become SourceReads and
+observations.
 
 ```text
 /observer off
 ```
 
-Mode and Episode are separate: Off stops model-backed continuous observation but
-preserves current inquiry work.
+`off` stops new continuous observation. It does not delete the open Episode,
+SourceReads, or Memos.
 
-## Add a hypothesis
+## Start from a user hypothesis
 
 ```text
-/observer add-hypothesis The order of capture changes interpretation bias.
-Context: The last two examples diverged only after delayed note-taking.
+/observer add-hypothesis Capture timing changes interpretation bias.
+Context: The previous two cases diverged only after delayed note-taking.
 ```
 
-The optional context line remains user context, distinct from Observer's
-interpretation. Observer preserves the original wording and requests an initial
-review containing:
+The first line is preserved as the user's original wording. `Context:` remains
+separate supporting context. Observer records supporting clues, challenging
+clues, missing information, and an interpretation boundary. Insufficient
+evidence never rewrites the original text.
 
-- supporting clues;
-- challenging clues;
-- missing information;
-- exact Source IDs when available; and
-- an interpretation boundary.
-
-Insufficient context is a valid result and never rewrites the original
-hypothesis.
-
-## Observe material
-
-Use a bounded material review while Sidecar mode is either On or Off:
+## Review one bounded item
 
 ```text
 /observer material <inline text, file path, URL, or retrieval request>
 ```
 
-For a file or URL, Pi first retrieves the material. The command text is not
-source evidence. Retrieved results are eligible only during the exact agent run
-that starts or retries the material request.
+This works while continuous Sidecar mode is either on or off. For a file or URL,
+only results from the exact agent run handling that request are eligible. The
+command text is not treated as source content.
 
-```mermaid
-stateDiagram-v2
-  [*] --> Pending: material request
-  Pending --> Capturing: start agent run
-  Capturing --> Completed: every linked candidate read + observed
-  Capturing --> Suspended: run settles before completion
-  Suspended --> Capturing: material retry
-  Suspended --> Cancelled: material cancel
-  Completed --> [*]
-  Cancelled --> [*]
-```
-
-Recover an interrupted request with:
+If processing stops before completion:
 
 ```text
 /observer material retry
 /observer material cancel
 ```
 
-`retry` opens one more bounded capture window for the same request. `cancel`
-records cancellation without changing Sidecar mode or closing the Episode.
-Review remains unavailable while the request is pending.
+`retry` opens one more window for the same request. `cancel` ends the request but
+keeps the Episode and Sidecar mode unchanged.
 
-## Reconcile a Memo
+## Reconcile Memos
 
 ```text
 /observer memo
 ```
 
-Memo reconciliation compares current SourceReads, observations, hypotheses,
-existing working Memos, and explicitly related standing Notebook records. It can
-create, revise, merge, retain, or mark Memos while keeping exact evidence IDs.
-It does not write Notebook Markdown.
+Observer compares current SourceReads, observations, hypotheses, working Memos,
+and explicitly related saved records. It may create, revise, merge, or keep
+Memos.
 
-Repeated preparation for the same exact basis is stable; stale or incomplete
-coverage is rejected.
+This changes only Pi session working state. It does not write Notebook files.
 
 ## Review and Save
 
@@ -171,28 +124,28 @@ coverage is rejected.
 /observer review
 ```
 
-Review first closes pending Memo work, then prepares a publication proposal. The
-Proposal view shows:
+Observer first completes any required Memo work, then prepares a proposal showing
+for every record:
 
-- every target path and operation;
-- existing Markdown for updates;
-- exact final Markdown;
-- a line diff;
-- the locked Notebook, language, and record scope; and
-- validation or recovery diagnostics.
+- create or update operation;
+- target path;
+- existing Markdown;
+- line diff;
+- final Markdown; and
+- current validation errors.
 
-Preparation writes nothing.
+Preparation still writes nothing.
 
-From a ready proposal, press `s` or use `/observer save` to open the separate
-approval viewer. The choices are:
+Press `s` from Proposal or run `/observer save` to open the approval view. The
+choices are:
 
-- **Back** — keep the validated proposal;
-- **Return to Review** — discard only the proposal and preserve working state;
-- **Save all N records** — approve the complete batch.
+- **Back**: keep the proposal and leave;
+- **Return to Review**: discard only the proposal;
+- **Save all N records**: approve the exact complete batch.
 
-There is no default “Yes” and no partial-batch save.
+There is no default approval and no partial-record save.
 
-## Processing policy
+## Processing mode
 
 ```text
 /observer processing piggyback
@@ -200,14 +153,12 @@ There is no default “Yes” and no partial-batch save.
 /observer processing off
 ```
 
-| Policy | Behavior |
-| --- | --- |
-| Piggyback | Uses an existing foreground model turn; at most one final `observer-commit` per run |
-| Local | Selects an available loopback Pi model; in-memory queue, concurrency one, yields to foreground work |
-| Off | Keeps local candidate/request state but performs no model-backed interpretation |
+- `piggyback`: use the current foreground Pi model turn;
+- `local`: use an in-memory queue on an explicitly selected loopback model;
+- `off`: keep requests and candidate state but stop model interpretation.
 
-Local mode rejects non-loopback endpoints even when model price metadata says
-“free” or “local.” The queue is not a daemon or durable scheduler.
+Local mode verifies that the endpoint is actually `localhost`, `127.0.0.0/8`, or
+`::1`. It does not trust model pricing metadata as evidence of locality.
 
 ## Status and recovery
 
@@ -215,37 +166,14 @@ Local mode rejects non-loopback endpoints even when model price metadata says
 /observer status
 ```
 
-Status reports Notebook identity/health, Sidecar mode, Episode, pending material
-or Memo/Save request, processing policy, proposal state, and recovery action.
-
-Common recovery cases:
-
 | Status | Action |
 | --- | --- |
 | Material request suspended | `material retry` or `material cancel` |
-| Proposal ready | Inspect Proposal, then approve or return to Review |
-| Proposal invalidated by target drift | Return to Review and prepare again |
-| Notebook moved/replaced during Episode | Restore exact Notebook identity or settle/cancel work before selecting another |
-| Background processing paused | Resume ordinary Pi work or switch processing policy |
-| Malformed branch history | Preserve diagnostics; do not force semantic mutation |
-
-## Commands
-
-| Command | Effect |
-| --- | --- |
-| `/observer` | Workbench |
-| `/observer settings` | Open Settings directly |
-| `/observer setup` | Interactive setup |
-| `/observer setup <ko\|en> <path>` | Exact Notebook setup/selection |
-| `/observer status` | Current state and recovery |
-| `/observer on` / `off` | Toggle Sidecar observation |
-| `/observer add-hypothesis <text>` | Preserve and review a user hypothesis |
-| `/observer material <request>` | Bounded material review |
-| `/observer material retry` / `cancel` | Recover pending material review |
-| `/observer processing off\|piggyback\|local` | Set interpretation policy |
-| `/observer memo` | Reconcile working Memos |
-| `/observer review` | Prepare publication proposal |
-| `/observer save` | Inspect prepared proposal and approve explicitly |
+| Proposal ready | Inspect Proposal, then Save |
+| Proposal invalid after target drift | Return to Review and prepare from current files |
+| Notebook moved or replaced during an Episode | Restore it or settle current work before selecting another |
+| Local processing paused | Finish foreground work or change processing mode |
+| Malformed branch history | Preserve diagnostics; do not force state mutation |
 
 ## Update and remove
 
@@ -254,4 +182,4 @@ pi update npm:@hobin/observer
 pi remove npm:@hobin/observer
 ```
 
-Use `pi install -l npm:@hobin/observer` for a project-local package declaration.
+Use `pi install -l npm:@hobin/observer` for a project-local installation.

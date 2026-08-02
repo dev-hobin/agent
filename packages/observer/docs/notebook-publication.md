@@ -2,210 +2,119 @@
 
 English | [한국어](./ko/notebook-publication.md)
 
-**Audience:** users inspecting durable records and maintainers changing Markdown,
-graph, Review, or Save behavior.
-
-Observer Notebook Markdown is the durable source of truth. Publication is a
-separate, explicitly approved transaction after session-local inquiry work.
-
-## Record graph
-
-```mermaid
-flowchart LR
-  S[Source] --> I[Inquiry]
-  S --> M[Memo]
-  I --> M
-  S --> Z[Zettel]
-  I --> Z
-  M --> Z
-  M -. revision / merge lineage .-> M
-  Z -. revision lineage .-> Z
-```
-
-The arrows show possible typed references, not required edges for every record.
-A Zettel has one stronger rule: it must retain at least one direct Source
-reference.
+Notebook Markdown is Observer's durable record. SourceReads, working Memos, and
+proposals inside the Pi session are preparation state, not saved knowledge.
 
 ## Record types
 
-| Type | Purpose | Important identity |
-| --- | --- | --- |
-| Source | External material or direct observation | Source kind, provenance, claims/conditions, content identity |
-| Inquiry | Standing question or hypothesis | Original wording, current wording, origin, revision reason, evidence |
-| Memo | Working synthesis tied to one or more Inquiries | Inquiry relations, optional primary hypothesis, evidence, status |
-| Zettel | Promoted durable note | Direct Source reference, semantic relations, lineage |
+| Type | Contents |
+| --- | --- |
+| Source | External material or direct observation, provenance, and claims |
+| Inquiry | Original question or hypothesis, current wording, revision reason, evidence |
+| Memo | Working synthesis tied to one or more Inquiries |
+| Zettel | Reviewed note promoted for independent use |
 
-All records use `observer-record/v1`. The exact machine schema is
+All records use `observer-record/v1`. The schema is
 [`../schemas/observer-record.v1.schema.json`](../schemas/observer-record.v1.schema.json).
 
-## Markdown envelope
+A Zettel must retain at least one direct Source reference. A note linked only to
+an Inquiry or Memo cannot be traced back to source material and is rejected.
 
-A valid record contains:
+## One Markdown file
+
+A record file contains:
 
 ```text
 YAML frontmatter
-→ exactly one document H1
-→ non-empty Markdown body
+exactly one H1
+non-empty Markdown body
 ```
 
-Observer preserves unrecognized non-Observer frontmatter fields, but rejects
-unknown fields inside its own schema-controlled structures. Language tags are
-BCP 47 values. Record IDs must match their record type prefix.
+Observer preserves custom frontmatter fields outside its own schema-controlled
+structures. Unknown fields inside Observer structures are rejected. Record ID
+prefix must match record type, and timestamps and language tags must be valid.
 
-## Validation phases
+## Why the whole graph is validated
 
-```mermaid
-flowchart TD
-  F[Final Markdown batch] --> A[Phase A: each document]
-  A -->|valid| G[Graph integrity]
-  A -->|invalid| X[Reject before graph rules]
-  G -->|valid| P[Publication preflight]
-  G -->|invalid| X
-  P -->|fresh| R[Ready for approval]
-  P -->|drift/conflict| X
-```
-
-### Document validation
-
-- frontmatter exists and parses as YAML;
-- schema version and record type are supported;
-- record ID prefix and timestamps are valid;
-- exactly one H1 exists;
-- body is non-empty;
-- type-specific fields and status rules hold.
-
-### Graph validation
+A document can satisfy its schema while pointing to a missing or invalid record.
+Review builds the Notebook as it would exist after the proposed batch, then
+checks:
 
 - record IDs are unique;
-- every source, lineage, semantic, inquiry, and evidence target exists;
-- no self-edge or duplicate edge exists;
-- lineage target types match;
-- Memos are connected to their inquiry scope;
-- promotion status and target types agree; and
-- every Zettel has a direct Source reference.
+- Source, Inquiry, evidence, and lineage targets exist;
+- there are no self-edges or duplicate edges;
+- each Memo remains connected to its Inquiry scope;
+- revision lineage points to the same record type;
+- promotion status and target type agree; and
+- every Zettel has a direct Source.
 
-Input order does not change graph diagnostics.
+A document error is rejected before graph rules run.
 
-## Review scope
+## What Review binds
 
-A prepared proposal locks:
+A prepared proposal fixes:
 
 ```text
-Notebook canonical path + identity
-+ Episode and request identity
-+ output language
-+ exact create/update operations
-+ expected existing content hashes
-+ exact final Markdown
-+ proposal hash
+Notebook canonical path and identity
+Episode and review request ID
+output language
+exact create/update paths
+existing content hash for each update
+final Markdown for every target
+the complete final record set
+proposal ID
 ```
 
-Review reopens the current Notebook and validates the complete final graph as if
-the batch were already applied. It does not write files.
+If another process changes a target after Review, that proposal cannot be saved.
+A new proposal must be prepared from current bytes.
 
-## Approval boundary
+## What the user sees
 
-```mermaid
-sequenceDiagram
-  participant U as User
-  participant S as SaveService
-  participant P as PublicationService
-  participant F as Filesystem
-  participant L as Lifecycle
+For every target, Proposal shows:
 
-  U->>S: approve exact proposal ID and all records
-  S->>S: reparse approval + lifecycle target
-  S->>P: prepare against current inventory
-  P->>F: verify expected existing bytes
-  P-->>S: prepared publication plan
-  S->>P: commit with receipt ID
-  P->>F: stage all target files
-  P->>F: publish batch
-  P->>F: read back inventory and bytes
-  alt exact final inventory
-    P-->>S: publication receipt
-    S->>L: SaveCommitted
-  else failure or mismatch
-    P->>F: rollback where safe
-    P-->>S: failure / recovery required
-  end
-```
+- create or update operation;
+- existing Markdown;
+- line diff;
+- final Markdown; and
+- validation errors.
 
-Approval is for the entire exact batch. A different proposal ID, record set,
-Notebook, or target state is rejected.
+Inspecting the view changes no files. Approval exists only after the user selects
+**Save all N records**. A different proposal ID or partial record set is rejected.
 
-## Transaction behavior
+## Save transaction
 
-The publication transaction separates:
+Approval does not immediately overwrite final files:
 
-1. **plan** — compute create/update operations and expected bytes;
-2. **stage** — write temporary files without exposing them as final records;
-3. **publish** — replace targets in the planned order;
-4. **read back** — decode and inventory exact final content;
-5. **settle** — append the committed lifecycle event only after readback;
-6. **rollback** — restore known prior bytes when an injected or real failure
-   occurs before safe settlement.
+1. **Preflight:** recheck Notebook identity and current target bytes.
+2. **Plan:** compute create/update operations and expected final bytes.
+3. **Stage:** write every record to temporary files.
+4. **Publish:** replace targets in the planned order.
+5. **Readback:** reopen the Notebook and validate final bytes and graph.
+6. **Settle:** append `SaveCommitted` only after exact readback.
 
-If rollback would overwrite bytes changed by an unknown actor, Observer reports
-recovery-required state instead of guessing.
+Without `SaveCommitted`, the Episode is not considered saved.
 
-## Target drift
+## Failure during publication
 
-| Drift | Behavior |
+On stage, publish, or readback failure, Observer restores prior bytes that it
+still knows are safe to restore. If another actor changed a target, Observer does
+not overwrite those unknown bytes and reports `recovery-required` instead.
+
+| Situation | Behavior |
 | --- | --- |
-| Existing update target content changes before approval | Reject and return to Review |
-| New record path appears before publication | Reject collision |
-| Notebook path or manifest identity changes | Reject live target |
-| Non-target Notebook record changes and invalidates final graph | Reject preflight |
-| Readback differs from planned final bytes | Do not settle; rollback/recovery |
-| Duplicate settled commit is replayed | Reject or stutter only where exact protocol permits |
+| Update target changes before approval | Reject Save and prepare again in Review |
+| Another file appears at a create path | Reject collision |
+| Notebook path or manifest changes | Reject the target |
+| A non-target record change breaks the final graph | Reject preflight |
+| Readback differs from the plan | Do not settle; roll back or require recovery |
+| Commit acknowledgment is retried | Recover only when exact receipt and state match |
 
-## Atomicity boundary
+## Guarantee boundary
 
-Observer guarantees one logical batch from its own process perspective. It does
-not claim distributed transactions, filesystem snapshots, power-loss durability,
-or coordination between concurrent Observer processes.
+Observer provides one logical all-or-not-settled batch from its own process. It
+does not provide filesystem snapshots, distributed transactions, complete
+power-loss durability, concurrent multi-process coordination, external editor
+locks, Git history, remote sync, backup, or semantic truth.
 
-```text
-no approval        → no writes
-partial failure    → rollback known writes where safe
-unknown target drift→ stop and require recovery
-exact readback     → one committed receipt + settled Episode
-```
-
-## Notebook ownership
-
-Observer owns:
-
-- selection of one explicit local root;
-- record decoding and graph validation;
-- Review proposal and approval identity;
-- atomic-file planning, publication, readback, and rollback; and
-- settlement events after verified publication.
-
-Observer does not own:
-
-- Git history or remote synchronization;
-- backups or disaster recovery;
-- shared multi-writer coordination;
-- external Markdown editor locking;
-- vector search or a graph database; or
-- the semantic truth of model-authored records.
-
-Keep the Notebook under your own backup or version-control policy if those
-properties matter.
-
-## Maintainer verification
-
-Changes to publication should retain tests for:
-
-- create, update, and mixed batches;
-- approved empty batches;
-- language locked at preparation time;
-- approval/proposal/target mismatches;
-- dangling, duplicate, self, lineage, orphan, and promotion graph errors;
-- stage, publish, and readback fault injection;
-- non-target drift before first publication;
-- rollback blocked by unknown bytes;
-- active transaction overlap; and
-- post-save pre-ack recovery without republishing.
+Apply your own backup or version-control policy to the Notebook directory when
+those properties matter.

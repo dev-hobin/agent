@@ -2,12 +2,12 @@
 
 [English](./README.md) | 한국어
 
-여러 source material에 걸친 탐구를 따라가고 검토된 출처 연결 Markdown을 사용자가
-고른 notebook에 발행하는 로컬 우선 Pi sidecar입니다.
+Pi로 조사하며 얻은 근거를 현재 session에 모아 두었다가, 사용자가 직접 검토한
+Markdown 묶음만 로컬 notebook에 저장하는 sidecar입니다.
 
-Observer는 현재 Pi 세션에 작업 근거를 보관하고 Memo로 조정하도록 돕지만,
-사용자가 정확한 Notebook batch를 검토하고 승인하기 전에는 영속적인 파일을 쓰지
-않습니다.
+Observer는 모든 tool result를 저장하지 않고, 작업 중에 note file을 계속 쓰지도
+않습니다. Working evidence는 현재 Pi branch에 남고, 사용자가 정확한 proposal을
+확인해 전체 batch를 승인해야 notebook file이 바뀝니다.
 
 ## 설치
 
@@ -17,7 +17,7 @@ Pi 0.80.10–0.83.x와 Node.js 22.19 이상이 필요합니다.
 pi install npm:@hobin/observer
 ```
 
-한 번의 실행에서 시험하려면:
+설치하지 않고 한 번만 써 보려면:
 
 ```sh
 pi -e npm:@hobin/observer
@@ -25,166 +25,125 @@ pi -e npm:@hobin/observer
 
 ## 먼저 해보기
 
-워크벤치를 엽니다.
+Workbench를 엽니다.
 
 ```text
 /observer
 ```
 
-**Settings**에서 Notebook 폴더를 고르고 Observer를 켠 뒤 Pi와 평소처럼
-작업하세요. Observer는 현재 agent run의 의미 있는 source 결과를 지명하고,
-standing inquiry에 연결하며, 작업 중인 해석을 현재 branch에 보존할 수 있습니다.
+**Settings**에서 local Notebook folder를 고르고 Observer를 켭니다. 그 뒤에는
+Pi와 평소처럼 작업하면 됩니다.
 
-탐구가 준비되면:
+정리할 자료가 모이면:
 
 ```text
 /observer memo
 /observer review
 ```
 
-Review는 검토 가능한 proposal을 준비하지만 파일을 쓰지 않습니다. **Proposal**을
-열어 각 diff와 최종 Markdown을 살핀 뒤 **Save all**을 명시적으로 선택해야 검증된
-전체 batch를 발행합니다.
+`review`는 어떤 파일을 만들거나 고칠지, diff가 무엇인지, 최종 Markdown이
+무엇인지 준비해서 보여 줍니다. 이 단계에서는 파일을 쓰지 않습니다. **Proposal**을
+살핀 뒤 **Save all**을 눌러야 실제로 저장합니다.
+
+## Observer를 켜 두면 일어나는 일
+
+1. `/observer on`이 선택한 Notebook을 다시 확인하고, 필요하면 새 Episode를 연
+   뒤 continuous observation mode를 켭니다.
+2. 현재 agent run에서 성공한 Pi tool result가 후보가 됩니다. 아직 저장되지는
+   않습니다.
+3. 그 결과가 inquiry를 실제로 지지하거나, 반박하거나, 좁히거나, 적용 범위를
+   바꾼다고 모델이 판단하면 exact tool-call ID를 지명할 수 있습니다.
+4. Observer는 provenance와 원문에 충실한 요약을 담은 `SourceRead`를 기록하고,
+   exact Source/Inquiry ID에 연결된 observation을 기록합니다.
+5. 이 기록은 현재 Pi session branch에만 남습니다.
+6. `/observer memo`가 현재 근거를 working Memo로 정리합니다. 여전히 Notebook
+   file은 쓰지 않습니다.
+7. `/observer review`가 완전한 Notebook proposal을 만듭니다.
+8. 사용자가 승인하면 전체 batch를 stage하고, publish하고, 다시 읽어 확인한 뒤
+   Episode를 끝냅니다.
+
+세부 흐름은 [Observer 동작 방식](./docs/ko/how-it-works.md)에 설명합니다.
 
 ## 탐구를 시작하는 세 가지 방법
 
-| 진입 경로 | 사용 시점 | 명령 |
+| 방법 | 쓸 때 | 명령 |
 | --- | --- | --- |
-| Sidecar | 다른 작업을 하는 동안 Observer가 의미 있는 근거를 포착하길 원할 때 | `/observer on` |
-| 가설 추가 | 자신의 표현을 보존하고 그 관점에서 현재 맥락을 검토할 때 | `/observer add-hypothesis <text>` |
-| 자료 관찰 | Sidecar mode를 바꾸지 않고 제공 또는 검색한 자료를 한정적으로 검토할 때 | `/observer material <request>` |
+| Continuous Sidecar | 평소 Pi 작업 중 중요한 근거가 나올 수 있을 때 | `/observer on` |
+| 사용자 가설 | 사용자의 원래 문장을 보존하고 그 질문으로 현재 근거를 볼 때 | `/observer add-hypothesis <text>` |
+| 한정된 자료 검토 | Sidecar mode를 바꾸지 않고 제공하거나 가져온 자료 하나를 검토할 때 | `/observer material <request>` |
 
-세 경로는 모두 같은 Episode, Memo, Review, Save 흐름에 합류합니다.
+세 방법 모두 같은 Episode, Memo, Review, Save 처리를 사용합니다.
 
-```mermaid
-flowchart LR
-  S[Sidecar] --> R[SourceRead + observation]
-  M[Material review] --> R
-  H[사용자 가설] --> HR[가설 맥락 검토]
-  R --> E[Episode]
-  HR --> E
-  E --> MM[Memo]
-  MM --> P[Review proposal]
-  P --> A[명시적 승인]
-  A --> N[Notebook Markdown]
-```
+## Session state와 Notebook file
 
-## Observer가 저장하는 것
-
-Observer는 세 계층을 구분합니다.
-
-```mermaid
-flowchart TB
-  T[Tool result와 사용자 입력] --> W[Branch-local 작업 근거]
-  W --> E[Episode observation과 Memo]
-  E -->|검토된 batch만| N[Notebook record]
-
-  subgraph Pi session
-    W
-    E
-  end
-
-  subgraph 로컬 영속 데이터
-    N
-  end
-```
-
-| 계층 | 수명 | 목적 |
+| 위치 | 들어 있는 것 | 바뀌는 때 |
 | --- | --- | --- |
-| Candidate material | 현재 agent run 또는 정확한 material-review window | 아직 observation이 아닌 후보 근거 |
-| Episode state | 현재 Pi branch | SourceRead, observation, hypothesis, Memo 작업, proposal state |
-| Notebook Markdown | 로컬 파일시스템 | 영속적인 Source, Inquiry, Memo, Zettel record |
+| 현재 Pi branch | Candidate, SourceRead, observation, hypothesis, working Memo, proposal state | Observer 작업 중 |
+| Local Notebook | Source, Inquiry, Memo, Zettel Markdown record | 전체 batch를 승인하고 readback까지 성공한 뒤 |
 
-Pi session event가 작업을 조정하고 Notebook이 영속적인 source of truth가 됩니다.
+Observer를 꺼도 continuous model observation만 멈춥니다. 열린 Episode와 working
+evidence는 그대로 남습니다.
 
-## 워크벤치
+## 처리 방식
 
-`/observer`는 읽기 전용 keyboard-first view를 엽니다.
+| Mode | 동작 |
+| --- | --- |
+| `piggyback` | 이미 실행 중인 foreground Pi turn 사용. 별도 inference request 없음 |
+| `local` | 사용자가 고른 loopback model에서 한 번에 job 하나 실행 |
+| `off` | Coordination state는 유지하지만 model interpretation은 하지 않음 |
+
+Piggyback은 기존 turn의 context token을 늘릴 수 있습니다. Local mode의 queue는
+memory에만 있으며 daemon이 아닙니다.
+
+## 주요 명령
+
+| 명령 | 하는 일 |
+| --- | --- |
+| `/observer` | Workbench 열기 |
+| `/observer setup <ko\|en> <path>` | Notebook 초기화 또는 선택 |
+| `/observer on` / `/observer off` | Continuous observation 켜기/끄기 |
+| `/observer add-hypothesis <text>` | 사용자 가설을 원문 그대로 보존하고 검토 |
+| `/observer material <request>` | 한정된 material review 시작 |
+| `/observer material retry` / `cancel` | Pending request 재개 또는 취소 |
+| `/observer memo` | Working evidence를 Memo로 정리 |
+| `/observer review` | 저장 proposal 준비 |
+| `/observer save` | 준비된 proposal 확인과 명시적 승인 |
+| `/observer status` | Notebook, Episode, processing, recovery 상태 확인 |
+
+`ko`와 `en`은 새로 저장하는 record의 언어를 고릅니다. Workbench UI 언어를
+바꾸지는 않습니다. Observer가 Notebook 경로를 임의로 고르는 일도 없습니다.
+
+## 파일을 안전하게 저장하는 과정
+
+저장은 전체 batch가 한꺼번에 성공해야 하는 transaction입니다.
 
 ```text
-Overview → Activity → Inquiries → Memos → Proposal → Notebook → Settings
+최종 Markdown과 전체 graph 준비
+-> 사용자에게 exact batch 표시
+-> 해당 proposal ID의 전체 저장 승인
+-> 현재 target byte 재확인
+-> 모든 record stage
+-> 모든 record publish
+-> 최종 Notebook을 다시 읽고 검증
+-> SaveCommitted 기록
 ```
 
-화살표 또는 `j/k`로 이동하고, Enter로 열고, Escape로 돌아가며, Tab으로 focus를
-옮깁니다. Page Up/Page Down 또는 Home/End로 스크롤하고, `y`로 선택한 semantic
-record를 복사하며, `?`로 도움말을 봅니다. 열기, 스크롤, 복사는 파일을 쓰거나
-Observer event를 추가하지 않습니다.
-
-## 처리 모드
-
-| 모드 | 동작 |
-| --- | --- |
-| `piggyback` | 기본값. 기존 foreground Pi turn을 사용하며 별도의 inference request를 추가하지 않음 |
-| `local` | 명시적으로 선택한 loopback model에서 concurrency 1로 실행 |
-| `off` | 로컬 staging은 유지하지만 모델 기반 해석은 수행하지 않음 |
-
-Piggyback은 기존 turn에 context token을 더할 수 있습니다. “별도 request 없음”이
-token 비용 0을 뜻하지 않습니다. Local mode는 loopback endpoint만 허용하며
-영속 daemon이 아닙니다.
-
-## 핵심 명령
-
-| 명령 | 효과 |
-| --- | --- |
-| `/observer` | 워크벤치 열기 |
-| `/observer setup <ko\|en> <path>` | Notebook 초기화 또는 선택 |
-| `/observer on` / `/observer off` | 열린 Episode를 버리지 않고 Sidecar observation 전환 |
-| `/observer add-hypothesis <text>` | 사용자 가설 보존 및 초기 맥락 검토 요청 |
-| `/observer material <request>` | 한정된 material review 시작 |
-| `/observer material retry` / `cancel` | 정확한 pending material request 재개 또는 취소 |
-| `/observer memo` | Notebook 파일을 쓰지 않고 현재 working material 조정 |
-| `/observer review` | 검증되고 검토 가능한 발행 proposal 준비 |
-| `/observer save` | 명시적 승인 전에 이미 준비된 proposal 검사 |
-| `/observer status` | Notebook, mode, Episode, processing, recovery 상태 표시 |
-
-`ko`와 `en`은 새로 쓰는 record의 언어를 선택하며 워크벤치 UI 언어는 바꾸지
-않습니다. 상대 Notebook 경로는 Pi working directory에서, `~/...`는 home
-directory에서 해석합니다. Observer는 Notebook 경로를 대신 선택하지 않습니다.
-
-## 안전한 발행 경계
-
-```mermaid
-sequenceDiagram
-  participant U as 사용자
-  participant O as Observer
-  participant F as Filesystem
-
-  U->>O: review
-  O->>O: scope + 최종 graph 검증
-  O-->>U: 정확한 diff, existing, final Markdown
-  U->>O: Save all
-  O->>F: 전체 batch stage와 publish
-  O->>F: 모든 record readback
-  alt 정확한 readback
-    O-->>U: committed receipt
-  else failure 또는 drift
-    O->>F: 안전한 범위에서 rollback
-    O-->>U: recovery-required 진단
-  end
-```
-
-기본 승인은 없고 일부 batch만 저장할 수도 없습니다. 현재 target drift, 잘못된
-Markdown, graph error, stale proposal identity, readback 실패는 settlement를
-중단합니다.
-
-## 경계
-
-Observer는 로컬 Source, Inquiry, Memo, Zettel 발행을 소유합니다. Git, GitHub,
-원격 동기화, 백업, vector database, model truth, crash-proof durability,
-multi-process coordination은 소유하지 않습니다. Zettel은 적어도 하나의 직접
-Source reference를 유지해야 합니다.
-
-Pi 패키지는 Pi 프로세스 권한으로 실행됩니다. 설치 전에 소스를 검토하고 신뢰하지
-않는 material에는 운영체제 샌드박스를 사용하세요.
+Target이 바뀌었거나, Markdown이나 graph가 잘못됐거나, proposal이 오래됐거나,
+readback이 다르면 완료 처리하지 않습니다. 안전하게 되돌릴 수 있는 known write는
+rollback하고, 다른 process가 바꾼 byte를 덮어쓸 수 있다면 복구가 필요하다고
+알립니다.
 
 ## 문서
 
-| 문서 | 대상 |
-| --- | --- |
-| [사용자 가이드](./docs/ko/user-guide.md) | Notebook 설정, 워크플로, 명령, 워크벤치, 복구 |
-| [아키텍처](./docs/ko/architecture.md) | Episode state, session/durable 경계, component 소유권 |
-| [근거와 처리](./docs/ko/evidence-and-processing.md) | nomination, SourceRead, typed context, Piggyback, atomic commit |
-| [Notebook 발행](./docs/ko/notebook-publication.md) | record graph, Review/Save transaction, readback, rollback, 한계 |
+- [Observer 동작 방식](./docs/ko/how-it-works.md) — candidate capture,
+  SourceRead, observation, Memo, processing
+- [사용자 가이드](./docs/ko/user-guide.md) — setup, command, recovery
+- [Notebook 저장](./docs/ko/notebook-publication.md) — record 규칙과 save transaction
+
+## 하지 않는 일
+
+Observer는 Git sync, backup, remote sharing, vector database, model truth,
+crash-proof daemon, 여러 process의 동시 Notebook 쓰기를 제공하지 않습니다.
 
 ## 개발
 
@@ -193,9 +152,6 @@ pnpm --filter @hobin/observer check
 pnpm --filter @hobin/observer eval
 pi -e ./packages/observer
 ```
-
-Maintainer는 발행을 결정하기 전 clean worktree에서
-`pnpm --filter @hobin/observer release:check`를 사용합니다.
 
 ## 라이선스
 

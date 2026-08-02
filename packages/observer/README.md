@@ -2,12 +2,12 @@
 
 English | [한국어](./README.ko.md)
 
-A local-first Pi sidecar for following an inquiry across source material and
-publishing reviewed, source-linked Markdown to a notebook you choose.
+A Pi sidecar that keeps inquiry evidence in the current session and publishes
+only a user-reviewed Markdown batch to a local notebook.
 
-Observer keeps working evidence in the current Pi session, helps reconcile it
-into Memos, and writes nothing durable until you inspect and approve the exact
-Notebook batch.
+Observer does not save every tool result and does not write notes continuously.
+Working evidence stays on the Pi branch until the user reviews an exact proposal
+and approves the whole batch.
 
 ## Install
 
@@ -25,167 +25,124 @@ pi -e npm:@hobin/observer
 
 ## Try this first
 
-Open the workbench:
+Open the Workbench:
 
 ```text
 /observer
 ```
 
-In **Settings**, choose a Notebook folder and turn Observer on. Then continue
-working with Pi normally. Observer can nominate meaningful source results from
-the current agent run, connect them to a standing inquiry, and keep the working
-interpretation on the current branch.
+In **Settings**, choose a local Notebook folder and turn Observer on. Then work
+with Pi normally.
 
-When the inquiry is ready:
+When there is enough material to synthesize:
 
 ```text
 /observer memo
 /observer review
 ```
 
-Review prepares an inspectable proposal. It does not write files. Open
-**Proposal**, inspect each diff and final Markdown, then explicitly choose
-**Save all** to publish the whole validated batch.
+`review` prepares exact create/update operations, diffs, and final Markdown. It
+does not write files. Open **Proposal**, inspect the batch, and choose **Save all**
+to publish it.
+
+## What happens while Observer is on
+
+1. `/observer on` recovers the selected Notebook, opens an Episode if needed,
+   and enables continuous observation mode.
+2. Successful Pi tool results from the current agent run become candidates. They
+   are not saved automatically.
+3. The model may nominate an exact tool-call ID when its result materially
+   supports, challenges, refines, or bounds the inquiry.
+4. Observer records a `SourceRead` with provenance and a faithful summary, then a
+   semantic observation tied to exact source and Inquiry IDs.
+5. These records remain in the current Pi session branch.
+6. `/observer memo` reconciles the current working evidence into Memos, still
+   without writing Notebook files.
+7. `/observer review` prepares a complete Notebook proposal.
+8. Explicit approval stages, publishes, reads back, and settles the entire batch.
+
+See [How Observer works](./docs/how-it-works.md) for the exact runtime flow.
 
 ## Three ways to start inquiry work
 
-| Entry path | Use it when… | Command |
+| Entry | Use it when | Command |
 | --- | --- | --- |
-| Sidecar | You want Observer to notice meaningful evidence while you do other work | `/observer on` |
-| Add a hypothesis | You want to preserve your wording and review current context through that lens | `/observer add-hypothesis <text>` |
-| Observe material | You want one bounded review of supplied or retrieved material without changing Sidecar mode | `/observer material <request>` |
+| Continuous Sidecar | Important evidence may appear while doing ordinary Pi work | `/observer on` |
+| User hypothesis | Preserve the user's wording and inspect current evidence through that question | `/observer add-hypothesis <text>` |
+| Bounded material review | Review supplied or retrieved material once without changing Sidecar mode | `/observer material <request>` |
 
-All three paths join the same Episode, Memo, Review, and Save flow.
+All three use the same Episode, Memo, Review, and Save machinery.
 
-```mermaid
-flowchart LR
-  S[Sidecar] --> R[SourceRead + observation]
-  M[Material review] --> R
-  H[User hypothesis] --> HR[Hypothesis context review]
-  R --> E[Episode]
-  HR --> E
-  E --> MM[Memo]
-  MM --> P[Review proposal]
-  P --> A[Explicit approval]
-  A --> N[Notebook Markdown]
-```
+## Session state versus Notebook files
 
-## What Observer stores
-
-Observer separates three layers:
-
-```mermaid
-flowchart TB
-  T[Tool results and user input] --> W[Branch-local working evidence]
-  W --> E[Episode observations and Memos]
-  E -->|reviewed batch only| N[Notebook records]
-
-  subgraph Pi session
-    W
-    E
-  end
-
-  subgraph Local durable data
-    N
-  end
-```
-
-| Layer | Lifetime | Purpose |
+| Location | Contents | When it changes |
 | --- | --- | --- |
-| Candidate material | Current agent run or exact material-review window | Eligible evidence, not yet an observation |
-| Episode state | Current Pi branch | SourceReads, observations, hypotheses, Memo work, and proposal state |
-| Notebook Markdown | Local filesystem | Durable Source, Inquiry, Memo, and Zettel records |
+| Current Pi branch | Candidates, SourceReads, observations, hypotheses, working Memos, proposal state | During Observer work |
+| Local Notebook | Source, Inquiry, Memo, and Zettel Markdown records | Only after explicit batch approval and successful readback |
 
-Pi session events coordinate work; the Notebook is the durable source of truth.
-
-## Workbench
-
-`/observer` opens a read-only, keyboard-first view:
-
-```text
-Overview → Activity → Inquiries → Memos → Proposal → Notebook → Settings
-```
-
-Use arrows or `j/k` to move, Enter to inspect, Escape to go back, Tab to change
-focus, Page Up/Page Down or Home/End to scroll, `y` to copy the focused semantic
-record, and `?` for help. Opening, scrolling, and copying do not write files or
-append Observer events.
+Turning Observer off stops continuous model-backed observation but leaves an open
+Episode and its working evidence intact.
 
 ## Processing modes
 
 | Mode | Behavior |
 | --- | --- |
-| `piggyback` | Default. Uses an existing foreground Pi turn and adds no separate inference request |
-| `local` | Runs at concurrency one on an explicitly selected loopback model |
-| `off` | Keeps local staging but performs no model-backed interpretation |
+| `piggyback` | Uses an existing foreground Pi turn; no separate inference request |
+| `local` | Runs one queued job at a time on an explicitly selected loopback model |
+| `off` | Keeps coordination state but performs no model-backed interpretation |
 
-Piggyback can add context tokens to an existing turn; “no separate request” does
-not mean zero token cost. Local mode accepts only loopback endpoints and is not a
-durable daemon.
+Piggyback may add context tokens to the existing turn. Local mode is an in-memory
+queue, not a persistent daemon.
 
 ## Essential commands
 
 | Command | Effect |
 | --- | --- |
-| `/observer` | Open the workbench |
+| `/observer` | Open the Workbench |
 | `/observer setup <ko\|en> <path>` | Initialize or select a Notebook |
-| `/observer on` / `/observer off` | Toggle Sidecar observation without discarding an open Episode |
-| `/observer add-hypothesis <text>` | Preserve a user hypothesis and request an initial context review |
+| `/observer on` / `/observer off` | Toggle continuous observation |
+| `/observer add-hypothesis <text>` | Preserve and review a user hypothesis |
 | `/observer material <request>` | Start a bounded material review |
-| `/observer material retry` / `cancel` | Resume or cancel the exact pending material request |
-| `/observer memo` | Reconcile current working material without writing Notebook files |
-| `/observer review` | Prepare a validated, inspectable publication proposal |
-| `/observer save` | Inspect an already prepared proposal before explicit approval |
-| `/observer status` | Show Notebook, mode, Episode, processing, and recovery state |
+| `/observer material retry` / `cancel` | Resume or cancel the exact pending request |
+| `/observer memo` | Reconcile working evidence into Memos |
+| `/observer review` | Prepare a publication proposal |
+| `/observer save` | Inspect and explicitly approve a prepared proposal |
+| `/observer status` | Show Notebook, Episode, processing, and recovery state |
 
-`ko` and `en` select the language of newly written records, not the workbench UI.
-Relative Notebook paths resolve from Pi's working directory; `~/...` resolves
-from your home directory. Observer never chooses a Notebook path for you.
+`ko` and `en` choose the language of newly written records, not the Workbench UI.
+Observer never chooses a Notebook path on the user's behalf.
 
 ## Safe publication boundary
 
-```mermaid
-sequenceDiagram
-  participant U as User
-  participant O as Observer
-  participant F as Filesystem
+Saving is an all-or-nothing transaction:
 
-  U->>O: review
-  O->>O: validate scope + final graph
-  O-->>U: exact diff, existing, and final Markdown
-  U->>O: Save all
-  O->>F: stage and publish entire batch
-  O->>F: read back every record
-  alt exact readback
-    O-->>U: committed receipt
-  else failure or drift
-    O->>F: rollback where safe
-    O-->>U: recovery-required diagnostic
-  end
+```text
+prepare final Markdown and full graph
+-> show exact batch to the user
+-> receive approval for that proposal ID
+-> verify current target bytes
+-> stage all records
+-> publish all records
+-> read back and validate the final Notebook
+-> append SaveCommitted
 ```
 
-There is no default approval and no partial-batch save. Current target drift,
-invalid Markdown, graph errors, stale proposal identity, or failed readback stop
-settlement.
-
-## Boundaries
-
-Observer owns local Source, Inquiry, Memo, and Zettel publication. It does not
-own Git, GitHub, remote sync, backup, vector databases, model truth, crash-proof
-durability, or multi-process coordination. A Zettel must retain at least one
-direct Source reference.
-
-Pi packages execute with Pi's process permissions. Review source before
-installation and use an operating-system sandbox for untrusted material.
+Target drift, invalid Markdown, graph errors, a stale proposal, or failed readback
+prevents settlement. Observer rolls back known writes when safe and reports a
+recovery state rather than overwriting unknown changes.
 
 ## Documentation
 
-| Document | For |
-| --- | --- |
-| [User guide](./docs/user-guide.md) | Notebook setup, workflows, commands, workbench, and recovery |
-| [Architecture](./docs/architecture.md) | Episode state, session/durable boundaries, and component ownership |
-| [Evidence and processing](./docs/evidence-and-processing.md) | Nomination, SourceReads, typed context, Piggyback, and atomic commit |
-| [Notebook publication](./docs/notebook-publication.md) | Record graph, Review/Save transaction, readback, rollback, and limits |
+- [How Observer works](./docs/how-it-works.md) — candidate capture, SourceReads,
+  observations, Memos, and processing
+- [User guide](./docs/user-guide.md) — setup, commands, and recovery
+- [Notebook publication](./docs/notebook-publication.md) — record rules and the
+  save transaction
+
+## Boundaries
+
+Observer does not provide Git sync, backup, remote sharing, a vector database,
+model truth, a crash-proof daemon, or multi-process Notebook coordination.
 
 ## Development
 
@@ -194,9 +151,6 @@ pnpm --filter @hobin/observer check
 pnpm --filter @hobin/observer eval
 pi -e ./packages/observer
 ```
-
-Maintainers use `pnpm --filter @hobin/observer release:check` from a clean
-worktree before any publication decision.
 
 ## License
 
