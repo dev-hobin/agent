@@ -143,3 +143,36 @@ zero critical vulnerabilities:
 Candidate preparation may continue. Publication remains gated until Pi publishes
 a patched shrinkwrap or the release owner explicitly records acceptance of this
 transitive risk.
+
+## Release-owner acceptance for 0.1.6
+
+The release owner explicitly accepted this transitive risk on
+`2026-08-02T23:48:17Z` for `@hobin/observer@0.1.6` only.
+
+- accepted by: `dev-hobin`;
+- approval provenance: explicit release-owner instruction during the `0.1.6`
+  release-preparation session;
+- runtime candidate commit: `9fecaae5cd7a60b03e3f725163d96066f3dd5870`;
+- accepted advisory: `GHSA-mh99-v99m-4gvg` through Pi's pinned
+  `brace-expansion@5.0.7`;
+- observed impact: a crafted glob can exhaust memory in the Pi host process;
+- Observer boundary: Observer neither imports `minimatch` nor supplies the
+  affected package or model-scope patterns;
+- package-owned graph: an audit excluding host-owned peers reported zero high
+  or critical vulnerabilities;
+- rejected mitigations: an Observer direct dependency, consumer root override,
+  and `npm audit fix` all left Pi's nested `5.0.7` unchanged;
+- upstream status: Pi main commit
+  `f0deb8dd8e9611e89b5bc4145ca92c03ae6ed4ee` pins patched `5.0.8`, but npm
+  `0.83.0` still contains the vulnerable shrinkwrap;
+- control result: replacing only the published Pi shrinkwrap entry with the
+  upstream patched version produced a fresh-consumer audit with zero high or
+  critical vulnerabilities.
+
+The owner accepts the residual host-process denial-of-service risk because it is
+pre-existing in the supported Pi host, Observer introduces no additional call
+path, the package-owned graph is clean, and an upstream fix already exists. This
+acceptance satisfies the publication gate only for Observer `0.1.6`; it must not
+be reused for another Observer or Pi version. Re-run the fresh-consumer audit on
+the next release and remove this exception once a patched Pi package is
+published.
