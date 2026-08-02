@@ -2,129 +2,98 @@
 
 English | [한국어](./ko/choosing-a-skill.md)
 
-The five Learning Skills are distinguished by the result you need, not by a
-mandatory study sequence.
+Choose a Skill by the result you need, not only by the input format. The same
+repository may call for implementation learning, concept formation, or practice.
 
-## Decision map
+## Quick choice
 
-```mermaid
-flowchart TD
-  Q[What is missing now?] --> S{Missing result}
-  S -->|faithful understanding of prose or media| T[technical-reading]
-  S -->|evidence-backed understanding of public code| O[opensource-reading]
-  S -->|source-independent mental model| C[conceptualize]
-  S -->|repeatable coordination across cases| P[patternize]
-  S -->|observable ability to use the idea| E[exercise]
-```
+| Needed now | Skill | Completed result |
+| --- | --- | --- |
+| Understand what a source actually says | `technical-reading` | Explanation that preserves source order, examples, and exceptions |
+| Learn how one feature works in a public repository | `opensource-reading` | Evidence-backed explanation with docs, tests, and code locations |
+| Isolate one durable idea from several learning results | `conceptualize` | Concept tested with boundaries and counterexamples |
+| Capture a recurring decision sequence across cases | `patternize` | Routine with context, steps, checks, and stop conditions |
+| Test whether the learner can use the idea | `exercise` | Prediction, diagnosis, repair, transfer tasks, and mastery criteria |
 
-## Contrast table
+## Technical reading or conceptualize?
 
-| Skill | Starts from | Core question | Stops with |
-| --- | --- | --- | --- |
-| `technical-reading` | Book, article, docs, specification, tutorial, PDF, webpage | What is this source trying to make the reader understand, do, explain, or judge? | Faithful reading plus bounded explanation/coaching |
-| `opensource-reading` | Public repository and one declared slice | How does this API, flow, invariant, or tradeoff actually work across docs, tests, and code? | Evidence-backed repository learning artifact |
-| `conceptualize` | One or more learned insights or artifacts | What durable concept survives when source-specific wording is removed? | Atomic concept, boundary test, and graph update when requested |
-| `patternize` | Repeated concepts, cases, or judgments | What recurring context/forces/moves/checks form one reusable operational routine? | Pattern or explicit rejection of false recurrence |
-| `exercise` | A concept, pattern, reading result, or misconception | What performance would demonstrate understanding and transfer? | Deliberate practice and mastery rubric |
-
-## Nearby cases
-
-### Technical reading or conceptualize?
+Use `technical-reading` when the source itself remains the object of study:
 
 ```text
-“Explain what this chapter means and preserve its examples.”
-→ technical-reading
-
-“These three chapters suggest one model of information-preserving boundaries.
-Name and test that model independently of the books.”
-→ conceptualize
+Explain what this chapter means without dropping its examples.
 ```
 
-Technical reading remains accountable to source order, wording, examples, and
-boundaries. Conceptualize deliberately asks what transfers beyond those sources.
+The result remains accountable to source order, wording, and exceptions.
 
-### Open-source reading or ordinary code exploration?
-
-Use `opensource-reading` when the learning result matters: a traceable API/flow,
-contract, invariant, failure mode, or architecture boundary grounded in public
-repository evidence. Ordinary repository work is enough when you only need to
-locate a file or implement a change.
-
-### Concept or pattern?
+Use `conceptualize` when the goal is an idea that must survive beyond the source:
 
 ```text
-Concept: a durable distinction or mental model.
-Pattern: a recurring coordination of context, forces, moves, and checks.
+Name the information-preserving boundary shared by these three chapters and
+test it on cases unrelated to the books.
 ```
 
-Several related concepts do not automatically form a pattern. Patternize needs
-recurrence and an operational axis.
+Source history remains evidence, but the concept definition should not depend on
+the books' wording.
 
-### Explanation or exercise?
+## Open-source reading or ordinary code exploration?
 
-If the learner still lacks the model, read or conceptualize first. If the model
-is available but performance is untested, use exercise. Rewriting another
-summary is not practice.
+Ordinary exploration is enough when the goal is to locate a file or implement a
+fix.
 
-## Handoffs are conditional
-
-```mermaid
-flowchart LR
-  T[technical-reading] -. reusable meaning becomes consequential .-> C[conceptualize]
-  O[opensource-reading] -. reusable meaning becomes consequential .-> C
-  C -. repeated coordination appears .-> P[patternize]
-  T -. mastery evidence requested .-> E[exercise]
-  O -. mastery evidence requested .-> E
-  C -. mastery evidence requested .-> E
-  P -. mastery evidence requested .-> E
-```
-
-Dotted arrows mean “may hand off,” not “must proceed.” Every Skill returns a
-complete result on its own.
-
-## Example requests
-
-### Technical reading
+Use `opensource-reading` when the result itself should be learning:
 
 ```text
-Read this RFC section with me. Translate it faithfully, then explain the state
-model and the exception that the example is demonstrating.
+Trace this repository's retry API through documentation, public entry points,
+tests, and implementation. Identify one guarantee and one falsifier.
 ```
 
-### Open-source reading
+The result needs exact file and symbol evidence. It must not turn a small sample
+into a speculative whole-repository architecture story.
+
+## Concept or pattern?
+
+A concept is one durable distinction or mental model. A pattern is a sequence of
+moves that recurs under similar forces.
+
+“Bind a judgment to exact source content” may be a concept. If several workflows
+repeatedly use this sequence, it may become a pattern:
 
 ```text
-Study how this repository's public retry API travels through documentation,
-tests, and implementation. Identify the guarantee and one falsifier.
+discover candidates -> decide admission -> acquire exact content -> commit once
 ```
 
-### Conceptualize
+Related concepts do not form a pattern without real recurrence and a reason for
+the ordering.
 
-```text
-Across these two reading notes, isolate the concept of evidence-preserving
-boundaries. Test whether parsing, constructors, and protocol transitions are one
-concept or several.
-```
+## Explanation or exercise?
 
-### Patternize
+Read or form the concept first when the learner still lacks the model.
+Explanation can support understanding but is not evidence of mastery.
 
-```text
-These design reviews repeatedly separate discovery, admission, acquisition, and
-commit. Decide whether that recurrence is a reusable pattern and write its
-checks and failure modes.
-```
+Use `exercise` when observable performance is needed:
 
-### Exercise
+- predict behavior before seeing the result;
+- distinguish nearby misconceptions;
+- complete a faded worked example;
+- repair an incorrect solution; or
+- transfer the idea to another domain.
 
-```text
-Turn this concept into a prediction task, one misconception diagnostic, a faded
-worked example, a repair task, and a transfer problem with a mastery rubric.
-```
+Writing another summary is not practice.
+
+## Handoffs are optional
+
+Another Skill may become useful when a new question appears:
+
+- reusable meaning emerges from reading -> `conceptualize`;
+- the same coordination recurs across cases -> `patternize`;
+- understanding needs performance evidence -> `exercise`.
+
+The current Skill still completes its own result first. No handoff happens merely
+because a package-level sequence says it should.
 
 ## When not to use Learning
 
-- You need Pi to implement or mutate a repository rather than teach from it.
-- You need a persistent notebook or automated memory system.
-- You want a generic summary with no source or mastery requirement.
-- You have not identified a source, concept, recurrence, or performance target
-  precise enough for one of the five questions.
+- Pi needs to change a repository rather than learn from it.
+- You need an automatic persistent notebook.
+- You want a short summary without source or mastery requirements.
+- No source, concept, recurrence, or performance target is precise enough yet.

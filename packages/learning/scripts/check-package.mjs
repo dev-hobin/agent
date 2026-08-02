@@ -79,15 +79,19 @@ assert.deepEqual(
 
 const codexSyntax =
 	/\$learning:|\$(?:technical-reading|opensource-reading|conceptualize|patternize|exercise)|learning:(?:technical-reading|opensource-reading|conceptualize|patternize|exercise)/;
-const englishDocNames = (await readdir(join(root, "docs"), {
-	withFileTypes: true,
-}))
+const englishDocNames = (
+	await readdir(join(root, "docs"), {
+		withFileTypes: true,
+	})
+)
 	.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
 	.map((entry) => entry.name)
 	.sort();
-const koreanDocNames = (await readdir(join(root, "docs/ko"), {
-	withFileTypes: true,
-}))
+const koreanDocNames = (
+	await readdir(join(root, "docs/ko"), {
+		withFileTypes: true,
+	})
+)
 	.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
 	.map((entry) => entry.name)
 	.sort();
