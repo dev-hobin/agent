@@ -12,8 +12,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const EXPECTED_FILES = [
 	"LICENSE",
 	"README.md",
-	"docs/product-spec-v0.1.ko.md",
-	"docs/runtime-flow.md",
+	"docs/architecture.md",
+	"docs/evidence-and-processing.md",
+	"docs/notebook-publication.md",
+	"docs/user-guide.md",
 	"extensions/memo-tool-schema.ts",
 	"extensions/observer-background.ts",
 	"extensions/observer-workbench-tui.ts",

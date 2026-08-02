@@ -26,8 +26,7 @@ assert.deepEqual(manifest.files, [
 	"extensions",
 	"src",
 	"schemas",
-	"docs/product-spec-v0.1.ko.md",
-	"docs/runtime-flow.md",
+	"docs",
 	"README.md",
 	"LICENSE",
 ]);
@@ -73,3 +72,16 @@ assert.equal(schema.$id, "urn:hobin:observer:record:v1");
 assert.deepEqual(schema.properties.observer_schema, {
 	const: "observer-record/v1",
 });
+
+const readme = await readFile(join(root, "README.md"), "utf8");
+for (const path of [
+	"docs/user-guide.md",
+	"docs/architecture.md",
+	"docs/evidence-and-processing.md",
+	"docs/notebook-publication.md",
+]) {
+	assert.match(readme, new RegExp(path.replaceAll("/", "\\/"), "u"));
+	await readFile(join(root, path), "utf8");
+}
+assert.match(readme, /Three ways to start inquiry work/u);
+assert.match(readme, /Safe publication boundary/u);

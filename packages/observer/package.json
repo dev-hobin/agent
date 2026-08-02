@@ -2,7 +2,7 @@
   "name": "@hobin/observer",
   "version": "0.1.6",
   "private": true,
-  "description": "A local-first observation mode for durable inquiry, memo reconciliation, and Zettelkasten promotion in Pi.",
+  "description": "A local-first Pi inquiry sidecar with reviewed, source-linked Markdown notebook publication.",
   "type": "module",
   "keywords": [
     "pi-package",
@@ -32,8 +32,7 @@
     "extensions",
     "src",
     "schemas",
-    "docs/product-spec-v0.1.ko.md",
-    "docs/runtime-flow.md",
+    "docs",
     "README.md",
     "LICENSE"
   ],

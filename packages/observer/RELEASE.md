@@ -19,7 +19,7 @@ npm access/tag: public/latest
 Node: >=22.19.0
 Pi peer: >=0.80.10 <0.84.0
 TypeBox peer: ^1.3.6
-pack: exactly 54 allowlisted files; no tests or scripts
+pack: exactly 56 allowlisted files; no tests or scripts
 ```
 
 The supported Pi matrix is `0.80.10`, `0.81.1`, `0.82.1`, and `0.83.0`.
