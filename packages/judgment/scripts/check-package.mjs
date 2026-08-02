@@ -19,7 +19,7 @@ async function readJson(path) {
 const manifest = await readJson(join(root, "package.json"));
 assert.equal(manifest.name, "@hobin/judgment");
 assert.equal(manifest.version, "0.1.0");
-assert.equal(manifest.private, true);
+assert.equal(manifest.private, undefined);
 assert.deepEqual(manifest.publishConfig, { access: "public" });
 assert.deepEqual(manifest.files, [
 	"schemas",

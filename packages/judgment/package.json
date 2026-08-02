@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "A side-effect-free engine for policy-aware context selection, sealing, coverage, and outcomes.",
   "type": "module",
-  "private": true,
   "publishConfig": {
     "access": "public"
   },

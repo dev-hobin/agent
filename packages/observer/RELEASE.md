@@ -19,7 +19,7 @@ npm access/tag: public/latest
 Node: >=22.19.0
 Pi peer: >=0.80.10 <0.84.0
 TypeBox peer: ^1.3.6
-pack: exactly 56 allowlisted files; no tests or scripts
+pack: exactly 59 allowlisted files; no tests or scripts
 ```
 
 The supported Pi matrix is `0.80.10`, `0.81.1`, `0.82.1`, and `0.83.0`.
@@ -126,4 +126,20 @@ If publication returns an error:
 
 ## Current known gate
 
-The latest fresh supported consumers resolved Pi's `brace-expansion@5.0.7`, which npm reports under a high-severity denial-of-service advisory. Observer does not own that transitive dependency. Candidate preparation may continue, but publication requires either a patched Pi consumer audit or an explicit release-owner acceptance record.
+Rechecked on 2026-08-02 in a fresh consumer with the packed Judgment `0.1.0`
+and Observer `0.1.6` candidates, Pi/TUI `0.83.0`, and TypeBox `1.3.7`.
+`npm audit --omit=dev --audit-level=high` reported one high vulnerability and
+zero critical vulnerabilities:
+
+- advisory: `GHSA-mh99-v99m-4gvg`, unbounded brace expansion can cause an
+  out-of-memory denial of service;
+- resolved path: `@earendil-works/pi-coding-agent@0.83.0`
+  → `minimatch@10.2.5` → `brace-expansion@5.0.7`;
+- source of the stale resolution: Pi `0.83.0` publishes an `npm-shrinkwrap.json`
+  that pins `brace-expansion@5.0.7`, even though `minimatch` accepts `^5.0.5`
+  and patched `5.0.9` is available;
+- Observer does not own or execute this transitive dependency directly.
+
+Candidate preparation may continue. Publication remains gated until Pi publishes
+a patched shrinkwrap or the release owner explicitly records acceptance of this
+transitive risk.

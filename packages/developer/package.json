@@ -1,7 +1,6 @@
 {
   "name": "@hobin/developer",
   "version": "0.1.17",
-  "private": true,
   "description": "A Pi workbench for explicit coding judgments, bounded mutation, and claim-relative verification.",
   "type": "module",
   "keywords": ["pi-package", "pi", "developer", "skills"],

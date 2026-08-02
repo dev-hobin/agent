@@ -1,7 +1,6 @@
 {
   "name": "@hobin/observer",
   "version": "0.1.6",
-  "private": true,
   "description": "A local-first Pi inquiry sidecar with reviewed, source-linked Markdown notebook publication.",
   "type": "module",
   "keywords": [

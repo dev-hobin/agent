@@ -51,7 +51,7 @@ function missing(error) {
 const manifest = await readJson(join(root, "package.json"), "package manifest");
 assert.equal(manifest.name, "@hobin/developer");
 assert.equal(manifest.version, "0.1.17");
-assert.equal(manifest.private, true);
+assert.equal(manifest.private, undefined);
 assert.deepEqual(manifest.files, [
 	"extensions",
 	"skills",
