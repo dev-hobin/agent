@@ -1,198 +1,149 @@
-# 어댑터 가이드
+# Adapter 연결
 
 [English](../adapter-guide.md) | 한국어
 
-**대상:** Judgment를 stateful Pi extension, build-time generator, typed domain
-sidecar에 통합하는 maintainer
+Judgment는 자료의 identity와 근거 점검을 맡습니다. 사용자가 실제로 보는 제품은
+adapter가 맡습니다. 질문, source 검색, UI, 저장, 도메인 판단, 코드 변경 권한은
+adapter의 책임입니다.
 
-통합 규칙은 간단합니다. Judgment는 맥락의 의미를 소유하고, 어댑터는 제품을
-소유합니다.
+## 가장 작은 연결 순서
 
-## 통합 깊이 선택
+Stateful adapter라면 보통 다음 순서로 연결합니다.
 
-| Consumer | Judgment에서 사용할 것 | Consumer에 남길 것 |
-| --- | --- | --- |
-| Stateful Pi adapter | 정책, 동적 질문, inventory, observation, selection, sealing, coverage, outcome | 도구, 프롬프트, replay, UI, 도메인 질문, authorization |
-| Build-time generator | Authoring parser, compiler, deterministic directions | Runtime Skill method와 일반 Pi acquisition |
-| Typed sidecar | Context, evaluator assurance, coverage, outcome primitive | 도메인 record, mutation gate, persistence |
-| CLI 또는 service | 필요한 순수 엔진 layer | Transport, storage, access control, presentation |
+1. 선택한 기능에서 정확한 owner를 구합니다.
+2. 옆에 `judgment.json`이 있으면 읽고 compile합니다.
+3. 현재 branch에 대한 질문 하나를 만듭니다.
+4. 아직 본문을 읽지 않은 source 목록을 보여 줍니다.
+5. 모델이 exact source ID를 고르게 합니다.
+6. 고른 자료를 다시 읽어 원문과 hash를 고정합니다.
+7. 선택한 자료마다 결론에 보탠 내용을 적게 합니다.
+8. 결론과 근거 묶음을 adapter의 기존 protocol에 저장합니다.
 
-## 통합 순서
+사용자에게 범용 Judgment 절차를 하나 더 보여 주지 마세요. Judgment는 원래 작업을
+소유한 제품 안에서 쓰는 내부 mechanism입니다.
 
-```mermaid
-sequenceDiagram
-  participant H as Host / Pi
-  participant A as Adapter
-  participant G as Agent
-  participant J as Judgment
-
-  H->>A: owner + branch + visible descriptor
-  A->>J: owner와 선택적 policy parse
-  A->>J: 동적 질문 생성
-  A-->>G: 질문 + lightweight inventory
-  G->>A: context source 지명
-  A-->>G: 제한된 method + visible policy
-  G->>A: applicability + selected material + contribution
-  A->>J: selectAndSeal
-  J-->>A: immutable sealed state + event
-  A->>J: assessCoverage + conclude
-  J-->>A: outcome
-  A->>H: adapter-owned basis 또는 event 저장
-```
-
-Descriptor가 존재한다는 이유만으로 source content를 열지 않습니다.
-
-## 외부 Skill을 batch로 열기
-
-Pi 어댑터는 여러 context Skill을 하나의 소유 질문에 결합할 수 있습니다.
-
-```text
-Pi-visible descriptor
-→ 정확한 source ID 지명
-→ 제한된 SKILL.md 읽기
-→ co-located judgment.json 선택적 읽기
-→ owner-bound policy compile
-→ 모델에 보이는 method와 policy
-→ source별 applicability
-→ admitted method와 reference
-```
-
-Batch admission은 atomic해야 합니다.
-
-```mermaid
-flowchart TD
-  IDs[Raw source ID] --> R[정확한 현재 descriptor resolve]
-  R --> M[제한된 method 읽기]
-  M --> P[선택적 policy parse]
-  P --> C[각 policy를 자체 owner/root로 compile]
-  C --> B{Batch의 모든 source가 refine되었는가?}
-  B -->|예| E[하나의 opened-sources event commit]
-  B -->|아니요| X[아무것도 commit하지 않고 source-local failure 보고]
-```
-
-새롭게 관련된 source가 있으면 어댑터가 operation을 다시 호출할 수 있습니다.
-활성 judgment에서 이미 열린 source는 거부하세요. 하나의 invalid source batch가
-이전 성공 호출에서 admitted된 provider를 지워서는 안 됩니다.
-
-## Inventory 구성
-
-`buildPiContextInventory`는 prepared reference byte를 읽지 않고 descriptor
-metadata를 결합합니다.
-
-적용 가능한 policy-bearing provider마다 별도의 `PreparedContextProviderInput`을
-전달해야 합니다. 각 값에는 다음이 포함됩니다.
-
-- 해당 `CompiledJudgmentPolicy`
-- 자체 `decisionUnitRoot` / policy root
-- 현재 질문에 admitted된 reference만
-
-한 provider의 root reader를 다른 provider에 사용하지 마세요. 두 Skill에 같은
-relative path가 있어도 owner, policy, root, provenance가 다르므로 서로 다른
-source입니다.
-
-`not-applicable` 또는 `needs-context`로 평가된 provider는 positive method/reference
-material에 기여하면 안 됩니다. 어댑터는 해당 평가를 basis 또는 limitation으로
-보존할 수 있습니다.
-
-## Observed context resolve
-
-관찰된 material은 model payload를 신뢰하지 말고 현재 host fact에서 재구성해야
-합니다.
-
-| Observation | 필수 identity |
-| --- | --- |
-| Tool result | Active-branch call ID, tool name, arguments hash, sequence, status, ordered content hash |
-| User event | 정확한 branch-local user event ID와 content |
-| Domain evaluator | Typed evaluator ID, declared relation, exact basis |
-| Context file | 현재 Pi descriptor와 content identity |
-
-Error 또는 truncated result는 gap을 설명할 수 있지만 positive selected material이
-될 수 없습니다.
-
-## 선택과 봉인
-
-Facade가 transition 순서를 보존하게 하려면 `ContextAttempt.selectAndSeal`을
-사용합니다.
+## 가장 작은 코드 예
 
 ```ts
-const transition = await attempt.selectAndSeal({
-  inventory,
-  observedContext,
-  proposal,
-  admittedPolicySha256s,
-  acquisition,
-  signal,
+const opened = ContextAttempt.open({
+  question: questionValue,
+  applicability: applicabilityValue,
 });
 
-// 전체 호출 성공 후에만 저장하거나 적용합니다.
-const nextState = transition.value;
-const events = transition.events;
+await opened.value.selectAndSeal({
+  inventory,
+  observedContext,
+  proposal: selectionProposal,
+  admittedPolicySha256s,
+  acquisition,
+});
+
+opened.value.assessCoverage(coverageProposal);
+const concluded = opened.value.conclude(outcomeProposal);
+
+persistAdapterEvent({
+  questionId: concluded.value.question.judgmentId,
+  outcome: concluded.value.outcome,
+});
 ```
 
-`ContextAcquisition.acquirePreparedReference`는 policy identity를 포함한 정확한
-prepared source를 받습니다. 해당 policy가 소유한 contained reader로 route하세요.
-`acquireSkill`과 observed-result acquisition은 예상 content identity를 다시
-검사해야 합니다.
+호출 전체가 성공한 뒤에만 새 state를 적용하거나 저장해야 합니다.
 
-## Contribution 평가
+## 먼저 찾고, 선택된 것만 연다
 
-사용 가능한 모든 selected member에는 현재 질문과의 정확한 relation이 하나 이상
-필요합니다.
+Pi Skill을 예로 들면 처음부터 모든 `SKILL.md`를 읽지 않습니다. 모델에는 이름,
+설명, provenance, exact source ID만 보여 줍니다.
+
+모델이 source를 고른 뒤 제한된 batch를 엽니다.
 
 ```text
-materialId
-+ useAs: constraint | evidence | decision | method | guidance
-+ concrete contribution
-+ assurance
-→ contributionId
+exact source ID
+-> 현재 descriptor에서 다시 찾기
+-> 크기를 제한해 SKILL.md 읽기
+-> 옆의 정책 파일이 있으면 읽기
+-> 실제 owner와 정책 묶기
+-> 모델에 method와 정책 보여 주기
+-> 이 질문에 적용되는지 source별로 판단
 ```
 
-Assurance ceiling:
+정책이 있는 source는 모델이 정책을 본 뒤에만 적용 가능하다고 말할 수 있습니다.
+잘못된 정책 하나 때문에 이번 batch가 실패하더라도 이전에 성공해서 연 source까지
+지우면 안 됩니다.
 
-| Assurance | 확립할 수 있는 주체 |
+## Provider의 root를 섞지 않는다
+
+정책이 있는 provider마다 다음을 따로 보관합니다.
+
+- `CompiledJudgmentPolicy`
+- 실제 policy root
+- 그 root 안에서만 읽는 reference reader
+- 현재 질문에 허용된 reference 목록
+
+두 Skill에 모두 `references/checklist.md`가 있어도 서로 다른 source입니다. Owner,
+정책, root, provenance가 다르기 때문입니다. 한 provider의 상대 경로를 다른
+provider root에서 해석하면 안 됩니다.
+
+## 관찰 자료는 host에서 다시 찾는다
+
+모델이 “이 tool result가 있다”고 보낸 값을 그대로 믿지 않습니다. 현재 host
+state에서 실제 값을 다시 찾아야 합니다.
+
+| 자료 | 다시 확인할 값 |
 | --- | --- |
-| `agent-asserted` | 정확한 selected material에 대한 model interpretation |
-| `domain-verified` | declared relation과 일치하는 typed evaluator event |
-| `user-accepted` | 일치하는 selected user event |
+| Tool result | 현재 branch의 call ID, arguments, 순서, 성공 여부, content hash |
+| 사용자 결정 | 정확한 branch-local user event |
+| Context file | 현재 Pi descriptor와 content identity |
+| Domain evaluator 결과 | 정해진 evaluator ID, 검사한 관계, exact basis |
 
-문장이 authoritative하게 들린다는 이유로 어댑터가 assurance를 승격하면 안 됩니다.
+Error나 truncated result는 “근거가 부족하다”는 설명에는 쓸 수 있지만 긍정적인
+근거가 될 수는 없습니다.
 
-## 결론
+## Sealing할 때 다시 읽기
 
-| Coverage | 유효한 outcome |
+`ContextAcquisition` callback은 선택한 뒤 실제 원문을 다시 가져옵니다.
+
+- `acquirePreparedReference`: 해당 정책의 reader로 reference 읽기
+- `acquireSkill`: 지명된 Skill method를 다시 확인
+- `acquireObservedContext`: 현재 branch 자료를 다시 resolve
+
+선택 전에 cache해 둔 byte가 아니라 sealing 시점의 identity를 돌려줘야 합니다.
+
+## 기여와 확인 수준
+
+결론에서 쓰는 자료마다 질문과의 구체적인 관계가 있어야 합니다. 확인 수준은 그
+관계를 실제로 만든 source를 넘지 못합니다.
+
+- 모델의 해석: `agent-asserted`
+- 특정 관계를 검사한 typed evaluator: `domain-verified`
+- 현재 branch의 사용자 결정: `user-accepted`
+
+문장이 권위 있게 들린다는 이유로 수준을 올리면 안 됩니다.
+
+## 저장과 replay
+
+Judgment event는 Pi session format이 아닙니다. Adapter protocol 안에 넣어 저장하거나
+다음 내용을 담은 작은 basis를 저장하세요.
+
+- Owner, question, branch identity
+- 허용한 provider descriptor, policy, applicability identity
+- Selection과 sealed-content hash
+- Contribution, conflict, limitation, coverage, outcome identity
+
+Replay할 때는 payload를 parse하고 identity를 다시 계산합니다. 무엇을 가리키는지
+알 수 없는 hash 문자열만 저장해서는 안 됩니다.
+
+## 실패할 때 지켜야 할 동작
+
+| 상황 | 처리 |
 | --- | --- |
-| `sufficient`, conflict 없음 | Contribution ID를 인용하는 contextual judgment |
-| 정확한 conflict 또는 limitation이 있는 `needs-evidence` | 해당 ID를 설명하는 needs-evidence outcome |
-| 현재 질문에서 다른 미해결 질문이 드러남 | 현재 text와 구별되는 emergent question |
+| 정책 파일 없음 | 참고 자료 없이 계속 진행 |
+| 정책 파일 오류 또는 root escape | 해당 source batch 거부 |
+| Provider가 적용되지 않음 | 긍정적인 method/reference 후보에서 제외 |
+| 선택한 byte 변경 | 다시 읽고 다시 평가 |
+| 관련 없는 descriptor 추가 | 기존 selection 유지 |
+| 선택한 자료 하나를 읽지 못함 | Selection과 seal 모두 기록하지 않음 |
+| 자료의 기여 누락 | Coverage 거부 |
+| Adapter 저장 실패 | Adapter의 domain state를 진행하지 않음 |
 
-Outcome은 semantic evidence일 뿐입니다. 파일을 변경할 수 있는 어댑터는 별도의
-domain authorization value를 만들어야 합니다.
-
-## Persistence와 replay
-
-Judgment는 session record 형식을 정하지 않습니다. Stateful adapter는 다음을
-저장해야 합니다.
-
-- owner, question, branch identity
-- 열린 provider descriptor, policy, applicability identity
-- source applicability assessment
-- selection과 sealed-content hash
-- material과 contribution summary
-- conflict, limitation, coverage, outcome identity
-
-Replay할 때 persisted data를 parse하고 canonical identity를 다시 계산하세요. 저장된
-hash가 식별한다고 주장하는 값을 재구성하지 않고 hash를 신뢰하면 안 됩니다.
-
-## 실패 matrix
-
-| 실패 | Adapter 대응 |
-| --- | --- |
-| Policy 없음 | 완전한 method와 prepared reference 없음으로 계속 |
-| Policy malformed 또는 root escape | 해당 source batch 거부 |
-| Provider unresolved 또는 excluded | Positive inventory에서 제외 |
-| Selected content 변경 | 재획득하고 재평가 |
-| 관련 없는 descriptor 추가 | 기존 selected work 유지 |
-| Acquisition 취소 또는 bound 초과 | Selection과 seal 모두 commit하지 않음 |
-| 사용 가능한 material의 contribution 누락 | Coverage 거부 |
-| Assurance provenance 누락 | 더 강한 assurance 거부 |
-| Adapter persistence 실패 | Domain state를 그대로 두거나 자체 atomic protocol 사용 |
+맥락적 결론은 파일 변경 권한이 아닙니다. 파일을 바꿀 수 있는 adapter라면 별도의
+authorization 값과 검사를 만들어야 합니다.

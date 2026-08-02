@@ -2,16 +2,14 @@
 
 English | [한국어](./ko/policy-authoring.md)
 
-**Audience:** Skill authors and package maintainers.
+A `judgment.json` file answers two narrow questions for its owning capability:
 
-A `judgment.json` file has two jobs:
+1. When does this capability apply, and what explicit cases exclude it?
+2. When can each packaged reference add something the capability method does not
+   already provide?
 
-1. say when its owning capability is applicable unless an explicit exclusion
-   wins; and
-2. say when each packaged reference may add a material distinction.
-
-It does not define runtime questions, routes, source catalogs, assurance, or
-mutation authority.
+It does not define runtime questions, routes, source rankings, assurance, or
+mutation permission.
 
 ## Complete example
 
@@ -43,44 +41,36 @@ mutation authority.
 }
 ```
 
-The normative machine-readable schema is exported as
-`@hobin/judgment/schema` and stored at
+The machine-readable schema is available as `@hobin/judgment/schema` and at
 [`../schemas/judgment-authoring.schema.json`](../schemas/judgment-authoring.schema.json).
 
-## Applicability rule
+## How applicability is decided
 
-```mermaid
-flowchart TD
-  T[Current task evidence] --> W{Any root when materially true?}
-  W -->|no| N[not applicable]
-  W -->|yes| U{Any root unless materially true?}
-  U -->|yes| N
-  U -->|no| A[applicable]
-  W -->|cannot yet tell| C[needs context]
-  U -->|cannot yet tell| C
-```
+A capability is applicable when at least one root `when` statement materially
+matches and no root `unless` statement matches. `unless` wins when both match.
 
-`unless` is an explicit exclusion and wins when both sides match. Do not use it
-for ordinary uncertainty. If evidence is still needed, the runtime assessment
-should be `needs-context` instead.
+If the current evidence is not enough to decide, the runtime result should be
+`needs-context`. Do not turn uncertainty into an `unless` statement.
 
-## Reference rule
-
-Every reference is independent:
+Examples:
 
 ```text
-current question + current evidence
-→ compare each reference.when
-→ read zero, one, or several materially useful references
+when:   Caller-facing data flow still needs a design.
+unless: A concrete interface already exists and only needs review.
 ```
 
-A good reference `when` sentence includes both:
+The first statement says what work the capability owns. The second sends an
+already-shaped candidate to a different capability.
 
-```text
-observable pressure + distinction the file can add
-```
+## Write references as independent choices
 
-Weak:
+Each `references[]` entry is considered separately. A match makes the file
+eligible; it does not make the file mandatory or authoritative.
+
+A useful `references[].when` names both the visible pressure and the distinction
+the file can add.
+
+Too broad:
 
 ```text
 When conversions are involved.
@@ -89,70 +79,50 @@ When conversions are involved.
 Useful:
 
 ```text
-A cross-representation design needs explicit preserved-observer, loss,
-ambiguity, cycle, or unsupported-path checks.
+A cross-representation design needs explicit checks for preserved observers,
+loss, ambiguity, cycles, and unsupported paths.
 ```
 
-Matching makes the reference eligible, not mandatory or authoritative. Array
-order is canonicalized for identity and expresses no priority.
+If the current specification or evidence already supplies that distinction, the
+adapter may skip the packaged reference.
 
-## Property contract
+## Fields
 
-| Property | Required | Meaning |
-| --- | --- | --- |
-| `$schema` | No, recommended | Editor discovery only; excluded from semantic policy identity |
-| `specVersion` | Yes | Exactly `"0.1"` |
-| `when` | Yes | Positive applicability statements for the enclosing capability |
-| `unless` | Yes | Explicit exclusions that override positive applicability |
-| `references` | Yes | One or more independently selectable packaged files |
-| `references[].path` | Yes | Normalized relative POSIX path from the policy directory |
-| `references[].when` | Yes | Complete relevance statements for that file |
+| Field | Rule |
+| --- | --- |
+| `$schema` | Optional editor hint; excluded from semantic policy identity |
+| `specVersion` | Required; currently exactly `"0.1"` |
+| `when` | One or more positive applicability statements |
+| `unless` | Explicit exclusions that override `when` |
+| `references` | One or more independently selectable local files |
+| `references[].path` | Normalized relative POSIX path from the policy directory |
+| `references[].when` | One or more complete relevance statements for that file |
 
-The policy intentionally has no owner field. A Pi adapter derives owner identity
-from the exact loaded Skill; another adapter supplies its typed capability
-identity. The compiler binds that external owner to the policy.
-
-## When not to create a policy
-
-Do not create `judgment.json` when the capability has no conditional packaged
-references. Its `SKILL.md` or adapter contract remains complete without an empty
+The policy has no owner field. The adapter derives the owner from the Skill or
+supplies another typed capability identity, and the compiler binds it to the
 policy.
 
+## When no policy is needed
+
+Do not create `judgment.json` merely to say that a Skill exists. If the Skill has
+no conditional packaged references, its method can stand alone.
+
 ```text
-file absent           → normal capability, no prepared references
-file present + valid  → compiled owner-bound policy
-file present + invalid→ fail closed for that source
+file absent            -> normal capability, no prepared references
+file present and valid -> compiled owner-bound policy
+file present but invalid -> reject that source
 ```
 
-Never synthesize an empty policy for absence, and never reinterpret malformed
-presence as absence.
+Malformed presence must never be treated as absence.
 
-## Paths and containment
+## Path safety
 
-A reference path must:
+A reference path must be relative, use `/`, contain no empty, `.` or `..`
+segments, remain under the policy root after `realpath`, and identify a regular
+file. The parser checks the path shape; Node acquisition checks the physical
+filesystem before reading.
 
-- be relative and use `/` separators;
-- contain no empty, `.` or `..` segments;
-- remain lexically inside the policy root;
-- resolve physically inside the allowed root;
-- identify a regular file rather than a directory or escaping symlink.
-
-The parser establishes the normalized path. Node acquisition rechecks physical
-containment before reading bytes.
-
-## Authored versus generated values
-
-| Authored | Generated or supplied at runtime |
-| --- | --- |
-| `when` and `unless` prose | `PolicyOwner` and provenance |
-| Reference path and relevance | `policySha256` and source IDs |
-| `specVersion` | Dynamic question text and `judgmentId` |
-| Nothing else | Inventory, nominations, content hashes, contributions, assurance, coverage, outcome |
-
-This keeps author vocabulary stable while letting each task ask a different
-exact question.
-
-## Authoring workflow
+## Check a policy
 
 ```sh
 judgment check skills/example/judgment.json
@@ -160,17 +130,9 @@ judgment explain skills/example/judgment.json
 judgment compile skills/example/judgment.json
 ```
 
-- `check` parses the source and prints its canonical authoring hash.
-- `explain` renders deterministic model-visible applicability/reference
-  directions.
-- `compile` emits canonical compiled JSON after binding a CLI owner.
+- `check` parses the file and prints its canonical authoring hash.
+- `explain` shows the deterministic conditions a model will see.
+- `compile` binds a CLI owner and emits canonical compiled JSON.
 
-Package checks should also verify that every declared reference exists and that
-model-visible generated directions have not drifted.
-
-## Rejected shapes
-
-The parser rejects unknown fields, semantic duplicate statements, duplicate
-reference paths, surrounding whitespace, invalid UTF-8 at file boundaries,
-unsafe paths, and legacy graph vocabularies such as static routes, questions,
-needs, source IDs, roles, or assurance.
+Package checks should also confirm that every reference exists and that generated
+model-visible directions still match the policy.

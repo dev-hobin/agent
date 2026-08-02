@@ -82,13 +82,17 @@ assert.deepEqual(
 await assert.rejects(access(join(root, "schemas/judgment.schema.json")));
 
 const englishDocs = [
-	"docs/architecture.md",
+	"docs/how-it-works.md",
 	"docs/policy-authoring.md",
 	"docs/adapter-guide.md",
-	"docs/security-and-invariants.md",
 ];
 const koreanDocs = englishDocs.map((path) => path.replace("docs/", "docs/ko/"));
-const markdownPaths = ["README.md", "README.ko.md", ...englishDocs, ...koreanDocs];
+const markdownPaths = [
+	"README.md",
+	"README.ko.md",
+	...englishDocs,
+	...koreanDocs,
+];
 const markdown = new Map();
 for (const path of markdownPaths) {
 	const source = await readFile(join(root, path), "utf8");

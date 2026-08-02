@@ -2,195 +2,150 @@
 
 English | [한국어](./ko/adapter-guide.md)
 
-**Audience:** maintainers integrating Judgment into a stateful Pi extension,
-build-time generator, or typed domain sidecar.
+Judgment owns context identity and evidence accounting. The adapter owns the
+product: questions, source discovery, UI, persistence, domain authority, and any
+mutation permission.
 
-The integration rule is simple: Judgment owns context semantics; the adapter owns
-the product.
+## Minimum integration
 
-## Choose an integration depth
+A stateful adapter normally does this:
 
-| Consumer | Use from Judgment | Keep in the consumer |
-| --- | --- | --- |
-| Stateful Pi adapter | Policy, dynamic question, inventory, observations, selection, sealing, coverage, outcome | Tools, prompt, replay, UI, domain questions, authorization |
-| Build-time generator | Authoring parser, compiler, deterministic directions | Runtime Skill method and ordinary Pi acquisition |
-| Typed sidecar | Context, evaluator assurance, coverage, outcome primitives | Domain records, mutation gates, persistence |
-| CLI or service | Any pure engine layer needed | Transport, storage, access control, presentation |
+1. derive the exact owner from the selected capability;
+2. load and compile its optional `judgment.json`;
+3. create one dynamic question for the current branch;
+4. expose lightweight source descriptors;
+5. let the model nominate exact sources;
+6. reacquire and seal those sources;
+7. require a contribution for every usable selected item;
+8. conclude and store the resulting basis inside the adapter's own protocol.
 
-## Integration sequence
+The adapter should not expose a standalone generic Judgment workflow to users.
+Judgment is the mechanism inside the owning workflow.
 
-```mermaid
-sequenceDiagram
-  participant H as Host / Pi
-  participant A as Adapter
-  participant G as Agent
-  participant J as Judgment
-
-  H->>A: owner + branch + visible descriptors
-  A->>J: parse owner and optional policy
-  A->>J: create dynamic question
-  A-->>G: question + lightweight inventory
-  G->>A: nominate context sources
-  A-->>G: bounded methods + visible policies
-  G->>A: applicability + selected material + contributions
-  A->>J: selectAndSeal
-  J-->>A: immutable sealed state + events
-  A->>J: assessCoverage + conclude
-  J-->>A: outcome
-  A->>H: persist adapter-owned basis or events
-```
-
-No source content is opened merely because its descriptor exists.
-
-## Open external Skills in batches
-
-A Pi adapter can compose several context Skills into one owning question:
-
-```text
-Pi-visible descriptors
-→ exact source ID nominations
-→ bounded SKILL.md reads
-→ optional co-located judgment.json reads
-→ owner-bound policy compilation
-→ model-visible method and policy
-→ source-specific applicability
-→ admitted methods and references
-```
-
-Batch admission should be atomic:
-
-```mermaid
-flowchart TD
-  IDs[Raw source IDs] --> R[Resolve exact current descriptors]
-  R --> M[Read bounded methods]
-  M --> P[Parse optional policies]
-  P --> C[Compile each policy with its own owner/root]
-  C --> B{Every source in batch refined?}
-  B -->|yes| E[Commit one opened-sources event]
-  B -->|no| X[Commit nothing; report source-local failure]
-```
-
-The adapter may call the operation again for newly relevant sources. Reject a
-source already open in the active judgment. One invalid source batch must not
-erase providers admitted by earlier successful calls.
-
-## Build the inventory
-
-`buildPiContextInventory` combines descriptor metadata without reading prepared
-reference bytes.
-
-For every applicable policy-bearing provider, pass a separate
-`PreparedContextProviderInput` containing:
-
-- its `CompiledJudgmentPolicy`;
-- its own `decisionUnitRoot` / policy root; and
-- only the references admitted for this question.
-
-Do not use one root reader for another provider. Identical relative paths in two
-Skills are different sources because owner, policy, root, and provenance differ.
-
-A provider assessed `not-applicable` or `needs-context` must not contribute
-positive method/reference material. The adapter may retain the assessment as
-basis or a limitation.
-
-## Resolve observed context
-
-Observed material should be reconstructed from current host facts, not trusted
-from a model payload.
-
-| Observation | Required identity |
-| --- | --- |
-| Tool result | Active-branch call ID, tool name, arguments hash, sequence, status, ordered content hash |
-| User event | Exact branch-local user event ID and content |
-| Domain evaluator | Typed evaluator ID, declared relation, and exact basis |
-| Context file | Current Pi descriptor and content identity |
-
-Error or truncated results may explain a gap but cannot become positive selected
-material.
-
-## Select and seal
-
-Use `ContextAttempt.selectAndSeal` when you want the facade to preserve transition
-order:
+## A small host example
 
 ```ts
-const transition = await attempt.selectAndSeal({
-  inventory,
-  observedContext,
-  proposal,
-  admittedPolicySha256s,
-  acquisition,
-  signal,
+const opened = ContextAttempt.open({
+  question: questionValue,
+  applicability: applicabilityValue,
 });
 
-// Persist or apply only after the whole call succeeds.
-const nextState = transition.value;
-const events = transition.events;
+const sealed = await opened.value.selectAndSeal({
+  inventory,
+  observedContext,
+  proposal: selectionProposal,
+  admittedPolicySha256s,
+  acquisition,
+});
+
+const covered = opened.value.assessCoverage(coverageProposal);
+const concluded = opened.value.conclude(outcomeProposal);
+
+persistAdapterEvent({
+  questionId: concluded.value.question.judgmentId,
+  outcome: concluded.value.outcome,
+});
 ```
 
-`ContextAcquisition.acquirePreparedReference` receives the exact prepared source,
-including its policy identity. Route it to the contained reader owned by that
-policy. `acquireSkill` and observed-result acquisition must recheck the expected
-content identity.
+The host applies or persists a transition only after the whole call succeeds.
 
-## Assess contributions
+## Discover first, open later
 
-Every usable selected member needs at least one exact relation to the current
-question:
+For Pi Skills, descriptor discovery should remain cheap. Show the model names,
+descriptions, provenance, and exact source IDs without reading every `SKILL.md`.
+
+After nomination, open a bounded batch:
 
 ```text
-materialId
-+ useAs: constraint | evidence | decision | method | guidance
-+ concrete contribution
-+ assurance
-→ contributionId
+exact source IDs
+-> current descriptor resolution
+-> bounded SKILL.md reads
+-> optional co-located policy reads
+-> owner-bound policy compilation
+-> model-visible method and policy
+-> source-specific applicability
 ```
 
-Assurance ceilings:
+The model must see a policy before claiming that its provider is applicable. A
+malformed file rejects that batch; it must not erase providers opened by an
+earlier successful batch.
 
-| Assurance | Who can establish it |
+## Keep providers separate
+
+Each policy-bearing provider needs its own:
+
+- `CompiledJudgmentPolicy`;
+- physical policy root;
+- contained reference reader; and
+- set of references admitted for the current question.
+
+Two Skills may both contain `references/checklist.md`. They are still different
+sources because their owner, policy, root, and provenance differ. Never resolve
+one provider's relative path under another provider's root.
+
+## Reconstruct observed material from the host
+
+Do not trust a model payload that claims a tool result or user decision exists.
+Resolve it against current host state.
+
+| Material | Resolve from |
 | --- | --- |
-| `agent-asserted` | Model interpretation of exact selected material |
-| `domain-verified` | Matching typed evaluator event for its declared relation |
-| `user-accepted` | Matching selected user event |
+| Tool result | Current branch call ID, arguments, sequence, status, and content hash |
+| User decision | Exact branch-local user event |
+| Context file | Current Pi descriptor and content identity |
+| Domain evaluator result | Typed evaluator ID, declared relation, and exact basis |
 
-The adapter must not upgrade assurance because prose sounds authoritative.
+An error or truncated result may explain missing evidence but cannot support a
+positive contribution.
 
-## Conclude
+## Acquisition callbacks
 
-| Coverage | Valid outcome |
-| --- | --- |
-| `sufficient`, no conflicts | Contextual judgment citing contribution IDs |
-| `needs-evidence` with exact conflicts or limitations | Needs-evidence outcome accounting for those IDs |
-| Current question reveals a different unresolved question | Emergent question distinct from the current text |
+`ContextAcquisition` lets the host reacquire content at sealing time:
 
-The outcome is semantic evidence only. An adapter that can mutate files must
-create a separate domain authorization value.
+- `acquirePreparedReference` reads a reference through the reader for its exact
+  policy;
+- `acquireSkill` rechecks a nominated Skill method;
+- `acquireObservedContext` resolves branch-local material again.
+
+The callback must return current content identity, not bytes cached before
+selection.
+
+## Contributions and assurance
+
+Every selected item that the outcome uses needs a concrete relation to the
+question. Keep assurance within the source that established it:
+
+- model interpretation -> `agent-asserted`;
+- matching typed evaluator relation -> `domain-verified`;
+- matching user event -> `user-accepted`.
+
+Do not upgrade assurance because a source sounds authoritative.
 
 ## Persistence and replay
 
-Judgment does not prescribe a session record. A stateful adapter should persist:
+Judgment events are not a Pi session format. Persist them inside your own
+protocol, or store a compact basis that includes at least:
 
-- owner, question, and branch identities;
-- opened provider descriptor and policy identities;
-- source applicability assessments;
+- owner, question, and branch identity;
+- admitted provider descriptor, policy, and applicability identity;
 - selection and sealed-content hashes;
-- material and contribution summaries;
-- conflict, limitation, coverage, and outcome identities.
+- contribution, conflict, limitation, coverage, and outcome identities.
 
-On replay, parse persisted data and recompute canonical identities. Never trust
-stored hashes without reconstructing the values they claim to identify.
+When replaying, parse payloads and recompute identities. A stored hash without
+the value it identifies is not enough.
 
-## Failure matrix
+## Failure behavior the adapter must preserve
 
-| Failure | Adapter response |
+| Failure | Required behavior |
 | --- | --- |
-| Policy absent | Continue with a complete method and no prepared references |
-| Policy malformed or escaping root | Reject that source batch |
-| Provider unresolved or excluded | Keep it out of positive inventory |
-| Selected content changed | Reacquire and reassess |
-| Unrelated descriptor added | Keep existing selected work valid |
-| Acquisition cancelled or exceeds bounds | Commit neither selection nor seal |
-| Contribution missing for usable material | Reject coverage |
-| Assurance provenance missing | Reject the stronger assurance |
-| Adapter persistence fails | Keep domain state unchanged or use its own atomic protocol |
+| Policy absent | Continue without prepared references |
+| Present policy malformed or escaping its root | Reject that source batch |
+| Provider not applicable | Exclude its positive method/reference material |
+| Selected bytes changed | Reacquire and reassess |
+| Unrelated descriptor added | Keep the existing selection valid |
+| One selected read fails | Commit neither selection nor seal |
+| Contribution missing | Reject coverage |
+| Persistence fails | Do not advance adapter-owned domain state |
+
+A contextual outcome is still not permission to edit files. If the adapter can
+mutate artifacts, create a separate authorization value with its own checks.
