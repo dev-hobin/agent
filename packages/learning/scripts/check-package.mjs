@@ -80,8 +80,10 @@ const codexSyntax =
 	/\$learning:|\$(?:technical-reading|opensource-reading|conceptualize|patternize|exercise)|learning:(?:technical-reading|opensource-reading|conceptualize|patternize|exercise)/;
 const markdownDocuments = [
 	"README.md",
-	"docs/runtime-flow.md",
 	"references/skill-boundaries.md",
+	...(await readdir(join(root, "docs"), { withFileTypes: true }))
+		.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+		.map((entry) => `docs/${entry.name}`),
 ];
 
 for (const name of skills) {

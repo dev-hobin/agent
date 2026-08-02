@@ -2,7 +2,7 @@
   "name": "@hobin/learning",
   "version": "0.1.1",
   "private": true,
-  "description": "Source-grounded study, cross-source synthesis, and deliberate practice for Pi.",
+  "description": "Five independent Pi skills for technical reading, repository study, concepts, patterns, and practice.",
   "type": "module",
   "keywords": ["pi-package", "pi", "learning", "skills"],
   "license": "MIT",
