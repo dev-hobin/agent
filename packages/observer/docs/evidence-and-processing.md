@@ -1,5 +1,7 @@
 # Evidence and processing
 
+English | [한국어](./ko/evidence-and-processing.md)
+
 **Audience:** users who need to understand what Observer captures and maintainers
 changing nomination, interpretation, or processing behavior.
 

@@ -28,6 +28,7 @@ assert.deepEqual(manifest.files, [
 	"schemas",
 	"docs",
 	"README.md",
+	"README.ko.md",
 	"LICENSE",
 ]);
 assert.equal(
@@ -73,14 +74,20 @@ assert.deepEqual(schema.properties.observer_schema, {
 	const: "observer-record/v1",
 });
 
+const documentNames = [
+	"user-guide.md",
+	"architecture.md",
+	"evidence-and-processing.md",
+	"notebook-publication.md",
+];
 const readme = await readFile(join(root, "README.md"), "utf8");
-for (const path of [
-	"docs/user-guide.md",
-	"docs/architecture.md",
-	"docs/evidence-and-processing.md",
-	"docs/notebook-publication.md",
-]) {
+for (const path of documentNames.map((name) => `docs/${name}`)) {
 	assert.match(readme, new RegExp(path.replaceAll("/", "\\/"), "u"));
+	await readFile(join(root, path), "utf8");
+}
+const koreanReadme = await readFile(join(root, "README.ko.md"), "utf8");
+for (const path of documentNames.map((name) => `docs/ko/${name}`)) {
+	assert.match(koreanReadme, new RegExp(path.replaceAll("/", "\\/"), "u"));
 	await readFile(join(root, path), "utf8");
 }
 assert.match(readme, /Three ways to start inquiry work/u);

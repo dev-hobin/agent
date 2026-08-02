@@ -1,5 +1,7 @@
 # Notebook publication
 
+English | [한국어](./ko/notebook-publication.md)
+
 **Audience:** users inspecting durable records and maintainers changing Markdown,
 graph, Review, or Save behavior.
 

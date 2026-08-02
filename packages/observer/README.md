@@ -1,5 +1,7 @@
 # @hobin/observer
 
+English | [한국어](./README.ko.md)
+
 A local-first Pi sidecar for following an inquiry across source material and
 publishing reviewed, source-linked Markdown to a notebook you choose.
 

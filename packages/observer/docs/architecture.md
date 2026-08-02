@@ -1,5 +1,7 @@
 # Observer architecture
 
+English | [한국어](./ko/architecture.md)
+
 **Audience:** maintainers and reviewers.
 
 Observer has two different forms of state:

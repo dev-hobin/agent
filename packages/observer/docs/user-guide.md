@@ -1,5 +1,7 @@
 # Observer user guide
 
+English | [한국어](./ko/user-guide.md)
+
 Observer follows one local inquiry across source material and publishes only a
 reviewed Notebook batch.
 
