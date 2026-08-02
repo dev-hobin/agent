@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "Naming pressure is subtle, disputed, recurring, effect-hiding, responsibility-derived, false indirection, or crosses data/module scope so stable sense cannot be read directly from nearby callers."
+  ],
+  "unless": [
+    "No variable, function, type, module, API, field, or abstraction name carries a consequential domain-meaning decision."
+  ],
+  "references": [
+    {
+      "path": "references/domain-naming.md",
+      "when": [
+        "Naming pressure is subtle, disputed, recurring, effect-hiding, responsibility-derived, false indirection, or crosses data/module scope so stable sense cannot be read directly from nearby callers. The reference can add this material distinction: Supplies the Domain Naming distinctions, counterexamples, artifact obligations, and stop checks for this route."
+      ]
+    }
+  ]
+}

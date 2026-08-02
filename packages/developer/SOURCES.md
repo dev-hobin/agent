@@ -18,22 +18,22 @@ A source idea belongs where its observable job is performed:
 - timing goes to `schedule`;
 - names go to `naming-judgment`;
 - claim-to-evidence judgment goes to `verify`;
-- already-justified mutation goes to the `implementation` route.
+- already-justified mutation goes through a bounded `AuthorizedChange`.
 
-No source implies a mandatory route order. Several leaves may use different
+No source implies a mandatory judgment order. Several leaves may use different
 parts of the same source because they answer different questions. Doctor does
 not become a new source owner: it dispositions those questions inside one claim
 boundary, hands triggered consultations to their existing owners, and
-synthesizes the resulting evidence without copying sibling references.
+synthesizes the resulting evidence without copying another skill's guidance.
 
-## Runtime Reference Quality
+## Runtime Context Quality
 
 `SKILL.md` owns discovery, the core question, always-on method, output,
-completion, missing-evidence behavior, and capability boundary.
-`reference-policy.json` separately owns conditional reference routing: observable
-triggers, route-local co-required reference sets, expected application artifacts,
-and exemption evidence. A loaded reference must be usable without reopening the
-original source or reconstructing unstated steps.
+completion, missing-evidence behavior, and capability boundary. `judgment.json`
+separately owns bounded Context Questions, Needs, Sources, applicability, missing
+policy, assurance, sufficiency, and closure expectations. Every conditional
+reference must be usable without reopening the original source, reconstructing
+unstated steps, or assuming another reference was read first.
 
 Match detail to the reference's job:
 
@@ -50,26 +50,24 @@ Match detail to the reference's job:
 
 Split a reference when independent questions would otherwise make it expensive
 to load. Keep enough central insight and one complete case in each independently
-routable document for its promised job. Splitting by chapter title or merely to
-shorten a file is not a capability boundary.
+selectable document for its promised job. Splitting by chapter title or merely
+to shorten a file is not a capability boundary.
 
-Do not assign global `primary` and `companion` ranks. Encode the actual relation
-in a policy route: an observable trigger selects a set of references that are
-co-required for that question. Requiredness and reading sequence remain distinct:
-use listed order only when a later document assumes an earlier method, vocabulary,
-or invariant. A file can stand alone on one route and be co-required with another
-on a more specialized route. Singleton routes and reference-free skills need no
-artificial hierarchy. Runtime loading and judgment evidence enforce selected-route
-completeness and declared route-local sequence, not document rank. See
-[REFERENCE_ROUTING.md](./REFERENCE_ROUTING.md).
+Do not assign global `primary` and `companion` ranks or semantic read order.
+Policy and reference `when` statements express possible relevance, never
+obligation or authority. Selected material is sealed atomically, ordered
+canonically only for identity and rendering, related through exact contributions,
+and cited only when it actually informs an outcome. Guidance-free questions need
+no artificial context. See
+[Developer Judgment Policies](./JUDGMENT_POLICIES.md).
 
 ## Runtime Use Versus Source Fidelity
 
-Developer records which packaged reference was loaded, its content SHA-256, its
-declared Source Trace, the trigger that selected it, the applied rule, and the
-resulting artifact. This proves runtime exposure and makes application claims
-auditable. It does **not** prove that the reference faithfully reconstructs the
-original source.
+Developer records optional policy and dynamic-question identities, stable
+nominations, derived binding identities, selected and sealed material identities,
+contribution coverage, cited uses, and outcome. This proves exact runtime exposure and makes application claims
+auditable. It does **not** prove that guidance faithfully reconstructs the
+original source or that the resulting judgment is true.
 
 Source audits are repository-maintainer workpapers, not agent instructions or
 runtime resources. They answer four maintenance questions:
@@ -96,8 +94,8 @@ fidelity decision + required repair
 
 Do not publish copyrighted source files or audit workpapers with the package. A
 local PDF or book copy may be used as audit evidence. The published package
-retains only bibliographic provenance, derived capability text, routing policy,
-and runtime checks. `SOURCES.md` and `source-audits/` remain Git-tracked,
+retains only bibliographic provenance, derived capability text, optional Judgment
+policies, and runtime checks. `SOURCES.md` and `source-audits/` remain Git-tracked,
 repository-only maintenance evidence.
 
 Source fidelity is necessary but not sufficient. After individual audits, the
@@ -123,8 +121,9 @@ record attests only the document set and source addition it names.
 | *Tidy First?* | First Edition, Second Release, 2025-12-12, ISBN 978-1-098-15124-9, 125 physical PDF pages; official [O'Reilly catalog](https://www.oreilly.com/library/view/tidy-first/9781098151232/) and [errata](https://www.oreilly.com/catalog/errata.csp?isbn=9781098151249) | [`source-audits/tidy-first-first-edition-second-release-2025-12-12.md`](./source-audits/tidy-first-first-edition-second-release-2025-12-12.md), all 125 pages read in order and visually inspected; authorized 13-page first-release retail preview and three corrected errata cross-checked | references retain source-independent observation, timing, and mutation artifacts with printed chapter/page provenance; option pricing, absolute safety, integration/deployment equivalence, universal clustering, Constantine's Equivalence, and unqualified reversibility/coupling claims are excluded or narrowed; production telemetry, migration, rollout, and recovery remain Developer adaptations; local PDFs are not packaged |
 | “Parse, don’t validate” | canonical article by Alexis King, published 2019-11-05, [official page](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) | [`source-audits/parse-dont-validate-2019-11-05.md`](./source-audits/parse-dont-validate-2019-11-05.md), canonical article read in full including footnotes; retrieved HTML hash and source qualifications recorded | runtime guidance retains the source-independent evidence-preserving-boundary method and ordinary bibliographic provenance; Haskell APIs, maximal type machinery, blanket cast bans, and unaudited secondary-source claims are excluded; construction-path, trusted-compiler-gap, effect-order, compatibility, and adversarial-evaluation surfaces are Developer adaptations |
 
-A source pin is provenance, not a runtime route. `reference-policy.json` still
-selects only the reference set needed for the observable question.
+A source pin is provenance, not a runtime requirement. `judgment.json` declares
+which bounded Context Needs a source can inform; applicability, selection,
+sealing, citation, and outcome remain separate decisions.
 
 ## Capability Matrix
 
@@ -134,8 +133,8 @@ selects only the reference set needed for the observable question.
 | --- | --- | --- | --- |
 | *99 Bottles of OOP*, ch. 1 | simple concrete baseline, Shameless Green, and the present cost of premature abstraction | `signal` | `schedule`, `verify` |
 | *99 Bottles of OOP*, ch. 2 | TDD as domain learning, independent examples, verifier relevance, and pass-but-wrong tests | `verify` | `signal` |
-| *99 Bottles of OOP*, ch. 3-4 | real change pressure, point of attack, closest pair, smallest difference, horizontal movement | `signal` | `implementation` behavior-preserving protocol |
-| *99 Bottles of OOP*, ch. 3-5 | green stable landings, parse-execute-use-delete replacement, temporary compatibility, and sender-by-sender movement | `signal` | `implementation` behavior-preserving protocol |
+| *99 Bottles of OOP*, ch. 3-4 | real change pressure, point of attack, closest pair, smallest difference, horizontal movement | `signal` | behavior-preserving `AuthorizedChange` |
+| *99 Bottles of OOP*, ch. 3-5 | green stable landings, parse-execute-use-delete replacement, temporary compatibility, and sender-by-sender movement | `signal` | behavior-preserving `AuthorizedChange` |
 | *99 Bottles of OOP*, ch. 4-5 | responsibility-derived names, responsibility extraction, and argument and data movement | `sketch`, `naming-judgment` | `abstraction-review` only after a concrete candidate exists |
 | *99 Bottles of OOP*, ch. 5-8 | responsibility separation, messages, type transitions, polymorphism, dependency direction, object creation at the edge, factory tradeoffs | `sketch` | `model`, `schedule`; `abstraction-review` judges shaped candidates |
 | *99 Bottles of OOP*, ch. 9 | unit boundaries, context independence, role verification, obsolete-test removal | `verify` | `sketch` |
@@ -148,12 +147,12 @@ selects only the reference set needed for the observable question.
 | *Logic for Programmers* v0.14.0, ch. 4-6, pp. 34-72 | implication-relative test strength; sampled properties versus total specifications; contracts, invariants, replacement, proof assumptions, termination, and numeric/tool boundaries | `model`, `verify` | `abstraction-review` evaluates an existing candidate against the accepted contract |
 | *Logic for Programmers* v0.14.0, ch. 7-12, pp. 73-168 | relational constraints and counterexample queries; finite decision partitions; bounded domain/temporal models; safety, liveness, fairness, and refinement; solver result protocols; logic-programming multiplicity, negation, search, planning, and answer sets | `model` | `verify`; specialized tools only when their uncertainty and cost justify them |
 | *Elements of Clojure*, public manuscript Names, pp. 7-26 | narrow and consistent sense; sign/referent/sense; same referent with independent expected evolution; audience-aware natural/synthetic names; honest scope-crossing effects | `naming-judgment` | `model`; macro and punctuation advice remains Clojure-specific |
-| *Elements of Clojure*, public manuscript Idioms, pp. 30-61 | syntax-to-intent conventions; purity, dynamic scope, laziness, atomic state, narrow access, and bounded absence as operational boundaries | project conventions or `implementation` | generalized only when the semantic lesson survives the language; recorded code/runtime defects are excluded |
+| *Elements of Clojure*, public manuscript Idioms, pp. 30-61 | syntax-to-intent conventions; purity, dynamic scope, laziness, atomic state, narrow access, and bounded absence as operational boundaries | project conventions or an `AuthorizedChange` | generalized only when the semantic lesson survives the language; recorded code/runtime defects are excluded |
 | *Elements of Clojure*, public manuscript Indirection, pp. 64-95 | conditionals and registration conflict; module environment/model/interface/assumptions; internal invariant versus environmental drift; environment-relative model size; principled components and adaptable interfaces | `model`, `sketch`, `schedule` | `abstraction-review` evaluates an already-shaped interface; broad proof, induction, oracle, and dispatch claims are qualified |
 | *Elements of Clojure*, public manuscript Composition, pp. 98-119 | partial data/execution isolation; execution models; pull-transform-push ownership; effectful-lazy acquisition; effect descriptors; topology, resolution, routing, task acknowledgment, and explicit system-protocol limits | `sketch` | `naming-judgment`, `verify`; cancellation, idempotency, durable recovery, and production protocols are Developer adaptations |
-| *Tidy First?*, First Edition, Second Release, Part I, ch. 1-15, pp. 3-32 | guard/dead-code/symmetry/interface/order/name/parameter/chunk/extract/inline/comment moves as small observation experiments with semantic guards | `signal` | `implementation` only after one concrete movement is justified |
-| *Tidy First?*, First Edition, Second Release, Part II, ch. 16-21, pp. 35-54 | behavior/structure separation, chaining, batch tradeoffs, rhythm, untangling, and first/after/later/never timing | `schedule` | `implementation` behavior-preserving protocol, `signal` |
-| *Tidy First?*, First Edition, Second Release, Part III, ch. 22-33, pp. 57-92 | beneficial relations; immediate behavior value versus future change options; observer-relative reversibility; change-relative coupling, fanout/cascades, and cohesion | `schedule`, `signal` | `implementation`; finance and cost equations remain qualitative calibration only |
+| *Tidy First?*, First Edition, Second Release, Part I, ch. 1-15, pp. 3-32 | guard/dead-code/symmetry/interface/order/name/parameter/chunk/extract/inline/comment moves as small observation experiments with semantic guards | `signal` | an `AuthorizedChange` only after one concrete movement is justified |
+| *Tidy First?*, First Edition, Second Release, Part II, ch. 16-21, pp. 35-54 | behavior/structure separation, chaining, batch tradeoffs, rhythm, untangling, and first/after/later/never timing | `schedule` | behavior-preserving `AuthorizedChange`, `signal` |
+| *Tidy First?*, First Edition, Second Release, Part III, ch. 22-33, pp. 57-92 | beneficial relations; immediate behavior value versus future change options; observer-relative reversibility; change-relative coupling, fanout/cascades, and cohesion | `schedule`, `signal` | bounded change authorization; finance and cost equations remain qualitative calibration only |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -196,15 +195,16 @@ When adding or revising a source-derived reference, record:
 ```text
 Source location: book, edition/version, chapter or section
 Judgment role: trigger | distinction | derivation | stop | separation
-Owner: one skill method step or implementation path
+Owner: one skill method step or change-authorization boundary
 Question: one unresolved question the insight helps answer
 Artifact and stop: inspectable result and falsifier
 Boundary: what this owner must not absorb
 ```
 
-Keep the insight in `SKILL.md` when it is always required. Keep it in one
-reference route when it conditionally deepens the same judgment. Split it when
-question, trigger, artifact, stop, or handoff is independently meaningful. Keep
-source sequence, examples, defects, and comparisons in source audits rather than
-runtime guidance. A new source, technique, or vocabulary is not by itself
-evidence for a new leaf or route.
+Keep the insight in `SKILL.md` when it is always required. Keep it as a
+self-contained conditional reference when it can deepen one bounded Context
+Need. Split the Context Question when applicability, artifact, stop, or handoff
+is independently meaningful. Keep source sequence, examples, defects, and
+comparisons in source audits rather than runtime guidance. A new source,
+technique, or vocabulary is not by itself evidence for a new capability or
+Context Question.

@@ -30,13 +30,6 @@ The output is an observation and optional candidate, never a refactoring plan.
 - Invariant or condition model when available
 - Known callers when shared helpers, APIs, or boundaries are involved
 
-## Reference Routing
-
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Its routed extension refines comparison and falsification, declares
-the classification artifact and stop, and names when promotion or implementation
-belongs elsewhere. Use the exemption only when no trigger applies and cite its
-evidence.
 
 ## Output
 
@@ -96,3 +89,21 @@ otherwise keep product-meaning claims provisional when no accepted model exists.
 
 Do not implement the movement, promote a candidate, decide timing, or turn
 horizontal similarity into a vertical abstraction.
+
+## Context Directions
+
+This section is generated from [judgment.json](judgment.json). The owning skill method remains complete without reading a prepared reference. Root `unless` exclusions win. Each reference is an independent candidate, not a requirement or authority.
+
+Use the owning capability when at least one condition applies:
+
+- Duplication, parallel branches, repeated tests/UI states, conditionals, a recent refactor, change-relative coupling, or model-code mismatch needs consequential horizontal-versus-vertical classification.
+
+Do not use it when any exclusion applies; these exclusions win:
+
+- The task needs a design or implementation decision rather than the smallest observation of whether structural movement is present.
+
+Prepared references are independent candidates, never requirements or authority:
+
+### `references/structural-movement.md`
+
+- Duplication, parallel branches, repeated tests/UI states, conditionals, a recent refactor, change-relative coupling, or model-code mismatch needs consequential horizontal-versus-vertical classification. The reference can add this material distinction: Supplies the Structural Movement distinctions, counterexamples, artifact obligations, and stop checks for this route.

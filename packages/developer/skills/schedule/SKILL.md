@@ -30,12 +30,6 @@ Timing cannot stabilize a candidate whose meaning or surface is still unresolved
 - Current invariant pressure and nested-work pressure
 - Reversibility, cost of delay, risk if done now, and risk if delayed
 
-## Reference Routing
-
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Its routed extension refines the tradeoff step, declares the timing
-artifact and stop, and names when an unstable candidate must be handed back. Use
-the exemption only when no trigger applies and cite its evidence.
 
 ## Output
 
@@ -91,3 +85,21 @@ evidence is thin.
 
 Do not discover a signal, form or review the abstraction, implement the change,
 prioritize unrelated product work, or verify the final result.
+
+## Context Directions
+
+This section is generated from [judgment.json](judgment.json). The owning skill method remains complete without reading a prepared reference. Root `unless` exclusions win. Each reference is an independent candidate, not a requirement or authority.
+
+Use the owning capability when at least one condition applies:
+
+- Behavior and structural change compete, doing structure now may remove meaningful ability, reversibility and delay cost conflict, nested work is consequential, or an after decision needs an observable reopen condition.
+
+Do not use it when any exclusion applies; these exclusions win:
+
+- There is no concrete structural change or reviewed abstraction candidate whose timing has a consequential cost of delay.
+
+Prepared references are independent candidates, never requirements or authority:
+
+### `references/structural-change-timing.md`
+
+- Behavior and structural change compete, doing structure now may remove meaningful ability, reversibility and delay cost conflict, nested work is consequential, or an after decision needs an observable reopen condition. The reference can add this material distinction: Supplies the Structural Change Timing distinctions, counterexamples, artifact obligations, and stop checks for this route.

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "Behavior and structural change compete, doing structure now may remove meaningful ability, reversibility and delay cost conflict, nested work is consequential, or an after decision needs an observable reopen condition."
+  ],
+  "unless": [
+    "There is no concrete structural change or reviewed abstraction candidate whose timing has a consequential cost of delay."
+  ],
+  "references": [
+    {
+      "path": "references/structural-change-timing.md",
+      "when": [
+        "Behavior and structural change compete, doing structure now may remove meaningful ability, reversibility and delay cost conflict, nested work is consequential, or an after decision needs an observable reopen condition. The reference can add this material distinction: Supplies the Structural Change Timing distinctions, counterexamples, artifact obligations, and stop checks for this route."
+      ]
+    }
+  ]
+}

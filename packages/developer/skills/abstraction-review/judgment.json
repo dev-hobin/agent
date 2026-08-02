@@ -1,0 +1,34 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "A concrete caller-facing interface, helper, boundary, role, or workflow candidate exists and needs an auditable keep, revise, split, reject, or defer decision.",
+    "An observable candidate stop check failed or current evidence directly contradicts one of the candidate's promises.",
+    "The field card is complete, but keep versus revise, split, reject, or defer remains ambiguous and a matching candidate-promise example can resolve the interpretation."
+  ],
+  "unless": [
+    "Caller-facing operations or collaborations still need to be invented rather than reviewing an existing concrete candidate."
+  ],
+  "references": [
+    {
+      "path": "references/field-card.md",
+      "when": [
+        "A concrete caller-facing interface, helper, boundary, role, or workflow candidate exists and needs an auditable keep, revise, split, reject, or defer decision. The reference can add this material distinction: Establishes the candidate surface, caller promises, counterexample, stop, evidence, and review decision baseline.",
+        "An observable candidate stop check failed or current evidence directly contradicts one of the candidate's promises. The reference can add this material distinction: Establishes the candidate surface, caller promises, counterexample, stop, evidence, and review decision baseline.",
+        "The field card is complete, but keep versus revise, split, reject, or defer remains ambiguous and a matching candidate-promise example can resolve the interpretation. The reference can add this material distinction: Establishes the candidate surface, caller promises, counterexample, stop, evidence, and review decision baseline."
+      ]
+    },
+    {
+      "path": "references/repair-table.md",
+      "when": [
+        "An observable candidate stop check failed or current evidence directly contradicts one of the candidate's promises. The reference can add this material distinction: Localizes a failed stop to one contradicted promise, revision class, evidence need, and owning handoff."
+      ]
+    },
+    {
+      "path": "references/worked-examples.md",
+      "when": [
+        "The field card is complete, but keep versus revise, split, reject, or defer remains ambiguous and a matching candidate-promise example can resolve the interpretation. The reference can add this material distinction: Calibrates an ambiguous review against one promise-matched case and falsifier."
+      ]
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import test from "node:test";
 import { createEvalEventMonitor } from "../scripts/eval-event-monitor.mjs";
 
 const assert: typeof assertModule.strict = assertModule.strict;
-const fixture = { id: "stream", maxRoutes: 1, maxToolCalls: 2, maxToolErrors: 1 };
+const fixture = { id: "stream", maxDecisions: 1, maxToolCalls: 2, maxToolErrors: 1 };
 
 function createMonitor(now: () => number, failures: Error[]) {
   return createEvalEventMonitor({

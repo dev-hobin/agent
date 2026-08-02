@@ -24,7 +24,7 @@
       "settled-unchanged"
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 5
+    "maxDecisions": 5
   },
   {
     "id": "already-specified-local-change",
@@ -32,7 +32,9 @@
     "admissibleFirstTargets": [
       "implementation",
       "signal",
-      "sketch"
+      "sketch",
+      "verify",
+      "abstraction-review"
     ],
     "preferredFirstTargets": [
       "implementation",
@@ -42,8 +44,8 @@
       "changed-verified"
     ],
     "mustRecordJudgment": true,
-    "mutationRequiresImplementationRoute": true,
-    "maxRoutes": 4,
+    "mutationRequiresAuthorization": true,
+    "maxDecisions": 4,
     "workspaceAssertion": "schedule-conversion"
   },
   {
@@ -73,7 +75,7 @@
       "settled-unchanged"
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 5
+    "maxDecisions": 5
   },
   {
     "id": "pass-but-wrong-risk",
@@ -102,7 +104,7 @@
       "settled-unchanged"
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 4
+    "maxDecisions": 4
   },
   {
     "id": "self-referential-design-template",
@@ -122,15 +124,12 @@
       "Node",
       "totalEstimate"
     ],
-    "expectedReferenceRoutes": [
-      "data-shape-template"
-    ],
-    "expectedReferenceReads": [
+    "mustRecordJudgment": true,
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
       "skills/sketch/references/data-driven-design.md",
       "skills/sketch/references/data-shape-template-catalog.md"
-    ],
-    "mustRecordJudgment": true,
-    "maxRoutes": 2
+    ]
   },
   {
     "id": "representation-barrier-design",
@@ -166,15 +165,12 @@
         "replacement"
       ]
     ],
-    "expectedReferenceRoutes": [
-      "representation-barrier"
-    ],
-    "expectedReferenceReads": [
+    "mustRecordJudgment": true,
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
       "skills/sketch/references/design-levels-and-boundaries.md",
       "skills/sketch/references/representation-barriers.md"
-    ],
-    "mustRecordJudgment": true,
-    "maxRoutes": 2
+    ]
   },
   {
     "id": "specialized-temporal-model",
@@ -194,15 +190,12 @@
       "stale",
       "safety"
     ],
-    "expectedReferenceRoutes": [
-      "temporal-behavior"
-    ],
-    "expectedReferenceReads": [
+    "mustRecordJudgment": true,
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
       "skills/model/references/problem-modeling.md",
       "skills/model/references/temporal-behavior-models.md"
-    ],
-    "mustRecordJudgment": true,
-    "maxRoutes": 2
+    ]
   },
   {
     "id": "behavior-preserving-structural-signal",
@@ -234,14 +227,11 @@
         "horizontal"
       ]
     ],
-    "expectedReferenceRoutes": [
-      "behavior-preserving-movement"
-    ],
-    "expectedReferenceReads": [
-      "skills/signal/references/structural-movement.md"
-    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/signal/references/structural-movement.md"
+    ]
   },
   {
     "id": "structural-change-timing-tradeoff",
@@ -261,14 +251,11 @@
       "nested",
       "reopen"
     ],
-    "expectedReferenceRoutes": [
-      "structural-timing-tradeoff"
-    ],
-    "expectedReferenceReads": [
-      "skills/schedule/references/structural-change-timing.md"
-    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/schedule/references/structural-change-timing.md"
+    ]
   },
   {
     "id": "domain-sense-naming-boundary",
@@ -288,14 +275,11 @@
       "sense",
       "ScheduleContent"
     ],
-    "expectedReferenceRoutes": [
-      "domain-sense-boundary"
-    ],
-    "expectedReferenceReads": [
-      "skills/naming-judgment/references/domain-naming.md"
-    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/naming-judgment/references/domain-naming.md"
+    ]
   },
   {
     "id": "abstraction-candidate-contract-review",
@@ -328,14 +312,11 @@
         "stop"
       ]
     ],
-    "expectedReferenceRoutes": [
-      "candidate-contract-review"
-    ],
-    "expectedReferenceReads": [
-      "skills/abstraction-review/references/field-card.md"
-    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/abstraction-review/references/field-card.md"
+    ]
   },
   {
     "id": "multi-claim-pass-but-wrong-verification",
@@ -356,14 +337,11 @@
       "pass-but-wrong",
       "residual"
     ],
-    "expectedReferenceRoutes": [
-      "claim-evidence-gap"
-    ],
-    "expectedReferenceReads": [
-      "skills/verify/references/verifier-selection-and-pass-but-wrong.md"
-    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/verify/references/verifier-selection-and-pass-but-wrong.md"
+    ]
   },
   {
     "id": "generative-recursion-preservation-progress",
@@ -383,15 +361,12 @@
       "measure",
       "divergence"
     ],
-    "expectedReferenceRoutes": [
-      "generative-recursion"
-    ],
-    "expectedReferenceReads": [
+    "mustRecordJudgment": true,
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
       "skills/sketch/references/data-driven-design.md",
       "skills/sketch/references/generative-recursion.md"
-    ],
-    "mustRecordJudgment": true,
-    "maxRoutes": 2
+    ]
   },
   {
     "id": "accumulator-invariant-ownership",
@@ -406,20 +381,26 @@
       "settled-unchanged"
     ],
     "requiredJudgmentConcepts": [
-      ["invariant", "불변식"],
-      ["identity"],
-      ["preservation"],
-      ["wrapper"]
-    ],
-    "expectedReferenceRoutes": [
-      "accumulator-invariant"
-    ],
-    "expectedReferenceReads": [
-      "skills/sketch/references/data-driven-design.md",
-      "skills/sketch/references/accumulator-invariants.md"
+      [
+        "invariant",
+        "불변식"
+      ],
+      [
+        "identity"
+      ],
+      [
+        "preservation"
+      ],
+      [
+        "wrapper"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/data-driven-design.md",
+      "skills/sketch/references/accumulator-invariants.md"
+    ]
   },
   {
     "id": "process-resource-boundary",
@@ -450,15 +431,12 @@
         "outstanding"
       ]
     ],
-    "expectedReferenceRoutes": [
-      "process-resources"
-    ],
-    "expectedReferenceReads": [
+    "mustRecordJudgment": true,
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
       "skills/sketch/references/design-levels-and-boundaries.md",
       "skills/sketch/references/process-shape-and-resources.md"
-    ],
-    "mustRecordJudgment": true,
-    "maxRoutes": 2
+    ]
   },
   {
     "id": "state-history-order-boundary",
@@ -478,15 +456,12 @@
       "stale",
       "atomic"
     ],
-    "expectedReferenceRoutes": [
-      "state-history-order"
-    ],
-    "expectedReferenceReads": [
+    "mustRecordJudgment": true,
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
       "skills/sketch/references/design-levels-and-boundaries.md",
       "skills/sketch/references/state-history-and-order.md"
-    ],
-    "mustRecordJudgment": true,
-    "maxRoutes": 2
+    ]
   },
   {
     "id": "generic-operation-extension-axis",
@@ -506,17 +481,13 @@
       "unsupported",
       "coercion"
     ],
-    "expectedReferenceRoutes": [
-      "generic-dispatch",
-      "meaning-preserving-conversion"
-    ],
-    "expectedReferenceReads": [
+    "mustRecordJudgment": true,
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
       "skills/sketch/references/design-levels-and-boundaries.md",
       "skills/sketch/references/generic-dispatch-systems.md",
       "skills/sketch/references/meaning-preserving-conversions.md"
-    ],
-    "mustRecordJudgment": true,
-    "maxRoutes": 2
+    ]
   },
   {
     "id": "language-semantics-runtime-boundary",
@@ -536,417 +507,788 @@
       "effect",
       "roots"
     ],
-    "expectedReferenceRoutes": [
-      "language-semantics",
-      "runtime-compilation"
-    ],
-    "expectedReferenceReads": [
+    "mustRecordJudgment": true,
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
       "skills/sketch/references/design-levels-and-boundaries.md",
       "skills/sketch/references/language-semantics.md",
       "skills/sketch/references/runtime-and-compilation.md"
-    ],
-    "mustRecordJudgment": true,
-    "maxRoutes": 2
+    ]
   },
   {
     "id": "earned-abstraction-from-completed-designs",
     "request": "파일을 수정하지 말고 이미 완성되고 검증된 sum(numbers)와 allReady(tasks)를 비교해라. 두 함수의 data model과 purpose는 안정적이다. common movement와 base/project/combine variation roles를 정렬하고 fold 후보, migrated callers, realistic transfer case, evaluation order와 process observer, abstraction-review handoff를 포함한 sketch를 만들어라. wished decomposition이나 generative recursion으로 바꾸지 마라. 실제 caller/process 증거가 없어 promotion할 수 없다면 candidate와 필요한 증거를 남긴 needs-evidence도 허용된다.",
-    "admissibleFirstTargets": ["sketch"],
-    "preferredFirstTargets": ["sketch"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["sum"],
-      ["allReady"],
-      ["variation", "role", "역할"],
-      ["transfer"]
+    "admissibleFirstTargets": [
+      "sketch"
     ],
-    "expectedReferenceRoutes": ["earned-abstraction"],
-    "expectedReferenceReads": [
-      "skills/sketch/references/data-driven-design.md",
-      "skills/sketch/references/earned-abstraction.md"
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "sum"
+      ],
+      [
+        "allReady"
+      ],
+      [
+        "variation",
+        "role",
+        "역할"
+      ],
+      [
+        "transfer"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/data-driven-design.md",
+      "skills/sketch/references/earned-abstraction.md"
+    ]
   },
   {
     "id": "closure-finalizer-boundary",
     "request": "파일을 수정하지 말고 Query의 where/orderBy/limit가 Query를 반환하고 execute만 Result를 반환하는 이미 합의된 composition surface를 sketch해라. unit predicate, primitives, closed operations, finalizer, invalid combinations, eager/lazy/order/replay assumptions와 transfer composition check를 제시해라. raw representation barrier나 DSL evaluator를 설계하지 마라.",
-    "admissibleFirstTargets": ["sketch"],
-    "preferredFirstTargets": ["sketch"],
-    "allowedOutcomes": ["settled-unchanged"],
-    "requiredJudgmentTerms": ["Query", "closed", "finalizer", "replay"],
-    "expectedReferenceRoutes": ["closure-interface"],
-    "expectedReferenceReads": [
-      "skills/sketch/references/design-levels-and-boundaries.md",
-      "skills/sketch/references/closure-and-conventional-interfaces.md"
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "Query",
+      "closed",
+      "finalizer",
+      "replay"
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/design-levels-and-boundaries.md",
+      "skills/sketch/references/closure-and-conventional-interfaces.md"
+    ]
   },
   {
     "id": "variation-role-without-creation",
     "request": "파일을 수정하지 말고 이미 외부에서 공급되는 CardAuthorizer와 BankAuthorizer가 authorize(Money) 역할을 공유할 수 있는지 구현 표면을 sketch해라. selection/factory와 type transition은 범위 밖이다. caller role contract, precondition/result/failure/effect substitution, unsupported cases, direct conditional alternative와 transfer implementation을 제시해라.",
-    "admissibleFirstTargets": ["sketch"],
-    "preferredFirstTargets": ["sketch"],
-    "allowedOutcomes": ["settled-unchanged"],
-    "requiredJudgmentTerms": ["authorize", "precondition", "effect", "transfer"],
-    "expectedReferenceRoutes": ["variation-role"],
-    "expectedReferenceReads": ["skills/sketch/references/variation-roles.md"],
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "authorize",
+      "precondition",
+      "effect",
+      "transfer"
+    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/variation-roles.md"
+    ]
   },
   {
     "id": "type-transition-without-shared-role",
     "request": "파일을 수정하지 말고 authorize event가 PendingPayment를 AuthorizedPayment 또는 DeclinedPayment로 바꾸는 구현 표면을 sketch해라. 공유 polymorphic role이나 factory는 범위 밖이다. source/event/target, preconditions, preserved/consumed/retained facts, terminal behavior, failure, construction owner, examples와 representation-coincidence 반례를 제시해라.",
-    "admissibleFirstTargets": ["sketch"],
-    "preferredFirstTargets": ["sketch"],
-    "allowedOutcomes": ["settled-unchanged"],
-    "requiredJudgmentTerms": ["PendingPayment", "AuthorizedPayment", "preserved", "failure"],
-    "expectedReferenceRoutes": ["type-transition"],
-    "expectedReferenceReads": ["skills/sketch/references/type-transitions.md"],
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "PendingPayment",
+      "AuthorizedPayment",
+      "preserved",
+      "failure"
+    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/type-transitions.md"
+    ]
   },
   {
     "id": "selection-creation-without-role-redesign",
     "request": "파일을 수정하지 말고 이미 합의된 DeliveryChannel 역할의 Email/SMS 구현을 tenant config로 선택하고 생성하는 boundary를 sketch해라. 역할 계약은 다시 설계하지 마라. selection owner, overlap/precedence/duplicate/unsupported/load-order policy를 쓰고 local conditional, mapping, registration, discovery를 비교해 least-powerful mechanism과 fake variant/startup failure check를 제시해라.",
-    "admissibleFirstTargets": ["sketch"],
-    "preferredFirstTargets": ["sketch"],
-    "allowedOutcomes": ["settled-unchanged"],
-    "requiredJudgmentTerms": ["DeliveryChannel", "precedence", "registration", "startup"],
-    "expectedReferenceRoutes": ["selection-creation"],
-    "expectedReferenceReads": ["skills/sketch/references/selection-and-creation.md"],
+    "admissibleFirstTargets": [
+      "sketch"
+    ],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "DeliveryChannel",
+      "precedence",
+      "registration",
+      "startup"
+    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/selection-and-creation.md"
+    ]
   },
   {
     "id": "contract-replacement-observer",
     "request": "파일을 수정하지 말고 old schedule API는 non-empty timezone string을 받고 domain error를 반환하지만 new API는 known enum만 받고 throw하는 교체를 모델링해라. old/new requires/ensures/failure, old.Pre=>new.Pre와 new.Post=>old.Post, value/error observer, legacy caller counterexample, refinement/adapter 선택과 verification target을 제시해라. API를 sketch하거나 migration timing을 정하지 마라. 실제 legacy caller와 adapter policy가 없어서 최종 compatibility를 결정할 수 없다면 unsafe relation과 필요한 증거를 남긴 needs-evidence도 허용된다.",
-    "admissibleFirstTargets": ["model"],
-    "preferredFirstTargets": ["model"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentTerms": ["old.Pre", "new.Pre", "observer", "legacy"],
-    "expectedReferenceRoutes": ["contract-replacement"],
-    "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
-      "skills/model/references/contract-and-replacement-models.md"
+    "admissibleFirstTargets": [
+      "model"
+    ],
+    "preferredFirstTargets": [
+      "model"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "old.Pre",
+      "new.Pre",
+      "observer",
+      "legacy"
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/contract-and-replacement-models.md"
+    ]
   },
   {
     "id": "failed-candidate-stop-localization",
     "request": "파일을 수정하지 말고 이미 review 중인 query.where(...).execute() 후보를 판정해라. 약속은 execute까지 Query 세계에 남는다는 것이었지만 관찰 결과 execute는 I/O를 하고 rows를 반환해 closure stop이 실패했다. candidate field card를 보존하고 failed stop, exact observation, contradicted promise, earliest broken layer, one revision class, owning skill handoff와 same-stop rerun을 기록해라. 여기서 새 API를 만들지 마라.",
-    "admissibleFirstTargets": ["abstraction-review"],
-    "preferredFirstTargets": ["abstraction-review"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["execute"],
-      ["closure", "finalizer"],
-      ["contradicted", "실패", "위반"],
-      ["sketch"]
+    "admissibleFirstTargets": [
+      "abstraction-review"
     ],
-    "expectedReferenceRoutes": ["failed-candidate-check"],
-    "expectedReferenceReads": [
-      "skills/abstraction-review/references/field-card.md",
-      "skills/abstraction-review/references/repair-table.md"
+    "preferredFirstTargets": [
+      "abstraction-review"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "execute"
+      ],
+      [
+        "closure",
+        "finalizer"
+      ],
+      [
+        "contradicted",
+        "실패",
+        "위반"
+      ],
+      [
+        "sketch"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/abstraction-review/references/field-card.md",
+      "skills/abstraction-review/references/repair-table.md"
+    ]
   },
   {
     "id": "candidate-promise-falsifier-calibration",
     "request": "파일을 수정하지 말고 완성된 registerProvider(kind,{charge,refund}) 후보 field card를 review해라. accepted pressure는 세 provider가 central dispatch를 반복 편집한다는 것이고 promise는 additive provider, hidden choice는 registry storage/load order다. duplicate registration의 silent overwrite 때문에 keep과 revise가 애매하다. worked examples 중 surface 모양이 아니라 matching promise와 falsifier 하나만 선택하고, unmatched examples를 확장하지 말며, case-calibrated decision과 open consequence를 기록해라.",
-    "admissibleFirstTargets": ["abstraction-review"],
-    "preferredFirstTargets": ["abstraction-review"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["registerProvider"],
-      ["duplicate"],
-      ["Provider Registry", "registry"],
-      ["revise", "수정"]
+    "admissibleFirstTargets": [
+      "abstraction-review"
     ],
-    "expectedReferenceRoutes": ["candidate-calibration"],
-    "expectedReferenceReads": [
-      "skills/abstraction-review/references/field-card.md",
-      "skills/abstraction-review/references/worked-examples.md"
+    "preferredFirstTargets": [
+      "abstraction-review"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "registerProvider"
+      ],
+      [
+        "duplicate"
+      ],
+      [
+        "Provider Registry",
+        "registry"
+      ],
+      [
+        "revise",
+        "수정"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/abstraction-review/references/field-card.md",
+      "skills/abstraction-review/references/worked-examples.md"
+    ]
   },
   {
     "id": "bounded-condition-space-ownership",
     "request": "파일을 수정하지 말고 contract patch에서 schedule이 omitted, null, empty list, non-empty list일 때의 condition space를 모델링해라. omitted은 unchanged, null은 clear, empty는 invalid라는 policy가 accepted다. domain/distinction map, rules, forbidden states, defaults, assumptions, human-owned policy, guarantee owner, one counterexample와 verification targets를 제시해라. API surface나 migration plan은 만들지 마라.",
-    "admissibleFirstTargets": ["model"],
-    "preferredFirstTargets": ["model"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["omitted"],
-      ["null"],
-      ["empty", "빈"],
-      ["owner", "소유"]
+    "admissibleFirstTargets": [
+      "model"
     ],
-    "expectedReferenceRoutes": ["condition-space"],
-    "expectedReferenceReads": ["skills/model/references/problem-modeling.md"],
+    "preferredFirstTargets": [
+      "model"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "omitted"
+      ],
+      [
+        "null"
+      ],
+      [
+        "empty",
+        "빈"
+      ],
+      [
+        "owner",
+        "소유"
+      ]
+    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/model/references/problem-modeling.md"
+    ]
   },
   {
     "id": "relational-interval-constraint-boundary",
     "request": "파일을 수정하지 말고 room booking의 relational constraint를 모델링해라. Booking(room,start,end), start<end, 같은 room의 [start,end) interval은 겹치면 안 되고 cancelled row는 제외한다. NULL endpoint와 duplicate rows는 invalid라는 policy다. quantified constraint, valid/invalid instances, endpoint/null/bag multiplicity/mutation coverage/contradiction과 SQL translation obligations를 제시해라.",
-    "admissibleFirstTargets": ["model"],
-    "preferredFirstTargets": ["model"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["Booking"],
-      ["start", "end"],
-      ["NULL", "null"],
-      ["duplicate", "multiplicity"]
+    "admissibleFirstTargets": [
+      "model"
     ],
-    "expectedReferenceRoutes": ["relational-constraints"],
-    "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
-      "skills/model/references/relational-constraint-models.md"
+    "preferredFirstTargets": [
+      "model"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "Booking"
+      ],
+      [
+        "start",
+        "end"
+      ],
+      [
+        "NULL",
+        "null"
+      ],
+      [
+        "duplicate",
+        "multiplicity"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/relational-constraint-models.md"
+    ]
   },
   {
     "id": "loop-proof-obligation-boundary",
     "request": "파일을 수정하지 말고 integer array의 prefix sum loop가 total sum을 반환한다는 주장을 모델링해라. specification, initialization, invariant preservation, conclusion, termination measure, arithmetic/overflow assumptions, omitted observers와 concrete verification targets를 써라. proof notation을 implementation이나 runtime/resource proof로 과장하지 마라.",
-    "admissibleFirstTargets": ["model"],
-    "preferredFirstTargets": ["model"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["invariant"],
-      ["initial", "초기"],
-      ["termination", "종료"],
-      ["overflow"]
+    "admissibleFirstTargets": [
+      "model"
     ],
-    "expectedReferenceRoutes": ["proof-obligation"],
-    "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
-      "skills/model/references/proof-obligations.md"
+    "preferredFirstTargets": [
+      "model"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "invariant"
+      ],
+      [
+        "initial",
+        "초기"
+      ],
+      [
+        "termination",
+        "종료"
+      ],
+      [
+        "overflow"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/proof-obligations.md"
+    ]
   },
   {
     "id": "bounded-solver-result-claim",
     "request": "파일을 수정하지 말고 scope 5의 bounded access-control model에서 solver가 satisfiable과 한 witness를 반환한 상황을 모델링해라. encoding/scope, exact status, witness가 지지하는 existential claim, 지지하지 않는 universal/unbounded claim, unknown/timeout과의 차이, residual과 verifier target을 명시해라. production correctness로 확대하지 마라.",
-    "admissibleFirstTargets": ["model"],
-    "preferredFirstTargets": ["model"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["satisfiable"],
-      ["scope", "bound"],
-      ["witness"],
-      ["unbounded", "universal"]
+    "admissibleFirstTargets": [
+      "model"
     ],
-    "expectedReferenceRoutes": ["solver-result-boundary"],
-    "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
-      "skills/model/references/solver-result-boundaries.md"
+    "preferredFirstTargets": [
+      "model"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "satisfiable"
+      ],
+      [
+        "scope",
+        "bound"
+      ],
+      [
+        "witness"
+      ],
+      [
+        "unbounded",
+        "universal"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/solver-result-boundaries.md"
+    ]
   },
   {
     "id": "logic-query-empty-result-semantics",
     "request": "파일을 수정하지 말고 ancestor facts/rules/query에서 cycles와 duplicate proof paths가 있고 not blocked(X)를 사용하는 상황을 모델링해라. answer와 proof multiplicity, dedup policy, negation-as-failure와 binding order, empty result가 no proof인지 completed no-answer인지 divergence인지, cycle handling과 completion cases를 구분해라. evaluator API는 설계하지 마라.",
-    "admissibleFirstTargets": ["model"],
-    "preferredFirstTargets": ["model"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["ancestor"],
-      ["duplicate", "multiplicity"],
-      ["negation", "not blocked"],
-      ["divergence", "completion"]
+    "admissibleFirstTargets": [
+      "model"
     ],
-    "expectedReferenceRoutes": ["logic-query-semantics"],
-    "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
-      "skills/model/references/logic-query-semantics.md"
+    "preferredFirstTargets": [
+      "model"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "ancestor"
+      ],
+      [
+        "duplicate",
+        "multiplicity"
+      ],
+      [
+        "negation",
+        "not blocked"
+      ],
+      [
+        "divergence",
+        "completion"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/logic-query-semantics.md"
+    ]
   },
   {
     "id": "capacity-preserving-plan-model",
     "request": "파일을 수정하지 말고 service A와 B를 old cluster에서 new cluster로 옮기는 planning model을 만들어라. 항상 healthy replica가 각 service에 하나 이상 있고 new cluster capacity 2를 넘지 않아야 한다. initial/goal state, legal actions와 frame assumptions, valid/invalid sequence, every intermediate invariant, objective와 plan equivalence, complete search 대 unknown no-plan 의미를 제시해라. rollout 구현은 만들지 마라.",
-    "admissibleFirstTargets": ["model"],
-    "preferredFirstTargets": ["model"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["capacity"],
-      ["invariant"],
-      ["initial", "goal"],
-      ["no-plan", "unknown"]
+    "admissibleFirstTargets": [
+      "model"
     ],
-    "expectedReferenceRoutes": ["planning-model"],
-    "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
-      "skills/model/references/planning-models.md"
+    "preferredFirstTargets": [
+      "model"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "capacity"
+      ],
+      [
+        "invariant"
+      ],
+      [
+        "initial",
+        "goal"
+      ],
+      [
+        "no-plan",
+        "unknown"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/model/references/problem-modeling.md",
+      "skills/model/references/planning-models.md"
+    ]
   },
   {
     "id": "data-driven-first-function-surface",
     "request": "파일을 수정하지 말고 accepted TrafficLight data meaning(red|yellow|green), examples와 next-light behavior에서 첫 executable function surface를 sketch해라. ordered six design artifacts, data interpretation, signature/purpose/header/examples/template/code/tests, repository contradiction mapping, bounded first item과 propagation check를 제시해라. generic state machine abstraction이나 temporal policy를 새로 만들지 마라.",
-    "admissibleFirstTargets": ["sketch"],
-    "preferredFirstTargets": ["sketch"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["TrafficLight"],
-      ["signature"],
-      ["template"],
-      ["test", "example"]
+    "admissibleFirstTargets": [
+      "sketch"
     ],
-    "expectedReferenceRoutes": ["data-driven-design"],
-    "expectedReferenceReads": ["skills/sketch/references/data-driven-design.md"],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "TrafficLight"
+      ],
+      [
+        "signature"
+      ],
+      [
+        "template"
+      ],
+      [
+        "test",
+        "example"
+      ]
+    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/data-driven-design.md"
+    ]
   },
   {
     "id": "top-down-wished-composition",
     "request": "파일을 수정하지 말고 accepted checkout total을 itemSubtotal, discountFor, taxFor의 independently meaningful operations로 top-down sketch해라. top-level wished composition, each contract/template/example, intermediate type compatibility, order/effect/failure assumptions와 first composable slice를 제시해라. completed-design fold abstraction이나 representation barrier로 바꾸지 마라.",
-    "admissibleFirstTargets": ["sketch"],
-    "preferredFirstTargets": ["sketch"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["itemSubtotal"],
-      ["discountFor"],
-      ["taxFor"],
-      ["intermediate", "compatibility", "중간", "호환"]
+    "admissibleFirstTargets": [
+      "sketch"
     ],
-    "expectedReferenceRoutes": ["composition-by-wishes"],
-    "expectedReferenceReads": [
-      "skills/sketch/references/data-driven-design.md",
-      "skills/sketch/references/composition-by-wishes.md"
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "itemSubtotal"
+      ],
+      [
+        "discountFor"
+      ],
+      [
+        "taxFor"
+      ],
+      [
+        "intermediate",
+        "compatibility",
+        "중간",
+        "호환"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/data-driven-design.md",
+      "skills/sketch/references/composition-by-wishes.md"
+    ]
   },
   {
     "id": "truthful-design-level-boundary",
     "request": "파일을 수정하지 말고 caller가 object storage인지 local file인지 몰라도 되는 accepted BlobStore contract를 sketch해라. caller purpose/vocabulary/level map, public contract, owner, hidden choice, assumptions, dependency direction, S3와 filesystem alternate implementation 또는 falsifier를 제시해라. bytes representation accessor나 creation registry는 설계하지 마라.",
-    "admissibleFirstTargets": ["sketch"],
-    "preferredFirstTargets": ["sketch"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["BlobStore"],
-      ["vocabulary", "level"],
-      ["owner"],
-      ["S3", "filesystem"]
+    "admissibleFirstTargets": [
+      "sketch"
     ],
-    "expectedReferenceRoutes": ["design-levels"],
-    "expectedReferenceReads": ["skills/sketch/references/design-levels-and-boundaries.md"],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "BlobStore"
+      ],
+      [
+        "vocabulary",
+        "level"
+      ],
+      [
+        "owner"
+      ],
+      [
+        "S3",
+        "filesystem"
+      ]
+    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/design-levels-and-boundaries.md"
+    ]
   },
   {
     "id": "responsibility-collaboration-local-change",
     "request": "파일을 수정하지 말고 invoice formatting change가 controller, line-item loop, currency helper를 함께 수정하고 customer/locale/currency가 repeated arguments로 이동하는 상황을 sketch해라. responsibility inventory, point of attack, wished messages, one coherent owner, participant assumptions, navigation leaks, representative change locality와 evidence checks를 제시해라. polymorphic variants나 factory는 만들지 마라.",
-    "admissibleFirstTargets": ["sketch"],
-    "preferredFirstTargets": ["sketch"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["invoice"],
-      ["responsibility", "owner"],
-      ["message"],
-      ["navigation", "participant"]
+    "admissibleFirstTargets": [
+      "sketch"
     ],
-    "expectedReferenceRoutes": ["responsibility-collaboration"],
-    "expectedReferenceReads": ["skills/sketch/references/responsibility-and-collaboration.md"],
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "invoice"
+      ],
+      [
+        "responsibility",
+        "owner"
+      ],
+      [
+        "message"
+      ],
+      [
+        "navigation",
+        "participant"
+      ]
+    ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/responsibility-and-collaboration.md"
+    ]
   },
   {
     "id": "evidence-preserving-input-boundary",
     "request": "src/refinement.ts를 읽되 파일은 수정하지 마라. validateOrder(input); return input as Order 형태가 검사에서 얻은 정보를 버리고 있다는 전제에서 unknown 입력이 invariant-carrying Order로 바뀌는 원래 설계 표면을 sketch해라. raw/refined representation, parser 또는 smart-constructor success/failure contract, single construction owner, first effect boundary, constructor/legacy/test escape audit, trusted compiler gap 여부와 negative/bypass/effect-order checks를 제시해라. generic service abstraction이나 단순 assertion wrapper를 만들지 마라.",
-    "admissibleFirstTargets": ["sketch"],
-    "preferredFirstTargets": ["sketch"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["unknown", "raw"],
-      ["Order", "refined"],
-      ["parse", "parser", "smart constructor"],
-      ["assertion", "cast", "단언"],
-      ["effect", "persistOrder"]
+    "admissibleFirstTargets": [
+      "sketch"
     ],
-    "expectedReferenceRoutes": ["evidence-preserving-boundary"],
-    "expectedReferenceReads": [
-      "skills/sketch/references/evidence-preserving-boundaries.md"
+    "preferredFirstTargets": [
+      "sketch"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "unknown",
+        "raw"
+      ],
+      [
+        "Order",
+        "refined"
+      ],
+      [
+        "parse",
+        "parser",
+        "smart constructor"
+      ],
+      [
+        "assertion",
+        "cast",
+        "단언"
+      ],
+      [
+        "effect",
+        "persistOrder"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/evidence-preserving-boundaries.md"
+    ]
   },
   {
     "id": "unchecked-narrowing-pass-but-wrong",
     "request": "src/refinement.ts의 decodeOrder가 typecheck와 happy-path test를 통과한다는 완료 주장을 Developer verify의 claim/evidence/relevance matrix로 검토하되 파일은 수정하지 마라. validateOrder 뒤의 input as Order, lineIds element 누락 검사, public construction/re-entry path, persistOrder effect order를 각각 claim row로 나누고 plausible wrong shape와 distinguishing check를 붙여 Domain invariant가 실제로 보존되는지 판단해라. 별도 adversarial evaluation workflow는 설계하지 마라.",
-    "admissibleFirstTargets": ["verify", "sketch", "model"],
-    "preferredFirstTargets": ["verify"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["validateOrder"],
-      ["assertion", "cast", "단언"],
-      ["lineIds"],
-      ["construction", "constructor", "생성"],
-      ["effect", "persistOrder"]
+    "admissibleFirstTargets": [
+      "verify",
+      "sketch",
+      "model"
     ],
-    "expectedReferenceRoutes": ["claim-evidence-gap"],
-    "expectedReferenceReads": [
-      "skills/verify/references/verifier-selection-and-pass-but-wrong.md"
+    "preferredFirstTargets": [
+      "verify"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "validateOrder"
+      ],
+      [
+        "assertion",
+        "cast",
+        "단언"
+      ],
+      [
+        "lineIds"
+      ],
+      [
+        "construction",
+        "constructor",
+        "생성"
+      ],
+      [
+        "effect",
+        "persistOrder"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxDecisions": 2,
+    "expectedPreparedReferences": [
+      "skills/verify/references/verifier-selection-and-pass-but-wrong.md"
+    ]
   },
   {
     "id": "doctor-unscoped-orientation",
     "request": "파일을 수정하지 말고 이 프로젝트를 Doctor로 봐줘. 사용자가 진단 범위를 지정하지 않은 회귀 평가이므로 repository 전체를 깊게 진단하거나 owner-skill consultation을 시작하지 마라. 값싼 orientation pass만 수행해 현재 요청, manifest/subsystem/entrypoint, 테스트 또는 실패, dependency/effect 증거를 근거로 가장 작은 가치 있는 proposed scope 하나를 제시하고 requested/selected/inspected/claim scope, included/excluded, depth, evidence budget, scope expansion 조건을 명시해라. 전체 repository 건강성 결론을 내리지 말고 Doctor judgment를 needs-evidence로 기록한 뒤 멈춰라.",
-    "admissibleFirstTargets": ["doctor"],
-    "preferredFirstTargets": ["doctor"],
-    "allowedOutcomes": ["pending"],
+    "admissibleFirstTargets": [
+      "doctor"
+    ],
+    "preferredFirstTargets": [
+      "doctor"
+    ],
+    "allowedOutcomes": [
+      "pending"
+    ],
     "requiredJudgmentConcepts": [
-      ["orientation"],
-      ["proposed scope", "selected scope", "제안 범위"],
-      ["inspected scope", "검토 범위"],
-      ["claim scope", "claim boundary", "주장 범위"],
-      ["excluded", "제외"],
-      ["evidence budget", "증거 예산"]
+      [
+        "orientation"
+      ],
+      [
+        "proposed scope",
+        "selected scope",
+        "제안 범위"
+      ],
+      [
+        "inspected scope",
+        "검토 범위"
+      ],
+      [
+        "claim scope",
+        "claim boundary",
+        "주장 범위"
+      ],
+      [
+        "excluded",
+        "제외"
+      ],
+      [
+        "evidence budget",
+        "증거 예산"
+      ]
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 1,
+    "maxDecisions": 1,
     "maxToolCalls": 20
   },
   {
     "id": "doctor-thorough-bounded-codebase",
-    "request": "파일을 수정하지 마라. src/refinement.ts의 unknown 입력부터 persistOrder effect까지를 runtime-flow scope로, 관련 테스트와 직접 caller만 collaborators로 포함해 thorough-within-scope Doctor 진단을 수행해라. requested/selected/inspected/claim scope와 제외 범위, 보존 기준선을 먼저 명시하고 Doctor를 제외한 모든 available Developer skill lens에 evidence-backed disposition을 남겨라. triggered consultation은 Doctor route 안에서 흉내 내지 말고 owner skill로 순차 route하여 해당 skill에서 실제 trigger가 있는 모든 reference-policy route와 co-required reference를 적용한 뒤 Doctor로 돌아와 consultation ledger, diagnosis, treat-now/prepare-next/observe/leave-alone plan, first handoff를 종합해라. 전체 repository를 진단했다고 주장하지 마라.",
-    "admissibleFirstTargets": ["doctor"],
-    "preferredFirstTargets": ["doctor"],
-    "allowedOutcomes": ["pending", "settled-unchanged"],
-    "requiredJudgmentConcepts": [
-      ["requested scope", "requested target", "요청 범위"],
-      ["inspected scope", "검토 범위"],
-      ["claim scope", "claim boundary", "주장 범위"],
-      ["preservation", "preserve", "보존"],
-      ["consultation"],
-      ["treat-now"],
-      ["leave-alone"]
+    "request": "파일을 수정하지 마라. src/refinement.ts의 unknown 입력부터 persistOrder effect까지를 runtime-flow scope로, 관련 테스트와 직접 caller만 collaborators로 포함해 thorough-within-scope Doctor 진단을 수행해라. requested/selected/inspected/claim scope와 제외 범위, 보존 기준선을 먼저 명시하고 Doctor를 제외한 모든 available Developer skill lens에 evidence-backed disposition을 남겨라. triggered consultation은 Doctor 판단 안에서 흉내 내지 말고 owner skill로 developer_open_judgment를 순차 실행해라. 각 owner 판단은 해당 Context Question에 적용되는 현재 branch evidence와 conditional reference context만 정확히 선택하고 봉인한 뒤 coverage를 평가하고 출처 사용을 인용해 결론 내려라. 이후 Doctor로 돌아와 consultation ledger, diagnosis, treat-now/prepare-next/observe/leave-alone plan, first handoff를 종합해라. 전체 repository를 진단했다고 주장하지 마라.",
+    "admissibleFirstTargets": [
+      "doctor"
     ],
-    "expectedReferenceReads": [
-      "skills/sketch/references/evidence-preserving-boundaries.md",
-      "skills/verify/references/verifier-selection-and-pass-but-wrong.md"
+    "preferredFirstTargets": [
+      "doctor"
+    ],
+    "allowedOutcomes": [
+      "pending",
+      "settled-unchanged"
+    ],
+    "requiredJudgmentConcepts": [
+      [
+        "requested scope",
+        "requested target",
+        "요청 범위"
+      ],
+      [
+        "inspected scope",
+        "검토 범위"
+      ],
+      [
+        "claim scope",
+        "claim boundary",
+        "주장 범위"
+      ],
+      [
+        "preservation",
+        "preserve",
+        "보존"
+      ],
+      [
+        "consultation"
+      ],
+      [
+        "treat-now"
+      ],
+      [
+        "leave-alone"
+      ]
     ],
     "requiresDoctorSynthesis": true,
     "mustRecordJudgment": true,
-    "maxRoutes": 14,
-    "maxToolCalls": 96
+    "maxDecisions": 14,
+    "maxToolCalls": 96,
+    "expectedPreparedReferences": [
+      "skills/sketch/references/evidence-preserving-boundaries.md",
+      "skills/verify/references/verifier-selection-and-pass-but-wrong.md"
+    ]
   },
   {
     "id": "implementation-stable-landing-paused",
-    "request": "이 요청은 pausable handoff 회귀 평가다. src/contracts.ts를 확인하고 export const PAUSED_EVAL_MARKER = \"stable-landing\" 하나만 추가해라. 변경이 정당화되면 implementation route에서 이 한 movement를 수행하고 status=resolved, open_questions=[]인 implementation judgment를 기록한 직후 멈춰라. 테스트를 실행하거나 verify route를 열거나 완료를 주장하지 마라. 검증 미실행은 새 질문으로 표현하지 말고 machine의 rerouting checkpoint와 verification debt로만 남겨 그대로 handoff해라.",
+    "request": "이 요청은 pausable handoff 회귀 평가다. src/contracts.ts를 확인하고 export const PAUSED_EVAL_MARKER = \"stable-landing\" 하나만 추가해라. 변경이 정당화되면 developer_authorize_change로 이 한 movement를 승인하고 수정한 뒤 developer_record_landing으로 실제 변경 경로와 stable landing을 기록한 직후 멈춰라. 테스트를 실행하거나 verify 판단을 열거나 완료를 주장하지 마라. 검증 미실행은 landing의 verification debt와 다음 verify 의무로만 남겨 그대로 handoff해라.",
     "admissibleFirstTargets": [
       "implementation",
       "signal"
@@ -957,15 +1299,15 @@
     "allowedOutcomes": [
       "changed-paused"
     ],
-    "mustRecordJudgment": true,
-    "mutationRequiresImplementationRoute": true,
-    "maxRoutes": 2,
+    "mutationRequiresAuthorization": true,
+    "maxDecisions": 2,
     "maxToolCalls": 24,
-    "workspaceAssertion": "paused-marker"
+    "workspaceAssertion": "paused-marker",
+    "mustRecordLanding": true
   },
   {
     "id": "agent-before-implementation-evidence-gate",
-    "request": "이 요청은 agent-owned before-implementation gate 회귀 평가다. 다음 lifecycle을 실제 Developer protocol로 수행해라. (1) 첫 signal route의 judgment에서 'src/contracts.ts가 marker의 올바른 변경 위치인가?'를 needs-evidence로 남기고, resolution_owner=agent, gate=before-implementation, resolution_criteria='A read-only bash check confirms src/contracts.ts exists and owns contract exports.'인 질문을 정확히 하나 열어라. (2) implementation로 가지 말고 그 질문을 대상으로 두 번째 non-implementation signal evidence route를 열어라. 그 route가 active인 동안 bash로 test -f src/contracts.ts를 실행하고 파일을 확인한 뒤, 기존 질문 ID를 question_updates의 resolved 상태와 구체적 basis로 해소해라. (3) gate가 해제된 뒤 implementation route에서 export const AGENT_GATE_EVAL_MARKER = \"resolved\" 하나만 src/contracts.ts에 추가하고 judgment를 기록해라. (4) verify route에서 변경과 테스트를 확인하고 resolved judgment를 기록해라. 다른 제품 변경은 하지 마라.",
+    "request": "이 요청은 agent-owned before-implementation gate 회귀 평가다. 다음 lifecycle을 실제 Developer protocol v7로 수행해라. (1) developer_open_judgment로 signal 판단을 열고, 결론에서 src/contracts.ts가 marker의 올바른 변경 위치인지 needs-evidence로 남기며 resolution_owner=agent, gate=before-implementation, resolution_criteria=\"A read-only bash check confirms src/contracts.ts exists and owns contract exports.\"인 질문을 정확히 하나 열어라. (2) 변경을 승인하지 말고 그 질문을 대상으로 두 번째 signal 판단을 열어라. 그 판단이 active인 동안 bash로 test -f src/contracts.ts를 실행하고 파일을 확인한 뒤 기존 질문 ID를 question_updates의 resolved 상태와 구체적 basis로 해소해라. (3) gate가 해제된 뒤 developer_authorize_change로 export const AGENT_GATE_EVAL_MARKER = \"resolved\" 하나만 승인하고 src/contracts.ts에 적용한 후 landing을 기록해라. (4) verify 판단에서 변경과 테스트를 확인하고 contextual judgment를 기록해라. 다른 제품 변경은 하지 마라.",
     "admissibleFirstTargets": [
       "signal"
     ],
@@ -976,10 +1318,10 @@
       "changed-verified"
     ],
     "mustRecordJudgment": true,
-    "mutationRequiresImplementationRoute": true,
+    "mutationRequiresAuthorization": true,
     "requiresAgentBeforeImplementationResolution": true,
     "requiresJudgmentBashEvidence": true,
-    "maxRoutes": 4,
+    "maxDecisions": 4,
     "maxToolCalls": 36,
     "workspaceAssertion": "agent-gate-marker"
   }

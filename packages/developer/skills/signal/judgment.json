@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "Duplication, parallel branches, repeated tests/UI states, conditionals, a recent refactor, change-relative coupling, or model-code mismatch needs consequential horizontal-versus-vertical classification."
+  ],
+  "unless": [
+    "The task needs a design or implementation decision rather than the smallest observation of whether structural movement is present."
+  ],
+  "references": [
+    {
+      "path": "references/structural-movement.md",
+      "when": [
+        "Duplication, parallel branches, repeated tests/UI states, conditionals, a recent refactor, change-relative coupling, or model-code mismatch needs consequential horizontal-versus-vertical classification. The reference can add this material distinction: Supplies the Structural Movement distinctions, counterexamples, artifact obligations, and stop checks for this route."
+      ]
+    }
+  ]
+}

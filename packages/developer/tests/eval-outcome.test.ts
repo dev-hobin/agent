@@ -2,6 +2,11 @@ import assertModule from "node:assert";
 import test from "node:test";
 
 import {
+	changeAuthorized,
+	developerEventData,
+	landingRecorded,
+} from "../src/protocol.ts";
+import {
 	assertAllowedOutcome,
 	classifyEvalOutcome,
 	parseDeveloperStatus,
@@ -73,37 +78,28 @@ test("compact and detailed Developer status produce the same outcome signals", (
 	);
 });
 
-test("JSON event replay recovers checkpoint and verification state without TUI status events", () => {
-	const route = {
-		protocol: "developer/v5",
-		kind: "route",
-		routeId: "route:implementation",
+test("JSON event replay recovers reroute and verification state without TUI status events", () => {
+	const authorization = changeAuthorized({
+		kind: "authorized-change",
+		authorizationId: "change:implementation",
 		question: "Apply one change.",
-		target: "implementation",
 		reason: "The local movement is justified.",
-		knownEvidence: [],
-		consideredAlternatives: [],
-	};
-	const judgment = {
-		protocol: "developer/v5",
-		kind: "judgment",
-		routeId: route.routeId,
-		question: route.question,
-		target: route.target,
-		status: "resolved",
+		contract: {
+			movement: "Apply one bounded change.",
+			stableLanding: "The stable landing is reached.",
+			verificationTarget: "Run the focused verifier.",
+		},
+	});
+	const landing = landingRecorded({
+		authorizationId: authorization.change.authorizationId,
+		changedPaths: ["src/file.ts"],
 		result: "The stable landing was reached.",
-		basis: ["The artifact changed."],
-		openedQuestions: [],
-		questionUpdates: [],
-		artifacts: ["src/file.ts"],
-		changedArtifacts: true,
-	};
-	const events = [route, judgment].map((details, index) => ({
+		verification: ["The focused test passed."],
+	});
+	const events = [authorization, landing].map((event) => ({
 		type: "tool_execution_end",
-		toolName:
-			index === 0 ? "developer_route_question" : "developer_record_judgment",
 		isError: false,
-		result: { details },
+		result: { details: developerEventData(event) },
 	}));
 
 	assert.deepEqual(statusFromDeveloperEvents(events), {

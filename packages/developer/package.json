@@ -1,6 +1,7 @@
 {
   "name": "@hobin/developer",
-  "version": "0.1.16",
+  "version": "0.1.17",
+  "private": true,
   "description": "Branch-aware judgment routing, evidence gates, and focused development skills for Pi.",
   "type": "module",
   "keywords": ["pi-package", "pi", "developer", "skills"],
@@ -24,9 +25,10 @@
   "files": [
     "extensions",
     "skills",
+    "src",
     "docs",
     "README.md",
-    "REFERENCE_ROUTING.md",
+    "JUDGMENT_POLICIES.md",
     "LICENSE"
   ],
   "engines": {
@@ -39,9 +41,15 @@
     "eval:live": "node scripts/eval-live.mjs --transport rpc",
     "eval:live:json": "node scripts/eval-live.mjs --transport json"
   },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "pi": {
     "extensions": ["./extensions/developer.ts"],
     "skills": ["./skills"]
+  },
+  "devDependencies": {
+    "typebox": "1.1.38"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
@@ -50,6 +58,7 @@
     "typebox": "*"
   },
   "dependencies": {
-    "xstate": "5.32.5"
-  }
+    "@hobin/judgment": "workspace:0.1.0"
+  },
+  "bundledDependencies": ["@hobin/judgment"]
 }

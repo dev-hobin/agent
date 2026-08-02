@@ -5,12 +5,13 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, visibleWidth } from "@earendil-works/pi-tui";
 
 import {
-	PROTOCOL,
 	applyDeveloperEvent,
 	initialState,
 	type DeveloperState,
 	type PendingQuestion,
 } from "../extensions/state.ts";
+import { activationChanged } from "../src/protocol.ts";
+import { createRichQaState } from "./fixtures/tui-visual.ts";
 import { inspectDeveloperWorkbench } from "../extensions/developer-workbench.ts";
 import { DeveloperWorkbenchSurface } from "../extensions/developer-workbench-tui.ts";
 import {
@@ -85,7 +86,7 @@ const openQuestion: PendingQuestion = {
 	resolutionOwner: "agent",
 	gate: "none",
 	resolutionCriteria: "Observe the rendered browser state.",
-	sourceRouteId: "route:earlier",
+	sourceWorkId: "judgment:earlier",
 };
 
 const choiceQuestion: PendingQuestion = {
@@ -180,11 +181,7 @@ function createSettingsBinding(initial: DeveloperState): {
 			read: () => state,
 			commitActivation(enabled) {
 				events.push(enabled);
-				state = applyDeveloperEvent(state, {
-					protocol: PROTOCOL,
-					kind: "activation",
-					enabled,
-				});
+				state = applyDeveloperEvent(state, activationChanged(enabled));
 				return state;
 			},
 		},
@@ -194,57 +191,20 @@ function createSettingsBinding(initial: DeveloperState): {
 }
 
 function activeState(): DeveloperState {
-	const activeRoute = {
-		protocol: "developer/v5" as const,
-		kind: "route" as const,
-		routeId: "route:active",
-		question: "Does the rendered interface preserve the product invariant?",
-		target: "verify",
-		reason: "Unit tests do not cover the rendered state.",
-		knownEvidence: ["Pure-function tests pass."],
-		consideredAlternatives: [],
-		availableReferences: [],
-		referenceRoutes: [],
-		loadedReferences: [],
-		methodLocation: "/skills/verify/SKILL.md",
-	};
-	const earlierRoute = {
-		...activeRoute,
-		routeId: "route:earlier",
-		question: "Is the implementation complete?",
-	};
-	const lastJudgment = {
-		protocol: "developer/v5" as const,
-		kind: "judgment" as const,
-		routeId: "route:earlier",
-		question: "Is the implementation complete?",
-		target: "verify",
-		status: "needs-evidence" as const,
-		result: "A browser observation remains.",
-		basis: ["Unit tests pass."],
-		referenceBasis: [],
-		openedQuestions: [openQuestion],
-		questionUpdates: [],
-		artifacts: ["pnpm check"],
-		changedArtifacts: false,
-	};
-	return {
-		enabled: true,
-		activeRoute,
-		lastRoute: activeRoute,
-		lastJudgment,
-		routeHistory: [earlierRoute, activeRoute],
-		judgmentHistory: [lastJudgment],
-		pendingQuestions: [openQuestion],
-		rerouteRequired: false,
-		implementationFramingRequired: false,
-		verificationRequired: false,
-	};
+	const base = createRichQaState();
+	return Object.freeze({
+		...base,
+		pendingQuestions: Object.freeze([openQuestion]),
+		obligations: Object.freeze({
+			...base.obligations,
+			verificationRequired: false,
+		}),
+	});
 }
 
 test("Developer Workbench renders responsive, bounded, read-only state", () => {
 	const snapshot = inspectDeveloperWorkbench(activeState(), {
-		activeTools: ["read", "bash", "developer_route_question"],
+		activeTools: ["read", "bash", "developer_conclude_judgment"],
 		availableSkills: ["verify", "specify"],
 	});
 	for (const [width, height] of [
@@ -310,8 +270,8 @@ test("Developer Workbench copies the focused semantic selection without viewport
 
 	assert.notEqual(copies[1], copies[2]);
 	assert.equal(copies[2], copies[3]);
-	assert.match(copies[3] ?? "", /Resolution contract/u);
-	assert.match(copies[3] ?? "", /Resolves when:/u);
+	assert.match(copies[3] ?? "", /Resolution/u);
+	assert.match(copies[3] ?? "", /Criteria:/u);
 	assert.doesNotMatch(copies[3] ?? "", /[│╭╮╰╯…]|\u001b\[/u);
 });
 
@@ -351,11 +311,11 @@ test("Developer assigns footer, widget, secondary settings, and pending lists di
 	const state = activeState();
 	assert.equal(
 		renderDeveloperFooter(state, theme),
-		"developer · on · needs-judgment · verify",
+		"developer · on · needs-judgment-conclusion · verify",
 	);
 
 	const widgetLines = new DeveloperWidget(state, theme).render(64);
-	assert.match(widgetLines[0], /^◆ route · verify/);
+	assert.match(widgetLines[0], /^◆ work · verify/);
 	assert.match(
 		widgetLines[1],
 		/^\? evidence · none · Which browser observation/,
@@ -380,8 +340,8 @@ test("Developer settings expose activation without duplicating Workbench objects
 	const offState = {
 		...activeState(),
 		enabled: false,
-		activeRoute: undefined,
-		judgmentHistory: [],
+		activeWork: undefined,
+		judgments: [],
 		pendingQuestions: [],
 	};
 	assert.deepEqual(
@@ -395,7 +355,11 @@ test("Developer settings expose activation without duplicating Workbench objects
 });
 
 test("implementation framing is rendered as an implementation gate rather than a next-step prediction", () => {
-	const state = { ...activeState(), implementationFramingRequired: true };
+	const base = activeState();
+	const state = {
+		...base,
+		obligations: { ...base.obligations, implementationFramingRequired: true },
+	};
 	const widgetLines = new DeveloperWidget(state, theme).render(100);
 
 	assert.ok(
@@ -1085,7 +1049,7 @@ test("destructive activation is commit-after-confirm with canonical rollback", a
 	const confirmed = await run(true);
 	assert.deepEqual(confirmed.events, [false]);
 	assert.equal(confirmed.state.enabled, false);
-	assert.equal(confirmed.state.activeRoute, undefined);
+	assert.equal(confirmed.state.activeWork, undefined);
 	assert.deepEqual(confirmed.state.pendingQuestions, []);
 	assert.match(confirmed.renderedAfterDecision, /Developer\s+Off/);
 	assert.doesNotMatch(confirmed.renderedAfterDecision, /Open questions/);

@@ -22,13 +22,13 @@ import {
 } from "@earendil-works/pi-tui";
 
 import {
-	protocolState,
+	developerProtocolState,
 	type ChoiceResponseField,
 	type ChoiceResponseOption,
+	type DeveloperProtocolState,
 	type DeveloperState,
 	type PendingQuestion,
-	type ProtocolState,
-} from "./state.ts";
+} from "../src/index.ts";
 
 export interface DeveloperSettingsBinding {
 	read(): DeveloperState;
@@ -54,7 +54,7 @@ function developerMarkdownTheme(theme: Theme): MarkdownTheme {
 	};
 }
 
-function protocolColor(value: ProtocolState): ThemeColor {
+function protocolColor(value: DeveloperProtocolState): ThemeColor {
 	if (value === "blocked") return "error";
 	if (
 		value === "needs-evidence" ||
@@ -63,7 +63,8 @@ function protocolColor(value: ProtocolState): ThemeColor {
 		value === "needs-verification"
 	)
 		return "warning";
-	if (value === "needs-judgment") return "accent";
+	if (value === "needs-judgment-conclusion" || value === "authorized-change")
+		return "accent";
 	return "dim";
 }
 
@@ -71,8 +72,13 @@ export function renderDeveloperFooter(
 	state: DeveloperState,
 	theme: Theme,
 ): string {
-	const currentProtocol = protocolState(state);
-	const target = state.activeRoute?.target ?? "none";
+	const currentProtocol = developerProtocolState(state);
+	const target =
+		state.activeWork?.kind === "active-judgment"
+			? state.activeWork.skill.name
+			: state.activeWork?.kind === "authorized-change"
+				? "implementation"
+				: "none";
 	return (
 		theme.fg("accent", "developer") +
 		theme.fg("dim", " · ") +
@@ -84,7 +90,7 @@ export function renderDeveloperFooter(
 }
 
 export function hasDiscardableDeveloperWork(state: DeveloperState): boolean {
-	return Boolean(state.activeRoute) || state.pendingQuestions.length > 0;
+	return Boolean(state.activeWork) || state.pendingQuestions.length > 0;
 }
 
 export function developerSettingItems(state: DeveloperState): SettingItem[] {
@@ -136,7 +142,7 @@ export type ImmediateQuestionDisposition =
 	| { kind: "defer" };
 
 export function pendingQuestionItems(
-	questions: PendingQuestion[],
+	questions: readonly PendingQuestion[],
 ): SelectItem[] {
 	return questions.map((question) => {
 		const action = questionAction(question.resolutionOwner);
@@ -455,7 +461,7 @@ async function showSelectDialog(
 
 function discardableDeveloperWorkLabel(state: DeveloperState): string {
 	return [
-		...(state.activeRoute ? ["the active route"] : []),
+		...(state.activeWork ? ["the active Developer work"] : []),
 		...(state.pendingQuestions.length > 0
 			? [`${state.pendingQuestions.length} open question(s)`]
 			: []),
@@ -606,7 +612,7 @@ export async function showDeveloperSettings(
 
 export function showPendingQuestionSelector(
 	ctx: ExtensionCommandContext,
-	questions: PendingQuestion[],
+	questions: readonly PendingQuestion[],
 ): Promise<string | undefined> {
 	if (questions.length === 0) return Promise.resolve(undefined);
 	return showSelectDialog(
@@ -1098,7 +1104,7 @@ async function selectChoiceAnswer(
 async function reviewChoiceAnswers(
 	ctx: ExtensionContext,
 	question: PendingQuestion,
-	fields: ChoiceResponseField[],
+	fields: readonly ChoiceResponseField[],
 	answers: ReadonlyArray<ChoiceResponseAnswer | undefined>,
 ): Promise<ChoiceReviewAction> {
 	const action = await showSelectDialog(
@@ -1257,10 +1263,14 @@ export class DeveloperWidget {
 
 	render(width: number): string[] {
 		const lines: string[] = [];
-		if (this.state.activeRoute) {
+		if (this.state.activeWork) {
+			const target =
+				this.state.activeWork.kind === "active-judgment"
+					? this.state.activeWork.skill.name
+					: "implementation";
 			lines.push(
 				truncateToWidth(
-					`${this.theme.fg("accent", "◆ route")} ${this.theme.fg("muted", "·")} ${this.theme.fg("accent", this.state.activeRoute.target)} ${this.theme.fg("muted", this.state.activeRoute.question)}`,
+					`${this.theme.fg("accent", "◆ work")} ${this.theme.fg("muted", "·")} ${this.theme.fg("accent", target)} ${this.theme.fg("muted", this.state.activeWork.question)}`,
 					width,
 					"…",
 				),
@@ -1285,7 +1295,7 @@ export class DeveloperWidget {
 				),
 			);
 		}
-		if (this.state.implementationFramingRequired) {
+		if (this.state.obligations.implementationFramingRequired) {
 			lines.push(
 				this.theme.fg(
 					"warning",
@@ -1293,7 +1303,7 @@ export class DeveloperWidget {
 				),
 			);
 		}
-		if (this.state.rerouteRequired) {
+		if (this.state.obligations.rerouteRequired) {
 			lines.push(
 				this.theme.fg(
 					"warning",
@@ -1301,7 +1311,7 @@ export class DeveloperWidget {
 				),
 			);
 		}
-		if (this.state.verificationRequired) {
+		if (this.state.obligations.verificationRequired) {
 			lines.push(
 				this.theme.fg(
 					"warning",

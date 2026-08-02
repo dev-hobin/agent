@@ -102,11 +102,63 @@ the requirement already fixes their meaning and asks only for public operations,
 ownership, collaborators, or caller shape; route that original surface to
 `sketch`.
 
-## Reference Routing
 
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Each route answers one modeling question, refines one judgment step,
-and declares its artifact, stop, and separation boundary. Prefer a specialized
-route over the broad condition-space fallback when it owns the unresolved
-obligation; combine routes only for independent model questions. Use the
-exemption only when no route trigger applies and cite its evidence.
+## Context Directions
+
+This section is generated from [judgment.json](judgment.json). The owning skill method remains complete without reading a prepared reference. Root `unless` exclusions win. Each reference is an independent candidate, not a requirement or authority.
+
+Use the owning capability when at least one condition applies:
+
+- A deductive implementation-conformance claim needs preconditions, postconditions, invariant initialization/preservation/conclusion, termination, or arithmetic/tool assumptions.
+- Bounded counterexample search, satisfiability, feasibility, optimization, scope/configuration, or solver result-state interpretation is consequential.
+- Caller/callee obligations, API or schema compatibility, old/new preconditions and postconditions, or observer-relative refinement are consequential.
+- Correctness depends on entities, intervals, cross-record integrity, quantified relations, bidirectional constraints, SQL translation, or set-versus-bag semantics.
+- Facts/rules, zero-one-many answers, proof multiplicity, duplicates, negation-as-failure, binding order, search fairness, cycles, or divergence are consequential.
+- Initial state, goal, legal actions, intermediate-state invariants, action costs, equivalent plans, or no-plan meaning is consequential.
+- Prose or isolated examples hide consequential combinations, quantifiers, absence/default meaning, ability-guarantee tradeoffs, or model/environment assumptions, and no specialized route below is primary.
+- Snapshots are insufficient because retry, stale or duplicate events, lifecycle, concurrency, safety, progress, stuttering, fairness, or temporal refinement matters.
+
+Do not use it when any exclusion applies; these exclusions win:
+
+- The supplied laws or invariants are already settled and only an implementable interface shape must be designed.
+
+Prepared references are independent candidates, never requirements or authority:
+
+### `references/contract-and-replacement-models.md`
+
+- Caller/callee obligations, API or schema compatibility, old/new preconditions and postconditions, or observer-relative refinement are consequential. The reference can add this material distinction: Derives caller/callee obligations, replacement implications, observer compatibility, and refinement targets.
+
+### `references/logic-query-semantics.md`
+
+- Facts/rules, zero-one-many answers, proof multiplicity, duplicates, negation-as-failure, binding order, search fairness, cycles, or divergence are consequential. The reference can add this material distinction: Defines answer/proof identity, duplicates, negation, search, cycles, completion, and outcome semantics.
+
+### `references/planning-models.md`
+
+- Initial state, goal, legal actions, intermediate-state invariants, action costs, equivalent plans, or no-plan meaning is consequential. The reference can add this material distinction: Defines actions, intermediate states, invariants, objective, plan equivalence, and no-plan meaning.
+
+### `references/problem-modeling.md`
+
+- A deductive implementation-conformance claim needs preconditions, postconditions, invariant initialization/preservation/conclusion, termination, or arithmetic/tool assumptions. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.
+- Bounded counterexample search, satisfiability, feasibility, optimization, scope/configuration, or solver result-state interpretation is consequential. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.
+- Caller/callee obligations, API or schema compatibility, old/new preconditions and postconditions, or observer-relative refinement are consequential. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.
+- Correctness depends on entities, intervals, cross-record integrity, quantified relations, bidirectional constraints, SQL translation, or set-versus-bag semantics. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.
+- Facts/rules, zero-one-many answers, proof multiplicity, duplicates, negation-as-failure, binding order, search fairness, cycles, or divergence are consequential. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.
+- Initial state, goal, legal actions, intermediate-state invariants, action costs, equivalent plans, or no-plan meaning is consequential. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.
+- Prose or isolated examples hide consequential combinations, quantifiers, absence/default meaning, ability-guarantee tradeoffs, or model/environment assumptions, and no specialized route below is primary. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.
+- Snapshots are insufficient because retry, stale or duplicate events, lifecycle, concurrency, safety, progress, stuttering, fairness, or temporal refinement matters. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.
+
+### `references/proof-obligations.md`
+
+- A deductive implementation-conformance claim needs preconditions, postconditions, invariant initialization/preservation/conclusion, termination, or arithmetic/tool assumptions. The reference can add this material distinction: Derives initialization, preservation, conclusion, termination, trusted-boundary, and residual-observer obligations.
+
+### `references/relational-constraint-models.md`
+
+- Correctness depends on entities, intervals, cross-record integrity, quantified relations, bidirectional constraints, SQL translation, or set-versus-bag semantics. The reference can add this material distinction: Derives quantified relation constraints, identity, multiplicity, endpoint, contradiction, and runtime-translation obligations.
+
+### `references/solver-result-boundaries.md`
+
+- Bounded counterexample search, satisfiability, feasibility, optimization, scope/configuration, or solver result-state interpretation is consequential. The reference can add this material distinction: Bounds solver claims by variables, encoding, witness, scope, exact result state, and unmodeled observers.
+
+### `references/temporal-behavior-models.md`
+
+- Snapshots are insufficient because retry, stale or duplicate events, lifecycle, concurrency, safety, progress, stuttering, fairness, or temporal refinement matters. The reference can add this material distinction: Derives action/frame laws, representative histories, safety, progress, fairness, and refinement obligations.

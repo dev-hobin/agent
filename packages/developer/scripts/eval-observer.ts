@@ -5,15 +5,15 @@ import {
 	snapshotWorkspace,
 } from "./eval-filesystem.mjs";
 
-const ROUTE_TOOL = "developer_route_question";
-const JUDGMENT_TOOL = "developer_record_judgment";
+const AUTHORIZE_CHANGE_TOOL = "developer_authorize_change";
+const RECORD_LANDING_TOOL = "developer_record_landing";
 const monitoredTools = new Set(["bash", "edit", "write"]);
 
 export default function evalObserver(pi: ExtensionAPI): void {
 	const workspace = process.env.DEVELOPER_EVAL_WORKSPACE;
 	if (!workspace) return;
 
-	let activeTarget: string | undefined;
+	let changeAuthorized = false;
 	const beforeSnapshots = new Map<
 		string,
 		Awaited<ReturnType<typeof snapshotWorkspace>>
@@ -25,12 +25,12 @@ export default function evalObserver(pi: ExtensionAPI): void {
 	});
 
 	pi.on("tool_result", async (event) => {
-		if (event.toolName === ROUTE_TOOL && !event.isError) {
-			activeTarget = (event.details as { target?: string } | undefined)?.target;
+		if (event.toolName === AUTHORIZE_CHANGE_TOOL && !event.isError) {
+			changeAuthorized = true;
 			return;
 		}
-		if (event.toolName === JUDGMENT_TOOL && !event.isError) {
-			activeTarget = undefined;
+		if (event.toolName === RECORD_LANDING_TOOL && !event.isError) {
+			changeAuthorized = false;
 			return;
 		}
 		if (!monitoredTools.has(event.toolName)) return;
@@ -42,7 +42,7 @@ export default function evalObserver(pi: ExtensionAPI): void {
 			before,
 			await snapshotWorkspace(workspace),
 		);
-		if (changes.length === 0 || activeTarget === "implementation") return;
+		if (changes.length === 0 || changeAuthorized) return;
 
 		const summary = changes
 			.map((change) => `${change.kind}:${change.path}`)
@@ -53,7 +53,7 @@ export default function evalObserver(pi: ExtensionAPI): void {
 				...event.content,
 				{
 					type: "text" as const,
-					text: `Developer eval mutation audit: ${event.toolName} changed product artifacts outside an implementation route (${summary}).`,
+					text: `Developer eval mutation audit: ${event.toolName} changed product artifacts without an active change authorization (${summary}).`,
 				},
 			],
 		};

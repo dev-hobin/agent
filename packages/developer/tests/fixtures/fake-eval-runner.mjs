@@ -9,7 +9,7 @@ process.stdout.write(
       outcome: "settled-unchanged",
       firstTarget: preferredFirstTarget ? "specify" : "model",
       preferredFirstTarget,
-      routeCount: 1,
+      decisionCount: 1,
       toolCallCount: 2,
     }) +
     "\n",

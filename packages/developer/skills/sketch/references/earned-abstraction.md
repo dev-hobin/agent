@@ -2,6 +2,17 @@
 
 Use this reference when at least two correct completed designs with stable
 purposes and data models may share one common movement and variation-role set.
+It is self-contained and does not require another design reference.
+
+## Accepted Design Context
+
+Supply at least two completed concrete designs, each purpose and data meaning,
+representative checks, declared process observers, and one transfer case. Syntax
+similarity without completed behavior is not admitted evidence.
+
+This member contributes aligned common movement, a variation-role table,
+candidate caller surface, migration boundary, transfer check, and the explicit
+handoff for promotion judgment.
 
 ## Align Completed Designs
 

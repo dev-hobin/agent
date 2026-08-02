@@ -1,5 +1,9 @@
 # Developer for Pi
 
+> **Development status:** `0.1.17` is a private patch candidate. Package checks,
+> branch/mutation evaluations, and the Pi 0.80.10–0.83.0 source/packed matrix
+> are green. Publication still requires explicit approval.
+
 Developer is a branch-aware judgment workbench that helps [Pi](https://pi.dev)
 stop guessing, choose the right design or review method, make one justified
 change, and show the evidence behind it.
@@ -8,19 +12,18 @@ Use it when a task may hide product rules, consequential cases, ownership,
 compatibility, structural timing, or pass-but-wrong verification. Developer:
 
 - turns consequential uncertainty into explicit questions;
-- routes Pi to one of eleven focused judgment skills;
-- loads deeper references only when an observable trigger calls for them;
-- keeps implementation, unresolved questions, and verification evidence visible
-  on the current session branch.
+- opens one of eleven focused judgment skills;
+- selects and seals exact material only when it can change the judgment;
+- keeps judgments, change authorization, unresolved questions, landings, and
+  verification evidence visible on the current session branch.
 
 Developer is adaptive rather than phase-driven. It does not force every task
 through a fixed plan, design, implementation, and review sequence.
 
 ## Install
 
-Requires Node.js 22.19 or newer. The 0.1.16 Workbench was verified with Pi
-0.80.10, 0.82.1, and 0.83.0; the corresponding bundled TypeBox resolutions
-included 1.3.6 and 1.3.7.
+Requires Node.js 22.19 or newer. Developer `0.1.17` is a private patch
+candidate; its release matrix must be reverified before publication.
 
 ```sh
 pi install npm:@hobin/developer
@@ -52,9 +55,9 @@ Find the cause and fix it.
 ```
 
 Depending on what the repository already establishes, Developer may ask for a
-missing product decision, inspect the relevant behavior, route a focused model
-or sketch, permit one implementation movement, and require evidence before the
-changed work is treated as complete.
+missing product decision, inspect the relevant behavior, open a focused model or
+sketch judgment, authorize one bounded implementation movement, and require
+evidence before the changed work is treated as complete.
 
 Other useful first requests:
 
@@ -110,25 +113,50 @@ boundary whose success returns the refined value.
 Developer follows a small adaptive loop:
 
 ```text
-Discover → Load → Derive → Act → Check → Learn
+Discover → Open Judgment → Select + Seal Context → Conclude
+         → Authorize Change → Land → Verify
 ```
 
 1. **Discover** the current unresolved question from the request, repository,
    and latest evidence.
-2. **Load** one focused skill, plus only the deeper references whose triggers
-   actually apply.
-3. **Derive** an inspectable artifact such as a case table, boundary map, wished
-   interface, review card, timing matrix, or evidence matrix.
-4. **Act** through one justified implementation movement when mutation is the
-   right next step.
-5. **Check** the changed claim with an appropriate observer and verifier.
-6. **Learn** from the stable landing, preserve remaining questions, and route
-   again rather than continuing by momentum.
+2. **Open** one focused skill and compile its optional Judgment policy.
+3. **Select and seal** only applicable current-branch material; record exact
+   contributions, conflicts, limitations, and sufficiency before an outcome.
+4. **Conclude** with a contextual judgment, an explicit need for evidence, or
+   an emergent question.
+5. **Authorize** one bounded change only after before-implementation gates close.
+6. **Land** the actual changed paths and stable landing without claiming that
+   mutation itself proves completion.
+7. **Verify** the changed claim with an appropriate observer and verifier.
 
-This is not a mandatory phase sequence. A simple task can move directly to
-implementation. New evidence can route backward or sideways. Consecutive
-implementation movements are allowed when the previous landing is re-observed
-and the plausible judgment routes add no useful information.
+This is not a mandatory phase sequence. A simple, already-justified task can
+request change authorization directly. New evidence can open a different
+judgment. Consecutive changes require separate authorizations and landings.
+
+## What changed from 0.1.16
+
+The published `0.1.16` line used `developer/v6`: one route selected a skill or
+implementation, an admitted route loaded a fixed complete GuidanceSet, and
+`developer_record_judgment` also carried a `changedArtifacts` boolean.
+`0.1.17` uses `developer/v7` and separates those authorities:
+
+| 0.1.16 | 0.1.17 |
+| --- | --- |
+| `developer_route_question` | `developer_open_judgment` for semantic work, or `developer_authorize_change` for mutation |
+| `developer_load_guidance` and a co-required fixed set | Optional `{when, unless, references[{path, when}]}` policy plus explicit material contributions; zero, one, or several references may be correct |
+| `developer_record_judgment` | `developer_conclude_judgment` for semantic closure |
+| `changedArtifacts: boolean` inside a judgment | `developer_record_landing` with exact changed paths and a separate authorization ID |
+| Active Route | Active Judgment or Authorized Change |
+| v6 route replay | Exact v7 replay; v6 history is retained but reported as unsupported |
+
+Commands, the eleven skills, adaptive method choice, PendingQuestions, mutation
+gating, stable landings, branch locality, and post-change verification debt are
+preserved. The old tool payloads are not aliases for the new tools, and v6
+history is never reinterpreted as v7 work.
+
+See [Developer 0.1.16 → 0.1.17 Behavior and Protocol Changes](./docs/migration-from-0.1.md)
+for the complete behavior matrix, scenario comparison, automation migration,
+and restart rules.
 
 ## Common workflows
 
@@ -149,7 +177,7 @@ and the plausible judgment routes add no useful information.
 
 ## Skills
 
-Developer may route these skills automatically. You can also invoke any one
+Developer may open these skills automatically. You can also invoke any one
 directly with `/skill:<name>`.
 
 | Skill | Helps decide |
@@ -173,10 +201,10 @@ clearer.
 Doctor is an explicit coordination workflow, not the default front door for
 ordinary tasks. It first makes a broad, shallow disposition of every available
 Developer judgment lens inside a declared scope. It then closes so each
-triggered question can run through its owning skill and all reference-policy
-routes supported by observable evidence. A final Doctor route synthesizes those
-owner judgments into a treatment plan; Doctor never reads sibling references or
-replaces their methods with one giant checklist.
+triggered question can run through its owning skill and exact observed context.
+A final Doctor judgment synthesizes those owner judgments into a
+treatment plan; Doctor never reads sibling references or replaces their methods
+with one giant checklist.
 
 ## Commands
 
@@ -186,7 +214,7 @@ replaces their methods with one giant checklist.
 | `/developer status` | Open Workbench Overview, or print current state outside TUI mode |
 | `/developer questions` | Review, answer, or investigate an unresolved Question |
 | `/developer settings` | Open activation Settings, then return to the Workbench |
-| `/developer on` | Enable adaptive routing and route-bound tool access |
+| `/developer on` | Enable adaptive judgment and authorization-bound tool access |
 | `/developer off` | Disable Developer and clear current protocol state |
 
 Start a preconfigured session with Developer enabled:
@@ -208,16 +236,17 @@ is cleared.
 `/developer` makes the current judgment state visible without changing it:
 
 ```text
-Overview → Active Route → Questions → Judgments → Landings → Settings
+Overview → Active Judgment → Questions → Judgments → Landings → Settings
 ```
 
 Overview shows the current obligation, mutation authority, gates, active target,
-next action, runtime resources, and verification debt. Active Route exposes the
-route question, reason, known evidence, alternatives, reference provenance, and
-one bounded implementation contract when mutation is authorized. Judgments keep
-complete result Markdown with basis and artifacts. Landings index implementation
-judgments without inventing a per-landing `Verified` claim that the event schema
-does not record.
+next action, runtime resources, and verification debt. Active Judgment exposes
+the owning skill, dynamic question, optional policy identity, selected and
+sealed basis, contribution coverage, alternatives, and reference provenance. Authorized Change exposes one bounded
+movement, stable landing, verification target, and optional revert condition.
+Judgments keep complete result Markdown with basis and artifacts. Landings index
+actual changed paths without inventing a per-landing `Verified` claim that the
+event schema does not record.
 
 The Workbench is a screen-relative, keyboard-complete viewport; it does not rely
 on terminal scrollback. Use arrows or `j/k` to move, Enter to open, Escape to
@@ -242,8 +271,9 @@ actions. User-owned Questions accept an answer, agent-owned Questions can be
 sent back to Pi for investigation, and environment-owned Questions identify
 access or observations that must come from outside the session.
 
-The footer shows activation and the current route. A compact widget appears only
-while a route or unresolved Question exists. `/developer status` and
+The footer shows activation and the active protocol work. A compact widget
+appears only while a judgment, authorized change, or unresolved Question exists.
+`/developer status` and
 `/developer questions` remain direct accelerators for explicit inspection and
 action.
 
@@ -251,8 +281,8 @@ Visible routing states include:
 
 | State | Meaning |
 | --- | --- |
-| `idle` | No active route or unresolved Developer question |
-| `needs-judgment` | Current route still needs a recorded result |
+| `idle` | No active protocol work or unresolved Developer question |
+| `needs-judgment` | An active judgment still needs a conclusion |
 | `needs-evidence` | Agent or environment evidence is still required |
 | `needs-answer` | A user decision is still required |
 | `needs-routing` | An implementation landing must be routed again |
@@ -267,10 +297,10 @@ invalidate an earlier verification judgment.
 
 While Developer is on:
 
-- Pi's built-in `bash` is available for repository inspection and verification
-  during skill and implementation routes;
-- built-in `edit` and `write` require an active implementation route with no
-  unresolved before-implementation gate;
+- Pi's built-in `bash` is available during an active judgment or authorized
+  change for repository inspection and verification;
+- built-in `edit` and `write` require an active `AuthorizedChange`, which cannot
+  be created while a before-implementation gate remains unresolved;
 - unrelated tools and user-disabled tools keep their existing configuration;
 - product changes still happen through Pi's normal tools, not through
   Developer's coordination tools.
@@ -280,33 +310,41 @@ shell commands are not parsed as a security language, and Pi packages run with
 the access of the Pi process. Review the package before installation and use an
 external sandbox when you need an operating-system security boundary.
 
-## References and auditability
+## Judgment policies and auditability
 
-A skill's always-needed method lives in `SKILL.md`. Conditional derivations live
-in `references/*.md`, while `reference-policy.json` maps an observable trigger
-to one question, required reference set, expected artifact, stop condition, and
-handoff boundary.
+A skill's complete method lives in `SKILL.md`. A skill owns `judgment.json` only
+when it has conditional packaged references. The policy declares root `when`,
+winning root `unless`, and independent reference `{path, when}` statements. Four
+Developer skills with no packaged references intentionally have no policy.
 
-During a Developer route, selected references are loaded through a dedicated
-trace rather than an ordinary file read. A resolved judgment connects each
-relied-upon reference to the observed trigger, applied rule, and resulting
-artifact.
-Reference and policy hashes make that application replayable on the current
-branch; they do not by themselves prove source fidelity.
+`developer_open_judgment` loads the selected skill and compiles a present policy
+with owner identity derived from Pi skill metadata. A model-facing proposal
+names stable `nominationId` values; runtime resolves those nominations to exact
+current-branch material, commits selection and sealing atomically, records
+`useAs` contributions with bounded assurance, and only then accepts a
+conclusion. A distinct question requires a later judgment rather than fallback
+context.
 
-See [Reference routing](./REFERENCE_ROUTING.md) for the runtime contract and
-policy schema. See the
-[Terminal Judgment Workbench study](./docs/terminal-judgment-workbench-study-v0.1.ko.md)
-for the product meaning, comparative terminal research, transfer boundaries, and
-inspection contract behind the Workbench.
+Policy, dynamic-question, selected-material, sealed-content, contribution,
+coverage, and outcome identities make branch-local application replayable.
+Hashes establish identity and drift; they do not prove source fidelity or domain
+truth.
+
+See [Developer Runtime Flow](./docs/runtime-flow.md) for the authority and
+verification state model, [Developer Judgment Policies](./JUDGMENT_POLICIES.md)
+for runtime adaptation,
+[Developer Judgment Policy: Skill Applicability and Reference Selection](./docs/judgment-reference-routing.md)
+for authoring and identity rules, and Judgment's
+[authoring schema](https://github.com/dev-hobin/agent/blob/main/packages/judgment/docs/authoring-schema-v0.1.md)
+for generic policy invariants.
 
 ## Branches, compaction, and reloads
 
-Routes, judgments, questions, and activation changes are stored in Pi session
-entries and replayed from the current branch. A fork therefore inherits only its
-own branch history.
+Judgments, authorizations, landings, questions, and activation changes are stored
+in Pi session entries and replayed from the current branch. A fork therefore
+inherits only its own branch history.
 
-Developer leaves compaction to Pi. Current route and recovery metadata are
+Developer leaves compaction to Pi. Current protocol and recovery metadata are
 placed where the normal Pi compactor can preserve them. Configure Pi's
 compaction settings if you want an earlier threshold.
 

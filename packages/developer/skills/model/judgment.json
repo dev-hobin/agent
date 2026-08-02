@@ -1,0 +1,74 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "Prose or isolated examples hide consequential combinations, quantifiers, absence/default meaning, ability-guarantee tradeoffs, or model/environment assumptions, and no specialized route below is primary.",
+    "Caller/callee obligations, API or schema compatibility, old/new preconditions and postconditions, or observer-relative refinement are consequential.",
+    "Correctness depends on entities, intervals, cross-record integrity, quantified relations, bidirectional constraints, SQL translation, or set-versus-bag semantics.",
+    "Snapshots are insufficient because retry, stale or duplicate events, lifecycle, concurrency, safety, progress, stuttering, fairness, or temporal refinement matters.",
+    "A deductive implementation-conformance claim needs preconditions, postconditions, invariant initialization/preservation/conclusion, termination, or arithmetic/tool assumptions.",
+    "Bounded counterexample search, satisfiability, feasibility, optimization, scope/configuration, or solver result-state interpretation is consequential.",
+    "Facts/rules, zero-one-many answers, proof multiplicity, duplicates, negation-as-failure, binding order, search fairness, cycles, or divergence are consequential.",
+    "Initial state, goal, legal actions, intermediate-state invariants, action costs, equivalent plans, or no-plan meaning is consequential."
+  ],
+  "unless": [
+    "The supplied laws or invariants are already settled and only an implementable interface shape must be designed."
+  ],
+  "references": [
+    {
+      "path": "references/contract-and-replacement-models.md",
+      "when": [
+        "Caller/callee obligations, API or schema compatibility, old/new preconditions and postconditions, or observer-relative refinement are consequential. The reference can add this material distinction: Derives caller/callee obligations, replacement implications, observer compatibility, and refinement targets."
+      ]
+    },
+    {
+      "path": "references/logic-query-semantics.md",
+      "when": [
+        "Facts/rules, zero-one-many answers, proof multiplicity, duplicates, negation-as-failure, binding order, search fairness, cycles, or divergence are consequential. The reference can add this material distinction: Defines answer/proof identity, duplicates, negation, search, cycles, completion, and outcome semantics."
+      ]
+    },
+    {
+      "path": "references/planning-models.md",
+      "when": [
+        "Initial state, goal, legal actions, intermediate-state invariants, action costs, equivalent plans, or no-plan meaning is consequential. The reference can add this material distinction: Defines actions, intermediate states, invariants, objective, plan equivalence, and no-plan meaning."
+      ]
+    },
+    {
+      "path": "references/problem-modeling.md",
+      "when": [
+        "Prose or isolated examples hide consequential combinations, quantifiers, absence/default meaning, ability-guarantee tradeoffs, or model/environment assumptions, and no specialized route below is primary. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.",
+        "Caller/callee obligations, API or schema compatibility, old/new preconditions and postconditions, or observer-relative refinement are consequential. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.",
+        "Correctness depends on entities, intervals, cross-record integrity, quantified relations, bidirectional constraints, SQL translation, or set-versus-bag semantics. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.",
+        "Snapshots are insufficient because retry, stale or duplicate events, lifecycle, concurrency, safety, progress, stuttering, fairness, or temporal refinement matters. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.",
+        "A deductive implementation-conformance claim needs preconditions, postconditions, invariant initialization/preservation/conclusion, termination, or arithmetic/tool assumptions. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.",
+        "Bounded counterexample search, satisfiability, feasibility, optimization, scope/configuration, or solver result-state interpretation is consequential. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.",
+        "Facts/rules, zero-one-many answers, proof multiplicity, duplicates, negation-as-failure, binding order, search fairness, cycles, or divergence are consequential. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets.",
+        "Initial state, goal, legal actions, intermediate-state invariants, action costs, equivalent plans, or no-plan meaning is consequential. The reference can add this material distinction: Establishes admitted domains, distinctions, predicates, rules, forbidden cases, assumptions, owners, and counterexample targets."
+      ]
+    },
+    {
+      "path": "references/proof-obligations.md",
+      "when": [
+        "A deductive implementation-conformance claim needs preconditions, postconditions, invariant initialization/preservation/conclusion, termination, or arithmetic/tool assumptions. The reference can add this material distinction: Derives initialization, preservation, conclusion, termination, trusted-boundary, and residual-observer obligations."
+      ]
+    },
+    {
+      "path": "references/relational-constraint-models.md",
+      "when": [
+        "Correctness depends on entities, intervals, cross-record integrity, quantified relations, bidirectional constraints, SQL translation, or set-versus-bag semantics. The reference can add this material distinction: Derives quantified relation constraints, identity, multiplicity, endpoint, contradiction, and runtime-translation obligations."
+      ]
+    },
+    {
+      "path": "references/solver-result-boundaries.md",
+      "when": [
+        "Bounded counterexample search, satisfiability, feasibility, optimization, scope/configuration, or solver result-state interpretation is consequential. The reference can add this material distinction: Bounds solver claims by variables, encoding, witness, scope, exact result state, and unmodeled observers."
+      ]
+    },
+    {
+      "path": "references/temporal-behavior-models.md",
+      "when": [
+        "Snapshots are insufficient because retry, stale or duplicate events, lifecycle, concurrency, safety, progress, stuttering, fairness, or temporal refinement matters. The reference can add this material distinction: Derives action/frame laws, representative histories, safety, progress, fairness, and refinement obligations."
+      ]
+    }
+  ]
+}

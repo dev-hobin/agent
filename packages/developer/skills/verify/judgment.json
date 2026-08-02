@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "Several claims need different evidence, a green check may not exercise accepted meaning, source/version compatibility matters, behavior can pass while structure degrades, or a consequential completion claim has unclear verifier relevance or residual risk."
+  ],
+  "unless": [
+    "There is no concrete completion, correctness, compatibility, coverage, or evidence claim to judge."
+  ],
+  "references": [
+    {
+      "path": "references/verifier-selection-and-pass-but-wrong.md",
+      "when": [
+        "Several claims need different evidence, a green check may not exercise accepted meaning, source/version compatibility matters, behavior can pass while structure degrades, or a consequential completion claim has unclear verifier relevance or residual risk. The reference can add this material distinction: Supplies the Verifier Selection And Pass-But-Wrong Risk distinctions, counterexamples, artifact obligations, and stop checks for this route."
+      ]
+    }
+  ]
+}

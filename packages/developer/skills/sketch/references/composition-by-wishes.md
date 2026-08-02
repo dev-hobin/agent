@@ -1,7 +1,19 @@
 # Composition By Wished Operations
 
-Use this reference after the data-driven recipe when one accepted purpose contains
-several independently meaningful subproblems whose results must compose.
+Use this reference when one accepted purpose contains several independently
+meaningful subproblems whose results must compose. It is self-contained and does
+not require another design reference.
+
+## Accepted Design Context
+
+Supply the accepted purpose, caller-visible input and result meaning,
+representative cases, available data clauses, relevant effect/failure/order
+observers, and at least one suspected subproblem. Missing product meaning remains
+a model gap.
+
+This member contributes wished-operation contracts, intermediate-result
+semantics, composition compatibility, one executable slice, and explicit
+deferred helpers.
 
 ## Wish Before Helper Bodies
 

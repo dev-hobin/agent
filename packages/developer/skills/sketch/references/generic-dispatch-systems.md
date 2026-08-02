@@ -2,6 +2,17 @@
 
 Use this reference when accepted representations must coexist additively through
 operations whose selection should not expose representation fields to callers.
+It is self-contained and does not require another boundary reference.
+
+## Accepted Boundary Context
+
+Supply the caller purpose, accepted representations and operations, current
+variant-operation support matrix, observed growth axis, representation barrier,
+and known duplicate/overlap/load-order/unsupported constraints.
+
+This member contributes both extension axes, dispatch and registration ownership,
+conflict policy, fake-row and new-column checks, and the simpler conditional
+alternative.
 
 ## Two Axes Before Mechanism
 

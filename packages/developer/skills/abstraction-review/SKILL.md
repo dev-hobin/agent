@@ -92,11 +92,33 @@ as “replace this array with an object” is pressure, not yet a reviewable
 abstraction, when public operations, caller shape, ownership, and hidden detail
 still have to be invented; route that work to `sketch`.
 
-## Reference Routing
 
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Each route answers one narrower review question, identifies the exact
-judgment step it refines, names its artifacts and stop, and states when to
-separate or hand off. Select only routes that deepen this candidate judgment;
-never use a review reference to recreate another skill's construction method.
-Use the exemption only when no route trigger applies and cite its evidence.
+## Context Directions
+
+This section is generated from [judgment.json](judgment.json). The owning skill method remains complete without reading a prepared reference. Root `unless` exclusions win. Each reference is an independent candidate, not a requirement or authority.
+
+Use the owning capability when at least one condition applies:
+
+- A concrete caller-facing interface, helper, boundary, role, or workflow candidate exists and needs an auditable keep, revise, split, reject, or defer decision.
+- An observable candidate stop check failed or current evidence directly contradicts one of the candidate's promises.
+- The field card is complete, but keep versus revise, split, reject, or defer remains ambiguous and a matching candidate-promise example can resolve the interpretation.
+
+Do not use it when any exclusion applies; these exclusions win:
+
+- Caller-facing operations or collaborations still need to be invented rather than reviewing an existing concrete candidate.
+
+Prepared references are independent candidates, never requirements or authority:
+
+### `references/field-card.md`
+
+- A concrete caller-facing interface, helper, boundary, role, or workflow candidate exists and needs an auditable keep, revise, split, reject, or defer decision. The reference can add this material distinction: Establishes the candidate surface, caller promises, counterexample, stop, evidence, and review decision baseline.
+- An observable candidate stop check failed or current evidence directly contradicts one of the candidate's promises. The reference can add this material distinction: Establishes the candidate surface, caller promises, counterexample, stop, evidence, and review decision baseline.
+- The field card is complete, but keep versus revise, split, reject, or defer remains ambiguous and a matching candidate-promise example can resolve the interpretation. The reference can add this material distinction: Establishes the candidate surface, caller promises, counterexample, stop, evidence, and review decision baseline.
+
+### `references/repair-table.md`
+
+- An observable candidate stop check failed or current evidence directly contradicts one of the candidate's promises. The reference can add this material distinction: Localizes a failed stop to one contradicted promise, revision class, evidence need, and owning handoff.
+
+### `references/worked-examples.md`
+
+- The field card is complete, but keep versus revise, split, reject, or defer remains ambiguous and a matching candidate-promise example can resolve the interpretation. The reference can add this material distinction: Calibrates an ambiguous review against one promise-matched case and falsifier.

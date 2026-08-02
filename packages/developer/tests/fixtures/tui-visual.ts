@@ -4,14 +4,17 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 
 import {
-	PROTOCOL,
-	applyDeveloperEvent,
-	type ActivationEvent,
-	type DeveloperState,
-	type JudgmentEvent,
+	activationChanged,
+	judgmentConcluded,
+	judgmentOpened,
+	type ActivationChanged,
 	type PendingQuestion,
-	type RouteEvent,
-} from "../../extensions/state.ts";
+} from "../../src/protocol.ts";
+import {
+	applyDeveloperEvent,
+	initialDeveloperState,
+	type DeveloperState,
+} from "../../src/transition.ts";
 import { inspectDeveloperWorkbench } from "../../extensions/developer-workbench.ts";
 import { showDeveloperWorkbench } from "../../extensions/developer-workbench-tui.ts";
 import {
@@ -36,6 +39,7 @@ export interface QaScenario {
 	run(ctx: ExtensionCommandContext): Promise<void>;
 }
 
+const VISUAL_JUDGMENT_ID = "judgment:visual:earlier";
 function visualQuestion(
 	id: string,
 	question: string,
@@ -50,14 +54,14 @@ function visualQuestion(
 	return {
 		id,
 		question,
-		context: options.context,
+		...(options.context ? { context: options.context } : {}),
 		status,
 		resolutionOwner:
 			options.owner ?? (status === "blocked" ? "environment" : "agent"),
 		gate: options.gate ?? (status === "blocked" ? "before-completion" : "none"),
 		resolutionCriteria:
 			"Observe the requested behavior in the real Ghostty scenario.",
-		sourceRouteId: "route:visual:active",
+		sourceWorkId: VISUAL_JUDGMENT_ID,
 	};
 }
 
@@ -104,7 +108,7 @@ function customAnswerQuestion(
 		gate: "before-completion",
 		resolutionCriteria:
 			"Ghostty custom-answer and Korean IME behavior is reported as Pass or reproducible Fail.",
-		sourceRouteId: "route:visual:active",
+		sourceWorkId: VISUAL_JUDGMENT_ID,
 	};
 }
 
@@ -139,101 +143,90 @@ export function createQaQuestions(): PendingQuestion[] {
 	];
 }
 
-function qaRoute(routeId: string, question: string): RouteEvent {
-	return {
-		protocol: PROTOCOL,
-		kind: "route",
-		routeId,
+function openedVisualJudgment(id: string, question: string) {
+	return judgmentOpened({
+		kind: "active-judgment",
+		judgmentId: id,
 		question,
-		target: "verify",
+		skill: { name: "verify", location: "/skills/verify/SKILL.md" },
 		reason:
 			"Deterministic tests cannot observe the user's Ghostty renderer, font fallback, focus, or IME.",
 		knownEvidence: [
 			"The deterministic TUI suite covers canonical activation and narrow widths.",
 		],
-		consideredAlternatives: [],
-		availableReferences: [],
-		referenceRoutes: [],
-		loadedReferences: [],
-		methodLocation: "/skills/verify/SKILL.md",
-	};
+		consideredMethods: [],
+	});
 }
 
 export function createRichQaState(): DeveloperState {
 	const questions = createQaQuestions();
-	const earlierRoute = qaRoute(
-		"route:visual:earlier",
-		"Was the previous Developer surface acceptable in Ghostty?",
+	let state = applyDeveloperEvent(
+		initialDeveloperState(),
+		activationChanged(true),
 	);
-	const activeRoute = qaRoute(
-		"route:visual:active",
-		"Do the Developer Workbench, Settings, Questions, and compact decisions preserve truthful state, focus depth, alignment, and bounded footprint in Ghostty?",
+	state = applyDeveloperEvent(
+		state,
+		openedVisualJudgment(
+			VISUAL_JUDGMENT_ID,
+			"Was the previous Developer surface acceptable in Ghostty?",
+		),
 	);
-	const lastJudgment: JudgmentEvent = {
-		protocol: PROTOCOL,
-		kind: "judgment",
-		routeId: earlierRoute.routeId,
-		question: earlierRoute.question,
-		target: earlierRoute.target,
-		status: "needs-evidence",
-		result:
-			"Real-terminal activation, focus, IME, resize, glyph, and compact-overlay evidence remains necessary.",
-		basis: ["The prior static fixture rendered stale activation state."],
-		referenceBasis: [],
-		openedQuestions: questions,
-		questionUpdates: [],
-		artifacts: ["pnpm --filter @hobin/developer check"],
-		changedArtifacts: false,
-	};
-	return {
-		enabled: true,
-		activeRoute,
-		lastRoute: activeRoute,
-		lastJudgment,
-		routeHistory: [earlierRoute, activeRoute],
-		judgmentHistory: [lastJudgment],
-		pendingQuestions: questions,
-		focusedQuestionId: undefined,
-		rerouteRequired: false,
-		implementationFramingRequired: false,
-		verificationRequired: true,
-	};
+	state = applyDeveloperEvent(
+		state,
+		judgmentConcluded({
+			kind: "judgment-not-applicable",
+			judgmentId: VISUAL_JUDGMENT_ID,
+			reason:
+				"Static evidence cannot settle renderer-specific behavior; explicit questions remain.",
+			basis: ["The prior static fixture rendered stale activation state."],
+			producedArtifacts: ["pnpm --filter @hobin/developer check"],
+			openedQuestions: questions,
+			questionUpdates: [],
+		}),
+	);
+	state = applyDeveloperEvent(
+		state,
+		openedVisualJudgment(
+			"judgment:visual:active",
+			"Do the Developer Workbench, Settings, Questions, and compact decisions preserve truthful state, focus depth, alignment, and bounded footprint in Ghostty?",
+		),
+	);
+	return Object.freeze({
+		...state,
+		obligations: Object.freeze({
+			...state.obligations,
+			verificationRequired: true,
+		}),
+	});
 }
 
 export function createLongQaState(): DeveloperState {
 	const base = createRichQaState();
-	const historicalRoutes = Array.from({ length: 10 }, (_, index) =>
-		qaRoute(
-			`route:visual:history:${index + 1}`,
-			`Does historical QA observation ${index + 1} remain readable after resize?`,
-		),
-	);
-	const historicalJudgments: JudgmentEvent[] = historicalRoutes.map(
-		(route, index) => ({
-			protocol: PROTOCOL,
-			kind: "judgment",
-			routeId: route.routeId,
-			question: route.question,
-			target: route.target,
-			status: index % 3 === 0 ? "needs-evidence" : "resolved",
-			result: `Historical observation ${index + 1} includes ◆ → ↑↓ · … 한글 for alignment checks.`,
-			basis: [`Synthetic visual fixture evidence ${index + 1}.`],
-			referenceBasis: [],
-			openedQuestions: [],
-			questionUpdates: [],
-			artifacts: [],
-			changedArtifacts: false,
+	const template = base.judgments[0];
+	if (!template) return base;
+	const history = Array.from({ length: 10 }, (_, index) =>
+		Object.freeze({
+			judgment: Object.freeze({
+				...template.judgment,
+				judgmentId: `judgment:visual:history:${index + 1}`,
+				question: `Does historical QA observation ${index + 1} remain readable after resize?`,
+			}),
+			conclusion: Object.freeze({
+				...template.conclusion,
+				judgmentId: `judgment:visual:history:${index + 1}`,
+				reason: `Historical observation ${index + 1} includes ◆ → ↑↓ · … 한글 for alignment checks.`,
+				openedQuestions: Object.freeze([]),
+			}),
 		}),
 	);
-	return {
+	return Object.freeze({
 		...base,
-		routeHistory: [...historicalRoutes, ...base.routeHistory],
-		judgmentHistory: [...historicalJudgments, ...base.judgmentHistory],
-	};
+		judgments: Object.freeze([...history, ...base.judgments]),
+	});
 }
 
 export class FixtureSettingsBinding implements DeveloperSettingsBinding {
-	readonly events: ActivationEvent[] = [];
+	readonly events: ActivationChanged[] = [];
 	private state: DeveloperState;
 
 	constructor(initialState: DeveloperState) {
@@ -245,11 +238,7 @@ export class FixtureSettingsBinding implements DeveloperSettingsBinding {
 	}
 
 	commitActivation(enabled: boolean): DeveloperState {
-		const event: ActivationEvent = {
-			protocol: PROTOCOL,
-			kind: "activation",
-			enabled,
-		};
+		const event = activationChanged(enabled);
 		this.events.push(event);
 		this.state = applyDeveloperEvent(this.state, event);
 		return this.state;
@@ -258,7 +247,7 @@ export class FixtureSettingsBinding implements DeveloperSettingsBinding {
 
 async function inspectQuestions(
 	ctx: ExtensionCommandContext,
-	questions: PendingQuestion[],
+	questions: readonly PendingQuestion[],
 ): Promise<void> {
 	while (true) {
 		const selectedId = await showPendingQuestionSelector(ctx, questions);
@@ -294,13 +283,7 @@ async function runNavigationScenario(
 		const action = await showDeveloperWorkbench(
 			ctx,
 			inspectDeveloperWorkbench(binding.read(), {
-				activeTools: [
-					"read",
-					"bash",
-					"edit",
-					"write",
-					"developer_route_question",
-				],
+				activeTools: ["read", "bash", "developer_conclude_judgment"],
 				availableSkills: ["verify", "specify", "model", "sketch", "signal"],
 			}),
 		);
@@ -345,7 +328,7 @@ async function runResizeScenario(ctx: ExtensionCommandContext): Promise<void> {
 	await showDeveloperWorkbench(
 		ctx,
 		inspectDeveloperWorkbench(createLongQaState(), {
-			activeTools: ["read", "bash", "developer_route_question"],
+			activeTools: ["read", "bash", "developer_conclude_judgment"],
 			availableSkills: [
 				"verify",
 				"specify",
@@ -418,7 +401,7 @@ export function createQaScenarios(): QaScenario[] {
 
 export default function developerTuiVisualFixture(pi: ExtensionAPI): void {
 	pi.registerCommand("developer-tui-qa", {
-		description: "Open the Developer v5 Ghostty QA scenarios",
+		description: "Open the Developer v7 Ghostty QA scenarios",
 		handler: async (_args, ctx) => {
 			if (ctx.mode !== "tui") {
 				ctx.ui.notify(
@@ -428,12 +411,12 @@ export default function developerTuiVisualFixture(pi: ExtensionAPI): void {
 				return;
 			}
 
-			ctx.ui.setTitle("Developer v5 · Ghostty QA");
+			ctx.ui.setTitle("Developer v7 · Ghostty QA");
 			try {
 				while (true) {
 					const scenarios = createQaScenarios();
 					const selectedLabel = await ctx.ui.select(
-						"Developer v5 Ghostty QA · choose an independent scenario",
+						"Developer v7 Ghostty QA · choose an independent scenario",
 						scenarios.map((scenario) => scenario.label),
 					);
 					if (!selectedLabel) return;

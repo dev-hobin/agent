@@ -90,9 +90,21 @@ Do not implement the rename, promote a new abstraction, invent product meaning,
 rename external conventions, or replace every short name with a longer one.
 Reuse does not prove that a generic name is sound.
 
-## Reference Routing
 
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Its routed extension refines the sense step, declares the rename
-artifact and stop, and names when model or design work owns the instability. Use
-the exemption only when no trigger applies and cite its evidence.
+## Context Directions
+
+This section is generated from [judgment.json](judgment.json). The owning skill method remains complete without reading a prepared reference. Root `unless` exclusions win. Each reference is an independent candidate, not a requirement or authority.
+
+Use the owning capability when at least one condition applies:
+
+- Naming pressure is subtle, disputed, recurring, effect-hiding, responsibility-derived, false indirection, or crosses data/module scope so stable sense cannot be read directly from nearby callers.
+
+Do not use it when any exclusion applies; these exclusions win:
+
+- No variable, function, type, module, API, field, or abstraction name carries a consequential domain-meaning decision.
+
+Prepared references are independent candidates, never requirements or authority:
+
+### `references/domain-naming.md`
+
+- Naming pressure is subtle, disputed, recurring, effect-hiding, responsibility-derived, false indirection, or crosses data/module scope so stable sense cannot be read directly from nearby callers. The reference can add this material distinction: Supplies the Domain Naming distinctions, counterexamples, artifact obligations, and stop checks for this route.

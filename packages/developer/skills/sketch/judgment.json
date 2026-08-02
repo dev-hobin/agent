@@ -1,0 +1,166 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "Product information, variants, examples, or tests should determine the function skeleton, and no narrower template, composition, generation, accumulator, or evidence-preserving boundary question is primary.",
+    "Atomic, interval, itemized, structured, recursive, intertwined, multi-input, complex-output, or interactive data must determine the structural template.",
+    "One accepted purpose contains several separately nameable subproblems with composable intermediate results.",
+    "At least two completed designs with stable purposes/data models expose aligned common movement and possible variation roles.",
+    "Recursive calls are computed by an algorithm idea rather than immediate data fields, including numeric, randomized, divide-and-conquer, or backtracking processes.",
+    "Traversal recomputes work, loses original/path context, requires provenance/visited/cache knowledge, or needs a sufficient summary.",
+    "External, serialized, persisted, legacy, foreign, genuinely unknown at the current boundary, nullable, or overly broad input must become an accepted domain value; checks are repeated, return no refined value, occur after effects, or are followed by an assertion, cast, non-null claim, unchecked decode, or public raw construction.",
+    "The sketch must choose a level, owner, environment/interface boundary, hidden choice, or dependency direction, and no narrower route is primary.",
+    "A domain value needs representation-independent constructors, selectors, predicates, operations, laws, replacement, or leak checks.",
+    "A closure property, higher-order role, conventional interface, observer/finalizer split, or operational composition assumption is consequential.",
+    "Correctness depends on work, continuation/tail position, stack/queue/buffer cost, paused dependencies, overload, lazy acquisition, retention, acknowledgment, cancellation, or bounds without product history being primary.",
+    "Correctness depends on prior interactions, identity, aliases, mutation, transitions, stale/duplicate/reordered/concurrent events, atomicity, streams, logs, replay, or demand history.",
+    "Accepted representations must coexist through generic operations, data-directed dispatch, registration, or explicit unsupported capabilities.",
+    "Mixed representation worlds need direct operation, coercion, canonicalization, explicit context, or rejection with visible precision/identity/order/capability loss.",
+    "The design needs symbolic data, a DSL, query/workflow language, grammar, parser, evaluator, result/search shape, scope, order, effects, errors, or termination semantics.",
+    "An accepted language needs interpreter/VM/compiler lowering, calling convention, effect summaries, optimization guards, tail-space, roots, release, or mixed execution.",
+    "A real change exposes repeated arguments, data clumps, misplaced knowledge, feature envy, navigation leaks, participant assumptions, or responsibility-focused test pressure.",
+    "Accepted variants may share caller messages, substitution obligations, effects, failures, or unsupported cases.",
+    "An operation or event changes a source domain type into a target type with consequential preserved, consumed, retained, terminal, or failure semantics.",
+    "Accepted work needs conditional/ordered selection, object creation, factory/mapping/registration/discovery choice, or creation at the composition edge."
+  ],
+  "unless": [
+    "A concrete caller-facing candidate already exists and only its stability must be reviewed.",
+    "The unresolved issue is product meaning or condition semantics rather than implementation shape."
+  ],
+  "references": [
+    {
+      "path": "references/accumulator-invariants.md",
+      "when": [
+        "Traversal recomputes work, loses original/path context, requires provenance/visited/cache knowledge, or needs a sufficient summary. The reference can add this material distinction: Derives the original/current/accumulated relation, ownership, preservation, conclusion, and semantic/resource delta."
+      ]
+    },
+    {
+      "path": "references/closure-and-conventional-interfaces.md",
+      "when": [
+        "A closure property, higher-order role, conventional interface, observer/finalizer split, or operational composition assumption is consequential. The reference can add this material distinction: Derives composition membership, closed operations, finalizers, role contracts, and operational interface assumptions."
+      ]
+    },
+    {
+      "path": "references/composition-by-wishes.md",
+      "when": [
+        "One accepted purpose contains several separately nameable subproblems with composable intermediate results. The reference can add this material distinction: Derives independent wished-operation contracts, intermediate meanings, composition checks, and one executable slice."
+      ]
+    },
+    {
+      "path": "references/data-driven-design.md",
+      "when": [
+        "Product information, variants, examples, or tests should determine the function skeleton, and no narrower template, composition, generation, accumulator, or evidence-preserving boundary question is primary. The reference can add this material distinction: Derives accepted data meaning, examples, purpose, behavior, structural template, completion, and checks.",
+        "Atomic, interval, itemized, structured, recursive, intertwined, multi-input, complex-output, or interactive data must determine the structural template. The reference can add this material distinction: Derives accepted data meaning, examples, purpose, behavior, structural template, completion, and checks.",
+        "One accepted purpose contains several separately nameable subproblems with composable intermediate results. The reference can add this material distinction: Derives accepted data meaning, examples, purpose, behavior, structural template, completion, and checks.",
+        "At least two completed designs with stable purposes/data models expose aligned common movement and possible variation roles. The reference can add this material distinction: Derives accepted data meaning, examples, purpose, behavior, structural template, completion, and checks.",
+        "Recursive calls are computed by an algorithm idea rather than immediate data fields, including numeric, randomized, divide-and-conquer, or backtracking processes. The reference can add this material distinction: Derives accepted data meaning, examples, purpose, behavior, structural template, completion, and checks.",
+        "Traversal recomputes work, loses original/path context, requires provenance/visited/cache knowledge, or needs a sufficient summary. The reference can add this material distinction: Derives accepted data meaning, examples, purpose, behavior, structural template, completion, and checks."
+      ]
+    },
+    {
+      "path": "references/data-shape-template-catalog.md",
+      "when": [
+        "Atomic, interval, itemized, structured, recursive, intertwined, multi-input, complex-output, or interactive data must determine the structural template. The reference can add this material distinction: Derives exact branches, selectors, natural recursions, delegations, and justified omissions from accepted data."
+      ]
+    },
+    {
+      "path": "references/design-levels-and-boundaries.md",
+      "when": [
+        "The sketch must choose a level, owner, environment/interface boundary, hidden choice, or dependency direction, and no narrower route is primary. The reference can add this material distinction: Establishes caller vocabulary, levels, observers, guarantee owners, hidden choices, assumptions, drift, and falsifiers.",
+        "A domain value needs representation-independent constructors, selectors, predicates, operations, laws, replacement, or leak checks. The reference can add this material distinction: Establishes caller vocabulary, levels, observers, guarantee owners, hidden choices, assumptions, drift, and falsifiers.",
+        "A closure property, higher-order role, conventional interface, observer/finalizer split, or operational composition assumption is consequential. The reference can add this material distinction: Establishes caller vocabulary, levels, observers, guarantee owners, hidden choices, assumptions, drift, and falsifiers.",
+        "Correctness depends on work, continuation/tail position, stack/queue/buffer cost, paused dependencies, overload, lazy acquisition, retention, acknowledgment, cancellation, or bounds without product history being primary. The reference can add this material distinction: Establishes caller vocabulary, levels, observers, guarantee owners, hidden choices, assumptions, drift, and falsifiers.",
+        "Correctness depends on prior interactions, identity, aliases, mutation, transitions, stale/duplicate/reordered/concurrent events, atomicity, streams, logs, replay, or demand history. The reference can add this material distinction: Establishes caller vocabulary, levels, observers, guarantee owners, hidden choices, assumptions, drift, and falsifiers.",
+        "Accepted representations must coexist through generic operations, data-directed dispatch, registration, or explicit unsupported capabilities. The reference can add this material distinction: Establishes caller vocabulary, levels, observers, guarantee owners, hidden choices, assumptions, drift, and falsifiers.",
+        "Mixed representation worlds need direct operation, coercion, canonicalization, explicit context, or rejection with visible precision/identity/order/capability loss. The reference can add this material distinction: Establishes caller vocabulary, levels, observers, guarantee owners, hidden choices, assumptions, drift, and falsifiers.",
+        "The design needs symbolic data, a DSL, query/workflow language, grammar, parser, evaluator, result/search shape, scope, order, effects, errors, or termination semantics. The reference can add this material distinction: Establishes caller vocabulary, levels, observers, guarantee owners, hidden choices, assumptions, drift, and falsifiers.",
+        "An accepted language needs interpreter/VM/compiler lowering, calling convention, effect summaries, optimization guards, tail-space, roots, release, or mixed execution. The reference can add this material distinction: Establishes caller vocabulary, levels, observers, guarantee owners, hidden choices, assumptions, drift, and falsifiers."
+      ]
+    },
+    {
+      "path": "references/earned-abstraction.md",
+      "when": [
+        "At least two completed designs with stable purposes/data models expose aligned common movement and possible variation roles. The reference can add this material distinction: Aligns completed designs into stable variation roles, migration boundaries, transfer evidence, and a candidate surface."
+      ]
+    },
+    {
+      "path": "references/evidence-preserving-boundaries.md",
+      "when": [
+        "External, serialized, persisted, legacy, foreign, genuinely unknown at the current boundary, nullable, or overly broad input must become an accepted domain value; checks are repeated, return no refined value, occur after effects, or are followed by an assertion, cast, non-null claim, unchecked decode, or public raw construction. The reference can add this material distinction: Supplies the Evidence-Preserving Boundaries distinctions, counterexamples, artifact obligations, and stop checks for this route."
+      ]
+    },
+    {
+      "path": "references/generative-recursion.md",
+      "when": [
+        "Recursive calls are computed by an algorithm idea rather than immediate data fields, including numeric, randomized, divide-and-conquer, or backtracking processes. The reference can add this material distinction: Derives generated subproblems, preservation, combination, progress measures, traces, and divergence boundaries."
+      ]
+    },
+    {
+      "path": "references/generic-dispatch-systems.md",
+      "when": [
+        "Accepted representations must coexist through generic operations, data-directed dispatch, registration, or explicit unsupported capabilities. The reference can add this material distinction: Derives variant-operation axes, dispatch ownership, conflict policy, extension checks, and simpler alternatives."
+      ]
+    },
+    {
+      "path": "references/language-semantics.md",
+      "when": [
+        "The design needs symbolic data, a DSL, query/workflow language, grammar, parser, evaluator, result/search shape, scope, order, effects, errors, or termination semantics. The reference can add this material distinction: Derives the language gate, semantic representation, evaluator/result contract, unsupported programs, and ordinary-data alternative.",
+        "An accepted language needs interpreter/VM/compiler lowering, calling convention, effect summaries, optimization guards, tail-space, roots, release, or mixed execution. The reference can add this material distinction: Derives the language gate, semantic representation, evaluator/result contract, unsupported programs, and ordinary-data alternative."
+      ]
+    },
+    {
+      "path": "references/meaning-preserving-conversions.md",
+      "when": [
+        "Mixed representation worlds need direct operation, coercion, canonicalization, explicit context, or rejection with visible precision/identity/order/capability loss. The reference can add this material distinction: Derives conversion paths, preserved and lost observers, ambiguity, cycle policy, and unsupported checks."
+      ]
+    },
+    {
+      "path": "references/process-shape-and-resources.md",
+      "when": [
+        "Correctness depends on work, continuation/tail position, stack/queue/buffer cost, paused dependencies, overload, lazy acquisition, retention, acknowledgment, cancellation, or bounds without product history being primary. The reference can add this material distinction: Derives generated work, control, waits, bounds, roots, release, effects, acknowledgment, and residual risk."
+      ]
+    },
+    {
+      "path": "references/representation-barriers.md",
+      "when": [
+        "A domain value needs representation-independent constructors, selectors, predicates, operations, laws, replacement, or leak checks. The reference can add this material distinction: Derives public operations and laws, alternate representations, caller rewrite, replacement check, and leak search."
+      ]
+    },
+    {
+      "path": "references/responsibility-and-collaboration.md",
+      "when": [
+        "A real change exposes repeated arguments, data clumps, misplaced knowledge, feature envy, navigation leaks, participant assumptions, or responsibility-focused test pressure. The reference can add this material distinction: Supplies the Responsibility And Collaboration distinctions, counterexamples, artifact obligations, and stop checks for this route."
+      ]
+    },
+    {
+      "path": "references/runtime-and-compilation.md",
+      "when": [
+        "An accepted language needs interpreter/VM/compiler lowering, calling convention, effect summaries, optimization guards, tail-space, roots, release, or mixed execution. The reference can add this material distinction: Derives execution convention, live state, effects, guards, fallback, tail space, roots, release, and interoperation."
+      ]
+    },
+    {
+      "path": "references/selection-and-creation.md",
+      "when": [
+        "Accepted work needs conditional/ordered selection, object creation, factory/mapping/registration/discovery choice, or creation at the composition edge. The reference can add this material distinction: Supplies the Selection And Creation distinctions, counterexamples, artifact obligations, and stop checks for this route."
+      ]
+    },
+    {
+      "path": "references/state-history-and-order.md",
+      "when": [
+        "Correctness depends on prior interactions, identity, aliases, mutation, transitions, stale/duplicate/reordered/concurrent events, atomicity, streams, logs, replay, or demand history. The reference can add this material distinction: Derives history summary, transition/order law, stale/duplicate policy, identity, replay, and coordination scope."
+      ]
+    },
+    {
+      "path": "references/type-transitions.md",
+      "when": [
+        "An operation or event changes a source domain type into a target type with consequential preserved, consumed, retained, terminal, or failure semantics. The reference can add this material distinction: Supplies the Type Transitions distinctions, counterexamples, artifact obligations, and stop checks for this route."
+      ]
+    },
+    {
+      "path": "references/variation-roles.md",
+      "when": [
+        "Accepted variants may share caller messages, substitution obligations, effects, failures, or unsupported cases. The reference can add this material distinction: Supplies the Variation Roles distinctions, counterexamples, artifact obligations, and stop checks for this route."
+      ]
+    }
+  ]
+}

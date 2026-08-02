@@ -278,7 +278,8 @@ try {
 				(event) =>
 					event.type === "extension_ui_request" &&
 					event.method === "setStatus" &&
-					String(event.statusText).includes("developer: on"),
+					event.statusKey === "developer" &&
+					String(event.statusText).includes("developer ·"),
 			),
 		"Expected /developer on to publish branch-visible status",
 	);
@@ -294,7 +295,7 @@ try {
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "notify" &&
-				String(event.message).includes("developer: on"),
+				String(event.message).includes("developer on ·"),
 		);
 	assert.ok(enabledStatus, "Expected enabled status output");
 	for (const leaf of [
@@ -318,9 +319,8 @@ try {
 	);
 	for (const tool of [
 		"read",
-		"developer_route_question",
-		"developer_load_reference",
-		"developer_record_judgment",
+		"developer_open_judgment",
+		"developer_authorize_change",
 	]) {
 		assert.ok(
 			activeTools.has(tool),
@@ -350,7 +350,7 @@ try {
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "notify" &&
-				String(event.message).includes("developer: off"),
+				String(event.message).includes("developer off ·"),
 		);
 	assert.ok(disabledStatus, "Expected disabled status output");
 	const restoredLine = String(disabledStatus.message)
@@ -368,7 +368,7 @@ try {
 	}
 	await command("/developer on");
 	console.log(
-		`RPC smoke: route-bound active-tool gating is available on Pi ${piVersion}`,
+		`RPC smoke: protocol-bound active-tool gating is available on Pi ${piVersion}`,
 	);
 
 	if (live) {
@@ -384,7 +384,7 @@ try {
 					message:
 						"Evaluation workspace: " +
 						casePath +
-						". Work only in that directory.\n" +
+						". Work only in that directory. Run project commands by changing into this exact directory. The fixture may not be a Git repository, so verify through direct file reads and declared project commands rather than git.\n" +
 						fixture.request,
 				});
 				assert.equal(response.success, true, response.error);

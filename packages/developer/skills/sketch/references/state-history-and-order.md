@@ -2,7 +2,18 @@
 
 Use this reference when identical explicit inputs can produce different outcomes
 because of prior interactions, identity, aliases, event order, or retained
-history.
+history. It is self-contained and does not require another boundary reference.
+
+## Accepted Boundary Context
+
+Supply the caller purpose, admitted states and events, relevant prior
+interactions, identity and alias facts, known stale/duplicate/reordered/retried
+cases, persistence or replay needs, and environmental concurrency assumptions.
+Unsettled transition policy remains a model gap.
+
+This member contributes the sufficient history summary, owner and writers,
+transition and unchanged-field laws, order/atomicity scope, stream or log
+meaning, alternative representation, and checks.
 
 ## State Is A History Summary
 

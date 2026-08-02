@@ -31,12 +31,6 @@ coverage connect it to the claim.
 - Invariant, model, accepted decisions, and verification targets when available
 - Relevant counterexamples and source provenance
 
-## Reference Routing
-
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Its routed extension refines claim splitting, verifier relevance, and
-pass-but-wrong search, then declares the evidence artifact, stop, and handoff.
-Use the exemption only when no trigger applies and cite its evidence.
 
 ## Output
 
@@ -98,3 +92,21 @@ If no claim is stated, infer only the weakest claim justified by the evidence.
 
 Do not invent product scope, run an entire development workflow, repair the
 implementation, or turn weak evidence into a completion claim.
+
+## Context Directions
+
+This section is generated from [judgment.json](judgment.json). The owning skill method remains complete without reading a prepared reference. Root `unless` exclusions win. Each reference is an independent candidate, not a requirement or authority.
+
+Use the owning capability when at least one condition applies:
+
+- Several claims need different evidence, a green check may not exercise accepted meaning, source/version compatibility matters, behavior can pass while structure degrades, or a consequential completion claim has unclear verifier relevance or residual risk.
+
+Do not use it when any exclusion applies; these exclusions win:
+
+- There is no concrete completion, correctness, compatibility, coverage, or evidence claim to judge.
+
+Prepared references are independent candidates, never requirements or authority:
+
+### `references/verifier-selection-and-pass-but-wrong.md`
+
+- Several claims need different evidence, a green check may not exercise accepted meaning, source/version compatibility matters, behavior can pass while structure degrades, or a consequential completion claim has unclear verifier relevance or residual risk. The reference can add this material distinction: Supplies the Verifier Selection And Pass-But-Wrong Risk distinctions, counterexamples, artifact obligations, and stop checks for this route.

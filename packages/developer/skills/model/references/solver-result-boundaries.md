@@ -1,7 +1,18 @@
 # Solver Result Boundaries
 
 Use this reference when the model must interpret bounded counterexample search,
-satisfiability, feasibility, or optimization status.
+satisfiability, feasibility, or optimization status. It is self-contained and
+does not require another modeling reference.
+
+## Accepted Modeling Context
+
+Supply the bounded question, variables and admitted domains, hard constraints,
+optional objective, solution equivalence, finite scope, encoding assumptions,
+and product observers outside the encoding.
+
+This member contributes the satisfiable witness, exact result vocabulary, bound
+and reduction meaning, ability-guarantee exchange, residuals, and verification
+targets.
 
 ## Encoding Before Status
 

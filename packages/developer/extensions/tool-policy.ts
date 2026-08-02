@@ -150,6 +150,7 @@ export function reconcileProtocolTools(input: {
 	enabled: boolean;
 	access: ProtocolToolAccess;
 	protocolTools: readonly string[];
+	activeProtocolTools?: readonly string[];
 	memory: ToolPolicyMemory;
 }): ToolPolicyResult {
 	const active = new Set(input.activeTools);
@@ -165,7 +166,13 @@ export function reconcileProtocolTools(input: {
 		withheld.clear();
 		for (const tool of input.protocolTools) active.delete(tool);
 	} else {
-		for (const tool of input.protocolTools) active.add(tool);
+		const eligibleProtocolTools = new Set(
+			input.activeProtocolTools ?? input.protocolTools,
+		);
+		for (const tool of input.protocolTools) {
+			if (eligibleProtocolTools.has(tool)) active.add(tool);
+			else active.delete(tool);
+		}
 		for (const [name, capability] of controlledBuiltins) {
 			const allowed = isControlledToolAllowed({
 				enabled: input.enabled,

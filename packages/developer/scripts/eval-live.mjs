@@ -114,7 +114,7 @@ for (const fixture of fixtures) {
 				classification: classifyLiveFailure(output),
 				exitCode: child.status,
 				signal: child.signal,
-				evidence: output.trim().slice(0, 2_000),
+				evidence: output.trim().slice(0, 10_000),
 			});
 		}
 	}

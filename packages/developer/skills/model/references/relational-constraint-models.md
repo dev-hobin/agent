@@ -1,7 +1,19 @@
 # Relational Constraint Models
 
 Use this reference when correctness concerns possible combinations of entities,
-intervals, records, or facts rather than one directional computation.
+intervals, records, or facts rather than one directional computation. It is
+self-contained and does not require another modeling reference.
+
+## Accepted Modeling Context
+
+Supply the bounded question, admitted entity and value domains, identity and
+equality facts, known valid and invalid combinations, environmental assumptions,
+and the runtime observers that make the relation consequential. Unknown policy
+remains explicit.
+
+This member contributes quantified constraints, multiplicity and endpoint
+semantics, contradiction behavior, runtime translation risks, guarantee owners,
+and verification targets.
 
 ## Relation Before Procedure
 

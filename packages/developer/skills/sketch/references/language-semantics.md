@@ -1,7 +1,19 @@
 # Language Semantics
 
 Use this reference when ordinary data and functions have become notation that
-needs its own grammar, validation, evaluation, result, and error semantics.
+needs its own grammar, accepted-program construction, evaluation, result, and
+error semantics. It is self-contained and does not require another boundary
+reference.
+
+## Accepted Boundary Context
+
+Supply the caller purpose, representative and invalid notation, candidate
+primitives/combinations/names, environment facts, required result multiplicity,
+and applicable scope/order/demand/effect/failure/termination observers.
+
+This member contributes the language gate, semantic representation, accepted and
+unsupported program boundary, evaluator and result contract, ordinary-data
+alternative, and example evaluation.
 
 ## Language Gate
 

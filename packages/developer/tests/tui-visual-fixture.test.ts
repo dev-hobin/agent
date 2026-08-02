@@ -16,18 +16,30 @@ test("the visual fixture commits activation through the production reducer contr
 
 	const disabled = binding.commitActivation(false);
 	assert.deepEqual(disabled, initialState());
-	assert.deepEqual(binding.events, [
-		{ protocol: PROTOCOL, kind: "activation", enabled: false },
-	]);
+	assert.deepEqual(
+		binding.events.map(({ protocol, kind, enabled }) => ({
+			protocol,
+			kind,
+			enabled,
+		})),
+		[{ protocol: PROTOCOL, kind: "activation-changed", enabled: false }],
+	);
 
 	const enabled = binding.commitActivation(true);
 	assert.equal(enabled.enabled, true);
-	assert.equal(enabled.activeRoute, undefined);
+	assert.equal(enabled.activeWork, undefined);
 	assert.deepEqual(enabled.pendingQuestions, []);
-	assert.deepEqual(binding.events, [
-		{ protocol: PROTOCOL, kind: "activation", enabled: false },
-		{ protocol: PROTOCOL, kind: "activation", enabled: true },
-	]);
+	assert.deepEqual(
+		binding.events.map(({ protocol, kind, enabled: value }) => ({
+			protocol,
+			kind,
+			enabled: value,
+		})),
+		[
+			{ protocol: PROTOCOL, kind: "activation-changed", enabled: false },
+			{ protocol: PROTOCOL, kind: "activation-changed", enabled: true },
+		],
+	);
 });
 
 test("every fixture model factory returns independent state and question graphs", () => {
@@ -44,7 +56,7 @@ test("every fixture model factory returns independent state and question graphs"
 
 	new FixtureSettingsBinding(first).commitActivation(false);
 	assert.equal(second.enabled, true);
-	assert.ok(second.activeRoute);
+	assert.equal(second.activeWork?.kind, "active-judgment");
 	assert.equal(second.pendingQuestions.length, 7);
 });
 

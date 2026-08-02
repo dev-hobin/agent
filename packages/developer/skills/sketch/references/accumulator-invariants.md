@@ -1,7 +1,18 @@
 # Accumulator Invariants
 
 Use this reference when traversal loses knowledge needed later, repeats work, or
-requires an explicit summary of the processed and remaining problem.
+requires an explicit summary of the processed and remaining problem. It is
+self-contained and does not require another design reference.
+
+## Accepted Design Context
+
+Supply the original problem meaning, current traversal shape, observed lost
+knowledge or repeated work, public result contract, representative trace, and
+relevant arithmetic/order/failure/space observers.
+
+This member contributes the original/current/accumulated invariant,
+initialization, preservation, conclusion, owner and visibility, semantic/resource
+delta, and public-wrapper checks.
 
 ## Pressure Before Parameter
 

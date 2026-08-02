@@ -1,7 +1,19 @@
 # Temporal Behavior Models
 
 Use this reference when correct snapshots are insufficient and the judgment
-depends on histories, retries, stale events, concurrency, or progress.
+depends on histories, retries, stale events, concurrency, or progress. It is
+self-contained and does not require another modeling reference.
+
+## Accepted Modeling Context
+
+Supply the bounded question, admitted state and action domains, initial facts,
+observable histories, known stale/duplicate/reordered/concurrent cases,
+environmental progress assumptions, and the observer used for refinement.
+Unsettled product policy remains explicit.
+
+This member contributes actions with frame conditions, valid and forbidden
+traces, safety and progress properties, fairness scope, refinement mapping,
+guarantee owners, and verification targets.
 
 ## Behavior Before State Names
 

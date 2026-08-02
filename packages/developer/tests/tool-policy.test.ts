@@ -10,9 +10,10 @@ import {
 } from "../extensions/tool-policy.ts";
 
 const protocolTools = [
-	"developer_route_question",
-	"developer_load_reference",
-	"developer_record_judgment",
+	"developer_open_judgment",
+	"developer_conclude_judgment",
+	"developer_authorize_change",
+	"developer_record_landing",
 ];
 const allTools = [
 	{ name: "read", sourceInfo: { source: "builtin" } },
@@ -20,18 +21,10 @@ const allTools = [
 	{ name: "write", sourceInfo: { source: "builtin" } },
 	{ name: "bash", sourceInfo: { source: "builtin" } },
 	{ name: "external_search", sourceInfo: { source: "/extensions/search.ts" } },
-	{
-		name: protocolTools[0],
+	...protocolTools.map((name) => ({
+		name,
 		sourceInfo: { source: "/extensions/developer.ts" },
-	},
-	{
-		name: protocolTools[1],
-		sourceInfo: { source: "/extensions/developer.ts" },
-	},
-	{
-		name: protocolTools[2],
-		sourceInfo: { source: "/extensions/developer.ts" },
-	},
+	})),
 ];
 
 const emptyMemory = (): ToolPolicyMemory => ({ withheldBuiltins: new Set() });
@@ -51,7 +44,7 @@ const implementationAccess = {
 	hasBeforeImplementationGate: false,
 };
 
-const protocol = "developer/v5";
+const protocol = "developer/v7";
 
 const lifecycleEntry = {
 	type: "custom",
@@ -110,7 +103,7 @@ test("current-protocol history without a lifecycle marker is treated as an unsaf
 					message: {
 						role: "toolResult",
 						toolName: protocolTools[0],
-						details: { protocol, kind: "route" },
+						details: { protocol, kind: "judgment-opened" },
 					},
 				},
 			],
@@ -143,7 +136,7 @@ test("enabled idle withholds controlled built-ins and preserves unrelated tools"
 	);
 });
 
-test("a judgment route restores shell execution without restoring artifact mutation", () => {
+test("an active judgment restores shell execution without restoring artifact mutation", () => {
 	const idle = reconcileProtocolTools({
 		activeTools: ["read", "edit", "write", "bash", "external_search"],
 		allTools,
@@ -166,7 +159,7 @@ test("a judgment route restores shell execution without restoring artifact mutat
 	assert.equal(judgment.activeTools.includes("write"), false);
 });
 
-test("an implementation route additively restores only tools withheld by Developer", () => {
+test("an authorized change additively restores only tools withheld by Developer", () => {
 	const enabled = reconcileProtocolTools({
 		activeTools: ["read", "edit", "write", "external_search"],
 		allTools,

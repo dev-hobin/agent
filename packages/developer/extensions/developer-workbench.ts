@@ -1,16 +1,15 @@
 import {
-	formatInvariantHandling,
-	protocolState,
+	developerNextOperations,
+	developerProtocolState,
+	type CompletedJudgment,
+	type CompletedLanding,
 	type DeveloperState,
-	type JudgmentEvent,
 	type PendingQuestion,
-	type ReferenceBasis,
-	type RouteEvent,
-} from "./state.ts";
+} from "../src/index.ts";
 
 export type DeveloperWorkbenchSectionId =
 	| "overview"
-	| "route"
+	| "work"
 	| "questions"
 	| "judgments"
 	| "landings"
@@ -52,7 +51,7 @@ export interface DeveloperWorkbenchRuntime {
 
 export interface DeveloperWorkbenchSnapshot {
 	readonly enabled: boolean;
-	readonly protocol: ReturnType<typeof protocolState>;
+	readonly protocol: ReturnType<typeof developerProtocolState>;
 	readonly authority: string;
 	readonly activeTarget: string;
 	readonly nextAction: string;
@@ -60,111 +59,8 @@ export interface DeveloperWorkbenchSnapshot {
 	readonly sections: readonly DeveloperWorkbenchSection[];
 }
 
-function listLines(values: readonly string[]): readonly string[] {
+function lines(values: readonly string[]): readonly string[] {
 	return values.length > 0 ? values : ["None"];
-}
-
-function alternatives(route: RouteEvent): readonly string[] {
-	return listLines(
-		route.consideredAlternatives.map(
-			(value) => `${value.target}: ${value.reason}`,
-		),
-	);
-}
-
-function loadedReferences(route: RouteEvent): readonly string[] {
-	return listLines(
-		route.loadedReferences.map(
-			(value) =>
-				`${value.path} · routes ${value.referenceRouteIds.join(", ") || "legacy"} · sha256 ${value.contentSha256}`,
-		),
-	);
-}
-
-function referenceRoutes(route: RouteEvent): readonly string[] {
-	return listLines(
-		route.referenceRoutes.map(
-			(value) =>
-				`${value.id}: ${value.question} · ${value.references.join(" + ")} · order ${value.readOrder}`,
-		),
-	);
-}
-
-function implementationContract(route: RouteEvent): readonly string[] {
-	const step = route.implementationStep;
-	if (!step) return ["None"];
-	return [
-		`Movement: ${step.movement}`,
-		`Stop condition: ${step.stopCondition}`,
-		`Verification: ${step.verification}`,
-		`Invariant handling: ${formatInvariantHandling(step.invariantHandling)}`,
-	];
-}
-
-function routeBlocks(
-	route: RouteEvent,
-): readonly DeveloperWorkbenchDetailBlock[] {
-	return [
-		{
-			heading: "Route contract",
-			lines: [
-				`Route ID: ${route.routeId}`,
-				`Target: ${route.target}`,
-				`Question: ${route.question}`,
-				`Reason: ${route.reason}`,
-				`Method: ${route.methodLocation ?? "implementation action"}`,
-				`Execution profile: ${route.executionProfile ?? "none"}`,
-			],
-		},
-		{ heading: "Known evidence", lines: listLines(route.knownEvidence) },
-		{ heading: "Considered alternatives", lines: alternatives(route) },
-		{ heading: "Reference routes", lines: referenceRoutes(route) },
-		{ heading: "Loaded references", lines: loadedReferences(route) },
-		{ heading: "Implementation landing", lines: implementationContract(route) },
-	];
-}
-
-function authority(
-	state: DeveloperState,
-	runtime: DeveloperWorkbenchRuntime,
-): string {
-	if (runtime.restartIssue) return "Blocked until Pi restarts";
-	if (!state.enabled) return "Developer off";
-	if (state.activeRoute?.target === "implementation")
-		return "One bounded implementation movement";
-	if (state.activeRoute) return "Inspection and evidence only";
-	return "No Developer-owned mutation authority";
-}
-
-function nextAction(
-	state: DeveloperState,
-	runtime: DeveloperWorkbenchRuntime,
-): string {
-	if (runtime.restartIssue)
-		return "Restart Pi before enabling Developer again.";
-	if (!state.enabled) return "Enable Developer before asking it to route work.";
-	if (state.activeRoute)
-		return `Complete the active ${state.activeRoute.target} judgment before opening another route.`;
-	const blocked = state.pendingQuestions.find(
-		(question) =>
-			question.status === "blocked" ||
-			question.gate === "before-implementation",
-	);
-	if (blocked) return `Resolve the blocking question: ${blocked.question}`;
-	const userQuestion = state.pendingQuestions.find(
-		(question) => question.resolutionOwner === "user",
-	);
-	if (userQuestion)
-		return `Obtain the required user answer: ${userQuestion.question}`;
-	if (state.pendingQuestions.length > 0)
-		return `Collect evidence for ${state.pendingQuestions.length} open question(s).`;
-	if (state.implementationFramingRequired)
-		return "Frame the implementation movement before mutation.";
-	if (state.rerouteRequired)
-		return "Reobserve the latest landing and route from the new evidence.";
-	if (state.verificationRequired)
-		return "Verify the changed artifacts before claiming completion.";
-	return "No Developer judgment is active; continue the product task normally.";
 }
 
 function questionAction(
@@ -177,109 +73,34 @@ function questionAction(
 }
 
 function questionItem(question: PendingQuestion): DeveloperWorkbenchItem {
-	const answerShape =
-		question.responseSpec?.fields.flatMap((field) => [
-			`${field.id}: ${field.prompt}`,
-			...field.options.map(
-				(option) =>
-					`  ${option.value}: ${option.label}${option.detailPrompt ? ` · asks: ${option.detailPrompt}` : ""}`,
-			),
-		]) ?? [];
 	return {
 		id: question.id,
-		label: question.resolutionOwner,
+		label: question.id,
 		title: question.question,
-		summary: question.resolutionCriteria,
-		state: `${question.status} · ${question.gate}`,
+		summary: `${question.resolutionOwner} · ${question.gate}`,
+		state: question.status,
 		questionAction: questionAction(question),
 		blocks: [
 			{
-				heading: "Resolution contract",
+				heading: "Resolution",
 				lines: [
-					`Question ID: ${question.id}`,
 					`Owner: ${question.resolutionOwner}`,
-					`Status: ${question.status}`,
 					`Gate: ${question.gate}`,
-					`Source route: ${question.sourceRouteId}`,
-					`Resolves when: ${question.resolutionCriteria}`,
+					`Criteria: ${question.resolutionCriteria}`,
+					`Source work: ${question.sourceWorkId}`,
 				],
 			},
-			{
-				heading: "Decision or evidence context",
-				lines: question.context ? [question.context] : ["None recorded"],
-			},
-			{
-				heading: "Answer shape",
-				lines:
-					answerShape.length > 0
-						? answerShape
-						: ["Free-form answer or evidence"],
-			},
-		],
-	};
-}
-
-function referenceBasis(values: readonly ReferenceBasis[]): readonly string[] {
-	return listLines(
-		values.map(
-			(value) =>
-				`${value.path} · trigger: ${value.trigger} · rule: ${value.appliedRule} · artifact: ${value.artifact}`,
-		),
-	);
-}
-
-function judgmentItem(
-	judgment: JudgmentEvent,
-	route: RouteEvent | undefined,
-): DeveloperWorkbenchItem {
-	return {
-		id: judgment.routeId,
-		label: judgment.target,
-		title: judgment.question,
-		summary: judgment.result,
-		state: judgment.status,
-		blocks: [
-			{
-				heading: "Judgment",
-				lines: [
-					`Route ID: ${judgment.routeId}`,
-					`Status: ${judgment.status}`,
-					`Changed artifacts: ${judgment.changedArtifacts ? "yes" : "no"}`,
-					judgment.result,
-				],
-			},
-			{ heading: "Basis", lines: listLines(judgment.basis) },
-			{ heading: "Artifacts", lines: listLines(judgment.artifacts) },
-			{
-				heading: "Reference basis",
-				lines: referenceBasis(judgment.referenceBasis),
-			},
-			{
-				heading: "Reference exemption",
-				lines: judgment.referenceExemption
-					? [
-							judgment.referenceExemption.reason,
-							...judgment.referenceExemption.evidence,
-						]
-					: ["None"],
-			},
-			{
-				heading: "Question movement",
-				lines: listLines([
-					...judgment.openedQuestions.map(
-						(question) => `opened ${question.id}: ${question.question}`,
-					),
-					...judgment.questionUpdates.map(
-						(update) =>
-							`${update.status} ${update.questionId}: ${update.result}`,
-					),
-				]),
-			},
-			...(route
+			...(question.context
+				? [{ heading: "Context", lines: [question.context] }]
+				: []),
+			...(question.responseSpec
 				? [
 						{
-							heading: "Route rationale",
-							lines: [route.reason, ...alternatives(route)],
+							heading: "Response fields",
+							lines: question.responseSpec.fields.map(
+								(field) =>
+									`${field.id}: ${field.prompt} (${field.options.map((option) => option.label).join(" | ")})`,
+							),
 						},
 					]
 				: []),
@@ -287,92 +108,138 @@ function judgmentItem(
 	};
 }
 
-function landingItem(
-	judgment: JudgmentEvent,
-	route: RouteEvent | undefined,
-	verificationRequired: boolean,
-): DeveloperWorkbenchItem {
+function judgmentItem(entry: CompletedJudgment): DeveloperWorkbenchItem {
+	const conclusion = entry.conclusion;
+	const artifact =
+		conclusion.kind === "contextual-judgment" ||
+		conclusion.kind === "emergent-question"
+			? conclusion.artifact
+			: conclusion.kind === "needs-evidence"
+				? (conclusion.artifact ?? conclusion.evidenceNeeded.join("; "))
+				: conclusion.reason;
+	const contextLines =
+		conclusion.kind === "judgment-not-applicable"
+			? [
+					"No dynamic context closure was required for this applicability result.",
+				]
+			: [
+					`Judgment: ${conclusion.contextBasis.judgmentId}`,
+					`Policy: ${conclusion.contextBasis.policySha256 ?? "absent"}`,
+					`Question: ${conclusion.contextBasis.questionSha256}`,
+					`Selection: ${conclusion.contextBasis.selectionSha256}`,
+					`Coverage: ${conclusion.contextBasis.coverageSha256}`,
+					`Outcome: ${conclusion.contextBasis.outcomeSha256}`,
+					`Contributions: ${conclusion.contextBasis.contributions.map((contribution) => `${contribution.useAs}/${contribution.assurance}`).join(", ") || "none"}`,
+				];
 	return {
-		id: judgment.routeId,
-		label: "Implementation",
-		title: route?.implementationStep?.movement ?? judgment.question,
-		summary: judgment.result,
-		state: judgment.changedArtifacts ? "changed" : "no change",
+		id: entry.judgment.judgmentId,
+		label: entry.judgment.skill.name,
+		title: entry.judgment.question,
+		summary: artifact,
+		state: conclusion.kind,
 		blocks: [
 			{
-				heading: "Stable landing",
-				lines: route ? implementationContract(route) : ["Contract unavailable"],
-			},
-			{
-				heading: "Judgment",
+				heading: "Method",
 				lines: [
-					`Status: ${judgment.status}`,
-					`Changed artifacts: ${judgment.changedArtifacts ? "yes" : "no"}`,
-					judgment.result,
+					`Skill: ${entry.judgment.skill.name}`,
+					`Reason: ${entry.judgment.reason}`,
+					`Known evidence: ${lines(entry.judgment.knownEvidence).join(" | ")}`,
 				],
 			},
-			{ heading: "Basis", lines: listLines(judgment.basis) },
+			{ heading: "Context basis", lines: contextLines },
 			{
-				heading: "Artifacts and verifier",
-				lines: listLines(judgment.artifacts),
-			},
-			{
-				heading: "Verification boundary",
+				heading: "Artifacts and questions",
 				lines: [
-					`Current branch verification debt: ${verificationRequired ? "required" : "clear"}`,
-					"The current event schema does not link a specific verification judgment to this landing, so no per-landing Verified claim is inferred.",
+					`Produced: ${lines(conclusion.producedArtifacts).join(" | ")}`,
+					`Opened: ${lines(conclusion.openedQuestions.map((question) => question.id)).join(" | ")}`,
+					`Updated: ${lines(conclusion.questionUpdates.map((update) => `${update.questionId}/${update.status}`)).join(" | ")}`,
 				],
 			},
 		],
 	};
 }
 
+function landingItem(
+	entry: CompletedLanding,
+	verificationRequired: boolean,
+): DeveloperWorkbenchItem {
+	return {
+		id: entry.change.authorizationId,
+		label: "landing",
+		title: entry.change.contract.stableLanding,
+		summary: entry.landing.result,
+		state: verificationRequired ? "verification required" : "verified",
+		blocks: [
+			{
+				heading: "Authorization",
+				lines: [
+					`Movement: ${entry.change.contract.movement}`,
+					`Stable landing: ${entry.change.contract.stableLanding}`,
+					`Verification target: ${entry.change.contract.verificationTarget}`,
+				],
+			},
+			{
+				heading: "Landing evidence",
+				lines: [
+					`Changed paths: ${entry.landing.changedPaths.join(", ")}`,
+					`Result: ${entry.landing.result}`,
+					`Verification: ${lines(entry.landing.verification).join(" | ")}`,
+				],
+			},
+		],
+	};
+}
+
+function authority(state: DeveloperState): string {
+	if (!state.enabled) return "Developer is off; Pi owns the ordinary tool set.";
+	if (state.activeWork?.kind === "authorized-change") {
+		return `Mutation authorized by ${state.activeWork.authorizationId}.`;
+	}
+	if (state.activeWork?.kind === "active-judgment") {
+		return `Evidence tools only for ${state.activeWork.judgmentId}; artifact mutation is withheld.`;
+	}
+	return "No change is authorized; controlled shell and artifact tools are withheld.";
+}
+
+function nextAction(state: DeveloperState, restartIssue?: string): string {
+	if (restartIssue) return restartIssue;
+	if (!state.enabled)
+		return "Turn Developer on to open judgment or authorize change.";
+	const operations = developerNextOperations(state);
+	if (operations.length > 0) return operations.join(" or ");
+	return "No Developer operation is currently legal.";
+}
+
 function overviewItem(
 	state: DeveloperState,
 	runtime: DeveloperWorkbenchRuntime,
 ): DeveloperWorkbenchItem {
-	const currentProtocol = protocolState(state);
 	return {
-		id: "current-branch",
-		label: "Current branch",
-		title: state.activeRoute?.question ?? "No active judgment route",
-		summary: nextAction(state, runtime),
-		state: currentProtocol,
+		id: "developer-overview",
+		label: "protocol",
+		title: developerProtocolState(state),
+		summary: nextAction(state, runtime.restartIssue),
+		state: state.enabled ? "on" : "off",
 		blocks: [
 			{
-				heading: "Current obligation",
+				heading: "Authority",
+				lines: runtime.restartIssue
+					? ["Blocked until Pi restarts.", runtime.restartIssue]
+					: [authority(state)],
+			},
+			{
+				heading: "Obligations",
 				lines: [
-					`Developer: ${state.enabled ? "on" : "off"}`,
-					`Protocol: ${currentProtocol}`,
-					`Authority: ${authority(state, runtime)}`,
-					`Active target: ${state.activeRoute?.target ?? "none"}`,
-					`Open questions: ${state.pendingQuestions.length}`,
-					`Recorded judgments: ${state.judgmentHistory.length}`,
+					`Reroute: ${state.obligations.rerouteRequired ? "required" : "clear"}`,
+					`Implementation framing: ${state.obligations.implementationFramingRequired ? "required" : "clear"}`,
+					`Verification: ${state.obligations.verificationRequired ? "required" : "current"}`,
 				],
 			},
 			{
-				heading: "Gates",
+				heading: "Runtime",
 				lines: [
-					`Implementation framing: ${state.implementationFramingRequired ? "required" : "clear"}`,
-					`Reroute checkpoint: ${state.rerouteRequired ? "required" : "clear"}`,
-					`Verification: ${state.verificationRequired ? "required" : "current"}`,
-				],
-			},
-			{ heading: "Next", lines: [nextAction(state, runtime)] },
-			...(runtime.restartIssue
-				? [{ heading: "Runtime recovery", lines: [runtime.restartIssue] }]
-				: []),
-			{
-				heading: "Runtime resources",
-				lines: [
-					`Active tools (${runtime.activeTools.length}): ${[...runtime.activeTools].sort().join(", ") || "none"}`,
-					`Available skills (${runtime.availableSkills.length}): ${[...runtime.availableSkills].sort().join(", ") || "none"}`,
-				],
-			},
-			{
-				heading: "Interpretation boundary",
-				lines: [
-					"Developer protocol state is routing bookkeeping, not a product-completion claim.",
+					`Active tools: ${lines(runtime.activeTools).join(", ")}`,
+					`Available skills: ${lines(runtime.availableSkills).join(", ")}`,
 				],
 			},
 		],
@@ -383,96 +250,101 @@ export function inspectDeveloperWorkbench(
 	state: DeveloperState,
 	runtime: DeveloperWorkbenchRuntime,
 ): DeveloperWorkbenchSnapshot {
-	const currentProtocol = protocolState(state);
-	const activeRoute = state.activeRoute;
-	const questions = state.pendingQuestions.map(questionItem);
-	const judgments = state.judgmentHistory.toReversed().map((judgment) =>
-		judgmentItem(
-			judgment,
-			state.routeHistory.find((route) => route.routeId === judgment.routeId),
-		),
-	);
-	const landings = state.judgmentHistory
-		.filter((judgment) => judgment.target === "implementation")
-		.toReversed()
-		.map((judgment) =>
-			landingItem(
-				judgment,
-				state.routeHistory.find((route) => route.routeId === judgment.routeId),
-				state.verificationRequired,
-			),
-		);
-	const settings: DeveloperWorkbenchItem = {
-		id: "settings",
-		label: "Activation",
-		title: state.enabled ? "On" : "Off",
-		summary:
-			"Settings changes activation; current branch work is inspected elsewhere in this workbench.",
-		blocks: [
-			{
-				heading: "Developer activation",
-				lines: [
-					`Current value: ${state.enabled ? "On" : "Off"}`,
-					"Turning Developer off with active work requires confirmation in interactive mode.",
-				],
-			},
-		],
-	};
-	return {
+	const active = state.activeWork;
+	const activeItem: DeveloperWorkbenchItem[] = active
+		? [
+				active.kind === "active-judgment"
+					? {
+							id: active.judgmentId,
+							label: "judgment",
+							title: active.question,
+							summary: `${active.skill.name} · ${active.reason}`,
+							state: "active",
+							blocks: [
+								{
+									heading: "Dynamic judgment",
+									lines: [
+										`Skill: ${active.skill.name}`,
+										`Policy: ${active.policy?.policySha256 ?? "absent"}`,
+										`Prepared references: ${active.policy?.references.length ?? 0}`,
+									],
+								},
+							],
+						}
+					: {
+							id: active.authorizationId,
+							label: "authorized change",
+							title: active.question,
+							summary: active.contract.movement,
+							state: "mutation authorized",
+							blocks: [
+								{
+									heading: "Implementation contract",
+									lines: [
+										`Stable landing: ${active.contract.stableLanding}`,
+										`Verification target: ${active.contract.verificationTarget}`,
+									],
+								},
+							],
+						},
+			]
+		: [];
+	const sections: readonly DeveloperWorkbenchSection[] = [
+		{
+			id: "overview",
+			label: "Overview",
+			value: developerProtocolState(state),
+			items: [overviewItem(state, runtime)],
+		},
+		{
+			id: "work",
+			label: "Active work",
+			value: active ? "1" : "0",
+			items: activeItem,
+		},
+		{
+			id: "questions",
+			label: "Questions",
+			value: String(state.pendingQuestions.length),
+			items: state.pendingQuestions.map(questionItem),
+		},
+		{
+			id: "judgments",
+			label: "Judgments",
+			value: String(state.judgments.length),
+			items: state.judgments.toReversed().map(judgmentItem),
+		},
+		{
+			id: "landings",
+			label: "Landings",
+			value: String(state.landings.length),
+			items: state.landings
+				.toReversed()
+				.map((entry) =>
+					landingItem(entry, state.obligations.verificationRequired),
+				),
+		},
+		{
+			id: "settings",
+			label: "Settings",
+			value: state.enabled ? "on" : "off",
+			items: [],
+		},
+	];
+	return Object.freeze({
 		enabled: state.enabled,
-		protocol: currentProtocol,
-		authority: authority(state, runtime),
-		activeTarget: activeRoute?.target ?? "none",
-		nextAction: nextAction(state, runtime),
-		restartIssue: runtime.restartIssue,
-		sections: [
-			{
-				id: "overview",
-				label: "Overview",
-				value: currentProtocol,
-				items: [overviewItem(state, runtime)],
-			},
-			{
-				id: "route",
-				label: "Active route",
-				value: activeRoute?.target ?? "None",
-				items: activeRoute
-					? [
-							{
-								id: activeRoute.routeId,
-								label: activeRoute.target,
-								title: activeRoute.question,
-								summary: activeRoute.reason,
-								state: "active",
-								blocks: routeBlocks(activeRoute),
-							},
-						]
-					: [],
-			},
-			{
-				id: "questions",
-				label: "Questions",
-				value: String(questions.length),
-				items: questions,
-			},
-			{
-				id: "judgments",
-				label: "Judgments",
-				value: String(judgments.length),
-				items: judgments,
-			},
-			{
-				id: "landings",
-				label: "Landings",
-				value: String(landings.length),
-				items: landings,
-			},
-			{
-				id: "settings",
-				label: "Settings",
-				value: "",
-				items: [settings],
-			},
-		],
-	};
+		protocol: developerProtocolState(state),
+		authority: runtime.restartIssue
+			? "Blocked until Pi restarts"
+			: authority(state),
+		activeTarget:
+			active?.kind === "active-judgment"
+				? active.skill.name
+				: active?.kind === "authorized-change"
+					? "implementation"
+					: "none",
+		nextAction: nextAction(state, runtime.restartIssue),
+		...(runtime.restartIssue ? { restartIssue: runtime.restartIssue } : {}),
+		sections,
+	});
 }

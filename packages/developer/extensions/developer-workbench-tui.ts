@@ -112,8 +112,8 @@ function emptySectionText(
 	section: DeveloperWorkbenchSection,
 ): readonly string[] {
 	const explanation =
-		section.id === "route"
-			? "No judgment route is currently active. Idle does not imply product completion."
+		section.id === "work"
+			? "No Developer judgment or change authorization is currently active. Idle does not imply product completion."
 			: "The current branch contains no records in this section.";
 	return ["No items in this section.", "", explanation];
 }
