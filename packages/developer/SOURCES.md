@@ -23,7 +23,6 @@ A source idea belongs to the Skill that performs its observable job:
 | Timing of a concrete structural change | `schedule` |
 | Claim-to-evidence support and pass-but-wrong risk | `verify` |
 | Finite falsification workflow | `adversarial-eval` |
-| Inspection surface that lowers judgment cost | `visualize` |
 
 No source creates a mandatory order among Skills. Doctor coordinates bounded
 consultation but does not absorb another Skill's method.
@@ -50,7 +49,7 @@ These are separate claims:
 contains a conditional distinction that can be selected independently. Current
 policy fields are only root `when`, winning root `unless`, and
 `references[{path, when}]`; see
-[`docs/context-and-evidence.md`](./docs/context-and-evidence.md).
+[Judgment policy authoring](../judgment/docs/policy-authoring.md).
 
 ## Audit records
 

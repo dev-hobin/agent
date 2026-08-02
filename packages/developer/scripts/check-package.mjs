@@ -22,7 +22,6 @@ const expectedSkills = [
 	"sketch",
 	"specify",
 	"verify",
-	"visualize",
 ];
 const policySkills = new Set([
 	"abstraction-review",
@@ -101,15 +100,19 @@ assert.deepEqual(
 	loaded.skills.map((skill) => skill.name).sort(),
 	expectedSkills,
 );
-const englishDocNames = (await readdir(join(root, "docs"), {
-	withFileTypes: true,
-}))
+const englishDocNames = (
+	await readdir(join(root, "docs"), {
+		withFileTypes: true,
+	})
+)
 	.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
 	.map((entry) => entry.name)
 	.sort();
-const koreanDocNames = (await readdir(join(root, "docs/ko"), {
-	withFileTypes: true,
-}))
+const koreanDocNames = (
+	await readdir(join(root, "docs/ko"), {
+		withFileTypes: true,
+	})
+)
 	.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
 	.map((entry) => entry.name)
 	.sort();
@@ -213,9 +216,8 @@ for (const documentPath of markdownDocuments) {
 
 const readme = await readFile(join(root, "README.md"), "utf8");
 const documentedGuides = [
+	"how-it-works.md",
 	"user-guide.md",
-	"architecture.md",
-	"context-and-evidence.md",
 	"runtime-protocol.md",
 ];
 for (const path of documentedGuides.map((name) => `docs/${name}`))
@@ -226,18 +228,15 @@ for (const path of documentedGuides.map((name) => `docs/ko/${name}`))
 assert.match(readme, /Try this first/u);
 assert.match(readme, /External Skill context/u);
 
-const contextGuide = await readFile(
-	join(root, "docs/context-and-evidence.md"),
-	"utf8",
-);
+const howItWorks = await readFile(join(root, "docs/how-it-works.md"), "utf8");
 for (const term of [
-	"Candidate discovery stays cheap",
-	"Batch opening is atomic",
-	"Root `unless` wins",
-	"Selection and sealing",
-	"Assurance",
+	"Gather evidence without editing",
+	"Close the judgment with its evidence",
+	"Authorize one bounded change",
+	"Record the landing",
+	"Verify the completion claim separately",
 ])
-	assert.match(contextGuide, new RegExp(term, "u"));
+	assert.match(howItWorks, new RegExp(term, "u"));
 
 const runtimeProtocol = await readFile(
 	join(root, "docs/runtime-protocol.md"),

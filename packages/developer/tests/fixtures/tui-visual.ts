@@ -336,7 +336,6 @@ async function runResizeScenario(ctx: ExtensionCommandContext): Promise<void> {
 				"model",
 				"sketch",
 				"signal",
-				"visualize",
 			],
 		}),
 	);

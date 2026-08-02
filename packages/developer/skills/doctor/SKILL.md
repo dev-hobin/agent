@@ -131,7 +131,6 @@ other than Doctor one disposition: `triggered`, `no-trigger`, `needs-evidence`,
 | `schedule` | When does a stable concrete structural candidate belong? | current invariant pressure, nested work, delay cost, or lost reversibility |
 | `verify` | What do current checks prove, and what plausible wrong shape still passes? | green checks with observer, source, branch, construction-path, or effect-order gaps |
 | `adversarial-eval` | Does a consequential claim need escalating finite counterexamples? | ordinary checks can pass while security, data, compatibility, or workflow behavior is wrong |
-| `visualize` | Would a visual surface materially lower the cost of judging relationships? | state, ownership, flow, dependency, or ordering is hard to inspect in prose |
 
 Use this inspection surface:
 

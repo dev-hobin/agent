@@ -252,7 +252,7 @@ try {
 	const packageSkills = allLoadedSkills.filter((entry) =>
 		String(entry.sourceInfo?.path ?? "").startsWith(skills),
 	);
-	assert.equal(packageSkills.length, 11);
+	assert.equal(packageSkills.length, 10);
 	assert.equal(
 		packageSkills.some((entry) => entry.name === "skill:doctor"),
 		true,

@@ -2,233 +2,159 @@
 
 English | [한국어](./ko/runtime-protocol.md)
 
-**Audience:** maintainers, automation authors, and reviewers of persisted session
-behavior.
+This document is for maintainers who change persisted `developer/v7` events or
+the five model-facing operations. User commands are described in the
+[user guide](./user-guide.md).
 
-Developer uses exact `developer/v7` events and five model-facing operations. The
-protocol separates semantic judgment from repository mutation.
+## Why the protocol is split
 
-## Operations
+Developer keeps semantic judgment, mutation permission, and landing records as
+different values. A model cannot put changed paths into a judgment conclusion or
+use a judgment ID where an authorization ID is required.
 
-| Operation | Input responsibility | Accepted effect |
+## The five operations
+
+| Operation | What it accepts | State change |
 | --- | --- | --- |
-| `developer_open_judgment` | One bundled Developer Skill, exact dynamic question, optional target PendingQuestion | Creates one immutable `ActiveJudgment` |
-| `developer_open_context_sources` | Active judgment ID and 1–16 exact Pi-visible Skill source IDs | Extends that judgment with one atomic batch |
-| `developer_conclude_judgment` | Source applicability, nominations, contributions, coverage, outcome, question updates | Closes semantic work and records a completed judgment |
-| `developer_authorize_change` | Bounded movement, stable landing, verification target, optional boundary/revert condition | Creates one `AuthorizedChange` |
-| `developer_record_landing` | Authorization ID, exact non-empty changed paths, observed landing | Records landing and creates reroute/verification obligations |
+| `developer_open_judgment` | One bundled Skill, one dynamic question, optional target PendingQuestion | Creates `ActiveJudgment` |
+| `developer_open_context_sources` | Active judgment ID and 1–16 exact Pi-visible Skill source IDs | Adds one atomic source batch to that judgment |
+| `developer_conclude_judgment` | Applicability, nominations, contributions, coverage, outcome, question updates | Records a completed judgment and clears it |
+| `developer_authorize_change` | Bounded movement, stable landing, verification target, optional boundary | Creates `AuthorizedChange` |
+| `developer_record_landing` | Active authorization ID and non-empty changed paths | Records the landing and creates reroute/verification obligations |
 
-Operations are not aliases. A judgment ID cannot close an authorization, and an
-authorization ID cannot conclude a judgment.
+The pure state exposes only operations that are legal now:
 
-## Event stream
-
-```mermaid
-flowchart LR
-  AO[activation-changed] --> JO[judgment-opened]
-  JO --> CO[context-sources-opened]
-  CO --> CO
-  JO --> JC[judgment-concluded]
-  CO --> JC
-  JC --> CA[change-authorized]
-  AO --> CA
-  CA --> LR[landing-recorded]
-```
-
-A direct `activation-changed → change-authorized` path is valid only when the
-movement is already justified and no implementation gate is open.
-
-The exact event variants are parsed by `src/protocol.ts`; unknown fields and
-merged “mode” objects are rejected.
-
-## Legal next operations
-
-```mermaid
-stateDiagram-v2
-  [*] --> Disabled
-  Disabled --> Idle: on
-  Idle --> ActiveJudgment: open judgment
-  ActiveJudgment --> ActiveJudgment: open context sources
-  ActiveJudgment --> Idle: conclude
-  Idle --> AuthorizedChange: authorize
-  AuthorizedChange --> NeedsRouting: record landing
-  NeedsRouting --> ActiveJudgment: reroute
-  Idle --> Disabled: off
-```
-
-| Active state | Protocol operations exposed |
+| Active state | Legal operation |
 | --- | --- |
 | Disabled | Activation command only |
-| Enabled idle | `developer_open_judgment`, `developer_authorize_change` when gates allow |
-| ActiveJudgment | `developer_open_context_sources`, `developer_conclude_judgment` |
-| AuthorizedChange | `developer_record_landing` |
-| NeedsRouting | Open the next judgment or authorize only after obligations allow |
+| Idle | Open a judgment; authorize only when implementation gates are closed |
+| ActiveJudgment | Open context sources or conclude |
+| AuthorizedChange | Record landing |
+| After landing | Open the next judgment; no new mutation authority until obligations permit it |
 
-`developerNextOperations` and `developerToolAccess` are projections of the pure
-state, not mutable registries maintained by the extension.
+`developerNextOperations` and `developerToolAccess` derive this projection from
+state. The extension does not maintain a second mutable registry.
 
-## Open judgment
+## Opening a judgment
 
-The adapter resolves the selected Developer Skill from the exact Pi inventory,
-loads its method, and compiles its optional policy. The opening event binds:
+The extension resolves the selected Skill from the current Pi inventory, reads
+its method, and compiles its optional policy. The event binds:
 
 ```text
 judgmentId
-+ DeveloperSkillRef
-+ dynamic question
-+ optional targetQuestionId
-+ optional CompiledJudgmentPolicy
-+ branchRef
-+ empty contextSources
+Skill name and exact location
+question text
+optional target PendingQuestion
+optional compiled policy
+current branch identity
+known evidence
 ```
 
-A Skill without policy is fully valid and simply has no prepared references.
+A Skill without `judgment.json` is valid and simply has no prepared references.
 
-## Open context sources
+## Opening external context sources
 
-The source operation is repeatable during one active judgment. Each successful
-event contains refined `OpenedContextSource` values:
+This operation may be repeated while the same judgment is active. For every
+source ID, the extension:
+
+1. resolves the current Pi descriptor;
+2. reads `SKILL.md` within the byte limit;
+3. loads a co-located policy if it exists;
+4. compiles that policy with the source's actual owner and root;
+5. computes descriptor and method-content identities.
+
+All sources in one call succeed together. A duplicate, stale descriptor, unsafe
+path, oversized method, or malformed present policy rejects the whole call. A
+successful batch from an earlier call remains open.
+
+Opening a source does not claim that it applies. The model must first see the
+method and policy, then provide exactly one applicability assessment for every
+policy-bearing source during conclusion.
+
+## Concluding a judgment
+
+At the model boundary, `branchResultId` is a compact reference to one current-
+branch Pi tool call. The extension resolves it to the exact call, arguments,
+result order, status, and content hash before the Judgment engine sees it.
+
+The conclusion path is:
 
 ```text
-inventorySourceId
-+ exact descriptor
-+ methodContentSha256
-+ optional owner-bound compiled policy
+parse raw conclusion fields
+-> recheck owning and external Skill descriptors
+-> recheck policies and branch results
+-> admit only applicable external providers
+-> select and seal nominated content atomically
+-> check a contribution for every usable member
+-> create coverage and outcome
+-> build DeveloperContextBasis
+-> preview the pure Developer transition
+-> append JudgmentConcluded
 ```
 
-The event is accepted only when:
+Nothing is appended if acquisition, sealing, coverage, outcome parsing, or the
+pure transition fails.
 
-- its judgment ID matches the active judgment;
-- each source ID is unique in the batch;
-- no source is already open;
-- all Skill methods were read within bounds; and
-- every present policy parsed and compiled under that source's provenance.
+A conclusion may resolve, defer, supersede, or create `PendingQuestion` values.
+Question owner, gate, and resolution criteria must match current state. A
+user-owned resolution that claims `user-accepted` assurance requires the exact
+branch-local user event.
 
-The event does not yet claim applicability. Policy conditions must first be
-visible to the model.
+## Authorizing a change
 
-## Conclude judgment
+`developer_authorize_change` is accepted only when:
 
-At the model boundary, `branchResultId` is a compact alias for one exact
-current-branch Pi tool call/result. The adapter resolves it before Judgment sees
-observed context.
+- Developer is enabled and no work is active;
+- any target PendingQuestion exists;
+- no before-implementation question is unresolved;
+- rerouting and implementation-framing obligations are closed;
+- movement, stable landing, and verification target are non-empty; and
+- optional refinement or trusted-compiler boundaries parse as exact variants.
 
-```mermaid
-sequenceDiagram
-  participant T as Tool adapter
-  participant C as Context integration
-  participant J as Judgment engine
-  participant S as Developer state
+The trusted-compiler boundary is a bounded evidence gap, not permission to cast
+arbitrary values.
 
-  T->>C: raw assessments + nominations + coverage + outcome
-  C->>C: parse source assessments
-  C->>C: recheck descriptors, methods, policies, branch results
-  C->>J: inventory + admitted policies + proposal
-  J->>J: select and seal atomically
-  J->>J: assess contributions and coverage
-  J-->>C: exact outcome and context basis
-  C->>T: JudgmentConcluded event
-  T->>S: pure transition
-  S-->>T: accepted next state
-```
+## Recording a landing
 
-Every policy-bearing opened source receives exactly one applicability assessment.
-Policy-free sources need none. Only applicable source methods and references can
-be nominated positively.
-
-The conclusion may update existing PendingQuestions or create new ones under
-exact owner/gate/criteria fields. It cannot carry changed paths or mutation
-authority.
-
-## Authorize change
-
-An `AuthorizedChange` is accepted only when:
-
-- Developer is enabled and no other work is active;
-- the target PendingQuestion exists when supplied;
-- no before-implementation question remains unresolved;
-- the movement and stable landing are non-empty and bounded;
-- the verification target is explicit; and
-- any refinement boundary or trusted-compiler gap parses as its own exact
-  variant.
-
-The trusted-compiler gap is bounded escape-hatch evidence, not a generic cast
-permission.
-
-## Record landing
-
-`developer_record_landing` requires the exact active authorization and at least
-one changed path. The transition records:
+`developer_record_landing` must reference the exact active authorization and at
+least one changed path. The transition stores the authorization and landing
+together, clears mutation authority, and sets:
 
 ```text
-authorizationId
-+ changedPaths
-+ observed stable landing
-+ optional implementation evidence
+rerouteRequired = true
+verificationRequired = true
 ```
 
-It then clears mutation authority and sets reroute plus verification debt.
-Landing never creates a `verified` boolean.
+There is deliberately no `verified` flag on a landing.
 
-## PendingQuestion transition rules
+## Replay and append order
 
-A conclusion can:
-
-- resolve an existing question with evidence or an explicit user answer;
-- defer it while preserving owner and gate;
-- supersede it with a reason; or
-- create a distinct question.
-
-Question changes are rejected when IDs, owner, gate, or resolution criteria do
-not match current state. User-owned resolution requires the matching branch-local
-user event when claimed as `user-accepted` context.
-
-## Replay
+Developer rebuilds state from current-branch custom entries:
 
 ```text
-current Pi branch entries
-→ identify Developer-owned custom entries
-→ parse exact event variant
-→ apply pure transition in order
-→ reconstructed state + bounded replay issues
+identify Developer-owned entry
+-> parse its exact event variant
+-> apply the pure transition
+-> keep accepted state or report a bounded replay issue
 ```
 
-Exact duplicate event entries can stutter only where the protocol explicitly
-permits it; conflicting duplicates and illegal order fail closed. Sibling-branch
-entries are absent from the supplied ancestry.
+The runtime follows parse -> derive evidence -> build event -> preview transition
+-> append entry -> project tools/UI. It never publishes state before the session
+append succeeds.
 
 ### Unsupported v6 history
 
-Older `developer/v6` entries are recognized only to report unsupported history.
-They are not translated into v7 because route, guidance, judgment, mutation, and
-landing authorities do not map one-to-one.
+`developer/v6` entries are recognized only so the extension can report them.
+They are not translated into v7 because old route, guidance, judgment, mutation,
+and landing values do not map one-to-one to the current authorities.
 
-## Append boundary
+## Review checklist
 
-The extension follows this ordering:
-
-```text
-raw tool input
-→ exact parser/refinement
-→ derive current evidence
-→ build event
-→ preview pure transition
-→ append custom session entry
-→ update projected runtime state
-```
-
-For context selection, all filesystem acquisition and Judgment transitions must
-succeed before the Developer event is appended. Tool output bounding also occurs
-before state publication.
-
-## Protocol review checklist
-
-- Is every raw variant parsed with exact keys?
-- Does one operation have one authority?
-- Does `developerNextOperations` expose only legal transitions?
-- Can a stale or sibling-branch identity be replayed? It must not.
-- Can an ActiveJudgment mutate artifacts? It must not.
-- Can a landing bypass verification debt? It must not.
+- Does each raw variant reject unknown fields?
+- Can only currently legal operations be called?
+- Are selected files and branch results reacquired before append?
+- Can a judgment mutate artifacts? It must not.
+- Can a landing avoid verification debt? It must not.
 - Are external source batches all-or-nothing?
-- Does persisted `DeveloperContextBasis` match the active question and sources?
-- Does hot reload restore only Developer's tool delta or request restart?
+- Does replay reject stale, conflicting, and sibling-branch identities?
+- Does hot reload restore only Developer's own tool delta?

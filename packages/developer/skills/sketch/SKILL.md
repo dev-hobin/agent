@@ -33,7 +33,6 @@ own artifact and stop, select or create a separate route.
 - Representative normal, boundary, forbidden, and product-meaning cases
 - Constraints and verification targets
 
-
 ## Output
 
 Lead with the user's product language; keep design labels secondary. A resolved
@@ -50,14 +49,11 @@ paragraphs. Produce:
    input preserves the narrowest honest representation already established for
    callers, whose success returns the refined value, and whose failure precedes
    dependent effects;
-5. a small ordered implementation queue and explicitly deferred abstractions;
-6. an ASCII flow, relation map, state transition, or boundary diagram whenever
-   two or more components, states, or collaborations are materially related.
+5. a small ordered implementation queue and explicitly deferred abstractions.
 
-Use prose only to explain why those artifacts have their shape. Route
-`visualize` separately when choosing the visual form is itself consequential;
-do not require that extra route for a straightforward inline table or ASCII
-map. When used inside a larger task, return:
+Use prose to explain why those artifacts have their shape. Add a compact table
+or text sketch only when it makes an actual relation easier to inspect; do not
+make a visual an output requirement. When used inside a larger task, return:
 
 ```text
 Status: resolved | needs-evidence | not-applicable | blocked
