@@ -1,71 +1,55 @@
 # Book Continuity
 
-Use this reference for chapters or sections in a longer book.
+Use this reference when a chapter or section depends materially on the wider
+book.
 
 ## Default Stance
 
-Do not assume every book is cumulative. Default to omnibus or weak continuity until evidence says otherwise.
+Do not assume every book is cumulative. Classify its structure as one of:
 
-Continuity has one job: preserve the reader's sense of the book's flow. Do not turn it into a dependency database, exhaustive concept graph, or forced previous/next chapter report.
+- cumulative argument or curriculum;
+- modular reference or manual;
+- anthology or essay collection;
+- unknown.
 
-Classify the book structure as:
-
-- cumulative argument or curriculum
-- modular reference/manual
-- anthology or essay collection
-- unknown
-
-If the book has a preface, introduction, "how to read this book" chapter, or author reading guide, use it as high-priority evidence for the intended structure.
+A preface, introduction, “how to read this book” section, or author reading
+guide is high-priority evidence. Continuity has one job: preserve the reader's
+sense of the book's learning path. It is not a durable TOC, dependency database,
+or concept graph.
 
 ## Evidence Order
 
-Recover continuity from:
+Recover only continuity that changes interpretation:
 
-1. Author reading guide, preface, introduction, or "how to read this book" material.
-2. Explicit cross-references to earlier chapters, pages, examples, or named concepts.
-3. Chapter introductions, summaries, and transition paragraphs.
-4. Repeated concepts that clearly affect the current chapter's meaning.
-5. Existing chapter notes and `toc.md` in the learning archive.
-6. Careful inference, marked as inference when the source does not state it directly.
+1. author reading guide, preface, introduction, or explicit structure statement;
+2. explicit cross-references to earlier chapters, pages, examples, or terms;
+3. chapter openings, summaries, and transition paragraphs;
+4. repeated concepts that materially constrain the current unit;
+5. the active reading cursor and prior discussion;
+6. careful inference, labeled as inference.
 
-Use only evidence that changes how the learner understands the chapter's role. Ignore incidental references.
+Ignore incidental references.
 
-## Saving Book Chapter Artifacts
+## Continuity Artifact
 
-When saving a book chapter artifact:
-
-- Determine the book structure before imposing continuity; adjust it as more chapter artifacts accumulate.
-- Look for `books/<source>/toc.md`, `table-of-contents.md`, `book-map.md`, `overview.md`, or `index.md`.
-- If one exists, read it before finalizing the chapter note.
-- If none exists and persistence is approved, create a seed `toc.md`; for weakly connected books, make it a light annotated index.
-- If persistence is not approved, propose `toc.md` instead of silently skipping continuity.
-- Read previous chapter artifacts only when the current chapter depends on them or the TOC is insufficient.
-- Add a chapter continuity section only when it materially improves the note. Prefer one short paragraph over a detailed list.
-- Do not let continuity weaken the chapter artifact's standalone explanation.
-- Update the TOC only when the chapter changes the learner's view of the book's flow.
-
-## TOC SSOT
-
-For book sessions, treat `toc.md` as the continuity SSOT. It should be a lightweight annotated table of contents, not a full knowledge graph.
-
-Good TOC entries are short:
+Use the smallest useful form:
 
 ```text
-Chapter:
-  one-sentence role in the book
-  optional link to artifact
+Book structure:
+Current unit:
+Prior dependency, if any:
+Role in the learning path:
+Evidence:
+Inference boundary:
 ```
 
-For cumulative books, the TOC may include a brief "flow so far" section. Keep it broad enough that a future reader can see the arc without reading a dense analysis.
+For cumulative books, one short transition may be enough. For modular books,
+state the local lookup role rather than inventing a linear argument. For
+anthologies, preserve thematic relation only when it changes the reading.
 
-For reference-like or anthology-like books, use a light annotated index organized by topic or chapter. Do not force a linear argument.
+## Stop
 
-## Chapter Note Integration
-
-Continuity inside a chapter note should usually be one of:
-
-- no section, if the chapter stands alone
-- a short "place in the book" paragraph near the top
-- a brief transition sentence in the introduction or conclusion
-
-Avoid long lists of previous concepts, exhaustive cross-chapter tracing, or mechanical "previous / this chapter / next" blocks unless the author explicitly structures the book that way.
+Stop when the current chapter or section can be interpreted in its intended
+place without reading every earlier unit. If the user asks to save the result,
+deliver this completed continuity artifact as plain Markdown without inventing
+an archive-wide index or identity scheme.

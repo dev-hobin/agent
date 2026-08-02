@@ -1,144 +1,85 @@
 # Learning Skill Boundaries
 
 This is the shared source of truth for deciding which Learning skill owns a
-task, which artifact family should be saved, and when to hand off between
-skills.
+thinking task and when to hand work to another Learning skill.
 
-Each skill must remain independently usable. Keep the core procedure inside the
-skill's own `SKILL.md`; use this reference only for boundary, routing, and
-archive decisions.
-
-For graph frontmatter, typed relation names, status values, and shared
-`concepts/` + `patterns/` graph conventions, use
-[the graph artifact standard](graph-artifact-standard.md). This file decides
-where an artifact belongs; the graph standard decides how graph-shaped
-artifacts are represented.
-
-## Contents
-
-- Skill ownership
-- Artifact routing
-- Boundary tests
-- Handoff rules
-- Standalone skill behavior
-- Persistence rules
+Every skill is independently invokable and must produce a complete useful
+result from its declared inputs.
 
 ## Skill Ownership
 
 ```text
 technical-reading
-  Source-bound prose learning.
-  Use for books, articles, docs, specs, PDFs, tutorials, and technical writing.
-  Output: reading sessions, source-grounded learning artifacts.
+  Faithful study of prose sources and source-bound insight synthesis.
 
 opensource-reading
-  Source-bound repository learning.
-  Use for open source code, tests, docs, examples, runtime flows, contracts,
-  invariants, and architecture slices.
-  Output: repository study artifacts and reconstructed specs.
+  Evidence-backed study of one repository slice and source-bound engineering
+  insight synthesis.
 
 conceptualize
-  Source-independent concept formation.
-  Use when learning notes should become durable concepts, concept updates,
-  concept graph links, atomic concepts, or concept-level composition patterns.
-  Output: `concepts/` and `concept-updates/`.
+  Cross-source formation and testing of one transferable concept.
 
 patternize
-  Cross-concept operational pattern formation.
-  Use when several concepts or judgments should become a reusable workflow,
-  decision routine, diagnostic path, checklist, or visual execution model.
-  Output: `patterns/`.
+  Discovery and testing of recurring operational coordination across several
+  cases, concepts, or judgments.
 
 exercise
-  Deliberate practice and mastery evidence.
-  Use when a concept, pattern, or learning artifact should become drills,
-  misconception diagnostics, transfer tasks, tutor scripts, spaced retrieval,
-  or mastery rubrics.
-  Output: `exercises/` and compact reusable diagnostics when appropriate.
-```
-
-## Artifact Routing
-
-```text
-books/
-  source-bound prose learning artifacts.
-
-open-source/
-  source-bound repository reading artifacts.
-
-concepts/
-  reusable source-independent concepts.
-
-concept-updates/
-  source-bound records of concept graph changes.
-
-patterns/
-  workflow-shaped patterns that coordinate concepts.
-
-diagnostics/
-  warning signs, review questions, smell lists, rubrics, and confidence checks
-  that do not require a full workflow.
-
-exercises/
-  deliberate practice material, tutor scripts, spaced retrieval plans, and
-  mastery checks.
+  Deliberate practice and observable mastery evidence.
 ```
 
 ## Boundary Tests
 
-Use these tests when an artifact feels ambiguous:
-
-- If it explains one source, it belongs under `books/` or `open-source/`.
-- If it names one reusable idea or distinction, it belongs under `concepts/`.
-- If it records how a source changed the concept graph, it belongs under
-  `concept-updates/`.
-- If it coordinates several concepts into a repeatable action path, it belongs
-  under `patterns/`.
-- If it tests whether the learner can use a concept or pattern, it belongs
-  under `exercises/`.
-- If it is mainly a reusable warning sign or review question, it belongs under
-  `diagnostics/`.
+- If the result explains what one prose source teaches, use
+  `technical-reading`.
+- If the result reconstructs one repository's contract, invariant, flow, or
+  tradeoff, use `opensource-reading`.
+- If several source-bound insights should become one source-independent
+  operation or distinction, use `conceptualize`.
+- If several cases or concepts should become a repeatable workflow, decision
+  path, diagnostic path, or composition routine, use `patternize`.
+- If the user must predict, explain, repair, discriminate, or transfer, use
+  `exercise`.
 
 ## Handoff Rules
 
-Make handoffs explicit. Do not silently perform another skill's job inside the
-current skill.
+Make handoffs explicit. Do not silently perform another skill's job.
 
-Common handoffs:
-
-- `technical-reading -> conceptualize`: source insight should become a durable
-  concept.
-- `opensource-reading -> conceptualize`: repository lesson generalizes beyond
+- `technical-reading -> conceptualize`: insights from one or more sources may
+  support a transferable concept.
+- `opensource-reading -> conceptualize`: a repository lesson may survive beyond
   the project.
-- `conceptualize -> patternize`: several concepts form a workflow, decision
-  routine, diagnostic path, or visual execution model.
-- `patternize -> conceptualize`: a workflow exposes a missing atomic concept.
-- `conceptualize/patternize -> exercise`: the user wants internalization,
-  drills, mastery checks, or transfer practice.
-- `exercise -> conceptualize`: practice reveals that the concept boundary is
-  wrong or incomplete.
-- `exercise -> patternize`: practice design reveals a reusable practice pattern,
-  not just exercises for one concept.
+- `conceptualize -> patternize`: several concepts participate in one recurring
+  operational coordination.
+- `patternize -> conceptualize`: a pattern exposes a missing semantic concept.
+- Any learning skill `-> exercise`: the user wants practice or mastery evidence.
+- `exercise -> conceptualize/patternize`: practice exposes a wrong concept
+  boundary or a recurring coordination.
 
-## Standalone Skill Rule
+A handoff changes the learning question; it is not required for capture,
+storage, or package interoperability.
 
-Every Learning skill should still work when invoked alone:
+## Independent Artifact Delivery
 
-- The skill's own `SKILL.md` must include its core workflow and output shape.
-- Shared references should be loaded only when boundary, persistence, graph, or
-  cross-skill decisions matter.
-- A skill may recommend a handoff, but should not require another skill to
-  produce a useful first response.
-- When the user asks for saved artifacts, inspect the relevant archive files
-  before writing new ones.
+Each skill owns the semantic completeness of its result. By default, return that
+result in conversation or as copyable Markdown.
 
-## Persistence Rule
+When the user explicitly asks to save it:
 
-Do not assume a learning archive path unless the user has provided one or it has
-already been configured in the thread. When saving is requested:
+1. use a path or target the user already supplied;
+2. otherwise ask only for the missing target;
+3. write the current skill's complete result as plain Markdown unless the user
+   requested another known format;
+4. do not assume a storage layout, metadata schema, or Git workflow;
+5. do not turn persistence mechanics into the skill's core method.
 
-1. Identify the artifact family using this reference.
-2. Inspect existing files in the target folder.
-3. Reuse shared graph conventions when saving `concepts/` or `patterns/`.
-4. Save the smallest reusable artifact, not the full chat transcript.
-5. Commit or push only when the user explicitly asks.
+This rule keeps the package self-contained: Learning produces and delivers its
+own artifacts without defining an integration contract outside its boundary.
+
+## Standalone Rule
+
+- Keep the core procedure and output shape in each `SKILL.md`.
+- Read a prepared reference only when its independent `when` statement matches and its material distinction can change the result; keep missing context and limitations visible.
+- Ask only for missing source or learner information that can materially change
+  the result.
+- A handoff may be recommended, but another skill is not required for the
+  current skill to finish.

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "At least two independent cases, concepts, diagnostics, or judgments appear to share a practical problem or successful movement and must be distinguished from a topic cluster.",
+    "The pattern contains several semantic roles, branches, iterative feedback, state transitions, or a comparison matrix that is materially harder to execute from prose alone."
+  ],
+  "unless": [
+    "There is no recurring axis coordinating multiple concepts, links, diagnostics, or judgments into an operational routine.",
+    "The task asks to define or refine one atomic concept rather than a reusable pattern."
+  ],
+  "references": [
+    {
+      "path": "references/recurrence-and-forces.md",
+      "when": [
+        "At least two independent cases, concepts, diagnostics, or judgments appear to share a practical problem or successful movement and must be distinguished from a topic cluster. The reference can add this material distinction: Recurrence, force, coordination-axis, move, check, and consequence tests."
+      ]
+    },
+    {
+      "path": "references/pattern-visualization.md",
+      "when": [
+        "The pattern contains several semantic roles, branches, iterative feedback, state transitions, or a comparison matrix that is materially harder to execute from prose alone. The reference can add this material distinction: Role, workflow, decision, feedback, state, and matrix visual selection constraints."
+      ]
+    }
+  ]
+}

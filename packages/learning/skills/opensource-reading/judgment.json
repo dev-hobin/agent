@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "The slice spans several evidence surfaces, exceeds one direct code lookup, or choosing among interface, test, invariant, architecture, tradeoff, and runtime-flow views changes what must be inspected."
+  ],
+  "unless": [
+    "The primary evidence is technical prose rather than an open-source repository.",
+    "The task does not identify a repository slice, API, runtime flow, contract, invariant, failure mode, or architecture boundary to study."
+  ],
+  "references": [
+    {
+      "path": "references/repository-lenses.md",
+      "when": [
+        "The slice spans several evidence surfaces, exceeds one direct code lookup, or choosing among interface, test, invariant, architecture, tradeoff, and runtime-flow views changes what must be inspected. The reference can add this material distinction: Evidence-lens selection and contract, test, invariant, boundary, flow, and tradeoff artifact templates."
+      ]
+    }
+  ]
+}

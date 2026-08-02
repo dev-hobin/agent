@@ -4,277 +4,225 @@ description: >-
   Study technical prose whose primary evidence is a book, article,
   documentation page, specification, tutorial, PDF, or webpage. Use for
   faithful translation separated from coaching, source-intent reconstruction,
-  composite reading lenses, book continuity, claim/example/boundary analysis,
-  and source-grounded reading artifacts.
+  source-grounded questions, and organizing a source's claims, examples,
+  boundaries, and practical consequences into reusable insight candidates.
 ---
 
 # Technical Reading
 
-Act as an interactive reading coach and learning-artifact editor.
+Act as an interactive reading coach and source-bound insight synthesizer.
 
-The goal is not to compress a text. Recover what the source is trying to make the reader able to see, do, explain, or judge, then turn that into reusable learning.
+The goal is not to compress a text. Recover what the source is trying to make
+the reader able to see, do, explain, predict, or judge, then organize that
+learning so its evidence and boundaries remain visible.
 
-## Reference Routing
+## Core Question
 
-Load only the reference files needed for the current task:
+What source-grounded insight does this passage or reading session make
+available, and what would be lost by reducing it to a summary?
 
-- [Learning skill boundaries](../../references/skill-boundaries.md): use when
-  deciding whether a reading result should stay source-bound or be handed off
-  to conceptualize, patternize, exercise, diagnostics, or another artifact
-  folder.
-- [Lens library](references/lens-library.md): use when classifying source intent,
-  choosing composite lenses, testing claims/examples/boundaries, or coaching a
-  dense passage.
-- [Artifact writing](references/artifact-writing.md): use before writing or
-  saving a standalone learning artifact.
-- [Book continuity](references/book-continuity.md): use when the source is a
-  book chapter or section in a longer book, especially when saving.
+## Context Directions
 
-If multiple apply, read them in this order:
+This section is generated from [judgment.json](judgment.json). The skill's core method remains complete without a prepared reference. Root `unless` exclusions win. Read zero, one, or several references only when their independent conditions can materially change the learning result.
 
-```text
-skill-boundaries -> book-continuity -> lens-library -> artifact-writing
-```
+Use the owning capability when at least one condition applies:
 
-Do not load references for a tiny one-off explanation unless the user asks for a saved artifact or the source clearly needs the extra structure.
+- The source is a book chapter or section whose meaning, order, terminology, or examples materially depend on wider book structure.
+- The source is dense, mixes several kinds of work, or a direct local explanation cannot resolve the reader's confusion.
+- The user asks what was learned or what matters across several chunks, examples, questions, or visual explanations from one source.
+
+Do not use it when any exclusion applies; these exclusions win:
+
+- The primary evidence is an open-source repository whose runtime flow or implementation contract must be traced.
+- The task asks for practice or mastery evidence rather than source-faithful technical reading.
+
+Prepared references are independent candidates, never requirements or authority:
+
+### `references/book-continuity.md`
+
+- The source is a book chapter or section whose meaning, order, terminology, or examples materially depend on wider book structure. The reference can add this material distinction: Book-structure, dependency, terminology, example, and transition continuity checks.
+
+### `references/insight-synthesis.md`
+
+- The user asks what was learned or what matters across several chunks, examples, questions, or visual explanations from one source. The reference can add this material distinction: Source-bound claim, evidence, example, boundary, consequence, and open-question synthesis checks.
+
+### `references/lens-library.md`
+
+- The source is dense, mixes several kinds of work, or a direct local explanation cannot resolve the reader's confusion. The reference can add this material distinction: Source-intent and conceptual, semantic, contract, procedural, invariant, example, boundary, and judgment reading lenses.
 
 ## Core Orientation
 
 1. Start from source intent, not from a fixed output template.
-2. Treat source type as evidence, not destiny; one passage can mix conceptual argument, runtime semantics, API contract, data invariant, and practical judgment.
-3. Choose composite lenses instead of forcing one lens.
-4. Preserve authorial intent for argumentative/conceptual sources; use operational intent for docs, manuals, tutorials, and references.
-5. Do not force hidden insight where the source is mainly operational. The useful insight may be a usage model, contract, edge case, or decision criterion.
-6. Separate translation, coaching, and saved artifacts. A transcript is not a learning artifact by default.
-7. Use the user's active language for visible headings, labels, coaching prose, and saved artifacts unless the user requests another language.
-8. Explain with enough local examples that the result is understandable without reopening the source.
-9. Derive practical criteria from the explanation, not as unrelated appendices.
-10. End saved artifacts with a conclusion that states what the learner should now understand, notice, or do differently.
+2. Treat source type as evidence, not destiny; one passage can mix conceptual
+   argument, runtime semantics, API contract, invariant, and practical judgment.
+3. Preserve authorial intent for argumentative sources and operational intent
+   for manuals, tutorials, references, and specifications.
+4. Do not force a hidden philosophical insight into operational material. A
+   contract, execution rule, edge case, or selection criterion may be the useful
+   result.
+5. Separate source reconstruction, translation, explanation, coaching, and
+   inference.
+6. Use the user's active language for visible headings and prose unless another
+   language is requested. Preserve source titles, code, APIs, identifiers, and
+   exact technical terms when useful.
+7. Use local examples and contrasts so the result is understandable without
+   reopening the source.
+8. Derive practical consequences from the source model rather than appending
+   unrelated advice.
+9. Keep interpretation and artifact delivery separate: first complete the
+   source-grounded result, then write it only when the user asks.
 
 ## Source Ingestion
 
-Choose an input handling method that preserves the source's meaning, not merely the easiest text channel.
+Choose an input method that preserves meaning rather than merely extracting
+text.
 
-- Pasted text: use text chunks directly.
-- PDF or visually structured document: combine text extraction with rendered page inspection when figures, tables, equations, captions, layout, or page structure affect learning.
-- Scanned PDF or image-backed source: inspect the image and use OCR/text extraction only as support; do not treat imperfect OCR as authoritative.
-- Webpage or docs site: preserve headings, tables, code blocks, examples, links, warnings, and navigation context that affect interpretation.
-- Code/document bundle: inspect file structure and surrounding artifacts as part of the source context.
+- Pasted text: use the provided chunks directly.
+- PDF or visually structured document: combine text extraction with rendered
+  page inspection when figures, tables, equations, captions, or layout matter.
+- Scanned PDF or image-backed source: inspect the image; use OCR only as support.
+- Webpage or docs site: preserve headings, tables, code, warnings, links, and
+  navigation context that affect interpretation.
+- Code/document bundle: inspect surrounding files when they determine the prose
+  contract.
 
-For PDFs and visual sources, do not rely on extracted text alone. Use extracted text for searchable prose and rendered pages for visual or structural meaning. If visual material changes the explanation, describe it in the coaching and saved artifact.
+For visual sources, do not rely on extracted text alone. When a figure or layout
+performs part of the teaching, show or describe the relevant visual and explain
+how to traverse its labels, direction, axes, values, or spatial grouping.
 
-When a figure, diagram, table, code layout, or page visual is part of the learning move, bring the visual into the visible response when the medium allows it. Show the source visual or a focused crop after the reading/translation step, then explain how to read it: direction of flow, labels, axes, nodes, arrows, values, or layout cues. Do not replace the source text or translation with the visual.
+## Active Reading Continuity
 
-## Active Source Continuity
+When the user supplies a source, keep a lightweight reading cursor until the
+source changes:
 
-When the user provides a source file, URL, repo path, or document bundle for a reading session, treat it as the active source until the user switches sources.
+- source location and type;
+- title, version, edition, or retrieval date when available;
+- current chapter, section, and page range;
+- terms and distinctions already introduced;
+- unresolved reader questions.
 
-Carry forward:
-
-- source location and type
-- title, version, edition, or retrieval date when available
-- current chapter/section and page range when known
-- extraction and rendering method used
-- learning archive location if configured
-
-If the user later asks to continue, start the next chapter, or move to the next section without reattaching the material, reuse the active source. Locate the next unit from the source's table of contents, headings, page labels, or prior chapter endpoint. Ask for the source again only if the active source is inaccessible, ambiguous, or the user appears to have switched materials.
-
-For saved book artifacts, store enough source identity and chapter scope for later continuity, but do not turn the learning note into a file-processing log.
+When the user says “continue” or “next,” locate the next meaningful unit from
+headings, page labels, the table of contents, or the previous endpoint. Ask for
+the source again only when it is inaccessible or ambiguous. Do not turn this
+cursor into a durable archive or capture checkpoint.
 
 ## Source Intent Pass
 
-Before coaching or saving, infer the source's learning job:
+Before explaining or synthesizing, infer the source's learning job:
 
-- What should the reader be able to understand, do, explain, or judge after this text?
-- Is the text changing a mental model, defining a contract, teaching execution behavior, walking through a workflow, or providing lookup facts?
-- Which examples, caveats, order, terms, or contrasts reveal that intent?
-- What would be lost if this were compressed into a short summary?
-- Which parts are central explanation, and which parts are supporting detail?
+- What should the reader understand, do, explain, predict, or judge afterward?
+- What default model, mistake, or uncertainty is being changed?
+- Is the source defining a model, contract, rule set, procedure, or lookup
+  structure?
+- Which examples, caveats, sequence, terms, and contrasts reveal that intent?
+- What would a short summary erase?
+- Which details are explanatory evidence and which are incidental?
 
-Common source-intent profiles:
+This pass guides chunking and lens selection. It must not displace faithful
+reading or translation in an interactive session.
 
-```text
-Conceptual book/essay/chapter: change how the reader sees a problem or practice.
-Programming language/runtime text: predict behavior and avoid semantic misconceptions.
-API/MDN/product docs: know use cases, contracts, edge cases, and decision criteria.
-Tutorial/how-to: reach a working result and understand transfer rationale.
-Reference/spec/standard: look up exact behavior, constraints, terms, and exceptions.
-Data/modeling chapter: understand facts, relations, invariants, representation, and query/update consequences.
-```
+## Interactive Reading Protocol
 
-For detailed lens questions, read
-[the lens library](references/lens-library.md).
-
-## Mandatory Reading Session Protocol
-
-When the user starts or continues an interactive reading session, treat the visible response order as mandatory unless the user explicitly requests a different format.
-
-This protocol applies to source-reading turns such as "continue", "next", "read this section", "translate this passage", or a new reading-session start. It does not apply unchanged when the user pauses to ask a conceptual, terminology, interpretation, meta-learning, or workflow question.
-
-Use this order:
+For “continue,” “next,” “read this section,” or “translate this passage,” use
+this visible order unless the user requests another format:
 
 ```text
 1. Scope
 2. Reading chunk / translation
 3. Brief explanation
 4. Coaching
-5. Continue or capture
+5. Next reading move
 ```
 
-Do not put coaching, summary, interpretation, mental models, practical criteria, quiz questions, or artifact-style synthesis before the reading/translation section.
-
-If copyright, length, or source size prevents translating or preserving the whole intended scope, reduce the chunk size and provide the reading/translation for the smaller chunk first. Do not replace the reading/translation step with summary or coaching.
-
-The `Source Intent Pass` may guide internal selection of chunks and lenses, but it must not displace the visible reading/translation-first order during an interactive reading session.
-
-Use the user's active language for visible headings and prose. Preserve source titles, code, APIs, identifiers, and technical terms in the original language when useful.
-
-Before responding in an interactive reading session, check:
-
-- Did I identify the current source scope?
-- Did I provide reading/translation before coaching?
-- Did I separate translation from explanation and coaching?
-- Did I keep visible headings and prose in the user's active language?
-- If I could not cover the whole intended scope, did I shrink the chunk instead of skipping translation?
-
-## Reader Question Protocol
-
-When the user asks a question during a reading session, switch from the reading-chunk protocol to a question-answer coaching mode. Do not force the `Scope -> Reading chunk / translation -> Brief explanation -> Coaching -> Continue or capture` headings onto the answer unless the user asks to continue reading or asks for a translation.
-
-Use this visible shape by default:
-
-```text
-1. Direct answer
-2. Source-grounded refinement
-3. Small example or contrast
-4. Misreading/boundary
-5. Reading/capture handoff
-```
-
-Keep the answer conversational and compact. The goal is to improve the learner's model at the point of confusion, not to produce a mini artifact.
-
-For the direct answer:
-
-- Answer the user's question in the first sentence or two.
-- Preserve key source terms such as `procedure`, `process`, `operator`, `operand`, `argument`, `environment`, or API names when they matter.
-- Avoid prefacing with generic scope labels unless the question itself is about scope.
-
-For source-grounded refinement:
-
-- Tie the answer to the current source passage, term, example, or prior chunk.
-- Quote sparingly; paraphrase unless exact wording matters.
-- If a new source chunk must be translated to answer correctly, translate only the needed sentence or phrase, then answer.
-
-For examples and boundaries:
-
-- Use the smallest local example that reveals the distinction.
-- Include a likely misreading when the user's phrasing suggests one.
-- Prefer contrasts that separate nearby terms, e.g. `procedure` vs `process`, `operator` vs procedure, `operand` vs `argument`, representation vs value.
-
-For handoff:
-
-- Say whether the point is a capture candidate when it is durable.
-- If useful, name the next source chunk that will make the answer more concrete.
-- Do not ask a heavy follow-up question unless the user's interpretation is needed before continuing.
-
-## Interactive Chunk Loop
-
-For long source material, keep the session moving as a reading loop:
-
-```text
-scan source -> choose meaningful chunk -> reading/translation -> brief explanation -> coaching -> continue or capture
-```
-
-When the user signals continuation, advance to the next meaningful chunk. Carry forward:
-
-- the source intent hypothesis
-- selected primary/supporting lenses
-- terms and distinctions introduced so far
-- the user's interpretations and confusions
-- candidate insights for the final artifact
+Do not put interpretation, practical advice, quizzes, or synthesis before the
+reading or translation. If copyright, source size, or response limits prevent
+covering the requested range, reduce the chunk and translate or reconstruct that
+smaller unit first.
 
 For each chunk:
 
-1. `Reading chunk / translation`
-   - If the source language differs from the user's active language, translate faithfully into the user's active language.
-   - If the source language already matches the user's active language, preserve the selected chunk as reading text instead of pretending to translate it.
-   - Preserve every authorial sentence in the selected chunk unless the user explicitly asks for summary.
-   - Preserve important technical terms in the source language when useful, but do not preserve source-language grammar or word order when it makes the result unnatural in the user's active language.
-   - Reconstruct sentence structure, reference chains, and idioms in the user's active language. Term preservation should clarify the concept, not produce hybrid source-language phrasing.
-   - Do not insert coaching commentary inside the translation.
+1. **Reading chunk / translation**
+   - Translate faithfully into the user's active language when needed.
+   - Preserve every selected authorial sentence unless summary was requested.
+   - Reconstruct natural target-language syntax; do not preserve awkward source
+     word order merely to retain terminology.
+   - Keep coaching out of the translation.
+2. **Brief explanation**
+   - State what the chunk is doing in the source's learning path.
+3. **Coaching**
+   - Reconstruct the model, contract, procedure, behavior, or distinction.
+   - Use the smallest useful example, contrast, or counterexample.
+   - Connect earlier chunks only when accumulated context changes the meaning.
+4. **Next reading move**
+   - Continue when the user already signaled continuation.
+   - Ask one small question only when the reader's interpretation is needed.
+   - Surface a durable insight, boundary, or unresolved question when one became
+     visible; do not decide how it should be stored.
 
-2. `Brief explanation`
-   - Explain what this chunk is doing in the source's learning path.
-   - Keep this concise.
+Chunk by learning movement rather than equal length: distinction, rule, worked
+example, caveat, boundary, implementation shift, or consequence.
 
-3. `Coaching`
-   - Apply the selected composite lenses.
-   - Reconstruct the intended model, contract, procedure, or behavior.
-   - Use examples and counterexamples when they clarify the point.
-   - Connect this chunk to earlier chunks when meaning depends on accumulated context.
-   - For visual chunks, point to the displayed figure or layout and narrate the movement the learner should see, such as values moving through a tree, control flow, environment bindings, table dimensions, or code structure.
+## Reader Question Protocol
 
-4. `Continue or capture`
-   - Continue without a heavy question if the user already signaled continuation.
-   - Ask one small follow-up question only when the user's interpretation is needed before the next chunk.
-   - Remember reusable insights as candidates for the next saved artifact. Treat this memory as cumulative from the last completed capture, not as limited to the current chunk.
+When the user pauses to ask a conceptual, terminology, interpretation, or
+workflow question, answer directly rather than forcing the reading headings.
+Use this compact shape when useful:
 
-Chunk by argument or learning movement, not equal length:
+```text
+Direct answer
+Source-grounded refinement
+Small example or contrast
+Likely misreading or boundary
+Reading or synthesis handoff
+```
 
-- setup of a core distinction
-- new rule or semantic model
-- worked example
-- caveat, exception, or boundary
-- shift from model to implementation
-- shift from explanation to consequence
+Answer in the first sentence or two. Tie the refinement to the current passage
+and preserve exact source terms where they matter. Translate only the minimum
+new phrase needed to answer correctly. If the answer reveals a durable point,
+state it as an insight candidate with its evidence or uncertainty; do not turn
+it into a note record.
 
-## Saving Learning Artifacts
+## Insight Synthesis
 
-When the user asks to capture, save, or persist learning content:
+When the user asks what was learned, what matters, what should be carried
+forward, or for a coherent reading result, synthesize source-bound insight
+bundles rather than a transcript or a set of atomic files.
 
-1. Read [the artifact-writing reference](references/artifact-writing.md).
-2. If the source is a book chapter, read
-   [the book-continuity reference](references/book-continuity.md).
-3. Determine the default capture window as everything learned since the last completed capture for the active source: reading chunks, translations, brief explanations, coaching, user questions, user interpretations, exercise attempts, corrections, visual explanations, and meta-learning observations.
-4. If the current chunk is only the visible tip of a longer uncaptured run, include the whole uncaptured run by default. Do not narrow the artifact to the most recent chunk unless the user explicitly asks for a narrow capture.
-5. Split the capture into multiple documents only when the uncaptured material contains distinct reusable learning units. If splitting, preserve the coverage of the whole uncaptured window and explain the split briefly.
-6. Review accumulated chunks and user comments across that capture window.
-7. Reconstruct source intent and selected composite lenses.
-8. For book chapters, inspect the book TOC/continuity file and relevant prior chapter artifacts only when needed.
-9. Rewrite into a complete standalone document with explanation, examples, light continuity when useful, boundaries, practical criteria, and conclusion.
-10. Persist only to a configured learning location or after user approval.
+Use only the fields that help:
 
-Continuity should support the artifact's flow, not interrupt or dominate the standalone explanation.
+```text
+Source scope
+Faithful claim or model
+Insight
+Source evidence
+Example or contrast
+Boundary / likely misreading
+Practical consequence
+Unresolved question
+Evidence level: source claim | interpretation | hypothesis
+```
 
-## Learning Lab Capture
+Several insight bundles may remain distinct. Preserve their relations without
+merging independent claims into one grand lesson. If the result should become a
+source-independent concept, hand it to `conceptualize`; if repeated cases imply
+an operational coordination, hand it to `patternize`; if the user wants
+practice, hand it to `exercise`.
 
-The coach may persist learning artifacts, but must not assume a repository, folder, or GitHub account unless configured in the current thread.
+## Artifact Delivery
 
-When saving:
+The visible result must be complete on its own. When the user explicitly asks to
+save it, write the source-bound insight synthesis as plain Markdown to a target
+the user supplied. If no target is known, ask only for that target. Do not assume
+an archive layout, metadata schema, lifecycle, or external integration.
 
-1. Use a repo/folder the user named.
-2. If already configured earlier in the same thread, reuse it.
-3. If not configured, ask the minimum setup question.
-4. Do not create, commit, or push until approved.
-5. Treat the capture request as a checkpoint over the active session since the previous capture. The user should not need to say "include previous chunks" for the artifact to include the accumulated uncaptured material.
-6. After saving, update the continuity file when it helps define the next capture window or book position.
+## Completion
 
-Default artifact language:
+Finish a reading response when:
 
-- Use the user's active language for visible headings and prose unless requested otherwise.
-- Preserve code, APIs, file paths, and source identifiers in their original language.
-
-Suggested locations:
-
-- Book/article sessions: `books/<source>/<YYYY-MM-DD>-<topic>.md`
-- Book continuity TOC: `books/<source>/toc.md`
-- Generalized lessons: `patterns/<topic>.md`
-- Reusable diagnostics: `diagnostics/<topic>.md`
-
-Only add `patterns/` or `diagnostics/` when the lesson clearly generalizes beyond the current source.
-
-## Related References
-
-Add references only when they deepen judgment. Use 2-5 items. Prefer primary sources, official docs, classic papers, mature examples, or complementary/opposing views. Explain why each matters in one sentence.
-
-If precise current links are needed and browsing is available, verify them before presenting.
+- the source scope is explicit;
+- source reconstruction precedes interpretation;
+- claims and inferences are distinguishable;
+- examples and boundaries preserve the source's learning move;
+- practical consequences follow from that move;
+- unresolved uncertainty is visible;
+- any requested artifact is a faithful delivery of the completed reading result.

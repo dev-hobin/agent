@@ -1,200 +1,116 @@
-# Lens Library
+# Technical Reading Lens Library
 
-Use this reference when the passage is dense, the source type is mixed, or the user wants coaching beyond a simple explanation.
+Use this reference when the source's learning job is dense or mixed. A lens owns
+a question and an explanatory artifact; it is not a mandatory stage.
 
-## Contents
+## Lens Selection
 
-- Composite lens selection
-- Source intent
-- Conceptual mental model
-- Operational semantics
-- Contract and API
-- Procedure and workflow
-- Data and invariants
-- Evidence and examples
-- Boundaries and misreadings
-- Practical judgment
-
-## Composite Lens Selection
-
-Do not pick only one lens unless the text is genuinely narrow. Name the selected lenses when useful:
+Start with source intent. Add a lens only when it changes the explanation,
+example, boundary, or practical consequence.
 
 ```text
-Primary lens: <main learning path>
-Supporting lenses: <details needed for the artifact to work>
-Why this composition fits: <short explanation>
+Primary lens:
+Supporting lens:
+Why each is consequential:
+Resulting artifact:
 ```
 
-Examples:
+Common compositions:
 
-- SQL as logic: `Conceptual Mental Model` primary, with `Data/Invariant`, `Evidence/Example`, `Boundary`, and `Practical Judgment`.
-- MDN `Promise.all`: `API Contract` + `Operational/Semantics`, with `Edge Cases`.
-- Type narrowing chapter: `Operational/Semantics`, `Misconception`, `Practical Judgment`, `Boundary`.
-- Deployment tutorial: `Procedure`, `Rationale`, `Failure Mode`, `Verification`.
+- SQL as logic: conceptual model + data/invariant + boundary.
+- `Promise.all`: API contract + operational semantics + edge cases.
+- Type narrowing: operational semantics + misconception + practical judgment.
+- Deployment guide: procedure + rationale + failure + verification.
 
-## Source Intent Lens
-
-Use for every task.
+## Source Intent
 
 Recover:
 
-- intended reader capability
-- old/default model being corrected, if any
-- new model, contract, procedure, or lookup structure
-- evidence in examples, caveats, terminology, and sequence
-- learning outcome to preserve
+- intended reader capability;
+- default model or uncertainty being changed;
+- new model, contract, procedure, or lookup structure;
+- evidence in examples, caveats, terminology, visuals, and sequence;
+- what compression would erase.
 
-## Conceptual Mental Model Lens
+Artifact: a one-paragraph learning-job statement and the source evidence that
+supports it.
 
-Use when the source reshapes how the reader sees a problem, abstraction, domain, or practice.
+## Conceptual Mental Model
 
-Ask:
+Use when the source changes how the reader sees a problem or practice.
 
-- What is the author trying to make the reader see?
-- What shallow model or misconception is being replaced?
-- What new categories, distinctions, or causal model does the text install?
-- Why are the examples arranged this way?
-- What later ideas become easier once this view is installed?
+Ask what categories, distinctions, relations, or causal model replace the old
+view; why examples appear in this order; and what later judgment becomes
+possible.
 
-Artifact labels, localized to the user's active language:
+Artifact: old/default model, new model, source teaching move, and changed
+judgment.
 
-```text
-Core insight
-Old/default model
-New mental model
-How the source makes the model visible
-What this changes in judgment
-```
+## Operational Semantics
 
-## Operational/Semantics Lens
+Use when the reader must predict execution, evaluation, resolution, checking,
+ordering, concurrency, or failure.
 
-Use for programming language chapters, runtime behavior, algorithms, concurrency, parsing, evaluation, type systems, or any text where the reader must predict behavior.
+Recover exact rules, a step trace, a plausible wrong prediction, precedence or
+ordering constraints, and boundary conditions.
 
-Ask:
+Artifact: notional machine or execution trace plus rules and counterexample.
 
-- What are the rules of execution, evaluation, resolution, or checking?
-- What examples distinguish correct behavior from plausible but wrong behavior?
-- Which terms have exact technical meanings?
-- What edge cases, precedence rules, ordering rules, or failure modes matter?
-- How should the reader reason step by step?
+## Contract And API
 
-Artifact labels:
+Use for APIs, CLIs, product docs, framework docs, and interface specifications.
 
-```text
-Execution/interpretation model
-Core rules
-Representative examples
-Likely misreadings
-Boundary conditions
-```
+Recover purpose, callers, inputs, outputs, effects, failures, compatibility,
+preconditions, postconditions, guarantees, unsupported cases, and selection
+criteria.
 
-## Contract/API Lens
+Artifact: compact contract table with normal use, boundary use, and misuse.
 
-Use for MDN, API docs, library docs, CLI docs, framework docs, or interface descriptions.
+## Procedure And Workflow
 
-Ask:
+Use for tutorials, setup, migration, debugging, and runbooks.
 
-- What problem or use case is this interface for?
-- What are inputs, outputs, side effects, errors, versions, compatibility constraints, and guarantees?
-- What preconditions and postconditions matter?
-- What examples show normal use, boundary use, and misuse?
-- What criteria tell the reader when not to use it?
+Recover target state, prerequisites, ordering, rationale, verification, failure
+points, and recovery.
 
-Artifact labels:
+Artifact: procedure with reason and check for each consequential step.
 
-```text
-Purpose and use case
-Exact contract
-Examples and counterexamples
-Errors, exceptions, and compatibility
-When to use it and when to avoid it
-```
+## Data And Invariants
 
-## Procedure/Workflow Lens
+Use for data modeling, schemas, types, contracts, state machines, formal
+methods, testing, and requirements.
 
-Use for tutorials, guides, recipes, setup instructions, migrations, debugging workflows, and runbooks.
+Recover represented facts, relations, valid and invalid states, preserving and
+breaking operations, and where each guarantee is enforced.
 
-Ask:
+Artifact: invariant table and state or relation model when useful.
 
-- What final state is the workflow trying to reach?
-- Why does each step exist?
-- What prerequisite, ordering, or environment assumption matters?
-- How does the reader verify success?
-- Where do failures happen, and how should they diagnose them?
+## Evidence And Examples
 
-Artifact labels:
+Use whenever examples do teaching work. State what each example makes visible,
+which rule or misconception it discriminates, and the smallest variant that
+would fail.
 
-```text
-Target state
-Procedure
-Reason for each step
-Verification method
-Failure points and recovery
-```
+Artifact: example-to-claim map or contrast set.
 
-## Data/Invariant Lens
+## Boundary And Misreading
 
-Use for database, data modeling, schema, type, contract, state machine, formal methods, testing, or requirements material.
+Use to prevent overgeneralization. Name assumptions, counterexamples,
+implementation details that break a clean model, and conclusions the reader
+must not draw.
 
-Ask:
+Artifact: boundary and likely-misreading list tied to source evidence.
 
-- What facts, relations, states, constraints, or invariants are represented?
-- Which properties belong in types, contracts, tests, queries, or runtime validation?
-- What changes when representation details are separated from logical conditions?
-- What examples expose invalid states or missing constraints?
-- What operations preserve or violate the invariant?
+## Practical Judgment
 
-Artifact labels:
+Use only after the source model is clear. Derive a decision situation, use and
+avoidance criteria, rationale, and one review or implementation question.
 
-```text
-Represented facts
-Structural properties
-Invariants
-Where validation belongs
-Breaking examples
-```
+Artifact: criterion table whose reasons point back to the source model.
 
-## Evidence/Example Lens
+## Thinking Tool Boundary
 
-Use whenever examples are doing teaching work.
-
-Ask:
-
-- What does each example make visible?
-- What contrast does it create?
-- What minimal variant would fail, and why?
-- Is the example demonstrating a rule, boundary, misconception, or workflow?
-
-## Boundary/Misreading Lens
-
-Use to prevent overgeneralization.
-
-Ask:
-
-- Where does this idea stop applying?
-- What assumptions does it rely on?
-- What counterexample weakens it?
-- What clean model can be broken by implementation details?
-- What should the learner not conclude?
-
-## Practical Judgment Lens
-
-Use after the source model is clear.
-
-Ask:
-
-- What decision can the reader now make better?
-- What criteria separate good use from misuse?
-- Why do those criteria follow from the source model?
-- What code review, design, testing, debugging, or AI-spec question should change?
-
-Artifact labels:
-
-```text
-Decision situation
-Use criteria
-Avoidance criteria
-Rationale
-Example
-Review questions
-```
+Observing, comparing, pattern recognition, abstraction, modeling,
+transformation, and synthesis may support any lens. Select them only when they
+produce one of the artifacts above. Never turn them into a fixed learner-facing
+pipeline.

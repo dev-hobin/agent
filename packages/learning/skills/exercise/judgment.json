@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "The user needs a substantial workbook, multi-stage progression, spaced plan, mastery rubric, or dialogue tutor rather than one tiny drill.",
+    "A substantial drill set or tutor script needs detailed prediction, worked, faded, contrast, repair, transfer, retrieval, rubric, or misconception-aware answer-key templates."
+  ],
+  "unless": [
+    "There is no learned concept, connection, pattern, reading result, or repository-study result to practice.",
+    "The task asks for explanation or artifact extraction without an observable mastery objective."
+  ],
+  "references": [
+    {
+      "path": "references/workbook-design.md",
+      "when": [
+        "The user needs a substantial workbook, multi-stage progression, spaced plan, mastery rubric, or dialogue tutor rather than one tiny drill. The reference can add this material distinction: Progression, scaffolding, tutor-move, retrieval, transfer, and mastery-evidence design constraints."
+      ]
+    },
+    {
+      "path": "references/exercise-patterns.md",
+      "when": [
+        "A substantial drill set or tutor script needs detailed prediction, worked, faded, contrast, repair, transfer, retrieval, rubric, or misconception-aware answer-key templates. The reference can add this material distinction: Diagnostic, prediction, worked, faded, contrast, repair, transfer, retrieval, and rubric templates."
+      ]
+    }
+  ]
+}

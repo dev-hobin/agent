@@ -1,7 +1,8 @@
 {
   "name": "@hobin/learning",
-  "version": "0.1.0",
-  "description": "Source-grounded reading, concept formation, patternization, and deliberate practice for Pi.",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Source-grounded study, cross-source synthesis, and deliberate practice for Pi.",
   "type": "module",
   "keywords": ["pi-package", "pi", "learning", "skills"],
   "license": "MIT",
@@ -22,6 +23,7 @@
     "extensions",
     "references",
     "skills",
+    "docs",
     "README.md",
     "LICENSE"
   ],
@@ -33,18 +35,19 @@
   },
   "scripts": {
     "check": "node scripts/check-package.mjs && node --test tests/*.test.ts",
-    "eval": "node scripts/eval-rpc.mjs"
+    "eval": "node scripts/eval-rpc.mjs",
+    "eval:contrast": "node scripts/eval-contrast.mjs"
   },
   "pi": {
     "extensions": ["./extensions/learning.ts"],
     "skills": ["./skills"]
   },
-  "dependencies": {
+  "devDependencies": {
+    "@hobin/judgment": "workspace:*",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
-    "typebox": "*"
+    "@earendil-works/pi-tui": "*"
   }
 }

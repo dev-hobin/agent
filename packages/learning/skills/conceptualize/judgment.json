@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "At least two independent sources, insight bundles, repository cases, or observations—or one source plus a genuine transfer case—are available for comparison.",
+    "The candidate contains multiple verbs or practical questions, mixes concept and workflow, has uncertain transfer, or lacks a discriminating counterexample."
+  ],
+  "unless": [
+    "The task requires source-faithful reading or translation but not a source-independent durable concept or graph update.",
+    "The requested result is deliberate practice rather than concept extraction or revision."
+  ],
+  "references": [
+    {
+      "path": "references/cross-source-synthesis.md",
+      "when": [
+        "At least two independent sources, insight bundles, repository cases, or observations—or one source plus a genuine transfer case—are available for comparison. The reference can add this material distinction: Cross-context comparison, accidental-scaffolding removal, and contradiction-preservation checks."
+      ]
+    },
+    {
+      "path": "references/concept-boundaries.md",
+      "when": [
+        "The candidate contains multiple verbs or practical questions, mixes concept and workflow, has uncertain transfer, or lacks a discriminating counterexample. The reference can add this material distinction: Semantic atomicity, role, transfer, near-miss, and falsifier checks."
+      ]
+    }
+  ]
+}

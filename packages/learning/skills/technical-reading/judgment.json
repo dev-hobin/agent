@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "specVersion": "0.1",
+  "when": [
+    "The source is dense, mixes several kinds of work, or a direct local explanation cannot resolve the reader's confusion.",
+    "The source is a book chapter or section whose meaning, order, terminology, or examples materially depend on wider book structure.",
+    "The user asks what was learned or what matters across several chunks, examples, questions, or visual explanations from one source."
+  ],
+  "unless": [
+    "The primary evidence is an open-source repository whose runtime flow or implementation contract must be traced.",
+    "The task asks for practice or mastery evidence rather than source-faithful technical reading."
+  ],
+  "references": [
+    {
+      "path": "references/lens-library.md",
+      "when": [
+        "The source is dense, mixes several kinds of work, or a direct local explanation cannot resolve the reader's confusion. The reference can add this material distinction: Source-intent and conceptual, semantic, contract, procedural, invariant, example, boundary, and judgment reading lenses."
+      ]
+    },
+    {
+      "path": "references/book-continuity.md",
+      "when": [
+        "The source is a book chapter or section whose meaning, order, terminology, or examples materially depend on wider book structure. The reference can add this material distinction: Book-structure, dependency, terminology, example, and transition continuity checks."
+      ]
+    },
+    {
+      "path": "references/insight-synthesis.md",
+      "when": [
+        "The user asks what was learned or what matters across several chunks, examples, questions, or visual explanations from one source. The reference can add this material distinction: Source-bound claim, evidence, example, boundary, consequence, and open-question synthesis checks."
+      ]
+    }
+  ]
+}
