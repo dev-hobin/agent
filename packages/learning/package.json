@@ -43,7 +43,7 @@
     "skills": ["./skills"]
   },
   "devDependencies": {
-    "@hobin/judgment": "workspace:*",
+    "@hobin/judgment": "workspace:^0.1.0",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {

@@ -44,7 +44,7 @@ assert.deepEqual(manifest.files, [
 assert.deepEqual(manifest.pi.extensions, ["./extensions/learning.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
 assert.deepEqual(manifest.devDependencies, {
-	"@hobin/judgment": "workspace:*",
+	"@hobin/judgment": "workspace:^0.1.0",
 	yaml: "^2.9.0",
 });
 assert.equal(manifest.dependencies, undefined);
