@@ -20,7 +20,8 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check": "pnpm --filter './packages/**' --fail-if-no-match --if-present check",
+    "check": "pnpm check:isolation && pnpm --filter './packages/**' --fail-if-no-match --if-present check",
+    "check:isolation": "node scripts/check-package-isolation.mjs",
     "eval": "pnpm --filter './packages/**' --fail-if-no-match --if-present eval",
     "eval:json": "pnpm --filter @hobin/developer eval:json"
   },
