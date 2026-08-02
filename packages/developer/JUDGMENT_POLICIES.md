@@ -92,9 +92,17 @@ Selects one bundled skill, loads its complete method, derives owner identity,
 and compiles its optional policy. The task-specific question is already dynamic;
 there is no authored `question_id`.
 
+### `developer_open_context_sources`
+
+Opens one bounded batch of exact Pi-visible Skill IDs for the active judgment.
+Each method and optional co-located policy becomes visible before applicability.
+The operation may be called again when new evidence reveals another relevant
+Skill; successful batches extend the same `ActiveJudgment` rather than starting
+another lifecycle.
+
 ### `developer_conclude_judgment`
 
-Resolves exact inventory, compact `branchResultId`, and user-event nominations.
+Resolves source applicability, exact inventory, compact `branchResultId`, and user-event nominations.
 It then atomically selects/seals material, records contributions, assesses
 conflicts/limitations/sufficiency, and creates one semantic outcome. It accepts
 no mutation fields.
@@ -142,6 +150,7 @@ project constraint. A user decision cannot rewrite an observed fact.
 ```text
 judgmentId
 policySha256? + questionSha256
+opened context-source descriptor/policy/applicability identities
 selectionSha256 + sealedContextSha256
 coverageSha256 + outcomeSha256
 material identities + contribution summaries

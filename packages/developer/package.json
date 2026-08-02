@@ -58,7 +58,6 @@
     "typebox": "*"
   },
   "dependencies": {
-    "@hobin/judgment": "workspace:0.1.0"
-  },
-  "bundledDependencies": ["@hobin/judgment"]
+    "@hobin/judgment": "workspace:^0.1.0"
+  }
 }

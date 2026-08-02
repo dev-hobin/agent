@@ -11,6 +11,7 @@ import type {
 import {
 	developerContextBasisSha256,
 	parseDeveloperContextBasis,
+	type ContextSourceBasis,
 	type ContributionBasis,
 	type DeveloperContextBasis,
 } from "./protocol.ts";
@@ -44,6 +45,7 @@ export function contextBasisFromJudgment(input: {
 	readonly sealedContext: SealedContext;
 	readonly coverage: ContextCoverage;
 	readonly outcome: ContextualJudgment | NeedsEvidence | EmergentQuestion;
+	readonly contextSources: readonly ContextSourceBasis[];
 }): DeveloperContextBasis {
 	if (
 		input.selection.selectionSha256 !== input.sealedContext.selectionSha256 ||
@@ -77,6 +79,7 @@ export function contextBasisFromJudgment(input: {
 		sealedContextSha256: input.sealedContext.sealedContextSha256,
 		coverageSha256: input.coverage.coverageSha256,
 		outcomeSha256: input.outcome.outcomeSha256,
+		contextSources: input.contextSources,
 		members,
 		contributions,
 		conflictIds: input.coverage.conflicts.map(

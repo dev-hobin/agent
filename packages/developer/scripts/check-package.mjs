@@ -66,9 +66,9 @@ assert.deepEqual(manifest.exports, { ".": "./src/index.ts" });
 assert.deepEqual(manifest.pi.extensions, ["./extensions/developer.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
 assert.deepEqual(manifest.dependencies, {
-	"@hobin/judgment": "workspace:0.1.0",
+	"@hobin/judgment": "workspace:^0.1.0",
 });
-assert.deepEqual(manifest.bundledDependencies, ["@hobin/judgment"]);
+assert.equal(manifest.bundledDependencies, undefined);
 assert.equal(manifest.devDependencies.typebox, "1.1.38");
 for (const dependency of [
 	"@earendil-works/pi-ai",
@@ -233,6 +233,7 @@ for (const term of [
 	"developer_load_guidance",
 	"developer_record_judgment",
 	"developer_open_judgment",
+	"developer_open_context_sources",
 	"developer_conclude_judgment",
 	"developer_authorize_change",
 	"developer_record_landing",
@@ -250,6 +251,7 @@ for (const toolName of [
 	"developer_record_landing",
 ])
 	assert.ok(extension.includes(`name: "${toolName}"`));
+assert.match(extension, /name: OPEN_CONTEXT_SOURCES_TOOL/u);
 assert.match(extension, /registerCommand\("developer"/u);
 assert.match(extension, /registerFlag\("developer"/u);
 assert.match(extension, /event\.systemPromptOptions\.skills/u);
@@ -265,6 +267,7 @@ const replay = await readFile(join(root, "src/replay.ts"), "utf8");
 assert.match(protocol, /developer\/v7/u);
 for (const term of [
 	"ActiveJudgment",
+	"ContextSourcesOpened",
 	"AuthorizedChange",
 	"JudgmentConcluded",
 	"LandingRecorded",

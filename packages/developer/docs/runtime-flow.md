@@ -10,6 +10,7 @@ sequence.
 stateDiagram-v2
   [*] --> Idle
   Idle --> ActiveJudgment: developer_open_judgment
+  ActiveJudgment --> ActiveJudgment: developer_open_context_sources
   ActiveJudgment --> Idle: not applicable / needs evidence / emergent question
   ActiveJudgment --> Judged: developer_conclude_judgment
   Idle --> AuthorizedChange: settled work
@@ -78,3 +79,19 @@ selected skill
 
 Policy can improve selection and replayability. It cannot authorize mutation or
 replace current repository evidence.
+
+## External context Skills
+
+```text
+Pi-visible Skill descriptors
+→ nominate zero, one, or several exact source IDs
+→ bounded methods + optional policies become visible
+→ assess each policy independently
+→ applicable methods/references join one selection
+→ one Developer coverage and outcome
+```
+
+Developer does not crawl every Skill policy and does not start another judgment
+for an external Skill. An opened source with no policy is a normal complete
+method. Root `unless` wins for a policy-bearing source; `needs-context` remains a
+limitation rather than positive material.

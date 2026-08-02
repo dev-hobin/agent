@@ -155,6 +155,7 @@ function openedVisualJudgment(id: string, question: string) {
 			"The deterministic TUI suite covers canonical activation and narrow widths.",
 		],
 		consideredMethods: [],
+		contextSources: [],
 	});
 }
 

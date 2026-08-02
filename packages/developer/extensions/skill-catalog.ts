@@ -9,6 +9,7 @@ import {
 	type Skill,
 } from "@earendil-works/pi-coding-agent";
 import {
+	contextContentSha256,
 	decodePolicyOwnerData,
 	jsonValueFromUnknown,
 	parsePolicyOwner,
@@ -146,8 +147,16 @@ export async function loadOptionalSkillPolicy(
 	return loaded.value.policy;
 }
 
-export async function renderDeveloperMethod(skill: Skill): Promise<string> {
-	const source = await readFile(skill.filePath, "utf8");
+async function readSkillMethodBody(skill: Skill): Promise<string> {
+	const bytes = await readFile(skill.filePath);
+	let source: string;
+	try {
+		source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+	} catch (error) {
+		throw new Error(`Skill ${skill.name} is not valid UTF-8.`, {
+			cause: error,
+		});
+	}
 	const body = stripFrontmatter(source).trim();
 	const bodyBytes = Buffer.byteLength(body, "utf8");
 	const bodyLines = body.split(/\r?\n/u).length;
@@ -159,6 +168,62 @@ export async function renderDeveloperMethod(skill: Skill): Promise<string> {
 			`Developer skill ${skill.name} is too large for safe loading. Move conditional detail into references before opening it.`,
 		);
 	}
+	return body;
+}
+
+export async function loadOptionalContextSourcePolicy(
+	skill: Skill,
+): Promise<CompiledJudgmentPolicy | undefined> {
+	const owner = parsePolicyOwner(
+		decodePolicyOwnerData(
+			jsonValueFromUnknown({
+				kind: "pi-skill",
+				namespace: skill.sourceInfo.source,
+				name: skill.name,
+				provenance: {
+					source: skill.sourceInfo.source,
+					scope: skill.sourceInfo.scope,
+					origin: skill.sourceInfo.origin,
+					path: skill.filePath,
+				},
+			}),
+		),
+	);
+	const loaded = await loadOptionalJudgmentPolicyFile({
+		path: resolve(skill.baseDir, "judgment.json"),
+		owner,
+		allowedRoot: skill.baseDir,
+	});
+	if (loaded.kind === "invalid") {
+		throw new Error(
+			`Invalid judgment.json for context Skill ${skill.name}: ${loaded.diagnostic}`,
+		);
+	}
+	return loaded.kind === "loaded" ? loaded.value.policy : undefined;
+}
+
+export interface OpenedSkillContext {
+	readonly method: string;
+	readonly methodContentSha256: string;
+	readonly policy?: CompiledJudgmentPolicy;
+}
+
+export async function openSkillContext(
+	skill: Skill,
+): Promise<OpenedSkillContext> {
+	const [method, policy] = await Promise.all([
+		readSkillMethodBody(skill),
+		loadOptionalContextSourcePolicy(skill),
+	]);
+	return Object.freeze({
+		method,
+		methodContentSha256: contextContentSha256([{ kind: "text", text: method }]),
+		...(policy ? { policy } : {}),
+	});
+}
+
+export async function renderDeveloperMethod(skill: Skill): Promise<string> {
+	const body = await readSkillMethodBody(skill);
 	const name = escapeAttribute(skill.name);
 	const location = escapeAttribute(skill.filePath);
 	const baseDir = escapeAttribute(skill.baseDir);

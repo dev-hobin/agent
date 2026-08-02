@@ -39,6 +39,7 @@ import {
 import {
 	concludeDeveloperContext,
 	describeInventory,
+	resolveContextSkill,
 	snapshotDeveloperInventory,
 	type DeveloperContextNomination,
 	type DeveloperInventorySnapshot,
@@ -51,6 +52,7 @@ import {
 import {
 	availableDeveloperSkills,
 	loadOptionalSkillPolicy,
+	openSkillContext,
 	renderDeveloperMethod,
 } from "./skill-catalog.ts";
 import {
@@ -76,9 +78,11 @@ import {
 	DEVELOPER_FOCUS_ENTRY,
 	DEVELOPER_PROTOCOL,
 	DEVELOPER_PROTOCOL_TOOLS,
+	OPEN_CONTEXT_SOURCES_TOOL,
 	RECORD_LANDING_TOOL,
 	activationChanged,
 	changeAuthorized,
+	contextSourcesOpened,
 	developerEventData,
 	judgmentConcluded,
 	judgmentOpened,
@@ -161,6 +165,18 @@ const OpenJudgmentParams = Type.Object(
 	{ additionalProperties: false },
 );
 
+const OpenContextSourcesParams = Type.Object(
+	{
+		judgment_id: Identifier,
+		inventory_source_ids: Type.Array(Identifier, {
+			minItems: 1,
+			maxItems: 16,
+			uniqueItems: true,
+		}),
+	},
+	{ additionalProperties: false },
+);
+
 const InventoryNominationParam = Type.Object(
 	{
 		nominationId: Identifier,
@@ -198,6 +214,13 @@ const ContextNominationParam = Type.Union([
 	ToolNominationParam,
 	UserNominationParam,
 ]);
+const ContextSourceAssessmentParam = Type.Object(
+	{
+		inventorySourceId: Identifier,
+		applicability: ContextApplicabilityDataSchema,
+	},
+	{ additionalProperties: false },
+);
 
 const ChoiceOptionParam = Type.Object(
 	{
@@ -411,6 +434,12 @@ const ConcludeJudgmentParams = Type.Object(
 		judgment_id: Identifier,
 		disposition: StringEnum(["judgment", "not-applicable"] as const),
 		applicability: Type.Optional(ContextApplicabilityDataSchema),
+		context_source_assessments: Type.Optional(
+			Type.Array(ContextSourceAssessmentParam, {
+				maxItems: 32,
+				uniqueItems: true,
+			}),
+		),
 		nominations: Type.Optional(
 			Type.Array(ContextNominationParam, { maxItems: 256 }),
 		),
@@ -499,6 +528,7 @@ const RecordLandingParams = Type.Object(
 );
 
 type OpenJudgmentData = Static<typeof OpenJudgmentParams>;
+type OpenContextSourcesData = Static<typeof OpenContextSourcesParams>;
 type ConcludeJudgmentData = Static<typeof ConcludeJudgmentParams>;
 type AuthorizeChangeData = Static<typeof AuthorizeChangeParams>;
 type RecordLandingData = Static<typeof RecordLandingParams>;
@@ -694,6 +724,7 @@ function requiredContextFields(params: ConcludeJudgmentData) {
 	}
 	return {
 		applicability: params.applicability,
+		contextSourceAssessments: params.context_source_assessments ?? [],
 		nominations: params.nominations ?? [],
 		selectionBasis: params.selection_basis,
 		coverage: params.coverage,
@@ -857,7 +888,7 @@ function protocolPrompt(
 		`Available Developer skills: ${availableSkills.join(", ") || "none"}.`,
 		`Legal operations: ${developerNextOperations(state).join(", ") || "none"}.`,
 		state.activeWork?.kind === "active-judgment"
-			? `ActiveJudgment ${state.activeWork.judgmentId} exposes only ${CONCLUDE_JUDGMENT_TOOL}. Nominate exact current-branch material, relate every selected material through a contribution, then record one outcome without mutation fields.`
+			? `ActiveJudgment ${state.activeWork.judgmentId} may open zero or more relevant Pi-visible context Skills through ${OPEN_CONTEXT_SOURCES_TOOL} before ${CONCLUDE_JUDGMENT_TOOL}. ${state.activeWork.contextSources.length} external context sources are open. Nominate exact material, relate every selected material through a contribution, then record one outcome without mutation fields.`
 			: "",
 		state.activeWork?.kind === "authorized-change"
 			? `AuthorizedChange ${state.activeWork.authorizationId} permits its bounded movement and exposes only ${RECORD_LANDING_TOOL}. Record non-empty changed paths; do not smuggle a semantic outcome into the landing.`
@@ -1058,6 +1089,7 @@ export default async function developerV7(pi: ExtensionAPI) {
 						reason: alternative.reason,
 					}),
 				),
+				contextSources: [],
 				...(params.pending_question_id
 					? { targetQuestionId: params.pending_question_id }
 					: {}),
@@ -1080,10 +1112,122 @@ export default async function developerV7(pi: ExtensionAPI) {
 					"Pi-visible context inventory (availability is not obligation):",
 					...inventory.map(
 						(source) =>
-							`- ${source.id} · ${source.kind} · descriptor=${source.descriptorSha256}${"path" in source ? ` · path=${source.path}` : ""}${source.when ? ` · when=${source.when.join(" | ")}` : ""}`,
+							`- ${source.id} · ${source.kind} · ${source.title} · source=${source.provenance.source} · descriptor=${source.descriptorSha256}${"path" in source ? ` · path=${source.path}` : ""}${source.when ? ` · when=${source.when.join(" | ")}` : ""}`,
 					),
 					"Nominate only exact material that can change this dynamic judgment. Use compact branchResultId aliases for active-branch results. Coverage relates each selected material through useAs plus a concrete contribution; conflicts and limitations remain explicit.",
 				].join("\n"),
+			);
+			state = transition.state;
+			syncProtocolTools();
+			refreshUI(ctx);
+			return textResult(output, event);
+		},
+	});
+
+	pi.registerTool({
+		name: OPEN_CONTEXT_SOURCES_TOOL,
+		label: "Open Developer Context Sources",
+		description:
+			"Open one or several exact Pi-visible Skills as context sources for the active Developer judgment, revealing each bounded method and optional judgment.json before source applicability is assessed.",
+		promptSnippet: "Open relevant external context Skills",
+		promptGuidelines: [
+			"Nominate only Pi-visible Skill inventory IDs that can materially change the active dynamic question.",
+			"Opening sources does not make them applicable or select their references; assess every opened policy at conclusion.",
+			"Use one batch for sources known together and call again only when new evidence reveals another relevant Skill.",
+		],
+		parameters: OpenContextSourcesParams,
+		executionMode: "sequential",
+		async execute(
+			toolCallId,
+			params: OpenContextSourcesData,
+			_signal,
+			_onUpdate,
+			ctx,
+		) {
+			const active = activeJudgment(state);
+			if (!active) fail("No Developer judgment is active.");
+			if (params.judgment_id !== active.judgmentId) {
+				fail(
+					`Context sources for ${params.judgment_id} cannot extend ${active.judgmentId}.`,
+				);
+			}
+			const snapshot = inventorySnapshot;
+			if (!snapshot) {
+				fail("Developer inventory is unavailable before before_agent_start.");
+			}
+			const existing = new Set(
+				active.contextSources.map((source) => source.inventorySourceId),
+			);
+			const candidates = params.inventory_source_ids.map((sourceId) => {
+				if (existing.has(sourceId)) {
+					fail(`Developer context source is already open: ${sourceId}.`);
+				}
+				const candidate = resolveContextSkill(snapshot, sourceId);
+				if (candidate.skill.filePath === active.skill.location) {
+					fail(`The owning Developer Skill is already open: ${sourceId}.`);
+				}
+				return candidate;
+			});
+			const opened = await Promise.all(
+				candidates.map(async (candidate) => {
+					const context = await openSkillContext(candidate.skill);
+					return {
+						candidate,
+						context,
+						references: context.policy
+							? describeInventory(
+									context.policy,
+									candidate.skill.baseDir,
+									snapshot,
+								).filter((source) => source.kind === "prepared-reference")
+							: [],
+						refined: resolveContextSkill(
+							snapshot,
+							candidate.source.id,
+							context.methodContentSha256,
+						),
+					};
+				}),
+			);
+			const event = contextSourcesOpened({
+				judgmentId: active.judgmentId,
+				sources: opened.map(({ candidate, context, refined }) => ({
+					inventorySourceId: candidate.source.id,
+					descriptorSha256: refined.source.descriptorSha256,
+					toolCallId,
+					skill: {
+						name: candidate.skill.name,
+						location: candidate.skill.filePath,
+					},
+					methodContentSha256: context.methodContentSha256,
+					...(context.policy
+						? { policy: compiledJudgmentPolicyData(context.policy) }
+						: {}),
+				})),
+			});
+			const transition = transitionDeveloper(state, event);
+			if (!transition.ok) fail(transition.error.message);
+			const output = boundedOutput(
+				opened
+					.flatMap(({ candidate, context, references }) => [
+						`Context source: ${candidate.source.id} · ${candidate.skill.name}`,
+						`Provenance: ${candidate.source.provenance.source} · ${candidate.source.provenance.scope}/${candidate.source.provenance.origin} · ${candidate.skill.filePath}`,
+						`Method SHA-256: ${context.methodContentSha256}`,
+						context.method,
+						`Policy: ${context.policy?.policySha256 ?? "absent (normal complete Skill)"}`,
+						...(context.policy
+							? [
+									`When: ${context.policy.when.join(" | ")}`,
+									`Unless (wins): ${context.policy.unless.join(" | ")}`,
+									...references.map(
+										(reference) =>
+											`Reference: ${reference.id} · descriptor=${reference.descriptorSha256} · path=${"path" in reference ? reference.path : ""} · when=${reference.when?.join(" | ") ?? ""}`,
+									),
+								]
+							: []),
+						"",
+					])
+					.join("\n"),
 			);
 			state = transition.state;
 			syncProtocolTools();
@@ -1099,6 +1243,7 @@ export default async function developerV7(pi: ExtensionAPI) {
 			"Close the exact active semantic judgment with branch-local context selection, sealing, coverage, and outcome, or an explicit question-level not-applicable result.",
 		promptSnippet: "Conclude the active Developer judgment",
 		promptGuidelines: [
+			"Assess every opened policy-bearing context source after reading its visible when/unless conditions; root unless wins.",
 			"Nominate only exact inventory IDs, active-branch tool call IDs, or active-branch user event IDs.",
 			"For disposition=judgment, applicability.kind must be applicable; represent unresolved context through required coverage and a needs-evidence outcome.",
 			"Relate every selected material to the dynamic question with useAs and a concrete contribution; do not flatten source identity into prose.",
@@ -1180,6 +1325,36 @@ export default async function developerV7(pi: ExtensionAPI) {
 						})),
 					},
 				});
+				const contextSources = await Promise.all(
+					active.contextSources.map(async (source) => {
+						const candidate = resolveContextSkill(
+							snapshot,
+							source.inventorySourceId,
+							source.methodContentSha256,
+						);
+						if (candidate.source.descriptorSha256 !== source.descriptorSha256) {
+							fail(
+								`Opened context source changed: ${source.inventorySourceId}.`,
+							);
+						}
+						const current = await openSkillContext(candidate.skill);
+						if (current.methodContentSha256 !== source.methodContentSha256) {
+							fail(
+								`Opened context Skill method changed: ${source.inventorySourceId}.`,
+							);
+						}
+						if (current.policy?.policySha256 !== source.policy?.policySha256) {
+							fail(
+								`Opened context Skill policy changed: ${source.inventorySourceId}.`,
+							);
+						}
+						return {
+							source,
+							policyRoot: candidate.skill.baseDir,
+							method: current.method,
+						};
+					}),
+				);
 				const branch = ctx.sessionManager.getBranch();
 				const nominations = resolveModelContextNominations({
 					nominations: fields.nominations,
@@ -1193,6 +1368,8 @@ export default async function developerV7(pi: ExtensionAPI) {
 					question: active.question,
 					knownEvidence: active.knownEvidence,
 					applicability: fields.applicability,
+					contextSources,
+					contextSourceAssessments: fields.contextSourceAssessments,
 					nominations,
 					selectionBasis: fields.selectionBasis,
 					coverageProposal: fields.coverage,

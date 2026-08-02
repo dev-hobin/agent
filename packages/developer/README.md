@@ -317,13 +317,19 @@ when it has conditional packaged references. The policy declares root `when`,
 winning root `unless`, and independent reference `{path, when}` statements. Four
 Developer skills with no packaged references intentionally have no policy.
 
-`developer_open_judgment` loads the selected skill and compiles a present policy
-with owner identity derived from Pi skill metadata. A model-facing proposal
-names stable `nominationId` values; runtime resolves those nominations to exact
-current-branch material, commits selection and sealing atomically, records
-`useAs` contributions with bounded assurance, and only then accepts a
-conclusion. A distinct question requires a later judgment rather than fallback
-context.
+`developer_open_judgment` loads the selected owning skill and compiles a present
+policy with owner identity derived from Pi skill metadata.
+`developer_open_context_sources` may then open zero, one, or several exact
+Pi-visible Skills as external context. Each bounded method and optional
+co-located policy becomes model-visible before source applicability; only
+applicable sources contribute prepared references. No external source creates a
+second judgment.
+
+A model-facing proposal names stable `nominationId` values; runtime resolves
+those nominations to exact material, commits one selection and sealing
+atomically, records `useAs` contributions with bounded assurance, and only then
+accepts a conclusion. A distinct question requires a later judgment rather than
+fallback context.
 
 Policy, dynamic-question, selected-material, sealed-content, contribution,
 coverage, and outcome identities make branch-local application replayable.

@@ -10,12 +10,17 @@ import {
 	type PiBranchEntryInput,
 	type PiContextInventoryInput,
 	type ObservedContextNominationData,
+	type PreparedContextProviderInput,
 } from "@hobin/judgment/pi-context";
 import {
+	canonicalJson,
 	contextContentSha256,
+	decodeContextApplicabilityData,
 	jsonValueFromUnknown,
+	parseContextApplicability,
 	sha256,
 	type CompiledJudgmentPolicy,
+	type ContextApplicability,
 	type ContextInventory,
 	type ContextSourceDescriptor,
 	type ContextUse,
@@ -28,10 +33,14 @@ import {
 } from "@hobin/judgment/node";
 
 import { contextBasisFromJudgment } from "../src/context-basis.ts";
-import type { DeveloperContextBasis } from "../src/protocol.ts";
+import type {
+	DeveloperContextBasis,
+	OpenedContextSource,
+} from "../src/protocol.ts";
 
 export interface DeveloperInventorySnapshot {
-	readonly input: Omit<PiContextInventoryInput, "policy" | "policyRoot">;
+	readonly input: Omit<PiContextInventoryInput, "preparedProviders">;
+	readonly loadedSkills: readonly Skill[];
 	readonly contextFileContent: ReadonlyMap<string, string>;
 }
 export type DeveloperContextNomination =
@@ -105,6 +114,15 @@ export type DeveloperOutcomeProposal =
 			readonly artifact: string;
 			readonly stopEvidence: readonly string[];
 	  };
+export interface DeveloperContextSourceAssessmentInput {
+	readonly inventorySourceId: string;
+	readonly applicability: unknown;
+}
+export interface DeveloperPreparedContextSource {
+	readonly source: OpenedContextSource;
+	readonly policyRoot: string;
+	readonly method: string;
+}
 export interface DeveloperContextConclusionInput {
 	readonly judgmentId: string;
 	readonly skill: Readonly<{ name: string; location: string }>;
@@ -113,6 +131,8 @@ export interface DeveloperContextConclusionInput {
 	readonly question: string;
 	readonly knownEvidence: readonly string[];
 	readonly applicability: unknown;
+	readonly contextSources: readonly DeveloperPreparedContextSource[];
+	readonly contextSourceAssessments: readonly DeveloperContextSourceAssessmentInput[];
 	readonly nominations: readonly DeveloperContextNomination[];
 	readonly selectionBasis: readonly string[];
 	readonly coverageProposal: DeveloperCoverageProposal;
@@ -145,19 +165,80 @@ export function snapshotDeveloperInventory(input: {
 			tools,
 			activeToolNames: input.pi.getActiveTools(),
 		},
+		loadedSkills: Object.freeze([...input.skills]),
 		contextFileContent: new Map(
 			input.contextFiles.map((file) => [file.path, file.content]),
 		),
 	});
 }
+interface ParsedContextSourceAssessment {
+	readonly source: DeveloperPreparedContextSource;
+	readonly applicability: ContextApplicability;
+	readonly applicabilitySha256: string;
+}
+
+function parseContextSourceAssessments(input: {
+	readonly sources: readonly DeveloperPreparedContextSource[];
+	readonly assessments: readonly DeveloperContextSourceAssessmentInput[];
+}): readonly ParsedContextSourceAssessment[] {
+	const policySources = new Map(
+		input.sources.flatMap((source) =>
+			source.source.policy
+				? [[source.source.inventorySourceId, source] as const]
+				: [],
+		),
+	);
+	const seen = new Set<string>();
+	const parsed = input.assessments.map((assessment) => {
+		if (seen.has(assessment.inventorySourceId)) {
+			throw new Error(
+				`Duplicate context source assessment: ${assessment.inventorySourceId}.`,
+			);
+		}
+		seen.add(assessment.inventorySourceId);
+		const source = policySources.get(assessment.inventorySourceId);
+		if (!source) {
+			throw new Error(
+				`Context source assessment does not name an opened policy: ${assessment.inventorySourceId}.`,
+			);
+		}
+		const applicabilityData = decodeContextApplicabilityData(
+			jsonValueFromUnknown(assessment.applicability),
+		);
+		const applicability = parseContextApplicability(applicabilityData);
+		return Object.freeze({
+			source,
+			applicability,
+			applicabilitySha256: sha256(
+				canonicalJson(jsonValueFromUnknown(applicabilityData)),
+			),
+		});
+	});
+	const missing = [...policySources.keys()].filter((id) => !seen.has(id));
+	if (missing.length > 0) {
+		throw new Error(
+			`Opened context policies require applicability assessments: ${missing.join(", ")}.`,
+		);
+	}
+	return Object.freeze(parsed);
+}
+
 function inventoryFor(input: {
 	readonly snapshot: DeveloperInventorySnapshot;
-	readonly policy?: CompiledJudgmentPolicy;
-	readonly root: string;
+	readonly preparedProviders: readonly PreparedContextProviderInput[];
+	readonly skillContentByPath?: ReadonlyMap<string, string>;
 }): ContextInventory {
 	return buildPiContextInventory({
 		...input.snapshot.input,
-		...(input.policy ? { policy: input.policy, policyRoot: input.root } : {}),
+		skills: input.snapshot.input.skills.map((skill) => ({
+			...skill,
+			...(input.skillContentByPath?.get(skill.filePath)
+				? {
+						contentSha256: input.skillContentByPath.get(skill.filePath),
+					}
+				: {}),
+		})),
+		preparedProviders: input.preparedProviders,
 	});
 }
 function candidate(
@@ -181,11 +262,10 @@ function candidate(
 }
 async function inventoryProposal(input: {
 	readonly inventory: ContextInventory;
-	readonly root: string;
+	readonly acquisition: ContextAcquisition;
 	readonly nominations: readonly DeveloperContextNomination[];
 	readonly signal?: AbortSignal;
 }) {
-	const reader = createNodeLocalReferenceReader(input.root);
 	const proposal: object[] = [];
 	const materialByNomination = new Map<string, string>();
 	for (const nomination of input.nominations) {
@@ -194,17 +274,29 @@ async function inventoryProposal(input: {
 		if (nomination.kind !== "inventory-source") continue;
 		const source = candidate(input.inventory, nomination);
 		let contentSha256: string | undefined;
-		if (source.kind === "prepared-reference") {
-			const content = await reader.read(source, {
-				maxBytes: MAX_SEALED_MEMBER_BYTES,
-				...(input.signal ? { signal: input.signal } : {}),
-			});
-			contentSha256 = contextContentSha256([{ kind: "text", text: content }]);
+		if (source.kind === "pi-skill" && !source.contentSha256) {
+			throw new Error(
+				`Pi Skill context must be opened before selection: ${source.id}.`,
+			);
+		}
+		if (source.kind === "prepared-reference" || source.kind === "pi-skill") {
+			const content =
+				source.kind === "prepared-reference"
+					? await input.acquisition.acquirePreparedReference(
+							source,
+							input.signal,
+						)
+					: await input.acquisition.acquireSkill?.(source, input.signal);
+			if (!content || content.isError || content.truncated) {
+				throw new Error(`Nominated context is not usable: ${source.id}.`);
+			}
+			contentSha256 = contextContentSha256(content.parts);
 			if (
 				nomination.contentSha256 &&
 				nomination.contentSha256 !== contentSha256
-			)
-				throw new Error(`Nominated reference content changed: ${source.path}.`);
+			) {
+				throw new Error(`Nominated context changed: ${source.id}.`);
+			}
 		}
 		proposal.push({
 			kind: "inventory-source",
@@ -241,12 +333,56 @@ function observedRecords(
 	);
 }
 function acquisitionFor(input: {
-	readonly root: string;
+	readonly preparedProviders: readonly PreparedContextProviderInput[];
+	readonly contextSources: readonly DeveloperPreparedContextSource[];
 	readonly snapshot: DeveloperInventorySnapshot;
 	readonly observed: ReturnType<typeof resolveObservedContext>;
 }): ContextAcquisition {
+	const referenceReaders = new Map(
+		input.preparedProviders.map((provider) => [
+			provider.policy.policySha256,
+			createNodeLocalReferenceReader(provider.policyRoot),
+		]),
+	);
+	const contextSourceById = new Map(
+		input.contextSources.map((source) => [
+			source.source.inventorySourceId,
+			source,
+		]),
+	);
 	return {
-		localReferenceReader: createNodeLocalReferenceReader(input.root),
+		async acquirePreparedReference(source, signal) {
+			const reader = referenceReaders.get(source.policySha256);
+			if (!reader) {
+				throw new Error(
+					`Prepared reference policy is not admitted: ${source.policySha256}.`,
+				);
+			}
+			return {
+				parts: [
+					{
+						kind: "text",
+						text: await reader.read(source, {
+							maxBytes: MAX_SEALED_MEMBER_BYTES,
+							...(signal ? { signal } : {}),
+						}),
+					},
+				],
+				isError: false,
+				truncated: false,
+			};
+		},
+		async acquireSkill(source) {
+			const contextSource = contextSourceById.get(source.id);
+			if (!contextSource) {
+				throw new Error(`Pi Skill context is not admitted: ${source.id}.`);
+			}
+			return {
+				parts: [{ kind: "text", text: contextSource.method }],
+				isError: false,
+				truncated: false,
+			};
+		},
 		async acquireContextFile(
 			source: Extract<ContextSourceDescriptor, { kind: "pi-context-file" }>,
 		): Promise<AcquiredContextData> {
@@ -394,15 +530,45 @@ export async function concludeDeveloperContext(
 		throw new Error(
 			`Developer skill provenance is unavailable: ${input.skill.name}.`,
 		);
+	const contextSourceAssessments = parseContextSourceAssessments({
+		sources: input.contextSources,
+		assessments: input.contextSourceAssessments,
+	});
+	const assessmentBySourceId = new Map(
+		contextSourceAssessments.map((assessment) => [
+			assessment.source.source.inventorySourceId,
+			assessment,
+		]),
+	);
+	const admittedSources = input.contextSources.filter((source) => {
+		if (!source.source.policy) return true;
+		return (
+			assessmentBySourceId.get(source.source.inventorySourceId)?.applicability
+				.kind === "applicable"
+		);
+	});
+	const preparedProviders: PreparedContextProviderInput[] = [
+		...(input.policy
+			? [{ policy: input.policy, policyRoot: input.decisionUnitRoot }]
+			: []),
+		...admittedSources.flatMap((source) =>
+			source.source.policy
+				? [{ policy: source.source.policy, policyRoot: source.policyRoot }]
+				: [],
+		),
+	];
+	const skillContentByPath = new Map(
+		admittedSources.map((source) => [
+			source.source.skill.location,
+			source.source.methodContentSha256,
+		]),
+	);
 	const inventory = inventoryFor({
 		snapshot: input.snapshot,
-		...(input.policy ? { policy: input.policy } : {}),
-		root: input.decisionUnitRoot,
+		preparedProviders,
+		skillContentByPath,
 	});
 	const opened = ContextAttempt.open({
-		...(input.policy
-			? { policyPath: `${input.decisionUnitRoot}/judgment.json` }
-			: {}),
 		question: jsonValueFromUnknown({
 			judgmentId: input.judgmentId,
 			owner: input.policy?.owner ?? {
@@ -425,12 +591,6 @@ export async function concludeDeveloperContext(
 		}),
 		applicability: jsonValueFromUnknown(input.applicability),
 	});
-	const inventorySelection = await inventoryProposal({
-		inventory,
-		root: input.decisionUnitRoot,
-		nominations: input.nominations,
-		...(input.signal ? { signal: input.signal } : {}),
-	});
 	const records = observedRecords(input.nominations);
 	const observed = resolveObservedContext({
 		branchRef: input.branchRef,
@@ -451,6 +611,18 @@ export async function concludeDeveloperContext(
 				? [{ userEventId: record.userEventId }]
 				: [],
 		),
+	});
+	const acquisition = acquisitionFor({
+		preparedProviders,
+		contextSources: admittedSources,
+		snapshot: input.snapshot,
+		observed,
+	});
+	const inventorySelection = await inventoryProposal({
+		inventory,
+		acquisition,
+		nominations: input.nominations,
+		...(input.signal ? { signal: input.signal } : {}),
 	});
 	const map = new Map(inventorySelection.materialByNomination);
 	for (const nomination of input.nominations) {
@@ -486,12 +658,10 @@ export async function concludeDeveloperContext(
 			],
 			selectionBasis: input.selectionBasis,
 		}),
-		observedNominations: records,
-		acquisition: acquisitionFor({
-			root: input.decisionUnitRoot,
-			snapshot: input.snapshot,
-			observed,
-		}),
+		admittedPolicySha256s: admittedSources.flatMap((source) =>
+			source.source.policy ? [source.source.policy.policySha256] : [],
+		),
+		acquisition,
 		...(input.signal ? { signal: input.signal } : {}),
 	});
 	transition.value;
@@ -517,9 +687,75 @@ export async function concludeDeveloperContext(
 			sealedContext: state.sealedContext,
 			coverage: state.coverage,
 			outcome: state.outcome,
+			contextSources: input.contextSources.map((source) => {
+				const assessment = assessmentBySourceId.get(
+					source.source.inventorySourceId,
+				);
+				return {
+					inventorySourceId: source.source.inventorySourceId,
+					descriptorSha256: source.source.descriptorSha256,
+					...(source.source.policy && assessment
+						? {
+								policySha256: source.source.policy.policySha256,
+								applicability: assessment.applicability.kind,
+								applicabilitySha256: assessment.applicabilitySha256,
+							}
+						: {}),
+				};
+			}),
 		}),
 		outcome: state.outcome,
 	});
+}
+
+export function resolveContextSkill(
+	snapshot: DeveloperInventorySnapshot,
+	inventorySourceId: string,
+	methodContentSha256?: string,
+): Readonly<{ source: ContextSourceDescriptor; skill: Skill }> {
+	const initialInventory = inventoryFor({
+		snapshot,
+		preparedProviders: [],
+	});
+	const initialSource = initialInventory.sources.find(
+		(candidate) => candidate.id === inventorySourceId,
+	);
+	if (!initialSource || initialSource.kind !== "pi-skill") {
+		throw new Error(
+			`Pi-visible context Skill is unavailable: ${inventorySourceId}.`,
+		);
+	}
+	const matches = snapshot.loadedSkills.filter(
+		(skill) =>
+			skill.filePath === initialSource.provenance.path &&
+			skill.sourceInfo.source === initialSource.provenance.source &&
+			skill.sourceInfo.scope === initialSource.provenance.scope &&
+			skill.sourceInfo.origin === initialSource.provenance.origin,
+	);
+	if (matches.length !== 1) {
+		throw new Error(
+			`Pi-visible context Skill identity is ${matches.length === 0 ? "missing" : "ambiguous"}: ${inventorySourceId}.`,
+		);
+	}
+	const skill = matches[0];
+	const inventory = inventoryFor({
+		snapshot,
+		preparedProviders: [],
+		...(methodContentSha256
+			? {
+					skillContentByPath: new Map([[skill.filePath, methodContentSha256]]),
+				}
+			: {}),
+	});
+	const source = inventory.sources.find(
+		(candidate) => candidate.id === inventorySourceId,
+	);
+	if (!source || source.kind !== "pi-skill") {
+		throw new Error(
+			`Pi-visible context Skill is unavailable: ${inventorySourceId}.`,
+		);
+	}
+	return Object.freeze({ source, skill });
 }
 
 export function describeInventory(
@@ -529,8 +765,7 @@ export function describeInventory(
 ) {
 	return inventoryFor({
 		snapshot,
-		...(policy ? { policy } : {}),
-		root: decisionUnitRoot,
+		preparedProviders: policy ? [{ policy, policyRoot: decisionUnitRoot }] : [],
 	}).sources.map((source) => ({
 		id: source.id,
 		kind: source.kind,

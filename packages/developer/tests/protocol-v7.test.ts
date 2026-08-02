@@ -6,10 +6,12 @@ import {
 	CONCLUDE_JUDGMENT_TOOL,
 	DEVELOPER_ACTIVATION_ENTRY,
 	DEVELOPER_PROTOCOL,
+	OPEN_CONTEXT_SOURCES_TOOL,
 	OPEN_JUDGMENT_TOOL,
 	RECORD_LANDING_TOOL,
 	activationChanged,
 	changeAuthorized,
+	contextSourcesOpened,
 	developerNextOperations,
 	developerProtocolState,
 	developerToolAccess,
@@ -43,6 +45,7 @@ function activeJudgment(id = "judgment:one") {
 		consideredMethods: [
 			{ skillName: "specify", reason: "Meaning is mostly settled already." },
 		],
+		contextSources: [],
 	});
 }
 
@@ -121,7 +124,10 @@ test("active judgment and authorized change expose one legal closing operation",
 		AUTHORIZE_CHANGE_TOOL,
 	]);
 	state = accept(state, activeJudgment());
-	assert.deepEqual(developerNextOperations(state), [CONCLUDE_JUDGMENT_TOOL]);
+	assert.deepEqual(developerNextOperations(state), [
+		OPEN_CONTEXT_SOURCES_TOOL,
+		CONCLUDE_JUDGMENT_TOOL,
+	]);
 	assert.deepEqual(developerToolAccess(state), {
 		allowsShell: true,
 		allowsArtifactTools: false,
@@ -131,6 +137,39 @@ test("active judgment and authorized change expose one legal closing operation",
 	state = accept(state, authorization());
 	assert.deepEqual(developerNextOperations(state), [RECORD_LANDING_TOOL]);
 	assert.equal(developerToolAccess(state).allowsArtifactTools, true);
+});
+
+test("context sources extend one active judgment immutably and reject duplicates", () => {
+	let state = accept(initialDeveloperState(), activationChanged(true));
+	state = accept(state, activeJudgment());
+	const source = {
+		inventorySourceId: "skill:project-api",
+		descriptorSha256: "a".repeat(64),
+		toolCallId: "call-context-source",
+		skill: { name: "project-api", location: "/project/api/SKILL.md" },
+		methodContentSha256: "b".repeat(64),
+	};
+	state = accept(
+		state,
+		contextSourcesOpened({
+			judgmentId: "judgment:one",
+			sources: [source],
+		}),
+	);
+	assert.equal(
+		state.activeWork?.kind === "active-judgment"
+			? state.activeWork.contextSources.length
+			: 0,
+		1,
+	);
+	const duplicate = transitionDeveloper(
+		state,
+		contextSourcesOpened({
+			judgmentId: "judgment:one",
+			sources: [source],
+		}),
+	);
+	assert.equal(duplicate.ok, false);
 });
 
 test("wrong operation identities cannot close one another", () => {

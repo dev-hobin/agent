@@ -15,12 +15,15 @@ export const DEVELOPER_ACTIVATION_ENTRY = "developer.activation" as const;
 export const DEVELOPER_FOCUS_ENTRY = "developer.question-focus" as const;
 
 export const OPEN_JUDGMENT_TOOL = "developer_open_judgment" as const;
+export const OPEN_CONTEXT_SOURCES_TOOL =
+	"developer_open_context_sources" as const;
 export const CONCLUDE_JUDGMENT_TOOL = "developer_conclude_judgment" as const;
 export const AUTHORIZE_CHANGE_TOOL = "developer_authorize_change" as const;
 export const RECORD_LANDING_TOOL = "developer_record_landing" as const;
 
 export const DEVELOPER_PROTOCOL_TOOLS = Object.freeze([
 	OPEN_JUDGMENT_TOOL,
+	OPEN_CONTEXT_SOURCES_TOOL,
 	CONCLUDE_JUDGMENT_TOOL,
 	AUTHORIZE_CHANGE_TOOL,
 	RECORD_LANDING_TOOL,
@@ -81,6 +84,15 @@ export interface MethodAlternative {
 	readonly reason: string;
 }
 
+export interface OpenedContextSource {
+	readonly inventorySourceId: string;
+	readonly descriptorSha256: string;
+	readonly toolCallId: string;
+	readonly skill: DeveloperSkillRef;
+	readonly methodContentSha256: string;
+	readonly policy?: CompiledJudgmentPolicy;
+}
+
 export interface PendingQuestion {
 	readonly id: string;
 	readonly question: string;
@@ -106,6 +118,14 @@ export interface ContextBasisMember {
 	readonly contentSha256: string;
 }
 
+export interface ContextSourceBasis {
+	readonly inventorySourceId: string;
+	readonly descriptorSha256: string;
+	readonly policySha256?: string;
+	readonly applicability?: "applicable" | "not-applicable" | "needs-context";
+	readonly applicabilitySha256?: string;
+}
+
 export interface ContributionBasis {
 	readonly contributionId: string;
 	readonly materialId: string;
@@ -123,6 +143,7 @@ export interface DeveloperContextBasis {
 	readonly sealedContextSha256: string;
 	readonly coverageSha256: string;
 	readonly outcomeSha256: string;
+	readonly contextSources: readonly ContextSourceBasis[];
 	readonly members: readonly ContextBasisMember[];
 	readonly contributions: readonly ContributionBasis[];
 	readonly conflictIds: readonly string[];
@@ -139,6 +160,7 @@ export interface ActiveJudgment {
 	readonly reason: string;
 	readonly knownEvidence: readonly string[];
 	readonly consideredMethods: readonly MethodAlternative[];
+	readonly contextSources: readonly OpenedContextSource[];
 	readonly targetQuestionId?: string;
 	readonly policy?: CompiledJudgmentPolicy;
 }
@@ -244,6 +266,14 @@ export interface JudgmentOpened {
 	readonly judgment: ActiveJudgment;
 }
 
+export interface ContextSourcesOpened {
+	readonly [eventBrand]: true;
+	readonly protocol: typeof DEVELOPER_PROTOCOL;
+	readonly kind: "context-sources-opened";
+	readonly judgmentId: string;
+	readonly sources: readonly OpenedContextSource[];
+}
+
 export interface ChangeAuthorized {
 	readonly [eventBrand]: true;
 	readonly protocol: typeof DEVELOPER_PROTOCOL;
@@ -269,6 +299,7 @@ export type DeveloperEvent =
 	| ActivationChanged
 	| QuestionFocused
 	| JudgmentOpened
+	| ContextSourcesOpened
 	| ChangeAuthorized
 	| JudgmentConcluded
 	| LandingRecorded;
@@ -407,6 +438,51 @@ function parseAlternative(value: unknown, path: string): MethodAlternative {
 	});
 }
 
+function parseOpenedContextSource(
+	value: unknown,
+	path: string,
+): OpenedContextSource {
+	const data = objectAt(value, path);
+	exactKeys(
+		data,
+		path,
+		[
+			"inventorySourceId",
+			"descriptorSha256",
+			"toolCallId",
+			"skill",
+			"methodContentSha256",
+		],
+		["policy"],
+	);
+	const skill = parseSkill(data.skill, `${path}.skill`);
+	const policy =
+		data.policy === undefined
+			? undefined
+			: parseCompiledPolicyValue(data.policy, `${path}.policy`);
+	if (
+		policy &&
+		(policy.owner.name !== skill.name ||
+			policy.owner.provenance.path !== skill.location)
+	) {
+		fail(`${path}.policy.owner`, "must identify the opened context Skill");
+	}
+	return Object.freeze({
+		inventorySourceId: idAt(
+			data.inventorySourceId,
+			`${path}.inventorySourceId`,
+		),
+		descriptorSha256: shaAt(data.descriptorSha256, `${path}.descriptorSha256`),
+		toolCallId: textAt(data.toolCallId, `${path}.toolCallId`, { max: 300 }),
+		skill,
+		methodContentSha256: shaAt(
+			data.methodContentSha256,
+			`${path}.methodContentSha256`,
+		),
+		...(policy ? { policy } : {}),
+	});
+}
+
 function parseCompiledPolicyValue(
 	value: unknown,
 	path: string,
@@ -441,6 +517,7 @@ export function parseActiveJudgment(
 			"reason",
 			"knownEvidence",
 			"consideredMethods",
+			"contextSources",
 		],
 		["targetQuestionId", "policy"],
 	);
@@ -466,6 +543,11 @@ export function parseActiveJudgment(
 			data.consideredMethods,
 			`${path}.consideredMethods`,
 			parseAlternative,
+		),
+		contextSources: arrayAt(
+			data.contextSources,
+			`${path}.contextSources`,
+			parseOpenedContextSource,
 		),
 		...(data.targetQuestionId === undefined
 			? {}
@@ -742,6 +824,54 @@ function parseContextMember(value: unknown, path: string): ContextBasisMember {
 	});
 }
 
+function parseContextSourceBasis(
+	value: unknown,
+	path: string,
+): ContextSourceBasis {
+	const data = objectAt(value, path);
+	exactKeys(
+		data,
+		path,
+		["inventorySourceId", "descriptorSha256"],
+		["policySha256", "applicability", "applicabilitySha256"],
+	);
+	const policySha256 =
+		data.policySha256 === undefined
+			? undefined
+			: shaAt(data.policySha256, `${path}.policySha256`);
+	const applicability =
+		data.applicability === undefined
+			? undefined
+			: oneOf(data.applicability, `${path}.applicability`, [
+					"applicable",
+					"not-applicable",
+					"needs-context",
+				] as const);
+	const applicabilitySha256 =
+		data.applicabilitySha256 === undefined
+			? undefined
+			: shaAt(data.applicabilitySha256, `${path}.applicabilitySha256`);
+	if (
+		Boolean(policySha256) !== Boolean(applicability) ||
+		Boolean(policySha256) !== Boolean(applicabilitySha256)
+	) {
+		fail(
+			path,
+			"policySha256, applicability, and applicabilitySha256 must appear together",
+		);
+	}
+	return Object.freeze({
+		inventorySourceId: idAt(
+			data.inventorySourceId,
+			`${path}.inventorySourceId`,
+		),
+		descriptorSha256: shaAt(data.descriptorSha256, `${path}.descriptorSha256`),
+		...(policySha256 ? { policySha256 } : {}),
+		...(applicability ? { applicability } : {}),
+		...(applicabilitySha256 ? { applicabilitySha256 } : {}),
+	});
+}
+
 function parseContributionBasis(
 	value: unknown,
 	path: string,
@@ -807,6 +937,7 @@ export function parseDeveloperContextBasis(
 			"sealedContextSha256",
 			"coverageSha256",
 			"outcomeSha256",
+			"contextSources",
 			"members",
 			"contributions",
 			"conflictIds",
@@ -815,6 +946,17 @@ export function parseDeveloperContextBasis(
 		],
 		["policySha256"],
 	);
+	const contextSources = arrayAt(
+		data.contextSources,
+		`${path}.contextSources`,
+		parseContextSourceBasis,
+	);
+	const contextSourceIds = contextSources.map(
+		(source) => source.inventorySourceId,
+	);
+	if (new Set(contextSourceIds).size !== contextSourceIds.length) {
+		fail(`${path}.contextSources`, "duplicate inventorySourceId");
+	}
 	const members = arrayAt(data.members, `${path}.members`, parseContextMember);
 	const materialIds = members.map((member) => member.materialId);
 	if (new Set(materialIds).size !== materialIds.length)
@@ -849,6 +991,7 @@ export function parseDeveloperContextBasis(
 		),
 		coverageSha256: shaAt(data.coverageSha256, `${path}.coverageSha256`),
 		outcomeSha256: shaAt(data.outcomeSha256, `${path}.outcomeSha256`),
+		contextSources,
 		members,
 		contributions,
 		conflictIds: uniqueIds(data.conflictIds, `${path}.conflictIds`),
@@ -1025,6 +1168,7 @@ export function parseDeveloperEvent(value: unknown): DeveloperEvent {
 		"activation-changed",
 		"question-focused",
 		"judgment-opened",
+		"context-sources-opened",
 		"change-authorized",
 		"judgment-concluded",
 		"landing-recorded",
@@ -1054,6 +1198,21 @@ export function parseDeveloperEvent(value: unknown): DeveloperEvent {
 			protocol: DEVELOPER_PROTOCOL,
 			kind,
 			judgment: parseActiveJudgment(data.judgment, "event.judgment"),
+		});
+	}
+	if (kind === "context-sources-opened") {
+		exactKeys(data, "event", ["protocol", "kind", "judgmentId", "sources"]);
+		return Object.freeze({
+			[eventBrand]: true as const,
+			protocol: DEVELOPER_PROTOCOL,
+			kind,
+			judgmentId: idAt(data.judgmentId, "event.judgmentId"),
+			sources: arrayAt(
+				data.sources,
+				"event.sources",
+				parseOpenedContextSource,
+				{ nonEmpty: true, max: 32 },
+			),
 		});
 	}
 	if (kind === "change-authorized") {
@@ -1094,6 +1253,12 @@ function activeJudgmentData(
 		reason: judgment.reason,
 		knownEvidence: judgment.knownEvidence,
 		consideredMethods: judgment.consideredMethods,
+		contextSources: judgment.contextSources.map((source) => ({
+			...source,
+			...(source.policy
+				? { policy: compiledJudgmentPolicyData(source.policy) }
+				: {}),
+		})),
 		...(judgment.targetQuestionId
 			? { targetQuestionId: judgment.targetQuestionId }
 			: {}),
@@ -1124,6 +1289,18 @@ export function developerEventData(
 				protocol: event.protocol,
 				kind: event.kind,
 				judgment: activeJudgmentData(event.judgment),
+			});
+		case "context-sources-opened":
+			return Object.freeze({
+				protocol: event.protocol,
+				kind: event.kind,
+				judgmentId: event.judgmentId,
+				sources: event.sources.map((source) => ({
+					...source,
+					...(source.policy
+						? { policy: compiledJudgmentPolicyData(source.policy) }
+						: {}),
+				})),
 			});
 		case "change-authorized":
 			return Object.freeze({
@@ -1160,6 +1337,14 @@ export function judgmentOpened(value: unknown): JudgmentOpened {
 		kind: "judgment-opened",
 		judgment: value,
 	}) as JudgmentOpened;
+}
+
+export function contextSourcesOpened(value: unknown): ContextSourcesOpened {
+	return parseDeveloperEvent({
+		protocol: DEVELOPER_PROTOCOL,
+		kind: "context-sources-opened",
+		...objectAt(value, "contextSourcesOpened"),
+	}) as ContextSourcesOpened;
 }
 
 export function changeAuthorized(value: unknown): ChangeAuthorized {

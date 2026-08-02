@@ -129,6 +129,7 @@ function judgmentItem(entry: CompletedJudgment): DeveloperWorkbenchItem {
 					`Selection: ${conclusion.contextBasis.selectionSha256}`,
 					`Coverage: ${conclusion.contextBasis.coverageSha256}`,
 					`Outcome: ${conclusion.contextBasis.outcomeSha256}`,
+					`Context sources: ${conclusion.contextBasis.contextSources.map((source) => `${source.inventorySourceId}/${source.applicability ?? "unconditioned"}`).join(", ") || "none"}`,
 					`Contributions: ${conclusion.contextBasis.contributions.map((contribution) => `${contribution.useAs}/${contribution.assurance}`).join(", ") || "none"}`,
 				];
 	return {
@@ -267,8 +268,20 @@ export function inspectDeveloperWorkbench(
 										`Skill: ${active.skill.name}`,
 										`Policy: ${active.policy?.policySha256 ?? "absent"}`,
 										`Prepared references: ${active.policy?.references.length ?? 0}`,
+										`External context sources: ${active.contextSources.length}`,
 									],
 								},
+								...(active.contextSources.length > 0
+									? [
+											{
+												heading: "Opened context sources",
+												lines: active.contextSources.map(
+													(source) =>
+														`${source.skill.name} · ${source.inventorySourceId} · policy ${source.policy?.policySha256 ?? "absent"}`,
+												),
+											},
+										]
+									: []),
 							],
 						}
 					: {

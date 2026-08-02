@@ -1,0 +1,17 @@
+{
+  "specVersion": "0.1",
+  "when": [
+    "A public API boundary may change observable client behavior."
+  ],
+  "unless": [
+    "The change is entirely internal and cannot affect a public client."
+  ],
+  "references": [
+    {
+      "path": "references/error-contract.md",
+      "when": [
+        "A public error representation needs the client-observable distinction in this reference."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "specVersion": "0.1",
+  "when": [
+    "An interactive terminal surface is being changed."
+  ],
+  "unless": [
+    "The task changes a non-interactive API with no terminal presentation."
+  ],
+  "references": [
+    {
+      "path": "references/layout.md",
+      "when": [
+        "A terminal layout needs its narrow-width control visibility rule."
+      ]
+    }
+  ]
+}

@@ -27,6 +27,7 @@ route
 0.1.17 / developer/v7
 semantic lane:
 developer_open_judgment
+→ developer_open_context_sources (zero or more calls)
 → exact material nomination
 → atomic selection + sealing
 → contribution coverage
@@ -172,7 +173,7 @@ does not rewrite user repository files or reinterpret old history.
 ## Operational checklist
 
 - all eleven skills remain visible;
-- old tool names are absent and the four v7 tools are discoverable;
+- old tool names are absent and the five v7 tools are discoverable;
 - policy-absent and policy-aware skills both open dynamic judgments;
 - malformed present policies fail closed;
 - ActiveJudgment allows evidence work but no artifact mutation;

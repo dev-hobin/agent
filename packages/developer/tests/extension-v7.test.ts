@@ -13,6 +13,7 @@ import developerV7 from "../extensions/developer.ts";
 import {
 	AUTHORIZE_CHANGE_TOOL,
 	CONCLUDE_JUDGMENT_TOOL,
+	OPEN_CONTEXT_SOURCES_TOOL,
 	OPEN_JUDGMENT_TOOL,
 	RECORD_LANDING_TOOL,
 } from "../src/protocol.ts";
@@ -22,6 +23,60 @@ const skills = loadSkillsFromDir({
 	dir: join(root, "skills"),
 	source: "@hobin/developer",
 }).skills;
+const externalContextRoot = join(root, "tests", "fixtures", "external-context");
+const externalContextSkill = {
+	name: "project-api-policy",
+	description:
+		"Apply project API compatibility rules when a public boundary may change.",
+	filePath: join(externalContextRoot, "SKILL.md"),
+	baseDir: externalContextRoot,
+	disableModelInvocation: false,
+	sourceInfo: {
+		path: externalContextRoot,
+		source: "project-fixtures",
+		scope: "project" as const,
+		origin: "top-level" as const,
+	},
+};
+const externalPlainRoot = join(
+	root,
+	"tests",
+	"fixtures",
+	"external-context-plain",
+);
+const externalPlainSkill = {
+	name: "project-domain-language",
+	description:
+		"Preserve the project's public domain terms when naming API values.",
+	filePath: join(externalPlainRoot, "SKILL.md"),
+	baseDir: externalPlainRoot,
+	disableModelInvocation: false,
+	sourceInfo: {
+		path: externalPlainRoot,
+		source: "project-fixtures",
+		scope: "project" as const,
+		origin: "top-level" as const,
+	},
+};
+const excludedContextRoot = join(
+	root,
+	"tests",
+	"fixtures",
+	"external-context-excluded",
+);
+const excludedContextSkill = {
+	name: "terminal-layout-policy",
+	description: "Apply terminal layout rules to interactive terminal surfaces.",
+	filePath: join(excludedContextRoot, "SKILL.md"),
+	baseDir: excludedContextRoot,
+	disableModelInvocation: false,
+	sourceInfo: {
+		path: excludedContextRoot,
+		source: "project-fixtures",
+		scope: "project" as const,
+		origin: "top-level" as const,
+	},
+};
 const theme = initTheme(undefined, false);
 
 function harness() {
@@ -152,7 +207,7 @@ test("the largest complete method stays inside the bounded tool output", async (
 	assert.match(opened.content[0].text, /Judgment ID: judgment:/u);
 });
 
-test("v7 registers four split tools and exposes only legal next operations", async () => {
+test("v7 registers context-source admission and exposes only legal next operations", async () => {
 	const h = harness();
 	await developerV7(h.api);
 	assert.deepEqual(
@@ -160,6 +215,7 @@ test("v7 registers four split tools and exposes only legal next operations", asy
 		[
 			AUTHORIZE_CHANGE_TOOL,
 			CONCLUDE_JUDGMENT_TOOL,
+			OPEN_CONTEXT_SOURCES_TOOL,
 			OPEN_JUDGMENT_TOOL,
 			RECORD_LANDING_TOOL,
 		].sort(),
@@ -197,13 +253,14 @@ test("v7 registers four split tools and exposes only legal next operations", asy
 	assert.equal(opened.details.kind, "judgment-opened");
 	const protocolTools = new Set<string>([
 		OPEN_JUDGMENT_TOOL,
+		OPEN_CONTEXT_SOURCES_TOOL,
 		CONCLUDE_JUDGMENT_TOOL,
 		AUTHORIZE_CHANGE_TOOL,
 		RECORD_LANDING_TOOL,
 	]);
 	assert.deepEqual(
 		h.activeTools().filter((name) => protocolTools.has(name)),
-		[CONCLUDE_JUDGMENT_TOOL],
+		[OPEN_CONTEXT_SOURCES_TOOL, CONCLUDE_JUDGMENT_TOOL],
 	);
 	assert.equal(h.activeTools().includes("bash"), true);
 	assert.equal(h.activeTools().includes("edit"), false);
@@ -359,6 +416,210 @@ test("one conclusion maps nomination identities into sealed coverage and user au
 	assert.match(
 		conclusion.details.conclusion.contextBasis.contextBasisSha256,
 		/^[a-f0-9]{64}$/u,
+	);
+});
+
+test("multiple external Skill policies join one Developer judgment as exact context", async () => {
+	const h = harness();
+	await developerV7(h.api);
+	await h.emit("session_start", { reason: "new" });
+	await h.emit("before_agent_start", {
+		systemPrompt: "base",
+		systemPromptOptions: {
+			skills: [
+				...skills,
+				externalContextSkill,
+				externalPlainSkill,
+				excludedContextSkill,
+			],
+			contextFiles: [],
+		},
+	});
+	await h.commands.get("developer").handler("on", h.ctx);
+	const opened = await h.tools.get(OPEN_JUDGMENT_TOOL).execute(
+		"call-external-open",
+		{
+			skill_name: "specify",
+			question: "Which public API behavior must the implementation preserve?",
+			reason: "The request depends on project and client constraints.",
+			known_evidence: [],
+		},
+		undefined,
+		undefined,
+		h.ctx,
+	);
+	const inventorySourceId =
+		/- (skill-[a-f0-9]+) · pi-skill · project-api-policy/u.exec(
+			opened.content[0].text,
+		)?.[1];
+	assert.ok(inventorySourceId);
+	const plainSourceId =
+		/- (skill-[a-f0-9]+) · pi-skill · project-domain-language/u.exec(
+			opened.content[0].text,
+		)?.[1];
+	assert.ok(plainSourceId);
+	const excludedSourceId =
+		/- (skill-[a-f0-9]+) · pi-skill · terminal-layout-policy/u.exec(
+			opened.content[0].text,
+		)?.[1];
+	assert.ok(excludedSourceId);
+	const context = await h.tools.get(OPEN_CONTEXT_SOURCES_TOOL).execute(
+		"call-external-sources",
+		{
+			judgment_id: opened.details.judgment.judgmentId,
+			inventory_source_ids: [
+				inventorySourceId,
+				plainSourceId,
+				excludedSourceId,
+			],
+		},
+		undefined,
+		undefined,
+		h.ctx,
+	);
+	assert.equal(context.details.kind, "context-sources-opened");
+	assert.equal(context.details.sources.length, 3);
+	assert.match(context.content[0].text, /Unless \(wins\):/u);
+	const referenceId = /Reference: (reference-[a-f0-9]+)/u.exec(
+		context.content[0].text,
+	)?.[1];
+	assert.ok(referenceId);
+	const openedSource = context.details.sources.find(
+		(source: { skill: { name: string } }) =>
+			source.skill.name === "project-api-policy",
+	);
+	const openedPlainSource = context.details.sources.find(
+		(source: { skill: { name: string } }) =>
+			source.skill.name === "project-domain-language",
+	);
+	assert.ok(openedSource);
+	assert.ok(openedPlainSource);
+	const conclusion = await h.tools.get(CONCLUDE_JUDGMENT_TOOL).execute(
+		"call-external-conclude",
+		{
+			judgment_id: opened.details.judgment.judgmentId,
+			disposition: "judgment",
+			applicability: {
+				kind: "applicable",
+				basis: ["A concrete public API decision is required."],
+			},
+			context_source_assessments: [
+				{
+					inventorySourceId,
+					applicability: {
+						kind: "applicable",
+						basis: [
+							"The API is public and the internal-only exclusion does not hold.",
+						],
+					},
+				},
+				{
+					inventorySourceId: excludedSourceId,
+					applicability: {
+						kind: "not-applicable",
+						reason: "The terminal-only policy is excluded by its root unless.",
+						evidence: [
+							"The task changes a non-interactive API with no terminal presentation.",
+						],
+					},
+				},
+			],
+			nominations: [
+				{
+					nominationId: "project-method",
+					kind: "inventory-source",
+					inventorySourceId,
+					contentSha256: openedSource.methodContentSha256,
+				},
+				{
+					nominationId: "error-contract",
+					kind: "inventory-source",
+					inventorySourceId: referenceId,
+				},
+				{
+					nominationId: "domain-language",
+					kind: "inventory-source",
+					inventorySourceId: plainSourceId,
+					contentSha256: openedPlainSource.methodContentSha256,
+				},
+			],
+			selection_basis: [
+				"The project method and exact error contract both constrain the public boundary.",
+			],
+			coverage: {
+				status: "sufficient",
+				contributions: [
+					{
+						nominationId: "project-method",
+						useAs: "method",
+						contribution:
+							"The project Skill requires preserving observable error variants and ordering.",
+						assurance: "agent-asserted",
+					},
+					{
+						nominationId: "error-contract",
+						useAs: "constraint",
+						contribution:
+							"The serialized boundary must preserve retryable versus permanent errors.",
+						assurance: "agent-asserted",
+					},
+					{
+						nominationId: "domain-language",
+						useAs: "guidance",
+						contribution:
+							"The public representation uses the project's retryable and permanent terms.",
+						assurance: "agent-asserted",
+					},
+				],
+				conflicts: [],
+				limitations: [],
+			},
+			outcome: {
+				kind: "contextual-judgment",
+				citedUses: [
+					{
+						contributionIndex: 0,
+						artifactEffect: "The implementation keeps client-visible ordering.",
+					},
+					{
+						contributionIndex: 1,
+						artifactEffect: "The error representation remains discriminated.",
+					},
+					{
+						contributionIndex: 2,
+						artifactEffect: "The public names match project domain language.",
+					},
+				],
+				rationale: "Both exact project sources constrain the API boundary.",
+				artifact: "A public API contract preserving error kind and order.",
+				stopEvidence: ["Every selected external source has one contribution."],
+			},
+			produced_artifacts: [],
+			opened_questions: [],
+			question_updates: [],
+		},
+		undefined,
+		undefined,
+		h.ctx,
+	);
+	assert.equal(conclusion.details.conclusion.kind, "contextual-judgment");
+	assert.equal(
+		conclusion.details.conclusion.contextBasis.contextSources.find(
+			(source: { inventorySourceId: string }) =>
+				source.inventorySourceId === inventorySourceId,
+		)?.applicability,
+		"applicable",
+	);
+	assert.equal(
+		conclusion.details.conclusion.contextBasis.contextSources.find(
+			(source: { inventorySourceId: string }) =>
+				source.inventorySourceId === excludedSourceId,
+		)?.applicability,
+		"not-applicable",
+	);
+	assert.equal(
+		conclusion.details.conclusion.contextBasis.contributions.length,
+		3,
 	);
 });
 

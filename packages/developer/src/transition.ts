@@ -1,10 +1,12 @@
 import {
 	AUTHORIZE_CHANGE_TOOL,
 	CONCLUDE_JUDGMENT_TOOL,
+	OPEN_CONTEXT_SOURCES_TOOL,
 	OPEN_JUDGMENT_TOOL,
 	RECORD_LANDING_TOOL,
 	type ActiveJudgment,
 	type AuthorizedChange,
+	type ContextSourcesOpened,
 	type DeveloperEvent,
 	type ImplementationLanding,
 	type JudgmentConclusion,
@@ -51,6 +53,7 @@ export type DeveloperTransitionErrorCode =
 	| "developer.question-update-missing"
 	| "developer.question-source-mismatch"
 	| "developer.context-basis-mismatch"
+	| "developer.context-source-duplicate"
 	| "developer.implementation-blocked"
 	| "developer.implementation-framing-required"
 	| "developer.conclusion-incomplete";
@@ -222,10 +225,23 @@ function contextBasisMatches(
 ): boolean {
 	if (conclusion.kind === "judgment-not-applicable") return true;
 	const basis = conclusion.contextBasis;
-	return (
-		basis.judgmentId === judgment.judgmentId &&
-		basis.policySha256 === judgment.policy?.policySha256
+	if (
+		basis.judgmentId !== judgment.judgmentId ||
+		basis.policySha256 !== judgment.policy?.policySha256 ||
+		basis.contextSources.length !== judgment.contextSources.length
+	) {
+		return false;
+	}
+	const basisBySourceId = new Map(
+		basis.contextSources.map((source) => [source.inventorySourceId, source]),
 	);
+	return judgment.contextSources.every((source) => {
+		const recorded = basisBySourceId.get(source.inventorySourceId);
+		return (
+			recorded?.descriptorSha256 === source.descriptorSha256 &&
+			recorded.policySha256 === source.policy?.policySha256
+		);
+	});
 }
 
 function updateQuestion(
@@ -357,6 +373,48 @@ function openJudgment(
 		obligations: Object.freeze({
 			...state.obligations,
 			rerouteRequired: false,
+		}),
+	});
+}
+
+function openContextSources(
+	state: DeveloperState,
+	event: ContextSourcesOpened,
+): DeveloperTransitionResult {
+	const active = state.activeWork;
+	if (!active || active.kind !== "active-judgment") {
+		return rejected(
+			"developer.wrong-work-id",
+			"No Developer judgment is active.",
+		);
+	}
+	if (active.judgmentId !== event.judgmentId) {
+		return rejected(
+			"developer.wrong-work-id",
+			`Context sources for ${event.judgmentId} cannot extend ${active.judgmentId}.`,
+		);
+	}
+	const existingIds = new Set(
+		active.contextSources.map((source) => source.inventorySourceId),
+	);
+	const incomingIds = event.sources.map((source) => source.inventorySourceId);
+	if (
+		new Set(incomingIds).size !== incomingIds.length ||
+		incomingIds.some((id) => existingIds.has(id))
+	) {
+		return rejected(
+			"developer.context-source-duplicate",
+			"A context source cannot be opened twice for one Developer judgment.",
+		);
+	}
+	return accepted({
+		...state,
+		activeWork: Object.freeze({
+			...active,
+			contextSources: Object.freeze([
+				...active.contextSources,
+				...event.sources,
+			]),
 		}),
 	});
 }
@@ -498,6 +556,8 @@ export function transitionDeveloper(
 			return focusQuestion(state, event.questionId);
 		case "judgment-opened":
 			return openJudgment(state, event.judgment);
+		case "context-sources-opened":
+			return openContextSources(state, event);
 		case "change-authorized":
 			return authorizeChange(state, event.change);
 		case "judgment-concluded":
@@ -517,6 +577,7 @@ export function applyDeveloperEvent(
 
 export type DeveloperNextOperation =
 	| typeof OPEN_JUDGMENT_TOOL
+	| typeof OPEN_CONTEXT_SOURCES_TOOL
 	| typeof CONCLUDE_JUDGMENT_TOOL
 	| typeof AUTHORIZE_CHANGE_TOOL
 	| typeof RECORD_LANDING_TOOL;
@@ -526,7 +587,7 @@ export function developerNextOperations(
 ): readonly DeveloperNextOperation[] {
 	if (!state.enabled) return Object.freeze([]);
 	if (state.activeWork?.kind === "active-judgment") {
-		return Object.freeze([CONCLUDE_JUDGMENT_TOOL]);
+		return Object.freeze([OPEN_CONTEXT_SOURCES_TOOL, CONCLUDE_JUDGMENT_TOOL]);
 	}
 	if (state.activeWork?.kind === "authorized-change") {
 		return Object.freeze([RECORD_LANDING_TOOL]);
