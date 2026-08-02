@@ -1,409 +1,217 @@
-# Developer for Pi
+# @hobin/developer
 
-> **Development status:** `0.1.17` is a private patch candidate. Package checks,
-> branch/mutation evaluations, and the Pi 0.80.10–0.83.0 source/packed matrix
-> are green. Publication still requires explicit approval.
+A Pi workbench for making consequential coding decisions explicit before,
+during, and after a change.
 
-Developer is a branch-aware judgment workbench that helps [Pi](https://pi.dev)
-stop guessing, choose the right design or review method, make one justified
-change, and show the evidence behind it.
-
-Use it when a task may hide product rules, consequential cases, ownership,
-compatibility, structural timing, or pass-but-wrong verification. Developer:
-
-- turns consequential uncertainty into explicit questions;
-- opens one of eleven focused judgment skills;
-- selects and seals exact material only when it can change the judgment;
-- keeps judgments, change authorization, unresolved questions, landings, and
-  verification evidence visible on the current session branch.
-
-Developer is adaptive rather than phase-driven. It does not force every task
-through a fixed plan, design, implementation, and review sequence.
+Developer helps Pi choose the right reasoning method, gather exact evidence,
+separate judgment from mutation authority, and verify what a landing actually
+proves. It is adaptive: simple work stays simple, while uncertain work opens the
+smallest relevant judgment.
 
 ## Install
 
-Requires Node.js 22.19 or newer. Developer `0.1.17` is a private patch
-candidate; its release matrix must be reverified before publication.
+Requires [Pi](https://pi.dev) and Node.js 22.19 or newer.
 
 ```sh
 pi install npm:@hobin/developer
 ```
 
-Try it for one run without installing:
+Try it for one run:
 
 ```sh
 pi -e npm:@hobin/developer
 ```
 
-Start Pi and enable Developer:
+Enable Developer inside Pi:
 
 ```text
 /developer on
 ```
 
-Run `pi list` if you want to confirm that the package is installed.
+## Try this first
 
-## Try it
-
-Describe the product task normally. You do not need to name a skill or call an
-internal protocol tool.
+Ask for the product change normally. You do not need to choose an internal Skill
+or call a protocol tool.
 
 ```text
 /developer on
 The selected payment method disappears after navigating back to checkout.
-Find the cause and fix it.
+Find the cause and fix it, but do not guess at missing product behavior.
 ```
 
-Depending on what the repository already establishes, Developer may ask for a
-missing product decision, inspect the relevant behavior, open a focused model or
-sketch judgment, authorize one bounded implementation movement, and require
-evidence before the changed work is treated as complete.
-
-Other useful first requests:
+Other useful prompts:
 
 ```text
-Add scheduled invoice delivery.
-Clarify any missing product rules before editing.
-```
-
-```text
-This parser change is green, but the conditionals are spreading.
+This parser rewrite is green, but the conditionals are spreading.
 Decide whether structural work belongs now.
 ```
 
 ```text
-The tests pass after this cache rewrite.
-Check what they do not prove before calling it done.
+The tests pass after this cache change. Check what they do not prove before
+calling it complete.
 ```
-
-For a scope-bound existing-code diagnosis and improvement plan, ask for Doctor
-explicitly and name a path, flow, boundary, package, or subsystem when you can:
 
 ```text
-Run a thorough Doctor review of the checkout request-to-persistence flow.
-Preserve current external behavior, consult every triggered Developer judgment,
-and produce a now/next/observe/leave-alone plan without modifying files.
+Run a Doctor review of the checkout request-to-persistence flow. Preserve
+external behavior and produce a now/next/observe/leave-alone plan without
+modifying files.
 ```
 
-When no useful scope is supplied, Doctor performs a cheap orientation pass and
-proposes one. It distinguishes requested, inspected, and claim scope rather than
-presenting a repository sample as an exhaustive review.
+## What Developer changes
 
-## Why Developer
-
-Ordinary coding requests often contain decisions that look like implementation
-details but are actually product, model, boundary, or evidence questions.
-
-| Before | With Developer |
+| Without an explicit judgment | With Developer |
 | --- | --- |
-| Vague requests decide product behavior | Unknowns become owned questions |
-| Green tests stand in for claims | Evidence is matched to each claim |
-| Refactoring follows taste or momentum | Structure follows observed pressure |
-| All methods enter context | Only triggered methods load |
-| Branches lose rationale | Evidence replays with its branch |
+| Missing product decisions become implementation guesses | Unknowns become owned questions |
+| A method is chosen from habit | One focused Skill owns the current question |
+| Available guidance is treated as required context | Only materially useful context is selected |
+| “Tests pass” becomes a completion claim | Evidence is matched to the exact claim |
+| Editing and reasoning blur together | Judgment and mutation authority are separate |
+| A landing implies success | Landing creates a distinct verification obligation |
 
-Developer coordinates judgment; Pi still reads, edits, runs, and tests the
-product with its normal tools. Across those judgments, an unchecked assertion,
-cast, non-null claim, or typed decode is never treated as evidence that a domain
-invariant holds: broader input must cross an owned parser or smart-constructor
-boundary whose success returns the refined value.
+Developer coordinates the work; Pi still reads, edits, runs, and tests through
+its normal tools.
 
 ## How it works
 
-Developer follows a small adaptive loop:
-
-```text
-Discover → Open Judgment → Select + Seal Context → Conclude
-         → Authorize Change → Land → Verify
+```mermaid
+flowchart LR
+  Q[Question] --> J[Active judgment]
+  J --> C[Exact context]
+  C --> O[Outcome]
+  O --> A[Authorized change]
+  A --> L[Landing]
+  L --> V[Verification judgment]
 ```
 
-1. **Discover** the current unresolved question from the request, repository,
-   and latest evidence.
-2. **Open** one focused skill and compile its optional Judgment policy.
-3. **Select and seal** only applicable current-branch material; record exact
-   contributions, conflicts, limitations, and sufficiency before an outcome.
-4. **Conclude** with a contextual judgment, an explicit need for evidence, or
-   an emergent question.
-5. **Authorize** one bounded change only after before-implementation gates close.
-6. **Land** the actual changed paths and stable landing without claiming that
-   mutation itself proves completion.
-7. **Verify** the changed claim with an appropriate observer and verifier.
+This is an authority flow, not a mandatory development process. A settled,
+well-evidenced request may proceed directly to a bounded authorization. New
+evidence may instead open another judgment or a user question.
 
-This is not a mandatory phase sequence. A simple, already-justified task can
-request change authorization directly. New evidence can open a different
-judgment. Consecutive changes require separate authorizations and landings.
+### Evidence and mutation stay separate
 
-## What changed from 0.1.16
+```mermaid
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> ActiveJudgment: open a question
+  ActiveJudgment --> ActiveJudgment: add context Skills
+  ActiveJudgment --> Idle: conclude
+  Idle --> AuthorizedChange: authorize bounded movement
+  AuthorizedChange --> NeedsRouting: record exact landing
+  NeedsRouting --> ActiveJudgment: verify or reroute
+  ActiveJudgment --> Idle: verified claim
+```
 
-The published `0.1.16` line used `developer/v6`: one route selected a skill or
-implementation, an admitted route loaded a fixed complete GuidanceSet, and
-`developer_record_judgment` also carried a `changedArtifacts` boolean.
-`0.1.17` uses `developer/v7` and separates those authorities:
-
-| 0.1.16 | 0.1.17 |
-| --- | --- |
-| `developer_route_question` | `developer_open_judgment` for semantic work, or `developer_authorize_change` for mutation |
-| `developer_load_guidance` and a co-required fixed set | Optional `{when, unless, references[{path, when}]}` policy plus explicit material contributions; zero, one, or several references may be correct |
-| `developer_record_judgment` | `developer_conclude_judgment` for semantic closure |
-| `changedArtifacts: boolean` inside a judgment | `developer_record_landing` with exact changed paths and a separate authorization ID |
-| Active Route | Active Judgment or Authorized Change |
-| v6 route replay | Exact v7 replay; v6 history is retained but reported as unsupported |
-
-Commands, the eleven skills, adaptive method choice, PendingQuestions, mutation
-gating, stable landings, branch locality, and post-change verification debt are
-preserved. The old tool payloads are not aliases for the new tools, and v6
-history is never reinterpreted as v7 work.
-
-See [Developer 0.1.16 → 0.1.17 Behavior and Protocol Changes](./docs/migration-from-0.1.md)
-for the complete behavior matrix, scenario comparison, automation migration,
-and restart rules.
-
-## Common workflows
-
-| Need | Developer helps Pi… |
-| --- | --- |
-| Diagnose existing code | Bound the review, preserve behavior, consult triggered judgments, and order justified improvements |
-| Clarify a feature | Separate meaning, constraints, examples, and blockers |
-| Model behavior | Enumerate cases, contracts, transitions, and guarantees |
-| Shape code | Expose data, interfaces, collaboration, state, and checks |
-| Refine input safely | Turn broader input into invariant-carrying domain values before dependent effects |
-| Inspect a design | Identify structural movement and model-code mismatch |
-| Review an abstraction | Keep, revise, split, reject, or defer the candidate |
-| Time a refactor | Separate behavior work and judge the cost of delay |
-| Name code | Preserve domain meaning and expose effects or multiple senses |
-| Verify completion | Match evidence to claims and find pass-but-wrong risks |
-| Challenge a claim | Run finite adversarial checks with an explicit stop |
-| Clarify a decision | Choose the smallest useful visual surface |
+While an `ActiveJudgment` is open, Pi may inspect evidence but cannot use
+Developer-controlled `edit` or `write`. Those tools return only for an
+`AuthorizedChange`. This is workflow integrity, not an operating-system sandbox.
 
 ## Skills
 
-Developer may open these skills automatically. You can also invoke any one
-directly with `/skill:<name>`.
+Developer includes eleven independently invocable Skills. Pi may select one from
+the request, or you can invoke it explicitly with `/skill:<name>`.
 
-| Skill | Helps decide |
+| Skill | Use it to decide… |
 | --- | --- |
-| `doctor` | What a bounded existing-code scope must preserve, treat, observe, or leave alone |
-| `specify` | Product meaning, scope, invariants, and blockers |
-| `model` | Cases, contracts, transitions, guarantees, and checks |
-| `sketch` | Data, interfaces, collaboration, flow, state, and code shape |
-| `signal` | Structural movement and model-code mismatch |
-| `naming-judgment` | Stable domain meaning, effects, and multiple senses |
-| `abstraction-review` | Whether to keep, revise, split, reject, or defer |
+| `doctor` | What a bounded existing-code scope should treat now, later, observe, or leave alone |
+| `specify` | What the product requirement actually means |
+| `model` | Which cases, rules, states, contracts, and forbidden conditions exist |
+| `sketch` | What data, interfaces, collaboration, flow, and code shape should exist |
+| `signal` | Whether code shows real structural pressure |
+| `naming-judgment` | Which name preserves stable domain meaning and exposes effects |
+| `abstraction-review` | Whether a concrete abstraction should be kept, revised, split, rejected, or deferred |
 | `schedule` | Whether structural work belongs now, after, or never |
-| `verify` | What evidence proves and what pass-but-wrong risk remains |
-| `visualize` | Which visual surface materially lowers judgment cost |
-| `adversarial-eval` | Which finite checks could falsify a claim |
+| `verify` | Which claims current evidence supports and where pass-but-wrong risk remains |
+| `adversarial-eval` | Which finite counterexamples could falsify a workflow or implementation claim |
+| `visualize` | Which small visual surface makes a decision easier to inspect |
 
-Each skill produces an artifact suited to its question instead of defaulting to
-undifferentiated prose. Simple judgments remain compact when prose is genuinely
-clearer.
+Each Skill owns a complete question, method, result, and stop. Doctor coordinates
+a bounded diagnosis; it does not replace the other Skills with one universal
+checklist.
 
-Doctor is an explicit coordination workflow, not the default front door for
-ordinary tasks. It first makes a broad, shallow disposition of every available
-Developer judgment lens inside a declared scope. It then closes so each
-triggered question can run through its owning skill and exact observed context.
-A final Doctor judgment synthesizes those owner judgments into a
-treatment plan; Doctor never reads sibling references or replaces their methods
-with one giant checklist.
+## External Skill context
+
+Developer can use Skills from other installed Pi packages as context without
+turning them into Developer-owned methods:
+
+```mermaid
+sequenceDiagram
+  participant Pi
+  participant D as Developer
+  participant A as Agent
+  participant J as Judgment engine
+
+  Pi->>D: visible Skill descriptors
+  A->>D: nominate relevant Skill IDs
+  D->>A: bounded SKILL.md + optional policy
+  A->>D: applicability + exact material nominations
+  D->>J: one selection, seal, and coverage proposal
+  J-->>D: one contextual outcome
+```
+
+Only nominated sources are opened. An optional `judgment.json` is shown before
+applicability is assessed; root `unless` wins. Policy absence is normal, while a
+malformed present policy rejects only that source batch. Applicable external
+methods and references join the same Developer judgment as repository evidence.
 
 ## Commands
 
 | Command | Effect |
 | --- | --- |
-| `/developer` | Open the branch-aware judgment Workbench |
-| `/developer status` | Open Workbench Overview, or print current state outside TUI mode |
-| `/developer questions` | Review, answer, or investigate an unresolved Question |
-| `/developer settings` | Open activation Settings, then return to the Workbench |
-| `/developer on` | Enable adaptive judgment and authorization-bound tool access |
-| `/developer off` | Disable Developer and clear current protocol state |
+| `/developer` | Open the read-only workbench |
+| `/developer on` | Enable adaptive judgment and mutation gating |
+| `/developer off` | Disable Developer and clear current protocol state after confirmation when needed |
+| `/developer status` | Open or print current state |
+| `/developer questions` | Inspect, answer, or investigate unresolved questions |
+| `/developer settings` | Open activation settings |
 
-Start a preconfigured session with Developer enabled:
+Start Pi with Developer enabled:
 
 ```sh
 pi --developer
 ```
 
-Developer 0.1.15 and later intentionally replace the old `/develop` command and
-`--develop` startup flag without aliases. Commands use Pi's normal
-`/developer <action>` grammar; colon-style command names are not registered.
+## Workbench
 
-Turning Developer off while work or questions remain asks for confirmation in
-interactive mode. Historical session entries remain; only current protocol state
-is cleared.
-
-## Workbench and visible state
-
-`/developer` makes the current judgment state visible without changing it:
+`/developer` exposes current obligations without changing them:
 
 ```text
 Overview → Active Judgment → Questions → Judgments → Landings → Settings
 ```
 
-Overview shows the current obligation, mutation authority, gates, active target,
-next action, runtime resources, and verification debt. Active Judgment exposes
-the owning skill, dynamic question, optional policy identity, selected and
-sealed basis, contribution coverage, alternatives, and reference provenance. Authorized Change exposes one bounded
-movement, stable landing, verification target, and optional revert condition.
-Judgments keep complete result Markdown with basis and artifacts. Landings index
-actual changed paths without inventing a per-landing `Verified` claim that the
-event schema does not record.
+Use arrows or `j/k` to move, Enter to inspect, Escape to go back, Tab to change
+focus, Page Up/Page Down or Home/End to scroll, `y` to copy the focused semantic
+record, and `?` for help. The workbench is read-only; opening or copying it does
+not append session events or write files.
 
-The Workbench is a screen-relative, keyboard-complete viewport; it does not rely
-on terminal scrollback. Use arrows or `j/k` to move, Enter to open, Escape to
-return one level, Tab to change focus, Page Up/Page Down and Home/End to scroll,
-`y` to copy the focused semantic selection, and `?` for contextual help. Copying
-a section yields its identity; copying an item or detail yields the complete
-unwrapped record without borders, neighboring panes, terminal styling, or
-viewport truncation. Pi does not yet expose extension-scoped wheel capture, so
-Developer does not take over the mouse globally; native terminal drag selection
-therefore remains screen-wide rather than pane-bounded. Opening, scrolling, and
-copying Workbench content does not append session entries, send messages, change
-active tools, or write files.
+## Boundaries
 
-Developer keeps consequential unknowns explicit instead of silently turning them
-into assumptions. A Question records who can resolve it, what evidence or answer
-would close it, and whether it blocks implementation or completion.
+- Developer state is replayed from the current Pi session branch.
+- Pending user, agent, and environment questions keep distinct owners and gates.
+- A context hash proves identity and drift, not semantic truth.
+- Landing records exact changed paths but never proves completion.
+- Developer does not parse shell commands as a security policy.
+- Installed Pi packages execute with Pi's process permissions; review source and
+  use an external sandbox for untrusted work.
 
-`/developer questions` opens a bounded decision brief with the Markdown
-explanation visible in the initial viewport and answer/defer actions pinned below
-it. Page Up and Page Down move through longer detail without displacing those
-actions. User-owned Questions accept an answer, agent-owned Questions can be
-sent back to Pi for investigation, and environment-owned Questions identify
-access or observations that must come from outside the session.
+## Documentation
 
-The footer shows activation and the active protocol work. A compact widget
-appears only while a judgment, authorized change, or unresolved Question exists.
-`/developer status` and
-`/developer questions` remain direct accelerators for explicit inspection and
-action.
-
-Visible routing states include:
-
-| State | Meaning |
+| Document | For |
 | --- | --- |
-| `idle` | No active protocol work or unresolved Developer question |
-| `needs-judgment` | An active judgment still needs a conclusion |
-| `needs-evidence` | Agent or environment evidence is still required |
-| `needs-answer` | A user decision is still required |
-| `needs-routing` | An implementation landing must be routed again |
-| `needs-verification` | Changed artifacts still need verification |
-| `blocked` | A required answer, observation, or access is unavailable |
-
-These are routing states, not timeless product-completion claims. In particular,
-`idle` does not mean that the user's task is complete, and later changes can
-invalidate an earlier verification judgment.
-
-## Tool boundaries
-
-While Developer is on:
-
-- Pi's built-in `bash` is available during an active judgment or authorized
-  change for repository inspection and verification;
-- built-in `edit` and `write` require an active `AuthorizedChange`, which cannot
-  be created while a before-implementation gate remains unresolved;
-- unrelated tools and user-disabled tools keep their existing configuration;
-- product changes still happen through Pi's normal tools, not through
-  Developer's coordination tools.
-
-These controls protect workflow integrity. They are **not a security sandbox**:
-shell commands are not parsed as a security language, and Pi packages run with
-the access of the Pi process. Review the package before installation and use an
-external sandbox when you need an operating-system security boundary.
-
-## Judgment policies and auditability
-
-A skill's complete method lives in `SKILL.md`. A skill owns `judgment.json` only
-when it has conditional packaged references. The policy declares root `when`,
-winning root `unless`, and independent reference `{path, when}` statements. Four
-Developer skills with no packaged references intentionally have no policy.
-
-`developer_open_judgment` loads the selected owning skill and compiles a present
-policy with owner identity derived from Pi skill metadata.
-`developer_open_context_sources` may then open zero, one, or several exact
-Pi-visible Skills as external context. Each bounded method and optional
-co-located policy becomes model-visible before source applicability; only
-applicable sources contribute prepared references. No external source creates a
-second judgment.
-
-A model-facing proposal names stable `nominationId` values; runtime resolves
-those nominations to exact material, commits one selection and sealing
-atomically, records `useAs` contributions with bounded assurance, and only then
-accepts a conclusion. A distinct question requires a later judgment rather than
-fallback context.
-
-Policy, dynamic-question, selected-material, sealed-content, contribution,
-coverage, and outcome identities make branch-local application replayable.
-Hashes establish identity and drift; they do not prove source fidelity or domain
-truth.
-
-See [Developer Runtime Flow](./docs/runtime-flow.md) for the authority and
-verification state model, [Developer Judgment Policies](./JUDGMENT_POLICIES.md)
-for runtime adaptation,
-[Developer Judgment Policy: Skill Applicability and Reference Selection](./docs/judgment-reference-routing.md)
-for authoring and identity rules, and Judgment's
-[authoring schema](https://github.com/dev-hobin/agent/blob/main/packages/judgment/docs/authoring-schema-v0.1.md)
-for generic policy invariants.
-
-## Branches, compaction, and reloads
-
-Judgments, authorizations, landings, questions, and activation changes are stored
-in Pi session entries and replayed from the current branch. A fork therefore
-inherits only its own branch history.
-
-Developer leaves compaction to Pi. Current protocol and recovery metadata are
-placed where the normal Pi compactor can preserve them. Configure Pi's
-compaction settings if you want an earlier threshold.
-
-Developer restores only the built-in tool changes it owns when a session runtime
-shuts down. If a hot reload encounters older Developer history without a safe
-release marker, restart the Pi process rather than guessing the user's original
-tool configuration.
-
-## Update, configure, and remove
-
-```sh
-pi list
-pi config
-pi update npm:@hobin/developer
-pi remove npm:@hobin/developer
-```
-
-Use a project-local install when a repository should declare the package in
-`.pi/settings.json`:
-
-```sh
-pi install -l npm:@hobin/developer
-```
-
-See the [Pi package documentation](https://pi.dev/docs/latest/packages) for
-package scope, filtering, pinning, and security behavior.
+| [User guide](./docs/user-guide.md) | Commands, workbench navigation, common workflows, and recovery |
+| [Architecture](./docs/architecture.md) | State, authority, replay, tool access, and component ownership |
+| [Context and evidence](./docs/context-and-evidence.md) | Internal evidence, external Skills, policy admission, sealing, and assurance |
+| [Runtime protocol](./docs/runtime-protocol.md) | The five protocol operations, events, legal transitions, and maintainer invariants |
 
 ## Development
 
-From the monorepo root:
-
 ```sh
-pnpm install
 pnpm --filter @hobin/developer check
 pnpm --filter @hobin/developer eval
-```
-
-Load the workspace package into Pi without installing it:
-
-```sh
 pi -e ./packages/developer
 ```
 
-`check` validates package structure and deterministic behavior. `eval` exercises
-the real Pi RPC surface without a model. Model-dependent evaluations are
-probabilistic and must not be interpreted as proof from a single successful
-sample. Set `PI_BIN` to bind the RPC compatibility smoke to an exact Pi
-installation; the smoke reports that installation's `pi --version` in its
-output.
-
-The published npm package contains the runtime extension, skills, user-facing
-documentation, and license. Source audits, evaluation fixtures, scripts, and
-tests remain repository-only maintenance evidence.
+`check` covers deterministic protocol, context, UI, and package behavior. `eval`
+exercises the real Pi RPC surface without relying on one stochastic model run.
 
 ## License
 

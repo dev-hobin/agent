@@ -59,7 +59,6 @@ assert.deepEqual(manifest.files, [
 	"src",
 	"docs",
 	"README.md",
-	"JUDGMENT_POLICIES.md",
 	"LICENSE",
 ]);
 assert.deepEqual(manifest.exports, { ".": "./src/index.ts" });
@@ -103,7 +102,6 @@ assert.deepEqual(
 );
 const markdownDocuments = [
 	"README.md",
-	"JUDGMENT_POLICIES.md",
 	...(await readdir(join(root, "docs"), { withFileTypes: true }))
 		.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
 		.map((entry) => `docs/${entry.name}`),
@@ -200,48 +198,44 @@ for (const documentPath of markdownDocuments) {
 }
 
 const readme = await readFile(join(root, "README.md"), "utf8");
-assert.match(readme, /What changed from 0\.1\.16/u);
-assert.match(readme, /docs\/migration-from-0\.1\.md/u);
-assert.match(readme, /docs\/judgment-reference-routing\.md/u);
-assert.match(readme, /docs\/runtime-flow\.md/u);
-const routing = await readFile(
-	join(root, "docs/judgment-reference-routing.md"),
-	"utf8",
-);
-for (const term of [
-	"Skill Applicability and Reference Selection",
-	"no root `contractId`",
-	"Decided authoring shape",
-	'"when"',
-	'"unless"',
-	'"references"',
-	"Dynamic judgment question",
-	"Package-external context",
+for (const path of [
+	"docs/user-guide.md",
+	"docs/architecture.md",
+	"docs/context-and-evidence.md",
+	"docs/runtime-protocol.md",
 ])
-	assert.match(
-		routing,
-		new RegExp(term.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"),
-	);
-const migration = await readFile(
-	join(root, "docs/migration-from-0.1.md"),
+	assert.match(readme, new RegExp(path.replaceAll("/", "\\/"), "u"));
+assert.match(readme, /Try this first/u);
+assert.match(readme, /External Skill context/u);
+
+const contextGuide = await readFile(
+	join(root, "docs/context-and-evidence.md"),
 	"utf8",
 );
 for (const term of [
-	"developer/v6",
+	"Candidate discovery stays cheap",
+	"Batch opening is atomic",
+	"Root `unless` wins",
+	"Selection and sealing",
+	"Assurance",
+])
+	assert.match(contextGuide, new RegExp(term, "u"));
+
+const runtimeProtocol = await readFile(
+	join(root, "docs/runtime-protocol.md"),
+	"utf8",
+);
+for (const term of [
 	"developer/v7",
-	"developer_route_question",
-	"developer_load_guidance",
-	"developer_record_judgment",
 	"developer_open_judgment",
 	"developer_open_context_sources",
 	"developer_conclude_judgment",
 	"developer_authorize_change",
 	"developer_record_landing",
-	"changedArtifacts",
 	"branchResultId",
-	"unsupported",
+	"Unsupported v6",
 ])
-	assert.match(migration, new RegExp(term, "u"));
+	assert.match(runtimeProtocol, new RegExp(term, "u"));
 
 const extension = await readFile(join(root, "extensions/developer.ts"), "utf8");
 for (const toolName of [
