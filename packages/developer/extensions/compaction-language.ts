@@ -193,44 +193,43 @@ export function applyCompactionLanguageEvent(
 	state: CompactionLanguageState,
 	event: CompactionLanguageEvent,
 ): CompactionLanguageState {
-	switch (event.kind) {
-		case "language-observed":
-			return {
-				...state,
-				language: event.tag,
-				pending: state.pending
-					? { ...state.pending, tag: event.tag }
-					: undefined,
-			};
-		case "continuity-pending":
-			if (
-				state.consumedCompactionIds.has(event.compactionId) ||
-				state.pending?.compactionId === event.compactionId
-			) {
-				return state;
-			}
-			return {
-				...state,
-				pending: {
-					compactionId: event.compactionId,
-					tag: event.tag,
-					injected: false,
-				},
-			};
-		case "continuity-consumed": {
-			if (state.consumedCompactionIds.has(event.compactionId)) return state;
-			const consumedCompactionIds = new Set(state.consumedCompactionIds);
-			consumedCompactionIds.add(event.compactionId);
-			return {
-				...state,
-				pending:
-					state.pending?.compactionId === event.compactionId
-						? undefined
-						: state.pending,
-				consumedCompactionIds,
-			};
-		}
+	if (event.kind === "language-observed") {
+		return {
+			...state,
+			language: event.tag,
+			pending: state.pending ? { ...state.pending, tag: event.tag } : undefined,
+		};
 	}
+	if (event.kind === "continuity-pending") {
+		if (
+			state.consumedCompactionIds.has(event.compactionId) ||
+			state.pending?.compactionId === event.compactionId
+		) {
+			return state;
+		}
+		return {
+			...state,
+			pending: {
+				compactionId: event.compactionId,
+				tag: event.tag,
+				injected: false,
+			},
+		};
+	}
+	if (event.kind === "continuity-consumed") {
+		if (state.consumedCompactionIds.has(event.compactionId)) return state;
+		const consumedCompactionIds = new Set(state.consumedCompactionIds);
+		consumedCompactionIds.add(event.compactionId);
+		return {
+			...state,
+			pending:
+				state.pending?.compactionId === event.compactionId
+					? undefined
+					: state.pending,
+			consumedCompactionIds,
+		};
+	}
+	throw new Error("Unsupported compaction-language event.");
 }
 
 export function markContinuityInjected(

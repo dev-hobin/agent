@@ -28,11 +28,11 @@ No ID is interchangeable with another and no source type self-promotes.
 
 | Operation | Accepted boundary | Runtime movement |
 | --- | --- | --- |
-| `developer_open_judgment` | Route definition, exact question, obligations, optional owner assignment | Opens a frame and optional routed Skill invocation |
-| `developer_open_context_sources` | Current frame ID and exact Pi-visible descriptor IDs | Observes one atomic material-support batch |
-| `developer_conclude_judgment` | Applicability, exact nominations, coverage, outcome, stop evidence | Settles the owner, admits support, discharges obligations, and concludes only when resolved |
-| `developer_authorize_change` | Current concluded frame and conclusion hash, bounded movement, stable landing, verification target | Creates one process-local root authorization |
-| `developer_record_landing` | Exact active authorization, non-empty changed paths, result and verification observations | Consumes authorization and creates reroute/verification debt |
+| `developer_open_judgment` | Required decision purpose, Route definition, exact question, obligations, optional owner assignment | Opens a frame and optional routed Skill invocation |
+| `developer_open_context_sources` | Exact Pi-visible descriptor IDs | Observes one atomic material-support batch for the current frame |
+| `developer_conclude_judgment` | Applicability, current nominations, coverage, outcome, stop evidence | Settles the owner, admits support, discharges obligations, and concludes only when resolved |
+| `developer_authorize_change` | Bounded movement, stable landing, verification target | Uses the replay-current conclusion handoff and creates one process-local root authorization |
+| `developer_record_landing` | Non-empty reported paths, result and verification observations | Reconciles the active authorization with observed Git delta, consumes authority, and creates reroute/verification debt |
 
 The root exposes only operations legal for the replay-current scope. Opening a
 context source or settling a Skill never grants file mutation.
@@ -80,6 +80,11 @@ ordered descriptor snapshot, and creates an exact frame revision. Routing pages
 must account for every candidate in the admitted snapshot before coverage can be
 complete.
 
+Every open call carries one explicit purpose: `work-decision`,
+`reroute-decision`, or `verification-decision`. The runtime derives the only
+currently legal purpose from landing debt and rejects a mismatch. This prevents
+a verification-shaped question from consuming reroute debt, or the reverse.
+
 An optional owner assignment binds capability ID, Skill revision, policy state,
 target obligation IDs, limits, subquestion, expected contribution, and
 `canServe` basis. There may be zero candidates or zero owner invocations. There
@@ -92,9 +97,14 @@ content. A present malformed policy fails closed; absence is valid. Opening
 material records support identity but does not admit a contribution.
 
 At conclusion, every `branchResultId` is resolved to an exact current-branch
-call/result before Judgment receives it. The optional owner settlement is parsed
-as one closed return variant. Judgment output becomes candidate support; the
-frame must still admit contributions and discharge obligations explicitly.
+call/result before Judgment receives it. The adapter supplies current successful
+handles before each model continuation, binds user-decision nominations to the
+latest active-branch user event, deduplicates repeated observations by branch
+identity, and trims prose boundaries without changing IDs or hashes. The
+optional owner settlement is parsed as one closed return variant. Judgment
+output becomes candidate support; the frame must still admit contributions and
+discharge obligations explicitly. Each discharge cites only contributions that
+actually target that obligation.
 
 If the outcome needs more context or creates a dependency, the frame remains
 open with current blocker identity. If it resolves, the conclusion proposal must
@@ -103,15 +113,24 @@ set.
 
 ## Authorization, landing, and debt
 
-Authorization verifies the exact current frame conclusion and produces one
-process-local value. Structural clones and serialized copies carry no mutation
-authority.
+Authorization uses the replay-current conclusion directly; the model does not
+copy a frame ID or calculate a conclusion hash. It captures the Git workspace
+baseline and produces one process-local value. Structural clones, serialized
+copies, and a restarted process without that baseline carry no mutation
+authority. Built-in shell and artifact mutation remain withheld until this
+point.
 
-Landing verifies that authorization, stores sorted changed paths and verification
-observations, consumes mutation authority, and creates different reroute and
-verification frame IDs. The corresponding Route conclusions clear those debts
-separately. Scope closure is rejected while an authorization, invocation, frame,
-or landing debt remains active.
+Landing observes the current Git workspace, separates pre-existing dirt from the
+authorized delta, and requires the reported paths to match that delta exactly.
+It then stores sorted changed paths and verification observations, consumes
+mutation authority, and creates different reroute and verification frame IDs.
+The corresponding purpose-bound Route conclusions clear those debts separately.
+Scope closure is rejected while an authorization, invocation, frame, or landing
+debt remains active.
+
+This is fail-closed settlement observation, not an operating-system sandbox.
+Unrecognized third-party tools and out-of-process writes remain outside strict
+provider-neutral prevention.
 
 ## Replay and interruption
 
@@ -128,6 +147,19 @@ parse envelope
 Full-batch preflight predicts every event before append. Append is still
 prefix-safe: if persistence stops midway, reconstruction runs in `finally` and
 accepts the stored prefix without pretending the suffix exists.
+
+## Machine truth, model control, and human progress
+
+Developer keeps three projections separate:
+
+- persisted v8 events and raw receipts are machine/audit truth;
+- hidden per-continuation state, required purpose, next operation, and current
+  evidence handles are model-control data;
+- `/developer`, `/developer status`, widgets, and custom tool renderers expose
+  compact human progress without hashes or opaque IDs by default.
+
+Audit receipts remain available through `d` in the overlay. Neither human view
+carries transition authority.
 
 ## Tool-result summary for evaluators
 
@@ -156,8 +188,9 @@ is capped at 100; cursors are opaque and projection-bound.
 
 The refresh coordinator publishes only the latest successful requested revision.
 `Refreshing`, unavailable, failed-latest, stale publication, stale cursor, stale
-page, and cloned values expose no prior-current data. The receipt TUI reads one
-exact verified page and has no transition or persistence operation.
+page, and cloned values expose no prior-current data. Audit mode in the receipt TUI reads one exact verified page and has no
+transition or persistence operation. The default overlay is the compact progress
+view.
 
 ## Reload
 

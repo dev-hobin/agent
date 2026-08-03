@@ -131,13 +131,13 @@ const reportPath =
 await writeFile(reportPath, JSON.stringify(report, null, 2));
 for (const fixture of report.fixtures) {
 	const percent = (value) => `${(value * 100).toFixed(1)}%`;
-	console.log(
+	process.stdout.write(
 		`${fixture.fixtureId}: accepted ${fixture.accepted}/${fixture.trials} (${percent(fixture.acceptanceRate)}), ` +
 			`preferred ${fixture.preferred}/${fixture.accepted || 0} (${percent(fixture.preferredRateAmongAccepted)}), ` +
-			`inadmissible ${fixture.inadmissible}`,
+			`inadmissible ${fixture.inadmissible}\n`,
 	);
 }
-console.log(`Probabilistic eval report: ${reportPath}`);
+process.stdout.write(`Probabilistic eval report: ${reportPath}\n`);
 
 if (report.fixtures.some((fixture) => fixture.inadmissible > 0))
 	process.exitCode = 1;

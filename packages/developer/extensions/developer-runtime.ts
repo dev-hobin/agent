@@ -315,11 +315,12 @@ function stop(
 	...input: readonly [code: DeveloperRuntimeAdapterErrorCode, message: string]
 ): never {
 	const [code, message] = input;
-	throw Object.freeze({
-		developerRuntimeAdapterFault: true,
+	const error = Object.assign(new Error(message), {
+		name: "DeveloperRuntimeAdapterError",
+		developerRuntimeAdapterFault: true as const,
 		code,
-		message,
-	} satisfies DeveloperRuntimeAdapterFault);
+	});
+	throw Object.freeze(error);
 }
 
 function refinedId(input: {
@@ -359,7 +360,7 @@ function refinedText(input: {
 	return input.value;
 }
 
-function canonicalIds(input: {
+function normalizedIds(input: {
 	readonly values: readonly DeveloperId[];
 	readonly label: string;
 	readonly nonEmpty: boolean;
@@ -372,17 +373,19 @@ function canonicalIds(input: {
 		return stop("invalid-input", `${input.label} has an invalid count`);
 	}
 	const refined: DeveloperId[] = [];
-	for (const [index, value] of input.values.entries()) {
+	for (let index = 0; index < input.values.length; index += 1) {
+		const value = input.values[index];
 		refined.push(refinedId({ value, label: `${input.label}[${index}]` }));
 	}
+	refined.sort((...pair: readonly [left: DeveloperId, right: DeveloperId]) => {
+		const [left, right] = pair;
+		if (left < right) return -1;
+		if (left > right) return 1;
+		return 0;
+	});
 	for (let index = 1; index < refined.length; index += 1) {
-		const previous = refined[index - 1];
-		const current = refined[index];
-		if (previous === current) {
+		if (refined[index - 1] === refined[index]) {
 			return stop("invalid-target", `${input.label} contains a duplicate`);
-		}
-		if (previous !== undefined && current !== undefined && previous > current) {
-			return stop("invalid-target", `${input.label} is not canonical`);
 		}
 	}
 	return Object.freeze(refined);
@@ -492,7 +495,7 @@ function refinedSkillCandidates(input: {
 				);
 			}
 		}
-		const targetObligationIds = canonicalIds({
+		const targetObligationIds = normalizedIds({
 			values: value.targetObligationIds,
 			label: `adapter.skillCandidates[${index}].targetObligationIds`,
 			nonEmpty: true,

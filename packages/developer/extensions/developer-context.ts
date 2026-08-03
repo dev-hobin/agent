@@ -125,7 +125,7 @@ export interface DeveloperPreparedContextSource {
 }
 export interface DeveloperContextConclusionInput {
 	readonly judgmentId: string;
-	readonly skill: Readonly<{ name: string; location: string }>;
+	readonly skill: Readonly<{ name: string; location: string }> | null;
 	readonly policy?: CompiledJudgmentPolicy;
 	readonly decisionUnitRoot: string;
 	readonly question: string;
@@ -189,7 +189,8 @@ function parseContextSourceAssessments(input: {
 		),
 	);
 	const seen = new Set<string>();
-	const parsed = input.assessments.map((assessment) => {
+	const parsed: ParsedContextSourceAssessment[] = [];
+	for (const assessment of input.assessments) {
 		if (seen.has(assessment.inventorySourceId)) {
 			throw new Error(
 				`Duplicate context source assessment: ${assessment.inventorySourceId}.`,
@@ -197,27 +198,19 @@ function parseContextSourceAssessments(input: {
 		}
 		seen.add(assessment.inventorySourceId);
 		const source = policySources.get(assessment.inventorySourceId);
-		if (!source) {
-			throw new Error(
-				`Context source assessment does not name an opened policy: ${assessment.inventorySourceId}.`,
-			);
-		}
+		if (!source) continue;
 		const applicabilityData = decodeContextApplicabilityData(
 			jsonValueFromUnknown(assessment.applicability),
 		);
 		const applicability = parseContextApplicability(applicabilityData);
-		return Object.freeze({
-			source,
-			applicability,
-			applicabilitySha256: sha256(
-				canonicalJson(jsonValueFromUnknown(applicabilityData)),
-			),
-		});
-	});
-	const missing = [...policySources.keys()].filter((id) => !seen.has(id));
-	if (missing.length > 0) {
-		throw new Error(
-			`Opened context policies require applicability assessments: ${missing.join(", ")}.`,
+		parsed.push(
+			Object.freeze({
+				source,
+				applicability,
+				applicabilitySha256: sha256(
+					canonicalJson(jsonValueFromUnknown(applicabilityData)),
+				),
+			}),
 		);
 	}
 	return Object.freeze(parsed);
@@ -255,7 +248,7 @@ function candidate(
 	if (matches.length !== 1)
 		throw new Error(
 			matches.length === 0
-				? `No inventory source matches nomination ${nomination.nominationId}.`
+				? `No inventory source matches nomination ${nomination.nominationId}. Use a current tool-result evidence handle for repository reads and commands; inventory-source is only for listed prepared references or Skills.`
 				: `Inventory nomination ${nomination.nominationId} is ambiguous.`,
 		);
 	return matches[0];
@@ -521,15 +514,18 @@ function outcomeData(input: {
 export async function concludeDeveloperContext(
 	input: DeveloperContextConclusionInput,
 ): Promise<DeveloperContextConclusion> {
-	const owningSkill = input.snapshot.input.skills.find(
-		(skill) =>
-			skill.name === input.skill.name &&
-			skill.filePath === input.skill.location,
-	);
-	if (!owningSkill)
+	const owningSkill = input.skill
+		? (input.snapshot.input.skills.find(
+				(skill) =>
+					skill.name === input.skill?.name &&
+					skill.filePath === input.skill.location,
+			) ?? null)
+		: null;
+	if (input.skill && !owningSkill) {
 		throw new Error(
 			`Developer skill provenance is unavailable: ${input.skill.name}.`,
 		);
+	}
 	const contextSourceAssessments = parseContextSourceAssessments({
 		sources: input.contextSources,
 		assessments: input.contextSourceAssessments,
@@ -547,16 +543,21 @@ export async function concludeDeveloperContext(
 				.kind === "applicable"
 		);
 	});
-	const preparedProviders: PreparedContextProviderInput[] = [
-		...(input.policy
-			? [{ policy: input.policy, policyRoot: input.decisionUnitRoot }]
-			: []),
-		...admittedSources.flatMap((source) =>
-			source.source.policy
-				? [{ policy: source.source.policy, policyRoot: source.policyRoot }]
-				: [],
-		),
-	];
+	const providerByIdentity = new Map<string, PreparedContextProviderInput>();
+	if (input.policy) {
+		providerByIdentity.set(
+			`${input.policy.policySha256}:${input.decisionUnitRoot}`,
+			{ policy: input.policy, policyRoot: input.decisionUnitRoot },
+		);
+	}
+	for (const source of admittedSources) {
+		if (!source.source.policy) continue;
+		providerByIdentity.set(
+			`${source.source.policy.policySha256}:${source.policyRoot}`,
+			{ policy: source.source.policy, policyRoot: source.policyRoot },
+		);
+	}
+	const preparedProviders = [...providerByIdentity.values()];
 	const skillContentByPath = new Map(
 		admittedSources.map((source) => [
 			source.source.skill.location,
@@ -571,17 +572,31 @@ export async function concludeDeveloperContext(
 	const opened = ContextAttempt.open({
 		question: jsonValueFromUnknown({
 			judgmentId: input.judgmentId,
-			owner: input.policy?.owner ?? {
-				kind: "pi-skill",
-				namespace: "@hobin/developer",
-				name: input.skill.name,
-				provenance: {
-					source: owningSkill.sourceInfo.source,
-					scope: owningSkill.sourceInfo.scope,
-					origin: owningSkill.sourceInfo.origin,
-					path: input.skill.location,
-				},
-			},
+			owner:
+				input.policy?.owner ??
+				(input.skill && owningSkill
+					? {
+							kind: "pi-skill",
+							namespace: "@hobin/developer",
+							name: input.skill.name,
+							provenance: {
+								source: owningSkill.sourceInfo.source,
+								scope: owningSkill.sourceInfo.scope,
+								origin: owningSkill.sourceInfo.origin,
+								path: input.skill.location,
+							},
+						}
+					: {
+							kind: "adapter-capability",
+							namespace: "@hobin/developer",
+							name: "root-runtime",
+							provenance: {
+								source: "@hobin/developer",
+								scope: "temporary",
+								origin: "package",
+								path: "extensions/developer-v8.ts",
+							},
+						}),
 			...(input.policy ? { policySha256: input.policy.policySha256 } : {}),
 			question: input.question,
 			basisMaterialIds: input.knownEvidence.map(
@@ -592,25 +607,38 @@ export async function concludeDeveloperContext(
 		applicability: jsonValueFromUnknown(input.applicability),
 	});
 	const records = observedRecords(input.nominations);
+	const toolNominations: Array<{
+		toolCallId: string;
+		inventorySourceId?: string;
+	}> = [];
+	const observedToolCallIds = new Set<string>();
+	const userDecisionNominations: Array<{ userEventId: string }> = [];
+	const observedUserEventIds = new Set<string>();
+	for (const record of records) {
+		if (record.kind === "tool-result") {
+			if (observedToolCallIds.has(record.toolCallId)) continue;
+			observedToolCallIds.add(record.toolCallId);
+			toolNominations.push({
+				toolCallId: record.toolCallId,
+				...(record.inventorySourceId
+					? { inventorySourceId: record.inventorySourceId }
+					: {}),
+			});
+			continue;
+		}
+		if (
+			record.kind === "user-decision" &&
+			!observedUserEventIds.has(record.userEventId)
+		) {
+			observedUserEventIds.add(record.userEventId);
+			userDecisionNominations.push({ userEventId: record.userEventId });
+		}
+	}
 	const observed = resolveObservedContext({
 		branchRef: input.branchRef,
 		branch: input.branch,
-		toolNominations: records.flatMap((record) => {
-			if (record.kind !== "tool-result") return [];
-			return [
-				{
-					toolCallId: record.toolCallId,
-					...(record.inventorySourceId
-						? { inventorySourceId: record.inventorySourceId }
-						: {}),
-				},
-			];
-		}),
-		userDecisionNominations: records.flatMap((record) =>
-			record.kind === "user-decision"
-				? [{ userEventId: record.userEventId }]
-				: [],
-		),
+		toolNominations,
+		userDecisionNominations,
 	});
 	const acquisition = acquisitionFor({
 		preparedProviders,

@@ -65,12 +65,19 @@ replay, admission, authorization, and receipt projection.
 | Current runtime state | `bash` | Built-in `edit` / `write` |
 | --- | --- | --- |
 | Enabled with no open frame | Withheld | Withheld |
-| Semantic frame open | Available for evidence gathering | Withheld |
+| Semantic frame open | Withheld | Withheld |
 | Replay-current change authorization | Available | Available for the bounded movement |
-| Landing debt | Withheld until the next frame opens | Withheld |
+| Landing debt | Withheld | Withheld |
 
-This is workflow gating, not an operating-system sandbox. Shell commands and
-third-party extensions retain Pi process permissions.
+Repository reads remain available as evidence before authorization. Developer
+captures a clean Git baseline when it grants authorization, then reconciles the
+observed workspace delta with the landing paths. Omitted, extra, pre-existing,
+or restart-ambiguous changes fail closed.
+
+This is workflow gating and settlement-level observation, not an
+operating-system sandbox. Unrecognized third-party tools and out-of-process
+changes retain Pi process permissions; Developer does not claim
+provider-neutral pre-display prevention.
 
 ## Skills
 
@@ -97,10 +104,10 @@ These are alternative collaborators, not mandatory phases.
 
 | Command | Effect |
 | --- | --- |
-| `/developer` | Open the exact-current read-only receipt overlay in TUI mode |
+| `/developer` | Open the read-only progress overlay in TUI mode; press `d` for audit receipts |
 | `/developer on` | Open a Developer v8 work scope |
 | `/developer off` | Close the scope when no change authorization is active |
-| `/developer status` | Show the current receipt projection summary |
+| `/developer status` | Show compact current progress and the next user-relevant step |
 | `/developer questions` | Compatibility alias for the same receipt summary |
 | `/developer settings` | Compatibility alias for the same receipt summary |
 
@@ -110,12 +117,15 @@ Start Pi with Developer enabled:
 pi --developer
 ```
 
-## Receipt observer
+## Progress and audit observer
 
-The overlay reads one verified page from the exact current projection. It can
-move through opaque page cursors, return to the first page, refresh, copy, or
-close. It cannot route, settle, admit, discharge, conclude, authorize, persist,
-or publish. If the projection changes while the overlay is open, reopen it.
+The overlay defaults to compact progress: current phase, completed milestones,
+and the next user-relevant step. Press `d` to enter audit details. Audit mode
+reads one verified page from the exact current receipt projection and can move
+through opaque cursors, return to the first page, refresh, copy, or close. Neither
+view can route, settle, admit, discharge, conclude, authorize, persist, or
+publish. If the receipt projection changes while audit details are open, refresh
+or reopen it.
 
 ## Documentation
 

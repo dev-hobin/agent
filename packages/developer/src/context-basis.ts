@@ -1,3 +1,4 @@
+import { sha256 } from "@hobin/judgment";
 import type {
 	ContextCoverage,
 	ContextContribution,
@@ -15,6 +16,12 @@ import {
 	type ContributionBasis,
 	type DeveloperContextBasis,
 } from "./context-result.ts";
+
+function representationSafeUserEventId(value: string): string {
+	return /^[A-Za-z][A-Za-z0-9._:/-]*$/u.test(value)
+		? value
+		: `user-${sha256(value).slice(0, 24)}`;
+}
 
 function contributionBasis(value: ContextContribution): ContributionBasis {
 	const common = {
@@ -34,7 +41,7 @@ function contributionBasis(value: ContextContribution): ContributionBasis {
 		return Object.freeze({
 			...common,
 			assurance: value.assurance,
-			userEventId: value.userEventId,
+			userEventId: representationSafeUserEventId(value.userEventId),
 		});
 	}
 	return Object.freeze({ ...common, assurance: value.assurance });

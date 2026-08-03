@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22.19.0, 24.x]
+    steps:
+      - name: Check out repository
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        # pnpm/action-setup v4.1.0
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        with:
+          version: 11.15.0
+          run_install: false
+
+      - name: Install Node.js
+        # actions/setup-node v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check packages, documentation, and isolation
+        run: pnpm check
+
+      - name: Run deterministic RPC evaluations
+        run: pnpm eval
+
+      - name: Check patch whitespace
+        run: git diff --check
+
+      - name: Pack Developer release bytes
+        run: |
+          mkdir -p "$RUNNER_TEMP/developer-pack"
+          pnpm --filter @hobin/developer pack \
+            --pack-destination "$RUNNER_TEMP/developer-pack"
+
+      - name: Install and evaluate packed Developer
+        # zizmor: ignore[adhoc-packages] - this intentionally installs the exact
+        # locally packed release artifact into an isolated smoke-test project.
+        run: |
+          install_root="$RUNNER_TEMP/developer-packed-install"
+          mkdir -p "$install_root"
+          cd "$install_root"
+          npm init -y >/dev/null
+          tarball="$RUNNER_TEMP/developer-pack/$(
+            basename "$RUNNER_TEMP"/developer-pack/hobin-developer-*.tgz
+          )"
+          npm install --ignore-scripts "$tarball"
+          cd "$GITHUB_WORKSPACE"
+          package_root="$install_root/node_modules/@hobin/developer"
+          DEVELOPER_EVAL_PACKAGE_PATH="$package_root" \
+            pnpm --filter @hobin/developer eval
+          node --input-type=module - "$install_root" <<'EOF'
+          import assert from "node:assert/strict";
+          import { readFile } from "node:fs/promises";
+          import { join } from "node:path";
+          const installRoot = process.argv[2];
+          const manifest = JSON.parse(
+            await readFile(
+              join(installRoot, "node_modules/@hobin/developer/package.json"),
+              "utf8",
+            ),
+          );
+          assert.equal(manifest.name, "@hobin/developer");
+          assert.equal(manifest.bundledDependencies, undefined);
+          assert.equal(manifest.dependencies["@hobin/judgment"], "^0.1.0");
+          EOF

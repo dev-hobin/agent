@@ -62,12 +62,17 @@ Routing, replay, admission, authorization, receipt projection은
 | 현재 runtime 상태 | `bash` | Built-in `edit` / `write` |
 | --- | --- | --- |
 | 켜졌지만 열린 frame 없음 | 닫힘 | 닫힘 |
-| 의미 frame 열림 | 근거 수집에 사용 가능 | 닫힘 |
+| 의미 frame 열림 | 닫힘 | 닫힘 |
 | Replay-current 변경 승인 | 사용 가능 | 한정된 movement에 사용 가능 |
-| Landing debt 존재 | 다음 frame을 열기 전까지 닫힘 | 닫힘 |
+| Landing debt 존재 | 닫힘 | 닫힘 |
 
-이 제어는 workflow gate이지 운영체제 sandbox가 아닙니다. Shell command와 third-party
-extension은 Pi process 권한을 그대로 가집니다.
+승인 전에도 repository read는 근거 수집에 사용할 수 있습니다. Developer는 승인 시
+clean Git baseline을 잡고, 이후 관찰한 workspace delta와 landing path를 대조합니다.
+누락·추가·기존 dirty change나 재시작으로 baseline이 불명확한 경우 fail closed합니다.
+
+이 제어는 workflow gate와 settlement-level observation이지 운영체제 sandbox가 아닙니다.
+인식하지 못한 third-party tool과 out-of-process 변경은 Pi process 권한을 그대로 가지며,
+Developer는 provider-neutral pre-display prevention을 주장하지 않습니다.
 
 ## Skills
 
@@ -93,10 +98,10 @@ capability만 선택하며, `/skill:<name>`으로 직접 호출할 수도 있습
 
 | 명령 | 하는 일 |
 | --- | --- |
-| `/developer` | TUI에서 exact-current 읽기 전용 receipt overlay 열기 |
+| `/developer` | TUI에서 읽기 전용 progress overlay 열기. `d`를 누르면 audit receipt 표시 |
 | `/developer on` | Developer v8 work scope 열기 |
 | `/developer off` | 활성 변경 승인이 없을 때 scope 닫기 |
-| `/developer status` | 현재 receipt projection 요약 보기 |
+| `/developer status` | 현재 progress와 다음 사용자 관련 단계 간단히 보기 |
 | `/developer questions` | 같은 receipt 요약을 보는 호환 alias |
 | `/developer settings` | 같은 receipt 요약을 보는 호환 alias |
 
@@ -106,12 +111,14 @@ capability만 선택하며, `/skill:<name>`으로 직접 호출할 수도 있습
 pi --developer
 ```
 
-## Receipt observer
+## Progress와 audit observer
 
-Overlay는 exact current projection에서 검증한 page 하나만 읽습니다. Opaque page
-cursor로 이동하고, 첫 page로 돌아가고, refresh·copy·close할 수 있습니다. Routing,
-settlement, admission, discharge, conclusion, authorization, persistence, publication은
-할 수 없습니다. 열린 동안 projection이 바뀌면 overlay를 다시 여세요.
+Overlay의 기본 화면은 현재 phase, 끝난 milestone, 다음 사용자 관련 단계를 보여 주는
+간결한 progress입니다. `d`를 누르면 audit detail로 들어갑니다. Audit mode는 exact
+current receipt projection에서 검증한 page 하나만 읽고 opaque cursor 이동, 첫 page,
+refresh, copy, close를 지원합니다. 어느 화면도 routing, settlement, admission,
+discharge, conclusion, authorization, persistence, publication을 할 수 없습니다. Audit
+화면이 열린 동안 receipt projection이 바뀌면 refresh하거나 다시 여세요.
 
 ## 문서
 

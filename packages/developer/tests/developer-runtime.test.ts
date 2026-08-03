@@ -363,7 +363,7 @@ test("same-name Skills remain distinct 0..N candidates and never prove route ser
 	assert.equal(frameState.contributions.length, 0);
 });
 
-test("obligations and Skill targets must be canonical, unique, and frame-local", () => {
+test("obligations stay canonical while Skill target sets accept natural order", () => {
 	const first = obligation({ obligationId: "obligation:constraints-a" });
 	const second = obligation({ obligationId: "obligation:constraints-b" });
 	assert.throws(
@@ -409,21 +409,56 @@ test("obligations and Skill targets must be canonical, unique, and frame-local",
 			),
 		hasAdapterFault("invalid-target"),
 	);
+	const naturalOrder = createDeveloperRuntimeAdapterCheckpoint(
+		checkpointInput({
+			suffix: "natural-target-order",
+			obligations: [first, second],
+			skillCandidates: [
+				skillCandidate({
+					skillCapabilityId: "skill:natural-target-order",
+					targetObligationIds: [second.obligationId, first.obligationId],
+				}),
+			],
+		}),
+	);
+	assert.deepEqual(naturalOrder.skillCandidates[0]?.targetObligationIds, [
+		first.obligationId,
+		second.obligationId,
+	]);
 	assert.throws(
 		() =>
 			createDeveloperRuntimeAdapterCheckpoint(
 				checkpointInput({
-					suffix: "noncanonical-targets",
+					suffix: "duplicate-targets",
 					obligations: [first, second],
 					skillCandidates: [
 						skillCandidate({
-							skillCapabilityId: "skill:noncanonical-targets",
-							targetObligationIds: [second.obligationId, first.obligationId],
+							skillCapabilityId: "skill:duplicate-targets",
+							targetObligationIds: [first.obligationId, first.obligationId],
 						}),
 					],
 				}),
 			),
 		hasAdapterFault("invalid-target"),
+	);
+});
+
+test("adapter faults are ordinary Errors with actionable messages", () => {
+	assert.throws(
+		() =>
+			createDeveloperRuntimeAdapterCheckpoint(
+				checkpointInput({ suffix: "formatted-error", obligations: [] }),
+			),
+		(error: unknown) => {
+			assert.equal(error instanceof Error, true);
+			assert.equal(isDeveloperRuntimeAdapterFault(error), true);
+			assert.match(
+				String(error),
+				/adapter obligations require 1\.\.100 entries/u,
+			);
+			assert.notEqual(String(error), "[object Object]");
+			return true;
+		},
 	);
 });
 

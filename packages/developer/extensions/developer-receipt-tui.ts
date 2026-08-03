@@ -57,13 +57,38 @@ export interface DeveloperReceiptViewInput {
 	readonly pageSize?: number;
 }
 
+export type DeveloperProgressPhase =
+	| "inactive"
+	| "blocked"
+	| "deciding"
+	| "ready-to-edit"
+	| "editing"
+	| "rerouting"
+	| "verifying"
+	| "done";
+
+export interface DeveloperProgressView {
+	readonly phase: DeveloperProgressPhase;
+	readonly language: "en" | "ko";
+	readonly completed: readonly string[];
+	readonly next: string | null;
+}
+
+export type DeveloperProgressRead = () => DeveloperProgressView;
+
 export interface DeveloperReceiptWidgetInput {
 	readonly view: DeveloperReceiptView;
 	readonly maxLines: number;
 }
 
+export interface DeveloperProgressWidgetInput {
+	readonly progress: DeveloperProgressView;
+	readonly maxLines: number;
+}
+
 export interface DeveloperReceiptSurfaceOptions {
 	readonly readCurrent: DeveloperReceiptTuiRead;
+	readonly readProgress?: DeveloperProgressRead;
 	readonly theme: Theme;
 	readonly keybindings?: KeybindingsManager;
 	readonly done: () => void;
@@ -112,6 +137,62 @@ export function readDeveloperReceiptView(
 		}
 		throw error;
 	}
+}
+
+const PHASE_LABELS: Readonly<
+	Record<
+		DeveloperProgressView["language"],
+		Record<DeveloperProgressPhase, string>
+	>
+> = Object.freeze({
+	en: Object.freeze({
+		inactive: "Off",
+		blocked: "Blocked",
+		deciding: "Deciding",
+		"ready-to-edit": "Ready to edit",
+		editing: "Editing",
+		rerouting: "Planning follow-up",
+		verifying: "Verifying",
+		done: "Done",
+	}),
+	ko: Object.freeze({
+		inactive: "꺼짐",
+		blocked: "차단됨",
+		deciding: "판단 중",
+		"ready-to-edit": "편집 준비",
+		editing: "편집 중",
+		rerouting: "후속 계획 중",
+		verifying: "검증 중",
+		done: "완료",
+	}),
+});
+
+export function developerProgressStatus(
+	progress: DeveloperProgressView,
+): string | undefined {
+	if (progress.phase === "inactive") return undefined;
+	return `Developer · ${PHASE_LABELS[progress.language][progress.phase]}`;
+}
+
+export function developerProgressMessage(
+	progress: DeveloperProgressView,
+): string {
+	const headline = developerProgressStatus(progress) ?? "Developer · Off";
+	if (progress.next === null) return headline;
+	return `${headline}\n${progress.language === "ko" ? "다음" : "Next"}: ${progress.next}`;
+}
+
+export function developerProgressWidgetLines(
+	input: DeveloperProgressWidgetInput,
+): readonly string[] {
+	if (input.maxLines < 1 || input.progress.phase === "inactive") {
+		return Object.freeze([]);
+	}
+	const lines = [developerProgressStatus(input.progress) ?? "Developer"];
+	const latest = input.progress.completed.at(-1);
+	if (latest) lines.push(`✓ ${latest}`);
+	if (input.progress.next) lines.push(`→ ${input.progress.next}`);
+	return Object.freeze(lines.slice(0, input.maxLines));
 }
 
 export const DEVELOPER_RECEIPT_KIND_LABELS: Readonly<
@@ -259,7 +340,8 @@ type ReceiptSurfaceIntent =
 	| "previous"
 	| "first"
 	| "refresh"
-	| "copy";
+	| "copy"
+	| "details";
 
 function keyMatches(input: {
 	readonly keybindings: KeybindingsManager | undefined;
@@ -304,7 +386,53 @@ function receiptSurfaceIntent(input: {
 	if (matchesKey(input.data, "home") || input.data === "g") return "first";
 	if (input.data === "r") return "refresh";
 	if (input.data === "y") return "copy";
+	if (input.data === "d") return "details";
 	return null;
+}
+
+function progressText(progress: DeveloperProgressView): string {
+	const lines = [
+		developerProgressStatus(progress) ?? "Developer · Off",
+		...progress.completed.map((item) => `✓ ${item}`),
+	];
+	if (progress.next) {
+		const label = progress.language === "ko" ? "다음" : "Next";
+		lines.push(`${label}: ${progress.next}`);
+	}
+	return lines.join("\n");
+}
+
+function renderProgressSurface(input: {
+	readonly progress: DeveloperProgressView;
+	readonly theme: Theme;
+	readonly width: number;
+	readonly maximumHeight?: number;
+}): string[] {
+	const height = Math.max(6, input.maximumHeight ?? 24);
+	const contentWidth = Math.max(1, input.width);
+	const nextLabel = input.progress.language === "ko" ? "다음" : "Next";
+	const detailsLabel =
+		input.progress.language === "ko"
+			? "d 상세 영수증 · y 복사 · Esc 닫기"
+			: "d audit receipts · y copy · Esc close";
+	const lines = [
+		input.theme.fg("accent", input.theme.bold("Developer")),
+		input.theme.fg(
+			"text",
+			PHASE_LABELS[input.progress.language][input.progress.phase],
+		),
+		"",
+		...input.progress.completed.map((item) =>
+			input.theme.fg("success", `✓ ${item}`),
+		),
+		...(input.progress.next
+			? ["", input.theme.fg("accent", `${nextLabel}: ${input.progress.next}`)]
+			: []),
+		"",
+		input.theme.fg("muted", detailsLabel),
+	];
+	const visible = lines.slice(0, height);
+	return visible.map((line) => fit({ value: line, width: contentWidth }));
 }
 
 function renderReceiptSurface(input: {
@@ -335,7 +463,7 @@ function renderReceiptSurface(input: {
 		"",
 		input.theme.fg(
 			"muted",
-			"↑/PgUp previous · ↓/PgDn/Enter next · g first · r refresh · y copy · Esc close",
+			"↑/PgUp previous · ↓/PgDn/Enter next · g first · r refresh · d progress · y copy · Esc close",
 		),
 	];
 	const bodySlots = Math.max(1, height - header.length - footer.length);
@@ -385,6 +513,7 @@ export function createDeveloperReceiptSurface(
 		return next;
 	};
 	let view = readView(null);
+	let showReceipts = options.readProgress === undefined;
 	const load = (cursor: ReceiptPageCursor | null) => {
 		view = readView(cursor);
 		options.requestRender();
@@ -396,26 +525,41 @@ export function createDeveloperReceiptSurface(
 				data,
 			});
 			if (intent === "close") options.done();
-			else if (
+			else if (intent === "details" && options.readProgress) {
+				showReceipts = !showReceipts;
+				options.requestRender();
+			} else if (
+				showReceipts &&
 				intent === "next" &&
 				view.kind === "current" &&
 				view.page.nextCursor !== null
 			) {
 				cursors.push(view.page.nextCursor);
 				load(view.page.nextCursor);
-			} else if (intent === "previous" && cursors.length > 1) {
+			} else if (showReceipts && intent === "previous" && cursors.length > 1) {
 				cursors.pop();
 				load(cursors.at(-1) ?? null);
-			} else if (intent === "first") {
+			} else if (showReceipts && intent === "first") {
 				cursors.splice(1);
 				load(null);
-			} else if (intent === "refresh") {
+			} else if (showReceipts && intent === "refresh") {
 				load(cursors.at(-1) ?? null);
 			} else if (intent === "copy") {
-				options.copy?.(semanticPageText(view));
+				options.copy?.(
+					showReceipts || !options.readProgress
+						? semanticPageText(view)
+						: progressText(options.readProgress()),
+				);
 			}
 		},
 		render(input) {
+			if (!showReceipts && options.readProgress) {
+				return renderProgressSurface({
+					progress: options.readProgress(),
+					theme: options.theme,
+					...input,
+				});
+			}
 			return renderReceiptSurface({
 				view,
 				theme: options.theme,
@@ -429,12 +573,14 @@ export function createDeveloperReceiptSurface(
 export async function showDeveloperReceiptTui(input: {
 	readonly ctx: ExtensionContext;
 	readonly readCurrent: DeveloperReceiptTuiRead;
+	readonly readProgress?: DeveloperProgressRead;
 }): Promise<void> {
 	await input.ctx.ui.custom<null>(
 		(...args) => {
 			const [tui, theme, keybindings, done] = args;
 			const surface = createDeveloperReceiptSurface({
 				readCurrent: input.readCurrent,
+				readProgress: input.readProgress,
 				theme,
 				keybindings,
 				done: () => done(null),

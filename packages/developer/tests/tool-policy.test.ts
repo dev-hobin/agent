@@ -34,7 +34,7 @@ const idleAccess = {
 	hasBeforeImplementationGate: false,
 };
 const judgmentAccess = {
-	allowsShell: true,
+	allowsShell: false,
 	allowsArtifactTools: false,
 	hasBeforeImplementationGate: false,
 };
@@ -136,7 +136,7 @@ test("enabled idle withholds controlled built-ins and preserves unrelated tools"
 	);
 });
 
-test("an active judgment restores shell execution without restoring artifact mutation", () => {
+test("an active judgment withholds shell and artifact mutation", () => {
 	const idle = reconcileProtocolTools({
 		activeTools: ["read", "edit", "write", "bash", "external_search"],
 		allTools,
@@ -154,7 +154,7 @@ test("an active judgment restores shell execution without restoring artifact mut
 		memory: idle.memory,
 	});
 
-	assert.ok(judgment.activeTools.includes("bash"));
+	assert.equal(judgment.activeTools.includes("bash"), false);
 	assert.equal(judgment.activeTools.includes("edit"), false);
 	assert.equal(judgment.activeTools.includes("write"), false);
 });
@@ -215,7 +215,7 @@ test("a before-implementation gate preserves the judgment evidence lane and with
 		protocolTools,
 		memory: gatedIdle.memory,
 	});
-	assert.ok(gatedJudgment.activeTools.includes("bash"));
+	assert.equal(gatedJudgment.activeTools.includes("bash"), false);
 	assert.equal(gatedJudgment.activeTools.includes("edit"), false);
 	assert.equal(gatedJudgment.activeTools.includes("write"), false);
 });

@@ -1307,7 +1307,7 @@
   },
   {
     "id": "agent-before-implementation-evidence-gate",
-    "request": "이 요청은 agent-owned before-implementation evidence gate 회귀 평가다. 다음 lifecycle을 실제 Developer protocol v8 RouteFrame으로 수행해라. (1) developer_open_judgment로 signal owner를 가진 frame을 열고, src/contracts.ts가 marker의 올바른 변경 위치인지 현재 근거가 없다는 needs-evidence outcome을 기록해 같은 frame을 열린 채로 남겨라. 필요한 근거는 정확히 \"A read-only bash check confirms src/contracts.ts exists and owns contract exports.\"이다. (2) 변경을 승인하거나 새 frame을 열지 말고, 같은 frame이 active인 동안 bash로 test -f src/contracts.ts를 실행하고 파일을 확인한 뒤 같은 frame을 current evidence와 contextual judgment로 resolve해라. (3) frame이 끝난 뒤 developer_authorize_change로 export const AGENT_GATE_EVAL_MARKER = \"resolved\" 하나만 승인하고 src/contracts.ts에 적용한 후 landing을 기록해라. (4) schedule reroute frame에서 추가 구현이 없음을 결론 내고, 별도 verify frame에서 변경과 테스트를 확인해 contextual judgment를 기록해 두 landing debt를 모두 해소해라. 다른 제품 변경은 하지 마라.",
+    "request": "이 요청은 agent-owned before-implementation evidence gate 회귀 평가다. 다음 lifecycle을 실제 Developer protocol v8 RouteFrame으로 수행해라. (1) developer_open_judgment로 signal owner를 가진 frame을 열고, src/contracts.ts가 marker의 올바른 변경 위치인지 현재 근거가 없다는 needs-evidence outcome을 기록해 같은 frame을 열린 채로 남겨라. 필요한 근거는 정확히 \"A read-only source observation confirms src/contracts.ts owns contract exports.\"이다. (2) 변경을 승인하거나 새 frame을 열지 말고, 같은 frame이 active인 동안 read로 src/contracts.ts를 확인한 뒤 같은 frame을 current evidence와 contextual judgment로 resolve해라. (3) frame이 끝난 뒤 developer_authorize_change로 export const AGENT_GATE_EVAL_MARKER = \"resolved\" 하나만 승인하고 src/contracts.ts에 적용한 후 landing을 기록해라. (4) schedule reroute frame에서 추가 구현이 없음을 결론 내고, 별도 verify frame에서 변경과 테스트를 확인해 contextual judgment를 기록해 두 landing debt를 모두 해소해라. 다른 제품 변경은 하지 마라.",
     "admissibleFirstTargets": [
       "signal"
     ],
@@ -1320,7 +1320,7 @@
     "mustRecordJudgment": true,
     "mutationRequiresAuthorization": true,
     "requiresAgentBeforeImplementationResolution": true,
-    "requiresJudgmentBashEvidence": true,
+    "requiresJudgmentReadEvidence": true,
     "maxDecisions": 4,
     "maxToolCalls": 36,
     "workspaceAssertion": "agent-gate-marker"

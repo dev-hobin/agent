@@ -18,7 +18,7 @@ const LANDING = "developer_record_landing";
 
 const fixture = {
 	id: "agent-gate",
-	requiresJudgmentBashEvidence: true,
+	requiresJudgmentReadEvidence: true,
 };
 
 const gateTrace = [
@@ -32,7 +32,7 @@ const gateTrace = [
 			},
 		},
 	},
-	{ toolName: "bash", args: { command: "test -f src/contracts.ts" } },
+	{ toolName: "read", args: { path: "src/contracts.ts" } },
 	{
 		toolName: CONCLUDE,
 		args: {
@@ -43,7 +43,7 @@ const gateTrace = [
 	{ toolName: AUTHORIZE, args: { movement: "Add the marker." } },
 ];
 
-test("agent evidence frame requires bash, explicit resolution, then authorization", () => {
+test("agent evidence frame requires a read, explicit resolution, then authorization", () => {
 	assert.doesNotThrow(() =>
 		assertAgentBeforeImplementationResolution(fixture, gateTrace),
 	);
@@ -51,9 +51,9 @@ test("agent evidence frame requires bash, explicit resolution, then authorizatio
 		() =>
 			assertAgentBeforeImplementationResolution(
 				fixture,
-				gateTrace.filter((event) => event.toolName !== "bash"),
+				gateTrace.filter((event) => event.toolName !== "read"),
 			),
-		/did not run bash/iu,
+		/did not read its target/iu,
 	);
 	assert.throws(
 		() =>

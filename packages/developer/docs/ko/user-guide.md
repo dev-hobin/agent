@@ -45,8 +45,8 @@ Serializer 교체 뒤 test는 통과해. 저장된 값과 source compatibility�
 
 | 명령 | 하는 일 |
 | --- | --- |
-| `/developer` | TUI에서 exact-current receipt overlay 열기 |
-| `/developer status` | 현재 receipt page와 projection identity 보기 |
+| `/developer` | TUI에서 간결한 progress overlay 열기. `d`를 누르면 audit receipt 표시 |
+| `/developer status` | 현재 phase, 끝난 milestone, 다음 사용자 관련 단계 보기 |
 | `/developer questions` | Receipt 요약을 보는 호환 alias |
 | `/developer settings` | Receipt 요약을 보는 호환 alias |
 | `/developer on` | Work scope 열기 |
@@ -54,22 +54,25 @@ Serializer 교체 뒤 test는 통과해. 저장된 값과 source compatibility�
 
 Pi의 일반 `/skill:<name>` 명령도 그대로 사용할 수 있습니다.
 
-## Receipt overlay
+## Progress와 audit overlay
 
-Overlay는 accepted runtime receipt의 읽기 전용 observer입니다. 열 때 current였던
-projection에 묶이며 한 번에 bounded page 하나만 읽습니다.
+Overlay는 읽기 전용입니다. 기본 progress view는 hash, opaque ID, receipt inventory 없이
+현재 phase, 끝난 milestone, 다음 사용자 관련 단계를 보여 줍니다. `d`를 누르면 audit
+mode로 들어갑니다. Audit mode는 열 때 current였던 exact receipt projection에 묶이며 한
+번에 bounded page 하나만 읽습니다.
 
 | 키 | 동작 |
 | --- | --- |
-| `↓`, Page Down, Enter | Opaque cursor로 다음 page 읽기 |
-| `↑`, Page Up | 보관한 exact previous cursor로 돌아가기 |
-| `g` | 첫 page로 돌아가기 |
-| `r` | 현재 cursor 다시 읽기 |
-| `y` | Semantic page text 전체 복사 |
+| `d` | Progress와 audit detail 전환 |
+| `↓`, Page Down, Enter | Audit mode에서 opaque cursor로 다음 page 읽기 |
+| `↑`, Page Up | Audit mode에서 exact previous cursor로 돌아가기 |
+| `g` | Audit mode에서 첫 page로 돌아가기 |
+| `r` | Progress refresh 또는 audit cursor 다시 읽기 |
+| `y` | 현재 semantic view 복사 |
 | Escape | 닫기 |
 
-열린 동안 projection이 바뀌면 unavailable이 됩니다. 새 projection을 보려면 다시
-여세요. 화면 높이 때문에 receipt가 생략되면 생략 사실과 수를 명시합니다. 이동과
+Audit mode가 열린 동안 projection이 바뀌면 refresh하거나 다시 열어 새 projection을
+묶으세요. 화면 높이 때문에 receipt가 생략되면 생략 사실과 수를 명시합니다. 이동과
 복사는 runtime event를 append하지 않습니다.
 
 ## Frame 진행 방식
@@ -96,14 +99,17 @@ frame과 blocker identity에 맞춰 결론을 냅니다.
 ## 구현과 검증
 
 변경 승인은 replay-current concluded frame 하나와 한정된 movement 하나에만
-유효합니다. Landing을 기록하면 승인을 소모하고 서로 다른 follow-up identity 두
-개를 만듭니다.
+유효합니다. 이 승인 전까지 built-in shell, edit, write는 닫혀 있습니다. Developer는
+승인 시 Git baseline을 잡고 landing의 reported path가 관찰한 authorized delta와 정확히
+일치해야만 허용합니다. Landing을 기록하면 authority를 소모하고 서로 다른 follow-up
+identity 두 개를 만듭니다.
 
-- reroute frame은 다음에 할 일을 결정합니다.
-- verification frame은 landing 근거가 지지하는 claim을 결정합니다.
+- `reroute-decision` frame은 다음에 할 일을 결정합니다.
+- `verification-decision` frame은 landing 근거가 지지하는 claim을 결정합니다.
 
-둘 다 끝나야 다음 승인을 만들 수 있습니다. 통과한 command는 실제로 실행한 claim의
-근거일 뿐입니다.
+Model continuation마다 required purpose를 알려 주며, runtime은 순서를 벗어난 purpose를
+거부합니다. 두 debt가 모두 끝나야 다음 승인을 만들 수 있습니다. 통과한 command는
+실제로 실행한 claim의 근거일 뿐입니다.
 
 ## Branch, replay, reload
 

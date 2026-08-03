@@ -50,7 +50,7 @@ function missing(error) {
 
 const manifest = await readJson(join(root, "package.json"), "package manifest");
 assert.equal(manifest.name, "@hobin/developer");
-assert.equal(manifest.version, "0.1.18");
+assert.equal(manifest.version, "0.1.19");
 assert.equal(manifest.private, undefined);
 assert.deepEqual(manifest.files, [
 	"extensions",
@@ -227,7 +227,7 @@ for (const path of documentedGuides.map((name) => `docs/ko/${name}`))
 	assert.match(koreanReadme, new RegExp(path.replaceAll("/", "\\/"), "u"));
 assert.match(readme, /Try this first/u);
 assert.match(readme, /RouteDefinition/u);
-assert.match(readme, /Receipt observer/u);
+assert.match(readme, /Progress and audit observer/u);
 
 const howItWorks = await readFile(join(root, "docs/how-it-works.md"), "utf8");
 for (const term of [

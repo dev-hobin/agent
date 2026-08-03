@@ -1,12 +1,17 @@
+import { readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type {
+	AgentToolResult,
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
 	Skill,
+	Theme,
+	ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
+import { Text as TuiText } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 import type { PiBranchEntryInput } from "@hobin/judgment/pi-context";
 
@@ -32,15 +37,17 @@ import {
 	resolveContextSkill,
 	snapshotDeveloperInventory,
 	type DeveloperContextConclusion,
+	type DeveloperCoverageProposal,
 	type DeveloperInventorySnapshot,
 	type DeveloperPreparedContextSource,
 } from "./developer-context.ts";
 import {
-	developerReceiptStatus,
-	developerReceiptViewMessage,
-	developerReceiptWidgetLines,
-	readDeveloperReceiptView,
+	developerProgressMessage,
+	developerProgressStatus,
+	developerProgressWidgetLines,
 	showDeveloperReceiptTui,
+	type DeveloperProgressPhase,
+	type DeveloperProgressView,
 	type DeveloperReceiptTuiRead,
 } from "./developer-receipt-tui.ts";
 import {
@@ -61,7 +68,11 @@ import {
 } from "./developer-runtime-state.ts";
 import {
 	ConcludeJudgmentParams,
+	activeDeveloperEvidenceHandles,
+	bindUserAcceptedCoverage,
 	contextFailureWithBranchIdentities,
+	developerErrorMessage,
+	normalizeConcludeJudgmentData,
 	requiredContextFields,
 	resolveModelContextNominations,
 	type ConcludeJudgmentData,
@@ -72,6 +83,11 @@ import {
 	openSkillContext,
 	renderDeveloperMethod,
 } from "./skill-catalog.ts";
+import {
+	captureWorkspaceSnapshot,
+	compareWorkspaceSnapshots,
+	type WorkspaceSnapshot,
+} from "./workspace-observation.ts";
 import {
 	TOOL_POLICY_LIFECYCLE_ENTRY,
 	builtinControlledToolCapabilities,
@@ -122,7 +138,6 @@ import {
 } from "../src/runtime-protocol.ts";
 import {
 	runtimeBlockerSetSha256,
-	runtimeFrameState,
 	skillReturnSupportSha256,
 	type RuntimeAssignmentState,
 	type RuntimeFrameState,
@@ -142,7 +157,6 @@ const Identifier = Type.String({
 	pattern: "^[A-Za-z][A-Za-z0-9._:/-]*$",
 });
 const Text = Type.String({ minLength: 1, maxLength: MAX_TEXT });
-const Sha256 = Type.String({ pattern: "^[a-f0-9]{64}$" });
 const ObligationParam = Type.Object(
 	{ obligation_id: Identifier, statement: Text },
 	{ additionalProperties: false },
@@ -154,11 +168,13 @@ const OwnerSkillParam = Type.Object(
 			maxLength: 64,
 			pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$",
 		}),
-		target_obligation_ids: Type.Array(Identifier, {
-			minItems: 1,
-			maxItems: 100,
-			uniqueItems: true,
-		}),
+		target_obligation_ids: Type.Optional(
+			Type.Array(Identifier, {
+				minItems: 1,
+				maxItems: 100,
+				uniqueItems: true,
+			}),
+		),
 		subquestion: Text,
 		expected_contribution: Text,
 		limitations: Type.Optional(
@@ -169,6 +185,11 @@ const OwnerSkillParam = Type.Object(
 );
 const OpenRouteParams = Type.Object(
 	{
+		purpose: Type.Union([
+			Type.Literal("work-decision"),
+			Type.Literal("reroute-decision"),
+			Type.Literal("verification-decision"),
+		]),
 		route_definition_id: Identifier,
 		question: Text,
 		obligations: Type.Array(ObligationParam, {
@@ -181,10 +202,9 @@ const OpenRouteParams = Type.Object(
 );
 const OpenContextParams = Type.Object(
 	{
-		judgment_id: Identifier,
 		inventory_source_ids: Type.Array(Identifier, {
 			minItems: 1,
-			maxItems: 16,
+			maxItems: 4,
 			uniqueItems: true,
 		}),
 	},
@@ -214,8 +234,6 @@ const TrustedCompilerGapParam = Type.Object(
 );
 const AuthorizeParams = Type.Object(
 	{
-		frame_id: Identifier,
-		conclusion_sha256: Sha256,
 		movement: Text,
 		stable_landing: Text,
 		verification_target: Text,
@@ -227,10 +245,12 @@ const AuthorizeParams = Type.Object(
 );
 const RecordLandingParams = Type.Object(
 	{
-		authorization_id: Identifier,
-		changed_paths: Type.Array(
-			Type.String({ minLength: 1, maxLength: MAX_PATH }),
-			{ minItems: 1, maxItems: 200, uniqueItems: true },
+		changed_paths: Type.Optional(
+			Type.Array(Type.String({ minLength: 1, maxLength: MAX_PATH }), {
+				minItems: 1,
+				maxItems: 200,
+				uniqueItems: true,
+			}),
 		),
 		result: Text,
 		verification: Type.Optional(
@@ -253,6 +273,33 @@ type PlannedRuntimeDraft = Omit<
 
 type RuntimeContext = ExtensionContext | ExtensionCommandContext;
 
+interface RuntimeWorkspaceObservation {
+	readonly workScopeId: DeveloperId;
+	readonly scopeBaseline: WorkspaceSnapshot;
+	readonly authorizationBaseline: WorkspaceSnapshot | null;
+}
+
+function captureRuntimeWorkspace(ctx: RuntimeContext): WorkspaceSnapshot {
+	if (typeof ctx.isProjectTrusted !== "function") {
+		return Object.freeze({
+			kind: "unavailable",
+			reason: "Host workspace observation is unavailable.",
+		});
+	}
+	return captureWorkspaceSnapshot(ctx.cwd);
+}
+
+function samePaths(input: {
+	readonly left: readonly string[];
+	readonly right: readonly string[];
+}): boolean {
+	if (input.left.length !== input.right.length) return false;
+	for (let index = 0; index < input.left.length; index += 1) {
+		if (input.left[index] !== input.right[index]) return false;
+	}
+	return true;
+}
+
 function fail(message: string): never {
 	throw new Error(message);
 }
@@ -260,6 +307,54 @@ function fail(message: string): never {
 function boundedOutput(text: string): string {
 	if (text.length <= MAX_OUTPUT_CHARS) return text;
 	return `${text.slice(0, MAX_OUTPUT_CHARS - 80)}\n[Developer v8 output truncated at ${MAX_OUTPUT_CHARS} characters]`;
+}
+
+interface DeveloperToolResultDetails {
+	readonly protocol?: string;
+	readonly nextAction?: string | null;
+}
+
+function humanResultText(result: AgentToolResult<unknown>): string {
+	const text = result.content.find((item) => item.type === "text");
+	if (!text || text.type !== "text") return "";
+	return text.text.replace(/\b[a-f0-9]{64}\b/gu, "[internal digest]");
+}
+
+function renderDeveloperCall(theme: Theme, label: string): TuiText {
+	return new TuiText(
+		theme.fg("toolTitle", theme.bold(`Developer · ${label}`)),
+		0,
+		0,
+	);
+}
+
+function renderDeveloperResult(input: {
+	readonly result: AgentToolResult<unknown>;
+	readonly options: ToolRenderResultOptions;
+	readonly theme: Theme;
+	readonly context: Readonly<{ isError: boolean }>;
+	readonly success: string;
+}): TuiText {
+	const raw = humanResultText(input.result);
+	if (input.context.isError) {
+		return new TuiText(
+			input.theme.fg("error", `× ${raw || "Developer operation failed"}`),
+			0,
+			0,
+		);
+	}
+	const details = input.result.details as
+		| DeveloperToolResultDetails
+		| undefined;
+	const next = details?.nextAction
+		? `\n${input.theme.fg("muted", `→ Next: ${details.nextAction}`)}`
+		: "";
+	const expanded = input.options.expanded && raw.length > 0 ? `\n${raw}` : "";
+	return new TuiText(
+		`${input.theme.fg("success", `✓ ${input.success}`)}${next}${expanded}`,
+		0,
+		0,
+	);
 }
 
 function runtimeResultSummary(
@@ -291,8 +386,150 @@ function textResult(input: {
 			workScopeId: input.batch?.workScopeId ?? null,
 			eventIds: input.batch?.envelopes.map((event) => event.eventId) ?? [],
 			runtime: runtimeResultSummary(input.reconstruction),
+			nextAction: activeOperations(input.reconstruction)[0] ?? null,
 		},
 	};
+}
+
+function runtimeProgress(input: {
+	readonly reconstruction: DeveloperRuntimeBranchReconstruction;
+	readonly language?: string;
+	readonly workspaceBlockedReason?: string | null;
+}): DeveloperProgressView {
+	const language = input.language?.toLowerCase().startsWith("ko") ? "ko" : "en";
+	const translated =
+		language === "ko"
+			? {
+					decision: "판단 완료",
+					landing: "변경 기록 완료",
+					reroute: "후속 계획 완료",
+					verification: "검증 완료",
+					restart: "Pi를 다시 시작하세요",
+					open: "현재 질문의 판단을 여세요",
+					conclude: "현재 판단을 마무리하세요",
+					authorize: "변경 권한을 확정하세요",
+					edit: "허용된 변경을 적용하고 기록하세요",
+					openReroute: "변경 후 후속 계획을 여세요",
+					openVerification: "변경 결과 검증을 여세요",
+					finish: "남은 작업이 없습니다",
+				}
+			: {
+					decision: "Decision concluded",
+					landing: "Change recorded",
+					reroute: "Follow-up settled",
+					verification: "Verification complete",
+					restart: "Restart Pi",
+					open: "Open a decision for the current question",
+					conclude: "Conclude the current decision",
+					authorize: "Authorize the bounded change",
+					edit: "Apply and record the authorized change",
+					openReroute: "Open the post-change follow-up",
+					openVerification: "Open verification for the change",
+					finish: "No remaining work",
+				};
+	if (
+		input.reconstruction.blockedReason !== null ||
+		input.workspaceBlockedReason
+	) {
+		return Object.freeze({
+			phase: "blocked",
+			language,
+			completed: Object.freeze([]),
+			next: translated.restart,
+		});
+	}
+	const scope = input.reconstruction.activeScope;
+	if (scope === null) {
+		return Object.freeze({
+			phase: "inactive",
+			language,
+			completed: Object.freeze([]),
+			next: null,
+		});
+	}
+	const completed: string[] = [];
+	if (scope.state.frames.some((frame) => frame.conclusion !== null)) {
+		completed.push(translated.decision);
+	}
+	if (scope.root.landings.length > 0) completed.push(translated.landing);
+	if (
+		scope.root.debts.length > 0 &&
+		scope.root.debts.every((debt) => !debt.reroutePending)
+	) {
+		completed.push(translated.reroute);
+	}
+	if (
+		scope.root.debts.length > 0 &&
+		scope.root.debts.every((debt) => !debt.verificationPending)
+	) {
+		completed.push(translated.verification);
+	}
+	if (scope.root.activeAuthorization !== null) {
+		return Object.freeze({
+			phase: "editing",
+			language,
+			completed: Object.freeze(completed),
+			next: translated.edit,
+		});
+	}
+	const activeFrame = frameFor(scope);
+	if (activeFrame !== null) {
+		const debt = scope.root.debts.find(
+			(candidate) =>
+				candidate.rerouteFrameId === activeFrame.frame.frameId ||
+				candidate.verificationFrameId === activeFrame.frame.frameId,
+		);
+		let phase: DeveloperProgressPhase = "deciding";
+		if (debt?.verificationFrameId === activeFrame.frame.frameId) {
+			phase = "verifying";
+		} else if (debt?.rerouteFrameId === activeFrame.frame.frameId) {
+			phase = "rerouting";
+		}
+		return Object.freeze({
+			phase,
+			language,
+			completed: Object.freeze(completed),
+			next: translated.conclude,
+		});
+	}
+	if (scope.root.debts.some((debt) => debt.reroutePending)) {
+		return Object.freeze({
+			phase: "rerouting",
+			language,
+			completed: Object.freeze(completed),
+			next: translated.openReroute,
+		});
+	}
+	if (scope.root.debts.some((debt) => debt.verificationPending)) {
+		return Object.freeze({
+			phase: "verifying",
+			language,
+			completed: Object.freeze(completed),
+			next: translated.openVerification,
+		});
+	}
+	if (scope.root.landings.length > 0) {
+		return Object.freeze({
+			phase: "done",
+			language,
+			completed: Object.freeze(completed),
+			next: null,
+		});
+	}
+	if (latestConcludedFrame(scope) !== null) {
+		return Object.freeze({
+			phase: "ready-to-edit",
+			language,
+			completed: Object.freeze(completed),
+			next: translated.authorize,
+		});
+	}
+	return Object.freeze({
+		phase: "deciding",
+		language,
+		completed: Object.freeze(completed),
+		next: translated.open,
+	});
 }
 
 function runtimeIdentity(input: {
@@ -411,19 +648,20 @@ function activeOperations(
 	if (frameFor(scope) !== null) {
 		return [OPEN_CONTEXT_SOURCES_TOOL, CONCLUDE_JUDGMENT_TOOL];
 	}
-	const operations: string[] = [OPEN_JUDGMENT_TOOL];
+	const operations: string[] = [];
 	const concluded = latestConcludedFrame(scope);
 	const hasDebt = scope.root.debts.some(
 		(debt) => debt.reroutePending || debt.verificationPending,
 	);
 	if (concluded !== null && !hasDebt) operations.push(AUTHORIZE_CHANGE_TOOL);
+	operations.push(OPEN_JUDGMENT_TOOL);
 	return operations;
 }
 
 function runtimeAccess(reconstruction: DeveloperRuntimeBranchReconstruction) {
 	const scope = reconstruction.activeScope;
 	return {
-		allowsShell: scope !== null && frameFor(scope) !== null,
+		allowsShell: scope?.root.activeAuthorization !== null,
 		allowsArtifactTools: scope?.root.activeAuthorization !== null,
 		hasBeforeImplementationGate:
 			scope?.root.debts.some(
@@ -440,38 +678,43 @@ function runtimeStatus(
 	}
 	const scope = reconstruction.activeScope;
 	if (scope === null) return `developer v8 · ${reconstruction.historyMode}`;
-	if (scope.root.activeAuthorization) {
-		return `developer v8 · authorized · ${scope.root.activeAuthorization.authorizationId}`;
-	}
+	if (scope.root.activeAuthorization) return "developer · ready to edit";
 	const frame = frameFor(scope);
-	if (frame) {
-		return `developer v8 · frame · ${frame.frame.frameId} · ${frame.frame.routeDefinitionId}`;
-	}
+	if (frame) return `developer · deciding · ${frame.frame.routeDefinitionId}`;
 	const pendingDebt = scope.root.debts.filter(
 		(debt) => debt.reroutePending || debt.verificationPending,
 	).length;
-	return `developer v8 · idle · ${scope.workScopeId}${pendingDebt > 0 ? ` · debt ${pendingDebt}` : ""}`;
+	return pendingDebt > 0
+		? `developer · follow-up · ${pendingDebt} pending`
+		: "developer · ready";
 }
 
 function protocolPrompt(input: {
 	readonly reconstruction: DeveloperRuntimeBranchReconstruction;
 	readonly skillNames: readonly string[];
+	readonly evidenceHandles: readonly string[];
+	readonly workspaceEntries: readonly string[];
 }): string {
-	const routes = DEVELOPER_RUNTIME_ROUTE_DEFINITIONS.map(
-		(route) =>
-			`- ${route.routeDefinitionId} · ${route.sign} · ${route.sense} · revision=${route.revisionSha256}`,
-	);
 	return [
 		"",
-		"## Developer v8 root runtime",
-		"Developer owns Route selection, Skill assignment, admission, discharge, authorization, landing, replay, and conclusion.",
-		"A Skill name never selects a Route or proves service. Open a frame with an explicit route_definition_id and obligations.",
-		`State: ${runtimeStatus(input.reconstruction)}`,
-		`Legal operations: ${activeOperations(input.reconstruction).join(", ") || "none"}.`,
-		"Route definitions:",
-		...routes,
-		`Available owning Skills: ${input.skillNames.join(", ") || "none"}.`,
-		"Landing evidence is not verification. Mutation requires the exact replay-current change authorization.",
+		"## Developer",
+		`State: ${runtimeStatus(input.reconstruction)}.`,
+		`Next legal operations: ${activeOperations(input.reconstruction).join(", ") || "none"}.`,
+		`Required decision purpose: ${requiredDecisionPurpose(input.reconstruction)}.`,
+		`Routes: ${DEVELOPER_RUNTIME_ROUTE_DEFINITIONS.map((route) => `${route.routeDefinitionId} (${route.sign})`).join(", ")}.`,
+		`Owning Skills: ${input.skillNames.join(", ") || "none"}.`,
+		`Workspace entries (orientation only, not admitted evidence): ${input.workspaceEntries.join(", ") || "unavailable"}.`,
+		...(input.evidenceHandles.length > 0
+			? [
+					"Current successful evidence handles:",
+					...input.evidenceHandles.map((handle) => `- ${handle}`),
+				]
+			: []),
+		"Open only the current semantic decision. Do not put later implementation, landing, verification, or scope closure into the same frame.",
+		"Use project files named by the workspace entries, repository metadata, or observed imports. The read tool requires a file path, never a directory. Do not probe guessed config paths.",
+		"Do not inspect Developer package internals or session files to recover protocol state; use the current operation and evidence handles supplied here.",
+		"An owning Skill method returned by developer_open_judgment is already loaded. Follow it without rereading or nominating it as inventory-source.",
+		"Choose Route by question sense, not Skill name. Evidence must be admitted before discharge. Landing and verification remain separate.",
 	].join("\n");
 }
 
@@ -491,20 +734,37 @@ function currentLandingCause(input: {
 	return debt ? [debt.landingEventRef] : [];
 }
 
+type DeveloperDecisionPurpose = OpenRouteData["purpose"];
+
+function requiredDecisionPurpose(
+	reconstruction: DeveloperRuntimeBranchReconstruction,
+): DeveloperDecisionPurpose {
+	const scope = reconstruction.activeScope;
+	if (scope?.root.debts.some((debt) => debt.reroutePending)) {
+		return "reroute-decision";
+	}
+	if (scope?.root.debts.some((debt) => debt.verificationPending)) {
+		return "verification-decision";
+	}
+	return "work-decision";
+}
+
 function selectedFrameIdentity(input: {
 	readonly reconstruction: DeveloperRuntimeBranchReconstruction;
-	readonly routeDefinitionId: DeveloperId;
+	readonly purpose: DeveloperDecisionPurpose;
 	readonly seed: unknown;
 }): DeveloperId {
 	const scope = input.reconstruction.activeScope;
 	if (scope === null) return fail("Developer v8 is disabled.");
-	const reroute = scope.root.debts.find((debt) => debt.reroutePending);
-	if (reroute) return reroute.rerouteFrameId;
-	if (input.routeDefinitionId === "route:claim-evidence-assessment") {
-		const verification = scope.root.debts.find(
-			(debt) => debt.verificationPending,
+	if (input.purpose === "reroute-decision") {
+		const debt = scope.root.debts.find((candidate) => candidate.reroutePending);
+		if (debt) return debt.rerouteFrameId;
+	}
+	if (input.purpose === "verification-decision") {
+		const debt = scope.root.debts.find(
+			(candidate) => candidate.verificationPending,
 		);
-		if (verification) return verification.verificationFrameId;
+		if (debt) return debt.verificationFrameId;
 	}
 	return runtimeIdentity({ prefix: "frame", seed: input.seed });
 }
@@ -544,6 +804,7 @@ function hasReloadSafeMarker(
 export default async function developerV8(pi: ExtensionAPI) {
 	let availableSkills = new Map<string, Skill>();
 	let inventorySnapshot: DeveloperInventorySnapshot | undefined;
+	let workspaceEntries: readonly string[] = [];
 	let reconstruction = reconstructDeveloperRuntimeBranch([]);
 	let projectionCoordinator: ProjectionCoordinatorState =
 		initialProjectionCoordinatorState(
@@ -556,6 +817,8 @@ export default async function developerV8(pi: ExtensionAPI) {
 		initialCompactionLanguageState();
 	let toolPolicyMemory: ToolPolicyMemory = { withheldBuiltins: new Set() };
 	let reloadBlocked = false;
+	let workspaceBlockedReason: string | null = null;
+	let workspaceObservation: RuntimeWorkspaceObservation | null = null;
 	let commandSequence = 0;
 
 	pi.registerFlag("developer", {
@@ -572,10 +835,11 @@ export default async function developerV8(pi: ExtensionAPI) {
 				: null,
 	});
 
-	const currentReceiptView = () =>
-		readDeveloperReceiptView({
-			readCurrent: readReceipts,
-			cursor: null,
+	const currentProgress = () =>
+		runtimeProgress({
+			reconstruction,
+			language: compactionLanguage.language,
+			workspaceBlockedReason,
 		});
 
 	const publishProjection = () => {
@@ -604,16 +868,25 @@ export default async function developerV8(pi: ExtensionAPI) {
 
 	const syncProtocolTools = () => {
 		const current = pi.getActiveTools();
+		const runtimeBlocked =
+			reconstruction.blockedReason !== null ||
+			workspaceBlockedReason !== null ||
+			reloadBlocked;
 		const next = reconcileProtocolTools({
 			activeTools: current,
 			allTools: pi.getAllTools(),
-			enabled:
-				reconstruction.activeScope !== null &&
-				reconstruction.blockedReason === null &&
-				!reloadBlocked,
-			access: runtimeAccess(reconstruction),
+			enabled: reconstruction.activeScope !== null,
+			access: runtimeBlocked
+				? {
+						allowsShell: false,
+						allowsArtifactTools: false,
+						hasBeforeImplementationGate: true,
+					}
+				: runtimeAccess(reconstruction),
 			protocolTools: DEVELOPER_PROTOCOL_TOOLS,
-			activeProtocolTools: activeOperations(reconstruction),
+			activeProtocolTools: runtimeBlocked
+				? []
+				: activeOperations(reconstruction),
 			memory: toolPolicyMemory,
 		});
 		toolPolicyMemory = next.memory;
@@ -629,9 +902,9 @@ export default async function developerV8(pi: ExtensionAPI) {
 			ctx.ui.setWidget("developer", undefined);
 			return;
 		}
-		const view = currentReceiptView();
-		ctx.ui.setStatus("developer", developerReceiptStatus(view));
-		const lines = developerReceiptWidgetLines({ view, maxLines: 4 });
+		const progress = currentProgress();
+		ctx.ui.setStatus("developer", developerProgressStatus(progress));
+		const lines = developerProgressWidgetLines({ progress, maxLines: 3 });
 		if (lines.length === 0) {
 			ctx.ui.setWidget("developer", undefined);
 			return;
@@ -644,6 +917,33 @@ export default async function developerV8(pi: ExtensionAPI) {
 		compactionLanguage = reconstructCompactionLanguage(
 			ctx.sessionManager.getBranch(),
 		);
+		const scope = reconstruction.activeScope;
+		if (scope === null) {
+			workspaceObservation = null;
+			workspaceBlockedReason = null;
+		} else if (workspaceObservation?.workScopeId !== scope.workScopeId) {
+			const baseline = captureRuntimeWorkspace(ctx);
+			workspaceObservation = Object.freeze({
+				workScopeId: scope.workScopeId,
+				scopeBaseline: baseline,
+				authorizationBaseline: null,
+			});
+			workspaceBlockedReason =
+				scope.root.activeAuthorization === null
+					? null
+					: "An active authorization was resumed without its process-local workspace baseline.";
+			if (baseline.kind === "git" && baseline.dirtyPaths.length > 0) {
+				ctx.ui.notify(
+					`Developer recorded ${baseline.dirtyPaths.length} pre-existing workspace change${baseline.dirtyPaths.length === 1 ? "" : "s"}.`,
+					"warning",
+				);
+			} else if (baseline.kind === "unavailable") {
+				ctx.ui.notify(
+					"Developer workspace delta observation is unavailable; landing paths will remain declarative.",
+					"warning",
+				);
+			}
+		}
 		publishProjection();
 		syncProtocolTools();
 		refreshUI(ctx);
@@ -757,10 +1057,24 @@ export default async function developerV8(pi: ExtensionAPI) {
 			"Open one explicit Developer RouteFrame with canonical obligations and an optional owning Skill.",
 		promptSnippet: "Open one explicit Developer v8 RouteFrame",
 		promptGuidelines: [
+			"Set purpose to the exact currently required work-decision, reroute-decision, or verification-decision shown by Developer.",
 			"Choose route_definition_id from the current Developer route catalog; Skill name is independent.",
 			"Use owner_skill only when current finite routing evidence supports that exact Skill.",
+			"Keep this frame to one current semantic decision; later implementation, landing, reroute, verification, and closure belong to later runtime states.",
 		],
 		parameters: OpenRouteParams,
+		renderCall(_args, theme) {
+			return renderDeveloperCall(theme, "Open decision");
+		},
+		renderResult(result, options, theme, context) {
+			return renderDeveloperResult({
+				result,
+				options,
+				theme,
+				context,
+				success: "Decision opened",
+			});
+		},
 		executionMode: "sequential",
 		async execute(
 			...args: [
@@ -777,12 +1091,18 @@ export default async function developerV8(pi: ExtensionAPI) {
 			if (scope.root.activeAuthorization !== null || frameFor(scope) !== null) {
 				fail("Developer v8 already has active root work.");
 			}
+			const expectedPurpose = requiredDecisionPurpose(reconstruction);
+			if (params.purpose !== expectedPurpose) {
+				fail(
+					`Current Developer decision purpose is ${expectedPurpose}; received ${params.purpose}.`,
+				);
+			}
 			const route = developerRuntimeRouteDefinition(
 				parseDeveloperId(params.route_definition_id),
 			);
 			const frameId = selectedFrameIdentity({
 				reconstruction,
-				routeDefinitionId: route.routeDefinitionId,
+				purpose: params.purpose,
 				seed: { toolCallId, question: params.question },
 			});
 			const obligations = [...params.obligations];
@@ -842,9 +1162,10 @@ export default async function developerV8(pi: ExtensionAPI) {
 						? OPEN_JUDGMENT_TOOL
 						: OPEN_CONTEXT_SOURCES_TOOL,
 					targetObligationIds: isOwner
-						? (params.owner_skill?.target_obligation_ids.map((value) =>
-								parseDeveloperId(value),
-							) ?? [])
+						? (
+								params.owner_skill?.target_obligation_ids ??
+								obligations.map((obligation) => obligation.obligation_id)
+							).map((value) => parseDeveloperId(value))
 						: obligations.map((obligation) =>
 								parseDeveloperId(obligation.obligation_id),
 							),
@@ -912,21 +1233,37 @@ export default async function developerV8(pi: ExtensionAPI) {
 						inventorySnapshot,
 					)
 				: [];
+			const optionalSkillSources = inventory.filter(
+				(source) =>
+					source.kind === "pi-skill" &&
+					source.provenance.path !== ownerSkill?.filePath,
+			);
+			const preparedReferences = inventory.filter(
+				(source) => source.kind === "prepared-reference",
+			);
 			return textResult({
 				batch,
 				reconstruction,
 				text: [
 					ownerMethod ??
-						"No owning Skill was invoked. Developer root retains the frame.",
+						"No owning Skill was invoked. Developer retains this decision.",
 					"",
-					`Frame ID: ${frameId}`,
-					`Route: ${route.routeDefinitionId} · ${route.sign}`,
-					`Owner invocation: ${plan.ownerInvocationId ?? "none"}`,
-					"Pi-visible context inventory (descriptors only):",
-					...inventory.map(
-						(source) =>
-							`- ${source.id} · ${source.kind} · ${source.title} · descriptor=${source.descriptorSha256}`,
-					),
+					`Route opened: ${route.sign}.`,
+					params.owner_skill
+						? `Owner ready: ${params.owner_skill.skill_name}.`
+						: "Owner: Developer.",
+					"Optional Skill context (open only these IDs with developer_open_context_sources):",
+					...(optionalSkillSources.length > 0
+						? optionalSkillSources.map(
+								(source) => `- ${source.id} · ${source.title}`,
+							)
+						: ["- none"]),
+					"Prepared references (nominate by provenancePath in the conclusion; do not open them as Skills):",
+					...(preparedReferences.length > 0
+						? preparedReferences.map(
+								(source) => `- ${source.path} · ${source.title}`,
+							)
+						: ["- none"]),
 				].join("\n"),
 			});
 		},
@@ -937,8 +1274,24 @@ export default async function developerV8(pi: ExtensionAPI) {
 		label: "Open Developer v8 Context Sources",
 		description:
 			"Acquire exact Pi-visible Skill methods as material support for the open RouteFrame.",
-		promptSnippet: "Open exact v8 context Skill materials",
+		promptSnippet:
+			"Open an additional Skill method only when the current owner identifies a specific missing method",
+		promptGuidelines: [
+			"Do not reopen the owning Skill or prepared references. Normally conclude with current evidence instead of accumulating optional Skills.",
+		],
 		parameters: OpenContextParams,
+		renderCall(_args, theme) {
+			return renderDeveloperCall(theme, "Review context");
+		},
+		renderResult(result, options, theme, context) {
+			return renderDeveloperResult({
+				result,
+				options,
+				theme,
+				context,
+				success: "Context ready",
+			});
+		},
 		executionMode: "sequential",
 		async execute(
 			...args: [
@@ -954,14 +1307,22 @@ export default async function developerV8(pi: ExtensionAPI) {
 			const frame = scope ? frameFor(scope) : null;
 			if (scope === null || frame === null)
 				fail("No Developer v8 frame is open.");
-			if (params.judgment_id !== frame.frame.frameId) {
-				fail(`Context sources cannot extend ${params.judgment_id}.`);
-			}
 			if (!inventorySnapshot) fail("Developer v8 inventory is unavailable.");
 			const existing = new Set<DeveloperId>();
 			for (const support of scope.supportRecords) {
 				if (support.sourceKind === "material") existing.add(support.sourceId);
 			}
+			const assignment = ownerAssignment({
+				scope,
+				frameId: frame.frame.frameId,
+			});
+			const owningSkill = assignment
+				? skillForCapability({
+						availableSkills,
+						capabilityId: assignment.assignment.skillCapabilityId,
+					})
+				: null;
+			const alreadyAvailable: string[] = [];
 			const opened: Array<{
 				readonly sourceId: DeveloperId;
 				readonly descriptorSha256: Sha256Digest;
@@ -972,9 +1333,14 @@ export default async function developerV8(pi: ExtensionAPI) {
 			for (const sourceId of params.inventory_source_ids) {
 				const refinedSourceId = parseDeveloperId(sourceId);
 				if (existing.has(refinedSourceId)) {
-					fail(`Context source is already open: ${sourceId}.`);
+					alreadyAvailable.push(sourceId);
+					continue;
 				}
 				const initial = resolveContextSkill(inventorySnapshot, sourceId);
+				if (initial.skill.name === owningSkill?.name) {
+					alreadyAvailable.push(sourceId);
+					continue;
+				}
 				const context = await openSkillContext(initial.skill);
 				const refined = resolveContextSkill(
 					inventorySnapshot,
@@ -992,6 +1358,18 @@ export default async function developerV8(pi: ExtensionAPI) {
 					context,
 					skill: refined.skill,
 					supportSha256,
+				});
+			}
+			if (opened.length === 0) {
+				let duplicateSummary = "";
+				if (alreadyAvailable.length > 0) {
+					const noun = alreadyAvailable.length === 1 ? "request" : "requests";
+					duplicateSummary = ` (${alreadyAvailable.length} duplicate ${noun} ignored.)`;
+				}
+				return textResult({
+					batch: null,
+					reconstruction,
+					text: `Context is already available. No new Skill source was opened.${duplicateSummary}`,
 				});
 			}
 			const drafts = opened.map((entry) => ({
@@ -1017,10 +1395,8 @@ export default async function developerV8(pi: ExtensionAPI) {
 				reconstruction,
 				text: opened
 					.flatMap((entry) => [
-						`Context source: ${entry.sourceId} · ${entry.skill.name}`,
-						`Method SHA-256: ${entry.context.methodContentSha256}`,
+						`Context source: ${entry.skill.name}`,
 						entry.context.method,
-						`Policy: ${entry.context.policy?.policySha256 ?? "absent"}`,
 						"",
 					])
 					.join("\n"),
@@ -1078,6 +1454,18 @@ export default async function developerV8(pi: ExtensionAPI) {
 			"Settle the optional owner, integrate the Judgment result, admit support, discharge obligations, and conclude the exact frame when resolved.",
 		promptSnippet: "Conclude the active Developer v8 RouteFrame",
 		parameters: ConcludeJudgmentParams,
+		renderCall(_args, theme) {
+			return renderDeveloperCall(theme, "Conclude decision");
+		},
+		renderResult(result, options, theme, context) {
+			return renderDeveloperResult({
+				result,
+				options,
+				theme,
+				context,
+				success: "Decision updated",
+			});
+		},
 		executionMode: "sequential",
 		async execute(
 			...args: [
@@ -1088,383 +1476,444 @@ export default async function developerV8(pi: ExtensionAPI) {
 				ExtensionContext,
 			]
 		) {
-			const [toolCallId, params, signal, , ctx] = args;
+			const [toolCallId, rawParams, signal, , ctx] = args;
+			try {
+			const params = normalizeConcludeJudgmentData(rawParams);
 			const scope = reconstruction.activeScope;
-			const frame = scope ? frameFor(scope) : null;
-			if (scope === null || frame === null)
-				fail("No Developer v8 frame is open.");
-			if (params.judgment_id !== frame.frame.frameId) {
-				fail(
-					`Judgment ${params.judgment_id} cannot close ${frame.frame.frameId}.`,
-				);
-			}
-			const assignmentState = ownerAssignment({
-				scope,
-				frameId: frame.frame.frameId,
-			});
-			const activeAssignment =
-				assignmentState?.status === "active" ? assignmentState : null;
-			let contextual: DeveloperContextConclusion | null = null;
-			let directOutcome:
-				| DeveloperContextConclusion["outcome"]
-				| NonNullable<ConcludeJudgmentData["outcome"]>
-				| null = null;
-			let directCoverage: ConcludeJudgmentData["coverage"] | null = null;
-			let contextBasisSha256: Sha256Digest;
-			if (params.disposition === "judgment") {
-				const fields = requiredContextFields(params);
-				directOutcome = fields.outcome;
-				directCoverage = fields.coverage;
-				if (activeAssignment !== null) {
-					if (!inventorySnapshot)
-						fail("Developer v8 inventory is unavailable.");
-					const skill = skillForCapability({
-						availableSkills,
-						capabilityId: activeAssignment.assignment.skillCapabilityId,
-					});
-					const [methodContext, policy, contextSources] = await Promise.all([
-						openSkillContext(skill),
-						loadOptionalSkillPolicy(skill),
-						preparedContextSources(scope),
-					]);
-					if (
-						methodContext.methodContentSha256 !==
-							activeAssignment.assignment.skillRevisionSha256 ||
-						(activeAssignment.basis.policy.kind === "complete"
-							? policy?.policySha256 !==
-								activeAssignment.basis.policy.revisionSha256
-							: policy !== undefined)
-					) {
-						fail("Owning Skill method or policy changed during the frame.");
-					}
+				const frame = scope ? frameFor(scope) : null;
+				if (scope === null || frame === null)
+					fail("No Developer v8 frame is open.");
+				const assignmentState = ownerAssignment({
+					scope,
+					frameId: frame.frame.frameId,
+				});
+				const activeAssignment =
+					assignmentState?.status === "active" ? assignmentState : null;
+				let contextual: DeveloperContextConclusion | null = null;
+				let directOutcome:
+					| DeveloperContextConclusion["outcome"]
+					| NonNullable<ConcludeJudgmentData["outcome"]>
+					| null = null;
+				let directCoverage: DeveloperCoverageProposal | null = null;
+				let contextBasisSha256: Sha256Digest;
+				if (params.disposition === "judgment") {
+					const fields = requiredContextFields(params);
 					const branch = branchInput(ctx);
-					const snapshot: DeveloperInventorySnapshot = Object.freeze({
-						...inventorySnapshot,
-						input: {
-							...inventorySnapshot.input,
-							activeToolNames: pi.getActiveTools(),
-							tools: pi.getAllTools().map((tool) => ({
-								name: tool.name,
-								description: tool.description,
-								sourceInfo: tool.sourceInfo,
-							})),
-						},
-					});
-					contextual = await concludeDeveloperContext({
-						judgmentId: frame.frame.frameId,
-						skill: { name: skill.name, location: skill.filePath },
-						...(policy ? { policy } : {}),
-						decisionUnitRoot: skill.baseDir,
-						question: frame.frame.exactQuestion,
-						knownEvidence: [],
-						applicability: fields.applicability,
-						contextSources,
-						contextSourceAssessments: fields.contextSourceAssessments,
-						nominations: resolveModelContextNominations({
-							nominations: fields.nominations,
-							branch,
-						}),
-						selectionBasis: fields.selectionBasis,
-						coverageProposal: fields.coverage,
-						outcomeProposal: fields.outcome,
-						snapshot,
-						branchRef: frame.frame.frameId,
-						branch,
-						...(signal ? { signal } : {}),
-					}).catch((error: unknown) =>
-						fail(contextFailureWithBranchIdentities({ error, branch })),
-					);
-					contextBasisSha256 = parseSha256Digest(
-						contextual.basis.contextBasisSha256,
-					);
-					directOutcome = contextual.outcome;
-				} else {
-					contextBasisSha256 = canonicalValueSha256({
-						domain: "developer/v8/zero-skill-judgment-basis",
-						frame: frame.frame,
-						applicability: fields.applicability,
-						selectionBasis: fields.selectionBasis,
+					const coverage = bindUserAcceptedCoverage({
 						coverage: fields.coverage,
-						outcome: fields.outcome,
+						branch,
 					});
-				}
-			} else {
-				if (!params.not_applicable_reason || !params.not_applicable_basis) {
-					fail("not-applicable requires reason and basis.");
-				}
-				contextBasisSha256 = canonicalValueSha256({
-					domain: "developer/v8/not-applicable-judgment-basis",
-					frame: frame.frame,
-					reason: params.not_applicable_reason,
-					basis: params.not_applicable_basis,
-				});
-			}
-			const outcome = directOutcome;
-			const resolved =
-				params.disposition === "not-applicable" ||
-				outcome?.kind === "contextual-judgment";
-			const drafts: PlannedRuntimeDraft[] = [];
-			let settlement: InvocationSettlement | null = null;
-			let settlementEventId: DeveloperId | null = null;
-			if (activeAssignment !== null) {
-				let value: unknown;
-				if (params.disposition === "not-applicable") {
-					value = {
-						kind: "not-applicable",
-						targetObligationIds:
-							activeAssignment.assignment.targetObligationIds,
-						reason: params.not_applicable_reason,
-					};
-				} else if (outcome?.kind === "contextual-judgment") {
-					value = {
-						kind: "contribution",
-						claim: outcome.artifact,
-						applicability: outcome.rationale,
-						targetUses: activeAssignment.assignment.targetObligationIds.map(
-							(obligationId) => ({ obligationId, useAs: "evidence" }),
-						),
-						limitations:
-							directCoverage?.limitations.map(
-								(limitation) => limitation.description,
-							) ?? [],
-					};
-				} else if (outcome?.kind === "needs-evidence") {
-					value = {
-						kind: "needs-context",
-						targetObligationIds:
-							activeAssignment.assignment.targetObligationIds,
-						missingContext: outcome.evidenceNeeded,
-					};
-				} else if (outcome?.kind === "emergent-question") {
-					value = {
-						kind: "dependency",
-						dependencyId: runtimeIdentity({
-							prefix: "dependency",
-							seed: { toolCallId, question: outcome.question },
-						}),
-						targetObligationIds:
-							activeAssignment.assignment.targetObligationIds,
-						question: outcome.question,
-						reason: outcome.reason,
-					};
-				} else {
-					value = { kind: "abort", reason: "Route outcome was not resolved." };
-				}
-				settlement = parseInvocationSettlement({
-					kind: "returned",
-					invocationId: activeAssignment.invocationId,
-					assignmentId: activeAssignment.assignment.assignmentId,
-					value,
-				});
-				settlementEventId = runtimeIdentity({
-					prefix: "event",
-					seed: { toolCallId, kind: "invocation-settled" },
-				});
-				drafts.push({
-					eventId: settlementEventId,
-					kind: parseDeveloperId("invocation-settled"),
-					payload: { settlement },
-				});
-			}
-			if (resolved) {
-				const sourceId = runtimeIdentity({
-					prefix: "judgment",
-					seed: frame.frame.frameId,
-				});
-				const supportSha256 = canonicalValueSha256({
-					domain: "developer/v8/judgment-result-support",
-					frame: frame.frame,
-					contextBasisSha256,
-					outcome:
-						params.disposition === "not-applicable"
-							? {
-									reason: params.not_applicable_reason,
-									basis: params.not_applicable_basis,
-								}
-							: outcome,
-				});
-				const supportEventId = runtimeIdentity({
-					prefix: "event",
-					seed: { toolCallId, kind: "support-observed" },
-				});
-				drafts.push({
-					eventId: supportEventId,
-					kind: parseDeveloperId("support-observed"),
-					payload: {
-						support: {
-							supportId: runtimeIdentity({
-								prefix: "support",
-								seed: toolCallId,
+					directOutcome = fields.outcome;
+					directCoverage = coverage;
+					if (assignmentState !== null) {
+						if (!inventorySnapshot)
+							fail("Developer v8 inventory is unavailable.");
+						const skill = skillForCapability({
+							availableSkills,
+							capabilityId: assignmentState.assignment.skillCapabilityId,
+						});
+						const [methodContext, policy, contextSources] = await Promise.all([
+							openSkillContext(skill),
+							loadOptionalSkillPolicy(skill),
+							preparedContextSources(scope),
+						]);
+						if (
+							methodContext.methodContentSha256 !==
+								assignmentState.assignment.skillRevisionSha256 ||
+							(assignmentState.basis.policy.kind === "complete"
+								? policy?.policySha256 !==
+									assignmentState.basis.policy.revisionSha256
+								: policy !== undefined)
+						) {
+							fail("Owning Skill method or policy changed during the frame.");
+						}
+						const snapshot: DeveloperInventorySnapshot = Object.freeze({
+							...inventorySnapshot,
+							input: {
+								...inventorySnapshot.input,
+								activeToolNames: pi.getActiveTools(),
+								tools: pi.getAllTools().map((tool) => ({
+									name: tool.name,
+									description: tool.description,
+									sourceInfo: tool.sourceInfo,
+								})),
+							},
+						});
+						contextual = await concludeDeveloperContext({
+							judgmentId: frame.frame.frameId,
+							skill: { name: skill.name, location: skill.filePath },
+							...(policy ? { policy } : {}),
+							decisionUnitRoot: skill.baseDir,
+							question: frame.frame.exactQuestion,
+							knownEvidence: [],
+							applicability: fields.applicability,
+							contextSources,
+							contextSourceAssessments: fields.contextSourceAssessments,
+							nominations: resolveModelContextNominations({
+								nominations: fields.nominations,
+								branch,
 							}),
-							sourceKind: "judgment-result",
-							sourceId,
-							sourceRevisionSha256: contextBasisSha256,
-							supportSha256,
-						},
-					},
-				});
-				for (const blockerId of sortedText(
-					frame.blockers.map((blocker) => blocker.blockerId),
-				)) {
-					drafts.push({
-						kind: parseDeveloperId("frame-blocker-resolved"),
-						payload: {
-							frameId: frame.frame.frameId,
-							blockerId: parseDeveloperId(blockerId),
-							resolutionBasisSha256: supportSha256,
-						},
-						causalEventIds: [supportEventId],
+							selectionBasis: fields.selectionBasis,
+							coverageProposal: coverage,
+							outcomeProposal: fields.outcome,
+							snapshot,
+							branchRef: frame.frame.frameId,
+							branch,
+							...(signal ? { signal } : {}),
+						}).catch((error: unknown) =>
+							fail(contextFailureWithBranchIdentities({ error, branch })),
+						);
+						contextBasisSha256 = parseSha256Digest(
+							contextual.basis.contextBasisSha256,
+						);
+						directOutcome = contextual.outcome;
+					} else {
+						const contextSources = await preparedContextSources(scope);
+						if (!inventorySnapshot) {
+							fail("Developer v8 inventory is unavailable.");
+						}
+						const snapshot: DeveloperInventorySnapshot = Object.freeze({
+							...inventorySnapshot,
+							input: {
+								...inventorySnapshot.input,
+								activeToolNames: pi.getActiveTools(),
+								tools: pi.getAllTools().map((tool) => ({
+									name: tool.name,
+									description: tool.description,
+									sourceInfo: tool.sourceInfo,
+								})),
+							},
+						});
+						contextual = await concludeDeveloperContext({
+							judgmentId: frame.frame.frameId,
+							skill: null,
+							decisionUnitRoot: skillsRoot,
+							question: frame.frame.exactQuestion,
+							knownEvidence: [],
+							applicability: fields.applicability,
+							contextSources,
+							contextSourceAssessments: fields.contextSourceAssessments,
+							nominations: resolveModelContextNominations({
+								nominations: fields.nominations,
+								branch,
+							}),
+							selectionBasis: fields.selectionBasis,
+							coverageProposal: coverage,
+							outcomeProposal: fields.outcome,
+							snapshot,
+							branchRef: frame.frame.frameId,
+							branch,
+							...(signal ? { signal } : {}),
+						}).catch((error: unknown) =>
+							fail(contextFailureWithBranchIdentities({ error, branch })),
+						);
+						contextBasisSha256 = parseSha256Digest(
+							contextual.basis.contextBasisSha256,
+						);
+						directOutcome = contextual.outcome;
+					}
+				} else {
+					if (!params.not_applicable_reason || !params.not_applicable_basis) {
+						fail("not-applicable requires reason and basis.");
+					}
+					contextBasisSha256 = canonicalValueSha256({
+						domain: "developer/v8/not-applicable-judgment-basis",
+						frame: frame.frame,
+						reason: params.not_applicable_reason,
+						basis: params.not_applicable_basis,
 					});
 				}
-				const contributionIds: DeveloperId[] = [];
-				if (
-					settlement?.kind === "returned" &&
-					settlement.value.kind === "contribution" &&
-					settlementEventId !== null
-				) {
-					const skillSupportSha256 = skillReturnSupportSha256(settlement);
-					const body = {
+				const outcome = directOutcome;
+				const resolved =
+					params.disposition === "not-applicable" ||
+					outcome?.kind === "contextual-judgment";
+				const drafts: PlannedRuntimeDraft[] = [];
+				let settlement: InvocationSettlement | null = null;
+				let settlementEventId: DeveloperId | null = null;
+				if (activeAssignment !== null) {
+					let value: unknown;
+					if (params.disposition === "not-applicable") {
+						value = {
+							kind: "not-applicable",
+							targetObligationIds:
+								activeAssignment.assignment.targetObligationIds,
+							reason: params.not_applicable_reason,
+						};
+					} else if (outcome?.kind === "contextual-judgment") {
+						value = {
+							kind: "contribution",
+							claim: outcome.artifact,
+							applicability: outcome.rationale,
+							targetUses: activeAssignment.assignment.targetObligationIds.map(
+								(obligationId) => ({ obligationId, useAs: "evidence" }),
+							),
+							limitations:
+								directCoverage?.limitations.map(
+									(limitation) => limitation.description,
+								) ?? [],
+						};
+					} else if (outcome?.kind === "needs-evidence") {
+						value = {
+							kind: "needs-context",
+							targetObligationIds:
+								activeAssignment.assignment.targetObligationIds,
+							missingContext: outcome.evidenceNeeded,
+						};
+					} else if (outcome?.kind === "emergent-question") {
+						value = {
+							kind: "dependency",
+							dependencyId: runtimeIdentity({
+								prefix: "dependency",
+								seed: { toolCallId, question: outcome.question },
+							}),
+							targetObligationIds:
+								activeAssignment.assignment.targetObligationIds,
+							question: outcome.question,
+							reason: outcome.reason,
+						};
+					} else {
+						value = {
+							kind: "abort",
+							reason: "Route outcome was not resolved.",
+						};
+					}
+					settlement = parseInvocationSettlement({
+						kind: "returned",
+						invocationId: activeAssignment.invocationId,
+						assignmentId: activeAssignment.assignment.assignmentId,
+						value,
+					});
+					settlementEventId = runtimeIdentity({
+						prefix: "event",
+						seed: { toolCallId, kind: "invocation-settled" },
+					});
+					drafts.push({
+						eventId: settlementEventId,
+						kind: parseDeveloperId("invocation-settled"),
+						payload: { settlement },
+					});
+				}
+				if (resolved) {
+					const sourceId = runtimeIdentity({
+						prefix: "judgment",
+						seed: frame.frame.frameId,
+					});
+					const supportSha256 = canonicalValueSha256({
+						domain: "developer/v8/judgment-result-support",
+						frame: frame.frame,
+						contextBasisSha256,
+						outcome:
+							params.disposition === "not-applicable"
+								? {
+										reason: params.not_applicable_reason,
+										basis: params.not_applicable_basis,
+									}
+								: outcome,
+					});
+					const supportEventId = runtimeIdentity({
+						prefix: "event",
+						seed: { toolCallId, kind: "support-observed" },
+					});
+					drafts.push({
+						eventId: supportEventId,
+						kind: parseDeveloperId("support-observed"),
+						payload: {
+							support: {
+								supportId: runtimeIdentity({
+									prefix: "support",
+									seed: toolCallId,
+								}),
+								sourceKind: "judgment-result",
+								sourceId,
+								sourceRevisionSha256: contextBasisSha256,
+								supportSha256,
+							},
+						},
+					});
+					for (const blockerId of sortedText(
+						frame.blockers.map((blocker) => blocker.blockerId),
+					)) {
+						drafts.push({
+							kind: parseDeveloperId("frame-blocker-resolved"),
+							payload: {
+								frameId: frame.frame.frameId,
+								blockerId: parseDeveloperId(blockerId),
+								resolutionBasisSha256: supportSha256,
+							},
+							causalEventIds: [supportEventId],
+						});
+					}
+					const contributionIds: DeveloperId[] = [];
+					const contributionTargets = new Map<
+						DeveloperId,
+						ReadonlySet<DeveloperId>
+					>();
+					if (
+						settlement?.kind === "returned" &&
+						settlement.value.kind === "contribution" &&
+						settlementEventId !== null
+					) {
+						const skillSupportSha256 = skillReturnSupportSha256(settlement);
+						const body = {
+							proposalId: runtimeIdentity({
+								prefix: "proposal",
+								seed: { toolCallId, source: "skill" },
+							}),
+							frameId: frame.frame.frameId,
+							frameRevision: frame.frame.frameRevision,
+							source: {
+								kind: "skill-return" as const,
+								sourceId: settlement.invocationId,
+								sourceRevisionSha256: skillSupportSha256,
+							},
+							claim: settlement.value.claim,
+							applicability: settlement.value.applicability,
+							targetUses: settlement.value.targetUses,
+							limitations: settlement.value.limitations,
+							supportSha256: skillSupportSha256,
+						};
+						const proposal = createProposedFrameContribution(body);
+						const contributionId = runtimeIdentity({
+							prefix: "contribution",
+							seed: { toolCallId, source: "skill" },
+						});
+						contributionIds.push(contributionId);
+						contributionTargets.set(
+							contributionId,
+							new Set(
+								settlement.value.targetUses.map((target) => target.obligationId),
+							),
+						);
+						drafts.push({
+							kind: parseDeveloperId("frame-contribution-admitted"),
+							payload: {
+								proposal: body,
+								expectedProposalSha256: proposal.proposalSha256,
+								contributionId,
+								admissionBasisSha256: contextBasisSha256,
+							},
+							causalEventIds: [settlementEventId],
+						});
+					}
+					let judgmentClaim = "Resolved route judgment.";
+					let judgmentApplicability = "Current frame.";
+					let routeStopEvidence: readonly string[] = [
+						"All obligations are discharged.",
+					];
+					if (params.disposition === "not-applicable") {
+						judgmentClaim = params.not_applicable_reason ?? "Not applicable.";
+						judgmentApplicability =
+							"The negative judgment applies to the current frame.";
+						routeStopEvidence = params.not_applicable_basis ?? [
+							"Negative resolution is explicit.",
+						];
+					} else if (outcome?.kind === "contextual-judgment") {
+						judgmentClaim = outcome.artifact;
+						judgmentApplicability = outcome.rationale;
+						routeStopEvidence = outcome.stopEvidence;
+					}
+					const judgmentBody = {
 						proposalId: runtimeIdentity({
 							prefix: "proposal",
-							seed: { toolCallId, source: "skill" },
+							seed: { toolCallId, source: "judgment" },
 						}),
 						frameId: frame.frame.frameId,
 						frameRevision: frame.frame.frameRevision,
 						source: {
-							kind: "skill-return" as const,
-							sourceId: settlement.invocationId,
-							sourceRevisionSha256: skillSupportSha256,
+							kind: "judgment-result" as const,
+							sourceId,
+							sourceRevisionSha256: contextBasisSha256,
 						},
-						claim: settlement.value.claim,
-						applicability: settlement.value.applicability,
-						targetUses: settlement.value.targetUses,
-						limitations: settlement.value.limitations,
-						supportSha256: skillSupportSha256,
+						claim: judgmentClaim,
+						applicability: judgmentApplicability,
+						targetUses: frame.obligations.map((obligation) => ({
+							obligationId: obligation.obligationId,
+							useAs: "evidence" as const,
+						})),
+						limitations:
+							directCoverage?.limitations.map(
+								(limitation) => limitation.description,
+							) ?? [],
+						supportSha256,
 					};
-					const proposal = createProposedFrameContribution(body);
-					const contributionId = runtimeIdentity({
+					const judgmentProposal =
+						createProposedFrameContribution(judgmentBody);
+					const judgmentContributionId = runtimeIdentity({
 						prefix: "contribution",
-						seed: { toolCallId, source: "skill" },
+						seed: { toolCallId, source: "judgment" },
 					});
-					contributionIds.push(contributionId);
+					contributionIds.push(judgmentContributionId);
+					contributionTargets.set(
+						judgmentContributionId,
+						new Set(frame.obligations.map((obligation) => obligation.obligationId)),
+					);
 					drafts.push({
 						kind: parseDeveloperId("frame-contribution-admitted"),
 						payload: {
-							proposal: body,
-							expectedProposalSha256: proposal.proposalSha256,
-							contributionId,
+							proposal: judgmentBody,
+							expectedProposalSha256: judgmentProposal.proposalSha256,
+							contributionId: judgmentContributionId,
 							admissionBasisSha256: contextBasisSha256,
 						},
-						causalEventIds: [settlementEventId],
+						causalEventIds: [supportEventId],
 					});
-				}
-				let judgmentClaim = "Resolved route judgment.";
-				let judgmentApplicability = "Current frame.";
-				let routeStopEvidence: readonly string[] = [
-					"All obligations are discharged.",
-				];
-				if (params.disposition === "not-applicable") {
-					judgmentClaim = params.not_applicable_reason ?? "Not applicable.";
-					judgmentApplicability =
-						"The negative judgment applies to the current frame.";
-					routeStopEvidence = params.not_applicable_basis ?? [
-						"Negative resolution is explicit.",
-					];
-				} else if (outcome?.kind === "contextual-judgment") {
-					judgmentClaim = outcome.artifact;
-					judgmentApplicability = outcome.rationale;
-					routeStopEvidence = outcome.stopEvidence;
-				}
-				const judgmentBody = {
-					proposalId: runtimeIdentity({
-						prefix: "proposal",
-						seed: { toolCallId, source: "judgment" },
-					}),
-					frameId: frame.frame.frameId,
-					frameRevision: frame.frame.frameRevision,
-					source: {
-						kind: "judgment-result" as const,
-						sourceId,
-						sourceRevisionSha256: contextBasisSha256,
-					},
-					claim: judgmentClaim,
-					applicability: judgmentApplicability,
-					targetUses: frame.obligations.map((obligation) => ({
-						obligationId: obligation.obligationId,
-						useAs: "evidence" as const,
-					})),
-					limitations:
-						directCoverage?.limitations.map(
-							(limitation) => limitation.description,
-						) ?? [],
-					supportSha256,
-				};
-				const judgmentProposal = createProposedFrameContribution(judgmentBody);
-				const judgmentContributionId = runtimeIdentity({
-					prefix: "contribution",
-					seed: { toolCallId, source: "judgment" },
-				});
-				contributionIds.push(judgmentContributionId);
-				drafts.push({
-					kind: parseDeveloperId("frame-contribution-admitted"),
-					payload: {
-						proposal: judgmentBody,
-						expectedProposalSha256: judgmentProposal.proposalSha256,
-						contributionId: judgmentContributionId,
-						admissionBasisSha256: contextBasisSha256,
-					},
-					causalEventIds: [supportEventId],
-				});
-				const orderedContributionIds = sortedText(contributionIds).map(
-					(value) => parseDeveloperId(value),
-				);
-				const dischargeIds: DeveloperId[] = [];
-				for (const [index, obligation] of frame.obligations.entries()) {
-					const dischargeId = runtimeIdentity({
-						prefix: "discharge",
-						seed: { toolCallId, obligationId: obligation.obligationId },
-					});
-					dischargeIds.push(dischargeId);
-					drafts.push({
-						kind: parseDeveloperId("obligation-discharged"),
-						payload: {
-							discharge: {
-								dischargeId,
-								frameId: frame.frame.frameId,
-								expectedFrameRevision: frame.frame.frameRevision,
-								obligationId: obligation.obligationId,
-								contributionIds: orderedContributionIds,
-								stopEvidence: routeStopEvidence,
-								conclusion: `Resolved obligation ${index}.`,
+					const dischargeIds: DeveloperId[] = [];
+					for (const [index, obligation] of frame.obligations.entries()) {
+						const targetedContributionIds = sortedText(
+							contributionIds.filter((contributionId) =>
+								contributionTargets
+									.get(contributionId)
+									?.has(obligation.obligationId),
+							),
+						).map((value) => parseDeveloperId(value));
+						const dischargeId = runtimeIdentity({
+							prefix: "discharge",
+							seed: { toolCallId, obligationId: obligation.obligationId },
+						});
+						dischargeIds.push(dischargeId);
+						drafts.push({
+							kind: parseDeveloperId("obligation-discharged"),
+							payload: {
+								discharge: {
+									dischargeId,
+									frameId: frame.frame.frameId,
+									expectedFrameRevision: frame.frame.frameRevision,
+									obligationId: obligation.obligationId,
+									contributionIds: targetedContributionIds,
+									stopEvidence: routeStopEvidence,
+									conclusion: `Resolved obligation ${index}.`,
+								},
 							},
-						},
+						});
+					}
+					const proposal = parseFrameConclusionProposal({
+						frameId: frame.frame.frameId,
+						expectedFrameRevision: frame.frame.frameRevision,
+						dischargeIds: sortedText(dischargeIds),
+						stopEvidence: routeStopEvidence,
+						expectedBlockerSetSha256: runtimeBlockerSetSha256([]),
+						conclusion: judgmentClaim,
+					});
+					drafts.push({
+						kind: parseDeveloperId("route-frame-concluded"),
+						payload: { proposal },
+						causalRefs: currentLandingCause({
+							reconstruction,
+							frameId: frame.frame.frameId,
+						}),
 					});
 				}
-				const proposal = parseFrameConclusionProposal({
-					frameId: frame.frame.frameId,
-					expectedFrameRevision: frame.frame.frameRevision,
-					dischargeIds: sortedText(dischargeIds),
-					stopEvidence: routeStopEvidence,
-					expectedBlockerSetSha256: runtimeBlockerSetSha256([]),
-					conclusion: judgmentClaim,
+				const batch = appendDrafts({ ctx, seed: toolCallId, drafts });
+				return textResult({
+					batch,
+					reconstruction,
+					text: resolved
+						? "Decision concluded. The next legal operation is ready."
+						: "Decision remains open because more evidence is required.",
 				});
-				drafts.push({
-					kind: parseDeveloperId("route-frame-concluded"),
-					payload: { proposal },
-					causalRefs: currentLandingCause({
-						reconstruction,
-						frameId: frame.frame.frameId,
-					}),
-				});
+			} catch (error: unknown) {
+				fail(developerErrorMessage(error));
 			}
-			const batch = appendDrafts({ ctx, seed: toolCallId, drafts });
-			return textResult({
-				batch,
-				reconstruction,
-				text: resolved
-					? `RouteFrame ${frame.frame.frameId} concluded.`
-					: `RouteFrame ${frame.frame.frameId} remains open with settled context needs.`,
-			});
 		},
 	});
 
@@ -1475,6 +1924,18 @@ export default async function developerV8(pi: ExtensionAPI) {
 			"Create one replay-current mutation authorization from an exact concluded RouteFrame.",
 		promptSnippet: "Authorize one v8 change from a concluded frame",
 		parameters: AuthorizeParams,
+		renderCall(_args, theme) {
+			return renderDeveloperCall(theme, "Authorize change");
+		},
+		renderResult(result, options, theme, context) {
+			return renderDeveloperResult({
+				result,
+				options,
+				theme,
+				context,
+				success: "Change authorized",
+			});
+		},
 		executionMode: "sequential",
 		async execute(
 			...args: [
@@ -1488,12 +1949,31 @@ export default async function developerV8(pi: ExtensionAPI) {
 			const [toolCallId, params, , , ctx] = args;
 			const scope = reconstruction.activeScope;
 			if (scope === null) fail("Developer v8 is disabled.");
-			const frame = runtimeFrameState(
-				scope.state,
-				parseDeveloperId(params.frame_id),
-			);
-			if (frame?.conclusion === null || frame === undefined) {
-				fail("Authorization requires an exact concluded frame.");
+			const frame = latestConcludedFrame(scope);
+			if (frame?.conclusion === null || frame === null) {
+				fail("Authorization requires a current concluded decision.");
+			}
+			const observation = workspaceObservation;
+			if (observation?.workScopeId !== scope.workScopeId) {
+				fail("Authorization requires a current workspace baseline.");
+			}
+			const authorizationBaseline = captureRuntimeWorkspace(ctx);
+			const preAuthorizationDelta = compareWorkspaceSnapshots({
+				baseline: observation.scopeBaseline,
+				current: authorizationBaseline,
+			});
+			if (observation.scopeBaseline.kind === "git") {
+				if (preAuthorizationDelta.kind !== "observed") {
+					fail(
+						preAuthorizationDelta.reason ??
+							"Workspace identity changed before authorization.",
+					);
+				}
+				if (preAuthorizationDelta.changedPaths.length > 0) {
+					fail(
+						`Workspace changed before authorization: ${preAuthorizationDelta.changedPaths.slice(0, 10).join(", ")}. Start a new Developer scope after settling those changes.`,
+					);
+				}
 			}
 			const authorization = createRuntimeChangeAuthorization({
 				authorizationId: runtimeIdentity({
@@ -1502,17 +1982,12 @@ export default async function developerV8(pi: ExtensionAPI) {
 				}),
 				frameId: frame.frame.frameId,
 				frameRevision: frame.frame.frameRevision,
-				conclusionSha256: params.conclusion_sha256,
+				conclusionSha256: frame.conclusion.conclusionSha256,
 				movement: params.movement,
 				stableLanding: params.stable_landing,
 				verificationTarget: params.verification_target,
 				boundary: implementationBoundary(params.boundary),
 			});
-			if (
-				authorization.conclusionSha256 !== frame.conclusion.conclusionSha256
-			) {
-				fail("Authorization conclusion hash is stale.");
-			}
 			const conclusionEvent = reconstruction.replay.acceptedEvents.find(
 				(event) =>
 					event.semanticEvent.kind === "route-frame-concluded" &&
@@ -1535,10 +2010,15 @@ export default async function developerV8(pi: ExtensionAPI) {
 					},
 				],
 			});
+			workspaceObservation = Object.freeze({
+				workScopeId: scope.workScopeId,
+				scopeBaseline: observation.scopeBaseline,
+				authorizationBaseline,
+			});
 			return textResult({
 				batch,
 				reconstruction,
-				text: `Authorization ID: ${authorization.authorizationId}\nFrame: ${authorization.frameId}\nArtifact mutation is authorized only while this replay-current authorization remains active.`,
+				text: "Change authorized. Built-in mutation tools are available for this bounded landing.",
 			});
 		},
 	});
@@ -1550,6 +2030,18 @@ export default async function developerV8(pi: ExtensionAPI) {
 			"Record the exact active authorization landing and create causal reroute and verification debt.",
 		promptSnippet: "Record the authorized v8 landing",
 		parameters: RecordLandingParams,
+		renderCall(_args, theme) {
+			return renderDeveloperCall(theme, "Record change");
+		},
+		renderResult(result, options, theme, context) {
+			return renderDeveloperResult({
+				result,
+				options,
+				theme,
+				context,
+				success: "Change recorded",
+			});
+		},
 		executionMode: "sequential",
 		async execute(
 			...args: [
@@ -1564,13 +2056,54 @@ export default async function developerV8(pi: ExtensionAPI) {
 			const scope = reconstruction.activeScope;
 			const active = scope?.root.activeAuthorization;
 			if (!scope || !active) fail("No Developer v8 authorization is active.");
-			if (params.authorization_id !== active.authorizationId) {
-				fail(`Landing cannot close ${active.authorizationId}.`);
+			const observation = workspaceObservation;
+			if (
+				observation?.workScopeId !== scope.workScopeId ||
+				observation.authorizationBaseline === null
+			) {
+				fail(
+					"Landing requires the workspace baseline captured at authorization.",
+				);
+			}
+			const currentWorkspace = captureRuntimeWorkspace(ctx);
+			const workspaceDelta = compareWorkspaceSnapshots({
+				baseline: observation.authorizationBaseline,
+				current: currentWorkspace,
+			});
+			let changedPaths: readonly string[];
+			let pathsWereObserved = false;
+			if (observation.authorizationBaseline.kind === "git") {
+				if (workspaceDelta.kind !== "observed") {
+					fail(
+						workspaceDelta.reason ??
+							"Workspace identity changed before landing.",
+					);
+				}
+				if (workspaceDelta.changedPaths.length === 0) {
+					fail("Landing requires at least one observed workspace change.");
+				}
+				changedPaths = workspaceDelta.changedPaths;
+				pathsWereObserved = true;
+				if (params.changed_paths !== undefined) {
+					const declaredPaths = sortedText(params.changed_paths);
+					if (!samePaths({ left: declaredPaths, right: changedPaths })) {
+						fail(
+							`Landing paths do not match the observed workspace delta. Observed: ${changedPaths.join(", ")}.`,
+						);
+					}
+				}
+			} else {
+				if (params.changed_paths === undefined) {
+					fail(
+						"changed_paths is required when workspace observation is unavailable.",
+					);
+				}
+				changedPaths = sortedText(params.changed_paths);
 			}
 			const landing = createRuntimeImplementationLanding({
 				landingId: runtimeIdentity({ prefix: "landing", seed: toolCallId }),
 				authorizationId: active.authorizationId,
-				changedPaths: sortedText(params.changed_paths),
+				changedPaths,
 				result: params.result,
 				verification: sortedText(params.verification ?? []),
 				rerouteFrameId: runtimeIdentity({
@@ -1600,10 +2133,15 @@ export default async function developerV8(pi: ExtensionAPI) {
 					},
 				],
 			});
+			workspaceObservation = Object.freeze({
+				workScopeId: scope.workScopeId,
+				scopeBaseline: currentWorkspace,
+				authorizationBaseline: null,
+			});
 			return textResult({
 				batch,
 				reconstruction,
-				text: `Landing ${landing.landingId} recorded for ${landing.changedPaths.join(", ")}. Reroute frame ${landing.rerouteFrameId} and verification frame ${landing.verificationFrameId} are required.`,
+				text: `Change recorded for ${landing.changedPaths.length} ${pathsWereObserved ? "observed " : "declared "}path${landing.changedPaths.length === 1 ? "" : "s"}. Reroute and verification are now pending.`,
 			});
 		},
 	});
@@ -1678,10 +2216,14 @@ export default async function developerV8(pi: ExtensionAPI) {
 				return;
 			}
 			if (action === "workbench" && ctx.mode === "tui") {
-				await showDeveloperReceiptTui({ ctx, readCurrent: readReceipts });
+				await showDeveloperReceiptTui({
+					ctx,
+					readCurrent: readReceipts,
+					readProgress: currentProgress,
+				});
 				return;
 			}
-			ctx.ui.notify(developerReceiptViewMessage(currentReceiptView()), "info");
+			ctx.ui.notify(developerProgressMessage(currentProgress()), "info");
 		},
 	});
 
@@ -1709,15 +2251,42 @@ export default async function developerV8(pi: ExtensionAPI) {
 		compactionLanguage = next;
 	});
 	pi.on("context", (...args) => {
-		const [event] = args;
+		const [event, ctx] = args;
 		if (reconstruction.activeScope === null) return;
 		const projection = projectCompactionContinuity(
 			event.messages,
 			compactionLanguage,
 		);
-		if (!projection) return;
-		compactionLanguage = projection.state;
-		return { messages: projection.messages as typeof event.messages };
+		if (projection) compactionLanguage = projection.state;
+		const evidenceHandles = activeDeveloperEvidenceHandles(branchInput(ctx));
+		const messages = projection?.messages ?? event.messages;
+		return {
+			messages: [
+				...messages,
+				{
+					role: "custom" as const,
+					customType: "developer.model-control",
+					content: [
+						{
+							type: "text" as const,
+							text: [
+								`Current Developer state: ${runtimeStatus(reconstruction)}.`,
+								`Required decision purpose: ${requiredDecisionPurpose(reconstruction)}.`,
+								`Next legal operations: ${activeOperations(reconstruction).join(", ") || "none"}.`,
+								...(evidenceHandles.length > 0
+									? [
+											"Current exact successful evidence handles:",
+											...evidenceHandles.map((handle) => `- ${handle}`),
+											"Use these exact handles for tool-result nominations. Never make a failing probe to discover handles.",
+										]
+									: []),
+							].join("\n"),
+						},
+					],
+					display: false,
+				},
+			] as typeof event.messages,
+		};
 	});
 	pi.on("before_agent_start", (...args) => {
 		const [event, ctx] = args;
@@ -1731,6 +2300,17 @@ export default async function developerV8(pi: ExtensionAPI) {
 			skills: event.systemPromptOptions.skills ?? [],
 			contextFiles: event.systemPromptOptions.contextFiles ?? [],
 		});
+		try {
+			workspaceEntries = Object.freeze(
+				sortedText(
+					readdirSync(ctx.cwd, { withFileTypes: true })
+						.map((entry) => `${entry.name}${entry.isDirectory() ? "/" : ""}`)
+						.filter((entry) => entry !== ".git/" && entry !== ".pi/"),
+				).slice(0, 50),
+			);
+		} catch {
+			workspaceEntries = [];
+		}
 		if (reconstruction.activeScope === null || reloadBlocked) return;
 		return {
 			systemPrompt:
@@ -1738,6 +2318,8 @@ export default async function developerV8(pi: ExtensionAPI) {
 				protocolPrompt({
 					reconstruction,
 					skillNames: [...availableSkills.keys()],
+					evidenceHandles: activeDeveloperEvidenceHandles(branchInput(ctx)),
+					workspaceEntries,
 				}),
 		};
 	});
@@ -1746,17 +2328,24 @@ export default async function developerV8(pi: ExtensionAPI) {
 			event.toolName,
 		);
 		if (!capability) return;
-		const enabled =
-			reconstruction.activeScope !== null &&
-			reconstruction.blockedReason === null &&
-			!reloadBlocked;
-		const access = runtimeAccess(reconstruction);
+		const enabled = reconstruction.activeScope !== null;
+		const runtimeBlocked =
+			reconstruction.blockedReason !== null ||
+			workspaceBlockedReason !== null ||
+			reloadBlocked;
+		const access = runtimeBlocked
+			? {
+					allowsShell: false,
+					allowsArtifactTools: false,
+					hasBeforeImplementationGate: true,
+				}
+			: runtimeAccess(reconstruction);
 		if (isControlledToolAllowed({ enabled, capability, access })) return;
 		return {
 			block: true,
 			reason:
 				capability === "shell"
-					? "Developer v8 requires an open semantic RouteFrame before built-in bash is available."
+					? "Developer requires a replay-current change authorization before built-in bash is available."
 					: `Developer v8 requires a replay-current ${AUTHORIZE_CHANGE_TOOL} event before built-in mutation.`,
 		};
 	});

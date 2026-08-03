@@ -27,11 +27,11 @@ Receipt             accepted event 하나의 read-only projection
 
 | Operation | Accepted boundary | Runtime movement |
 | --- | --- | --- |
-| `developer_open_judgment` | Route definition, exact question, obligations, optional owner assignment | Frame과 선택적 routed Skill invocation 열기 |
-| `developer_open_context_sources` | Current frame ID와 exact Pi-visible descriptor ID | Atomic material-support batch 하나 관찰 |
-| `developer_conclude_judgment` | Applicability, exact nominations, coverage, outcome, stop evidence | Owner를 settle하고 support admit, obligation discharge, resolved일 때만 conclude |
-| `developer_authorize_change` | Current concluded frame과 conclusion hash, bounded movement, stable landing, verification target | Process-local root authorization 하나 생성 |
-| `developer_record_landing` | Exact active authorization, non-empty changed paths, result, verification observations | Authorization을 소모하고 reroute/verification debt 생성 |
+| `developer_open_judgment` | 필수 decision purpose, Route definition, exact question, obligations, optional owner assignment | Frame과 선택적 routed Skill invocation 열기 |
+| `developer_open_context_sources` | Exact Pi-visible descriptor ID | Current frame을 위한 atomic material-support batch 하나 관찰 |
+| `developer_conclude_judgment` | Applicability, current nomination, coverage, outcome, stop evidence | Owner를 settle하고 support admit, obligation discharge, resolved일 때만 conclude |
+| `developer_authorize_change` | Bounded movement, stable landing, verification target | Replay-current conclusion handoff를 사용해 process-local root authorization 하나 생성 |
+| `developer_record_landing` | Non-empty reported path, result, verification observation | Active authorization과 관찰한 Git delta를 대조하고 authority를 소모한 뒤 reroute/verification debt 생성 |
 
 Root는 replay-current scope에서 합법적인 operation만 노출합니다. Context source를 열거나
 Skill을 settle해도 파일 변경 권한은 생기지 않습니다.
@@ -78,6 +78,11 @@ Developer는 Skill과 독립적으로 stable Route를 찾고 bounded ordered des
 고정한 뒤 exact frame revision을 만듭니다. Routing coverage가 끝나려면 admitted
 snapshot의 모든 candidate를 bounded page로 account해야 합니다.
 
+모든 open call은 `work-decision`, `reroute-decision`, `verification-decision` 중 하나의
+purpose를 명시합니다. Runtime은 landing debt에서 현재 유일하게 합법적인 purpose를
+계산하고 불일치를 거부합니다. 따라서 verification 형태의 질문이 reroute debt를
+소모하거나 그 반대가 되는 일을 막습니다.
+
 선택적 owner assignment는 capability ID, Skill revision, policy state, target obligation ID,
 limit, subquestion, expected contribution, `canServe` basis를 묶습니다. Candidate나 owner
 invocation이 0개일 수 있습니다. 한 work scope에서 active invocation이 두 개일 수는
@@ -90,9 +95,13 @@ malformed policy는 fail closed하고 absence는 유효합니다. Material open�
 기록하지만 contribution을 admit하지 않습니다.
 
 Conclusion에서 모든 `branchResultId`는 Judgment에 전달되기 전에 exact current-branch
-call/result로 resolve됩니다. 선택적 owner settlement는 closed return variant 하나로
+call/result로 resolve됩니다. Adapter는 model continuation마다 current successful handle을
+제공하고, user-decision nomination을 active branch의 최신 user event에 연결하며, 같은
+branch identity의 반복 observation을 dedupe하고, ID와 hash는 바꾸지 않은 채 prose
+boundary만 trim합니다. 선택적 owner settlement는 closed return variant 하나로
 parse됩니다. Judgment output은 candidate support가 되며 frame은 contribution admit과
-obligation discharge를 여전히 명시적으로 해야 합니다.
+obligation discharge를 여전히 명시적으로 해야 합니다. 각 discharge는 그 obligation을
+실제로 target한 contribution만 인용합니다.
 
 Outcome에 context가 더 필요하거나 dependency가 생기면 current blocker identity와 함께
 frame이 열린 채로 남습니다. Resolve되면 conclusion proposal은 frame revision, discharge
@@ -100,13 +109,22 @@ ID, stop evidence, exact empty blocker set을 묶어야 합니다.
 
 ## Authorization, landing, debt
 
-Authorization은 exact current frame conclusion을 검증해 process-local 값 하나를 만듭니다.
-Structural clone과 serialized copy에는 mutation authority가 없습니다.
+Authorization은 replay-current conclusion을 직접 사용하므로 model이 frame ID를
+복사하거나 conclusion hash를 계산하지 않습니다. 이때 Git workspace baseline을 잡고
+process-local 값 하나를 만듭니다. Structural clone, serialized copy, baseline 없이
+재시작한 process에는 mutation authority가 없습니다. 이 시점 전에는 built-in shell과
+artifact mutation이 닫혀 있습니다.
 
-Landing은 그 authorization을 검증하고 sorted changed path와 verification observation을
-저장하며 mutation authority를 소모하고 서로 다른 reroute/verification frame ID를
-만듭니다. 해당 Route conclusion이 debt를 따로 해소합니다. Authorization, invocation,
-frame, landing debt가 active이면 scope closure는 거부됩니다.
+Landing은 current Git workspace를 관찰해 기존 dirty state와 authorized delta를 분리하고,
+reported path가 그 delta와 정확히 일치해야만 허용합니다. 그 뒤 sorted changed path와
+verification observation을 저장하고 mutation authority를 소모하며 서로 다른
+reroute/verification frame ID를 만듭니다. Purpose-bound Route conclusion이 두 debt를
+따로 해소합니다. Authorization, invocation, frame, landing debt가 active이면 scope
+closure는 거부됩니다.
+
+이 보장은 fail-closed settlement observation이지 운영체제 sandbox가 아닙니다. 인식하지
+못한 third-party tool과 out-of-process write는 엄격한 provider-neutral prevention 범위
+밖에 있습니다.
 
 ## Replay와 interruption
 
@@ -123,6 +141,19 @@ parse envelope
 Full-batch preflight가 append 전에 모든 event를 예측합니다. Append는 prefix-safe합니다.
 Persistence가 중간에 멈추면 `finally`에서 reconstruct하고, 저장된 prefix만 accept하며
 존재하지 않는 suffix를 만들지 않습니다.
+
+## Machine truth, model control, human progress
+
+Developer는 세 projection을 분리합니다.
+
+- persisted v8 event와 raw receipt는 machine/audit truth입니다.
+- continuation마다 숨겨서 주는 state, required purpose, next operation, current evidence
+  handle은 model-control data입니다.
+- `/developer`, `/developer status`, widget, custom tool renderer는 기본 화면에서 hash나
+  opaque ID 없이 간결한 human progress를 보여 줍니다.
+
+Overlay에서 `d`를 누르면 audit receipt를 볼 수 있습니다. Human view에는 transition
+권한이 없습니다.
 
 ## Evaluator용 tool-result summary
 
@@ -150,8 +181,8 @@ cursor는 opaque하고 projection-bound입니다.
 
 Refresh coordinator는 최신 successful requested revision만 publish합니다. `Refreshing`,
 unavailable, failed-latest, stale publication, stale cursor, stale page, clone 값은 이전
-current data를 노출하지 않습니다. Receipt TUI는 exact verified page 하나만 읽고
-transition이나 persistence operation을 갖지 않습니다.
+current data를 노출하지 않습니다. Receipt TUI의 audit mode는 exact verified page 하나만 읽고 transition이나 persistence
+operation을 갖지 않습니다. 기본 overlay는 간결한 progress view입니다.
 
 ## Reload
 

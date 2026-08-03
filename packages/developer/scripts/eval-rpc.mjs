@@ -266,9 +266,9 @@ try {
 					event.type === "extension_ui_request" &&
 					event.method === "setStatus" &&
 					event.statusKey === "developer" &&
-					String(event.statusText).includes("developer v8 · receipts 1"),
+					String(event.statusText).includes("Developer · Deciding"),
 			),
-		"Expected /developer on to publish receipt-derived status",
+		"Expected /developer on to publish human progress status",
 	);
 	process.stdout.write(
 		`RPC smoke: command, skills, and v8 activation are available on Pi ${piVersion}\n`,
@@ -282,10 +282,10 @@ try {
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "notify" &&
-				String(event.message).includes("Developer v8 receipts 1-1 of 1"),
+				String(event.message).includes("Developer · Deciding"),
 		);
-	assert.ok(enabledStatus, "Expected exact-current receipt status output");
-	assert.match(String(enabledStatus.message), /projection [a-f0-9]{64}/u);
+	assert.ok(enabledStatus, "Expected current human progress output");
+	assert.doesNotMatch(String(enabledStatus.message), /[a-f0-9]{64}/u);
 
 	const disabledStart = events.length;
 	await command("/developer off");
@@ -308,9 +308,9 @@ try {
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "notify" &&
-				String(event.message).includes("Developer v8 receipts 1-2 of 2"),
+				String(event.message).includes("Developer · Off"),
 		);
-	assert.ok(closedStatus, "Expected closed-scope receipt status output");
+	assert.ok(closedStatus, "Expected closed-scope progress output");
 	await command("/developer on");
 	process.stdout.write(
 		`RPC smoke: v8 scope closure and receipt observation are available on Pi ${piVersion}\n`,

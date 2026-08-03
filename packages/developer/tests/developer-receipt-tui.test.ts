@@ -9,6 +9,9 @@ import { jsonValueFromUnknown } from "@hobin/judgment";
 import {
 	DEVELOPER_RECEIPT_KIND_LABELS,
 	createDeveloperReceiptSurface,
+	developerProgressMessage,
+	developerProgressStatus,
+	developerProgressWidgetLines,
 	developerReceiptStatus,
 	developerReceiptSummary,
 	developerReceiptViewMessage,
@@ -185,6 +188,62 @@ test("receipt view exposes only an exact current bounded page", () => {
 	assert.match(
 		developerReceiptWidgetLines({ view: first, maxLines: 3 }).at(-1) ?? "",
 		/more on this page/u,
+	);
+});
+
+test("progress is the compact bilingual default while audit receipts stay opt-in", () => {
+	const head = publish({
+		suffix: "progress",
+		projection: projection({ suffix: "progress", supportCount: 2 }),
+	});
+	const progress = {
+		phase: "verifying" as const,
+		language: "en" as const,
+		completed: ["Decision concluded", "Change recorded"],
+		next: "Run repository checks",
+	};
+	assert.equal(developerProgressStatus(progress), "Developer · Verifying");
+	assert.match(
+		developerProgressMessage(progress),
+		/Next: Run repository checks/u,
+	);
+	assert.deepEqual(developerProgressWidgetLines({ progress, maxLines: 3 }), [
+		"Developer · Verifying",
+		"✓ Change recorded",
+		"→ Run repository checks",
+	]);
+	const korean = {
+		...progress,
+		language: "ko" as const,
+		next: "저장소 검사를 실행하세요",
+	};
+	assert.equal(developerProgressStatus(korean), "Developer · 검증 중");
+	assert.match(
+		developerProgressMessage(korean),
+		/다음: 저장소 검사를 실행하세요/u,
+	);
+
+	const copies: string[] = [];
+	const surface = createDeveloperReceiptSurface({
+		readCurrent: read(head),
+		readProgress: () => progress,
+		theme,
+		done() {},
+		requestRender() {},
+		copy: (text) => copies.push(text),
+	});
+	const defaultView = surface
+		.render({ width: 80, maximumHeight: 12 })
+		.join("\n");
+	assert.match(defaultView, /Verifying/u);
+	assert.match(defaultView, /Run repository checks/u);
+	assert.doesNotMatch(defaultView, /projection|[a-f0-9]{64}/u);
+	surface.handleInput("y");
+	assert.match(copies.at(-1) ?? "", /Developer · Verifying/u);
+	surface.handleInput("d");
+	assert.match(
+		surface.render({ width: 80, maximumHeight: 12 }).join("\n"),
+		/receipts 1-3 of 3/u,
 	);
 });
 

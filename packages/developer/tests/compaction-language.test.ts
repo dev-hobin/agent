@@ -165,4 +165,12 @@ test("malformed persisted events and identifiers fail closed", () => {
 		() => languageObserved("not a language"),
 		/Invalid language tag/,
 	);
+	assert.throws(
+		() =>
+			applyCompactionLanguageEvent(
+				initialCompactionLanguageState(),
+				{ kind: "unsupported" } as never,
+			),
+		/Unsupported compaction-language event/u,
+	);
 });

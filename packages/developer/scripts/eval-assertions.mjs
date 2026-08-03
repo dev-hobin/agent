@@ -57,7 +57,6 @@ function conclusionText(conclusion) {
 		outcome: conclusion.args.outcome,
 		reason: conclusion.args.not_applicable_reason,
 		basis: conclusion.args.not_applicable_basis,
-		artifacts: conclusion.args.produced_artifacts,
 	});
 }
 
@@ -71,13 +70,11 @@ export function assertAgentBeforeImplementationResolution(fixture, executions) {
 		needsEvidenceIndex >= 0,
 		fixture.id + ": no agent-owned needs-evidence frame was recorded",
 	);
-	const frameId = executions[needsEvidenceIndex].args.judgment_id;
 	const resolutionOffset = executions
 		.slice(needsEvidenceIndex + 1)
 		.findIndex(
 			(event) =>
 				event.toolName === CONCLUDE_JUDGMENT_TOOL &&
-				event.args.judgment_id === frameId &&
 				(event.args.outcome?.kind === "contextual-judgment" ||
 					event.args.disposition === "not-applicable"),
 		);
@@ -87,12 +84,12 @@ export function assertAgentBeforeImplementationResolution(fixture, executions) {
 	);
 	const resolutionIndex = needsEvidenceIndex + 1 + resolutionOffset;
 
-	if (fixture.requiresJudgmentBashEvidence) {
+	if (fixture.requiresJudgmentReadEvidence) {
 		assert.ok(
 			executions
 				.slice(needsEvidenceIndex + 1, resolutionIndex)
-				.some((event) => event.toolName === "bash"),
-			fixture.id + ": the open evidence frame did not run bash",
+				.some((event) => event.toolName === "read"),
+			fixture.id + ": the open evidence frame did not read its target",
 		);
 	}
 	assert.ok(

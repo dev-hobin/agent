@@ -12,6 +12,8 @@ import { sha256 } from "@hobin/judgment";
 
 import {
 	contextFailureWithBranchIdentities,
+	developerErrorMessage,
+	normalizeConcludeJudgmentData,
 	requiredContextFields,
 	resolveModelContextNominations,
 	type ConcludeJudgmentData,
@@ -221,11 +223,18 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 	assert.equal(h.activeTools().includes(OPEN_JUDGMENT_TOOL), true);
 	assert.equal(h.activeTools().includes("bash"), false);
 	assert.equal(h.activeTools().includes("edit"), false);
-	assert.equal(h.statuses.at(-1)?.value, "developer v8 · receipts 1");
-	assert.match(JSON.stringify(h.widgets.at(-1)?.value), /receipts 1-1 of 1/u);
+	assert.equal(h.statuses.at(-1)?.value, "Developer · Deciding");
+	assert.match(
+		JSON.stringify(h.widgets.at(-1)?.value),
+		/Open a decision for the current question/u,
+	);
+	assert.doesNotMatch(JSON.stringify(h.widgets.at(-1)?.value), /[a-f0-9]{64}/u);
 	const beforeStatus = h.entries.length;
 	await h.commands.get("developer").handler("status", h.ctx);
-	assert.match(h.notifications.at(-1) ?? "", /receipts 1-1 of 1/u);
+	assert.match(
+		h.notifications.at(-1) ?? "",
+		/Next: Open a decision for the current question/u,
+	);
 	assert.equal(h.entries.length, beforeStatus);
 
 	const beforeOldCall = h.entries.length;
@@ -247,6 +256,7 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 	const opened = await h.tools.get(OPEN_JUDGMENT_TOOL).execute(
 		"call-zero-open",
 		{
+			purpose: "work-decision",
 			route_definition_id: "route:implementation-shaping",
 			question: "What exact zero-Skill change should be shaped?",
 			obligations: [
@@ -266,21 +276,19 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 		reroutePending: false,
 		verificationPending: false,
 	});
-	assert.equal(h.activeTools().includes("bash"), true);
+	assert.equal(h.activeTools().includes("bash"), false);
 	assert.equal(h.activeTools().includes("edit"), false);
 	assert.equal(h.activeTools().includes(CONCLUDE_JUDGMENT_TOOL), true);
 
 	const frameId = currentRuntime(h).activeScope?.state.frames[0]?.frame.frameId;
 	assert.ok(frameId);
-	await h.tools.get(CONCLUDE_JUDGMENT_TOOL).execute(
+	const conclusionResult = await h.tools.get(CONCLUDE_JUDGMENT_TOOL).execute(
 		"call-zero-conclude",
 		{
-			judgment_id: frameId,
 			disposition: "not-applicable",
 			not_applicable_reason:
 				"The exact negative result resolves this bounded frame.",
 			not_applicable_basis: ["The explicit current requirement is sufficient."],
-			produced_artifacts: [],
 		},
 		undefined,
 		undefined,
@@ -289,12 +297,17 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 	const concluded = currentRuntime(h);
 	const frame = concluded.activeScope?.state.frames[0];
 	assert.ok(frame?.conclusion);
+	assert.equal(conclusionResult.details.nextAction, AUTHORIZE_CHANGE_TOOL);
+	assert.equal(
+		conclusionResult.content[0].text.includes(
+			frame.conclusion.conclusionSha256,
+		),
+		false,
+	);
 	assert.equal(h.activeTools().includes(AUTHORIZE_CHANGE_TOOL), true);
 	const authorized = await h.tools.get(AUTHORIZE_CHANGE_TOOL).execute(
 		"call-zero-authorize",
 		{
-			frame_id: frame.frame.frameId,
-			conclusion_sha256: frame.conclusion.conclusionSha256,
 			movement: "Apply the bounded zero-Skill change.",
 			stable_landing: "The bounded files remain stable.",
 			verification_target: "Focused checks pass.",
@@ -303,7 +316,11 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 		undefined,
 		h.ctx,
 	);
-	assert.match(authorized.content[0].text, /Authorization ID/u);
+	assert.equal(
+		authorized.content[0].text,
+		"Change authorized. Built-in mutation tools are available for this bounded landing.",
+	);
+	assert.equal(authorized.details.nextAction, RECORD_LANDING_TOOL);
 	assert.deepEqual(authorized.details.runtime, {
 		state: "authorized",
 		reroutePending: false,
@@ -315,7 +332,6 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 	const landingResult = await h.tools.get(RECORD_LANDING_TOOL).execute(
 		"call-zero-landing",
 		{
-			authorization_id: active.authorizationId,
 			changed_paths: ["packages/developer/zero.ts"],
 			result: "The zero-Skill change landed.",
 			verification: ["focused check passed"],
@@ -340,6 +356,7 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 	await h.tools.get(OPEN_JUDGMENT_TOOL).execute(
 		"call-reroute-open",
 		{
+			purpose: "reroute-decision",
 			route_definition_id: "route:change-timing",
 			question: "What work belongs next after the landing?",
 			obligations: [
@@ -361,11 +378,9 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 	const rerouteResult = await h.tools.get(CONCLUDE_JUDGMENT_TOOL).execute(
 		"call-reroute-conclude",
 		{
-			judgment_id: rerouteDebt.rerouteFrameId,
 			disposition: "not-applicable",
 			not_applicable_reason: "No additional implementation route is required.",
 			not_applicable_basis: ["The landing is already bounded."],
-			produced_artifacts: [],
 		},
 		undefined,
 		undefined,
@@ -381,6 +396,7 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 	await h.tools.get(OPEN_JUDGMENT_TOOL).execute(
 		"call-verification-open",
 		{
+			purpose: "verification-decision",
 			route_definition_id: "route:claim-evidence-assessment",
 			question: "What does the landing evidence support?",
 			obligations: [
@@ -397,11 +413,9 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 	const verificationResult = await h.tools.get(CONCLUDE_JUDGMENT_TOOL).execute(
 		"call-verification-conclude",
 		{
-			judgment_id: rerouteDebt.verificationFrameId,
 			disposition: "not-applicable",
 			not_applicable_reason: "The focused landing evidence is sufficient.",
 			not_applicable_basis: ["The recorded focused check is current."],
-			produced_artifacts: [],
 		},
 		undefined,
 		undefined,
@@ -426,6 +440,49 @@ test("the default extension cuts activation and zero-Skill work over to v8-only 
 	);
 });
 
+test("current successful evidence handles are injected silently before every model continuation", async () => {
+	const h = harness();
+	await start(h);
+	const toolCallId = "call-current-evidence-read";
+	h.addBranchEntry({
+		id: "assistant-current-evidence",
+		type: "message",
+		message: {
+			role: "assistant",
+			content: [
+				{
+					type: "toolCall",
+					id: toolCallId,
+					name: "read",
+					arguments: { path: "src/order-total.js" },
+				},
+			],
+		},
+	});
+	h.addBranchEntry({
+		id: "result-current-evidence",
+		type: "message",
+		message: {
+			role: "toolResult",
+			toolCallId,
+			toolName: "read",
+			isError: false,
+			content: [{ type: "text", text: "current source" }],
+		},
+	});
+	const projected = (await h.emit("context", { messages: [] })) as {
+		messages: Array<Record<string, unknown>>;
+	};
+	const control = projected.messages.at(-1);
+	assert.equal(control?.customType, "developer.model-control");
+	assert.equal(control?.display, false);
+	assert.match(
+		JSON.stringify(control),
+		new RegExp(`branch-result-${sha256(toolCallId).slice(0, 16)}`, "u"),
+	);
+	assert.match(JSON.stringify(control), /Never make a failing probe/u);
+});
+
 test("the bare TUI command opens only the current receipt overlay", async () => {
 	const h = harness();
 	await start(h);
@@ -446,17 +503,29 @@ test("one owner is routed and invoked while additional Skills remain material co
 	const opened = await h.tools.get(OPEN_JUDGMENT_TOOL).execute(
 		"call-owner-open",
 		{
+			purpose: "work-decision",
 			route_definition_id: "route:claim-evidence-assessment",
 			question: "What claim does current owner evidence support?",
 			obligations: [
 				{
-					obligation_id: "obligation:owner-v8",
+					obligation_id: "obligation:owner-v8-a",
 					statement: "The claim is bounded by current evidence.",
+				},
+				{
+					obligation_id: "obligation:owner-v8-b",
+					statement: "Residual risk remains explicit.",
+				},
+				{
+					obligation_id: "obligation:owner-v8-c",
+					statement: "The root judgment retains an independent workflow constraint.",
 				},
 			],
 			owner_skill: {
 				skill_name: "verify",
-				target_obligation_ids: ["obligation:owner-v8"],
+				target_obligation_ids: [
+					"obligation:owner-v8-b",
+					"obligation:owner-v8-a",
+				],
 				subquestion: "What does the current evidence support?",
 				expected_contribution: "A bounded claim and residual risk.",
 				limitations: ["Contribution-only authority."],
@@ -469,13 +538,16 @@ test("one owner is routed and invoked while additional Skills remain material co
 	assert.match(opened.content[0].text, /Verify/u);
 	const runtime = currentRuntime(h);
 	assert.equal(runtime.activeScope?.state.assignments.length, 1);
+	assert.deepEqual(
+		runtime.activeScope?.state.assignments[0]?.assignment.targetObligationIds,
+		["obligation:owner-v8-a", "obligation:owner-v8-b"],
+	);
 	assert.ok(runtime.activeScope?.state.activeInvocation);
 	const frameId = runtime.activeScope?.state.frames[0]?.frame.frameId;
 	assert.ok(frameId);
 	await h.tools.get(CONCLUDE_JUDGMENT_TOOL).execute(
 		"call-owner-needs-context",
 		{
-			judgment_id: frameId,
 			disposition: "judgment",
 			applicability: {
 				kind: "applicable",
@@ -516,7 +588,6 @@ test("one owner is routed and invoked while additional Skills remain material co
 	await h.tools.get(OPEN_CONTEXT_SOURCES_TOOL).execute(
 		"call-owner-context",
 		{
-			judgment_id: runtime.activeScope?.state.frames[0]?.frame.frameId,
 			inventory_source_ids: [sourceId],
 		},
 		undefined,
@@ -531,7 +602,7 @@ test("one owner is routed and invoked while additional Skills remain material co
 		true,
 	);
 	h.addBranchEntry({
-		id: "user-event-v8-owner",
+		id: "019fc8cf-0c9e-7993-ae53-e5eee5fc3f31",
 		type: "message",
 		message: {
 			role: "user",
@@ -541,7 +612,6 @@ test("one owner is routed and invoked while additional Skills remain material co
 	await h.tools.get(CONCLUDE_JUDGMENT_TOOL).execute(
 		"call-owner-contextual",
 		{
-			judgment_id: frameId,
 			disposition: "judgment",
 			applicability: {
 				kind: "applicable",
@@ -551,7 +621,10 @@ test("one owner is routed and invoked while additional Skills remain material co
 				{
 					nominationId: "owner-evidence-boundary",
 					kind: "user-decision",
-					userEventId: "user-event-v8-owner",
+				},
+				{
+					nominationId: "owner-evidence-boundary-alias",
+					kind: "user-decision",
 				},
 			],
 			selection_basis: ["The current user event bounds the claim."],
@@ -563,7 +636,6 @@ test("one owner is routed and invoked while additional Skills remain material co
 						useAs: "decision",
 						contribution: "The claim must remain bounded by current evidence.",
 						assurance: "user-accepted",
-						userEventId: "user-event-v8-owner",
 					},
 				],
 				conflicts: [],
@@ -582,7 +654,6 @@ test("one owner is routed and invoked while additional Skills remain material co
 				artifact: "Current evidence supports only the bounded owner claim.",
 				stopEvidence: ["The claim has an explicit evidence owner."],
 			},
-			produced_artifacts: [],
 		},
 		undefined,
 		undefined,
@@ -609,6 +680,7 @@ test("an interrupted batch reconstructs its accepted prefix before returning the
 			h.tools.get(OPEN_JUDGMENT_TOOL).execute(
 				"call-interrupted-open",
 				{
+					purpose: "work-decision",
 					route_definition_id: "route:claim-evidence-assessment",
 					question: "What prefix survives an interrupted append?",
 					obligations: [
@@ -646,6 +718,7 @@ test("deactivation cancels an active owner, closes its scope, and re-enable open
 	await h.tools.get(OPEN_JUDGMENT_TOOL).execute(
 		"call-off-open",
 		{
+			purpose: "work-decision",
 			route_definition_id: "route:claim-evidence-assessment",
 			question: "What must deactivation preserve?",
 			obligations: [
@@ -681,9 +754,142 @@ test("deactivation cancels an active owner, closes its scope, and re-enable open
 	assert.notEqual(reopened.activeScope.workScopeId, firstScopeId);
 });
 
+test("zero-Skill conclusions reject unsupported summaries and admit nominated tool evidence", async () => {
+	const h = harness();
+	await start(h);
+	await h.tools.get(OPEN_JUDGMENT_TOOL).execute(
+		"call-zero-evidence-open",
+		{
+			purpose: "work-decision",
+			route_definition_id: "route:claim-evidence-assessment",
+			question: "What does the current check support?",
+			obligations: [
+				{
+					obligation_id: "obligation:zero-evidence",
+					statement: "The conclusion cites current evidence.",
+				},
+			],
+		},
+		undefined,
+		undefined,
+		h.ctx,
+	);
+	const unsupported = {
+		disposition: "judgment",
+		applicability: {
+			kind: "applicable",
+			basis: ["The current check is relevant."],
+		},
+		nominations: [],
+		selection_basis: ["Use only current evidence."],
+		coverage: {
+			status: "sufficient",
+			contributions: [],
+			conflicts: [],
+			limitations: [],
+		},
+		outcome: {
+			kind: "contextual-judgment",
+			citedUses: [],
+			rationale: "The check is claimed to support the result.",
+			artifact: "The check passed.",
+			stopEvidence: ["A current check exists."],
+		},
+	};
+	await assert.rejects(
+		() =>
+			h.tools
+				.get(CONCLUDE_JUDGMENT_TOOL)
+				.execute(
+					"call-zero-evidence-unsupported",
+					unsupported,
+					undefined,
+					undefined,
+					h.ctx,
+				),
+		/sufficient coverage requires at least one admitted contribution/iu,
+	);
+	assert.equal(
+		currentRuntime(h).activeScope?.state.frames.at(-1)?.conclusion,
+		null,
+	);
+
+	const toolCallId = "call-zero-evidence-check";
+	h.addBranchEntry({
+		id: "assistant-zero-evidence-check",
+		type: "message",
+		message: {
+			role: "assistant",
+			content: [
+				{
+					type: "toolCall",
+					id: toolCallId,
+					name: "bash",
+					arguments: { command: "npm test" },
+				},
+			],
+		},
+	});
+	h.addBranchEntry({
+		id: "result-zero-evidence-check",
+		type: "message",
+		message: {
+			role: "toolResult",
+			toolCallId,
+			toolName: "bash",
+			isError: false,
+			content: [{ type: "text", text: "7 tests passed" }],
+		},
+	});
+	const branchResultId = `branch-result-${sha256(toolCallId).slice(0, 16)}`;
+	await h.tools.get(CONCLUDE_JUDGMENT_TOOL).execute(
+		"call-zero-evidence-supported",
+		{
+			...unsupported,
+			nominations: [
+				{
+					nominationId: "current-test-run",
+					kind: "tool-result",
+					branchResultId,
+				},
+			],
+			coverage: {
+				status: "sufficient",
+				contributions: [
+					{
+						nominationId: "current-test-run",
+						useAs: "evidence",
+						contribution: "The focused suite reports seven passing tests.",
+						assurance: "agent-asserted",
+					},
+				],
+				conflicts: [],
+				limitations: [],
+			},
+			outcome: {
+				kind: "contextual-judgment",
+				citedUses: [
+					{
+						contributionIndex: 0,
+						artifactEffect: "The conclusion is limited to the focused suite.",
+					},
+				],
+				rationale: "The nominated current run supports the bounded claim.",
+				artifact: "The focused suite passes seven tests.",
+				stopEvidence: ["The nominated current test run is admitted."],
+			},
+		},
+		undefined,
+		undefined,
+		h.ctx,
+	);
+	const concluded = currentRuntime(h).activeScope?.state.frames.at(-1);
+	assert.ok(concluded?.conclusion);
+	assert.ok((concluded?.contributions.length ?? 0) >= 1);
+});
+
 test("neutral conclusion boundary preserves required fields and exact branch aliases", () => {
 	const complete: ConcludeJudgmentData = {
-		judgment_id: "judgment:conclusion-boundary",
 		disposition: "judgment",
 		applicability: {
 			kind: "applicable",
@@ -710,6 +916,22 @@ test("neutral conclusion boundary preserves required fields and exact branch ali
 	};
 	const fields = requiredContextFields(complete);
 	assert.equal(fields.applicability.kind, "applicable");
+	const normalized = normalizeConcludeJudgmentData({
+		...complete,
+		selection_basis: ["Current evidence is sufficient. "],
+		outcome: {
+			kind: "needs-evidence",
+			evidenceNeeded: ["Read the exact branch result. "],
+			resolutionOwner: "agent",
+		},
+	});
+	assert.deepEqual(normalized.selection_basis, ["Current evidence is sufficient."]);
+	assert.deepEqual(
+		normalized.outcome?.kind === "needs-evidence"
+			? normalized.outcome.evidenceNeeded
+			: [],
+		["Read the exact branch result."],
+	);
 	assert.deepEqual(fields.nominations, []);
 	assert.throws(
 		() =>
@@ -730,6 +952,14 @@ test("neutral conclusion boundary preserves required fields and exact branch ali
 
 	const toolCallId = "call-neutral-conclusion-read";
 	const branch = [
+		{
+			id: "event:user",
+			type: "message",
+			message: {
+				role: "user",
+				content: "Use the current branch evidence.",
+			},
+		},
 		{
 			id: "assistant-tool-call",
 			type: "message",
@@ -769,7 +999,6 @@ test("neutral conclusion boundary preserves required fields and exact branch ali
 			{
 				nominationId: "user-nomination",
 				kind: "user-decision",
-				userEventId: "event:user",
 			},
 			{
 				nominationId: "tool-nomination",
@@ -806,7 +1035,83 @@ test("neutral conclusion boundary preserves required fields and exact branch ali
 			error: new Error("context failed"),
 			branch,
 		}),
-		new RegExp(`${branchResultId} · read · success`, "u"),
+		new RegExp(`${branchResultId} · read`, "u"),
+	);
+	assert.equal(
+		developerErrorMessage({ message: "structured context failure" }),
+		"structured context failure",
+	);
+	assert.equal(
+		developerErrorMessage({ code: "invalid-context" }),
+		"Developer context failed (invalid-context).",
+	);
+	assert.notEqual(developerErrorMessage({}), "[object Object]");
+});
+
+test("a resumed active authorization fails closed without its process-local workspace baseline", async () => {
+	const first = harness();
+	await start(first);
+	await first.tools.get(OPEN_JUDGMENT_TOOL).execute(
+		"call-resume-authorization-open",
+		{
+			purpose: "work-decision",
+			route_definition_id: "route:implementation-shaping",
+			question: "What bounded change may be resumed?",
+			obligations: [
+				{
+					obligation_id: "obligation:resume-authorization",
+					statement: "The authorization remains restart-safe.",
+				},
+			],
+		},
+		undefined,
+		undefined,
+		first.ctx,
+	);
+	await first.tools.get(CONCLUDE_JUDGMENT_TOOL).execute(
+		"call-resume-authorization-conclude",
+		{
+			disposition: "not-applicable",
+			not_applicable_reason: "The bounded change is already explicit.",
+			not_applicable_basis: ["The current requirement supplies the boundary."],
+		},
+		undefined,
+		undefined,
+		first.ctx,
+	);
+	await first.tools.get(AUTHORIZE_CHANGE_TOOL).execute(
+		"call-resume-authorization-authorize",
+		{
+			movement: "Apply one bounded change.",
+			stable_landing: "The bounded path is recorded.",
+			verification_target: "The focused check passes.",
+		},
+		undefined,
+		undefined,
+		first.ctx,
+	);
+	assert.equal(first.activeTools().includes("edit"), true);
+
+	const resumed = harness(first.branch());
+	await developerV8(resumed.api);
+	await resumed.emit("session_start", { reason: "resume" });
+	assert.equal(resumed.statuses.at(-1)?.value, "Developer · Blocked");
+	assert.equal(resumed.activeTools().includes("edit"), false);
+	assert.equal(resumed.activeTools().includes("write"), false);
+	assert.equal(resumed.activeTools().includes("bash"), false);
+	await assert.rejects(
+		() =>
+			resumed.tools.get(RECORD_LANDING_TOOL).execute(
+				"call-resume-authorization-landing",
+				{
+					changed_paths: ["src/resumed.ts"],
+					result: "A resumed landing must fail closed.",
+				},
+				undefined,
+				undefined,
+				resumed.ctx,
+			),
+		/workspace baseline captured at authorization/iu,
 	);
 });
 
@@ -816,6 +1121,7 @@ test("reload reconciliation requires a safe marker and records only lifecycle ca
 	await first.tools.get(OPEN_JUDGMENT_TOOL).execute(
 		"call-reload-open",
 		{
+			purpose: "work-decision",
 			route_definition_id: "route:claim-evidence-assessment",
 			question: "What survives reload?",
 			obligations: [

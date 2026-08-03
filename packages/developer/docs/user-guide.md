@@ -45,8 +45,8 @@ You may still invoke an owning capability directly:
 
 | Command | Effect |
 | --- | --- |
-| `/developer` | Open the exact-current receipt overlay in TUI mode |
-| `/developer status` | Show the current receipt page and projection identity |
+| `/developer` | Open the compact progress overlay in TUI mode; press `d` for audit receipts |
+| `/developer status` | Show the current phase, completed milestones, and next user-relevant step |
 | `/developer questions` | Compatibility alias for the receipt summary |
 | `/developer settings` | Compatibility alias for the receipt summary |
 | `/developer on` | Open a work scope |
@@ -54,24 +54,27 @@ You may still invoke an owning capability directly:
 
 Pi's normal `/skill:<name>` commands remain available.
 
-## Receipt overlay
+## Progress and audit overlay
 
-The overlay is a read-only observer of accepted runtime receipts. It binds the
-projection that was current when opened and reads at most one bounded page at a
-time.
+The overlay is read-only. Its default progress view shows the current phase,
+completed milestones, and next user-relevant step without hashes, opaque IDs, or
+receipt inventory. Press `d` to enter audit mode. Audit mode binds the exact
+receipt projection that was current when opened and reads at most one bounded
+page at a time.
 
 | Key | Action |
 | --- | --- |
-| `↓`, Page Down, Enter | Read the next page through its opaque cursor |
-| `↑`, Page Up | Return through the exact retained previous cursor |
-| `g` | Return to the first page |
-| `r` | Re-read the current cursor |
-| `y` | Copy the complete semantic page text |
+| `d` | Switch between progress and audit details |
+| `↓`, Page Down, Enter | In audit mode, read the next page through its opaque cursor |
+| `↑`, Page Up | In audit mode, return through the exact retained previous cursor |
+| `g` | In audit mode, return to the first page |
+| `r` | Refresh progress or re-read the audit cursor |
+| `y` | Copy the current semantic view |
 | Escape | Close |
 
-If the projection changes while the overlay is open, it becomes unavailable;
-reopen it to bind the new projection. Height-limited rendering reports omitted
-receipt entries explicitly. Navigation and copy never append runtime events.
+If the projection changes while audit mode is open, refresh or reopen it to bind
+the new projection. Height-limited rendering reports omitted receipt entries
+explicitly. Navigation and copy never append runtime events.
 
 ## How a frame progresses
 
@@ -98,14 +101,19 @@ blocker identities.
 ## Implementation and verification
 
 A change authorization is valid only for one replay-current concluded frame and
-one bounded movement. Recording the landing consumes it and creates two distinct
-follow-up identities:
+one bounded movement. Built-in shell, edit, and write stay withheld until that
+authorization. Developer captures a Git baseline at authorization and requires
+the landing's reported paths to match the observed authorized delta exactly.
+Recording the landing consumes authority and creates two distinct follow-up
+identities:
 
-- the reroute frame decides what belongs next;
-- the verification frame decides what the landing evidence supports.
+- a `reroute-decision` frame decides what belongs next;
+- a `verification-decision` frame decides what the landing evidence supports.
 
-Both must conclude before another authorization is available. A passing command
-is evidence for only the claim it actually exercises.
+The required purpose is shown to the model before every continuation and the
+runtime rejects an out-of-order purpose. Both debts must conclude before another
+authorization is available. A passing command is evidence for only the claim it
+actually exercises.
 
 ## Branches, replay, and reload
 
