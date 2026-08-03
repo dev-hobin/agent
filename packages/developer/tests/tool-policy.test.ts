@@ -44,7 +44,7 @@ const implementationAccess = {
 	hasBeforeImplementationGate: false,
 };
 
-const protocol = "developer/v7";
+const protocol = "developer/v8";
 
 const lifecycleEntry = {
 	type: "custom",

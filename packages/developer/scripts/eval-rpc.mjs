@@ -14,7 +14,7 @@ import {
 import {
 	assertAllowedOutcome,
 	classifyEvalOutcome,
-	parseDeveloperStatus,
+	statusFromDeveloperEvents,
 } from "./eval-outcome.mjs";
 import { createEvalWorkspace } from "./eval-workspace.mjs";
 import { createJsonlDecoder } from "./jsonl.mjs";
@@ -214,19 +214,6 @@ async function command(message) {
 	assert.equal(response.success, true, response.error);
 }
 
-async function currentDeveloperStatus() {
-	const start = events.length;
-	await command("/developer status");
-	const notification = events
-		.slice(start)
-		.find(
-			(event) =>
-				event.type === "extension_ui_request" && event.method === "notify",
-		);
-	assert.ok(notification, "Expected /developer status notification");
-	return parseDeveloperStatus(notification.message);
-}
-
 try {
 	const commandsResponse = await send({ type: "get_commands" });
 	assert.equal(commandsResponse.success, true, commandsResponse.error);
@@ -279,12 +266,12 @@ try {
 					event.type === "extension_ui_request" &&
 					event.method === "setStatus" &&
 					event.statusKey === "developer" &&
-					String(event.statusText).includes("developer ·"),
+					String(event.statusText).includes("developer v8 · receipts 1"),
 			),
-		"Expected /developer on to publish branch-visible status",
+		"Expected /developer on to publish receipt-derived status",
 	);
-	console.log(
-		`RPC smoke: command, skills, and activation state are available on Pi ${piVersion}`,
+	process.stdout.write(
+		`RPC smoke: command, skills, and v8 activation are available on Pi ${piVersion}\n`,
 	);
 
 	const enabledStatusStart = events.length;
@@ -295,80 +282,38 @@ try {
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "notify" &&
-				String(event.message).includes("developer on ·"),
+				String(event.message).includes("Developer v8 receipts 1-1 of 1"),
 		);
-	assert.ok(enabledStatus, "Expected enabled status output");
-	for (const leaf of [
-		"specify",
-		"model",
-		"sketch",
-		"verify",
-		"adversarial-eval",
-	]) {
-		assert.ok(
-			String(enabledStatus.message).includes(leaf),
-			"Enabled status did not report the Pi-loaded leaf " + leaf,
-		);
-	}
-	const activeToolsLine = String(enabledStatus.message)
-		.split("\n")
-		.find((line) => line.startsWith("active tools: "));
-	assert.ok(activeToolsLine, "Enabled status did not include active tools");
-	const activeTools = new Set(
-		activeToolsLine.slice("active tools: ".length).split(", "),
-	);
-	for (const tool of [
-		"read",
-		"developer_open_judgment",
-		"developer_authorize_change",
-	]) {
-		assert.ok(
-			activeTools.has(tool),
-			"Enabled Developer did not expose " + tool,
-		);
-	}
-	for (const tool of ["grep", "find", "ls"]) {
-		assert.equal(
-			activeTools.has(tool),
-			false,
-			"Developer force-enabled user-disabled tool " + tool,
-		);
-	}
-	for (const tool of ["edit", "write", "bash"]) {
-		assert.equal(
-			activeTools.has(tool),
-			false,
-			"Enabled idle Developer exposed controlled tool " + tool,
-		);
-	}
+	assert.ok(enabledStatus, "Expected exact-current receipt status output");
+	assert.match(String(enabledStatus.message), /projection [a-f0-9]{64}/u);
+
+	const disabledStart = events.length;
 	await command("/developer off");
-	const disabledStatusStart = events.length;
+	assert.ok(
+		events
+			.slice(disabledStart)
+			.some(
+				(event) =>
+					event.type === "extension_ui_request" &&
+					event.method === "notify" &&
+					String(event.message).includes("Developer v8: off"),
+			),
+		"Expected Developer v8 scope closure output",
+	);
+	const closedStatusStart = events.length;
 	await command("/developer status");
-	const disabledStatus = events
-		.slice(disabledStatusStart)
+	const closedStatus = events
+		.slice(closedStatusStart)
 		.find(
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "notify" &&
-				String(event.message).includes("developer off ·"),
+				String(event.message).includes("Developer v8 receipts 1-2 of 2"),
 		);
-	assert.ok(disabledStatus, "Expected disabled status output");
-	const restoredLine = String(disabledStatus.message)
-		.split("\n")
-		.find((line) => line.startsWith("active tools: "));
-	assert.ok(restoredLine, "Disabled status did not include active tools");
-	const restoredTools = new Set(
-		restoredLine.slice("active tools: ".length).split(", "),
-	);
-	for (const tool of ["bash", "edit", "write"]) {
-		assert.ok(
-			restoredTools.has(tool),
-			"Disabling Developer did not restore " + tool,
-		);
-	}
+	assert.ok(closedStatus, "Expected closed-scope receipt status output");
 	await command("/developer on");
-	console.log(
-		`RPC smoke: protocol-bound active-tool gating is available on Pi ${piVersion}`,
+	process.stdout.write(
+		`RPC smoke: v8 scope closure and receipt observation are available on Pi ${piVersion}\n`,
 	);
 
 	if (live) {
@@ -401,19 +346,20 @@ try {
 					workspaceBefore,
 					await snapshotWorkspace(casePath),
 				);
-				const status = await currentDeveloperStatus();
+				const status = statusFromDeveloperEvents(executionTrace);
 				const outcome = classifyEvalOutcome({ changes, status });
 				assertAllowedOutcome(fixture, outcome);
-				console.log(
+				process.stdout.write(
 					"DEVELOPER_EVAL_RESULT " +
 						JSON.stringify({
 							fixtureId: fixture.id,
 							structuralValid: true,
 							outcome,
 							...traceSummary,
-						}),
+						}) +
+						"\n",
 				);
-				console.log(`Live eval passed: ${fixture.id} (${outcome})`);
+				process.stdout.write(`Live eval passed: ${fixture.id} (${outcome})\n`);
 			} catch (error) {
 				try {
 					await send({ type: "abort" }, 5000);

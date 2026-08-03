@@ -2,159 +2,178 @@
 
 English | [한국어](./ko/runtime-protocol.md)
 
-This document is for maintainers who change persisted `developer/v7` events or
-the five model-facing operations. User commands are described in the
+This document describes persisted `developer/v8` envelopes, the five
+model-facing operations, pure replay, non-authoritative result summaries, and
+receipt projection. User commands are described in the
 [user guide](./user-guide.md).
 
-## Why the protocol is split
+## Ownership and values
 
-Developer keeps semantic judgment, mutation permission, and landing records as
-different values. A model cannot put changed paths into a judgment conclusion or
-use a judgment ID where an authorization ID is required.
+Developer keeps these values distinct:
+
+```text
+DeveloperWorkScope  root lifetime and one active invocation limit
+RouteDefinition     stable sign and strong stable sense
+RouteFrame          exact revision, obligations, blockers, support, conclusion
+Skill               optional replaceable collaborator
+Judgment result     bounded candidate support
+Authorization       one replay-current implementation capability
+Landing             consumed authorization plus changed-path provenance
+Receipt             read-only projection of one accepted event
+```
+
+No ID is interchangeable with another and no source type self-promotes.
 
 ## The five operations
 
-| Operation | What it accepts | State change |
+| Operation | Accepted boundary | Runtime movement |
 | --- | --- | --- |
-| `developer_open_judgment` | One bundled Skill, one dynamic question, optional target PendingQuestion | Creates `ActiveJudgment` |
-| `developer_open_context_sources` | Active judgment ID and 1–16 exact Pi-visible Skill source IDs | Adds one atomic source batch to that judgment |
-| `developer_conclude_judgment` | Applicability, nominations, contributions, coverage, outcome, question updates | Records a completed judgment and clears it |
-| `developer_authorize_change` | Bounded movement, stable landing, verification target, optional boundary | Creates `AuthorizedChange` |
-| `developer_record_landing` | Active authorization ID and non-empty changed paths | Records the landing and creates reroute/verification obligations |
+| `developer_open_judgment` | Route definition, exact question, obligations, optional owner assignment | Opens a frame and optional routed Skill invocation |
+| `developer_open_context_sources` | Current frame ID and exact Pi-visible descriptor IDs | Observes one atomic material-support batch |
+| `developer_conclude_judgment` | Applicability, exact nominations, coverage, outcome, stop evidence | Settles the owner, admits support, discharges obligations, and concludes only when resolved |
+| `developer_authorize_change` | Current concluded frame and conclusion hash, bounded movement, stable landing, verification target | Creates one process-local root authorization |
+| `developer_record_landing` | Exact active authorization, non-empty changed paths, result and verification observations | Consumes authorization and creates reroute/verification debt |
 
-The pure state exposes only operations that are legal now:
+The root exposes only operations legal for the replay-current scope. Opening a
+context source or settling a Skill never grants file mutation.
 
-| Active state | Legal operation |
+## Envelope format
+
+Only a Pi custom entry whose type is `developer.runtime` enters runtime replay.
+Its data must be an exact canonical envelope:
+
+```text
+protocolVersion = developer/v8
+eventId
+workScopeId
+scopeSequence
+previousScopeEventSha256
+causalRefs[] = { workScopeId, eventId, eventSha256 }
+occurredAt
+event = { kind, payload }
+eventSha256
+```
+
+`scopeSequence` and the previous-event hash order one scope. `occurredAt` is
+stored for audit only. Canonical JSON identity is locale-independent and rejects
+unknown fields, unsafe numbers, oversized payloads, duplicate causal references,
+and hash drift before transition effects.
+
+## Event kinds
+
+The closed v8 event union has 18 kinds.
+
+| Group | Kinds |
 | --- | --- |
-| Disabled | Activation command only |
-| Idle | Open a judgment; authorize only when implementation gates are closed |
-| ActiveJudgment | Open context sources or conclude |
-| AuthorizedChange | Record landing |
-| After landing | Open the next judgment; no new mutation authority until obligations permit it |
+| Scope/root | `work-scope-opened`, `work-scope-closed`, `change-authorized`, `implementation-landing-recorded` |
+| Frame/routing | `route-frame-opened`, `route-frame-replaced`, `routing-snapshot-opened`, `routing-page-accounted`, `routing-coverage-completed`, `can-serve-basis-created` |
+| Skill lifecycle | `ready-assignment-recorded`, `skill-invocation-started`, `invocation-settled` |
+| Support/completion | `support-observed`, `frame-contribution-admitted`, `frame-blocker-resolved`, `obligation-discharged`, `route-frame-concluded` |
 
-`developerNextOperations` and `developerToolAccess` derive this projection from
-state. The extension does not maintain a second mutable registry.
+Every event is checked by the pure reducer. A semantically rejected envelope is
+not accepted merely because its bytes were stored.
 
-## Opening a judgment
+## Opening and routing a frame
 
-The extension resolves the selected Skill from the current Pi inventory, reads
-its method, and compiles its optional policy. The event binds:
+Developer resolves the stable Route independently of Skills, freezes a bounded
+ordered descriptor snapshot, and creates an exact frame revision. Routing pages
+must account for every candidate in the admitted snapshot before coverage can be
+complete.
 
-```text
-judgmentId
-Skill name and exact location
-question text
-optional target PendingQuestion
-optional compiled policy
-current branch identity
-known evidence
-```
+An optional owner assignment binds capability ID, Skill revision, policy state,
+target obligation IDs, limits, subquestion, expected contribution, and
+`canServe` basis. There may be zero candidates or zero owner invocations. There
+may never be two active invocations in one work scope.
 
-A Skill without `judgment.json` is valid and simply has no prepared references.
+## Context and Judgment
 
-## Opening external context sources
+Context-source opening acquires only selected Pi-visible descriptors and method
+content. A present malformed policy fails closed; absence is valid. Opening
+material records support identity but does not admit a contribution.
 
-This operation may be repeated while the same judgment is active. For every
-source ID, the extension:
+At conclusion, every `branchResultId` is resolved to an exact current-branch
+call/result before Judgment receives it. The optional owner settlement is parsed
+as one closed return variant. Judgment output becomes candidate support; the
+frame must still admit contributions and discharge obligations explicitly.
 
-1. resolves the current Pi descriptor;
-2. reads `SKILL.md` within the byte limit;
-3. loads a co-located policy if it exists;
-4. compiles that policy with the source's actual owner and root;
-5. computes descriptor and method-content identities.
+If the outcome needs more context or creates a dependency, the frame remains
+open with current blocker identity. If it resolves, the conclusion proposal must
+bind frame revision, discharge IDs, stop evidence, and the exact empty blocker
+set.
 
-All sources in one call succeed together. A duplicate, stale descriptor, unsafe
-path, oversized method, or malformed present policy rejects the whole call. A
-successful batch from an earlier call remains open.
+## Authorization, landing, and debt
 
-Opening a source does not claim that it applies. The model must first see the
-method and policy, then provide exactly one applicability assessment for every
-policy-bearing source during conclusion.
+Authorization verifies the exact current frame conclusion and produces one
+process-local value. Structural clones and serialized copies carry no mutation
+authority.
 
-## Concluding a judgment
+Landing verifies that authorization, stores sorted changed paths and verification
+observations, consumes mutation authority, and creates different reroute and
+verification frame IDs. The corresponding Route conclusions clear those debts
+separately. Scope closure is rejected while an authorization, invocation, frame,
+or landing debt remains active.
 
-At the model boundary, `branchResultId` is a compact reference to one current-
-branch Pi tool call. The extension resolves it to the exact call, arguments,
-result order, status, and content hash before the Judgment engine sees it.
+## Replay and interruption
 
-The conclusion path is:
-
-```text
-parse raw conclusion fields
--> recheck owning and external Skill descriptors
--> recheck policies and branch results
--> admit only applicable external providers
--> select and seal nominated content atomically
--> check a contribution for every usable member
--> create coverage and outcome
--> build DeveloperContextBasis
--> preview the pure Developer transition
--> append JudgmentConcluded
-```
-
-Nothing is appended if acquisition, sealing, coverage, outcome parsing, or the
-pure transition fails.
-
-A conclusion may resolve, defer, supersede, or create `PendingQuestion` values.
-Question owner, gate, and resolution criteria must match current state. A
-user-owned resolution that claims `user-accepted` assurance requires the exact
-branch-local user event.
-
-## Authorizing a change
-
-`developer_authorize_change` is accepted only when:
-
-- Developer is enabled and no work is active;
-- any target PendingQuestion exists;
-- no before-implementation question is unresolved;
-- rerouting and implementation-framing obligations are closed;
-- movement, stable landing, and verification target are non-empty; and
-- optional refinement or trusted-compiler boundaries parse as exact variants.
-
-The trusted-compiler boundary is a bounded evidence gap, not permission to cast
-arbitrary values.
-
-## Recording a landing
-
-`developer_record_landing` must reference the exact active authorization and at
-least one changed path. The transition stores the authorization and landing
-together, clears mutation authority, and sets:
+Replay examines only dedicated runtime entries in branch order:
 
 ```text
-rerouteRequired = true
-verificationRequired = true
+parse envelope
+-> verify per-scope sequence/hash head and causal references
+-> parse semantic event
+-> apply root/frame transition to a candidate accumulator
+-> accept the whole entry or retain the exact prior accumulator
 ```
 
-There is deliberately no `verified` flag on a landing.
+Full-batch preflight predicts every event before append. Append is still
+prefix-safe: if persistence stops midway, reconstruction runs in `finally` and
+accepts the stored prefix without pretending the suffix exists.
 
-## Replay and append order
+## Tool-result summary for evaluators
 
-Developer rebuilds state from current-branch custom entries:
+Each successful model-facing operation returns opaque event IDs plus one bounded
+plain summary:
 
 ```text
-identify Developer-owned entry
--> parse its exact event variant
--> apply the pure transition
--> keep accepted state or report a bounded replay issue
+protocol: developer/v8-result
+workScopeId: string | null
+eventIds: string[]
+runtime:
+  state: inactive | blocked | idle | frame | authorized
+  reroutePending: boolean
+  verificationPending: boolean
 ```
 
-The runtime follows parse -> derive evidence -> build event -> preview transition
--> append entry -> project tools/UI. It never publishes state before the session
-append succeeds.
+This serialized summary is not replay input, a receipt, or authority. Evaluators
+parse exact keys and may claim completion only for `idle` with both debt flags
+false. Missing or malformed matching details fail before outcome publication.
 
-### Unsupported v6 history
+## Receipts and latest-only publication
 
-`developer/v6` entries are recognized only so the extension can report them.
-They are not translated into v7 because old route, guidance, judgment, mutation,
-and landing values do not map one-to-one to the current authorities.
+Only replay-accepted opaque events can produce the corresponding 18 receipt
+kinds. Projection and page identities are canonical and process-local. Page size
+is capped at 100; cursors are opaque and projection-bound.
+
+The refresh coordinator publishes only the latest successful requested revision.
+`Refreshing`, unavailable, failed-latest, stale publication, stale cursor, stale
+page, and cloned values expose no prior-current data. The receipt TUI reads one
+exact verified page and has no transition or persistence operation.
+
+## Reload
+
+Safe reload records only uncertain lifecycle cancellation for a current active
+invocation. It never replays an effect or fabricates provider failure. Without a
+safe lifecycle marker, Developer requests restart and writes nothing.
 
 ## Review checklist
 
-- Does each raw variant reject unknown fields?
-- Can only currently legal operations be called?
-- Are selected files and branch results reacquired before append?
-- Can a judgment mutate artifacts? It must not.
-- Can a landing avoid verification debt? It must not.
-- Are external source batches all-or-nothing?
-- Does replay reject stale, conflicting, and sibling-branch identities?
-- Does hot reload restore only Developer's own tool delta?
+- Is `developer.runtime` the only persistence entry point?
+- Does every raw envelope and semantic variant reject unknown fields?
+- Does scope sequence, not timestamp, determine order?
+- Can a candidate affect obligations before frame-local admission? It must not.
+- Can a child conclusion close its parent? It must not.
+- Does replacement clear prior frame authority?
+- Can landing bypass either debt? It must not.
+- Can cloned reconstruction, authorization, projection, cursor, or page values be used? They must fail closed.
+- Can the evaluator treat missing v8 result details as idle? It must not.
+- Can the receipt observer route, mutate, or persist? It must not.

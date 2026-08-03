@@ -50,7 +50,7 @@ function missing(error) {
 
 const manifest = await readJson(join(root, "package.json"), "package manifest");
 assert.equal(manifest.name, "@hobin/developer");
-assert.equal(manifest.version, "0.1.17");
+assert.equal(manifest.version, "0.1.18");
 assert.equal(manifest.private, undefined);
 assert.deepEqual(manifest.files, [
 	"extensions",
@@ -226,16 +226,18 @@ const koreanReadme = await readFile(join(root, "README.ko.md"), "utf8");
 for (const path of documentedGuides.map((name) => `docs/ko/${name}`))
 	assert.match(koreanReadme, new RegExp(path.replaceAll("/", "\\/"), "u"));
 assert.match(readme, /Try this first/u);
-assert.match(readme, /External Skill context/u);
+assert.match(readme, /RouteDefinition/u);
+assert.match(readme, /Receipt observer/u);
 
 const howItWorks = await readFile(join(root, "docs/how-it-works.md"), "utf8");
 for (const term of [
-	"Branch events, not a mutable singleton",
-	"State projects the next operations and tool access",
-	"A Skill owns a question",
-	"Authorization is a capability",
-	"Landing consumes authorization",
-	"Verify is a separate judgment",
+	"Stable Routes and dynamic frames",
+	"Descriptor-first routing",
+	"Skill returns are candidates",
+	"Frame completion is reducer-guarded",
+	"Authorization and landing are root capabilities",
+	"Runtime history is one exact v8 chain",
+	"Receipts are the only TUI data source",
 ])
 	assert.match(howItWorks, new RegExp(term, "u"));
 
@@ -244,94 +246,143 @@ const runtimeProtocol = await readFile(
 	"utf8",
 );
 for (const term of [
-	"developer/v7",
+	"developer/v8",
+	"developer.runtime",
+	"RouteDefinition",
+	"RouteFrame",
 	"developer_open_judgment",
 	"developer_open_context_sources",
 	"developer_conclude_judgment",
 	"developer_authorize_change",
 	"developer_record_landing",
 	"branchResultId",
-	"Unsupported v6",
+	"scopeSequence",
+	"receipt",
 ])
 	assert.match(runtimeProtocol, new RegExp(term, "u"));
 
-const extension = await readFile(join(root, "extensions/developer.ts"), "utf8");
-for (const toolName of [
-	"developer_open_judgment",
-	"developer_conclude_judgment",
-	"developer_authorize_change",
-	"developer_record_landing",
+const entrypoint = await readFile(
+	join(root, "extensions/developer.ts"),
+	"utf8",
+);
+assert.equal(entrypoint.trim(), 'export { default } from "./developer-v8.ts";');
+assert.doesNotMatch(entrypoint, /developerV7|package-check sentinels/u);
+
+const extension = await readFile(
+	join(root, "extensions/developer-v8.ts"),
+	"utf8",
+);
+for (const toolConstant of [
+	"OPEN_JUDGMENT_TOOL",
+	"OPEN_CONTEXT_SOURCES_TOOL",
+	"CONCLUDE_JUDGMENT_TOOL",
+	"AUTHORIZE_CHANGE_TOOL",
+	"RECORD_LANDING_TOOL",
 ])
-	assert.ok(extension.includes(`name: "${toolName}"`));
-assert.match(extension, /name: OPEN_CONTEXT_SOURCES_TOOL/u);
+	assert.ok(extension.includes(`name: ${toolConstant}`));
 assert.match(extension, /registerCommand\("developer"/u);
 assert.match(extension, /registerFlag\("developer"/u);
 assert.match(extension, /event\.systemPromptOptions\.skills/u);
-assert.match(extension, /ctx\.ui\.confirm/u);
-assert.doesNotMatch(
-	extension,
-	/developer_route_question|developer_record_judgment|developer_load_guidance|changedArtifacts|GuidanceSet|contextContract|contractSourceId|needApplicability/u,
-);
+assert.match(extension, /DEVELOPER_RUNTIME_ENTRY/u);
+assert.doesNotMatch(extension, /developer-v7|from "\.\.\/src\/protocol\.ts"/u);
 assert.doesNotMatch(extension, /loadSkillsFromDir/u);
-const protocol = await readFile(join(root, "src/protocol.ts"), "utf8");
-const transition = await readFile(join(root, "src/transition.ts"), "utf8");
-const replay = await readFile(join(root, "src/replay.ts"), "utf8");
-assert.match(protocol, /developer\/v7/u);
-for (const term of [
-	"ActiveJudgment",
-	"ContextSourcesOpened",
-	"AuthorizedChange",
-	"JudgmentConcluded",
-	"LandingRecorded",
-	"ContributionBasis",
-])
-	assert.match(protocol, new RegExp(term, "u"));
-assert.match(transition, /transitionDeveloper/u);
-assert.match(replay, /unsupported-v6/u);
-assert.doesNotMatch(
-	protocol,
-	/developer\/v6|changedArtifacts|activeRoute|ContextContract|NeedCoverageBasis/u,
+
+const receiptTui = await readFile(
+	join(root, "extensions/developer-receipt-tui.ts"),
+	"utf8",
 );
+assert.match(receiptTui, /projectionReadTarget/u);
+assert.match(receiptTui, /readCurrentReceiptPage/u);
+assert.match(receiptTui, /overlay:\s*true/u);
+assert.doesNotMatch(
+	receiptTui,
+	/appendEntry|registerTool|setActiveTools|runtime-transition|runtime-root|developer-runtime-state|prepareDeveloperRuntimeBatch|reconcileProtocolTools/u,
+);
+
+const publicIndex = await readFile(join(root, "src/index.ts"), "utf8");
+for (const moduleName of [
+	"runtime-tools",
+	"runtime-protocol",
+	"routing-context",
+	"runtime-transition",
+	"runtime-root",
+	"runtime-replay",
+	"receipt-projection",
+	"projection-coordinator",
+])
+	assert.match(publicIndex, new RegExp(`\\./${moduleName}\\.ts`, "u"));
+assert.doesNotMatch(
+	publicIndex,
+	/"\.\/protocol\.ts"|"\.\/replay\.ts"|"\.\/transition\.ts"|context-basis/u,
+);
+
+const evalOutcome = await readFile(
+	join(root, "scripts/eval-outcome.mjs"),
+	"utf8",
+);
+assert.match(evalOutcome, /developer\/v8-result/u);
+assert.match(evalOutcome, /parseDeveloperRuntimeResultDetails/u);
+assert.match(evalOutcome, /no valid Developer v8 result details/u);
+assert.doesNotMatch(
+	evalOutcome,
+	/src\/protocol\.ts|src\/transition\.ts|parseDeveloperStatus/u,
+);
+for (const runner of ["eval-json.mjs", "eval-rpc.mjs"]) {
+	const source = await readFile(join(root, "scripts", runner), "utf8");
+	assert.match(source, /statusFromDeveloperEvents/u);
+	assert.doesNotMatch(source, /parseDeveloperStatus/u);
+}
+
 for (const path of [
-	"extensions/developer.ts",
-	"extensions/state.ts",
-	"extensions/machine.ts",
-	"extensions/developer-context.ts",
-	"extensions/skill-catalog.ts",
-	"extensions/developer-workbench.ts",
 	"src/protocol.ts",
+	"src/replay.ts",
 	"src/transition.ts",
+	"tests/protocol-v7.test.ts",
+	"extensions/developer-v7.ts",
+	"extensions/developer-workbench.ts",
+	"extensions/developer-workbench-tui.ts",
+	"extensions/developer-settings-tui.ts",
+	"extensions/machine.ts",
+	"extensions/state.ts",
+	"extensions/tui.ts",
+])
+	await assert.rejects(access(join(root, path)));
+
+for (const path of [
+	"extensions/developer-v8.ts",
+	"extensions/developer-runtime-state.ts",
+	"extensions/developer-context.ts",
+	"extensions/developer-conclusion.ts",
+	"extensions/developer-receipt-tui.ts",
+	"src/runtime-tools.ts",
+	"src/runtime-protocol.ts",
+	"src/runtime-transition.ts",
 ]) {
 	const source = await readFile(join(root, path), "utf8");
 	assert.doesNotMatch(
 		source,
-		/GuidanceLoad|GuidanceRoute|GuidanceExemption|availableGuidance|guidanceRoutes|judgmentSpecSha256|loadedGuidance|guidance_synthesis|guidance_exemption|contractSourceId|needApplicability/u,
-		`Legacy runtime vocabulary remains in ${path}.`,
+		/developer-v7|developer\/v7|from "\.\.\/src\/protocol\.ts"|opened_questions|question_updates|resolution_owner|GuidanceLoad|GuidanceRoute|GuidanceExemption|availableGuidance|guidanceRoutes|loadedGuidance|guidance_synthesis|guidance_exemption/u,
+		`Live/public legacy runtime dependency remains in ${path}.`,
+	);
+}
+for (const path of [
+	"README.md",
+	"README.ko.md",
+	"docs/how-it-works.md",
+	"docs/ko/how-it-works.md",
+	"docs/runtime-protocol.md",
+	"docs/ko/runtime-protocol.md",
+	"docs/user-guide.md",
+	"docs/ko/user-guide.md",
+]) {
+	const source = await readFile(join(root, path), "utf8");
+	assert.doesNotMatch(
+		source,
+		/developer\/v7|ActiveJudgment|AuthorizedChange|ImplementationLanding|PendingQuestion|Workbench|워크벤치/u,
+		`Stale Developer runtime promise remains in ${path}.`,
 	);
 }
 await assert.rejects(access(join(root, "GUIDANCE_ROUTING.md")));
 await assert.rejects(access(join(root, "CONTEXT_CONTRACTS.md")));
 await assert.rejects(access(join(root, "extensions/skills.ts")));
 assert.match(await readFile(join(root, "LICENSE"), "utf8"), /^MIT License$/mu);
-const workbench = await readFile(
-	join(root, "extensions/developer-workbench.ts"),
-	"utf8",
-);
-assert.match(
-	workbench,
-	/Overview[\s\S]*Active work[\s\S]*Questions[\s\S]*Judgments[\s\S]*Landings[\s\S]*Settings/u,
-);
-assert.doesNotMatch(
-	workbench,
-	/loadedGuidance|guidanceRoutes|contextContract/u,
-);
-const tui = await readFile(join(root, "extensions/tui.ts"), "utf8");
-assert.match(tui, /showPendingQuestionSelector/u);
-assert.match(tui, /overlay:\s*true/u);
-assert.match(
-	await readFile(join(root, "extensions/developer-workbench-tui.ts"), "utf8"),
-	/DeveloperWorkbenchSurface/u,
-);
-console.log(
-	"developer package structure and optional Judgment policies are consistent",
-);

@@ -36,7 +36,7 @@ import { contextBasisFromJudgment } from "../src/context-basis.ts";
 import type {
 	DeveloperContextBasis,
 	OpenedContextSource,
-} from "../src/protocol.ts";
+} from "../src/context-result.ts";
 
 export interface DeveloperInventorySnapshot {
 	readonly input: Omit<PiContextInventoryInput, "preparedProviders">;

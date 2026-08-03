@@ -14,7 +14,7 @@ import {
 	type ContextSourceBasis,
 	type ContributionBasis,
 	type DeveloperContextBasis,
-} from "./protocol.ts";
+} from "./context-result.ts";
 
 function contributionBasis(value: ContextContribution): ContributionBasis {
 	const common = {

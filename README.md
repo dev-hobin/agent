@@ -84,7 +84,7 @@ local links to stay aligned.
 ```text
 packages/
 ├── judgment/   reusable engine, schema, API, and CLI
-├── developer/  Pi extension, workbench, protocol, and ten Skills
+├── developer/  Pi root runtime, receipt observer, protocol, and ten Skills
 ├── learning/   Pi chooser and five independent learning Skills
 └── observer/   Pi sidecar, inquiry workbench, and notebook publisher
 ```

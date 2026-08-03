@@ -26,9 +26,27 @@ async function skillBody(root, target) {
 	return source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
 }
 
+const routeDefaultTargets = new Map([
+	["route:meaning-settlement", "specify"],
+	["route:condition-settlement", "model"],
+	["route:implementation-shaping", "sketch"],
+	["route:structural-pressure-observation", "signal"],
+	["route:name-sense-judgment", "naming-judgment"],
+	["route:candidate-reliability", "abstraction-review"],
+	["route:change-timing", "schedule"],
+	["route:claim-evidence-assessment", "verify"],
+]);
+
+function openingSkillName(execution) {
+	return execution.args.owner_skill?.skill_name;
+}
+
 function decisionTarget(execution) {
 	if (execution.toolName === OPEN_JUDGMENT_TOOL) {
-		return execution.args.skill_name;
+		return (
+			openingSkillName(execution) ??
+			routeDefaultTargets.get(execution.args.route_definition_id)
+		);
 	}
 	if (execution.toolName === AUTHORIZE_CHANGE_TOOL) return "implementation";
 	return undefined;
@@ -40,63 +58,48 @@ function conclusionText(conclusion) {
 		reason: conclusion.args.not_applicable_reason,
 		basis: conclusion.args.not_applicable_basis,
 		artifacts: conclusion.args.produced_artifacts,
-		questions: conclusion.args.opened_questions,
-		updates: conclusion.args.question_updates,
 	});
 }
 
 export function assertAgentBeforeImplementationResolution(fixture, executions) {
-	const openingIndex = executions.findIndex(
+	const needsEvidenceIndex = executions.findIndex(
 		(event) =>
 			event.toolName === CONCLUDE_JUDGMENT_TOOL &&
-			event.args.opened_questions?.some(
-				(question) =>
-					question.resolution_owner === "agent" &&
-					question.gate === "before-implementation",
-			),
+			event.args.outcome?.kind === "needs-evidence",
 	);
 	assert.ok(
-		openingIndex >= 0,
-		fixture.id + ": no agent-owned before-implementation question was opened",
+		needsEvidenceIndex >= 0,
+		fixture.id + ": no agent-owned needs-evidence frame was recorded",
 	);
-
-	const evidenceOpenOffset = executions
-		.slice(openingIndex + 1)
-		.findIndex((event) => event.toolName === OPEN_JUDGMENT_TOOL);
-	assert.ok(
-		evidenceOpenOffset >= 0,
-		fixture.id + ": no evidence judgment followed the gate",
-	);
-	const evidenceOpenIndex = openingIndex + 1 + evidenceOpenOffset;
+	const frameId = executions[needsEvidenceIndex].args.judgment_id;
 	const resolutionOffset = executions
-		.slice(evidenceOpenIndex + 1)
+		.slice(needsEvidenceIndex + 1)
 		.findIndex(
 			(event) =>
 				event.toolName === CONCLUDE_JUDGMENT_TOOL &&
-				event.args.question_updates?.some(
-					(update) =>
-						update.status === "resolved" || update.status === "not-applicable",
-				),
+				event.args.judgment_id === frameId &&
+				(event.args.outcome?.kind === "contextual-judgment" ||
+					event.args.disposition === "not-applicable"),
 		);
 	assert.ok(
 		resolutionOffset >= 0,
-		fixture.id + ": the agent-owned question was not explicitly resolved",
+		fixture.id + ": the needs-evidence frame was not explicitly resolved",
 	);
-	const resolutionIndex = evidenceOpenIndex + 1 + resolutionOffset;
+	const resolutionIndex = needsEvidenceIndex + 1 + resolutionOffset;
 
 	if (fixture.requiresJudgmentBashEvidence) {
 		assert.ok(
 			executions
-				.slice(evidenceOpenIndex + 1, resolutionIndex)
+				.slice(needsEvidenceIndex + 1, resolutionIndex)
 				.some((event) => event.toolName === "bash"),
-			fixture.id + ": the evidence judgment did not run bash",
+			fixture.id + ": the open evidence frame did not run bash",
 		);
 	}
 	assert.ok(
 		executions
 			.slice(resolutionIndex + 1)
 			.some((event) => event.toolName === AUTHORIZE_CHANGE_TOOL),
-		fixture.id + ": no change authorization followed explicit gate resolution",
+		fixture.id + ": no change authorization followed explicit frame resolution",
 	);
 }
 
@@ -219,10 +222,15 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 			false,
 			`${fixture.id}: open judgment failed for ${JSON.stringify(opening.args)}\n${resultText(ending)}`,
 		);
-		const expectedBody = await skillBody(root, opening.args.skill_name);
+		const skillName = openingSkillName(opening);
+		if (skillName === undefined) {
+			assert.match(resultText(ending), /No owning Skill was invoked/u);
+			continue;
+		}
+		const expectedBody = await skillBody(root, skillName);
 		assert.ok(
 			resultText(ending).includes(expectedBody),
-			`${fixture.id}: selected skill body was not loaded exactly for ${opening.args.skill_name}`,
+			`${fixture.id}: selected skill body was not loaded exactly for ${skillName}`,
 		);
 		assert.match(
 			resultText(ending),
@@ -273,7 +281,7 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 
 	if (fixture.requiresDoctorSynthesis) {
 		const doctorOpenings = openings.filter(
-			(event) => event.args.skill_name === "doctor",
+			(event) => openingSkillName(event) === "doctor",
 		);
 		assert.ok(
 			doctorOpenings.length >= 2,
@@ -286,11 +294,10 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 			`${fixture.id}: the final judgment opening was not Doctor synthesis`,
 		);
 		assert.ok(
-			openings.some(
-				(event) =>
-					event.args.skill_name !== "doctor" &&
-					event.args.skill_name !== undefined,
-			),
+			openings.some((event) => {
+				const skillName = openingSkillName(event);
+				return skillName !== "doctor" && skillName !== undefined;
+			}),
 			`${fixture.id}: Doctor did not delegate an owner-skill consultation`,
 		);
 		const finalIndex = executions.indexOf(finalDecision);

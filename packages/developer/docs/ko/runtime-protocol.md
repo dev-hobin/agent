@@ -2,158 +2,172 @@
 
 [English](../runtime-protocol.md) | 한국어
 
-이 문서는 `developer/v7` session event나 모델이 호출하는 다섯 operation을 바꾸는
-maintainer를 위한 문서입니다. 일반 사용법은 [사용자 가이드](./user-guide.md)를
-보세요.
+이 문서는 persisted `developer/v8` envelope, 모델이 호출하는 다섯 operation, pure
+replay, non-authoritative result summary, receipt projection을 설명합니다. 사용자 명령은
+[사용자 가이드](./user-guide.md)를 보세요.
 
-## Protocol을 나눈 이유
+## Ownership과 값
 
-Developer는 판단, 파일 변경 권한, landing을 서로 다른 값으로 다룹니다. 모델은
-판단 결론 안에 changed path를 끼워 넣거나, judgment ID를 authorization ID 대신
-쓸 수 없습니다.
+Developer는 다음 값을 구분합니다.
+
+```text
+DeveloperWorkScope  root lifetime과 active invocation 하나 제한
+RouteDefinition     stable sign과 strong stable sense
+RouteFrame          exact revision, obligations, blockers, support, conclusion
+Skill               선택적이며 교체 가능한 collaborator
+Judgment result     bounded candidate support
+Authorization       replay-current 구현 capability 하나
+Landing             consumed authorization과 changed-path provenance
+Receipt             accepted event 하나의 read-only projection
+```
+
+어떤 ID도 서로 바꿔 쓸 수 없고 source type은 스스로 promote되지 않습니다.
 
 ## 다섯 operation
 
-| Operation | 받는 값 | State 변화 |
+| Operation | Accepted boundary | Runtime movement |
 | --- | --- | --- |
-| `developer_open_judgment` | Bundled Skill 하나, 동적 질문 하나, 선택적 target PendingQuestion | `ActiveJudgment` 생성 |
-| `developer_open_context_sources` | Active judgment ID와 1–16개 exact Pi-visible Skill source ID | 현재 판단에 atomic source batch 추가 |
-| `developer_conclude_judgment` | Applicability, nomination, contribution, coverage, outcome, question update | 끝난 판단을 기록하고 active judgment 제거 |
-| `developer_authorize_change` | Bounded movement, stable landing, verification target, 선택적 boundary | `AuthorizedChange` 생성 |
-| `developer_record_landing` | Active authorization ID와 non-empty changed path | Landing 기록 후 reroute/verification obligation 생성 |
+| `developer_open_judgment` | Route definition, exact question, obligations, optional owner assignment | Frame과 선택적 routed Skill invocation 열기 |
+| `developer_open_context_sources` | Current frame ID와 exact Pi-visible descriptor ID | Atomic material-support batch 하나 관찰 |
+| `developer_conclude_judgment` | Applicability, exact nominations, coverage, outcome, stop evidence | Owner를 settle하고 support admit, obligation discharge, resolved일 때만 conclude |
+| `developer_authorize_change` | Current concluded frame과 conclusion hash, bounded movement, stable landing, verification target | Process-local root authorization 하나 생성 |
+| `developer_record_landing` | Exact active authorization, non-empty changed paths, result, verification observations | Authorization을 소모하고 reroute/verification debt 생성 |
 
-Pure state는 지금 호출할 수 있는 operation만 노출합니다.
+Root는 replay-current scope에서 합법적인 operation만 노출합니다. Context source를 열거나
+Skill을 settle해도 파일 변경 권한은 생기지 않습니다.
 
-| 현재 상태 | 가능한 operation |
+## Envelope format
+
+Pi custom type이 `developer.runtime`인 entry만 runtime replay에 들어옵니다. Data는 다음
+exact canonical envelope여야 합니다.
+
+```text
+protocolVersion = developer/v8
+eventId
+workScopeId
+scopeSequence
+previousScopeEventSha256
+causalRefs[] = { workScopeId, eventId, eventSha256 }
+occurredAt
+event = { kind, payload }
+eventSha256
+```
+
+`scopeSequence`와 previous-event hash가 한 scope의 순서를 정합니다. `occurredAt`은 audit
+용도일 뿐입니다. Canonical JSON identity는 locale-independent이며 transition effect 전에
+unknown field, unsafe number, oversized payload, duplicate causal reference, hash drift를
+거부합니다.
+
+## Event kinds
+
+Closed v8 event union에는 18개 kind가 있습니다.
+
+| Group | Kinds |
 | --- | --- |
-| Disabled | Activation command만 |
-| Idle | Judgment 열기. 구현 gate가 닫혔을 때만 변경 승인 |
-| ActiveJudgment | Context source 열기 또는 판단 끝내기 |
-| AuthorizedChange | Landing 기록 |
-| Landing 이후 | 다음 판단 열기. Obligation이 허용하기 전에는 새 변경 승인 불가 |
+| Scope/root | `work-scope-opened`, `work-scope-closed`, `change-authorized`, `implementation-landing-recorded` |
+| Frame/routing | `route-frame-opened`, `route-frame-replaced`, `routing-snapshot-opened`, `routing-page-accounted`, `routing-coverage-completed`, `can-serve-basis-created` |
+| Skill lifecycle | `ready-assignment-recorded`, `skill-invocation-started`, `invocation-settled` |
+| Support/completion | `support-observed`, `frame-contribution-admitted`, `frame-blocker-resolved`, `obligation-discharged`, `route-frame-concluded` |
 
-`developerNextOperations`와 `developerToolAccess`가 state에서 이 목록을 계산합니다.
-Extension이 별도의 mutable registry를 관리하지 않습니다.
+Pure reducer가 모든 event를 검사합니다. Byte가 저장됐다는 이유만으로 semantically
+rejected envelope가 accepted되지는 않습니다.
 
-## Judgment 열기
+## Frame open과 routing
 
-Extension은 현재 Pi inventory에서 Skill을 다시 찾고 method를 읽으며 선택적 policy를
-compile합니다. Event에 묶이는 값:
+Developer는 Skill과 독립적으로 stable Route를 찾고 bounded ordered descriptor snapshot을
+고정한 뒤 exact frame revision을 만듭니다. Routing coverage가 끝나려면 admitted
+snapshot의 모든 candidate를 bounded page로 account해야 합니다.
 
-```text
-judgmentId
-Skill 이름과 정확한 위치
-질문 문장
-선택적 target PendingQuestion
-선택적 compiled policy
-현재 branch identity
-known evidence
-```
+선택적 owner assignment는 capability ID, Skill revision, policy state, target obligation ID,
+limit, subquestion, expected contribution, `canServe` basis를 묶습니다. Candidate나 owner
+invocation이 0개일 수 있습니다. 한 work scope에서 active invocation이 두 개일 수는
+없습니다.
 
-`judgment.json`이 없는 Skill도 유효합니다. Prepared reference가 없을 뿐입니다.
+## Context와 Judgment
 
-## 외부 context source 열기
+Context source open은 선택한 Pi-visible descriptor와 method content만 얻습니다. Present
+malformed policy는 fail closed하고 absence는 유효합니다. Material open은 support identity를
+기록하지만 contribution을 admit하지 않습니다.
 
-같은 judgment가 active인 동안 여러 번 호출할 수 있습니다. Source ID마다 다음을
-처리합니다.
+Conclusion에서 모든 `branchResultId`는 Judgment에 전달되기 전에 exact current-branch
+call/result로 resolve됩니다. 선택적 owner settlement는 closed return variant 하나로
+parse됩니다. Judgment output은 candidate support가 되며 frame은 contribution admit과
+obligation discharge를 여전히 명시적으로 해야 합니다.
 
-1. 현재 Pi descriptor에서 다시 찾습니다.
-2. Byte limit 안에서 `SKILL.md`를 읽습니다.
-3. 옆에 policy가 있으면 읽습니다.
-4. 실제 source owner와 root를 사용해 policy를 compile합니다.
-5. Descriptor와 method content identity를 계산합니다.
+Outcome에 context가 더 필요하거나 dependency가 생기면 current blocker identity와 함께
+frame이 열린 채로 남습니다. Resolve되면 conclusion proposal은 frame revision, discharge
+ID, stop evidence, exact empty blocker set을 묶어야 합니다.
 
-한 번의 call에 든 source는 모두 함께 성공해야 합니다. Duplicate, stale
-descriptor, unsafe path, oversized method, malformed present policy가 하나라도 있으면
-call 전체를 거부합니다. 이전 call에서 성공한 batch는 그대로 남습니다.
+## Authorization, landing, debt
 
-Source를 열었다고 적용되는 것은 아닙니다. 모델이 method와 policy를 본 뒤,
-conclusion에서 policy-bearing source마다 applicability 하나를 제출해야 합니다.
+Authorization은 exact current frame conclusion을 검증해 process-local 값 하나를 만듭니다.
+Structural clone과 serialized copy에는 mutation authority가 없습니다.
 
-## Judgment 끝내기
+Landing은 그 authorization을 검증하고 sorted changed path와 verification observation을
+저장하며 mutation authority를 소모하고 서로 다른 reroute/verification frame ID를
+만듭니다. 해당 Route conclusion이 debt를 따로 해소합니다. Authorization, invocation,
+frame, landing debt가 active이면 scope closure는 거부됩니다.
 
-Model boundary에서 `branchResultId`는 현재 branch의 Pi tool call 하나를 가리키는
-짧은 ID입니다. Extension은 Judgment engine에 넘기기 전에 실제 call, arguments,
-result order, status, content hash를 다시 찾습니다.
+## Replay와 interruption
 
-Conclusion은 다음 순서로 만들어집니다.
+Replay는 dedicated runtime entry만 branch 순서로 처리합니다.
 
 ```text
-raw conclusion field parse
--> owning/external Skill descriptor 재검사
--> policy와 branch result 재검사
--> applicable external provider만 허용
--> nominated content를 atomic하게 select/seal
--> usable member마다 contribution 확인
--> coverage와 outcome 생성
--> DeveloperContextBasis 생성
--> pure Developer transition 미리 검사
--> JudgmentConcluded append
+parse envelope
+-> per-scope sequence/hash head와 causal reference 검증
+-> semantic event parse
+-> candidate accumulator에 root/frame transition 적용
+-> entry 전체 accept 또는 exact prior accumulator 유지
 ```
 
-Acquisition, sealing, coverage, outcome parsing, pure transition 중 하나라도 실패하면
-아무 event도 append하지 않습니다.
+Full-batch preflight가 append 전에 모든 event를 예측합니다. Append는 prefix-safe합니다.
+Persistence가 중간에 멈추면 `finally`에서 reconstruct하고, 저장된 prefix만 accept하며
+존재하지 않는 suffix를 만들지 않습니다.
 
-Conclusion은 `PendingQuestion`을 resolve, defer, supersede하거나 새로 만들 수
-있습니다. Question owner, gate, resolution criteria는 현재 state와 맞아야 합니다.
-User-owned resolution에 `user-accepted`를 쓰려면 현재 branch의 exact user event가
-필요합니다.
+## Evaluator용 tool-result summary
 
-## 변경 승인
-
-`developer_authorize_change`는 다음 조건에서만 받습니다.
-
-- Developer가 켜져 있고 active work가 없음
-- Target PendingQuestion을 넘겼다면 실제로 존재
-- 미해결 before-implementation question 없음
-- Reroute와 implementation-framing obligation이 닫힘
-- Movement, stable landing, verification target이 비어 있지 않음
-- 선택적 refinement 또는 trusted-compiler boundary가 exact variant로 parse됨
-
-Trusted-compiler boundary는 한정된 evidence gap이지 아무 값이나 cast할 권한이
-아닙니다.
-
-## Landing 기록
-
-`developer_record_landing`은 exact active authorization과 changed path 하나 이상을
-요구합니다. Transition은 authorization과 landing을 함께 저장하고 mutation
-authority를 지운 뒤 다음을 설정합니다.
+성공한 model-facing operation은 opaque event ID와 bounded plain summary 하나를 반환합니다.
 
 ```text
-rerouteRequired = true
-verificationRequired = true
+protocol: developer/v8-result
+workScopeId: string | null
+eventIds: string[]
+runtime:
+  state: inactive | blocked | idle | frame | authorized
+  reroutePending: boolean
+  verificationPending: boolean
 ```
 
-Landing에는 일부러 `verified` flag를 두지 않습니다.
+이 serialized summary는 replay input, receipt, authority가 아닙니다. Evaluator는 exact key를
+parse하고 `idle`이면서 두 debt flag가 false일 때만 completion을 주장할 수 있습니다.
+Matching details가 없거나 malformed이면 outcome publish 전에 실패합니다.
 
-## Replay와 append 순서
+## Receipt와 latest-only publication
 
-Developer는 현재 branch의 custom entry에서 state를 다시 만듭니다.
+Replay-accepted opaque event만 대응하는 18개 receipt kind를 만들 수 있습니다.
+Projection과 page identity는 canonical하고 process-local입니다. Page size는 최대 100이며
+cursor는 opaque하고 projection-bound입니다.
 
-```text
-Developer-owned entry 식별
--> exact event variant parse
--> pure transition 적용
--> accepted state 유지 또는 bounded replay issue 보고
-```
+Refresh coordinator는 최신 successful requested revision만 publish합니다. `Refreshing`,
+unavailable, failed-latest, stale publication, stale cursor, stale page, clone 값은 이전
+current data를 노출하지 않습니다. Receipt TUI는 exact verified page 하나만 읽고
+transition이나 persistence operation을 갖지 않습니다.
 
-Runtime은 parse -> evidence 도출 -> event 생성 -> transition 미리 검사 -> session
-entry append -> tool/UI 반영 순서를 지킵니다. Session append가 성공하기 전에 새
-state를 공개하지 않습니다.
+## Reload
 
-### 지원하지 않는 v6 history
-
-`developer/v6` entry는 문제를 알리기 위해서만 인식합니다. 이전 route, guidance,
-judgment, mutation, landing 값은 현재 권한과 일대일로 맞지 않으므로 v7로 번역하지
-않습니다.
+Safe reload는 current active invocation에 uncertain lifecycle cancellation만 기록합니다.
+Effect를 다시 실행하거나 provider failure를 만들지 않습니다. Safe lifecycle marker가
+없으면 restart를 요구하고 아무것도 쓰지 않습니다.
 
 ## 검토 목록
 
-- Raw variant가 unknown field를 거부하는가?
-- 지금 합법적인 operation만 호출할 수 있는가?
-- Append 전에 selected file과 branch result를 다시 읽는가?
-- Judgment 중에 artifact를 바꿀 수 없는가?
-- Landing이 verification debt를 건너뛸 수 없는가?
-- External source batch가 all-or-nothing인가?
-- Replay가 stale, conflicting, sibling-branch identity를 거부하는가?
-- Hot reload가 Developer가 소유한 tool delta만 복원하는가?
+- `developer.runtime`이 유일한 persistence entry point인가?
+- 모든 raw envelope와 semantic variant가 unknown field를 거부하는가?
+- Timestamp가 아니라 scope sequence가 순서를 정하는가?
+- Candidate가 frame-local admission 전에 obligation에 영향을 줄 수 없는가?
+- Child conclusion이 parent를 닫을 수 없는가?
+- Replacement가 이전 frame authority를 지우는가?
+- Landing이 debt 하나라도 건너뛸 수 없는가?
+- Clone된 reconstruction, authorization, projection, cursor, page를 쓸 수 없는가?
+- Evaluator가 missing v8 result details를 idle로 해석할 수 없는가?
+- Receipt observer가 route, mutate, persist할 수 없는가?

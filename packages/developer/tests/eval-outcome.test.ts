@@ -1,114 +1,138 @@
-import assertModule from "node:assert";
+import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-	changeAuthorized,
-	developerEventData,
-	landingRecorded,
-} from "../src/protocol.ts";
-import {
 	assertAllowedOutcome,
 	classifyEvalOutcome,
-	parseDeveloperStatus,
+	parseDeveloperRuntimeResultDetails,
 	statusFromDeveloperEvents,
 } from "../scripts/eval-outcome.mjs";
 
-const assert: typeof assertModule.strict = assertModule.strict;
-
-const status = (overrides: Record<string, string> = {}) => ({
-	protocol: "idle",
-	active: "none",
-	checkpoint: "ready",
-	verification: "current",
-	pending: "none",
+const runtime = (
+	overrides: Partial<{
+		state: "inactive" | "blocked" | "idle" | "frame" | "authorized";
+		reroutePending: boolean;
+		verificationPending: boolean;
+	}> = {},
+) => ({
+	state: "idle" as const,
+	reroutePending: false,
+	verificationPending: false,
 	...overrides,
 });
 
-test("eval outcomes distinguish unchanged, pending, paused, and verified paths", () => {
+const details = (value = runtime()) => ({
+	protocol: "developer/v8-result",
+	workScopeId: "scope:evaluation",
+	eventIds: ["event:evaluation"],
+	runtime: value,
+});
+
+const toolResult = (value: unknown, errorResult = false) => ({
+	type: "tool_execution_end",
+	isError: errorResult,
+	result: { details: value },
+});
+
+test("eval outcomes distinguish unchanged, pending, paused, and verified v8 paths", () => {
 	assert.equal(
-		classifyEvalOutcome({ changes: [], status: status() }),
+		classifyEvalOutcome({ changes: [], status: runtime() }),
 		"settled-unchanged",
 	);
-	assert.equal(
-		classifyEvalOutcome({
-			changes: [],
-			status: status({ protocol: "needs-answer", pending: "question:1" }),
-		}),
-		"pending",
-	);
-	assert.equal(
-		classifyEvalOutcome({
-			changes: [{ path: "src/file.ts", kind: "modified" }],
-			status: status({
-				protocol: "needs-routing",
-				checkpoint: "reroute required",
-				verification: "required",
+	for (const status of [
+		runtime({ state: "inactive" }),
+		runtime({ state: "blocked" }),
+		runtime({ state: "frame" }),
+		runtime({ state: "authorized" }),
+		runtime({ reroutePending: true }),
+		runtime({ verificationPending: true }),
+	]) {
+		assert.equal(classifyEvalOutcome({ changes: [], status }), "pending");
+		assert.equal(
+			classifyEvalOutcome({
+				changes: [{ path: "src/file.ts", kind: "modified" }],
+				status,
 			}),
-		}),
-		"changed-paused",
-	);
+			"changed-paused",
+		);
+	}
 	assert.equal(
 		classifyEvalOutcome({
 			changes: [{ path: "src/file.ts", kind: "modified" }],
-			status: status(),
+			status: runtime(),
 		}),
 		"changed-verified",
 	);
 });
 
-test("compact and detailed Developer status produce the same outcome signals", () => {
-	assert.deepEqual(
-		parseDeveloperStatus(
-			"developer: on · target: none · needs-routing\nactive: none\ncheckpoint: reroute required\nverification: required\npending: none",
-		),
-		{
-			protocol: "needs-routing",
-			active: "none",
-			checkpoint: "reroute required",
-			verification: "required",
-			pending: "none",
-		},
+test("Developer v8 result details parse to an immutable exact status", () => {
+	const parsed = parseDeveloperRuntimeResultDetails(
+		JSON.parse(JSON.stringify(details())),
 	);
+	assert.deepEqual(parsed, details());
+	assert.equal(Object.isFrozen(parsed), true);
+	assert.equal(Object.isFrozen(parsed?.eventIds), true);
+	assert.equal(Object.isFrozen(parsed?.runtime), true);
 	assert.equal(
-		classifyEvalOutcome({
-			changes: [{ path: "src/file.ts", kind: "modified" }],
-			status: parseDeveloperStatus("developer: on · target: none · idle"),
-		}),
-		"changed-verified",
+		parseDeveloperRuntimeResultDetails({ protocol: "foreign" }),
+		null,
 	);
 });
 
-test("JSON event replay recovers reroute and verification state without TUI status events", () => {
-	const authorization = changeAuthorized({
-		kind: "authorized-change",
-		authorizationId: "change:implementation",
-		question: "Apply one change.",
-		reason: "The local movement is justified.",
-		contract: {
-			movement: "Apply one bounded change.",
-			stableLanding: "The stable landing is reached.",
-			verificationTarget: "Run the focused verifier.",
-		},
-	});
-	const landing = landingRecorded({
-		authorizationId: authorization.change.authorizationId,
-		changedPaths: ["src/file.ts"],
-		result: "The stable landing was reached.",
-		verification: ["The focused test passed."],
-	});
-	const events = [authorization, landing].map((event) => ({
-		type: "tool_execution_end",
-		isError: false,
-		result: { details: developerEventData(event) },
-	}));
+test("matching malformed Developer v8 details fail before outcome classification", () => {
+	assert.throws(
+		() =>
+			parseDeveloperRuntimeResultDetails({
+				...details(),
+				extra: true,
+			}),
+		/unexpected fields/,
+	);
+	assert.throws(
+		() =>
+			parseDeveloperRuntimeResultDetails({
+				...details(),
+				runtime: { ...runtime(), state: "unknown" },
+			}),
+		/runtime state is invalid/,
+	);
+	assert.throws(
+		() =>
+			parseDeveloperRuntimeResultDetails({
+				...details(),
+				runtime: runtime({ state: "authorized", reroutePending: true }),
+			}),
+		/cannot carry landing debt/,
+	);
+	assert.throws(
+		() =>
+			parseDeveloperRuntimeResultDetails({
+				...details(),
+				eventIds: [""],
+			}),
+		/must be a non-empty string/,
+	);
+});
 
-	assert.deepEqual(statusFromDeveloperEvents(events), {
-		protocol: "needs-routing",
-		active: "none",
-		checkpoint: "reroute required",
-		verification: "required",
-		pending: "none",
-	});
+test("event status uses the latest valid v8 result and fails closed when absent", () => {
+	const events = [
+		toolResult({ protocol: "foreign" }),
+		toolResult(details(runtime({ state: "frame" }))),
+		toolResult(details(runtime({ verificationPending: true })), true),
+		toolResult(details()),
+	];
+	assert.deepEqual(statusFromDeveloperEvents(events), runtime());
+	assert.throws(
+		() => statusFromDeveloperEvents([toolResult({ protocol: "foreign" })]),
+		/no valid Developer v8 result details/,
+	);
+	assert.throws(
+		() =>
+			statusFromDeveloperEvents([
+				toolResult({ ...details(), runtime: { ...runtime(), extra: true } }),
+			]),
+		/unexpected fields/,
+	);
 });
 
 test("fixture outcome declarations reject pass-but-wrong terminal states", () => {

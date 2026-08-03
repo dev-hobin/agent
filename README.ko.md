@@ -81,7 +81,7 @@ pi -e ./packages/developer
 ```text
 packages/
 ├── judgment/   재사용 엔진, 스키마, API, CLI
-├── developer/  Pi 확장, 워크벤치, 프로토콜, 열 개의 Skill
+├── developer/  Pi root runtime, receipt observer, 프로토콜, 열 개의 Skill
 ├── learning/   Skill 선택기와 독립적인 학습 Skill 다섯 개
 └── observer/   Pi sidecar, 탐구 워크벤치, 로컬 노트 발행기
 ```

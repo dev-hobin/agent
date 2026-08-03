@@ -9,11 +9,12 @@ English | [한국어](./ko/user-guide.md)
 /developer off
 ```
 
-`on` enables judgment tracking and built-in mutation-tool gating. If a judgment
-or unresolved question is still open, `off` asks before clearing the current
-Developer state. Historical events remain on their Pi session branch.
+`on` opens a Developer v8 work scope and enables protocol-aware built-in tool
+gating. `off` refuses to close while a change authorization is active. Otherwise
+it settles any active Skill invocation as lifecycle cancellation and closes the
+scope. Persisted `developer.runtime` entries remain on their Pi session branch.
 
-Start Pi with Developer already enabled:
+Start Pi with Developer enabled:
 
 ```sh
 pi --developer
@@ -21,7 +22,7 @@ pi --developer
 
 ## Ask normally
 
-You do not need to know the internal Skill or protocol names:
+You do not need to know Route or Skill identifiers:
 
 ```text
 Add scheduled invoice delivery. Ask before editing if a product rule is missing.
@@ -32,7 +33,7 @@ The serializer replacement passes its tests. Verify persisted values and source
 compatibility before calling it complete.
 ```
 
-If you already know which Skill owns the question, invoke it directly:
+You may still invoke an owning capability directly:
 
 ```text
 /skill:model Define replacement and default semantics for this config change.
@@ -44,111 +45,80 @@ If you already know which Skill owns the question, invoke it directly:
 
 | Command | Effect |
 | --- | --- |
-| `/developer` | Open the Workbench |
-| `/developer status` | Inspect current state and legal next operations |
-| `/developer questions` | Inspect, answer, or investigate pending questions |
-| `/developer settings` | Open activation settings |
-| `/developer on` | Enable Developer |
-| `/developer off` | Disable Developer after confirmation when needed |
+| `/developer` | Open the exact-current receipt overlay in TUI mode |
+| `/developer status` | Show the current receipt page and projection identity |
+| `/developer questions` | Compatibility alias for the receipt summary |
+| `/developer settings` | Compatibility alias for the receipt summary |
+| `/developer on` | Open a work scope |
+| `/developer off` | Close the current scope when no authorization is active |
 
 Pi's normal `/skill:<name>` commands remain available.
 
-## What the Workbench shows
+## Receipt overlay
 
-| View | Contents |
-| --- | --- |
-| Overview | Current state, implementation/completion gates, next operation |
-| Active Judgment | Question, selected material, contributions, conflicts, limitations |
-| Questions | Questions owned by the user, agent, or environment |
-| Judgments | Completed outcomes and their sealed context basis |
-| Landings | Authorization, changed paths, and verification target |
-| Settings | Developer activation |
-
-Keyboard controls:
+The overlay is a read-only observer of accepted runtime receipts. It binds the
+projection that was current when opened and reads at most one bounded page at a
+time.
 
 | Key | Action |
 | --- | --- |
-| `↑` / `↓`, `j` / `k` | Move |
-| Enter | Open the selected item |
-| Escape | Go back |
-| Tab | Move between regions |
-| Page Up / Page Down | Scroll by viewport |
-| Home / End | Jump to the beginning or end |
-| `y` | Copy the complete selected record |
-| `?` | Show help for the current view |
+| `↓`, Page Down, Enter | Read the next page through its opaque cursor |
+| `↑`, Page Up | Return through the exact retained previous cursor |
+| `g` | Return to the first page |
+| `r` | Re-read the current cursor |
+| `y` | Copy the complete semantic page text |
+| Escape | Close |
 
-Opening, reading, and copying Workbench records does not change state.
+If the projection changes while the overlay is open, it becomes unavailable;
+reopen it to bind the new projection. Height-limited rendering reports omitted
+receipt entries explicitly. Navigation and copy never append runtime events.
 
-## Who answers a question?
-
-`/developer questions` shows each question's owner and gate.
-
-| Owner | Example |
-| --- | --- |
-| User | “Should the choice persist after returning to checkout?” |
-| Agent | “Where in the code path is the value lost?” |
-| Environment | “Can the staging API be observed with current credentials?” |
-
-The model cannot answer a user-owned question on the user's behalf. Agent-owned
-questions are resolved through repository or runtime evidence. Environment-owned
-questions may require access or external state.
-
-Gates mean:
-
-- `before implementation`: no change authorization until resolved;
-- `before completion`: a landing may exist, but completion remains blocked;
-- `non-blocking`: remains visible without stopping current movement.
-
-## Common workflows
-
-### Ambiguous bug
+## How a frame progresses
 
 ```text
-reproduce current behavior
--> record missing product rule as a user question
--> receive user answer
--> authorize bounded change
--> edit and test
--> record landing
--> verify
+stable RouteDefinition
+-> exact RouteFrame and obligations
+-> finite descriptor snapshot
+-> optional owning Skill invocation
+-> returned candidate support
+-> explicit frame-local admission
+-> explicit obligation discharge
+-> guarded frame conclusion
 ```
 
-### Already-specified local change
+Any Route may be the first or last semantic movement. There is no fixed
+`specify -> model -> sketch -> verify` pipeline. A frame may also conclude with
+zero Skill invocations when current admitted non-Skill support is sufficient.
 
-When requirement, location, and verification are all exact, Developer does not
-open a judgment merely for ceremony. It can authorize the bounded change and
-verify only the changed claim after landing.
+When an answer or evidence item is missing, the frame remains open or records a
+targeted blocker. Developer does not convert absence into approval. Supply the
+answer or acquire the evidence, then conclude against the current frame and
+blocker identities.
 
-### Read-only Doctor review
+## Implementation and verification
 
-```text
-/skill:doctor Diagnose checkout from request to persistence.
-Preserve external behavior and return a now / next / observe / leave-alone plan.
-```
+A change authorization is valid only for one replay-current concluded frame and
+one bounded movement. Recording the landing consumes it and creates two distinct
+follow-up identities:
 
-Doctor separates requested, inspected, and claimed scope. It does not present a
-sample as an exhaustive repository review.
+- the reroute frame decides what belongs next;
+- the verification frame decides what the landing evidence supports.
 
-## What each routing state means
+Both must conclude before another authorization is available. A passing command
+is evidence for only the claim it actually exercises.
 
-| State | Required next work |
-| --- | --- |
-| `idle` | No active Developer work; not a claim that the whole request is done |
-| `needs-judgment` | Current question needs an outcome |
-| `needs-evidence` | Agent or environment evidence is missing |
-| `needs-answer` | A user decision is missing |
-| `needs-routing` | A landing needs its next judgment |
-| `needs-verification` | Changed artifacts need claim-relative verification |
-| `blocked` | A required answer, fact, or access is unavailable |
+## Branches, replay, and reload
 
-## Branches and reload
+A fork uses only its own ancestry. Scope sequence and hash-chain identity, not
+timestamps, order runtime events. Rejected entries do not advance replay state.
 
-A fork uses only its own ancestry. Tool results and user answers from a sibling
-branch cannot be selected into the current judgment.
+Developer projects receipts only from replay-accepted events. Cursors, pages,
+publications, reconstruction values, and mutation capabilities are process-local
+and fail closed when cloned or stale.
 
-Developer supplies bounded state during Pi compaction. If a hot reload reports
-that the previous tool state cannot be recovered safely, restart Pi. Developer
-does not guess which tools should be re-enabled.
+If hot reload cannot prove prior tool ownership from a safe lifecycle marker,
+Developer requests a Pi restart and writes no reconciliation event. It never
+guesses which tools to re-enable.
 
 ## Update and remove
 

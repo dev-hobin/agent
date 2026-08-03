@@ -25,23 +25,25 @@ const gateTrace = [
 	{
 		toolName: CONCLUDE,
 		args: {
-			opened_questions: [
-				{ resolution_owner: "agent", gate: "before-implementation" },
-			],
+			judgment_id: "frame:agent-evidence",
+			outcome: {
+				kind: "needs-evidence",
+				evidenceNeeded: ["Confirm the contract export owner."],
+			},
 		},
 	},
-	{ toolName: OPEN, args: { skill_name: "signal" } },
 	{ toolName: "bash", args: { command: "test -f src/contracts.ts" } },
 	{
 		toolName: CONCLUDE,
 		args: {
-			question_updates: [{ question_id: "question:1", status: "resolved" }],
+			judgment_id: "frame:agent-evidence",
+			outcome: { kind: "contextual-judgment" },
 		},
 	},
 	{ toolName: AUTHORIZE, args: { movement: "Add the marker." } },
 ];
 
-test("agent before-implementation trace requires evidence judgment, bash, explicit resolution, then authorization", () => {
+test("agent evidence frame requires bash, explicit resolution, then authorization", () => {
 	assert.doesNotThrow(() =>
 		assertAgentBeforeImplementationResolution(fixture, gateTrace),
 	);
@@ -143,7 +145,7 @@ test("context expectations require a selected prepared reference and cited contr
 		...completed(
 			"open:reference",
 			OPEN,
-			{ skill_name: "sketch" },
+			{ owner_skill: { skill_name: "sketch" } },
 			sketchMethod,
 		),
 		...completed("conclude:reference", CONCLUDE, {
@@ -213,14 +215,24 @@ test("Doctor evaluation requires owner consultation and a final synthesis judgme
 	const doctorMethod = await methodText("doctor");
 	const sketchMethod = await methodText("sketch");
 	const events = [
-		...completed("open:triage", OPEN, { skill_name: "doctor" }, doctorMethod),
+		...completed(
+			"open:triage",
+			OPEN,
+			{ owner_skill: { skill_name: "doctor" } },
+			doctorMethod,
+		),
 		...completed("conclude:triage", CONCLUDE, {
 			outcome: {
 				kind: "needs-evidence",
 				artifact: "Consultation plan remains open.",
 			},
 		}),
-		...completed("open:owner", OPEN, { skill_name: "sketch" }, sketchMethod),
+		...completed(
+			"open:owner",
+			OPEN,
+			{ owner_skill: { skill_name: "sketch" } },
+			sketchMethod,
+		),
 		...completed("conclude:owner", CONCLUDE, {
 			outcome: {
 				kind: "contextual-judgment",
@@ -230,7 +242,7 @@ test("Doctor evaluation requires owner consultation and a final synthesis judgme
 		...completed(
 			"open:synthesis",
 			OPEN,
-			{ skill_name: "doctor" },
+			{ owner_skill: { skill_name: "doctor" } },
 			doctorMethod,
 		),
 		...completed("conclude:synthesis", CONCLUDE, {
