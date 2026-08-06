@@ -169,5 +169,7 @@ export function selectDeclaredReferences(
 	if (issues.length > 0) {
 		return { status: "invalid", issues };
 	}
-	return classifySelection(orderDispositions(declarations, proposalIndex.byPath));
+	return classifySelection(
+		orderDispositions(declarations, proposalIndex.byPath),
+	);
 }
