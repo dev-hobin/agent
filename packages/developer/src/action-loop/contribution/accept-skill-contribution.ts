@@ -150,7 +150,11 @@ function canonicalList(
 	const normalized: string[] = [];
 	const seen = new Set<string>();
 	for (let index = 0; index < values.length; index += 1) {
-		const item = canonicalText(values[index] ?? "", invalidCode, `${path}[${index}]`);
+		const item = canonicalText(
+			values[index] ?? "",
+			invalidCode,
+			`${path}[${index}]`,
+		);
 		if (!item.ok) return item;
 		if (seen.has(item.value)) {
 			return {
@@ -394,11 +398,7 @@ function identityParts(input: ContributionIdentityInput): string[] {
 		String(input.applications.length),
 	];
 	for (const application of input.applications) {
-		parts.push(
-			application.path,
-			application.status,
-			application.application,
-		);
+		parts.push(application.path, application.status, application.application);
 	}
 	parts.push(
 		"limitations",
@@ -432,7 +432,11 @@ export function acceptSkillContribution(
 			`Unsupported local status ${proposal.localStatus}`,
 		);
 	}
-	const result = canonicalText(proposal.result, "empty-result", "proposal.result");
+	const result = canonicalText(
+		proposal.result,
+		"empty-result",
+		"proposal.result",
+	);
 	if (!result.ok) return { status: "invalid", error: result.error };
 	const applications = canonicalApplications(
 		context.selectedPaths,

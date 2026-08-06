@@ -81,11 +81,7 @@ function proposal(
 }
 
 test("resolved proposal becomes one immutable source-bounded Contribution", () => {
-	const result = acceptSkillContribution(
-		assignment,
-		sealedContext,
-		proposal(),
-	);
+	const result = acceptSkillContribution(assignment, sealedContext, proposal());
 
 	assert.equal(result.status, "accepted");
 	if (result.status !== "accepted") return;
@@ -104,20 +100,12 @@ test("resolved proposal becomes one immutable source-bounded Contribution", () =
 });
 
 test("proposal order is normalized and provenance does not change semantic identity", () => {
-	const first = acceptSkillContribution(
-		assignment,
-		sealedContext,
-		proposal(),
-	);
+	const first = acceptSkillContribution(assignment, sealedContext, proposal());
 	const reversed = proposal({
 		referenceApplications: [...proposal().referenceApplications].reverse(),
 		provenance: { kind: "human", source: "reviewer:one" },
 	});
-	const second = acceptSkillContribution(
-		assignment,
-		sealedContext,
-		reversed,
-	);
+	const second = acceptSkillContribution(assignment, sealedContext, reversed);
 
 	assert.equal(first.status, "accepted");
 	assert.equal(second.status, "accepted");
@@ -291,7 +279,8 @@ test("emergent Need is returned upward without assigning a sibling Capability", 
 			residualNeeds: [
 				{
 					kind: "emergent",
-					description: "Product ownership must decide the compatibility window.",
+					description:
+						"Product ownership must decide the compatibility window.",
 					basis: ["Verification cannot choose product policy."],
 				},
 			],
