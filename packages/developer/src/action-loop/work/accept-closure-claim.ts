@@ -221,7 +221,9 @@ function canonicalDispositionAccounting(
 	for (let index = 0; index < proposals.length; index += 1) {
 		const disposition = canonicalDisposition(proposals[index], index, {
 			obligationIds: new Set(
-				target.obligations.map(({ closureObligationId }) => closureObligationId),
+				target.obligations.map(
+					({ closureObligationId }) => closureObligationId,
+				),
 			),
 			accountedIds: new Set(byId.keys()),
 			conclusionIds: new Set(target.conclusionIds),
@@ -229,7 +231,8 @@ function canonicalDispositionAccounting(
 		});
 		if (!disposition.ok) return disposition;
 		byId.set(disposition.value.closureObligationId, disposition.value);
-		for (const id of disposition.value.conclusionIds) citedConclusionIds.add(id);
+		for (const id of disposition.value.conclusionIds)
+			citedConclusionIds.add(id);
 		for (const id of disposition.value.effectAssessmentIds) {
 			citedEffectAssessmentIds.add(id);
 		}
@@ -370,7 +373,8 @@ export function acceptClosureClaim(
 			error: {
 				code: "evidence-accounting",
 				path: "proposal.obligationDispositions",
-				message: "Every current Conclusion and Effect assessment must be applied",
+				message:
+					"Every current Conclusion and Effect assessment must be applied",
 			},
 		};
 	}

@@ -228,7 +228,8 @@ test("an occurred Effect cannot be omitted from closure readiness", () => {
 			locator: "pi://tool-result/closure-target",
 			fingerprint: "b".repeat(64),
 		},
-		statement: "The controlled Action failed before producing its intended Effect.",
+		statement:
+			"The controlled Action failed before producing its intended Effect.",
 		limitations: [],
 		provenance: { kind: "tool", source: "pi:tool_result" },
 	});

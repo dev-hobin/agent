@@ -31,7 +31,9 @@ function conclusion(
 		contextRevisionId: `context-${id}`,
 		requirementDispositions: Object.freeze([]),
 		coverageIds: Object.freeze([]),
-		basis: Object.freeze(["Current bounded evidence supports this Conclusion."]),
+		basis: Object.freeze([
+			"Current bounded evidence supports this Conclusion.",
+		]),
 		answer,
 		provenance: Object.freeze({ kind: "model", source: "slice-evaluator" }),
 	});
@@ -41,7 +43,9 @@ test("Outcome-bound Action reaches evidence-bounded canonical completion", () =>
 	const opened = openWorkCase({
 		outcome: {
 			statement: "The exact delegated change is implemented and verified.",
-			acceptanceConditions: ["The target artifact contains the delegated change."],
+			acceptanceConditions: [
+				"The target artifact contains the delegated change.",
+			],
 			constraints: ["No unrelated artifact changes."],
 		},
 		provenance: { kind: "human", source: "delegating-user" },

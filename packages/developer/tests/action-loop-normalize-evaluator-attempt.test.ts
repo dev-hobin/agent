@@ -48,10 +48,26 @@ test("only a successfully refined returned payload becomes a proposal", () => {
 test("refusal, timeout, failure, and empty output remain unresolved", () => {
 	const fixtures = [
 		{ attempt: { outcome: "refused", provenance } as const, reason: "refused" },
-		{ attempt: { outcome: "timed-out", provenance } as const, reason: "timed-out" },
-		{ attempt: { outcome: "failed", detail: "transport error", provenance } as const, reason: "failed" },
-		{ attempt: { outcome: "returned", payload: "  ", provenance } as const, reason: "empty" },
-		{ attempt: { outcome: "returned", payload: null, provenance } as const, reason: "empty" },
+		{
+			attempt: { outcome: "timed-out", provenance } as const,
+			reason: "timed-out",
+		},
+		{
+			attempt: {
+				outcome: "failed",
+				detail: "transport error",
+				provenance,
+			} as const,
+			reason: "failed",
+		},
+		{
+			attempt: { outcome: "returned", payload: "  ", provenance } as const,
+			reason: "empty",
+		},
+		{
+			attempt: { outcome: "returned", payload: null, provenance } as const,
+			reason: "empty",
+		},
 	];
 
 	for (const fixture of fixtures) {

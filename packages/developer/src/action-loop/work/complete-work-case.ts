@@ -4,10 +4,7 @@ import {
 	prepareClosureTarget,
 	type SealedClosureTarget,
 } from "./prepare-closure-target.ts";
-import {
-	deriveWorkCaseRevisionId,
-	type ActiveWorkCase,
-} from "./work-case.ts";
+import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
 
 export const WORK_CASE_COMPLETION_VERSION = "developer-work-case-completion/v1";
 

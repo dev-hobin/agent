@@ -13,7 +13,8 @@ import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgm
 function target() {
 	const opened = openWorkCase({
 		outcome: {
-			statement: "The existing implementation already satisfies the delegation.",
+			statement:
+				"The existing implementation already satisfies the delegation.",
 			acceptanceConditions: ["The delegated behavior is present."],
 			constraints: ["No unrelated artifact changes."],
 		},
@@ -62,16 +63,19 @@ function proposal(
 
 test("complete target accounting creates one immutable Closure Claim", () => {
 	const fixture = target();
-	const accepted = acceptClosureClaim(fixture.target, proposal({
-		workCaseId: fixture.target.workCaseId,
-		closureTargetId: fixture.target.closureTargetId,
-		obligationDispositions: fixture.target.obligations.map((obligation) => ({
-			closureObligationId: obligation.closureObligationId,
-			conclusionIds: fixture.target.conclusionIds,
-			effectAssessmentIds: [],
-			basis: [`Evidence satisfies: ${obligation.statement}`],
-		})),
-	}));
+	const accepted = acceptClosureClaim(
+		fixture.target,
+		proposal({
+			workCaseId: fixture.target.workCaseId,
+			closureTargetId: fixture.target.closureTargetId,
+			obligationDispositions: fixture.target.obligations.map((obligation) => ({
+				closureObligationId: obligation.closureObligationId,
+				conclusionIds: fixture.target.conclusionIds,
+				effectAssessmentIds: [],
+				basis: [`Evidence satisfies: ${obligation.statement}`],
+			})),
+		}),
+	);
 
 	assert.equal(accepted.status, "accepted");
 	if (accepted.status !== "accepted") return;
@@ -131,14 +135,19 @@ test("omitted, duplicate, or evidence-free obligations are rejected", () => {
 			closureObligationId: obligation.closureObligationId,
 			conclusionIds: fixture.target.conclusionIds,
 			effectAssessmentIds: [],
-			basis: ["The current Claim Assurance Conclusion supports this obligation."],
+			basis: [
+				"The current Claim Assurance Conclusion supports this obligation.",
+			],
 		})),
 	});
 	const first = base.obligationDispositions[0];
 	if (first === undefined) throw new Error("Expected closure obligation");
 	const fixtures: Array<{ value: ClosureClaimProposal; code: string }> = [
 		{
-			value: { ...base, obligationDispositions: base.obligationDispositions.slice(1) },
+			value: {
+				...base,
+				obligationDispositions: base.obligationDispositions.slice(1),
+			},
 			code: "obligation-accounting",
 		},
 		{
@@ -175,7 +184,9 @@ test("a new Work Case fact makes an accepted Closure Claim stale", () => {
 			closureObligationId: obligation.closureObligationId,
 			conclusionIds: fixture.target.conclusionIds,
 			effectAssessmentIds: [],
-			basis: ["The current Claim Assurance Conclusion supports this obligation."],
+			basis: [
+				"The current Claim Assurance Conclusion supports this obligation.",
+			],
 		})),
 	});
 	const accepted = acceptClosureClaim(fixture.target, claimProposal);
@@ -216,7 +227,9 @@ test("cross-target and undeclared evidence cannot create a Claim", () => {
 			closureObligationId: obligation.closureObligationId,
 			conclusionIds: fixture.target.conclusionIds,
 			effectAssessmentIds: [],
-			basis: ["The current Claim Assurance Conclusion supports this obligation."],
+			basis: [
+				"The current Claim Assurance Conclusion supports this obligation.",
+			],
 		})),
 	});
 	const crossTarget = acceptClosureClaim(fixture.target, {
@@ -225,10 +238,11 @@ test("cross-target and undeclared evidence cannot create a Claim", () => {
 	});
 	const undeclared = acceptClosureClaim(fixture.target, {
 		...base,
-		obligationDispositions: base.obligationDispositions.map((disposition, index) =>
-			index === 0
-				? { ...disposition, conclusionIds: ["conclusion-other"] }
-				: disposition,
+		obligationDispositions: base.obligationDispositions.map(
+			(disposition, index) =>
+				index === 0
+					? { ...disposition, conclusionIds: ["conclusion-other"] }
+					: disposition,
 		),
 	});
 

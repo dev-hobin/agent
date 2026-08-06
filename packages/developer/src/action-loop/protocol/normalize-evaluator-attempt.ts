@@ -61,9 +61,7 @@ function canonicalOptionalText(value: string | undefined): string | undefined {
 	return normalized.length === 0 ? undefined : normalized;
 }
 
-function canonicalProvenance(
-	provenance: EvaluatorAttemptProvenance,
-):
+function canonicalProvenance(provenance: EvaluatorAttemptProvenance):
 	| { readonly ok: true; readonly value: EvaluatorAttemptProvenance }
 	| {
 			readonly ok: false;
@@ -91,7 +89,10 @@ function canonicalProvenance(
 		["provider", provenance.provider],
 		["model", provenance.model],
 	] as const) {
-		if (value !== undefined && (typeof value !== "string" || value.trim().length === 0)) {
+		if (
+			value !== undefined &&
+			(typeof value !== "string" || value.trim().length === 0)
+		) {
 			return {
 				ok: false,
 				result: {
@@ -134,7 +135,10 @@ export function normalizeEvaluatorAttempt<T>(
 	if (!provenance.ok) return provenance.result;
 	if (attempt.outcome !== "returned") {
 		const detail = canonicalOptionalText(attempt.detail);
-		if (detail !== undefined && detail.length > MAX_EVALUATOR_ATTEMPT_DETAIL_LENGTH) {
+		if (
+			detail !== undefined &&
+			detail.length > MAX_EVALUATOR_ATTEMPT_DETAIL_LENGTH
+		) {
 			return {
 				status: "invalid",
 				error: {
@@ -165,7 +169,8 @@ export function normalizeEvaluatorAttempt<T>(
 		return Object.freeze({
 			status: "unresolved",
 			reason: "malformed",
-			detail: error instanceof Error ? error.message : "Proposal refinement failed",
+			detail:
+				error instanceof Error ? error.message : "Proposal refinement failed",
 			provenance: provenance.value,
 		});
 	}

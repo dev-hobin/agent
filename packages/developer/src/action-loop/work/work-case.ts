@@ -233,7 +233,10 @@ export function deriveWorkCaseRevisionId(state: WorkCaseRevisionState): string {
 }
 
 export interface WorkCaseInventoryIssue {
-	readonly code: "duplicate-record" | "identity-mismatch" | "missing-dependency";
+	readonly code:
+		| "duplicate-record"
+		| "identity-mismatch"
+		| "missing-dependency";
 	readonly path: string;
 	readonly message: string;
 }
@@ -247,7 +250,10 @@ function firstDuplicateId(ids: readonly string[]): string | undefined {
 	return undefined;
 }
 
-function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+function sameStrings(
+	left: readonly string[],
+	right: readonly string[],
+): boolean {
 	return (
 		left.length === right.length &&
 		left.every((value, index) => value === right[index])
@@ -258,14 +264,21 @@ function duplicateInventoryIssue(
 	workCase: ActiveWorkCase,
 ): WorkCaseInventoryIssue | undefined {
 	const collections: Array<[string, readonly string[]]> = [
-		["conclusions", workCase.conclusions.map(({ conclusionId }) => conclusionId)],
+		[
+			"conclusions",
+			workCase.conclusions.map(({ conclusionId }) => conclusionId),
+		],
 		[
 			"actionCandidates",
-			workCase.actionCandidates.map(({ actionCandidateId }) => actionCandidateId),
+			workCase.actionCandidates.map(
+				({ actionCandidateId }) => actionCandidateId,
+			),
 		],
 		[
 			"actionClearances",
-			workCase.actionClearances.map(({ actionClearanceId }) => actionClearanceId),
+			workCase.actionClearances.map(
+				({ actionClearanceId }) => actionClearanceId,
+			),
 		],
 		["effects", workCase.effects.map(({ effectId }) => effectId)],
 		[
@@ -425,7 +438,9 @@ export function workCaseInventoryIssue(
 	);
 	const effectIssue = effectInventoryIssue(workCase, clearances);
 	if (effectIssue !== undefined) return effectIssue;
-	const effects = new Map(workCase.effects.map((effect) => [effect.effectId, effect]));
+	const effects = new Map(
+		workCase.effects.map((effect) => [effect.effectId, effect]),
+	);
 	return assessmentInventoryIssue(workCase, effects);
 }
 
