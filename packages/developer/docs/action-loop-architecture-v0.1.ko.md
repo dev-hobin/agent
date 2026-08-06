@@ -310,17 +310,41 @@ unknown
 
 Known partial effect는 partial로 settle될 수 있지만 completion을 막거나 Judgment를 다시 열 수 있다. 관찰된 Effect가 expectation과 materially diverge할 때 Contextual Adequacy, Proportionate Intervention, Consequence Integrity, 또는 Claim Assurance가 다시 열릴 수 있다.
 
-## 8. Contribution composition
+## 8. Judgment closure와 Contribution composition
 
-상위 category는 fixed Skill list가 아니라 필요한 Contribution Need를 선언한다.
+상위 category는 fixed Skill list를 선언하지 않는다. Category contract는 Judgment Subject와 current context에 맞는 Closure Requirements를 도출하고, 현재 충족되지 않은 requirement가 Contribution Needs를 만든다.
 
 ```text
-Judgment situation / subject
-  → upper Judgment Category
-    → Contribution Needs
-      → context-matched Capabilities
-        → Skill-specific References
+Judgment Category + Subject + Context
+  → Closure Requirements
+    → current unmet requirements
+      → Contribution Needs
+        → context-matched Capabilities
+          → selected Skill families or other sources
+            → Skill-local References when applicable
+              → Contributions
+                → Need Coverage
+                  → Upper Judgment synthesis
+                    → Conclusion
 ```
+
+다음 구분을 유지한다.
+
+```text
+Closure Requirement:
+  Judgment를 닫기 위해 입증되거나 disposition되어야 하는 condition
+
+Contribution Need:
+  현재 Closure Requirement를 평가하기 위해 부족한 input
+
+Contribution:
+  하나의 Need를 실제로 다루는 source-bounded input
+
+Need Coverage:
+  Contributions가 Need를 어느 정도 다루는지에 대한 Upper Judgment relation
+```
+
+Need Coverage는 `covered`, `partially-covered`, `conflicted`, `missing`을 구분한다. `superseded`는 Coverage가 아니라 Subject나 requirement 변화에 따른 Need lifecycle이다. Skill output은 Coverage나 Conclusion을 스스로 선언하지 않는다.
 
 Capability inventory는 open-world다.
 
@@ -329,27 +353,36 @@ Capability inventory는 open-world다.
 - project-local Skills
 - tools와 verifier
 - specialist contribution
+- external decision source
 - code, tests, user language, observed effect
 
-다음 구분을 유지한다.
+다음 capability boundary를 유지한다.
 
 ```text
+Capability:
+  반복적으로 Contribution을 만들 수 있는 수단
+
 Skill:
-  반복 가능한 contribution capability
+  method와 handoff boundary를 가진 Capability
+
+TOC descriptor:
+  Skill applicability와 Skill-local Reference relevance만 선언하는 authoring contract
 
 Reference:
-  Skill 내부에서 trigger에 따라 선택되는 deeper method
+  selected Skill 안에서 trigger에 따라 선택되는 deeper method
 
 Context source:
-  selection과 acceptance를 바꾸는 observation 또는 constraint
+  selection과 acceptance를 바꾸는 Observation 또는 Constraint
 
 Category:
-  반복되는 consequential warrant gap의 stable question과 stop
+  반복되는 consequential Warrant Gap의 stable question과 closure contract
 ```
 
-`AGENTS.md`, repository instructions, code, test는 context source다. 자동으로 Skill이나 상위 category가 되지 않는다. Skill이 추가되어도 top-level responsibility ontology가 자동으로 늘어나지 않는다.
+TOC는 모든 Capability에 요구되지 않는다. Tool, direct Observation, external decision은 다른 adapter를 통해 Contribution을 만들 수 있다. `AGENTS.md`, repository instructions, code, test는 Context source이며 자동으로 Skill이나 상위 category가 되지 않는다. Skill이 추가되어도 top-level responsibility ontology가 자동으로 늘어나지 않는다.
 
-Contribution Need의 matching representation은 아직 확정하지 않는다. 먼저 transition trace에서 실제로 필요한 Contribution을 관찰한다.
+Skill의 human-facing `name`은 runtime identity가 아니다. Pi Adapter는 discovered source provenance와 Skill-relative root에서 source-bound Capability ID를 생성하고, exact `SKILL.md`와 normalized TOC에서 Capability revision ID를 생성한다. Current Pi가 name collision로 제외한 Skill을 Developer가 독자적인 filesystem scan으로 복원하지 않는다.
+
+Contribution Need의 final TypeScript representation은 아직 확정하지 않는다. 그러나 Closure Requirement, Need, Capability routing, Reference routing, Contribution, Coverage, Conclusion 사이의 linking semantics는 [Capability and Material Routing](./action-loop-routing-contract-v0.1.ko.md)을 따른다.
 
 ## 9. 최소 canonical state
 
@@ -371,8 +404,10 @@ Judgment {
   category
   subject
   question
+  closureRequirements
   contributionNeeds
   contributions
+  needCoverage
   conclusion?
   status
 }
@@ -453,6 +488,7 @@ complete | block | pause
                                     ▼
 ┌────────────────────────── Pi Extension Adapter ─────────────────────────┐
 │ host event를 pure work command/event로 번역                             │
+│ Skill source와 TOC를 refined Capability inventory로 결합                │
 │ controlled tool action 전 Action Clearance를 확인                        │
 │ tool result를 Effect Observation으로 기록                               │
 └───────────────────────────────────┬─────────────────────────────────────┘
@@ -460,8 +496,8 @@ complete | block | pause
                                     ▼
 ┌──────────────────────────── Pure Work Core ─────────────────────────────┐
 │ Work Case · pure transitions · invariants                               │
-│ warrant-gap admission · category contracts                              │
-│ action/effect accounting · evidence-bounded completion                  │
+│ warrant-gap admission · Closure Requirements · Need Coverage             │
+│ Contribution assignment · action/effect · evidence-bounded completion   │
 └───────────────┬───────────────────┬───────────────────┬─────────────────┘
                 │                   │                   │
                 ▼                   ▼                   ▼
@@ -470,9 +506,15 @@ complete | block | pause
        project-local Skills
 ```
 
+### Discovery and I/O boundary
+
+Pi Adapter는 Pi가 trust, settings, CLI, package discovery를 적용한 Skill catalog만 받아들인다. 각 discovered Skill root의 bounded direct-child JSON scan, `$schema` validation, path containment, source-bound Capability identity, exact content acquisition을 host-side refined values로 바꾼다.
+
+Work Core는 filesystem을 검색하거나 raw TOC JSON을 해석하지 않는다. 이미 provenance가 결합된 Capability inventory와 sealed Skill context만 받아 pure assignment, Coverage, transition invariant를 적용한다.
+
 ### Hook responsibilities
 
-- `before_agent_start`: current canonical work와 unresolved obligations를 model context에 제공한다.
+- `before_agent_start`: current canonical work, unresolved Closure Requirements와 Contribution Needs를 model context에 제공한다.
 - protocol tools: model이 judgment, contribution, action, settlement, completion transition을 명시적으로 제안하게 한다.
 - `tool_call`: controlled Action이 현재 Cleared Action과 맞는지 확인한다.
 - `tool_result`: 실행 결과를 Effect Observation으로 기록한다.
@@ -546,6 +588,9 @@ Extension만으로 다음을 보장할 수는 없다.
 6. **External decision wait**: professional role을 발명하지 않고 필요한 decision을 명시해 waiting으로 남는다.
 7. **No-progress pause**: response가 반복되거나 continuation progress가 없을 때 outcome을 잃지 않고 pause한다.
 8. **Evidence-bounded completion**: verifier가 지지하는 scope까지만 completion claim을 허용한다.
+9. **Open-world capability composition**: 하나의 Need가 zero, one, several Skills 또는 non-Skill sources에 의해 다뤄지고, selected Skill은 zero, one, several References를 선택한다.
+10. **Partial and conflicting Coverage**: useful Contributions가 있어도 consequential residual이나 conflict가 있으면 Conclusion과 completion을 허용하지 않는다.
+11. **Capability identity and drift**: same human name이 source identity를 합치지 않고, Skill/TOC 또는 selected Reference drift가 dependent value를 stale하게 만든다.
 
 추가 상태, event, abstraction은 이 trace 중 하나가 요구할 때만 도입한다.
 
@@ -574,7 +619,7 @@ Extension만으로 다음을 보장할 수는 없다.
 - *Grokking Simplicity*: action, timing, repetition, shared resource, timeline, coordination으로 Consequence Integrity를 시험했다.
 - *Structure and Interpretation of Computer Programs*: procedure/process, abstraction barrier, state, identity, ordering, concurrency로 possible execution과 invariant-preserving outcome을 구분했다.
 
-현재 Developer Skills와 `reference-policy.json`은 capability와 Skill-to-Reference routing evidence다. 이 파일 형식이나 Skill inventory를 upper ontology의 canonical representation으로 간주하지 않는다.
+현재 Developer Skills와 `reference-policy.json`은 capability와 Skill-to-Reference routing evidence다. 새 schema-identified TOC descriptor는 이 evidence를 작은 authoring surface로 옮기는 reconstruction contract다. 어느 파일 형식이나 Skill inventory도 upper ontology의 canonical representation으로 간주하지 않는다.
 
 ## 17. Reopen and stop rule
 

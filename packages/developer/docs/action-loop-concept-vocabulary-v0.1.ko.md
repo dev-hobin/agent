@@ -56,7 +56,10 @@ Complete, blocked, no-change 같은 closure claim은 supporting evidence보다 �
 Work Case
 Warrant Gap
 Judgment
+Closure Requirement
+Contribution Need
 Contribution
+Need Coverage
 Action
 Effect
 Claim
@@ -105,62 +108,42 @@ Work View
 ## 4. Concept relation map
 
 ```text
-                         ┌───────────────┐
-                         │    Outcome    │
-                         └───────┬───────┘
-                                 │ defines
-                                 ▼
-                         ┌───────────────┐
-                         │   Work Case   │
-                         └───────┬───────┘
-                                 │ receives
-                                 ▼
-                         ┌───────────────┐
-                         │  Observation  │
-                         └───────┬───────┘
-                                 │ may reveal
-                                 ▼
-                         ┌───────────────┐
-                         │  Warrant Gap  │
-                         └───────┬───────┘
-                                 │ opens
-                                 ▼
-                         ┌───────────────┐
-                         │   Judgment    │
-                         └───────┬───────┘
-                                 │ requires
-                                 ▼
-                      ┌──────────────────────┐
-                      │  Contribution Need   │
-                      └──────────┬───────────┘
-                                 │ addressed by
-                                 ▼
-                         ┌───────────────┐
-                         │ Contribution  │
-                         └───────┬───────┘
-                                 │ synthesized into
-                                 ▼
-                         ┌───────────────┐
-                         │  Conclusion   │
-                         └───────┬───────┘
-                                 │ warrants
-                 ┌───────────────┴────────────────┐
-                 ▼                                ▼
-        ┌────────────────┐               ┌────────────────┐
-        │ Action Candidate│               │     Claim      │
-        └───────┬────────┘               └───────┬────────┘
-                │ warrant + permission           │ assurance
-                ▼                                ▼
-        ┌────────────────┐               ┌────────────────┐
-        │ Action Clearance│               │ Closure Claim  │
-        └───────┬────────┘               └───────┬────────┘
-                │ execute                        │ supports
-                ▼                                ▼
-        ┌────────────────┐               ┌────────────────┐
-        │     Effect     │               │  Work Status   │
-        └───────┬────────┘               └────────────────┘
-                │ observed and settled
-                └──────────────────────────────→ Work Case
+Outcome
+  → defines Work Case
+    → receives Observations
+      → may reveal Warrant Gap
+        → opens Judgment
+
+Judgment Category + Judgment Subject + current Context
+  → derive Closure Requirements
+    → current unmet requirement reveals Contribution Need
+      → assigned Capability produces Contribution
+        → Upper Judgment assesses Need Coverage
+          → Coverage + all Closure Requirements support Conclusion
+
+Conclusion
+  ├→ warrants Action Candidate
+  │    + permission
+  │      → Action Clearance
+  │        → Action
+  │          → Effect
+  │            → Effect Observations
+  │              → Effect Settlement
+  │                → Work Case
+  │
+  └→ warrants Claim
+       → Claim Assurance bounds Closure Claim
+         → supports Work Status transition
+```
+
+이 map의 중간 두 stop을 생략하지 않는다.
+
+```text
+Contribution
+  ≠ Need Coverage
+
+Need Coverage
+  ≠ Conclusion
 ```
 
 ## 5. Core domain concepts
@@ -259,10 +242,11 @@ Judgment와 Conclusion을 구분한다.
 
 ```text
 Judgment:
-  question, subject, category, contribution needs, current status
+  question, subject, category, closure requirements, contribution needs,
+  need coverage, current status
 
 Conclusion:
-  그 Judgment가 종합한 category-scoped answer
+  그 Judgment가 requirements와 coverage를 종합한 category-scoped answer
 ```
 
 ### 5.7 Judgment Subject
@@ -297,7 +281,33 @@ Assurance
 
 `Context Fit`과 `Intervention Proportionality`는 더 평행적인 sign 후보지만 transition trace 전에는 rename을 확정하지 않는다.
 
-### 5.9 Contribution Need
+### 5.9 Closure Requirement
+
+> 하나의 Judgment를 닫기 위해 입증되거나 명시적으로 disposition되어야 하는 category-specific condition.
+
+Judgment Category는 Closure Requirement family를 소유한다. 실제 requirement는 Category, Judgment Subject, current Context의 결합에서 instance-specific하게 도출된다.
+
+```text
+Consequence Integrity category:
+  possible execution이 acceptable consequence envelope 안에 있어야 한다.
+
+Current Judgment requirement:
+  duplicate callback history가 at-most-one capture invariant를 보존해야 한다.
+```
+
+Closure Requirement와 Contribution Need를 구분한다.
+
+```text
+Closure Requirement:
+  무엇이 참이거나 disposition되어야 Judgment를 닫을 수 있는가?
+
+Contribution Need:
+  그 requirement를 평가하기 위해 지금 어떤 input이 부족한가?
+```
+
+Closure Requirement는 Skill 이름, verifier 이름, professional role을 포함하지 않는다.
+
+### 5.10 Contribution Need
 
 > Judgment를 닫기 위해 필요한 input의 기능적 역할.
 
@@ -315,7 +325,7 @@ claim-relevant verifier
 
 Contribution Need에는 Skill 이름이 들어가지 않는다.
 
-### 5.10 Contribution
+### 5.11 Contribution
 
 > 하나의 Contribution Need를 실제로 다루는 source-bounded input.
 
@@ -325,11 +335,14 @@ Contribution은 Observation, analysis, model, comparison, candidate, verifier re
 Skill output
   → Contribution
 
-Contributions를 category contract로 종합
+Contributions를 Need별로 평가
+  → Need Coverage
+
+Need Coverage와 Closure Requirements를 category contract로 종합
   → Conclusion
 ```
 
-### 5.11 Capability
+### 5.12 Capability
 
 > 특정 종류의 Contribution을 반복적으로 만들어낼 수 있는 수단.
 
@@ -346,7 +359,27 @@ specialist capability
 
 Skill `name`은 human-facing label이지 Capability identity가 아니다. Runtime은 discovered source-bound Capability ID와 Skill/TOC content-bound revision ID를 생성한다. 동일 이름 처리와 Pi discovery boundary는 [Capability and Material Routing](./action-loop-routing-contract-v0.1.ko.md)이 정의한다.
 
-### 5.12 Conclusion
+### 5.13 Need Coverage
+
+> 현재 Contributions가 하나의 Contribution Need를 어느 정도 다루는지 Upper Judgment가 판정하는 relation.
+
+```text
+covered
+partially-covered
+conflicted
+missing
+```
+
+- `covered`: related Closure Requirement를 평가하기에 충분한 support가 있다.
+- `partially-covered`: useful support는 있지만 consequential residual이 남는다.
+- `conflicted`: material Contributions가 incompatible한 interpretations를 지지한다.
+- `missing`: usable Contribution이 Need를 다루지 않는다.
+
+`superseded`는 Coverage가 아니다. Subject, Context, 또는 Closure Requirement가 바뀌어 Need가 더 이상 current하지 않은 Need lifecycle이다.
+
+Skill, Reference, tool은 Need Coverage를 스스로 선언하지 않는다. Upper Judgment가 모든 Contributions, conflicts, limitations, residual Needs를 보고 판정한다. Need Coverage가 있어도 모든 Closure Requirements가 충족되지 않으면 Conclusion을 만들 수 없다.
+
+### 5.14 Conclusion
 
 > 하나의 Judgment를 닫는 category-scoped answer.
 
@@ -360,7 +393,7 @@ Conclusion ≠ Work Case completion
 
 예를 들어 `publish가 적절하다`는 Conclusion이 있어도 publish permission이 없으면 실행할 수 없다.
 
-### 5.13 Action Candidate
+### 5.15 Action Candidate
 
 > 현재 Work Case를 진행시키기 위해 고려 중인 하나의 concrete controlled Action.
 
@@ -373,7 +406,7 @@ Action Candidate
 = cleared Action
 ```
 
-### 5.14 Action Clearance
+### 5.16 Action Clearance
 
 > 특정 Action Candidate가 현재 실행되어도 된다는 bounded gate result.
 
@@ -390,7 +423,7 @@ cleared(action):
 
 `Action Clearance`는 Conclusion과 permission을 구별하면서도 아직 독립 authority subsystem을 요구하지 않는다. Permission variation이 finite trace에서 복잡해질 때만 내부 representation을 확장한다.
 
-### 5.15 Effect
+### 5.17 Effect
 
 > Action 이후 reality에서 실제로 발생한 결과.
 
@@ -406,13 +439,13 @@ Effect:
 
 실제 Effect는 처음에는 unknown일 수 있다.
 
-### 5.16 Effect Observation
+### 5.18 Effect Observation
 
 > 실제 Effect를 evidence-bounded하게 판단할 수 있게 해주는 Observation.
 
 Filesystem diff, registry 조회, process state, test result가 Effect Observation이 될 수 있다. 어느 것도 모든 Effect를 자동으로 증명하지 않는다.
 
-### 5.17 Effect Settlement
+### 5.19 Effect Settlement
 
 > Action과 Effect Observation을 연결해 다음 transition에 충분할 정도로 실제 결과를 결론 내리는 accounting operation.
 
@@ -434,13 +467,13 @@ pending
 unknown
 ```
 
-### 5.18 Claim
+### 5.20 Claim
 
 > Evidence가 support하거나 challenge할 수 있는 명시적 proposition.
 
 Evidence는 독립 물체라기보다 Observation 또는 Contribution과 특정 Claim 사이의 support relation이다.
 
-### 5.19 Closure Claim
+### 5.21 Closure Claim
 
 > Work Case를 complete, blocked 또는 다른 explicit status로 전환하기 위해 제안된 Claim.
 
@@ -459,7 +492,7 @@ no-change:
 
 Claim Assurance Judgment가 Closure Claim의 scope를 Evidence에 맞춘다.
 
-### 5.20 Work Status
+### 5.22 Work Status
 
 > Work Case가 continuation과 closure 관점에서 현재 어디에 있는지 나타내는 상태.
 
@@ -475,7 +508,7 @@ complete
 - `waiting`: 알려진 external condition이 바뀌기를 기다린다.
 - `blocked`: 현재 required closure path가 없다.
 - `paused`: continuation은 가능하지만 명시적으로 중단됐다.
-- `complete`: Closure Claim이 assured되고 consequential Effect가 settled됐다.
+- `complete`: required Closure Requirements와 Need Coverage가 Judgment Conclusion을 지지하고, Closure Claim이 assured되며 consequential Effect가 settled됐다.
 
 ## 6. Runtime component vocabulary
 
@@ -485,7 +518,7 @@ Work Case transition과 invariant를 소유한다. Pi hook, TUI, Skill discovery
 
 ### Contribution Router
 
-Contribution Need와 context를 보고 사용할 Capability를 선택한다. Conclusion을 만들거나 fixed Skill order를 강제하지 않는다.
+Contribution Need와 Context를 보고 사용할 Capability를 선택한다. Skill-backed Capability가 선택되면 schema-identified TOC의 root applicability와 Skill-local Reference relevance를 적용한다. Conclusion이나 Need Coverage를 만들지 않고 fixed Skill order를 강제하지 않는다.
 
 ### Model Protocol
 
@@ -493,7 +526,7 @@ Model이 Observation, Contribution, Action Candidate, settlement, Closure Claim�
 
 ### Pi Adapter
 
-Pi hook과 Work Core transition 사이를 번역한다. Host event를 domain policy로 해석하지 않고, core policy를 host detail에 결합하지 않는다.
+Pi hook과 Work Core transition 사이를 번역한다. Pi-selected Skill provenance와 schema-identified TOC를 refined Capability inventory로 결합하고 source-bound Capability ID와 content-bound revision ID를 생성한다. Work Core가 raw filesystem이나 Pi discovery policy를 소유하게 하지 않는다.
 
 ### Work Record
 
@@ -516,13 +549,17 @@ Warrant Gap opens Judgment.
 
 Judgment is classified by Judgment Category.
 
-Judgment declares Contribution Needs.
+Judgment Category, Subject, and Context derive Closure Requirements.
+
+Current unmet Closure Requirement reveals Contribution Need.
 
 Capability produces Contribution.
 
 Contribution addresses Contribution Need.
 
-Judgment synthesizes Contributions into Conclusion.
+Upper Judgment assesses Need Coverage.
+
+Judgment synthesizes Coverage and Contributions into Conclusion.
 
 Conclusion warrants an Action Candidate or Claim.
 
@@ -559,6 +596,8 @@ Closure Claim supports a Work Status transition.
 | --- | --- |
 | trivial typo 수정 | 모든 unknown이 Warrant Gap은 아니다. |
 | retention policy 미정 | Contribution이 있어도 필요한 external decision 없이는 Conclusion을 만들 수 없다. |
+| Skill이 local result를 resolved로 반환 | Skill-local resolution과 Need Coverage와 Conclusion은 다르다. |
+| 두 Contributions가 상충 | Useful input이 있어도 Coverage는 `conflicted`이며 Judgment를 닫지 않는다. |
 | release는 준비됐지만 publish 미허용 | Conclusion과 Action Clearance는 다르다. |
 | tool은 성공했지만 파일이 변하지 않음 | Tool result와 Effect는 다르다. |
 | 파일이 절반만 변경됨 | Effect와 Effect Settlement는 다르다. |
