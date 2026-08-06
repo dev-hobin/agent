@@ -172,9 +172,7 @@ test("catalogues every Pi-provided Skill into a source-bound discovery outcome",
 			},
 		]);
 		assert.equal(
-			result.entries.some(
-				(entry) => entry.candidate.label === "unlisted",
-			),
+			result.entries.some((entry) => entry.candidate.label === "unlisted"),
 			false,
 		);
 		assert.equal(Object.isFrozen(result), true);
