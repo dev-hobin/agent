@@ -296,7 +296,7 @@ branch; they do not by themselves prove source fidelity.
 
 See [Reference routing](./REFERENCE_ROUTING.md) for the runtime contract and
 policy schema. See the
-[Terminal Judgment Workbench study](./docs/terminal-judgment-workbench-study-v0.1.ko.md)
+[Terminal Judgment Workbench study](./docs/ko/terminal-judgment-workbench-study-v0.1.md)
 for the product meaning, comparative terminal research, transfer boundaries, and
 inspection contract behind the Workbench.
 

@@ -499,7 +499,7 @@ const markdownDocuments = [
 	"source-audits/parse-dont-validate-2019-11-05.md",
 	"extensions/references/behavior-preserving-structural-change.md",
 	"README.md",
-	"docs/terminal-judgment-workbench-study-v0.1.ko.md",
+	"docs/ko/terminal-judgment-workbench-study-v0.1.md",
 ];
 for (const documentPath of markdownDocuments) {
 	const absoluteDocumentPath = join(root, documentPath);

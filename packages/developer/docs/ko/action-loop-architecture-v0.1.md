@@ -5,8 +5,8 @@
 > 기준선: `@hobin/developer@0.1.19`
 >
 > 관련 계약:
-> [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.ko.md) ·
-> [Capability and Material Routing](./action-loop-routing-contract-v0.1.ko.md)
+> [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
+> [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
 > Runtime note: 0.1.19는 이 문서의 architecture를 아직 구현하지 않는다. 현재 release runtime과 Skills는 reconstruction 중에도 작동하는 보존 기준선이다.
 >
@@ -406,7 +406,7 @@ TOC는 모든 Capability에 요구되지 않는다. Tool, direct Observation, ex
 
 Skill의 human-facing `name`은 runtime identity가 아니다. Pi Adapter는 discovered source provenance와 Skill-relative root에서 source-bound Capability ID를 생성하고, exact `SKILL.md`와 routing fingerprint에서 Capability revision ID를 생성한다. Structured Skill의 fingerprint는 normalized TOC hash이고, unstructured Skill은 explicit versioned no-TOC marker를 사용한다. Recognized invalid descriptor는 unstructured fallback이 아니다. Current Pi가 name collision로 제외한 Skill을 Developer가 독자적인 filesystem scan으로 복원하지 않는다.
 
-Contribution Need의 final TypeScript representation은 아직 확정하지 않는다. 그러나 Closure Requirement, Need, Capability routing, Reference routing, Contribution, Coverage, Conclusion 사이의 linking semantics는 [Capability and Material Routing](./action-loop-routing-contract-v0.1.ko.md)을 따른다.
+Contribution Need의 final TypeScript representation은 아직 확정하지 않는다. 그러나 Closure Requirement, Need, Capability routing, Reference routing, Contribution, Coverage, Conclusion 사이의 linking semantics는 [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)을 따른다.
 
 ## 9. 최소 canonical state
 

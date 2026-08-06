@@ -3,8 +3,8 @@
 > 상태: reconstruction design contract
 >
 > 관련 문서:
-> [Action Loop Architecture](./action-loop-architecture-v0.1.ko.md) ·
-> [Action Loop Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.ko.md)
+> [Action Loop Architecture](./action-loop-architecture-v0.1.md) ·
+> [Action Loop Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md)
 >
 > 기준선: `@hobin/developer@0.1.19`
 >
