@@ -3,6 +3,7 @@ import test from "node:test";
 import { acceptActionCandidate } from "../src/action-loop/action/accept-action-candidate.ts";
 import { acceptActionClearance } from "../src/action-loop/action/action-clearance.ts";
 import { beginEffect } from "../src/action-loop/effect/begin-effect.ts";
+import { acceptEffectObservation } from "../src/action-loop/effect/effect-observation.ts";
 import { settleEffect } from "../src/action-loop/effect/effect-settlement.ts";
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
 import { prepareClosureTarget } from "../src/action-loop/work/prepare-closure-target.ts";
@@ -192,5 +193,54 @@ test("an occurred Effect cannot be omitted from closure readiness", () => {
 	assert.equal(unsettled.status, "not-ready");
 	if (unsettled.status === "not-ready") {
 		assert.equal(unsettled.blockers[0]?.code, "unsettled-effect");
+	}
+
+	const observation = acceptEffectObservation(effect.value, {
+		workCaseId: opened.workCaseId,
+		effectId: effect.value.effectId,
+		occurrenceId: effect.value.occurrenceId,
+		evidence: {
+			kind: "tool-result",
+			locator: "pi://tool-result/closure-target",
+			fingerprint: "b".repeat(64),
+		},
+		statement: "The controlled Action failed before producing its intended Effect.",
+		limitations: [],
+		provenance: { kind: "tool", source: "pi:tool_result" },
+	});
+	if (observation.status !== "accepted") return;
+	const failed = settleEffect(effect.value, [observation.value], {
+		workCaseId: opened.workCaseId,
+		effectId: effect.value.effectId,
+		outcome: "failed",
+		observationDispositions: [
+			{
+				effectObservationId: observation.value.effectObservationId,
+				status: "relied-on",
+				basis: ["The exact tool result bears on the failed Effect."],
+			},
+		],
+		intendedEffectDispositions: [
+			{
+				intendedEffect,
+				status: "failed",
+				observationIds: [observation.value.effectObservationId],
+				basis: ["The intended Effect was not produced."],
+			},
+		],
+		basis: ["The current evidence supports a failed settlement."],
+		provenance: { kind: "model", source: "test-evaluator" },
+	});
+	if (failed.status !== "settled") return;
+	const failedCurrent = recordWorkCaseEffectAssessment(
+		withAssessment.value,
+		failed.value,
+		assessment.value.effectAssessmentId,
+	);
+	if (failedCurrent.status !== "recorded") return;
+	const adverse = prepareClosureTarget(failedCurrent.value);
+	assert.equal(adverse.status, "not-ready");
+	if (adverse.status === "not-ready") {
+		assert.equal(adverse.blockers[0]?.code, "adverse-effect");
 	}
 });
