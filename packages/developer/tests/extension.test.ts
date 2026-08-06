@@ -1443,10 +1443,6 @@ test("the protocol prompt lists only skills Pi made available", async () => {
 	);
 });
 
-
-
-
-
 test("a later turn can recover the active leaf method from its canonical location", async () => {
 	const harness = await startHarness();
 	await harness.tools.get(ROUTE_TOOL).execute(

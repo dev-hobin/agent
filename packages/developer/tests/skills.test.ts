@@ -225,7 +225,10 @@ test("every reference-bearing skill routes its complete catalog without global d
 		assert.doesNotMatch(method, /^## Context Directions$/mu);
 		await assert.rejects(access(join(skill.baseDir, "judgment.json")));
 		if (skill.name === "model") {
-			assert.match(policy.exemption?.when ?? "", /already-settled laws or invariants/u);
+			assert.match(
+				policy.exemption?.when ?? "",
+				/already-settled laws or invariants/u,
+			);
 		}
 		if (skill.name === "sketch") {
 			assert.match(

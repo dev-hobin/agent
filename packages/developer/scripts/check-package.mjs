@@ -297,15 +297,13 @@ for (const path of requiredReferencePolicies) {
 }
 
 assert.match(
-	(
-		await readJson(join(root, "skills/model/reference-policy.json"))
-	).exemption.when,
+	(await readJson(join(root, "skills/model/reference-policy.json"))).exemption
+		.when,
 	/already-settled laws or invariants/u,
 );
 assert.match(
-	(
-		await readJson(join(root, "skills/sketch/reference-policy.json"))
-	).exemption.when,
+	(await readJson(join(root, "skills/sketch/reference-policy.json"))).exemption
+		.when,
 	/product meaning and condition semantics are settled/u,
 );
 
@@ -512,7 +510,9 @@ for (const documentPath of markdownDocuments) {
 	}
 }
 
-await assert.rejects(access(join(root, "extensions", "compaction-language.ts")));
+await assert.rejects(
+	access(join(root, "extensions", "compaction-language.ts")),
+);
 const extension = await readFile(
 	join(root, "extensions", "developer.ts"),
 	"utf8",
