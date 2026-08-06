@@ -546,7 +546,7 @@ Contribution Need와 Context를 보고 사용할 Capability를 선택한다. Str
 
 Model, provider, 또는 human evaluator가 Observation, applicability, Reference disposition, Contribution, Need Coverage, Action Candidate, settlement, Closure Claim을 같은 semantic shape로 제안하는 경계다. Proposal은 canonical state가 아니며 Work Core transition guard를 통과해야 한다.
 
-Provider-specific response envelopes, tool-call dialects, structured-output limitations, prompt tuning은 protocol 바깥 adapter detail이다. Malformed, refused, empty, timed-out proposal은 unresolved 또는 rejected outcome으로 남고 implicit success가 되지 않는다.
+Provider-specific response envelopes, tool-call dialects, structured-output limitations, prompt tuning은 protocol 바깥 adapter detail이다. V0 evaluator attempt boundary는 adapter/provider/model provenance를 보존하면서 transport outcome을 `proposal | unresolved | invalid`로 정규화한다. 오직 `returned` payload가 proposal-specific refiner를 통과한 경우만 proposal이 된다. Malformed, refused, failed, empty, timed-out output은 unresolved 또는 invalid outcome으로 남고 implicit success가 되지 않는다.
 
 ### Pi Adapter
 
