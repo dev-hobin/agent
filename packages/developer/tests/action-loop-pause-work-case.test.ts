@@ -42,7 +42,10 @@ test("explicit human decision pauses exactly one current Work Case revision", ()
 	assert.equal(result.value.priorRevisionId, current.revisionId);
 	assert.notEqual(result.value.revisionId, current.revisionId);
 	assert.equal(result.value.effects, current.effects);
-	assert.match(result.value.pause.workCasePauseId, /^work_case_pause_[a-f0-9]{64}$/);
+	assert.match(
+		result.value.pause.workCasePauseId,
+		/^work_case_pause_[a-f0-9]{64}$/,
+	);
 	assert.equal(current.status, "active");
 });
 
@@ -79,7 +82,10 @@ test("explicit human resume creates a new active continuity revision", () => {
 		paused.value.pause.workCasePauseId,
 		resumed.value.continuityIds[1],
 	]);
-	assert.match(resumed.value.continuityIds[1] ?? "", /^work_case_resume_[a-f0-9]{64}$/);
+	assert.match(
+		resumed.value.continuityIds[1] ?? "",
+		/^work_case_resume_[a-f0-9]{64}$/,
+	);
 });
 
 test("pre-pause Closure Claim is stale after resume", () => {
@@ -187,6 +193,7 @@ test("model, stale, cross-Case, or basis-free pause attempts fail closed", () =>
 	for (const fixture of fixtures) {
 		const result = pauseWorkCase(current, fixture.proposal);
 		assert.equal(result.status, "invalid", fixture.code);
-		if (result.status === "invalid") assert.equal(result.error.code, fixture.code);
+		if (result.status === "invalid")
+			assert.equal(result.error.code, fixture.code);
 	}
 });

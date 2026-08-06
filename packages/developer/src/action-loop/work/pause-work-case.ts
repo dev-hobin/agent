@@ -69,7 +69,9 @@ function canonicalText(value: string): string | undefined {
 	return normalized.length === 0 ? undefined : normalized;
 }
 
-function canonicalBasis(values: readonly string[]): readonly string[] | undefined {
+function canonicalBasis(
+	values: readonly string[],
+): readonly string[] | undefined {
 	if (!Array.isArray(values) || values.length === 0) return undefined;
 	const strings: string[] = [];
 	for (const value of values) {
@@ -138,14 +140,18 @@ export function pauseWorkCase(
 		source,
 		basis,
 	});
-	const workCasePauseId = hashIdentity("work_case_pause", WORK_CASE_PAUSE_VERSION, [
-		workCase.workCaseId,
-		workCase.revisionId,
-		reason,
-		decisionId,
-		source,
-		...basis,
-	]);
+	const workCasePauseId = hashIdentity(
+		"work_case_pause",
+		WORK_CASE_PAUSE_VERSION,
+		[
+			workCase.workCaseId,
+			workCase.revisionId,
+			reason,
+			decisionId,
+			source,
+			...basis,
+		],
+	);
 	const pause = Object.freeze({ workCasePauseId, reason, decision });
 	return {
 		status: "paused",

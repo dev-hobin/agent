@@ -203,7 +203,9 @@ function sortedIds(ids: readonly string[]): readonly string[] {
 }
 
 /** Derives the current Work Case revision from its complete closure inventory. */
-export function deriveWorkCaseRevisionId(state: WorkCaseInventoryState): string {
+export function deriveWorkCaseRevisionId(
+	state: WorkCaseInventoryState,
+): string {
 	const assessmentIds = state.currentEffectAssessments.map((assessment) =>
 		"effectSettlementId" in assessment
 			? assessment.effectSettlementId

@@ -76,7 +76,9 @@ function canonicalText(value: string): string | undefined {
 	return normalized.length === 0 ? undefined : normalized;
 }
 
-function canonicalBasis(values: readonly string[]): readonly string[] | undefined {
+function canonicalBasis(
+	values: readonly string[],
+): readonly string[] | undefined {
 	if (!Array.isArray(values) || values.length === 0) return undefined;
 	const normalized: string[] = [];
 	for (const value of values) {
@@ -163,7 +165,9 @@ function canonicalBlockerDispositions(
 	}
 	const ordered: BlockerDisposition[] = [];
 	for (const blocker of blockers) {
-		const disposition = accounted.get(blockerKey(blocker.code, blocker.subjectId));
+		const disposition = accounted.get(
+			blockerKey(blocker.code, blocker.subjectId),
+		);
 		if (disposition === undefined) {
 			return {
 				ok: false,
@@ -243,17 +247,21 @@ export function blockWorkCase(
 			"Blocking requires an explicit bounded reason",
 		);
 	}
-	const workCaseBlockId = hashIdentity("work_case_block", WORK_CASE_BLOCK_VERSION, [
-		workCase.workCaseId,
-		workCase.revisionId,
-		assurance.conclusionId,
-		reason,
-		...blockerDispositions.value.flatMap((disposition) => [
-			disposition.code,
-			disposition.subjectId,
-			...disposition.basis,
-		]),
-	]);
+	const workCaseBlockId = hashIdentity(
+		"work_case_block",
+		WORK_CASE_BLOCK_VERSION,
+		[
+			workCase.workCaseId,
+			workCase.revisionId,
+			assurance.conclusionId,
+			reason,
+			...blockerDispositions.value.flatMap((disposition) => [
+				disposition.code,
+				disposition.subjectId,
+				...disposition.basis,
+			]),
+		],
+	);
 	return {
 		status: "blocked",
 		value: Object.freeze({

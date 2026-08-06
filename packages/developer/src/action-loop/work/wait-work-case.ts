@@ -72,7 +72,9 @@ function canonicalText(value: string): string | undefined {
 	return normalized.length === 0 ? undefined : normalized;
 }
 
-function canonicalBasis(values: readonly string[]): readonly string[] | undefined {
+function canonicalBasis(
+	values: readonly string[],
+): readonly string[] | undefined {
 	if (!Array.isArray(values) || values.length === 0) return undefined;
 	const normalized: string[] = [];
 	for (const value of values) {
@@ -147,16 +149,20 @@ export function waitWorkCase(
 		source,
 		basis,
 	});
-	const workCaseWaitId = hashIdentity("work_case_wait", WORK_CASE_WAIT_VERSION, [
-		workCase.workCaseId,
-		workCase.revisionId,
-		externalCondition,
-		resumePredicate,
-		observation.kind,
-		observationId,
-		source,
-		...basis,
-	]);
+	const workCaseWaitId = hashIdentity(
+		"work_case_wait",
+		WORK_CASE_WAIT_VERSION,
+		[
+			workCase.workCaseId,
+			workCase.revisionId,
+			externalCondition,
+			resumePredicate,
+			observation.kind,
+			observationId,
+			source,
+			...basis,
+		],
+	);
 	return {
 		status: "waiting",
 		value: Object.freeze({

@@ -9,7 +9,8 @@ import {
 	type ActiveWorkCase,
 } from "./work-case.ts";
 
-export const WORK_CASE_WAIT_RESUME_VERSION = "developer-work-case-wait-resume/v1";
+export const WORK_CASE_WAIT_RESUME_VERSION =
+	"developer-work-case-wait-resume/v1";
 
 export interface ResumePredicateAssessmentProposal {
 	readonly resumePredicate: string;
@@ -60,7 +61,9 @@ function canonicalText(value: string): string | undefined {
 	return normalized.length === 0 ? undefined : normalized;
 }
 
-function canonicalBasis(values: readonly string[]): readonly string[] | undefined {
+function canonicalBasis(
+	values: readonly string[],
+): readonly string[] | undefined {
 	if (!Array.isArray(values) || values.length === 0) return undefined;
 	const normalized: string[] = [];
 	for (const value of values) {
@@ -134,7 +137,11 @@ function canonicalAssessment(
 	const observationId = canonicalText(proposal.observationId);
 	const source = canonicalText(proposal.source);
 	const basis = canonicalBasis(proposal.basis);
-	if (observationId === undefined || source === undefined || basis === undefined) {
+	if (
+		observationId === undefined ||
+		source === undefined ||
+		basis === undefined
+	) {
 		return {
 			ok: false,
 			result: invalid(

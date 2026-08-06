@@ -57,7 +57,9 @@ function canonicalText(value: string): string | undefined {
 	return normalized.length === 0 ? undefined : normalized;
 }
 
-function canonicalBasis(values: readonly string[]): readonly string[] | undefined {
+function canonicalBasis(
+	values: readonly string[],
+): readonly string[] | undefined {
 	if (!Array.isArray(values) || values.length === 0) return undefined;
 	const normalized: string[] = [];
 	for (const value of values) {

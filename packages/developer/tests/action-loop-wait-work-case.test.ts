@@ -37,8 +37,14 @@ test("observed external condition and resume predicate enter waiting", () => {
 	assert.equal(result.value.status, "waiting");
 	assert.equal(result.value.priorRevisionId, current.revisionId);
 	assert.notEqual(result.value.revisionId, current.revisionId);
-	assert.equal(result.value.wait.resumePredicate, "A bounded registry probe succeeds.");
-	assert.match(result.value.wait.workCaseWaitId, /^work_case_wait_[a-f0-9]{64}$/);
+	assert.equal(
+		result.value.wait.resumePredicate,
+		"A bounded registry probe succeeds.",
+	);
+	assert.match(
+		result.value.wait.workCaseWaitId,
+		/^work_case_wait_[a-f0-9]{64}$/,
+	);
 });
 
 test("only satisfied current resume predicate returns waiting Work Case to active", () => {
@@ -106,7 +112,10 @@ test("model-only, predicate-free, or stale wait attempts fail closed", () => {
 	};
 	const fixtures = [
 		{
-			proposal: { ...base, observation: { ...base.observation, kind: "model" } },
+			proposal: {
+				...base,
+				observation: { ...base.observation, kind: "model" },
+			},
 			code: "observation-required",
 		},
 		{
@@ -122,6 +131,7 @@ test("model-only, predicate-free, or stale wait attempts fail closed", () => {
 	for (const fixture of fixtures) {
 		const result = waitWorkCase(current, fixture.proposal);
 		assert.equal(result.status, "invalid", fixture.code);
-		if (result.status === "invalid") assert.equal(result.error.code, fixture.code);
+		if (result.status === "invalid")
+			assert.equal(result.error.code, fixture.code);
 	}
 });

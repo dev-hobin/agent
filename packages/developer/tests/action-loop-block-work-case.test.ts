@@ -11,7 +11,10 @@ import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-wo
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
 import { resumeBlockedWorkCase } from "../src/action-loop/work/resume-blocked-work-case.ts";
-import { openWorkCase, type ActiveWorkCase } from "../src/action-loop/work/work-case.ts";
+import {
+	openWorkCase,
+	type ActiveWorkCase,
+} from "../src/action-loop/work/work-case.ts";
 
 function conclusion(
 	workCaseId: string,
@@ -74,7 +77,8 @@ function workCaseWithUnassessedEffect() {
 	});
 	if (candidate.status !== "accepted") throw new Error(candidate.error.message);
 	const withCandidate = recordWorkCaseActionCandidate(current, candidate.value);
-	if (withCandidate.status !== "recorded") throw new Error(withCandidate.status);
+	if (withCandidate.status !== "recorded")
+		throw new Error(withCandidate.status);
 	const clearance = acceptActionClearance(
 		candidate.value,
 		[warrant],
@@ -97,7 +101,8 @@ function workCaseWithUnassessedEffect() {
 		withCandidate.value,
 		clearance.value,
 	);
-	if (withClearance.status !== "recorded") throw new Error(withClearance.status);
+	if (withClearance.status !== "recorded")
+		throw new Error(withClearance.status);
 	const effect = beginEffect(clearance.value, {
 		occurrenceId: "tool-call-blocked",
 		actionClearanceId: clearance.value.actionClearanceId,
@@ -129,7 +134,10 @@ test("Claim Assurance may block only by accounting every current blocker", () =>
 	assert.equal(result.status, "blocked");
 	if (result.status !== "blocked") return;
 	assert.equal(result.value.status, "blocked");
-	assert.equal(result.value.block.blockerDispositions.length, closure.blockers.length);
+	assert.equal(
+		result.value.block.blockerDispositions.length,
+		closure.blockers.length,
+	);
 	assert.notEqual(result.value.revisionId, fixture.workCase.revisionId);
 	const modelOnly = resumeBlockedWorkCase(result.value, {
 		workCaseId: result.value.workCaseId,
