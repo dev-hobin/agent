@@ -512,7 +512,7 @@ no-change:
   현재 implementation이 accepted contract를 이미 만족한다.
 ```
 
-Claim Assurance Judgment가 Closure Claim의 scope를 Evidence에 맞춘다. V0 completion path는 canonical Work Case revision의 모든 Outcome acceptance condition, Constraint, Conclusion, occurred Effect, current Effect assessment를 caller-selected subset 없이 `Closure Target`으로 seal한다. Missing Claim Assurance, missing Effect assessment, `pending | unknown`, unresolved `failed | partially-applied`는 target 생성을 막는다. Closure Claim은 Target의 모든 obligation과 current evidence를 정확히 accounting해야 하며 status transition을 직접 수행하지 않는다. 현재 executable mode는 `completed | no-change`이고 `blocked | waiting | paused` transition은 후속 slice다.
+Claim Assurance Judgment가 Closure Claim의 scope를 Evidence에 맞춘다. V0 completion path는 canonical Work Case revision의 모든 Outcome acceptance condition, Constraint, Conclusion, occurred Effect, current Effect assessment를 caller-selected subset 없이 `Closure Target`으로 seal한다. Missing Claim Assurance, missing Effect assessment, `pending | unknown`, unresolved `failed | partially-applied`는 target 생성을 막는다. Closure Claim은 Target의 모든 obligation과 current evidence를 정확히 accounting해야 하며 status transition을 직접 수행하지 않는다. Completion Claim mode는 `completed | no-change`다. `blocked`는 current Claim Assurance Conclusion이 모든 current closure blocker를 accounting하면서 현재 closure path가 없음을 지지할 때 별도 transition으로 만든다.
 
 ### 5.22 Work Status
 
@@ -527,10 +527,12 @@ complete
 ```
 
 - `active`: 현재 continuation path가 있다.
-- `waiting`: 알려진 external condition이 바뀌기를 기다린다.
-- `blocked`: 현재 required closure path가 없다.
-- `paused`: continuation은 가능하지만 명시적으로 중단됐다.
+- `waiting`: human, tool, 또는 external Observation으로 확인한 external condition이 있고 observable resume predicate가 충족되기를 기다린다. Resume predicate가 current Observation에서 `satisfied`일 때만 새 active revision으로 돌아간다.
+- `blocked`: current Claim Assurance Conclusion이 모든 closure blocker를 accounting하고 현재 required closure path가 없음을 지지한다. Human, tool, 또는 external Observation이 changed condition과 concrete continuation path를 제공할 때만 새 active revision으로 돌아간다.
+- `paused`: continuation은 가능하지만 explicit human decision으로 중단됐다. Resume도 explicit human decision을 요구한다.
 - `complete`: required Closure Requirements와 Need Coverage가 Judgment Conclusion을 지지하고, Closure Claim이 assured되며 consequential Effect가 settled됐다. V0 complete transition은 current Work Case에서 Closure Target을 다시 계산하고 target revision과 Claim binding을 재검증한다. Claim 이후 Conclusion, Action, Effect, assessment가 추가되면 이전 Target은 stale이며 completion은 fail-closed한다.
+
+`paused | waiting | blocked`에서 `active`로 돌아오는 transition은 stop/resume identity를 Outcome continuity에 기록한다. 따라서 pause 또는 wait 이전의 Closure Target은 resume 이후 다시 유효해지지 않는다.
 
 ## 6. Runtime component vocabulary
 
