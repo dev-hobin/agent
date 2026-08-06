@@ -147,7 +147,13 @@ async function prepareReadyContext(t: TestContext) {
 		selection,
 	});
 	if (!sealed.ok) throw new Error(sealed.error.message);
-	return { skillRootPath, capability, assignment, selection, sealed: sealed.value };
+	return {
+		skillRootPath,
+		capability,
+		assignment,
+		selection,
+		sealed: sealed.value,
+	};
 }
 
 function acceptFixtureContribution(
@@ -204,17 +210,15 @@ function closureContract(assignment: CapabilityAssignment) {
 	};
 }
 
-function closureProposal(
-	assignment: CapabilityAssignment,
-	coverageId: string,
-) {
+function closureProposal(assignment: CapabilityAssignment, coverageId: string) {
 	return {
 		workCaseId: assignment.workCaseId,
 		judgmentId: assignment.judgmentId,
 		category: "Claim Assurance" as const,
 		contextRevisionId: "context-slice",
 		outcome: "conclude" as const,
-		answer: "The integration claim is adequately assured within the tested boundary.",
+		answer:
+			"The integration claim is adequately assured within the tested boundary.",
 		refusalReasons: [],
 		requirementDispositions: [
 			{
@@ -380,12 +384,20 @@ test("vertical slice carries partial Coverage into closure refusal", async (t) =
 
 test("vertical slice carries conflicting Contributions into closure refusal", async (t) => {
 	const prepared = await prepareReadyContext(t);
-	const first = acceptFixtureContribution(prepared.assignment, prepared.sealed, {
-		result: "The public package boundary is the required verifier scope.",
-	});
-	const second = acceptFixtureContribution(prepared.assignment, prepared.sealed, {
-		result: "The internal module boundary is the required verifier scope.",
-	});
+	const first = acceptFixtureContribution(
+		prepared.assignment,
+		prepared.sealed,
+		{
+			result: "The public package boundary is the required verifier scope.",
+		},
+	);
+	const second = acceptFixtureContribution(
+		prepared.assignment,
+		prepared.sealed,
+		{
+			result: "The internal module boundary is the required verifier scope.",
+		},
+	);
 	const coverage = assessNeedCoverage(
 		{
 			workCaseId: prepared.assignment.workCaseId,
@@ -402,19 +414,25 @@ test("vertical slice carries conflicting Contributions into closure refusal", as
 				{
 					contributionId: first.contributionId,
 					status: "supports",
-					basis: ["The first result supports the public-boundary interpretation."],
+					basis: [
+						"The first result supports the public-boundary interpretation.",
+					],
 				},
 				{
 					contributionId: second.contributionId,
 					status: "supports",
-					basis: ["The second result supports the module-boundary interpretation."],
+					basis: [
+						"The second result supports the module-boundary interpretation.",
+					],
 				},
 			],
 			conflicts: [
 				{
 					leftContributionId: second.contributionId,
 					rightContributionId: first.contributionId,
-					basis: ["The proposed verifier boundaries are materially incompatible."],
+					basis: [
+						"The proposed verifier boundaries are materially incompatible.",
+					],
 				},
 			],
 			basis: ["Current Contributions support incompatible claim boundaries."],
