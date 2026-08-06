@@ -59,9 +59,7 @@ function failure(
 
 function isCanonicalLocator(locator: string): boolean {
 	return (
-		locator.length > 0 &&
-		locator === locator.trim() &&
-		!locator.includes("\0")
+		locator.length > 0 && locator === locator.trim() && !locator.includes("\0")
 	);
 }
 
@@ -84,7 +82,10 @@ function isNormalizedSkillRoot(root: string): boolean {
 		);
 }
 
-function hashParts(prefix: string, parts: readonly (string | Uint8Array)[]): string {
+function hashParts(
+	prefix: string,
+	parts: readonly (string | Uint8Array)[],
+): string {
 	const hash = createHash("sha256");
 	for (const part of parts) {
 		const bytes = typeof part === "string" ? Buffer.from(part, "utf8") : part;
