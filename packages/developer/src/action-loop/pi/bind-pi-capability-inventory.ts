@@ -3,7 +3,9 @@ import { open, type FileHandle } from "node:fs/promises";
 import { MAX_SEALED_MATERIAL_BYTES } from "../io/seal-skill-context.ts";
 import {
 	bindCapability,
+	bindUnstructuredCapability,
 	type BoundCapability,
+	type BoundUnstructuredCapability,
 	type CapabilityBindingError,
 } from "../routing/bind-capability.ts";
 import type { PiSkillCatalogExclusion } from "./adapt-skill-catalog.ts";
@@ -29,32 +31,71 @@ export interface SkillByteAcquisitionError {
 	readonly message: string;
 }
 
-export interface BoundPiCapabilityEntry {
+type UnstructuredCataloguedPiSkillEntry = Extract<
+	CataloguedPiSkillEntry,
+	{ readonly status: "unstructured" }
+>;
+
+type BindableCataloguedPiSkillEntry =
+	| StructuredCataloguedPiSkillEntry
+	| UnstructuredCataloguedPiSkillEntry;
+
+export interface BoundStructuredPiCapabilityEntry {
 	readonly status: "bound";
+	readonly routing: "structured";
 	readonly candidate: StructuredCataloguedPiSkillEntry["candidate"];
 	readonly descriptor: StructuredCataloguedPiSkillEntry["descriptor"];
 	readonly capability: BoundCapability;
 }
 
+export interface BoundUnstructuredPiCapabilityEntry {
+	readonly status: "bound";
+	readonly routing: "unstructured";
+	readonly candidate: UnstructuredCataloguedPiSkillEntry["candidate"];
+	readonly reason: UnstructuredCataloguedPiSkillEntry["reason"];
+	readonly capability: BoundUnstructuredCapability;
+}
+
+export type BoundPiCapabilityEntry =
+	| BoundStructuredPiCapabilityEntry
+	| BoundUnstructuredPiCapabilityEntry;
+
+type SkillAcquisitionFailure = {
+	readonly status: "binding-failed";
+	readonly stage: "skill-acquisition";
+	readonly error: SkillByteAcquisitionError;
+};
+
+type CapabilityIdentityFailure = {
+	readonly status: "binding-failed";
+	readonly stage: "capability-binding";
+	readonly error: CapabilityBindingError;
+};
+
+type StructuredBindingContext = {
+	readonly routing: "structured";
+	readonly candidate: StructuredCataloguedPiSkillEntry["candidate"];
+	readonly descriptor: StructuredCataloguedPiSkillEntry["descriptor"];
+};
+
+type UnstructuredBindingContext = {
+	readonly routing: "unstructured";
+	readonly candidate: UnstructuredCataloguedPiSkillEntry["candidate"];
+	readonly reason: UnstructuredCataloguedPiSkillEntry["reason"];
+};
+
 export type PiCapabilityBindingFailure =
-	| {
-			readonly status: "binding-failed";
-			readonly stage: "skill-acquisition";
-			readonly candidate: StructuredCataloguedPiSkillEntry["candidate"];
-			readonly descriptor: StructuredCataloguedPiSkillEntry["descriptor"];
-			readonly error: SkillByteAcquisitionError;
-	  }
-	| {
-			readonly status: "binding-failed";
-			readonly stage: "capability-binding";
-			readonly candidate: StructuredCataloguedPiSkillEntry["candidate"];
-			readonly descriptor: StructuredCataloguedPiSkillEntry["descriptor"];
-			readonly error: CapabilityBindingError;
-	  };
+	| (StructuredBindingContext &
+			(SkillAcquisitionFailure | CapabilityIdentityFailure))
+	| (UnstructuredBindingContext &
+			(SkillAcquisitionFailure | CapabilityIdentityFailure));
 
 export type PiCapabilityInventoryEntry =
 	| BoundPiCapabilityEntry
-	| Exclude<CataloguedPiSkillEntry, { readonly status: "structured" }>
+	| Exclude<
+			CataloguedPiSkillEntry,
+			{ readonly status: "structured" | "unstructured" }
+	  >
 	| PiCapabilityBindingFailure;
 
 export type PiCapabilityInventoryResult =
@@ -129,7 +170,7 @@ async function readAtMost(
 }
 
 async function acquireSkillBytes(
-	entry: StructuredCataloguedPiSkillEntry,
+	entry: BindableCataloguedPiSkillEntry,
 ): Promise<SkillBytesResult> {
 	const path = entry.candidate.skillFilePath;
 	let handle: FileHandle | undefined;
@@ -191,11 +232,12 @@ async function acquireSkillBytes(
 
 async function bindStructuredEntry(
 	entry: StructuredCataloguedPiSkillEntry,
-): Promise<BoundPiCapabilityEntry | PiCapabilityBindingFailure> {
+): Promise<BoundStructuredPiCapabilityEntry | PiCapabilityBindingFailure> {
 	const acquired = await acquireSkillBytes(entry);
 	if (!acquired.ok) {
 		return Object.freeze({
 			status: "binding-failed",
+			routing: "structured",
 			stage: "skill-acquisition",
 			candidate: entry.candidate,
 			descriptor: entry.descriptor,
@@ -210,6 +252,7 @@ async function bindStructuredEntry(
 	if (!bound.ok) {
 		return Object.freeze({
 			status: "binding-failed",
+			routing: "structured",
 			stage: "capability-binding",
 			candidate: entry.candidate,
 			descriptor: entry.descriptor,
@@ -218,15 +261,53 @@ async function bindStructuredEntry(
 	}
 	return Object.freeze({
 		status: "bound",
+		routing: "structured",
 		candidate: entry.candidate,
 		descriptor: entry.descriptor,
 		capability: bound.value,
 	});
 }
 
+async function bindUnstructuredEntry(
+	entry: UnstructuredCataloguedPiSkillEntry,
+): Promise<BoundUnstructuredPiCapabilityEntry | PiCapabilityBindingFailure> {
+	const acquired = await acquireSkillBytes(entry);
+	if (!acquired.ok) {
+		return Object.freeze({
+			status: "binding-failed",
+			routing: "unstructured",
+			stage: "skill-acquisition",
+			candidate: entry.candidate,
+			reason: entry.reason,
+			error: acquired.error,
+		});
+	}
+	const bound = bindUnstructuredCapability(
+		entry.candidate.source,
+		acquired.bytes,
+	);
+	if (!bound.ok) {
+		return Object.freeze({
+			status: "binding-failed",
+			routing: "unstructured",
+			stage: "capability-binding",
+			candidate: entry.candidate,
+			reason: entry.reason,
+			error: Object.freeze({ ...bound.error }),
+		});
+	}
+	return Object.freeze({
+		status: "bound",
+		routing: "unstructured",
+		candidate: entry.candidate,
+		reason: entry.reason,
+		capability: bound.value,
+	});
+}
+
 /**
- * Binds every structured Pi-loaded Skill entry to exact bounded SKILL.md bytes.
- * Unstructured and TOC-failed entries pass through without filesystem access.
+ * Binds every structured or unstructured Pi-loaded Skill entry to exact bounded
+ * Skill bytes. TOC-failed entries pass through without filesystem access.
  */
 export async function bindPiCapabilityInventory(
 	catalog: BeforeAgentStartSkillCatalogResult,
@@ -234,9 +315,13 @@ export async function bindPiCapabilityInventory(
 	if (catalog.status === "rejected") return catalog;
 	const entries: PiCapabilityInventoryEntry[] = [];
 	for (const entry of catalog.entries) {
-		entries.push(
-			entry.status === "structured" ? await bindStructuredEntry(entry) : entry,
-		);
+		if (entry.status === "structured") {
+			entries.push(await bindStructuredEntry(entry));
+		} else if (entry.status === "unstructured") {
+			entries.push(await bindUnstructuredEntry(entry));
+		} else {
+			entries.push(entry);
+		}
 	}
 	return Object.freeze({
 		status: "inventoried",

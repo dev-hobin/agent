@@ -75,7 +75,7 @@ async function catalog(
 	return catalogBeforeAgentStartSkills(hookInput(cwd, skills));
 }
 
-test("binds structured entries while preserving unstructured and TOC failures", async (t) => {
+test("binds structured and unstructured entries while preserving TOC failures", async (t) => {
 	const workspace = await createWorkspace(t);
 	const sourceBase = join(workspace, "skills");
 
@@ -89,6 +89,10 @@ test("binds structured entries while preserving unstructured and TOC failures", 
 
 	const directFile = join(sourceBase, "direct.md");
 	await writeSkill(directFile, "direct");
+
+	const plainRoot = join(sourceBase, "plain");
+	const plainFile = join(plainRoot, "SKILL.md");
+	await writeSkill(plainFile, "plain");
 
 	const invalidRoot = join(sourceBase, "invalid");
 	const invalidFile = join(invalidRoot, "SKILL.md");
@@ -111,6 +115,12 @@ test("binds structured entries while preserving unstructured and TOC failures", 
 			sourceBaseDir: sourceBase,
 		}),
 		loadedSkill({
+			name: "plain",
+			filePath: plainFile,
+			skillRootPath: plainRoot,
+			sourceBaseDir: sourceBase,
+		}),
+		loadedSkill({
 			name: "invalid",
 			filePath: invalidFile,
 			skillRootPath: invalidRoot,
@@ -118,9 +128,8 @@ test("binds structured entries while preserving unstructured and TOC failures", 
 		}),
 	]);
 	if (loaded.status === "rejected") throw new Error(loaded.error.message);
-	const preservedUnstructured = loaded.entries[1];
-	const preservedFailure = loaded.entries[2];
-	await rm(directFile);
+	const preservedFailure = loaded.entries[3];
+	await rm(invalidFile);
 
 	const first = await bindPiCapabilityInventory(loaded);
 	const second = await bindPiCapabilityInventory(loaded);
@@ -130,13 +139,19 @@ test("binds structured entries while preserving unstructured and TOC failures", 
 	if (first.status === "inventoried" && second.status === "inventoried") {
 		assert.deepEqual(
 			first.entries.map((entry) => entry.status),
-			["bound", "unstructured", "failed"],
+			["bound", "bound", "bound", "failed"],
 		);
 		const bound = first.entries[0];
 		const rebound = second.entries[0];
 		assert.equal(bound?.status, "bound");
+		assert.equal(bound?.status === "bound" ? bound.routing : undefined, "structured");
 		assert.equal(rebound?.status, "bound");
-		if (bound?.status === "bound" && rebound?.status === "bound") {
+		if (
+			bound?.status === "bound" &&
+			bound.routing === "structured" &&
+			rebound?.status === "bound" &&
+			rebound.routing === "structured"
+		) {
 			assert.equal(bound.candidate.label, "verify");
 			assert.equal(bound.descriptor.name, "routing.json");
 			assert.deepEqual(bound.capability.source, bound.candidate.source);
@@ -150,8 +165,22 @@ test("binds structured entries while preserving unstructured and TOC failures", 
 			);
 			assert.equal(Object.isFrozen(bound), true);
 		}
-		assert.equal(first.entries[1], preservedUnstructured);
-		assert.equal(first.entries[2], preservedFailure);
+		const direct = first.entries[1];
+		const plain = first.entries[2];
+		assert.equal(direct?.status, "bound");
+		assert.equal(plain?.status, "bound");
+		if (
+			direct?.status === "bound" &&
+			direct.routing === "unstructured" &&
+			plain?.status === "bound" &&
+			plain.routing === "unstructured"
+		) {
+			assert.equal(direct.reason, "unsupported-skill-material");
+			assert.equal(plain.reason, "descriptor-absent");
+			assert.equal(direct.capability.routing, "unstructured");
+			assert.equal(plain.capability.routing, "unstructured");
+		}
+		assert.equal(first.entries[3], preservedFailure);
 		assert.equal(Object.isFrozen(first), true);
 		assert.equal(Object.isFrozen(first.entries), true);
 	}
@@ -206,6 +235,38 @@ test("records bounded acquisition failures on their structured entries", async (
 				["skill-acquisition", "invalid-utf8"],
 			],
 		);
+	}
+});
+
+test("unstructured acquisition failure remains source-bound without TOC fallback", async (t) => {
+	const workspace = await createWorkspace(t);
+	const skillFile = join(workspace, "direct.md");
+	await writeSkill(skillFile, "direct");
+	const loaded = await catalog(workspace, [
+		loadedSkill({
+			name: "direct",
+			filePath: skillFile,
+			skillRootPath: workspace,
+			sourceBaseDir: workspace,
+		}),
+	]);
+	if (loaded.status === "rejected") throw new Error(loaded.error.message);
+	await rm(skillFile);
+
+	const result = await bindPiCapabilityInventory(loaded);
+
+	assert.equal(result.status, "inventoried");
+	if (result.status === "inventoried") {
+		const failure = result.entries[0];
+		assert.equal(failure?.status, "binding-failed");
+		if (
+			failure?.status === "binding-failed" &&
+			failure.routing === "unstructured"
+		) {
+			assert.equal(failure.reason, "unsupported-skill-material");
+			assert.equal(failure.stage, "skill-acquisition");
+			assert.equal(failure.error.code, "skill-missing");
+		}
 	}
 });
 

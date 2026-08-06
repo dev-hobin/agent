@@ -30,7 +30,7 @@ import {
 } from "../src/action-loop/routing/accept-applicability.ts";
 import {
 	bindPiCapabilityInventory,
-	type BoundPiCapabilityEntry,
+	type BoundStructuredPiCapabilityEntry,
 } from "../src/action-loop/pi/bind-pi-capability-inventory.ts";
 import { catalogBeforeAgentStartSkills } from "../src/action-loop/pi/catalog-pi-loaded-skills.ts";
 import type {
@@ -364,7 +364,7 @@ function tupleEvaluator(): PilotEvaluator {
 
 async function runPilot(
 	scenario: PilotScenario,
-	entry: BoundPiCapabilityEntry,
+	entry: BoundStructuredPiCapabilityEntry,
 	evaluator: PilotEvaluator,
 ): Promise<PilotResult> {
 	const { candidate, capability } = entry;
@@ -570,8 +570,8 @@ test("Pi-loaded package and project Skills preserve semantic identity across eva
 	for (const [index, scenario] of scenarios.entries()) {
 		const entry = inventory.entries[index];
 		assert.ok(entry);
-		if (entry.status !== "bound") {
-			throw new Error(`Expected bound pilot entry ${scenario.name}`);
+		if (entry.status !== "bound" || entry.routing !== "structured") {
+			throw new Error(`Expected bound structured pilot entry ${scenario.name}`);
 		}
 		const candidate = entry.candidate;
 		assert.equal(candidate.label, scenario.name);
