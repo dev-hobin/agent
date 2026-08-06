@@ -1,14 +1,12 @@
 import assert from "node:assert/strict";
-import {
-	mkdir,
-	mkdtemp,
-	rm,
-	writeFile,
-} from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
-import type { BeforeAgentStartEvent, Skill } from "@earendil-works/pi-coding-agent";
+import type {
+	BeforeAgentStartEvent,
+	Skill,
+} from "@earendil-works/pi-coding-agent";
 import {
 	bindPiCapabilityInventory,
 	MAX_CAPABILITY_SKILL_BYTES,

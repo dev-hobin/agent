@@ -63,7 +63,10 @@ export type PiCapabilityInventoryResult =
 			readonly entries: readonly PiCapabilityInventoryEntry[];
 			readonly excluded: readonly PiSkillCatalogExclusion[];
 	  }
-	| Extract<BeforeAgentStartSkillCatalogResult, { readonly status: "rejected" }>;
+	| Extract<
+			BeforeAgentStartSkillCatalogResult,
+			{ readonly status: "rejected" }
+	  >;
 
 type SkillBytesResult =
 	| { readonly ok: true; readonly bytes: Uint8Array }
@@ -232,9 +235,7 @@ export async function bindPiCapabilityInventory(
 	const entries: PiCapabilityInventoryEntry[] = [];
 	for (const entry of catalog.entries) {
 		entries.push(
-			entry.status === "structured"
-				? await bindStructuredEntry(entry)
-				: entry,
+			entry.status === "structured" ? await bindStructuredEntry(entry) : entry,
 		);
 	}
 	return Object.freeze({
