@@ -4,7 +4,10 @@ import type {
 } from "../action/accept-action-candidate.ts";
 import type { ActionClearance } from "../action/action-clearance.ts";
 import type { PendingEffect } from "../effect/begin-effect.ts";
-import type { EffectSettlement } from "../effect/effect-settlement.ts";
+import type {
+	EffectSettlement,
+	UnsettledEffectAssessment,
+} from "../effect/effect-settlement.ts";
 import { hashIdentity } from "../identity/hash-identity.ts";
 import type { JudgmentConclusion } from "../judgment/close-judgment.ts";
 
@@ -46,7 +49,10 @@ export interface ActiveWorkCase {
 	readonly actionCandidates: readonly ActionCandidate[];
 	readonly actionClearances: readonly ActionClearance[];
 	readonly effects: readonly PendingEffect[];
-	readonly currentSettlements: readonly EffectSettlement[];
+	readonly currentEffectAssessments: readonly (
+		| EffectSettlement
+		| UnsettledEffectAssessment
+	)[];
 	readonly provenance: ActionCandidateProvenance;
 }
 
@@ -247,7 +253,7 @@ export function openWorkCase(
 			"0",
 			"effects",
 			"0",
-			"current-settlements",
+			"current-effect-assessments",
 			"0",
 		],
 	);
@@ -262,7 +268,7 @@ export function openWorkCase(
 			actionCandidates: Object.freeze([]),
 			actionClearances: Object.freeze([]),
 			effects: Object.freeze([]),
-			currentSettlements: Object.freeze([]),
+			currentEffectAssessments: Object.freeze([]),
 			provenance: provenance.value,
 		}),
 	};
