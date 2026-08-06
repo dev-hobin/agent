@@ -4,8 +4,10 @@ import {
 	acceptActionCandidate,
 	type ActionCandidate,
 } from "../src/action-loop/action/accept-action-candidate.ts";
+import { acceptActionClearance } from "../src/action-loop/action/action-clearance.ts";
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
 import { recordWorkCaseActionCandidate } from "../src/action-loop/work/record-work-case-action-candidate.ts";
+import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-work-case-action-clearance.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
 
@@ -74,6 +76,55 @@ test("Action Candidate is recorded only after every required Conclusion", () => 
 	assert.notEqual(result.value.revisionId, withConclusion.value.revisionId);
 	assert.equal(result.value.actionCandidates.length, 1);
 	assert.equal(Object.isFrozen(result.value.actionCandidates), true);
+});
+
+test("Action Clearance requires its Candidate and Conclusions in the same inventory", () => {
+	const opened = openedWorkCase();
+	const acceptedConclusion = conclusion(opened.workCaseId);
+	const withConclusion = recordWorkCaseConclusion(opened, acceptedConclusion);
+	if (withConclusion.status !== "recorded") return;
+	const acceptedCandidate = candidate(opened.workCaseId);
+	const withCandidate = recordWorkCaseActionCandidate(
+		withConclusion.value,
+		acceptedCandidate,
+	);
+	if (withCandidate.status !== "recorded") return;
+	const clearance = acceptActionClearance(
+		acceptedCandidate,
+		[acceptedConclusion],
+		{
+			actionCandidateId: acceptedCandidate.actionCandidateId,
+			status: "granted",
+			source: "delegation:current-user-request",
+			basis: ["The delegated work permits this bounded Action."],
+		},
+		{
+			workCaseId: opened.workCaseId,
+			actionCandidateId: acceptedCandidate.actionCandidateId,
+			conclusionIds: [acceptedConclusion.conclusionId],
+			warrantBasis: ["The required Conclusion is current."],
+			provenance: { kind: "model", source: "test-evaluator" },
+		},
+	);
+	if (clearance.status !== "cleared") return;
+
+	const recorded = recordWorkCaseActionClearance(
+		withCandidate.value,
+		clearance.value,
+	);
+	const missingCandidate = recordWorkCaseActionClearance(
+		withConclusion.value,
+		clearance.value,
+	);
+
+	assert.equal(recorded.status, "recorded");
+	assert.equal(missingCandidate.status, "invalid");
+	if (recorded.status === "recorded") {
+		assert.equal(recorded.value.actionClearances.length, 1);
+	}
+	if (missingCandidate.status === "invalid") {
+		assert.equal(missingCandidate.error.code, "missing-action-candidate");
+	}
 });
 
 test("missing required Conclusion cannot remain outside Work Case inventory", () => {
