@@ -512,7 +512,7 @@ no-change:
   현재 implementation이 accepted contract를 이미 만족한다.
 ```
 
-Claim Assurance Judgment가 Closure Claim의 scope를 Evidence에 맞춘다.
+Claim Assurance Judgment가 Closure Claim의 scope를 Evidence에 맞춘다. V0 completion path는 canonical Work Case revision의 모든 Outcome acceptance condition, Constraint, Conclusion, occurred Effect, current Effect assessment를 caller-selected subset 없이 `Closure Target`으로 seal한다. Missing Claim Assurance, missing Effect assessment, `pending | unknown`, unresolved `failed | partially-applied`는 target 생성을 막는다. Closure Claim은 Target의 모든 obligation과 current evidence를 정확히 accounting해야 하며 status transition을 직접 수행하지 않는다. 현재 executable mode는 `completed | no-change`이고 `blocked | waiting | paused` transition은 후속 slice다.
 
 ### 5.22 Work Status
 
@@ -530,7 +530,7 @@ complete
 - `waiting`: 알려진 external condition이 바뀌기를 기다린다.
 - `blocked`: 현재 required closure path가 없다.
 - `paused`: continuation은 가능하지만 명시적으로 중단됐다.
-- `complete`: required Closure Requirements와 Need Coverage가 Judgment Conclusion을 지지하고, Closure Claim이 assured되며 consequential Effect가 settled됐다.
+- `complete`: required Closure Requirements와 Need Coverage가 Judgment Conclusion을 지지하고, Closure Claim이 assured되며 consequential Effect가 settled됐다. V0 complete transition은 current Work Case에서 Closure Target을 다시 계산하고 target revision과 Claim binding을 재검증한다. Claim 이후 Conclusion, Action, Effect, assessment가 추가되면 이전 Target은 stale이며 completion은 fail-closed한다.
 
 ## 6. Runtime component vocabulary
 
