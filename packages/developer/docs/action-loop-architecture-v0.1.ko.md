@@ -584,32 +584,110 @@ Extension만으로 다음을 보장할 수는 없다.
 
 따라서 첫 목표는 완전한 autonomous controller가 아니라 inspectable하고 replayable한 action loop다. SDK ownership은 extension contract와 failure trace가 이를 요구할 때만 다시 검토한다.
 
-## 13. Bottom-up implementation order
+## 13. Unix-style POC strategy
+
+첫 구현 단위는 큰 `WorkCore` class나 workflow machine이 아니다.
+
+> 하나의 invariant와 failure boundary를 완전히 소유하는 작은 module을 만들고, 독립 test에서 빠르게 실패시키고, green이 된 module만 다음 module과 조합한다.
+
+### Small and complete module rule
+
+각 module은 다음 계약을 만족한다.
+
+```text
+one semantic decision
++ explicit refined input
++ explicit success, uncertainty, invalid output
++ no hidden shared state
++ no Pi or provider dependency
++ focused independent tests
+= one complete POC module
+```
+
+- External 또는 model-authored input failure는 explicit invalid result로 반환하고 dependent effect 전에 멈춘다.
+- `needs-context`, `partial`, `conflicted` 같은 domain uncertainty를 parse failure나 boolean false로 접지 않는다.
+- Refined input 이후 불가능한 internal state만 programmer error로 fail fast한다.
+- Module test가 green이 되기 전에 coordinator, framework, public facade를 만들지 않는다.
+- Composition은 먼저 test가 module functions를 직접 연결해 증명한다. 반복 pressure가 생기기 전에는 orchestration abstraction을 승격하지 않는다.
+- 한 module 수정은 그 module의 focused test와 이미 조합된 slice만 다시 실행할 수 있어야 한다.
+
+### Module loop
+
+```text
+one accepted invariant
+  → one failing representative check
+    → smallest complete module
+      → focused green test
+        → commit
+          → next independent module
+            → direct composition test
+              → vertical slice
+```
+
+### First Judgment-routing slice
+
+첫 slice는 architecture 전체가 아니라 가장 불확실했던 Upper Judgment–Skill–Reference linking을 끝까지 통과한다.
+
+```text
+raw schema-identified TOC
+  → Parsed TOC
+  → source-bound Capability
+  → accepted applicability proposal
+  → complete Reference dispositions
+  → Reference Selection
+  → exact Sealed Skill Context
+  → accepted Skill Contribution
+  → Need Coverage
+  → Judgment Conclusion or explicit refusal
+```
+
+각 화살표는 독립 module과 focused test를 갖는다. 첫 완성 module은 모든 declared Reference를 `selected | not-needed | needs-context`로 정확히 한 번 disposition하고 declaration order를 보존하는 Reference Selection이다.
+
+첫 slice의 composition test는 deterministic fake evaluator를 사용한다. Pi hook, live model, TUI, replay는 포함하지 않는다. 같은 slice가 success, missing disposition, needs-context, selected-content drift, partial Coverage, conflicting Coverage를 구분해야 한다.
+
+### Second Action-effect slice
+
+첫 slice가 green일 때만 Conclusion 이후를 조합한다.
+
+```text
+Conclusion
+  → Action Candidate
+  → permission + Action Clearance
+  → controlled Action
+  → Effect Observation
+  → Effect Settlement
+  → Closure Claim
+  → Work Status transition
+```
+
+### Macro cutover order
 
 ```text
 0. Published 0.1.19 recovery baseline
         ↓
-1. This architecture working contract
+1. Focused failing module checks
         ↓
-2. Pure Work Core and transitions
+2. Small complete pure modules
         ↓
-3. Transition trace tests
+3. Judgment-routing vertical slice
         ↓
-4. Model-facing protocol and guidance
+4. Action-effect vertical slice
         ↓
-5. Pi hook adapter
+5. Model-neutral protocol adapters
         ↓
-6. Session replay and TUI projection
+6. Pi hook adapter
         ↓
-7. Old runtime cutover and removal
+7. Session replay and TUI projection
         ↓
-8. Packed artifact verification
+8. Old runtime cutover and removal
+        ↓
+9. Packed artifact verification
 ```
 
 ### Behavior and structure separation
 
-- 0.1.19 runtime은 새 core와 adapter가 검증될 때까지 작동하는 기준선으로 둔다.
-- pure core는 먼저 `src/action-loop/`에서 host와 분리해 만든다.
+- 0.1.19 runtime은 새 slices가 검증될 때까지 작동하는 기준선으로 둔다.
+- POC modules는 `src/action-loop/`에서 host와 분리해 만든다.
 - 새 adapter가 equivalent or intentionally changed behavior를 증명한 뒤 기존 `extensions/machine.ts`, `state.ts`, Workbench protocol을 제거한다.
 - `xstate`, 기존 eval scripts, package description, README는 실제 cutover에서 사용 여부를 확인한 뒤 정리한다.
 - package version, publication, main merge는 reconstruction 완료와 별도 승인 사항이다.

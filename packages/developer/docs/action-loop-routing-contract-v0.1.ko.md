@@ -748,20 +748,22 @@ Co-required grouping, explicit route IDs, artifact declarations, custom read ord
 
 ## 23. First implementation queue
 
-1. Add valid and invalid fixtures for schema discovery, simple, multi-Reference, no-Reference, duplicate-descriptor, unsupported-version, malformed, drift, and external-Skill cases.
-2. Write the minimal versioned TOC JSON Schema with a canonical `$schema` const.
-3. Implement bounded direct-child discovery, bundled schema mapping, raw-to-refined parsing, path checks, and physical containment.
-4. Bind Parsed TOC to Pi source provenance and generate Capability ID and Capability revision ID without self-declared ownership or identity.
-5. Define one model-neutral proposal contract for Capability Applicability, Reference Disposition, material application, Contribution, and Need Coverage; test malformed, refused, and evaluator-substitution cases.
-6. Implement pure Capability Applicability and Reference Disposition values.
-7. Implement selected-path-only acquisition and Sealed Skill Context.
-8. Implement selected-material application accounting in Skill Contribution.
-9. Implement Need Coverage as an Upper Judgment relation.
-10. Pilot `verify` and `model`; compare expected Skill and Reference selections against current policies.
-11. Only after pure traces pass, expose the transitions through the Pi adapter.
+각 item은 독립 module, focused failing check, green commit을 가진다. 다음 item은 이전 module을 수정하지 않고 explicit output을 조합해야 한다.
+
+1. Complete Reference Selection: every declared Reference is dispositioned exactly once, uncertainty is preserved, and selected paths follow declaration order.
+2. Parse one schema-identified TOC: raw bytes either become one immutable Parsed TOC or fail before owner binding and file acquisition.
+3. Bind one Capability: Pi source provenance and Skill-relative root generate Capability identity; exact Skill and TOC generate revision identity.
+4. Accept one applicability proposal: `applicable | not-applicable | needs-context` requires model-neutral basis and binds exactly one Need and Capability revision.
+5. Seal one selected context: selected paths are acquired atomically with containment, exact bytes, hashes, and provenance.
+6. Accept one Skill Contribution: assignment and sealed context identities match and every selected Reference has an application disposition.
+7. Assess one Need Coverage proposal: current Contributions produce `covered | partially-covered | conflicted | missing` without Skill authority leakage.
+8. Close one Judgment: required Coverage and Closure Requirements either produce one Conclusion or an explicit refusal.
+9. Compose the modules directly in one deterministic Judgment-routing slice test covering success, needs-context, drift, partial, and conflict.
+10. Pilot the same slice with `verify`, `model`, an external fixture Skill, and materially different evaluator adapters.
+11. Only after the pure slice passes, expose it through the Pi adapter.
 12. Convert remaining first-party Skills and remove old policy formats in one explicit cutover.
 
-The first executable item is the minimal schema/parser and finite selection fixtures. Do not begin with TUI, XState, automatic migration generation, or a generalized routing framework.
+Do not begin with TUI, XState, automatic migration generation, a generalized router, or a coordinator class. Composition belongs in the slice test until repeated pressure earns an orchestration surface.
 
 ## 24. Verification targets
 
