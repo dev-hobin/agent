@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import type { Skill } from "@earendil-works/pi-coding-agent";
 import {
 	acceptSkillContribution,
 	type SkillContributionProposal,
@@ -30,6 +31,10 @@ import {
 	type CapabilityAssignment,
 } from "../src/action-loop/routing/accept-applicability.ts";
 import {
+	adaptPiSkillCatalog,
+	type AdaptedPiSkillDescriptor,
+} from "../src/action-loop/pi/adapt-skill-catalog.ts";
+import {
 	bindCapability,
 	type BoundCapability,
 	type CapabilitySource,
@@ -49,9 +54,8 @@ interface SelectedApplication {
 
 interface PilotScenario {
 	readonly name: string;
-	readonly skillRootPath: string;
+	readonly loadedSkill: Skill;
 	readonly expectedDescriptorName: string;
-	readonly source: CapabilitySource;
 	readonly category: JudgmentCategory;
 	readonly rootWhen: string;
 	readonly rootBasis: string;
@@ -87,6 +91,7 @@ interface PilotEvaluator {
 
 interface PilotResult {
 	readonly descriptorName: string;
+	readonly capabilitySource: CapabilitySource;
 	readonly capabilityId: string;
 	readonly capabilityRevisionId: string;
 	readonly assignmentId: string;
@@ -99,6 +104,31 @@ interface PilotResult {
 	readonly contributionProvenance: string;
 	readonly coverageProvenance: string;
 	readonly conclusionProvenance: string;
+}
+
+function loadedSkill(input: {
+	readonly name: string;
+	readonly skillRootPath: string;
+	readonly sourceBaseDir: string;
+	readonly source: string;
+	readonly scope: "user" | "project";
+	readonly origin: "package" | "top-level";
+}): Skill {
+	const filePath = join(input.skillRootPath, "SKILL.md");
+	return {
+		name: input.name,
+		description: `${input.name} pilot Skill.`,
+		filePath,
+		baseDir: input.skillRootPath,
+		disableModelInvocation: false,
+		sourceInfo: {
+			path: filePath,
+			source: input.source,
+			scope: input.scope,
+			origin: input.origin,
+			baseDir: input.sourceBaseDir,
+		},
+	};
 }
 
 function selectedApplication(
@@ -336,10 +366,11 @@ function tupleEvaluator(): PilotEvaluator {
 
 async function runPilot(
 	scenario: PilotScenario,
+	candidate: AdaptedPiSkillDescriptor,
 	evaluator: PilotEvaluator,
 ): Promise<PilotResult> {
-	const skillBytes = await readFile(join(scenario.skillRootPath, "SKILL.md"));
-	const discovered = await discoverTocDescriptor(scenario.skillRootPath);
+	const skillBytes = await readFile(candidate.skillFilePath);
+	const discovered = await discoverTocDescriptor(candidate.skillRootPath);
 	if (discovered.status === "failed") {
 		throw new Error(discovered.error.message);
 	}
@@ -347,7 +378,7 @@ async function runPilot(
 		throw new Error(`Expected structured Capability ${scenario.name}`);
 	}
 	const bound = bindCapability(
-		scenario.source,
+		candidate.source,
 		discovered.descriptor.toc,
 		skillBytes,
 	);
@@ -379,7 +410,7 @@ async function runPilot(
 	if (!selection.ok) throw new Error(selection.error.message);
 	assert.equal(selection.value.status, "ready");
 	const sealed = await sealSkillContext({
-		skillRootPath: scenario.skillRootPath,
+		skillRootPath: candidate.skillRootPath,
 		capability: bound.value,
 		assignment: applicability.assignment,
 		selection: selection.value,
@@ -431,6 +462,7 @@ async function runPilot(
 
 	return {
 		descriptorName: discovered.descriptor.name,
+		capabilitySource: bound.value.source,
 		capabilityId: bound.value.capabilityId,
 		capabilityRevisionId: bound.value.capabilityRevisionId,
 		assignmentId: applicability.assignment.assignmentId,
@@ -446,16 +478,20 @@ async function runPilot(
 	};
 }
 
+const projectFixtureBase = join(packageRoot, "tests", "fixtures");
+
 const scenarios: readonly PilotScenario[] = [
 	{
 		name: "verify",
-		skillRootPath: join(packageRoot, "skills", "verify"),
+		loadedSkill: loadedSkill({
+			name: "verify",
+			skillRootPath: join(packageRoot, "skills", "verify"),
+			sourceBaseDir: packageRoot,
+			source: "npm:@hobin/developer@pilot",
+			scope: "user",
+			origin: "package",
+		}),
 		expectedDescriptorName: "toc.json",
-		source: {
-			kind: "package",
-			locator: "npm:@hobin/developer@pilot",
-			skillRoot: "skills/verify",
-		},
 		category: "Claim Assurance",
 		rootWhen:
 			"A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged.",
@@ -474,13 +510,15 @@ const scenarios: readonly PilotScenario[] = [
 	},
 	{
 		name: "model",
-		skillRootPath: join(packageRoot, "skills", "model"),
+		loadedSkill: loadedSkill({
+			name: "model",
+			skillRootPath: join(packageRoot, "skills", "model"),
+			sourceBaseDir: packageRoot,
+			source: "npm:@hobin/developer@pilot",
+			scope: "user",
+			origin: "package",
+		}),
 		expectedDescriptorName: "toc.json",
-		source: {
-			kind: "package",
-			locator: "npm:@hobin/developer@pilot",
-			skillRoot: "skills/model",
-		},
 		category: "Contextual Adequacy",
 		rootWhen:
 			"Consequential conditions, rules, contracts, histories, or proof boundaries must be modeled.",
@@ -504,18 +542,18 @@ const scenarios: readonly PilotScenario[] = [
 	},
 	{
 		name: "deployment-check",
-		skillRootPath: join(
-			packageRoot,
-			"tests",
-			"fixtures",
-			"action-loop-external-skill",
-		),
+		loadedSkill: loadedSkill({
+			name: "deployment-check",
+			skillRootPath: join(
+				projectFixtureBase,
+				"action-loop-external-skill",
+			),
+			sourceBaseDir: projectFixtureBase,
+			source: "local",
+			scope: "project",
+			origin: "top-level",
+		}),
 		expectedDescriptorName: "routing.json",
-		source: {
-			kind: "project",
-			locator: "project:/fixture-workspace",
-			skillRoot: ".pi/skills/deployment-check",
-		},
 		category: "Consequence Integrity",
 		rootWhen:
 			"A deployment change requires a bounded rollback consequence assessment.",
@@ -534,11 +572,24 @@ const scenarios: readonly PilotScenario[] = [
 	},
 ];
 
-test("verify, model, and project Skill preserve semantic identity across evaluator adapters", async () => {
+test("Pi-loaded package and project Skills preserve semantic identity across evaluator adapters", async () => {
+	const catalog = await adaptPiSkillCatalog(
+		scenarios.map((scenario) => scenario.loadedSkill),
+	);
+	if (!catalog.ok) throw new Error(catalog.error.message);
+	assert.deepEqual(catalog.excluded, []);
+	assert.equal(catalog.inventory.length, scenarios.length);
+
 	const capabilityIds = new Set<string>();
-	for (const scenario of scenarios) {
-		const record = await runPilot(scenario, recordEvaluator());
-		const tuple = await runPilot(scenario, tupleEvaluator());
+	for (const [index, scenario] of scenarios.entries()) {
+		const candidate = catalog.inventory[index];
+		assert.ok(candidate);
+		assert.equal(candidate.label, scenario.name);
+		assert.equal(candidate.supportsStructuredToc, true);
+		const record = await runPilot(scenario, candidate, recordEvaluator());
+		const tuple = await runPilot(scenario, candidate, tupleEvaluator());
+		assert.deepEqual(record.capabilitySource, candidate.source);
+		assert.deepEqual(tuple.capabilitySource, record.capabilitySource);
 		assert.equal(record.descriptorName, scenario.expectedDescriptorName);
 		assert.equal(tuple.descriptorName, record.descriptorName);
 		assert.deepEqual(
@@ -582,5 +633,9 @@ test("verify, model, and project Skill preserve semantic identity across evaluat
 		);
 		capabilityIds.add(record.capabilityId);
 	}
+	assert.deepEqual(
+		catalog.inventory.map((candidate) => candidate.source.kind),
+		["package", "package", "project"],
+	);
 	assert.equal(capabilityIds.size, scenarios.length);
 });
