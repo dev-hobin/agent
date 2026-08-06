@@ -1,4 +1,7 @@
-import { createHash } from "node:crypto";
+import {
+	hashIdentity,
+	sha256Bytes,
+} from "../identity/hash-identity.ts";
 import type { ParsedToc } from "./parse-toc.ts";
 
 export const CAPABILITY_ID_VERSION = "developer-capability/v1";
@@ -82,21 +85,6 @@ function isNormalizedSkillRoot(root: string): boolean {
 		);
 }
 
-function hashParts(
-	prefix: string,
-	parts: readonly (string | Uint8Array)[],
-): string {
-	const hash = createHash("sha256");
-	for (const part of parts) {
-		const bytes = typeof part === "string" ? Buffer.from(part, "utf8") : part;
-		const length = Buffer.alloc(8);
-		length.writeBigUInt64BE(BigInt(bytes.byteLength));
-		hash.update(length);
-		hash.update(bytes);
-	}
-	return `${prefix}_${hash.digest("hex")}`;
-}
-
 function canonicalTocBytes(toc: ParsedToc): Uint8Array {
 	return Buffer.from(
 		JSON.stringify({
@@ -149,20 +137,18 @@ export function bindCapability(
 		locator: source.locator,
 		skillRoot: source.skillRoot,
 	});
-	const capabilityId = hashParts("cap", [
-		CAPABILITY_ID_VERSION,
+	const capabilityId = hashIdentity("cap", CAPABILITY_ID_VERSION, [
 		boundSource.kind,
 		boundSource.locator,
 		boundSource.skillRoot,
 	]);
-	const skillHash = hashParts("sha256", [skillBytes]);
-	const tocHash = hashParts("sha256", [canonicalTocBytes(toc)]);
-	const capabilityRevisionId = hashParts("caprev", [
+	const skillHash = sha256Bytes(skillBytes);
+	const tocHash = sha256Bytes(canonicalTocBytes(toc));
+	const capabilityRevisionId = hashIdentity(
+		"caprev",
 		CAPABILITY_REVISION_VERSION,
-		capabilityId,
-		skillHash,
-		tocHash,
-	]);
+		[capabilityId, skillHash, tocHash],
+	);
 
 	return {
 		ok: true,

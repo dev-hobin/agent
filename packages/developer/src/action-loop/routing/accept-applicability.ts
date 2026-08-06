@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { hashIdentity } from "../identity/hash-identity.ts";
 import type { BoundCapability } from "./bind-capability.ts";
 
 export const CAPABILITY_ASSIGNMENT_VERSION =
@@ -176,18 +176,6 @@ function canonicalMatches(
 	};
 }
 
-function hashAssignment(parts: readonly string[]): string {
-	const hash = createHash("sha256");
-	for (const part of parts) {
-		const bytes = Buffer.from(part, "utf8");
-		const length = Buffer.alloc(8);
-		length.writeBigUInt64BE(BigInt(bytes.byteLength));
-		hash.update(length);
-		hash.update(bytes);
-	}
-	return `assign_${hash.digest("hex")}`;
-}
-
 function checkTarget(
 	target: ApplicabilityTarget,
 ): ApplicabilityAcceptanceResult | undefined {
@@ -326,15 +314,18 @@ function makeAssessment(
 function makeAssignment(
 	assessment: AcceptedApplicabilityAssessment,
 ): CapabilityAssignment {
-	const assignmentId = hashAssignment([
+	const assignmentId = hashIdentity(
+		"assign",
 		CAPABILITY_ASSIGNMENT_VERSION,
-		assessment.workCaseId,
-		assessment.judgmentId,
-		assessment.contributionNeedId,
-		assessment.capabilityRevisionId,
-		...assessment.matchedWhen,
-		...assessment.basis,
-	]);
+		[
+			assessment.workCaseId,
+			assessment.judgmentId,
+			assessment.contributionNeedId,
+			assessment.capabilityRevisionId,
+			...assessment.matchedWhen,
+			...assessment.basis,
+		],
+	);
 	return Object.freeze({
 		assignmentId,
 		workCaseId: assessment.workCaseId,
