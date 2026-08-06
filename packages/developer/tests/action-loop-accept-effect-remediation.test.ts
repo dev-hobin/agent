@@ -57,7 +57,10 @@ test("a distinct observed-success Effect remediates one adverse settlement", () 
 
 	assert.equal(accepted.status, "accepted");
 	assert.equal(anotherEvaluator.status, "accepted");
-	if (accepted.status !== "accepted" || anotherEvaluator.status !== "accepted") {
+	if (
+		accepted.status !== "accepted" ||
+		anotherEvaluator.status !== "accepted"
+	) {
 		return;
 	}
 	assert.match(
@@ -80,12 +83,16 @@ test("success cannot rewrite a non-adverse or same Effect as remediation", () =>
 	const same = settlement("effect-adverse", "observed-success");
 
 	assert.equal(
-		acceptEffectRemediation(successful, noEffect, proposal(successful, noEffect))
-			.status,
+		acceptEffectRemediation(
+			successful,
+			noEffect,
+			proposal(successful, noEffect),
+		).status,
 		"invalid",
 	);
 	assert.equal(
-		acceptEffectRemediation(adverse, noEffect, proposal(adverse, noEffect)).status,
+		acceptEffectRemediation(adverse, noEffect, proposal(adverse, noEffect))
+			.status,
 		"invalid",
 	);
 	assert.equal(

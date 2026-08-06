@@ -3,7 +3,10 @@ import test from "node:test";
 import { acceptActionCandidate } from "../src/action-loop/action/accept-action-candidate.ts";
 import { acceptActionClearance } from "../src/action-loop/action/action-clearance.ts";
 import { acceptEffectRemediation } from "../src/action-loop/effect/accept-effect-remediation.ts";
-import { beginEffect, type PendingEffect } from "../src/action-loop/effect/begin-effect.ts";
+import {
+	beginEffect,
+	type PendingEffect,
+} from "../src/action-loop/effect/begin-effect.ts";
 import type { EffectSettlement } from "../src/action-loop/effect/effect-settlement.ts";
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
 import { acceptClosureClaim } from "../src/action-loop/work/accept-closure-claim.ts";
@@ -14,13 +17,18 @@ import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-ca
 import { recordWorkCaseEffectAssessment } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
 import { recordWorkCaseEffectRemediation } from "../src/action-loop/work/record-work-case-effect-remediation.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
-import { openWorkCase, type ActiveWorkCase } from "../src/action-loop/work/work-case.ts";
+import {
+	openWorkCase,
+	type ActiveWorkCase,
+} from "../src/action-loop/work/work-case.ts";
 
 function openCase(): ActiveWorkCase {
 	const result = openWorkCase({
 		outcome: {
 			statement: "The adverse consequence is repaired without hiding history.",
-			acceptanceConditions: ["The target artifact has the accepted final state."],
+			acceptanceConditions: [
+				"The target artifact has the accepted final state.",
+			],
 			constraints: ["The failed occurrence remains accounted for."],
 		},
 		provenance: { kind: "human", source: "delegating-user" },
@@ -78,8 +86,12 @@ function addEffect(
 		provenance: { kind: "model", source: "test-evaluator" },
 	});
 	if (candidate.status !== "accepted") throw new Error(candidate.error.message);
-	const withCandidate = recordWorkCaseActionCandidate(workCase, candidate.value);
-	if (withCandidate.status !== "recorded") throw new Error(withCandidate.status);
+	const withCandidate = recordWorkCaseActionCandidate(
+		workCase,
+		candidate.value,
+	);
+	if (withCandidate.status !== "recorded")
+		throw new Error(withCandidate.status);
 	const clearance = acceptActionClearance(
 		candidate.value,
 		[warrant],
@@ -102,7 +114,8 @@ function addEffect(
 		withCandidate.value,
 		clearance.value,
 	);
-	if (withClearance.status !== "recorded") throw new Error(withClearance.status);
+	if (withClearance.status !== "recorded")
+		throw new Error(withClearance.status);
 	const effect = beginEffect(clearance.value, {
 		occurrenceId: `occurrence-${label}`,
 		actionClearanceId: clearance.value.actionClearanceId,
@@ -128,7 +141,9 @@ function assessment(
 		outcome,
 		observationDispositions: Object.freeze([]),
 		intendedEffectDispositions: Object.freeze([]),
-		basis: Object.freeze(["The bounded test fixture supplies this settlement."]),
+		basis: Object.freeze([
+			"The bounded test fixture supplies this settlement.",
+		]),
 		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
 	});
 }
@@ -140,12 +155,14 @@ function remediationCase(): {
 	const opened = openCase();
 	const warrant = conclusion(opened.workCaseId);
 	const withConclusion = recordWorkCaseConclusion(opened, warrant);
-	if (withConclusion.status !== "recorded") throw new Error(withConclusion.status);
+	if (withConclusion.status !== "recorded")
+		throw new Error(withConclusion.status);
 	const withAssurance = recordWorkCaseConclusion(
 		withConclusion.value,
 		claimAssuranceConclusion(opened.workCaseId),
 	);
-	if (withAssurance.status !== "recorded") throw new Error(withAssurance.status);
+	if (withAssurance.status !== "recorded")
+		throw new Error(withAssurance.status);
 	const adverseEffect = addEffect(withAssurance.value, warrant, "a");
 	const resolvingEffect = addEffect(adverseEffect.workCase, warrant, "b");
 	const adverse = assessment(adverseEffect.effect, "partially-applied");
@@ -161,7 +178,8 @@ function remediationCase(): {
 		resolving,
 		null,
 	);
-	if (withResolving.status !== "recorded") throw new Error(withResolving.status);
+	if (withResolving.status !== "recorded")
+		throw new Error(withResolving.status);
 	return {
 		workCase: withResolving.value,
 		remediation: acceptEffectRemediation(adverse, resolving, {
@@ -222,7 +240,9 @@ test("Closure Target and Claim account for remediation without rewriting failure
 		conclusionIds: target.value.conclusionIds,
 		effectAssessmentIds: target.value.effectAssessmentIds,
 		effectRemediationIds: target.value.effectRemediationIds,
-		basis: ["Current conclusions, settlements, and remediation satisfy this obligation."],
+		basis: [
+			"Current conclusions, settlements, and remediation satisfy this obligation.",
+		],
 	}));
 	const accepted = acceptClosureClaim(target.value, {
 		workCaseId: recorded.value.workCaseId,

@@ -433,7 +433,10 @@ function assessmentInventoryIssue(
 
 function remediationInventoryIssue(
 	workCase: WorkCaseInventoryState,
-	assessments: ReadonlyMap<string, EffectSettlement | UnsettledEffectAssessment>,
+	assessments: ReadonlyMap<
+		string,
+		EffectSettlement | UnsettledEffectAssessment
+	>,
 ): WorkCaseInventoryIssue | undefined {
 	for (const remediation of workCase.effectRemediations) {
 		const adverse = assessments.get(remediation.adverseEffectId);

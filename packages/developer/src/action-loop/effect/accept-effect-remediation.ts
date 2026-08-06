@@ -61,8 +61,14 @@ function invalid(
 	return { status: "invalid", error: { code, path, message } };
 }
 
-function canonicalBasis(values: readonly string[]): CanonicalResult<readonly string[]> {
-	if (!Array.isArray(values) || values.length === 0 || values.length > MAX_BASIS_ITEMS) {
+function canonicalBasis(
+	values: readonly string[],
+): CanonicalResult<readonly string[]> {
+	if (
+		!Array.isArray(values) ||
+		values.length === 0 ||
+		values.length > MAX_BASIS_ITEMS
+	) {
 		return {
 			ok: false,
 			error: {
@@ -120,7 +126,8 @@ function canonicalProvenance(
 			},
 		};
 	}
-	const source = typeof provenance.source === "string" ? provenance.source.trim() : "";
+	const source =
+		typeof provenance.source === "string" ? provenance.source.trim() : "";
 	if (source.length === 0 || source.length > MAX_TEXT_LENGTH) {
 		return {
 			ok: false,

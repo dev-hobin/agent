@@ -76,8 +76,7 @@ export function recordWorkCaseEffectRemediation(
 	if (existing !== undefined) return { status: "unchanged", value: workCase };
 	if (
 		workCase.effectRemediations.some(
-			({ adverseEffectId }) =>
-				adverseEffectId === remediation.adverseEffectId,
+			({ adverseEffectId }) => adverseEffectId === remediation.adverseEffectId,
 		)
 	) {
 		return invalid(
