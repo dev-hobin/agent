@@ -217,7 +217,8 @@ function recordEvaluator(): PilotEvaluator {
 		references(capability, scenario) {
 			const raw = Object.fromEntries(
 				capability.toc.references.map((reference) => {
-					const selected = selectedApplication(scenario, reference.path) !== undefined;
+					const selected =
+						selectedApplication(scenario, reference.path) !== undefined;
 					return [
 						reference.path,
 						{ include: selected, reason: referenceBasis(selected) },
@@ -287,7 +288,8 @@ function tupleEvaluator(): PilotEvaluator {
 		references(capability, scenario) {
 			const raw = capability.toc.references
 				.map((reference) => {
-					const selected = selectedApplication(scenario, reference.path) !== undefined;
+					const selected =
+						selectedApplication(scenario, reference.path) !== undefined;
 					return [
 						reference.path,
 						selected ? "R" : "S",
@@ -306,8 +308,7 @@ function tupleEvaluator(): PilotEvaluator {
 				"resolved",
 				scenario.result,
 				scenario.selectedApplications.map(
-					(application) =>
-						[application.path, application.application] as const,
+					(application) => [application.path, application.application] as const,
 				),
 			] as const;
 			assert.equal(raw[0], "resolved");
@@ -315,9 +316,7 @@ function tupleEvaluator(): PilotEvaluator {
 				assignment,
 				context,
 				raw[1],
-				raw[2]
-					.map(([path, application]) => ({ path, application }))
-					.reverse(),
+				raw[2].map(([path, application]) => ({ path, application })).reverse(),
 				provenanceSource,
 			);
 		},
@@ -452,7 +451,8 @@ const scenarios: readonly PilotScenario[] = [
 		category: "Claim Assurance",
 		rootWhen:
 			"A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged.",
-		rootBasis: "The delegated Need asks which integration claim current evidence supports.",
+		rootBasis:
+			"The delegated Need asks which integration claim current evidence supports.",
 		selectedApplications: [
 			{
 				path: "references/verifier-selection-and-pass-but-wrong.md",
@@ -476,7 +476,8 @@ const scenarios: readonly PilotScenario[] = [
 		category: "Contextual Adequacy",
 		rootWhen:
 			"Consequential conditions, rules, contracts, histories, or proof boundaries must be modeled.",
-		rootBasis: "Retry and duplicate histories remain unresolved and materially affect correctness.",
+		rootBasis:
+			"Retry and duplicate histories remain unresolved and materially affect correctness.",
 		selectedApplications: [
 			{
 				path: "references/problem-modeling.md",
@@ -510,7 +511,8 @@ const scenarios: readonly PilotScenario[] = [
 		category: "Consequence Integrity",
 		rootWhen:
 			"A deployment change requires a bounded rollback consequence assessment.",
-		rootBasis: "The current deployment can mutate durable state before success is observable.",
+		rootBasis:
+			"The current deployment can mutate durable state before success is observable.",
 		selectedApplications: [
 			{
 				path: "references/rollback-surface.md",
@@ -529,7 +531,10 @@ test("verify, model, and project Skill preserve semantic identity across evaluat
 	for (const scenario of scenarios) {
 		const record = await runPilot(scenario, recordEvaluator());
 		const tuple = await runPilot(scenario, tupleEvaluator());
-		assert.deepEqual(record.selectedPaths, scenario.selectedApplications.map(({ path }) => path));
+		assert.deepEqual(
+			record.selectedPaths,
+			scenario.selectedApplications.map(({ path }) => path),
+		);
 		assert.deepEqual(tuple.selectedPaths, record.selectedPaths);
 		assert.deepEqual(
 			{
@@ -561,7 +566,10 @@ test("verify, model, and project Skill preserve semantic identity across evaluat
 			],
 			Array(3).fill(tupleEvaluator().provenanceSource),
 		);
-		assert.notEqual(tuple.contributionProvenance, record.contributionProvenance);
+		assert.notEqual(
+			tuple.contributionProvenance,
+			record.contributionProvenance,
+		);
 		capabilityIds.add(record.capabilityId);
 	}
 	assert.equal(capabilityIds.size, scenarios.length);
