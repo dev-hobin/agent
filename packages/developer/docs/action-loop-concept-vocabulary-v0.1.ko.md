@@ -480,13 +480,13 @@ failed
 partially-applied
 ```
 
-Known partial effect는 partial로 settle될 수 있지만 completion을 막거나 Judgment를 다시 열 수 있다.
+Known partial effect는 partial로 settle될 수 있지만 completion을 막거나 Judgment를 다시 열 수 있다. V0 settlement는 모든 current Observation을 `relied-on | not-relied-on`으로, 모든 intended Effect를 `observed | not-observed | failed | partially-observed | unknown`으로 정확히 한 번 accounting한다. Outcome은 이 accounting에서 derive되며 proposal 문자열이 더 강한 결과를 선언할 수 없다.
 
 다음은 아직 unsettled state다.
 
 ```text
-pending
-unknown
+pending  // relied-on Observation이 없음
+unknown  // Observation은 있으나 intended Effect가 불확정
 ```
 
 ### 5.20 Claim
