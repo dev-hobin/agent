@@ -344,6 +344,8 @@ specialist capability
 
 `AGENTS.md`와 repository instruction은 보통 Context source다. 자동으로 Capability가 되지 않는다.
 
+Skill `name`은 human-facing label이지 Capability identity가 아니다. Runtime은 discovered source-bound Capability ID와 Skill/TOC content-bound revision ID를 생성한다. 동일 이름 처리와 Pi discovery boundary는 [Capability and Material Routing](./action-loop-routing-contract-v0.1.ko.md)이 정의한다.
+
 ### 5.12 Conclusion
 
 > 하나의 Judgment를 닫는 category-scoped answer.

@@ -148,6 +148,53 @@ Required document-kind and authoring-version discriminator다. 값은 schema가 
 
 Schema URI는 package version과 runtime event version과 독립적이며 normalized TOC identity에 포함된다.
 
+### Human name and runtime identity
+
+Skill frontmatter의 `name`은 사람, model, `/skill:name` surface를 위한 label이지 runtime identity가 아니다.
+
+Developer는 사용자가 ID를 authoring하게 하지 않는다. Pi Adapter가 discovered source provenance로 모든 Capability에 opaque identity를 부여한다.
+
+```text
+CapabilityId =
+  hash(
+    identity vocabulary version,
+    Pi source kind,
+    canonical source locator,
+    Skill-relative root
+  )
+
+CapabilityRevisionId =
+  hash(
+    CapabilityId,
+    exact SKILL.md hash,
+    normalized TOC hash
+  )
+```
+
+`CapabilityId`는 어느 source의 어느 Skill occurrence인지를 보존한다. `CapabilityRevisionId`는 같은 occurrence의 current Skill and TOC content state를 보존한다. Selected Reference hashes는 더 뒤의 Sealed Skill Context가 소유하므로 unselected Reference body drift만으로 Capability revision을 바꾸지 않는다.
+
+```text
+name: model
+source: package:@hobin/developer/skills/model
+capabilityId: cap_A
+
+name: model
+source: project:.pi/skills/model
+capabilityId: cap_B
+```
+
+이론적으로 두 occurrences는 같은 name이어도 다른 Capability다. 그러나 현재 Pi는 same-name Skills를 Developer inventory 이전에 경고하고 하나만 유지한다. V0 Developer는 Pi가 제외한 candidate를 독자적인 filesystem scan으로 복원하지 않는다.
+
+```text
+Pi-selected descriptor
+  → Developer Capability inventory
+
+Pi-excluded same-name descriptor
+  → not reconstructed by Developer
+```
+
+따라서 v0에서 동시에 사용해야 하는 local Skills는 `payment-model`, `company-contract-model`처럼 distinct human names를 사용한다. Same-name coexistence는 Pi가 trust와 filtering을 적용한 pre-dedup source descriptors와 disambiguated command surface를 제공할 때 재검토한다.
+
 ### `when`
 
 현재 Contribution Need와 context에서 이 Skill family가 material Contribution을 만들 수 있는 observable conditions다.
@@ -361,11 +408,11 @@ Pi-discovered Skill root
 
 ### Parsed TOC
 
-Normalized `when`, `unless`, Reference paths, Reference conditions, and authoring identity. It contains no self-declared owner.
+Normalized `$schema`, `when`, `unless`, Reference paths, Reference conditions, and authoring identity. It contains no self-declared owner or Capability ID.
 
 ### Skill-bound TOC
 
-Binds Parsed TOC to discovered Skill identity, source provenance, Skill root, and `SKILL.md` descriptor.
+Binds Parsed TOC to Pi-discovered source provenance, canonical Skill root, `SKILL.md` descriptor, generated Capability ID, and Capability revision ID.
 
 ### Capability Applicability
 
@@ -472,16 +519,19 @@ No sealed value is returned if a selected member:
 Identity chain:
 
 ```text
-discovered Skill + normalized TOC
-  → skillTocId
+Pi source kind + canonical source locator + Skill-relative root
+  → capabilityId
 
-Contribution Need + Work Case + Skill-bound TOC + applicability basis
+capabilityId + exact SKILL.md + normalized TOC
+  → capabilityRevisionId
+
+Contribution Need + Work Case + capabilityRevisionId + applicability basis
   → assignmentId
 
 assignment + all Reference dispositions
   → selectionId
 
-selection + exact Skill and Reference bytes
+selection + exact Skill and selected Reference bytes
   → sealedContextId
 
 assignment + sealed context + material applications + result + residuals
@@ -491,7 +541,7 @@ Need + current Contributions + conflicts + limitations
   → coverageId
 ```
 
-Changing selected TOC conditions, Skill body, Reference body, Need, disposition, or Work Case context invalidates dependent values. Adding an unrelated Capability or unselected Reference does not stale an already sealed contribution basis.
+Changing selected TOC conditions, Skill body, selected Reference body, Need, disposition, or Work Case context invalidates dependent values. Name alone never establishes continuity. Adding an unrelated Capability or changing an unselected Reference body does not stale an already sealed contribution basis.
 
 ## 16. Contribution enforcement
 
@@ -609,6 +659,7 @@ The runtime cannot prove these semantic claims. It can require explicit basis, p
 | Failure | Required outcome |
 | --- | --- |
 | Matching TOC schema absent | Capability remains unstructured. |
+| Pi excludes a same-name candidate | Developer follows the Pi-selected catalog and does not reconstruct the excluded source. |
 | Recognized TOC fails validation | Structured routing advertisement rejected; no silent fallback. |
 | Multiple matching descriptors | Ambiguous TOC failure; none selected. |
 | Known schema family has unsupported version | Unsupported-version failure; no network fallback. |
@@ -678,8 +729,8 @@ Co-required grouping, explicit route IDs, artifact declarations, custom read ord
 
 1. Add valid and invalid fixtures for schema discovery, simple, multi-Reference, no-Reference, duplicate-descriptor, unsupported-version, malformed, drift, and external-Skill cases.
 2. Write the minimal versioned TOC JSON Schema with a canonical `$schema` const.
-3. Implement bounded direct-child discovery, bundled schema mapping, raw-to-refined parsing, canonical identity, path checks, and physical containment.
-4. Bind Parsed TOC to discovered Skill identity without self-declared ownership.
+3. Implement bounded direct-child discovery, bundled schema mapping, raw-to-refined parsing, path checks, and physical containment.
+4. Bind Parsed TOC to Pi source provenance and generate Capability ID and Capability revision ID without self-declared ownership or identity.
 5. Implement pure Capability Applicability and Reference Disposition values.
 6. Implement selected-path-only acquisition and Sealed Skill Context.
 7. Implement selected-material application accounting in Skill Contribution.
@@ -697,6 +748,9 @@ The first executable item is the minimal schema/parser and finite selection fixt
 - simple TOC can be written without repeating Skill or Reference bodies;
 - filename-independent exact schema discovery works only inside Pi-discovered Skill roots;
 - duplicate descriptors and unsupported schema versions fail clearly;
+- same names from different source descriptors cannot collapse to one runtime identity;
+- Capability revision changes with SKILL or TOC content but not unselected Reference body drift;
+- Pi-excluded same-name candidates are not recovered by an independent Developer scan;
 - unknown fields and malformed conditions fail clearly;
 - path traversal and symlink escape fail;
 - every declared file exists;
@@ -731,6 +785,7 @@ The following remain provisional and should be decided through fixtures rather t
 - Whether every Reference must be dispositioned or a bounded candidate shortlist can preserve omission safety at lower context cost.
 - How stronger evaluator and user assurance attach to Contributions.
 - Which independent package, if any, owns the reusable schema; Developer must not regain a runtime dependency on Judgment merely for parsing.
+- Whether Pi will expose trust-filtered pre-dedup source descriptors and a disambiguated command surface for same-name coexistence.
 - Whether one Skill Contribution may address several Needs or batching remains a projection over one-Need assignments.
 
 Reopen the authoring shape only when a finite selection fixture cannot express an accepted case without weakening an invariant.
