@@ -39,10 +39,7 @@ test("one bounded Outcome opens one deterministic active Work Case", () => {
 	assert.equal(reordered.status, "opened");
 	if (first.status !== "opened" || reordered.status !== "opened") return;
 	assert.match(first.value.workCaseId, /^work_case_[a-f0-9]{64}$/);
-	assert.match(
-		first.value.revisionId,
-		/^work_case_revision_[a-f0-9]{64}$/,
-	);
+	assert.match(first.value.revisionId, /^work_case_revision_[a-f0-9]{64}$/);
 	assert.match(first.value.outcome.outcomeId, /^outcome_[a-f0-9]{64}$/);
 	assert.equal(reordered.value.workCaseId, first.value.workCaseId);
 	assert.equal(

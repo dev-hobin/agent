@@ -1,9 +1,6 @@
 import { hashIdentity } from "../identity/hash-identity.ts";
 import { effectAssessmentId } from "./record-work-case-effect-assessment.ts";
-import {
-	deriveWorkCaseRevisionId,
-	type ActiveWorkCase,
-} from "./work-case.ts";
+import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
 
 export const CLOSURE_TARGET_VERSION = "developer-closure-target/v1";
 
@@ -59,7 +56,9 @@ function sorted(ids: readonly string[]): readonly string[] {
 	);
 }
 
-function closureObligations(workCase: ActiveWorkCase): readonly ClosureObligation[] {
+function closureObligations(
+	workCase: ActiveWorkCase,
+): readonly ClosureObligation[] {
 	const obligations: ClosureObligation[] = [];
 	for (const [kind, statements] of [
 		["acceptance-condition", workCase.outcome.acceptanceConditions],
@@ -85,7 +84,9 @@ function closureObligations(workCase: ActiveWorkCase): readonly ClosureObligatio
 	return Object.freeze(obligations);
 }
 
-function effectBlockers(workCase: ActiveWorkCase): readonly ClosureTargetBlocker[] {
+function effectBlockers(
+	workCase: ActiveWorkCase,
+): readonly ClosureTargetBlocker[] {
 	const blockers: ClosureTargetBlocker[] = [];
 	const assessments = new Map(
 		workCase.currentEffectAssessments.map((assessment) => [
@@ -147,9 +148,7 @@ export function prepareClosureTarget(
 	}
 	const blockers = [...effectBlockers(workCase)];
 	if (
-		!workCase.conclusions.some(
-			({ category }) => category === "Claim Assurance",
-		)
+		!workCase.conclusions.some(({ category }) => category === "Claim Assurance")
 	) {
 		blockers.push(
 			Object.freeze({

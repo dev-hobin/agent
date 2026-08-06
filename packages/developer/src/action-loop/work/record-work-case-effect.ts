@@ -1,8 +1,5 @@
 import type { PendingEffect } from "../effect/begin-effect.ts";
-import {
-	deriveWorkCaseRevisionId,
-	type ActiveWorkCase,
-} from "./work-case.ts";
+import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
 
 export type WorkCaseEffectRecordErrorCode =
 	| "stale-work-case"
@@ -66,8 +63,7 @@ export function recordWorkCaseEffect(
 		);
 	}
 	const clearance = workCase.actionClearances.find(
-		({ actionClearanceId }) =>
-			actionClearanceId === effect.actionClearanceId,
+		({ actionClearanceId }) => actionClearanceId === effect.actionClearanceId,
 	);
 	if (clearance === undefined) {
 		return invalid(

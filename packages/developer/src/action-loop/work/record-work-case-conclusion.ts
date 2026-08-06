@@ -1,8 +1,5 @@
 import type { JudgmentConclusion } from "../judgment/close-judgment.ts";
-import {
-	deriveWorkCaseRevisionId,
-	type ActiveWorkCase,
-} from "./work-case.ts";
+import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
 
 export type WorkCaseConclusionRecordErrorCode =
 	| "stale-work-case"

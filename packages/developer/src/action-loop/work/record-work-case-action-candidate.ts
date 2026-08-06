@@ -1,8 +1,5 @@
 import type { ActionCandidate } from "../action/accept-action-candidate.ts";
-import {
-	deriveWorkCaseRevisionId,
-	type ActiveWorkCase,
-} from "./work-case.ts";
+import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
 
 export type WorkCaseActionCandidateRecordErrorCode =
 	| "stale-work-case"

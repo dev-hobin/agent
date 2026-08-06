@@ -2,10 +2,7 @@ import type {
 	EffectSettlement,
 	UnsettledEffectAssessment,
 } from "../effect/effect-settlement.ts";
-import {
-	deriveWorkCaseRevisionId,
-	type ActiveWorkCase,
-} from "./work-case.ts";
+import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
 
 export type CurrentEffectAssessment =
 	| EffectSettlement

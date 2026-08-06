@@ -11,7 +11,10 @@ import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-wo
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import { recordWorkCaseEffectAssessment } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
-import { openWorkCase, type ActiveWorkCase } from "../src/action-loop/work/work-case.ts";
+import {
+	openWorkCase,
+	type ActiveWorkCase,
+} from "../src/action-loop/work/work-case.ts";
 
 function openCase(): ActiveWorkCase {
 	const result = openWorkCase({
@@ -40,7 +43,9 @@ function conclusion(
 		contextRevisionId: `context-${id}`,
 		requirementDispositions: Object.freeze([]),
 		coverageIds: Object.freeze([]),
-		basis: Object.freeze(["Current bounded evidence supports this Conclusion."]),
+		basis: Object.freeze([
+			"Current bounded evidence supports this Conclusion.",
+		]),
 		answer: "The bounded claim is supported.",
 		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
 	});
@@ -66,10 +71,10 @@ test("Claim Assurance seals every no-Action closure obligation", () => {
 	assert.equal(result.status, "ready");
 	if (result.status !== "ready") return;
 	assert.equal(result.value.workCaseRevisionId, current.revisionId);
-	assert.deepEqual(
-		result.value.obligations.map(({ kind }) => kind).sort(),
-		["acceptance-condition", "constraint"],
-	);
+	assert.deepEqual(result.value.obligations.map(({ kind }) => kind).sort(), [
+		"acceptance-condition",
+		"constraint",
+	]);
 	assert.deepEqual(result.value.effectIds, []);
 	assert.match(result.value.closureTargetId, /^closure_target_[a-f0-9]{64}$/);
 });
@@ -151,7 +156,10 @@ test("an occurred Effect cannot be omitted from closure readiness", () => {
 	const missingAssessment = prepareClosureTarget(withEffect.value);
 	assert.equal(missingAssessment.status, "not-ready");
 	if (missingAssessment.status === "not-ready") {
-		assert.equal(missingAssessment.blockers[0]?.code, "missing-effect-assessment");
+		assert.equal(
+			missingAssessment.blockers[0]?.code,
+			"missing-effect-assessment",
+		);
 	}
 
 	const intendedEffect = effect.value.intendedEffects[0];

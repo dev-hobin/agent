@@ -7,7 +7,8 @@ import { openWorkCase } from "../src/action-loop/work/work-case.ts";
 function workCase() {
 	const result = openWorkCase({
 		outcome: {
-			statement: "The bounded behavior is implemented and supported by evidence.",
+			statement:
+				"The bounded behavior is implemented and supported by evidence.",
 			acceptanceConditions: ["The requested behavior is verified."],
 			constraints: ["No unrelated behavior changes."],
 		},

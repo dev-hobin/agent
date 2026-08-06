@@ -214,10 +214,7 @@ test("Action Clearance requires its Candidate and Conclusions in the same invent
 				assert.equal(staleReplacement.status, "invalid");
 				assert.equal(replacement.status, "recorded");
 				if (staleReplacement.status === "invalid") {
-					assert.equal(
-						staleReplacement.error.code,
-						"stale-effect-assessment",
-					);
+					assert.equal(staleReplacement.error.code, "stale-effect-assessment");
 				}
 			}
 		}

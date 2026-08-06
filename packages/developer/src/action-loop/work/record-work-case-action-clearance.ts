@@ -1,8 +1,5 @@
 import type { ActionClearance } from "../action/action-clearance.ts";
-import {
-	deriveWorkCaseRevisionId,
-	type ActiveWorkCase,
-} from "./work-case.ts";
+import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
 
 export type WorkCaseActionClearanceRecordErrorCode =
 	| "stale-work-case"
