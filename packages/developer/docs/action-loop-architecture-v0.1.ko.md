@@ -653,7 +653,8 @@ raw schema-identified TOC
 Conclusion
   → exact controlled-action fingerprint + intended Effects
   → Action Candidate
-  → permission + Action Clearance
+  → required Conclusions + separate current Permission Decision
+  → Action Clearance | explicit not-cleared
   → controlled Action
   → Effect Observation
   → Effect Settlement

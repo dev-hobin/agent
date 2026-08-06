@@ -443,7 +443,7 @@ cleared(action):
   warranted(action) && permitted(action)
 ```
 
-`Action Clearance`는 Conclusion과 permission을 구별하면서도 아직 독립 authority subsystem을 요구하지 않는다. Permission variation이 finite trace에서 복잡해질 때만 내부 representation을 확장한다.
+`Action Clearance`는 Conclusion과 permission을 구별하면서도 아직 독립 authority subsystem을 요구하지 않는다. V0 Permission Decision은 Action Candidate에 묶인 별도 refined input이며 `granted | denied | unknown`, source, basis를 보존한다. Model proposal provenance는 Permission Decision을 대신하지 않는다. Required Conclusion이 없거나 permission이 `denied | unknown`이면 malformed success가 아니라 explicit `not-cleared`다. Permission variation이 finite trace에서 복잡해질 때만 내부 representation을 확장한다.
 
 ### 5.17 Effect
 
