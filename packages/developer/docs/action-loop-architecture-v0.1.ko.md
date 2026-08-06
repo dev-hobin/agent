@@ -655,7 +655,8 @@ Conclusion
   → Action Candidate
   → required Conclusions + separate current Permission Decision
   → Action Clearance | explicit not-cleared
-  → controlled Action
+  → matching host controlled-Action occurrence
+  → pending Effect
   → Effect Observation
   → Effect Settlement
   → Closure Claim

@@ -459,7 +459,7 @@ Effect:
   의도한 파일이 실제로 변경됐고 다른 mutation은 없었다.
 ```
 
-실제 Effect는 처음에는 unknown일 수 있다.
+실제 Effect는 처음에는 unknown일 수 있다. V0 runtime은 Action Clearance와 exact controlled-action fingerprint가 일치하는 host occurrence를 받았을 때만 pending Effect identity를 만든다. 같은 clearance라도 occurrence ID가 다르면 별도 Effect다. Host occurrence는 실행이 시도됐음을 뜻할 뿐 intended Effect의 성공이나 settlement를 뜻하지 않는다.
 
 ### 5.18 Effect Observation
 
