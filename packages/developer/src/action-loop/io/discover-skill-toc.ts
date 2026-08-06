@@ -255,9 +255,7 @@ async function acquireJsonFile(
 			ok: false,
 			error: {
 				code:
-					code === "ELOOP"
-						? "descriptor-not-regular"
-						: "descriptor-unreadable",
+					code === "ELOOP" ? "descriptor-not-regular" : "descriptor-unreadable",
 				path: name,
 				message: `JSON descriptor candidate cannot be read (${code ?? "unknown"})`,
 			},
@@ -273,7 +271,9 @@ function sortNames(left: string, right: string): number {
 	return 0;
 }
 
-function chooseDescriptor(files: readonly AcquiredJsonFile[]): TocDiscoveryResult {
+function chooseDescriptor(
+	files: readonly AcquiredJsonFile[],
+): TocDiscoveryResult {
 	const unsupported = files.filter(
 		(file) =>
 			file.schemaUri !== undefined &&
@@ -282,7 +282,8 @@ function chooseDescriptor(files: readonly AcquiredJsonFile[]): TocDiscoveryResul
 	);
 	if (unsupported.length > 0) {
 		const first = unsupported[0];
-		if (first === undefined) throw new Error("Unsupported descriptor invariant");
+		if (first === undefined)
+			throw new Error("Unsupported descriptor invariant");
 		return failure(
 			"unsupported-version",
 			first.name,
@@ -312,7 +313,8 @@ function chooseDescriptor(files: readonly AcquiredJsonFile[]): TocDiscoveryResul
 	}
 
 	const candidate = supported[0];
-	if (candidate === undefined) throw new Error("Descriptor selection invariant");
+	if (candidate === undefined)
+		throw new Error("Descriptor selection invariant");
 	const parsed = parseTocBytes(candidate.bytes);
 	if (!parsed.ok) {
 		return failure(

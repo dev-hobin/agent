@@ -138,7 +138,11 @@ test("bounds the number of direct-child JSON files before reading them", async (
 	const { skillRoot } = await createWorkspace(t);
 	await Promise.all(
 		Array.from({ length: MAX_TOC_DISCOVERY_JSON_FILES + 1 }, (_, index) =>
-			writeJson(skillRoot, `candidate-${String(index).padStart(2, "0")}.json`, {}),
+			writeJson(
+				skillRoot,
+				`candidate-${String(index).padStart(2, "0")}.json`,
+				{},
+			),
 		),
 	);
 
