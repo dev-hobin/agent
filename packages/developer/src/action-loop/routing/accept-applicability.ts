@@ -314,18 +314,14 @@ function makeAssessment(
 function makeAssignment(
 	assessment: AcceptedApplicabilityAssessment,
 ): CapabilityAssignment {
-	const assignmentId = hashIdentity(
-		"assign",
-		CAPABILITY_ASSIGNMENT_VERSION,
-		[
-			assessment.workCaseId,
-			assessment.judgmentId,
-			assessment.contributionNeedId,
-			assessment.capabilityRevisionId,
-			...assessment.matchedWhen,
-			...assessment.basis,
-		],
-	);
+	const assignmentId = hashIdentity("assign", CAPABILITY_ASSIGNMENT_VERSION, [
+		assessment.workCaseId,
+		assessment.judgmentId,
+		assessment.contributionNeedId,
+		assessment.capabilityRevisionId,
+		...assessment.matchedWhen,
+		...assessment.basis,
+	]);
 	return Object.freeze({
 		assignmentId,
 		workCaseId: assessment.workCaseId,

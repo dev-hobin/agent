@@ -1,7 +1,4 @@
-import {
-	hashIdentity,
-	sha256Bytes,
-} from "../identity/hash-identity.ts";
+import { hashIdentity, sha256Bytes } from "../identity/hash-identity.ts";
 import type { ParsedToc } from "./parse-toc.ts";
 
 export const CAPABILITY_ID_VERSION = "developer-capability/v1";
