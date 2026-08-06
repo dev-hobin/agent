@@ -53,6 +53,7 @@ test("one bounded Outcome opens one deterministic active Work Case", () => {
 	assert.deepEqual(first.value.actionClearances, []);
 	assert.deepEqual(first.value.effects, []);
 	assert.deepEqual(first.value.currentEffectAssessments, []);
+	assert.deepEqual(first.value.continuityIds, []);
 	assert.equal(Object.isFrozen(first.value), true);
 	assert.equal(Object.isFrozen(first.value.outcome), true);
 });

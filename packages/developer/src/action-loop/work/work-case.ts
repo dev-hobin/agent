@@ -53,6 +53,7 @@ export interface ActiveWorkCase {
 		| EffectSettlement
 		| UnsettledEffectAssessment
 	)[];
+	readonly continuityIds: readonly string[];
 	readonly provenance: ActionCandidateProvenance;
 }
 
@@ -229,6 +230,9 @@ export function deriveWorkCaseRevisionId(state: WorkCaseRevisionState): string {
 		"current-effect-assessments",
 		String(assessmentIds.length),
 		...sortedIds(assessmentIds),
+		"continuity",
+		String(state.continuityIds.length),
+		...state.continuityIds,
 	]);
 }
 
@@ -285,6 +289,7 @@ function duplicateInventoryIssue(
 			"currentEffectAssessments",
 			workCase.currentEffectAssessments.map(({ effectId }) => effectId),
 		],
+		["continuityIds", workCase.continuityIds],
 	];
 	for (const [path, ids] of collections) {
 		const duplicateId = firstDuplicateId(ids);
@@ -499,6 +504,7 @@ export function openWorkCase(
 		actionClearances: [],
 		effects: [],
 		currentEffectAssessments: [],
+		continuityIds: [],
 	});
 	return {
 		status: "opened",
@@ -512,6 +518,7 @@ export function openWorkCase(
 			actionClearances: Object.freeze([]),
 			effects: Object.freeze([]),
 			currentEffectAssessments: Object.freeze([]),
+			continuityIds: Object.freeze([]),
 			provenance: provenance.value,
 		}),
 	};
