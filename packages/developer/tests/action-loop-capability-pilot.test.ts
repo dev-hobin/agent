@@ -30,10 +30,9 @@ import {
 	type CapabilityAssignment,
 } from "../src/action-loop/routing/accept-applicability.ts";
 import {
-	adaptPiSkillCatalog,
-	type AdaptedPiSkillDescriptor,
-} from "../src/action-loop/pi/adapt-skill-catalog.ts";
-import { discoverAdaptedSkillToc } from "../src/action-loop/pi/discover-admitted-skill-toc.ts";
+	catalogBeforeAgentStartSkills,
+	type StructuredCataloguedPiSkillEntry,
+} from "../src/action-loop/pi/catalog-pi-loaded-skills.ts";
 import {
 	bindCapability,
 	type BoundCapability,
@@ -366,22 +365,14 @@ function tupleEvaluator(): PilotEvaluator {
 
 async function runPilot(
 	scenario: PilotScenario,
-	candidate: AdaptedPiSkillDescriptor,
+	entry: StructuredCataloguedPiSkillEntry,
 	evaluator: PilotEvaluator,
 ): Promise<PilotResult> {
+	const candidate = entry.candidate;
 	const skillBytes = await readFile(candidate.skillFilePath);
-	const discovered = await discoverAdaptedSkillToc(candidate);
-	if (discovered.status === "failed") {
-		throw new Error(discovered.error.message);
-	}
-	if (discovered.status === "unstructured") {
-		throw new Error(
-			`Expected structured Capability ${scenario.name} (${discovered.reason})`,
-		);
-	}
 	const bound = bindCapability(
 		candidate.source,
-		discovered.descriptor.toc,
+		entry.descriptor.toc,
 		skillBytes,
 	);
 	if (!bound.ok) throw new Error(bound.error.message);
@@ -463,7 +454,7 @@ async function runPilot(
 	}
 
 	return {
-		descriptorName: discovered.descriptor.name,
+		descriptorName: entry.descriptor.name,
 		capabilitySource: bound.value.source,
 		capabilityId: bound.value.capabilityId,
 		capabilityRevisionId: bound.value.capabilityRevisionId,
@@ -572,21 +563,27 @@ const scenarios: readonly PilotScenario[] = [
 ];
 
 test("Pi-loaded package and project Skills preserve semantic identity across evaluator adapters", async () => {
-	const catalog = await adaptPiSkillCatalog(
-		scenarios.map((scenario) => scenario.loadedSkill),
-	);
-	if (!catalog.ok) throw new Error(catalog.error.message);
+	const catalog = await catalogBeforeAgentStartSkills({
+		systemPromptOptions: {
+			cwd: packageRoot,
+			skills: scenarios.map((scenario) => scenario.loadedSkill),
+		},
+	});
+	if (catalog.status === "rejected") throw new Error(catalog.error.message);
 	assert.deepEqual(catalog.excluded, []);
-	assert.equal(catalog.inventory.length, scenarios.length);
+	assert.equal(catalog.entries.length, scenarios.length);
 
 	const capabilityIds = new Set<string>();
 	for (const [index, scenario] of scenarios.entries()) {
-		const candidate = catalog.inventory[index];
-		assert.ok(candidate);
+		const entry = catalog.entries[index];
+		assert.ok(entry);
+		if (entry.status !== "structured") {
+			throw new Error(`Expected structured pilot entry ${scenario.name}`);
+		}
+		const candidate = entry.candidate;
 		assert.equal(candidate.label, scenario.name);
-		assert.equal(candidate.supportsStructuredToc, true);
-		const record = await runPilot(scenario, candidate, recordEvaluator());
-		const tuple = await runPilot(scenario, candidate, tupleEvaluator());
+		const record = await runPilot(scenario, entry, recordEvaluator());
+		const tuple = await runPilot(scenario, entry, tupleEvaluator());
 		assert.deepEqual(record.capabilitySource, candidate.source);
 		assert.deepEqual(tuple.capabilitySource, record.capabilitySource);
 		assert.equal(record.descriptorName, scenario.expectedDescriptorName);
@@ -633,7 +630,7 @@ test("Pi-loaded package and project Skills preserve semantic identity across eva
 		capabilityIds.add(record.capabilityId);
 	}
 	assert.deepEqual(
-		catalog.inventory.map((candidate) => candidate.source.kind),
+		catalog.entries.map((entry) => entry.candidate.source.kind),
 		["package", "package", "project"],
 	);
 	assert.equal(capabilityIds.size, scenarios.length);
