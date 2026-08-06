@@ -8,7 +8,7 @@
 >
 > 기준선: `@hobin/developer@0.1.19`
 >
-> Runtime note: 이 문서는 새 `toc.json`의 최소 authoring surface와 runtime enforcement boundary를 정의한다. 0.1.19 runtime은 이를 구현하지 않는다. 기존 `judgment.json`과 `reference-policy.json`은 compatibility target이 아니라 migration evidence다.
+> Runtime note: 이 문서는 새 schema-identified TOC descriptor의 최소 authoring surface와 runtime enforcement boundary를 정의한다. 0.1.19 runtime은 이를 구현하지 않는다. 기존 `judgment.json`과 `reference-policy.json`은 compatibility target이 아니라 migration evidence다.
 >
 > 작성 시점: 2026-08-06
 
@@ -32,7 +32,7 @@ material application
 
 > Author는 applicability와 local material relevance만 작성한다. Content contract는 Markdown이 소유하고, identity·selection·provenance·coverage의 복잡성은 compiler와 runtime이 생성한다.
 
-따라서 `toc.json`은 기존 `judgment.json`과 비슷한 작은 shape를 유지한다.
+따라서 TOC descriptor는 기존 `judgment.json`과 비슷한 작은 shape를 유지한다. `toc.json`은 권장 filename일 뿐 identity가 아니다.
 
 ## 2. 해결할 linking 구조
 
@@ -80,9 +80,9 @@ Stable question과 Closure Requirements를 소유한다. Skill 또는 Reference 
 
 Skill family의 Core Question, Judgment Spine, Output, Completion, Missing Evidence, Boundary를 소유한다.
 
-### `toc.json`
+### Schema-identified TOC descriptor
 
-Skill family applicability와 package-local Reference relevance만 소유한다.
+Skill family applicability와 Skill-local Reference relevance만 소유한다. Pi가 발견한 Skill root의 direct-child JSON 가운데 canonical `$schema`를 선언한 문서로 식별한다.
 
 ### Reference Markdown
 
@@ -92,12 +92,11 @@ Skill family applicability와 package-local Reference relevance만 소유한다.
 
 Owner binding, IDs, hashes, selection state, exact content, applied-material relation, Contribution, limitations, residual Needs, Need Coverage, staleness를 소유한다.
 
-## 4. Minimal `toc.json`
+## 4. Minimal TOC descriptor
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/toc.schema.json",
-  "specVersion": "0.1",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "An observable situation in which this Skill can materially address the current Contribution Need."
   ],
@@ -115,19 +114,39 @@ Owner binding, IDs, hashes, selection state, exact content, applied-material rel
 }
 ```
 
-이것이 전체 authoring shape다.
+이것이 전체 authoring shape다. `toc.json`을 권장하지만 filename은 계약이 아니다.
 
 No route IDs, artifact declarations, stop strings, sibling Skill links, hashes, Coverage fields, or runtime state are authored here.
 
-## 5. Field contract
+## 5. Discovery and field contract
+
+### Descriptor discovery
+
+Developer는 임의의 filesystem을 검색하지 않는다. 먼저 Pi가 package, global, project, settings, 또는 CLI source에서 Skill을 발견해야 한다. Project Skill은 Pi trust boundary를 통과해야 한다.
+
+각 discovered Skill root에서만 bounded discovery를 수행한다.
+
+```text
+Pi-discovered Skill root
+  → direct-child regular `*.json` files only
+  → bounded file count and bytes
+  → top-level `$schema` exact match
+  → one recognized TOC descriptor
+```
+
+- matching descriptor 0개: unstructured Capability다.
+- matching descriptor 1개: parse, validate, and bind한다.
+- matching descriptor 2개 이상: ambiguous TOC failure다.
+- known TOC schema family의 unsupported version: unsupported-version failure다.
+- nested JSON과 Skill root 밖의 JSON은 후보가 아니다.
+- runtime은 schema URI를 network fetch하지 않고 bundled validator에 exact mapping한다.
+- `toc.json`은 authoring convention일 뿐 다른 direct-child filename도 같은 schema URI로 식별할 수 있다.
 
 ### `$schema`
 
-Optional editor-discovery hint. Semantic TOC identity에는 포함하지 않는다.
+Required document-kind and authoring-version discriminator다. 값은 schema가 `const`로 요구하고 compiler가 지원하는 canonical URI와 exact match해야 한다. Editor association, discovery, validation selection을 한 field가 담당한다.
 
-### `specVersion`
-
-Human authoring vocabulary version. Package version과 runtime event version과 독립적이다.
+Schema URI는 package version과 runtime event version과 독립적이며 normalized TOC identity에 포함된다.
 
 ### `when`
 
@@ -145,7 +164,7 @@ Evidence가 부족한 상태는 `unless`가 아니라 runtime `needs-context`다
 
 Skill-local prepared materials다. Empty array는 self-contained Skill을 표현할 수 있다.
 
-`toc.json` 자체가 absent한 Skill도 정상적인 unstructured Capability로 발견될 수 있다.
+Matching TOC schema descriptor가 없는 Skill도 정상적인 unstructured Capability로 발견될 수 있다.
 
 ### `references[].path`
 
@@ -168,10 +187,11 @@ Useful:
 
 ## 6. Concrete `verify/toc.json`
 
+`toc.json`이라는 권장 filename을 사용한 예다.
+
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/toc.schema.json",
-  "specVersion": "0.1",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged."
   ],
@@ -211,8 +231,7 @@ If the Reference condition does not match, `SKILL.md` alone may produce the Cont
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/toc.schema.json",
-  "specVersion": "0.1",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "Consequential conditions, rules, contracts, histories, or proof boundaries must be modeled."
   ],
@@ -280,8 +299,7 @@ references[0]
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/toc.schema.json",
-  "specVersion": "0.1",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "The Skill's bounded judgment is applicable."
   ],
@@ -296,11 +314,11 @@ Root applicability is machine-visible, but `SKILL.md` owns the entire method.
 
 ### Unstructured Skill
 
-No TOC is present. Pi metadata and Skill description remain available for open-world matching, but the Capability advertises no structured Reference inventory.
+No matching TOC schema descriptor is present. Pi metadata and Skill description remain available for open-world matching, but the Capability advertises no structured Reference inventory.
 
-### Malformed presence
+### Invalid or ambiguous descriptor
 
-A present malformed TOC is not treated as absence. Developer rejects its structured routing advertisement instead of silently ignoring author intent.
+A parseable direct-child JSON that declares the recognized schema but fails validation is not treated as absence. Multiple matching descriptors are also invalid. Developer rejects the structured routing advertisement instead of choosing silently.
 
 Pi may still expose the underlying Skill independently of Developer.
 
@@ -328,7 +346,8 @@ Authors do not duplicate these values in TOC.
 Strong enforcement comes from generated refined values, not a large authoring schema.
 
 ```text
-raw toc.json bytes
+Pi-discovered Skill root
+  → schema-identified TOC bytes
   → Parsed TOC
   → Skill-bound TOC
   → Capability Applicability
@@ -385,8 +404,8 @@ Upper Judgment classifies the Need as `covered`, `partially-covered`, `conflicte
 Schema and package checks enforce only what authors actually write.
 
 ```text
+canonical `$schema` required and const
 unknown fields rejected
-specVersion supported
 when/unless arrays non-empty and duplicate-free
 Reference paths unique
 Reference when arrays non-empty and duplicate-free
@@ -589,8 +608,10 @@ The runtime cannot prove these semantic claims. It can require explicit basis, p
 
 | Failure | Required outcome |
 | --- | --- |
-| TOC absent | Capability remains unstructured. |
-| TOC malformed | Structured routing advertisement rejected; no silent fallback. |
+| Matching TOC schema absent | Capability remains unstructured. |
+| Recognized TOC fails validation | Structured routing advertisement rejected; no silent fallback. |
+| Multiple matching descriptors | Ambiguous TOC failure; none selected. |
+| Known schema family has unsupported version | Unsupported-version failure; no network fallback. |
 | Root applicability uncertain | `needs-context`; no positive structured assignment. |
 | Reference relevance uncertain | Selection remains unresolved or Contribution remains partial. |
 | Selected file missing or drifted | Atomic sealing failure. |
@@ -655,9 +676,9 @@ Co-required grouping, explicit route IDs, artifact declarations, custom read ord
 
 ## 23. First implementation queue
 
-1. Add valid and invalid fixtures for simple, multi-Reference, no-Reference, malformed, drift, and external-Skill cases.
-2. Write the minimal TOC JSON Schema.
-3. Implement raw-to-refined parsing, canonical identity, path checks, and physical containment.
+1. Add valid and invalid fixtures for schema discovery, simple, multi-Reference, no-Reference, duplicate-descriptor, unsupported-version, malformed, drift, and external-Skill cases.
+2. Write the minimal versioned TOC JSON Schema with a canonical `$schema` const.
+3. Implement bounded direct-child discovery, bundled schema mapping, raw-to-refined parsing, canonical identity, path checks, and physical containment.
 4. Bind Parsed TOC to discovered Skill identity without self-declared ownership.
 5. Implement pure Capability Applicability and Reference Disposition values.
 6. Implement selected-path-only acquisition and Sealed Skill Context.
@@ -674,11 +695,13 @@ The first executable item is the minimal schema/parser and finite selection fixt
 ### Authoring
 
 - simple TOC can be written without repeating Skill or Reference bodies;
+- filename-independent exact schema discovery works only inside Pi-discovered Skill roots;
+- duplicate descriptors and unsupported schema versions fail clearly;
 - unknown fields and malformed conditions fail clearly;
 - path traversal and symlink escape fail;
 - every declared file exists;
 - every first-party route material is declared;
-- absent TOC remains normal and malformed presence remains visible.
+- absent matching schema remains normal and recognized invalid presence remains visible.
 
 ### Selection
 
