@@ -91,3 +91,12 @@ timing, implement the change, or perform final completion review. A desire such
 as “replace this array with an object” is pressure, not yet a reviewable
 abstraction, when public operations, caller shape, ownership, and hidden detail
 still have to be invented; route that work to `sketch`.
+
+## Reference Routing
+
+The machine-readable [reference policy](reference-policy.json) is the routing
+authority. Each route answers one narrower review question, identifies the exact
+judgment step it refines, names its artifacts and stop, and states when to
+separate or hand off. Select only routes that deepen this candidate judgment;
+never use a review reference to recreate another skill's construction method.
+Use the exemption only when no route trigger applies and cite its evidence.

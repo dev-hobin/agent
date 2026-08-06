@@ -90,7 +90,7 @@
     }
   ],
   "exemption": {
-    "when": "The condition space is finite and direct enough for the SKILL.md judgment spine to expose every consequential distinction, rule, forbidden case, assumption, owner, and counterexample without a specialized model extension.",
+    "when": "The condition space is finite and direct enough for the SKILL.md judgment spine to expose every consequential distinction, rule, forbidden case, assumption, owner, and counterexample without a specialized model extension, and the task is not merely to shape an interface from already-settled laws or invariants.",
     "evidence": ["the bounded dimensions and admitted values", "the complete rule and forbidden-case surface", "the guarantee owners and counterexamples", "why no specialized model question has an independent artifact"]
   }
 }

@@ -216,7 +216,7 @@
     }
   ],
   "exemption": {
-    "when": "The local purpose, cases, data flow, ownership, caller skeleton, checks, and first item are explicit, and no routed judgment has an independent artifact.",
+    "when": "The local purpose, cases, data flow, ownership, caller skeleton, checks, and first item are explicit, product meaning and condition semantics are settled, no existing candidate is merely awaiting review, and no routed judgment has an independent artifact.",
     "evidence": ["accepted intent and cases", "existing caller surface and owner map", "bounded first item and checks", "why every judgment extension is non-consequential"]
   }
 }

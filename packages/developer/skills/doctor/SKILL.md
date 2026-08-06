@@ -153,8 +153,8 @@ For every `triggered` disposition:
 1. write one bounded consultation question and its concrete trigger evidence;
 2. close the Doctor triage judgment;
 3. open the dynamic question with its owning Developer skill;
-4. apply a present policy's root `when`/winning `unless`, or use the complete
-   skill normally when no policy exists;
+4. apply every selected reference-policy route's trigger and separation
+   boundary, or use its evidence-backed exemption when no route applies;
 5. nominate and seal only current-branch material that can change the result;
 6. relate every selected material through a concrete contribution and bounded
    assurance while preserving conflicts and limitations;

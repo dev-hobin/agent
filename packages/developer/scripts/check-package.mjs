@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
@@ -229,6 +229,12 @@ for (const name of Object.keys(referenceCatalog)) {
 		/## Judgment Spine/,
 		`Expected ${name} to own one source-independent judgment spine`,
 	);
+	assert.ok(
+		source.includes("](reference-policy.json)"),
+		`Expected ${name} to link its v2 reference policy`,
+	);
+	assert.doesNotMatch(source, /^## Context Directions$/mu);
+	await assert.rejects(access(join(root, "skills", name, "judgment.json")));
 }
 
 for (const path of requiredReferences) {
@@ -289,6 +295,19 @@ for (const path of requiredReferencePolicies) {
 		`${path} must route every reference owned by ${skillName}`,
 	);
 }
+
+assert.match(
+	(
+		await readJson(join(root, "skills/model/reference-policy.json"))
+	).exemption.when,
+	/already-settled laws or invariants/u,
+);
+assert.match(
+	(
+		await readJson(join(root, "skills/sketch/reference-policy.json"))
+	).exemption.when,
+	/product meaning and condition semantics are settled/u,
+);
 
 const referenceAnchors = {
 	"skills/abstraction-review/references/field-card.md":
@@ -493,6 +512,7 @@ for (const documentPath of markdownDocuments) {
 	}
 }
 
+await assert.rejects(access(join(root, "extensions", "compaction-language.ts")));
 const extension = await readFile(
 	join(root, "extensions", "developer.ts"),
 	"utf8",
@@ -513,6 +533,10 @@ assert.doesNotMatch(
 	/developer\.snapshot|acceptedContract|verifiedClaims|completionState/,
 );
 assert.doesNotMatch(extension, /isError\s*:/);
+assert.doesNotMatch(
+	extension,
+	/compaction-language|COMPACTION_LANGUAGE|compactionLanguage|detectStrongUserLanguage/u,
+);
 
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),

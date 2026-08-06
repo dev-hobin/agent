@@ -31,6 +31,12 @@ coverage connect it to the claim.
 - Invariant, model, accepted decisions, and verification targets when available
 - Relevant counterexamples and source provenance
 
+## Reference Routing
+
+The machine-readable [reference policy](reference-policy.json) is the routing
+authority. Its routed extension refines claim splitting, verifier relevance, and
+pass-but-wrong search, then declares the evidence artifact, stop, and handoff.
+Use the exemption only when no trigger applies and cite its evidence.
 
 ## Output
 

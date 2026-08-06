@@ -33,6 +33,16 @@ own artifact and stop, select or create a separate route.
 - Representative normal, boundary, forbidden, and product-meaning cases
 - Constraints and verification targets
 
+## Reference Routing
+
+The machine-readable [reference policy](reference-policy.json) is the routing
+authority. Each route answers one narrower design question and declares the
+judgment step, artifact, stop, and separation boundary it owns. Select a narrow
+route instead of its fallback; select several only when each produces an
+independent artifact needed by the same sketch. A co-required set means every
+member is necessary for that route's one result, not that the documents share a
+subject. Use the exemption only when no trigger applies and cite its evidence.
+
 ## Output
 
 Lead with the user's product language; keep design labels secondary. A resolved

@@ -28,19 +28,6 @@ import {
 	type DeveloperWorkbenchAction,
 } from "./developer-workbench-tui.ts";
 import {
-	COMPACTION_LANGUAGE_ENTRY,
-	applyCompactionLanguageEvent,
-	continuityConsumed,
-	continuityPending,
-	detectStrongUserLanguage,
-	initialCompactionLanguageState,
-	languageObserved,
-	projectCompactionContinuity,
-	reconstructCompactionLanguage,
-	settlementContinuityEvent,
-	type CompactionLanguageState,
-} from "./compaction-language.ts";
-import {
 	availablePackageSkills,
 	isWithinRoot,
 	loadSkillReference,
@@ -700,8 +687,6 @@ function expandedJudgment(
 export default async function developer(pi: ExtensionAPI) {
 	let availableSkills = new Map<string, Skill>();
 	let state = initialState();
-	let compactionLanguage: CompactionLanguageState =
-		initialCompactionLanguageState();
 	let routeOpening = false;
 	const routesWithMutation = new Set<string>();
 	let toolPolicyMemory: ToolPolicyMemory = { withheldBuiltins: new Set() };
@@ -817,7 +802,6 @@ export default async function developer(pi: ExtensionAPI) {
 		state = toolPolicyRestartRequired
 			? initialState()
 			: reconstructState(branch);
-		compactionLanguage = reconstructCompactionLanguage(branch);
 		syncProtocolTools();
 		refreshUI(ctx);
 	};
@@ -835,16 +819,6 @@ export default async function developer(pi: ExtensionAPI) {
 		};
 		pi.appendEntry(ACTIVATION_ENTRY, event);
 		state = applyDeveloperEvent(state, event);
-		if (!enabled && compactionLanguage.pending) {
-			const consumed = continuityConsumed(
-				compactionLanguage.pending.compactionId,
-			);
-			pi.appendEntry(COMPACTION_LANGUAGE_ENTRY, consumed);
-			compactionLanguage = applyCompactionLanguageEvent(
-				compactionLanguage,
-				consumed,
-			);
-		}
 		syncProtocolTools();
 		refreshUI(ctx);
 		return true;
@@ -2547,41 +2521,6 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	);
 
-	pi.on("input", (event) => {
-		if (!state.enabled) return;
-		const tag = detectStrongUserLanguage(event.text, event.source);
-		if (!tag || tag === compactionLanguage.language) return;
-		const observed = languageObserved(tag);
-		pi.appendEntry(COMPACTION_LANGUAGE_ENTRY, observed);
-		compactionLanguage = applyCompactionLanguageEvent(
-			compactionLanguage,
-			observed,
-		);
-	});
-
-	pi.on("session_compact", (event) => {
-		if (!state.enabled || !compactionLanguage.language) return;
-		const pending = continuityPending(
-			event.compactionEntry.id,
-			compactionLanguage.language,
-		);
-		const next = applyCompactionLanguageEvent(compactionLanguage, pending);
-		if (next === compactionLanguage) return;
-		pi.appendEntry(COMPACTION_LANGUAGE_ENTRY, pending);
-		compactionLanguage = next;
-	});
-
-	pi.on("context", (event) => {
-		if (!state.enabled) return;
-		const projection = projectCompactionContinuity(
-			event.messages,
-			compactionLanguage,
-		);
-		if (!projection) return;
-		compactionLanguage = projection.state;
-		return { messages: projection.messages as typeof event.messages };
-	});
-
 	pi.on("before_agent_start", (event) => {
 		availableSkills = availablePackageSkills(
 			event.systemPromptOptions.skills ?? [],
@@ -2681,17 +2620,7 @@ export default async function developer(pi: ExtensionAPI) {
 		if (startEnabled === true && !state.enabled) setEnabled(true, ctx);
 	});
 	pi.on("session_tree", (_event, ctx) => reconstruct(ctx));
-	pi.on("agent_settled", (_event, ctx) => {
-		const consumed = settlementContinuityEvent(compactionLanguage);
-		if (consumed) {
-			pi.appendEntry(COMPACTION_LANGUAGE_ENTRY, consumed);
-			compactionLanguage = applyCompactionLanguageEvent(
-				compactionLanguage,
-				consumed,
-			);
-		}
-		refreshUI(ctx);
-	});
+	pi.on("agent_settled", (_event, ctx) => refreshUI(ctx));
 	pi.on("session_shutdown", (_event, ctx) => {
 		releaseProtocolTools();
 		if (!toolPolicyRestartRequired) {

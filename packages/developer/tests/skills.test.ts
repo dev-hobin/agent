@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import {
+	access,
+	mkdtemp,
+	mkdir,
+	readFile,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -89,6 +96,11 @@ test("Doctor bounds claims, dispositions every owner skill, and delegates routed
 		/route\s+every triggered distinct consultation[\s\S]*every policy-route trigger[\s\S]*every reference required/i,
 	);
 	assert.match(source, /must not read sibling skill\s+references/i);
+	assert.match(
+		source,
+		/reference-policy route's trigger and separation[\s\S]*evidence-backed exemption/i,
+	);
+	assert.doesNotMatch(source, /root `when`|winning `unless`/i);
 	assert.match(
 		source,
 		/treat-now[\s\S]*prepare-next[\s\S]*observe[\s\S]*leave-alone/,
@@ -205,6 +217,22 @@ test("every reference-bearing skill routes its complete catalog without global d
 			continue;
 		}
 		assert.ok(policy.routes.length > 0, `${skill.name} needs reference routes`);
+		const method = await readFile(skill.filePath, "utf8");
+		assert.ok(
+			method.includes("](reference-policy.json)"),
+			`${skill.name} must expose its v2 reference-policy contract`,
+		);
+		assert.doesNotMatch(method, /^## Context Directions$/mu);
+		await assert.rejects(access(join(skill.baseDir, "judgment.json")));
+		if (skill.name === "model") {
+			assert.match(policy.exemption?.when ?? "", /already-settled laws or invariants/u);
+		}
+		if (skill.name === "sketch") {
+			assert.match(
+				policy.exemption?.when ?? "",
+				/product meaning and condition semantics are settled/u,
+			);
+		}
 		assert.deepEqual(
 			[...new Set(policy.routes.flatMap((route) => route.references))].sort(),
 			references,
