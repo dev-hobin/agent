@@ -532,7 +532,7 @@ complete | block | pause
 
 ### Discovery and I/O boundary
 
-Pi Adapter는 Pi가 trust, settings, CLI, package discovery를 적용한 Skill catalog만 받아들인다. Admitted directory Skill에만 bounded direct-child JSON scan을 적용하고 direct-file Skill의 parent는 scan하지 않는다. `$schema` validation, path containment, source-bound Capability identity, exact content acquisition, explicit structured/unstructured routing state를 host-side refined values로 바꾼다.
+Pi Adapter는 Pi가 trust, settings, CLI, package discovery를 적용한 Skill catalog만 받아들인다. Admitted directory Skill에만 bounded direct-child JSON scan을 적용하고 direct-file Skill의 parent는 scan하지 않는다. `$schema` validation, path containment, source-bound Capability identity, exact content acquisition, explicit structured/unstructured routing state를 host-side refined values로 바꾼다. Structured sealing은 ready Reference Selection을 요구한다. Unstructured sealing은 admitted exact Skill file 하나만 봉인하며 Reference Selection이나 `selectionId`를 합성하지 않는다.
 
 Work Core는 filesystem을 검색하거나 raw TOC JSON을 해석하지 않는다. 이미 provenance가 결합된 Capability inventory와 sealed Skill context만 받아 pure assignment, Coverage, transition invariant를 적용한다. Structured applicability는 declared `when/unless` accounting을 요구한다. Unstructured applicability는 같은 proposal protocol을 사용하되 condition match를 합성하지 않고 explicit basis만으로 `applicable | not-applicable | needs-context`를 정제한다.
 

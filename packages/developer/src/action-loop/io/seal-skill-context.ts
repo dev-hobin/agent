@@ -1,15 +1,18 @@
 import { constants, type BigIntStats } from "node:fs";
 import { open, realpath, stat, type FileHandle } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { hashIdentity, sha256Bytes } from "../identity/hash-identity.ts";
 import type { CapabilityAssignment } from "../routing/accept-applicability.ts";
 import type {
 	BoundCapability,
+	BoundUnstructuredCapability,
 	CapabilitySource,
 } from "../routing/bind-capability.ts";
 import type { BoundReferenceSelection } from "../routing/bind-reference-selection.ts";
 
 export const SEALED_SKILL_CONTEXT_VERSION = "developer-sealed-skill-context/v1";
+export const SEALED_UNSTRUCTURED_SKILL_CONTEXT_VERSION =
+	"developer-sealed-unstructured-skill-context/v1";
 export const MAX_SEALED_MATERIAL_BYTES = 256 * 1024;
 export const MAX_SEALED_CONTEXT_BYTES = 1024 * 1024;
 
@@ -46,10 +49,33 @@ export interface SealedSkillContext {
 	readonly materials: readonly SealedSkillMaterial[];
 }
 
+export interface UnstructuredSkillContextSealRequest {
+	readonly skillFilePath: string;
+	readonly capability: BoundUnstructuredCapability;
+	readonly assignment: CapabilityAssignment;
+	readonly expectedSealedContextId?: string;
+}
+
+export interface SealedUnstructuredSkillContext {
+	readonly routing: "unstructured";
+	readonly sealedContextId: string;
+	readonly workCaseId: string;
+	readonly judgmentId: string;
+	readonly contributionNeedId: string;
+	readonly assignmentId: string;
+	readonly capabilityId: string;
+	readonly capabilityRevisionId: string;
+	readonly source: CapabilitySource;
+	readonly skillLocator: string;
+	readonly selectedPaths: readonly [];
+	readonly materials: readonly [SealedSkillMaterial];
+}
+
 export type SkillContextSealErrorCode =
 	| "selection-not-ready"
 	| "identity-mismatch"
 	| "invalid-root"
+	| "invalid-skill-file"
 	| "path-escape"
 	| "material-missing"
 	| "material-unreadable"
@@ -67,9 +93,18 @@ export interface SkillContextSealError {
 	readonly message: string;
 }
 
+type SkillContextSealFailure = {
+	readonly ok: false;
+	readonly error: SkillContextSealError;
+};
+
 export type SkillContextSealResult =
 	| { readonly ok: true; readonly value: SealedSkillContext }
-	| { readonly ok: false; readonly error: SkillContextSealError };
+	| SkillContextSealFailure;
+
+export type UnstructuredSkillContextSealResult =
+	| { readonly ok: true; readonly value: SealedUnstructuredSkillContext }
+	| SkillContextSealFailure;
 
 type MaterialResult =
 	| { readonly ok: true; readonly value: SealedSkillMaterial }
@@ -79,7 +114,7 @@ function failure(
 	code: SkillContextSealErrorCode,
 	path: string,
 	message: string,
-): SkillContextSealResult {
+): SkillContextSealFailure {
 	return { ok: false, error: { code, path, message } };
 }
 
@@ -126,7 +161,7 @@ async function closeQuietly(handle: FileHandle | undefined): Promise<void> {
 
 function validateIdentity(
 	request: SkillContextSealRequest,
-): SkillContextSealResult | undefined {
+): SkillContextSealFailure | undefined {
 	const { assignment, capability, selection } = request;
 	if (selection.status !== "ready") {
 		return failure(
@@ -339,6 +374,48 @@ function contextIdentityParts(
 	return parts;
 }
 
+function validateUnstructuredIdentity(
+	request: UnstructuredSkillContextSealRequest,
+): SkillContextSealFailure | undefined {
+	for (const [path, actual, expected] of [
+		[
+			"assignment.capabilityId",
+			request.assignment.capabilityId,
+			request.capability.capabilityId,
+		],
+		[
+			"assignment.capabilityRevisionId",
+			request.assignment.capabilityRevisionId,
+			request.capability.capabilityRevisionId,
+		],
+	] as const) {
+		if (actual !== expected) {
+			return failure(
+				"identity-mismatch",
+				path,
+				`Expected ${expected}, received ${actual}`,
+			);
+		}
+	}
+	return undefined;
+}
+
+function unstructuredContextIdentityParts(
+	request: UnstructuredSkillContextSealRequest,
+	material: SealedSkillMaterial,
+): string[] {
+	return [
+		request.assignment.assignmentId,
+		request.capability.capabilityRevisionId,
+		"routing",
+		"unstructured",
+		"material",
+		material.kind,
+		material.path,
+		material.hash,
+	];
+}
+
 /** Atomically returns one exact selected Skill context or one bounded failure. */
 export async function sealSkillContext(
 	request: SkillContextSealRequest,
@@ -414,6 +491,80 @@ export async function sealSkillContext(
 			skillRootLocator: root.physical,
 			selectedPaths: Object.freeze([...request.selection.selectedPaths]),
 			materials: Object.freeze(materials),
+		}),
+	};
+}
+
+/** Seals one exact unstructured Skill file without synthesizing a selection. */
+export async function sealUnstructuredSkillContext(
+	request: UnstructuredSkillContextSealRequest,
+): Promise<UnstructuredSkillContextSealResult> {
+	const identityFailure = validateUnstructuredIdentity(request);
+	if (identityFailure !== undefined) return identityFailure;
+	if (!isAbsolute(request.skillFilePath)) {
+		return failure(
+			"invalid-skill-file",
+			"skillFilePath",
+			"Skill file must be an absolute path",
+		);
+	}
+
+	const lexicalSkillFile = resolve(request.skillFilePath);
+	const root = await resolveSkillRoot(dirname(lexicalSkillFile));
+	if (!root.ok) {
+		return failure(
+			"invalid-skill-file",
+			"skillFilePath",
+			`Skill file parent is invalid: ${root.error.message}`,
+		);
+	}
+	const acquired = await acquireMaterial(
+		root,
+		"skill",
+		basename(lexicalSkillFile),
+	);
+	if (!acquired.ok) return { ok: false, error: acquired.error };
+	if (acquired.value.hash !== request.capability.skillHash) {
+		return failure(
+			"skill-drift",
+			acquired.value.path,
+			"Skill material no longer matches the bound Capability revision",
+		);
+	}
+
+	const sealedContextId = hashIdentity(
+		"sealed",
+		SEALED_UNSTRUCTURED_SKILL_CONTEXT_VERSION,
+		unstructuredContextIdentityParts(request, acquired.value),
+	);
+	if (
+		request.expectedSealedContextId !== undefined &&
+		request.expectedSealedContextId !== sealedContextId
+	) {
+		return failure(
+			"context-drift",
+			"expectedSealedContextId",
+			"Skill material no longer matches the expected sealed context",
+		);
+	}
+
+	const selectedPaths = Object.freeze([] as const);
+	const materials = Object.freeze([acquired.value] as const);
+	return {
+		ok: true,
+		value: Object.freeze({
+			routing: "unstructured",
+			sealedContextId,
+			workCaseId: request.assignment.workCaseId,
+			judgmentId: request.assignment.judgmentId,
+			contributionNeedId: request.assignment.contributionNeedId,
+			assignmentId: request.assignment.assignmentId,
+			capabilityId: request.capability.capabilityId,
+			capabilityRevisionId: request.capability.capabilityRevisionId,
+			source: Object.freeze({ ...request.capability.source }),
+			skillLocator: acquired.value.locator,
+			selectedPaths,
+			materials,
 		}),
 	};
 }

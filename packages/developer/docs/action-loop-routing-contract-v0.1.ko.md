@@ -456,7 +456,7 @@ Contains exactly the selected paths in TOC declaration order. Undeclared paths c
 
 ### Sealed Skill Context
 
-Binds the assignment and selection to exact `SKILL.md` and selected Reference bytes, hashes, provenance, and Work Case context.
+Structured routing binds the assignment and selection to exact `SKILL.md` and selected Reference bytes, hashes, provenance, and Work Case context. Unstructured routing binds the assignment directly to exactly one admitted Skill file. It preserves an empty selected-Reference set and has no synthetic `selectionId`.
 
 ### Skill Contribution
 
@@ -491,7 +491,7 @@ A parser returns a refined immutable TOC. It does not validate raw JSON and then
 For each Contribution Need:
 
 1. Discover available package, external, and project-local Capabilities.
-2. Assess each viable Skill's root `when` and `unless` against the exact Need and context.
+2. For structured Skills, assess root `when` and `unless` against the exact Need and context. For unstructured Skills, use explicit open-world basis with empty condition matches.
 3. Preserve `needs-context` instead of guessing applicability.
 4. Select the smallest set of Skills that can make non-substitutable Contributions to required Needs.
 5. Record every assignment against exact Need and Skill identity.
@@ -518,14 +518,24 @@ A Reference may become relevant after another selected material exposes new evid
 Selection and content acquisition form one atomic boundary.
 
 ```text
-Capability Assignment
-+ Reference Selection
-  ↓ acquire
-exact SKILL.md bytes
-+ exact selected Reference bytes
-+ hashes and provenance
-  ↓
-Sealed Skill Context
+structured:
+  Capability Assignment
+  + Reference Selection
+    ↓ acquire
+  exact SKILL.md bytes
+  + exact selected Reference bytes
+  + hashes and provenance
+    ↓
+  Sealed Skill Context with selectionId
+
+unstructured:
+  Capability Assignment
+  + admitted exact Skill file path
+    ↓ acquire
+  exactly one Skill material
+  + hash and provenance
+    ↓
+  Sealed Skill Context without selectionId
 ```
 
 No sealed value is returned if a selected member:
@@ -533,8 +543,10 @@ No sealed value is returned if a selected member:
 - is missing, unreadable, non-regular, invalid UTF-8, truncated, or over byte limits;
 - differs from its selected descriptor or expected hash;
 - escapes the lexical or physical Skill root;
-- belongs to another Skill, Work Case, branch, or selection;
-- is only partially acquired when the batch fails.
+- belongs to another Skill, Work Case, branch, or structured selection;
+- is only partially acquired when the structured batch fails.
+
+A direct-file Skill and a directory Skill's `SKILL.md` use the same unstructured sealing contract: the admitted exact file path is acquired as one regular bounded UTF-8 material. Parent-directory TOC or Reference discovery is not reopened during sealing.
 
 Identity chain:
 
@@ -548,10 +560,13 @@ capabilityId + exact SKILL.md + (normalized TOC | versioned no-TOC marker)
 Contribution Need + Work Case + capabilityRevisionId + applicability basis
   → assignmentId
 
-assignment + all Reference dispositions
+structured assignment + all Reference dispositions
   → selectionId
 
-selection + exact Skill and selected Reference bytes
+structured selection + exact Skill and selected Reference bytes
+  → sealedContextId
+
+unstructured assignment + capabilityRevisionId + exact admitted Skill file bytes
   → sealedContextId
 
 assignment + sealed context + material applications + result + residuals
@@ -833,7 +848,7 @@ Do not begin with TUI, XState, automatic migration generation, a generalized rou
 
 The following remain provisional and should be decided through fixtures rather than more authoring fields.
 
-- How an assigned unstructured Capability seals direct-file or directory Skill material and reaches Contribution without inventing a Reference route.
+- How a sealed unstructured Skill context reaches Contribution without inventing Reference application records.
 - Whether declaration order is sufficient for all real co-required Reference cases.
 - Whether every Reference must be dispositioned or a bounded candidate shortlist can preserve omission safety at lower context cost.
 - How stronger evaluator and user assurance attach to Contributions.
