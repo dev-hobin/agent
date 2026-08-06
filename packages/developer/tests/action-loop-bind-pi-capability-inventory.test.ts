@@ -9,6 +9,8 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { acceptSkillContribution } from "../src/action-loop/contribution/accept-skill-contribution.ts";
 import { sealUnstructuredSkillContext } from "../src/action-loop/io/seal-skill-context.ts";
+import { closeJudgment } from "../src/action-loop/judgment/close-judgment.ts";
+import { assessNeedCoverage } from "../src/action-loop/need-coverage/assess-need-coverage.ts";
 import {
 	bindPiCapabilityInventory,
 	MAX_CAPABILITY_SKILL_BYTES,
@@ -192,7 +194,7 @@ test("binds structured and unstructured entries while preserving TOC failures", 
 	}
 });
 
-test("bound unstructured inventory composes through Skill Contribution", async (t) => {
+test("bound unstructured inventory composes through Upper Judgment closure", async (t) => {
 	const workspace = await createWorkspace(t);
 	const skillFile = join(workspace, "direct.md");
 	await writeSkill(skillFile, "direct");
@@ -279,12 +281,81 @@ test("bound unstructured inventory composes through Skill Contribution", async (
 		},
 	);
 	assert.equal(contribution.status, "accepted");
-	if (contribution.status === "accepted") {
-		assert.equal(
-			contribution.value.sealedContextId,
-			sealed.value.sealedContextId,
-		);
-		assert.deepEqual(contribution.value.referenceApplications, []);
+	if (contribution.status !== "accepted") return;
+	assert.equal(
+		contribution.value.sealedContextId,
+		sealed.value.sealedContextId,
+	);
+	assert.deepEqual(contribution.value.referenceApplications, []);
+
+	const coverage = assessNeedCoverage(
+		{
+			workCaseId: applicability.assignment.workCaseId,
+			judgmentId: applicability.assignment.judgmentId,
+			contributionNeedId: applicability.assignment.contributionNeedId,
+		},
+		[contribution.value],
+		{
+			workCaseId: applicability.assignment.workCaseId,
+			judgmentId: applicability.assignment.judgmentId,
+			contributionNeedId: applicability.assignment.contributionNeedId,
+			status: "covered",
+			dispositions: [
+				{
+					contributionId: contribution.value.contributionId,
+					status: "supports",
+					basis: ["The bounded result directly supplies the required input."],
+				},
+			],
+			conflicts: [],
+			basis: ["Current Contribution support is sufficient for this Need."],
+			provenance: { kind: "tool", source: "unstructured-inventory-slice" },
+		},
+	);
+	assert.equal(coverage.status, "accepted");
+	if (coverage.status !== "accepted") return;
+
+	const closure = closeJudgment(
+		{
+			workCaseId: applicability.assignment.workCaseId,
+			judgmentId: applicability.assignment.judgmentId,
+			category: "Contextual Adequacy",
+			subject: "The direct Skill supplies the required bounded method.",
+			contextRevisionId: "context-unstructured-slice",
+			requirements: [
+				{
+					requirementId: "requirement-method",
+					statement: "The requested bounded method is contextually adequate.",
+					contributionNeedIds: [
+						applicability.assignment.contributionNeedId,
+					],
+				},
+			],
+		},
+		[coverage.value],
+		{
+			workCaseId: applicability.assignment.workCaseId,
+			judgmentId: applicability.assignment.judgmentId,
+			category: "Contextual Adequacy",
+			contextRevisionId: "context-unstructured-slice",
+			outcome: "conclude",
+			answer: "The bounded method is adequate for the delegated Need.",
+			refusalReasons: [],
+			requirementDispositions: [
+				{
+					requirementId: "requirement-method",
+					status: "satisfied",
+					coverageIds: [coverage.value.coverageId],
+					basis: ["The required Need has current covered support."],
+				},
+			],
+			basis: ["Current Coverage satisfies the closure requirement."],
+			provenance: { kind: "tool", source: "unstructured-inventory-slice" },
+		},
+	);
+	assert.equal(closure.status, "concluded");
+	if (closure.status === "concluded") {
+		assert.equal("actionClearance" in closure.value, false);
 	}
 });
 
