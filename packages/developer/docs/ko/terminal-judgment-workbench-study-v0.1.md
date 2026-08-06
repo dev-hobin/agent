@@ -1,5 +1,7 @@
 # Developer Terminal Judgment Workbench 연구와 적용 계약
 
+[English](../terminal-judgment-workbench-study-v0.1.md) | 한국어
+
 > 상태: Developer 0.1.15 제품·UX 기준선
 >
 > 목적: Developer를 Settings 중심 command panel에서 branch-aware judgment workbench로 정렬하기 위한 공개 구현 사례 연구와 적용 계약
