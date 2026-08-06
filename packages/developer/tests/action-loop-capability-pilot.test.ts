@@ -13,6 +13,7 @@ import {
 	type JudgmentClosureContract,
 	type JudgmentClosureProposal,
 } from "../src/action-loop/judgment/close-judgment.ts";
+import { discoverTocDescriptor } from "../src/action-loop/io/discover-skill-toc.ts";
 import {
 	sealSkillContext,
 	type SealedSkillContext,
@@ -34,7 +35,6 @@ import {
 	type CapabilitySource,
 } from "../src/action-loop/routing/bind-capability.ts";
 import { bindReferenceSelection } from "../src/action-loop/routing/bind-reference-selection.ts";
-import { parseTocBytes } from "../src/action-loop/routing/parse-toc.ts";
 import {
 	selectDeclaredReferences,
 	type ReferenceDisposition,
@@ -50,7 +50,7 @@ interface SelectedApplication {
 interface PilotScenario {
 	readonly name: string;
 	readonly skillRootPath: string;
-	readonly tocFilename: string;
+	readonly expectedDescriptorName: string;
 	readonly source: CapabilitySource;
 	readonly category: JudgmentCategory;
 	readonly rootWhen: string;
@@ -86,6 +86,7 @@ interface PilotEvaluator {
 }
 
 interface PilotResult {
+	readonly descriptorName: string;
 	readonly capabilityId: string;
 	readonly capabilityRevisionId: string;
 	readonly assignmentId: string;
@@ -338,12 +339,18 @@ async function runPilot(
 	evaluator: PilotEvaluator,
 ): Promise<PilotResult> {
 	const skillBytes = await readFile(join(scenario.skillRootPath, "SKILL.md"));
-	const tocBytes = await readFile(
-		join(scenario.skillRootPath, scenario.tocFilename),
+	const discovered = await discoverTocDescriptor(scenario.skillRootPath);
+	if (discovered.status === "failed") {
+		throw new Error(discovered.error.message);
+	}
+	if (discovered.status === "unstructured") {
+		throw new Error(`Expected structured Capability ${scenario.name}`);
+	}
+	const bound = bindCapability(
+		scenario.source,
+		discovered.descriptor.toc,
+		skillBytes,
 	);
-	const parsed = parseTocBytes(tocBytes);
-	if (!parsed.ok) throw new Error(parsed.error.message);
-	const bound = bindCapability(scenario.source, parsed.value, skillBytes);
 	if (!bound.ok) throw new Error(bound.error.message);
 
 	const target = {
@@ -423,6 +430,7 @@ async function runPilot(
 	}
 
 	return {
+		descriptorName: discovered.descriptor.name,
 		capabilityId: bound.value.capabilityId,
 		capabilityRevisionId: bound.value.capabilityRevisionId,
 		assignmentId: applicability.assignment.assignmentId,
@@ -442,7 +450,7 @@ const scenarios: readonly PilotScenario[] = [
 	{
 		name: "verify",
 		skillRootPath: join(packageRoot, "skills", "verify"),
-		tocFilename: "toc.json",
+		expectedDescriptorName: "toc.json",
 		source: {
 			kind: "package",
 			locator: "npm:@hobin/developer@pilot",
@@ -467,7 +475,7 @@ const scenarios: readonly PilotScenario[] = [
 	{
 		name: "model",
 		skillRootPath: join(packageRoot, "skills", "model"),
-		tocFilename: "toc.json",
+		expectedDescriptorName: "toc.json",
 		source: {
 			kind: "package",
 			locator: "npm:@hobin/developer@pilot",
@@ -502,7 +510,7 @@ const scenarios: readonly PilotScenario[] = [
 			"fixtures",
 			"action-loop-external-skill",
 		),
-		tocFilename: "routing.json",
+		expectedDescriptorName: "routing.json",
 		source: {
 			kind: "project",
 			locator: "project:/fixture-workspace",
@@ -531,6 +539,8 @@ test("verify, model, and project Skill preserve semantic identity across evaluat
 	for (const scenario of scenarios) {
 		const record = await runPilot(scenario, recordEvaluator());
 		const tuple = await runPilot(scenario, tupleEvaluator());
+		assert.equal(record.descriptorName, scenario.expectedDescriptorName);
+		assert.equal(tuple.descriptorName, record.descriptorName);
 		assert.deepEqual(
 			record.selectedPaths,
 			scenario.selectedApplications.map(({ path }) => path),
