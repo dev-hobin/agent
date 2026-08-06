@@ -1,5 +1,7 @@
 # Developer Action Loop Architecture v0.1
 
+[English](../action-loop-architecture-v0.1.md) | 한국어
+
 > 상태: reconstruction working contract
 >
 > 기준선: `@hobin/developer@0.1.19`
