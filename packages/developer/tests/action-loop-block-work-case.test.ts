@@ -10,6 +10,7 @@ import { recordWorkCaseActionCandidate } from "../src/action-loop/work/record-wo
 import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-work-case-action-clearance.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
+import { resumeBlockedWorkCase } from "../src/action-loop/work/resume-blocked-work-case.ts";
 import { openWorkCase, type ActiveWorkCase } from "../src/action-loop/work/work-case.ts";
 
 function conclusion(
@@ -130,6 +131,36 @@ test("Claim Assurance may block only by accounting every current blocker", () =>
 	assert.equal(result.value.status, "blocked");
 	assert.equal(result.value.block.blockerDispositions.length, closure.blockers.length);
 	assert.notEqual(result.value.revisionId, fixture.workCase.revisionId);
+	const modelOnly = resumeBlockedWorkCase(result.value, {
+		workCaseId: result.value.workCaseId,
+		expectedRevisionId: result.value.revisionId,
+		continuation: "Assess the Effect using the newly available evidence.",
+		observation: {
+			kind: "model",
+			observationId: "proposal-only",
+			source: "test-evaluator",
+			statement: "Evidence may now be available.",
+			basis: ["Model proposal only."],
+		},
+	});
+	const resumed = resumeBlockedWorkCase(result.value, {
+		workCaseId: result.value.workCaseId,
+		expectedRevisionId: result.value.revisionId,
+		continuation: "Assess the Effect using the newly available evidence.",
+		observation: {
+			kind: "tool",
+			observationId: "effect-evidence-available-1",
+			source: "effect-observer",
+			statement: "Bounded Effect evidence is now available.",
+			basis: ["The observer returned an exact evidence locator."],
+		},
+	});
+	assert.equal(modelOnly.status, "invalid");
+	assert.equal(resumed.status, "active");
+	if (resumed.status === "active") {
+		assert.notEqual(resumed.value.revisionId, fixture.workCase.revisionId);
+		assert.equal(resumed.value.continuityIds.length, 2);
+	}
 });
 
 test("ready closure, omitted blocker, or non-Assurance Conclusion cannot block", () => {
