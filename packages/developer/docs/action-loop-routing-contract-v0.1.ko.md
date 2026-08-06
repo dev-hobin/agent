@@ -596,7 +596,7 @@ residual or emergent Needs
 local status
 ```
 
-Every selected Reference requires a question-specific application relation.
+Every selected Reference requires a question-specific application relation. A sealed unstructured context has an exact empty selected-Reference set, so its Contribution must carry `referenceApplications: []`. Any synthetic Reference application is rejected rather than treated as extra evidence.
 
 ```text
 selected material:
@@ -848,7 +848,6 @@ Do not begin with TUI, XState, automatic migration generation, a generalized rou
 
 The following remain provisional and should be decided through fixtures rather than more authoring fields.
 
-- How a sealed unstructured Skill context reaches Contribution without inventing Reference application records.
 - Whether declaration order is sufficient for all real co-required Reference cases.
 - Whether every Reference must be dispositioned or a bounded candidate shortlist can preserve omission safety at lower context cost.
 - How stronger evaluator and user assurance attach to Contributions.

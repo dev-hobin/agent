@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { CapabilityAssignment } from "../src/action-loop/routing/accept-applicability.ts";
-import type { SealedSkillContext } from "../src/action-loop/io/seal-skill-context.ts";
+import type {
+	SealedSkillContext,
+	SealedUnstructuredSkillContext,
+} from "../src/action-loop/io/seal-skill-context.ts";
 import {
 	acceptSkillContribution,
 	type SkillContributionProposal,
@@ -40,6 +43,35 @@ const sealedContext: SealedSkillContext = Object.freeze({
 	skillRootLocator: "/virtual/skills/verify",
 	selectedPaths,
 	materials: Object.freeze([]),
+});
+
+const unstructuredContext: SealedUnstructuredSkillContext = Object.freeze({
+	routing: "unstructured",
+	sealedContextId: "sealed_1",
+	workCaseId: assignment.workCaseId,
+	judgmentId: assignment.judgmentId,
+	contributionNeedId: assignment.contributionNeedId,
+	assignmentId: assignment.assignmentId,
+	capabilityId: assignment.capabilityId,
+	capabilityRevisionId: assignment.capabilityRevisionId,
+	source: Object.freeze({
+		kind: "cli",
+		locator: "file:///virtual/direct.md",
+		skillRoot: ".",
+	}),
+	skillLocator: "/virtual/direct.md",
+	selectedPaths: Object.freeze([] as const),
+	materials: Object.freeze([
+		Object.freeze({
+			kind: "skill",
+			path: "direct.md",
+			locator: "/virtual/direct.md",
+			byteLength: 8,
+			hash: "a".repeat(64),
+			bytesBase64: "IyBTa2lsbA==",
+			content: "# Skill",
+		}),
+	] as const),
 });
 
 function proposal(
@@ -129,6 +161,36 @@ test("SKILL-only context needs no synthetic Reference application", () => {
 	assert.equal(result.status, "accepted");
 	if (result.status === "accepted") {
 		assert.deepEqual(result.value.referenceApplications, []);
+	}
+});
+
+test("unstructured context contributes without synthetic Reference application", () => {
+	const accepted = acceptSkillContribution(
+		assignment,
+		unstructuredContext,
+		proposal({ referenceApplications: [] }),
+	);
+	const synthetic = acceptSkillContribution(
+		assignment,
+		unstructuredContext,
+		proposal({
+			referenceApplications: [
+				{
+					path: "references/synthetic.md",
+					status: "applied",
+					application: "No Reference was selected or sealed.",
+				},
+			],
+		}),
+	);
+
+	assert.equal(accepted.status, "accepted");
+	if (accepted.status === "accepted") {
+		assert.deepEqual(accepted.value.referenceApplications, []);
+	}
+	assert.equal(synthetic.status, "invalid");
+	if (synthetic.status === "invalid") {
+		assert.equal(synthetic.error.code, "reference-accounting");
 	}
 });
 

@@ -1,5 +1,8 @@
 import { hashIdentity } from "../identity/hash-identity.ts";
-import type { SealedSkillContext } from "../io/seal-skill-context.ts";
+import type {
+	SealedSkillContext,
+	SealedUnstructuredSkillContext,
+} from "../io/seal-skill-context.ts";
 import type { CapabilityAssignment } from "../routing/accept-applicability.ts";
 
 export const SKILL_CONTRIBUTION_VERSION = "developer-skill-contribution/v1";
@@ -19,6 +22,10 @@ const PROVENANCE_KINDS: ReadonlySet<string> = new Set([
 	"tool",
 	"external",
 ]);
+
+export type SkillContributionContext =
+	| SealedSkillContext
+	| SealedUnstructuredSkillContext;
 
 export type ContributionLocalStatus = "resolved" | "partial";
 export type ReferenceApplicationStatus = "applied" | "limited";
@@ -174,7 +181,7 @@ function canonicalList(
 
 function checkIdentity(
 	assignment: CapabilityAssignment,
-	context: SealedSkillContext,
+	context: SkillContributionContext,
 	proposal: SkillContributionProposal,
 ): SkillContributionAcceptanceResult | undefined {
 	for (const [path, actual, expected] of [
@@ -420,7 +427,7 @@ function identityParts(input: ContributionIdentityInput): string[] {
 /** Accepts one Skill-local result without granting Coverage or Conclusion. */
 export function acceptSkillContribution(
 	assignment: CapabilityAssignment,
-	context: SealedSkillContext,
+	context: SkillContributionContext,
 	proposal: SkillContributionProposal,
 ): SkillContributionAcceptanceResult {
 	const identityFailure = checkIdentity(assignment, context, proposal);
