@@ -5,10 +5,12 @@ import {
 	type ActionCandidate,
 } from "../src/action-loop/action/accept-action-candidate.ts";
 import { acceptActionClearance } from "../src/action-loop/action/action-clearance.ts";
+import { beginEffect } from "../src/action-loop/effect/begin-effect.ts";
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
 import { recordWorkCaseActionCandidate } from "../src/action-loop/work/record-work-case-action-candidate.ts";
 import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-work-case-action-clearance.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
+import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
 
 function openedWorkCase() {
@@ -121,6 +123,31 @@ test("Action Clearance requires its Candidate and Conclusions in the same invent
 	assert.equal(missingCandidate.status, "invalid");
 	if (recorded.status === "recorded") {
 		assert.equal(recorded.value.actionClearances.length, 1);
+		const effect = beginEffect(clearance.value, {
+			occurrenceId: "tool-call-work-case",
+			actionClearanceId: clearance.value.actionClearanceId,
+			controlledAction: clearance.value.controlledAction,
+			source: "pi:tool_call",
+		});
+		if (effect.status !== "begun") return;
+		const missingClearance = recordWorkCaseEffect(
+			withCandidate.value,
+			effect.value,
+		);
+		const withEffect = recordWorkCaseEffect(recorded.value, effect.value);
+		assert.equal(missingClearance.status, "invalid");
+		if (missingClearance.status === "invalid") {
+			assert.equal(missingClearance.error.code, "missing-action-clearance");
+		}
+		assert.equal(withEffect.status, "recorded");
+		if (withEffect.status === "recorded") {
+			assert.equal(withEffect.value.effects.length, 1);
+			assert.notEqual(withEffect.value.revisionId, recorded.value.revisionId);
+			assert.equal(
+				recordWorkCaseEffect(withEffect.value, effect.value).status,
+				"unchanged",
+			);
+		}
 	}
 	if (missingCandidate.status === "invalid") {
 		assert.equal(missingCandidate.error.code, "missing-action-candidate");
