@@ -92,7 +92,10 @@ function checkFields(
 	return undefined;
 }
 
-function parseConditions(value: unknown, path: string): ParseStep<readonly string[]> {
+function parseConditions(
+	value: unknown,
+	path: string,
+): ParseStep<readonly string[]> {
 	if (!Array.isArray(value)) {
 		return failure("expected-array", path, "Expected an array of conditions");
 	}
@@ -157,10 +160,12 @@ function parseReference(
 	if (!isObject(value)) {
 		return failure("expected-object", path, "Expected a Reference object");
 	}
-	const fieldFailure = checkFields(value, path, ["path", "when"], [
-		"path",
-		"when",
-	]);
+	const fieldFailure = checkFields(
+		value,
+		path,
+		["path", "when"],
+		["path", "when"],
+	);
 	if (fieldFailure !== undefined) return fieldFailure;
 	if (typeof value.path !== "string") {
 		return failure(
@@ -250,11 +255,7 @@ function parseRoot(value: unknown): TocParseResult {
 /** Parses bounded UTF-8 JSON bytes into the only TOC shape accepted by v0.1. */
 export function parseTocBytes(bytes: Uint8Array): TocParseResult {
 	if (bytes.byteLength > MAX_TOC_BYTES) {
-		return failure(
-			"too-large",
-			"$",
-			`TOC exceeds ${MAX_TOC_BYTES} bytes`,
-		);
+		return failure("too-large", "$", `TOC exceeds ${MAX_TOC_BYTES} bytes`);
 	}
 	let source: string;
 	try {

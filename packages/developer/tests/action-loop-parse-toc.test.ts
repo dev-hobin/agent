@@ -153,7 +153,9 @@ test("Reference conditions use the same condition contract", () => {
 	assert.equal(result.error.path, "$.references[0].when");
 });
 
-function nestedReference(toc: Record<string, unknown>): Record<string, unknown> {
+function nestedReference(
+	toc: Record<string, unknown>,
+): Record<string, unknown> {
 	return (toc.references as Array<Record<string, unknown>>)[0]!;
 }
 
@@ -211,7 +213,12 @@ test("the checked-in schema identifies the same closed authoring contract", asyn
 
 	assert.equal(schema.$id, SKILL_TOC_SCHEMA_URI);
 	assert.equal(schema.additionalProperties, false);
-	assert.deepEqual(schema.required, ["$schema", "when", "unless", "references"]);
+	assert.deepEqual(schema.required, [
+		"$schema",
+		"when",
+		"unless",
+		"references",
+	]);
 	assert.deepEqual(Object.keys(schema.properties), [
 		"$schema",
 		"when",
