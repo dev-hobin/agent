@@ -15,6 +15,7 @@ import {
 	catalogBeforeAgentStartSkills,
 	type BeforeAgentStartSkillCatalogResult,
 } from "../src/action-loop/pi/catalog-pi-loaded-skills.ts";
+import { acceptCapabilityApplicability } from "../src/action-loop/routing/accept-applicability.ts";
 import { SKILL_TOC_SCHEMA_URI } from "../src/action-loop/routing/parse-toc.ts";
 
 async function createWorkspace(t: TestContext): Promise<string> {
@@ -186,6 +187,59 @@ test("binds structured and unstructured entries while preserving TOC failures", 
 		assert.equal(first.entries[3], preservedFailure);
 		assert.equal(Object.isFrozen(first), true);
 		assert.equal(Object.isFrozen(first.entries), true);
+	}
+});
+
+test("bound unstructured inventory composes directly into applicability", async (t) => {
+	const workspace = await createWorkspace(t);
+	const skillFile = join(workspace, "direct.md");
+	await writeSkill(skillFile, "direct");
+	const loaded = await catalog(workspace, [
+		loadedSkill({
+			name: "direct",
+			filePath: skillFile,
+			skillRootPath: workspace,
+			sourceBaseDir: workspace,
+		}),
+	]);
+	const inventory = await bindPiCapabilityInventory(loaded);
+	if (inventory.status !== "inventoried") {
+		throw new Error(inventory.error.message);
+	}
+	const entry = inventory.entries[0];
+	assert.equal(entry?.status, "bound");
+	assert.equal(entry?.status === "bound" ? entry.routing : undefined, "unstructured");
+	if (entry?.status !== "bound" || entry.routing !== "unstructured") return;
+
+	const result = acceptCapabilityApplicability(
+		{
+			workCaseId: "work-1",
+			judgmentId: "judgment-1",
+			contributionNeedId: "need-1",
+			capability: entry.capability,
+		},
+		{
+			workCaseId: "work-1",
+			judgmentId: "judgment-1",
+			contributionNeedId: "need-1",
+			capabilityRevisionId: entry.capability.capabilityRevisionId,
+			status: "applicable",
+			matchedWhen: [],
+			matchedUnless: [],
+			basis: [
+				`${entry.candidate.description} directly addresses the current Need.`,
+			],
+			missingContext: [],
+		},
+	);
+
+	assert.equal(result.status, "assigned");
+	if (result.status === "assigned") {
+		assert.equal(
+			result.assignment.capabilityRevisionId,
+			entry.capability.capabilityRevisionId,
+		);
+		assert.deepEqual(result.assignment.matchedWhen, []);
 	}
 });
 
