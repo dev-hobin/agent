@@ -166,7 +166,10 @@ test("ready selection seals exact Skill and selected Reference materials", async
 		],
 	);
 	assert.equal(first.value.materials[0]?.content, skillText);
-	assert.equal(first.value.materials[0]?.byteLength, encoder.encode(skillText).length);
+	assert.equal(
+		first.value.materials[0]?.byteLength,
+		encoder.encode(skillText).length,
+	);
 	assert.equal(Object.isFrozen(first.value), true);
 	assert.equal(Object.isFrozen(first.value.materials), true);
 	assert.equal(Object.isFrozen(first.value.source), true);
@@ -197,7 +200,11 @@ test("zero selected References seals SKILL.md alone", async (t) => {
 	});
 
 	assert.equal(result.ok, true);
-	if (result.ok) assert.deepEqual(result.value.materials.map((x) => x.path), ["SKILL.md"]);
+	if (result.ok)
+		assert.deepEqual(
+			result.value.materials.map((x) => x.path),
+			["SKILL.md"],
+		);
 });
 
 test("unresolved selection fails before filesystem acquisition", async () => {
@@ -298,7 +305,8 @@ test("unselected Reference drift does not stale an existing seal", async (t) => 
 	});
 
 	assert.equal(replay.ok, true);
-	if (replay.ok) assert.equal(replay.value.sealedContextId, first.value.sealedContextId);
+	if (replay.ok)
+		assert.equal(replay.value.sealedContextId, first.value.sealedContextId);
 });
 
 test("invalid UTF-8 and oversized material fail explicitly", async (t) => {

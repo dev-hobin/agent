@@ -2,9 +2,7 @@ import { constants, type BigIntStats } from "node:fs";
 import { open, realpath, stat, type FileHandle } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import { hashIdentity, sha256Bytes } from "../identity/hash-identity.ts";
-import type {
-	CapabilityAssignment,
-} from "../routing/accept-applicability.ts";
+import type { CapabilityAssignment } from "../routing/accept-applicability.ts";
 import type {
 	BoundCapability,
 	CapabilitySource,
@@ -102,7 +100,9 @@ function nodeErrorCode(error: unknown): string | undefined {
 
 function isContained(root: string, candidate: string): boolean {
 	const remainder = relative(root, candidate);
-	return remainder === "" || (!remainder.startsWith("..") && !isAbsolute(remainder));
+	return (
+		remainder === "" || (!remainder.startsWith("..") && !isAbsolute(remainder))
+	);
 }
 
 function sameFileState(before: BigIntStats, after: BigIntStats): boolean {
@@ -124,7 +124,9 @@ async function closeQuietly(handle: FileHandle | undefined): Promise<void> {
 	}
 }
 
-function validateIdentity(request: SkillContextSealRequest): SkillContextSealResult | undefined {
+function validateIdentity(
+	request: SkillContextSealRequest,
+): SkillContextSealResult | undefined {
 	const { assignment, capability, selection } = request;
 	if (selection.status !== "ready") {
 		return failure(
@@ -134,7 +136,11 @@ function validateIdentity(request: SkillContextSealRequest): SkillContextSealRes
 		);
 	}
 	for (const [path, actual, expected] of [
-		["assignment.capabilityId", assignment.capabilityId, capability.capabilityId],
+		[
+			"assignment.capabilityId",
+			assignment.capabilityId,
+			capability.capabilityId,
+		],
 		[
 			"assignment.capabilityRevisionId",
 			assignment.capabilityRevisionId,
@@ -158,7 +164,9 @@ function validateIdentity(request: SkillContextSealRequest): SkillContextSealRes
 	return undefined;
 }
 
-async function resolveSkillRoot(skillRootPath: string): Promise<
+async function resolveSkillRoot(
+	skillRootPath: string,
+): Promise<
 	| { readonly ok: true; readonly lexical: string; readonly physical: string }
 	| { readonly ok: false; readonly error: SkillContextSealError }
 > {
@@ -235,7 +243,10 @@ async function resolveMaterialPath(
 		return {
 			ok: false,
 			error: {
-				code: code === "ENOENT" || code === "ENOTDIR" ? "material-missing" : "material-unreadable",
+				code:
+					code === "ENOENT" || code === "ENOTDIR"
+						? "material-missing"
+						: "material-unreadable",
 				path,
 				message: `Material cannot be resolved (${code ?? "unknown"})`,
 			},
@@ -274,7 +285,10 @@ async function acquireMaterial(
 		}
 		const bytes = await handle.readFile();
 		const after = await handle.stat({ bigint: true });
-		if (!sameFileState(before, after) || BigInt(bytes.byteLength) !== before.size) {
+		if (
+			!sameFileState(before, after) ||
+			BigInt(bytes.byteLength) !== before.size
+		) {
 			return materialFailure(
 				"material-changed",
 				path,
