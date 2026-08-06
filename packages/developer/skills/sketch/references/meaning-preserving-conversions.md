@@ -1,7 +1,18 @@
 # Meaning-Preserving Conversions
 
 Use this reference when values from different representation worlds must
-participate in one operation without silently losing domain meaning.
+participate in one operation without silently losing domain meaning. It is
+self-contained and does not require another boundary reference.
+
+## Accepted Boundary Context
+
+Supply the source representation worlds, target operation, domain observers that
+must survive, known precision/identity/order/metadata/capability differences,
+unsupported combinations, and any explicit conversion context.
+
+This member contributes the conversion graph, preserved and lost observers,
+ambiguous-path and cycle policy, direct/canonical/context/reject decision, and
+round-trip checks.
 
 ## Draw Paths
 

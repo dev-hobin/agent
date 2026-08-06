@@ -1,7 +1,19 @@
 # Process Shape And Resources
 
 Use this reference when returned values do not describe the generated work,
-control, waits, capacity, lifetime, or effect boundary of a design.
+control, waits, capacity, lifetime, or effect boundary of a design. It is
+self-contained and does not require another boundary reference.
+
+## Accepted Boundary Context
+
+Supply the procedure promise, caller-visible result and failures,
+representative execution trace, admitted order/effect/resource observers,
+control participants, environmental capacity assumptions, and one overload,
+shortage, cancellation, or retention case.
+
+This member contributes generated-work and continuation ownership, active/paused
+dependencies, finite bounds, roots and release, effect-phase ownership,
+acknowledgment semantics, and residual risk.
 
 ## Procedure Is Not Process
 

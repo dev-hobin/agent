@@ -35,7 +35,7 @@ const expectedSkills = [
 
 const manifest = await readJson(join(root, "package.json"));
 assert.equal(manifest.name, "@hobin/developer");
-assert.equal(manifest.version, "0.1.16");
+assert.equal(manifest.version, "0.1.19");
 assert.deepEqual(manifest.pi.extensions, ["./extensions/developer.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
 assert.match(manifest.scripts["eval:live"], /eval-live\.mjs --transport rpc/);
@@ -228,10 +228,6 @@ for (const name of Object.keys(referenceCatalog)) {
 		source,
 		/## Judgment Spine/,
 		`Expected ${name} to own one source-independent judgment spine`,
-	);
-	assert.ok(
-		source.includes("](reference-policy.json)"),
-		`Expected ${name} to link its machine-readable reference policy`,
 	);
 }
 

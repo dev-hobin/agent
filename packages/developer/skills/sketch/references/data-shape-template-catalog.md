@@ -1,10 +1,19 @@
 # Data-Shape Template Catalog
 
-Use this catalog after the six-artifact recipe in
-[Data-Driven Design](data-driven-design.md) when the unresolved step is deriving
-the structural template. Stop after branches, selectors, recursions, and
-delegations correspond to accepted data; generated algorithms and carried
-knowledge have separate routes. Its core rule is:
+Use this catalog when accepted data meaning must determine a structural
+template. It is self-contained and does not require another design reference.
+Stop after branches, selectors, recursions, and delegations correspond to
+accepted data; generated algorithms and carried knowledge have separate routes.
+
+## Accepted Design Context
+
+Supply the function purpose, accepted data definition and interpretation, at
+least one value per clause, relevant boundary values, behavior examples, and the
+signature or caller-facing wish. If any is missing, produce that gap rather than
+inventing a template.
+
+This member contributes the data-corresponding branch, selector, recursion, and
+delegation inventory plus omission rationale. Its core rule is:
 
 ```text
 data clause          -> function branch

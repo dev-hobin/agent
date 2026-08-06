@@ -112,9 +112,9 @@ word/sense is the issue -> naming-judgment
 implementation claim needs evidence -> verify
 ```
 
-A reference route inside this skill may deepen review, failure localization, or
-calibration. It must not reproduce the construction methods owned by those
-leaves.
+Applicable conditional context inside this skill may deepen review, failure
+localization, or calibration. Selected context must not reproduce the
+construction methods owned by those leaves.
 
 ## Minimal Output
 

@@ -1,8 +1,20 @@
 # Contract And Replacement Models
 
-Use this reference after the general problem model when the unresolved question
-is what callers may require, what implementations must guarantee, or whether a
-new implementation can replace an old one for a declared observer.
+Use this reference when the unresolved question is what callers may require,
+what implementations must guarantee, or whether a new implementation can
+replace an old one for a declared observer. It is self-contained and does not
+require another modeling reference.
+
+## Accepted Modeling Context
+
+Supply the bounded question, admitted caller and implementation domains, known
+preconditions and outcomes, relevant failures and observers, environmental
+assumptions, and at least one replacement counterexample. Unknown product policy
+remains explicit rather than being invented here.
+
+This member contributes the contract implications, refinement mapping, excluded
+abilities, compatibility decision, and verification targets. Its stop and
+handoffs below own any context still missing.
 
 ## Contract Relation
 

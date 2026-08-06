@@ -1,8 +1,19 @@
 # Closure And Conventional Interfaces
 
-Use this reference after [Design Levels And Boundaries](design-levels-and-boundaries.md)
-when the unresolved question is which operations keep results inside one
-composable value world and which operations intentionally finalize outside it.
+Use this reference when the unresolved question is which operations keep
+results inside one composable value world and which operations intentionally
+finalize outside it. It is self-contained and does not require another boundary
+reference.
+
+## Accepted Boundary Context
+
+Supply the caller purpose and cases, proposed composition unit, wished
+operations, admitted observers, effect/failure/order/resource assumptions, final
+result world, and one invalid or incompatible composition.
+
+This member contributes membership, primitives, closed operations, explicit
+finalizers, higher-order role contracts, operational interface assumptions, and
+a transfer failure check.
 
 ## Closure Unit
 

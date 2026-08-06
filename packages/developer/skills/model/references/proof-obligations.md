@@ -1,7 +1,18 @@
 # Proof Obligations
 
 Use this reference when the model must state what a proof establishes about an
-implementation under explicit assumptions.
+implementation under explicit assumptions. It is self-contained and does not
+require another modeling reference.
+
+## Accepted Modeling Context
+
+Supply the bounded claim, admitted input and runtime domains, pre/postconditions,
+repeated-control candidate, arithmetic model, environmental assumptions, trusted
+tool boundary, and observers intentionally outside the proof.
+
+This member contributes initialization, preservation, conclusion, termination,
+residual observers, and verification targets. It never treats specification
+self-consistency as product usefulness.
 
 ## Specification Relative Proof
 

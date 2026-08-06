@@ -1,8 +1,20 @@
 # Abstraction Review Failure Localization
 
-Use this reference only after the candidate review's observable stop has failed.
-Its job is to locate the broken promise and choose a handoff. It does not repair
-the design inside `abstraction-review`.
+Use this reference when a concrete abstraction candidate has failed an
+observable review stop. Its job is to locate the broken promise and choose a
+handoff. It does not require another reference to establish its local contract,
+and it does not repair the design inside `abstraction-review`.
+
+## Accepted Input And Contribution
+
+Supply the candidate surface, caller contract, promise under review, failed stop,
+exact observation, and available evidence. If any of those is absent, the result
+is `needs-evidence` or a handoff rather than inferred review history.
+
+This member contributes failure localization and revision ownership. It assumes
+only that the candidate and failed observation are concrete; it does not assume
+a prior field-card vocabulary or decision. Its output is the failure log,
+revision class, owning handoff, and evidence needed to rerun the same stop.
 
 ## Diagnostic Loop
 

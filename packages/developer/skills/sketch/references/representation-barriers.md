@@ -1,8 +1,17 @@
 # Representation Barriers
 
-Use this reference after [Design Levels And Boundaries](design-levels-and-boundaries.md)
-when one accepted domain value needs public operations and laws that hide a
-consequential representation choice.
+Use this reference when one accepted domain value needs public operations and
+laws that hide a consequential representation choice. It is self-contained and
+does not require another boundary reference.
+
+## Accepted Boundary Context
+
+Supply the caller purpose and cases, domain meaning, wished operations, admitted
+observers, invariant or normalization owner, hidden representation choice,
+environmental assumptions, and one plausible alternate representation.
+
+This member contributes the public operations and laws, two representations,
+caller rewrite, replacement check, leak search, and unsupported raw access.
 
 ## Build The Barrier
 

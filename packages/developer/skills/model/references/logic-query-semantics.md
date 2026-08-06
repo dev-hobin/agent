@@ -1,7 +1,18 @@
 # Logic Query Semantics
 
 Use this reference when facts and relations can yield zero, one, or many answers
-and search behavior affects the meaning of an observed result.
+and search behavior affects the meaning of an observed result. It is
+self-contained and does not require another modeling reference.
+
+## Accepted Modeling Context
+
+Supply the bounded query question, admitted facts and rule forms, query
+variables, known answer and no-answer cases, identity/equality assumptions,
+search capabilities, and runtime resource observers.
+
+This member contributes answer-versus-proof identity, duplicate and aggregation
+policy, negation and binding semantics, search/fairness/cycle behavior, outcome
+states, and the stop for interpreting observed results.
 
 ## Query Contract
 

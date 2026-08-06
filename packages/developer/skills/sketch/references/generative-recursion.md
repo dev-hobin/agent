@@ -1,7 +1,18 @@
 # Generative Recursion
 
 Use this reference when the algorithm creates a new instance of the problem
-rather than following an immediate self-reference in the data definition.
+rather than following an immediate self-reference in the data definition. It is
+self-contained and does not require another design reference.
+
+## Accepted Design Context
+
+Supply the problem domain and interpretation, trivial instances, representative
+behavior examples, the proposed generation rule, machine or numeric assumptions,
+and distinct failure/exhaustion/error outcomes. Missing policy remains explicit.
+
+This member contributes generated-instance traces, preservation and combination
+relations, a branch-wise well-founded measure, machine progress limits, and
+search-order or divergence boundaries.
 
 ## Structural Or Generated
 

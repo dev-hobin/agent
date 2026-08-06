@@ -58,7 +58,7 @@ test("every skill defines an inspection surface suited to its judgment", async (
 		schedule: /compact timing matrix/,
 		signal: /Make the comparison visible/,
 		sketch:
-			/compact case\/check table[\s\S]*wished-interface table[\s\S]*ASCII flow/,
+			/compact case\/check table[\s\S]*wished-interface table[\s\S]*small ordered implementation queue/,
 		specify: /scope table separating in scope/,
 		verify: /evidence matrix as the primary surface/,
 		visualize: /render the completed table, ASCII\/Mermaid diagram/,
@@ -86,7 +86,7 @@ test("Doctor bounds claims, dispositions every owner skill, and delegates routed
 	assert.match(source, /thorough-within-scope/);
 	assert.match(
 		source,
-		/route\s+every triggered distinct consultation[\s\S]*every reference-policy route[\s\S]*every co-required reference/i,
+		/route\s+every triggered distinct consultation[\s\S]*every policy-route trigger[\s\S]*every reference required/i,
 	);
 	assert.match(source, /must not read sibling skill\s+references/i);
 	assert.match(

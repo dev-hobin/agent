@@ -131,7 +131,7 @@ other than Doctor one disposition: `triggered`, `no-trigger`, `needs-evidence`,
 | `schedule` | When does a stable concrete structural candidate belong? | current invariant pressure, nested work, delay cost, or lost reversibility |
 | `verify` | What do current checks prove, and what plausible wrong shape still passes? | green checks with observer, source, branch, construction-path, or effect-order gaps |
 | `adversarial-eval` | Does a consequential claim need escalating finite counterexamples? | ordinary checks can pass while security, data, compatibility, or workflow behavior is wrong |
-| `visualize` | Would a visual surface materially lower the cost of judging relationships? | state, ownership, flow, dependency, or ordering is hard to inspect in prose |
+| `visualize` | Would a visual surface materially lower the cost of inspecting this judgment? | prose obscures consequential relationships, order, state, comparison, or evidence gaps |
 
 Use this inspection surface:
 
@@ -144,21 +144,24 @@ smallest observation that could change the disposition.
 
 ## Consultation Workflow
 
-Doctor does not impersonate all other skills and must not read sibling skill
-references inside a Doctor route.
+Doctor does not impersonate other skills or treat their reference catalogs as
+mandatory reading. Doctor must not read sibling skill references directly; each
+owner skill selects and applies its own routed references.
 
 For every `triggered` disposition:
 
-1. write one concrete consultation question and its trigger evidence;
-2. close the Doctor triage route;
-3. route the question to its owning Developer skill;
-4. inspect every reference-policy route in that skill;
-5. select every route whose observable trigger answers a distinct unresolved
-   question;
-6. load and apply every co-required reference in the declared order;
-7. preserve the owner skill's artifact, stop, separation boundary, and
-   `reference_basis`;
-8. return to Doctor only after consultations resolve or become explicit gaps.
+1. write one bounded consultation question and its concrete trigger evidence;
+2. close the Doctor triage judgment;
+3. open the dynamic question with its owning Developer skill;
+4. apply a present policy's root `when`/winning `unless`, or use the complete
+   skill normally when no policy exists;
+5. nominate and seal only current-branch material that can change the result;
+6. relate every selected material through a concrete contribution and bounded
+   assurance while preserving conflicts and limitations;
+7. preserve contribution citations, artifact, stop, and question boundary
+   without one-reference-per-file ceremony;
+8. open a later Developer judgment for any genuinely distinct question, then
+   return to Doctor only after consultations resolve or become explicit gaps.
 
 Use dependency only when evidence requires it: unresolved meaning or condition
 space precedes a design that depends on it; `signal` precedes promotion of a
@@ -175,7 +178,7 @@ The final Doctor route resolves it after integrating the consultation ledger.
 
 Use a consultation ledger:
 
-| Skill / policy route | Trigger evidence | Judgment artifact | Result | Residual gap |
+| Skill / optional policy | Applicability evidence | Judgment artifact | Result | Residual gap |
 | --- | --- | --- | --- | --- |
 
 ## Diagnosis
@@ -230,7 +233,7 @@ resolved Doctor report contains:
 1. Doctor scope and actual coverage;
 2. preservation baseline;
 3. all required lens dispositions;
-4. consultation ledger with policy-route and reference provenance;
+4. consultation ledger with dynamic question, selected-material, contribution, assurance, and citation provenance;
 5. diagnosis table;
 6. treatment plan;
 7. first concrete handoff and residual unknowns;
@@ -257,8 +260,8 @@ A `thorough-within-scope` diagnosis is resolved only when:
 - requested, selected, inspected, and claim scopes are explicit;
 - every available non-Doctor skill has an evidence-backed disposition;
 - every triggered consultation is resolved or retained as an explicit gap;
-- every selected owner-skill policy route loaded and applied all required
-  references;
+- every owner-skill judgment atomically seals only selected material and records
+  exact contributions before coverage and outcome;
 - every finding has an observable consequence, mechanism, evidence, confidence,
   scope, and falsifier;
 - every treatment preserves named behavior and has an owner and verifier;
@@ -278,7 +281,7 @@ owned directly by another skill.
 Do not implement treatment, automatically repair files, recommend a rewrite
 because code is old, equate style or metrics with risk, invent product meaning,
 promote every duplication into an abstraction, flatten sibling skills into a
-checklist, load all references without triggers, or claim coverage beyond the
-inspected scope. Doctor owns scope, lens coverage, consultation planning,
-diagnostic synthesis, and treatment ordering; focused Developer skills own the
-actual judgments and their routed references.
+checklist, treat a reference catalog as mandatory, or claim coverage beyond the inspected
+scope. Doctor owns scope, lens coverage, consultation planning, diagnostic
+synthesis, and treatment ordering; focused Developer skills own their actual
+questions, context coverage, and judgments.

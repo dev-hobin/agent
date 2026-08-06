@@ -101,12 +101,3 @@ such as “law,” “invariant,” or “replacement” do not require a model 
 the requirement already fixes their meaning and asks only for public operations,
 ownership, collaborators, or caller shape; route that original surface to
 `sketch`.
-
-## Reference Routing
-
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Each route answers one modeling question, refines one judgment step,
-and declares its artifact, stop, and separation boundary. Prefer a specialized
-route over the broad condition-space fallback when it owns the unresolved
-obligation; combine routes only for independent model questions. Use the
-exemption only when no route trigger applies and cite its evidence.

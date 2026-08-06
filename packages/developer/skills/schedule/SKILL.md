@@ -30,12 +30,6 @@ Timing cannot stabilize a candidate whose meaning or surface is still unresolved
 - Current invariant pressure and nested-work pressure
 - Reversibility, cost of delay, risk if done now, and risk if delayed
 
-## Reference Routing
-
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Its routed extension refines the tradeoff step, declares the timing
-artifact and stop, and names when an unstable candidate must be handed back. Use
-the exemption only when no trigger applies and cite its evidence.
 
 ## Output
 

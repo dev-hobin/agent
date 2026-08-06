@@ -1,8 +1,20 @@
 # Runtime And Compilation
 
-Use this reference after [Language Semantics](language-semantics.md) when the
-accepted language must be interpreted, lowered, compiled, optimized, or mixed
-across execution modes.
+Use this reference when an accepted language must be interpreted, lowered,
+compiled, optimized, or mixed across execution modes. It is self-contained and
+does not require another language or boundary reference.
+
+## Accepted Boundary Context
+
+Supply the source-language primitives and observers, evaluator result and error
+contract, representative nested call, state/effects visible across execution,
+allocation identity and release assumptions, and any interpreted/compiled or
+old/new interoperation requirement. If language meaning is unsettled, return that
+gap rather than selecting a runtime convention.
+
+This member contributes the calling/result convention, control and live-state
+ownership, effect summaries, optimization guards and fallback, tail-space
+obligation, root/release model, interoperation adapter, and falsifying trace.
 
 ## Execution Convention
 

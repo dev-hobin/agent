@@ -1,7 +1,18 @@
 # Planning Models
 
 Use this reference when the unresolved model is a legal sequence of actions from
-an initial state to a goal, optionally ranked by cost.
+an initial state to a goal, optionally ranked by cost. It is self-contained and
+does not require another modeling reference.
+
+## Accepted Modeling Context
+
+Supply the bounded goal question, admitted state and action domains, initial and
+goal facts, known invariants, environmental assumptions, at least one invalid
+sequence, and any preference that may become an objective.
+
+This member contributes action preconditions and transitions, checked
+intermediate states, valid and invalid plans, objective/equivalence semantics,
+search-completeness limits, and no-plan meaning.
 
 ## Planning Contract
 

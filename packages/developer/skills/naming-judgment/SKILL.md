@@ -89,10 +89,3 @@ problem.
 Do not implement the rename, promote a new abstraction, invent product meaning,
 rename external conventions, or replace every short name with a longer one.
 Reuse does not prove that a generic name is sound.
-
-## Reference Routing
-
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Its routed extension refines the sense step, declares the rename
-artifact and stop, and names when model or design work owns the instability. Use
-the exemption only when no trigger applies and cite its evidence.

@@ -1,8 +1,20 @@
 # Abstraction Review Calibration Cases
 
-Use one case only when the candidate field card is complete but the decision is
-still ambiguous. These examples calibrate review; they do not supply a missing
-candidate surface.
+Use one case when a concrete candidate surface and caller contract exist but the
+decision remains ambiguous. These examples calibrate review; they do not require
+another reference and do not supply a missing candidate surface.
+
+## Accepted Input And Contribution
+
+Supply the candidate, current pressure, caller-visible promise, hidden detail,
+representative case, counterexample, observable stop, and evidence gap. If these
+facts cannot be stated locally, hand off rather than treating an example as the
+missing design.
+
+This member contributes one promise-matched calibration case and its falsifier.
+It assumes the supplied surface is concrete, not that a particular field-card
+format was completed. Its output is a calibrated keep/revise/split/reject/defer
+judgment that remains subordinate to the candidate's own evidence.
 
 ## Example Selector
 
