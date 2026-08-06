@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import type { BoundCapability } from "./bind-capability.ts";
 
-export const CAPABILITY_ASSIGNMENT_VERSION = "developer-capability-assignment/v1";
+export const CAPABILITY_ASSIGNMENT_VERSION =
+	"developer-capability-assignment/v1";
 
 const APPLICABILITY_STATUSES: ReadonlySet<string> = new Set([
 	"applicable",
@@ -187,14 +188,20 @@ function hashAssignment(parts: readonly string[]): string {
 	return `assign_${hash.digest("hex")}`;
 }
 
-function checkTarget(target: ApplicabilityTarget): ApplicabilityAcceptanceResult | undefined {
+function checkTarget(
+	target: ApplicabilityTarget,
+): ApplicabilityAcceptanceResult | undefined {
 	for (const [path, id] of [
 		["target.workCaseId", target.workCaseId],
 		["target.judgmentId", target.judgmentId],
 		["target.contributionNeedId", target.contributionNeedId],
 	] as const) {
 		if (!validId(id)) {
-			return invalid("invalid-target-id", path, "Expected a canonical target ID");
+			return invalid(
+				"invalid-target-id",
+				path,
+				"Expected a canonical target ID",
+			);
 		}
 	}
 	return undefined;
@@ -361,7 +368,8 @@ export function acceptCapabilityApplicability(
 		target.capability.toc.unless,
 		"proposal.matchedUnless",
 	);
-	if (!matchedUnless.ok) return { status: "invalid", error: matchedUnless.error };
+	if (!matchedUnless.ok)
+		return { status: "invalid", error: matchedUnless.error };
 	const basis = normalizeList(proposal.basis, "proposal.basis", "empty-basis");
 	if (!basis.ok) return { status: "invalid", error: basis.error };
 	if (basis.value.length === 0) {

@@ -61,8 +61,7 @@ function proposal(
 		workCaseId: currentTarget.workCaseId,
 		judgmentId: currentTarget.judgmentId,
 		contributionNeedId: currentTarget.contributionNeedId,
-		capabilityRevisionId:
-			currentTarget.capability.capabilityRevisionId,
+		capabilityRevisionId: currentTarget.capability.capabilityRevisionId,
 		status: "applicable",
 		matchedWhen: [claimWhen],
 		matchedUnless: [],
