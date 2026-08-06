@@ -39,7 +39,9 @@ function piSkill(input: {
 	};
 }
 
-async function adaptedCandidate(skill: Skill): Promise<AdaptedPiSkillDescriptor> {
+async function adaptedCandidate(
+	skill: Skill,
+): Promise<AdaptedPiSkillDescriptor> {
 	const adapted = await adaptPiSkillCatalog([skill]);
 	if (!adapted.ok) throw new Error(adapted.error.message);
 	const candidate = adapted.inventory[0];
