@@ -1,5 +1,7 @@
 # Developer for Pi
 
+English | [한국어](./README.ko.md)
+
 Developer is a branch-aware judgment workbench that helps [Pi](https://pi.dev)
 stop guessing, choose the right design or review method, make one justified
 change, and show the evidence behind it.
@@ -296,7 +298,7 @@ branch; they do not by themselves prove source fidelity.
 
 See [Reference routing](./REFERENCE_ROUTING.md) for the runtime contract and
 policy schema. See the
-[Terminal Judgment Workbench study](./docs/ko/terminal-judgment-workbench-study-v0.1.md)
+[Terminal Judgment Workbench study](./docs/terminal-judgment-workbench-study-v0.1.md)
 for the product meaning, comparative terminal research, transfer boundaries, and
 inspection contract behind the Workbench.
 
