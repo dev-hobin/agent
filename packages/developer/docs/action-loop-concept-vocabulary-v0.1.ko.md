@@ -46,6 +46,23 @@ Complete, blocked, no-change 같은 closure claim은 supporting evidence보다 �
 
 이 obligation은 runtime invariant다. `Context Fit`, `Intervention Proportionality`, `Consequence Integrity`, `Claim Assurance`와 같은 judgment category와 동일하지 않다.
 
+### Cross-cutting Model Neutrality
+
+Model Neutrality는 다섯 번째 work obligation이나 Judgment Category가 아니라 모든 obligation을 가로지르는 architecture invariant다.
+
+> 같은 Work Case semantics와 transition guards가 model, provider, prompt style, response envelope과 독립적으로 유지되어야 한다.
+
+Model은 canonical state owner가 아니라 proposal source 또는 semantic evaluator다. Model identity는 proposal provenance가 될 수 있지만 Capability identity, permission, assurance strength, Need Coverage, Conclusion을 대신하지 않는다.
+
+```text
+model/provider-specific output
+  → normalized proposal
+    → common transition guard
+      → accepted domain transition or explicit rejection
+```
+
+Model switch는 accepted Work Case state를 변경하지 않는다. New proposal이 accepted transition을 만들 때만 state가 바뀐다.
+
 ## 3. Vocabulary의 네 층
 
 ### Domain concept
@@ -522,15 +539,17 @@ Contribution Need와 Context를 보고 사용할 Capability를 선택한다. Ski
 
 ### Model Protocol
 
-Model이 Observation, Contribution, Action Candidate, settlement, Closure Claim을 명시적으로 제안하는 경계다. Model은 canonical state owner가 아니다.
+Model, provider, 또는 human evaluator가 Observation, applicability, Reference disposition, Contribution, Need Coverage, Action Candidate, settlement, Closure Claim을 같은 semantic shape로 제안하는 경계다. Proposal은 canonical state가 아니며 Work Core transition guard를 통과해야 한다.
+
+Provider-specific response envelopes, tool-call dialects, structured-output limitations, prompt tuning은 protocol 바깥 adapter detail이다. Malformed, refused, empty, timed-out proposal은 unresolved 또는 rejected outcome으로 남고 implicit success가 되지 않는다.
 
 ### Pi Adapter
 
-Pi hook과 Work Core transition 사이를 번역한다. Pi-selected Skill provenance와 schema-identified TOC를 refined Capability inventory로 결합하고 source-bound Capability ID와 content-bound revision ID를 생성한다. Work Core가 raw filesystem이나 Pi discovery policy를 소유하게 하지 않는다.
+Pi hook과 Work Core transition 사이를 번역한다. Pi-selected Skill provenance와 schema-identified TOC를 refined Capability inventory로 결합하고 source-bound Capability ID와 content-bound revision ID를 생성한다. Provider/model-specific responses를 Model Protocol proposal로 정규화한다. Work Core가 raw filesystem, Pi discovery policy, provider SDK type을 소유하게 하지 않는다.
 
 ### Work Record
 
-Replay에 필요한 work history를 보존한다. `event store`나 append-only storage를 public concept로 미리 확정하지 않는다.
+Replay에 필요한 accepted work history, rejected proposal disposition, evidence provenance를 보존한다. Model memory나 hidden conversation state에 의존하지 않는다. Model/provider metadata는 provenance로 기록할 수 있지만 domain authority가 아니다. `event store`나 append-only storage를 public concept로 미리 확정하지 않는다.
 
 ### Work View
 
@@ -604,6 +623,8 @@ Closure Claim supports a Work Status transition.
 | test는 green이지만 compatibility 미검증 | Observation과 claim-relevant Evidence는 다르다. |
 | response가 종료됨 | agent turn과 Work Status는 다르다. |
 | external API를 기다림 | Environment는 owner가 아니며 Work Case는 waiting으로 유지된다. |
+| model A에서 model B로 전환 | Model은 Work Case owner가 아니므로 accepted state는 유지된다. |
+| malformed 또는 refused model output | Proposal failure이지 no-gap, Coverage, completion이 아니다. |
 
 ## 10. Implementation promotion rule
 
@@ -629,6 +650,8 @@ Connector relation은 가능한 한 predicate, transition guard, field relation�
 - generalized precedence engine
 - confidence calculus
 - SDK-owned controller
+- provider-specific domain state
+- model-specific Judgment Category 또는 Capability identity
 
 `Action Clearance`의 finite trace가 permission variation을 표현하지 못할 때 authority vocabulary를 다시 연다.
 
@@ -641,5 +664,6 @@ Connector relation은 가능한 한 predicate, transition guard, field relation�
 - source-external trace에서 이름의 stable sense가 유지되지 않는다.
 - connector relation을 state로 보존하지 않으면 replay 또는 invariant가 깨진다.
 - runtime caller가 현재 이름에서 잘못된 effect, authority, lifecycle을 합리적으로 추론한다.
+- materially different model 또는 human evaluator가 같은 accepted domain proposal을 현재 protocol로 표현할 수 없다.
 
 그 전까지는 synonym을 늘리거나 현재 implementation mechanism을 domain name으로 승격하지 않는다.

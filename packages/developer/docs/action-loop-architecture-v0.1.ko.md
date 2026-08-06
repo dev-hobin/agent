@@ -91,6 +91,30 @@ Developer는 다음을 수행한다.
 
 Developer는 모든 작업을 무거운 판단 절차로 바꾸지 않는다. trivial하고 bounded하며 reversible하고 직접 확인 가능한 작업은 불필요한 상위 judgment 없이 직접 accounting할 수 있다.
 
+### Model-neutrality invariant
+
+Developer의 canonical work, Judgment, routing, Action Clearance, Effect Settlement, Closure semantics는 특정 model, provider, prompt style, structured-output feature, SDK에 의존하지 않는다.
+
+```text
+provider/model transport
+  → Pi Adapter normalization
+    → model-neutral proposal protocol
+      → Work Core transition guards
+```
+
+다음은 반드시 유지한다.
+
+- Work Core는 provider SDK type, response envelope, model name을 알지 않는다.
+- Model output은 Observation, applicability, Contribution, Coverage, Action, settlement, Closure의 proposal이지 canonical mutation이 아니다.
+- 모든 proposal은 같은 refined protocol과 transition guards를 통과한다.
+- Model 교체, retry, compaction, reload는 Work Case identity와 accepted state를 지우지 않는다.
+- malformed, refused, empty, timed-out output은 unresolved 상태로 남고 success나 no-gap으로 해석되지 않는다.
+- model identity와 provider metadata는 provenance일 수 있지만 permission, Coverage, Conclusion의 authority가 아니다.
+- provider-specific prompt나 parser tuning은 optional adapter detail이며 canonical domain policy가 아니다.
+- replay는 model memory나 hidden conversation state가 아니라 Work Record의 accepted transitions와 evidence에서 복구된다.
+
+Model neutrality는 모든 model이 같은 prose나 semantic conclusion을 만든다는 뜻이 아니다. Developer가 보존하는 것은 same domain contract, admissible transitions, forbidden states, provenance requirements, failure behavior다.
+
 ## 4. 전체 Action Loop
 
 ```text
@@ -512,6 +536,18 @@ Pi Adapter는 Pi가 trust, settings, CLI, package discovery를 적용한 Skill c
 
 Work Core는 filesystem을 검색하거나 raw TOC JSON을 해석하지 않는다. 이미 provenance가 결합된 Capability inventory와 sealed Skill context만 받아 pure assignment, Coverage, transition invariant를 적용한다.
 
+### Model Protocol boundary
+
+Model Protocol은 provider response format을 public domain shape로 만들지 않는다. Pi Adapter가 provider/model-specific output을 bounded proposal로 정규화하고, Work Core는 proposal provenance와 semantic fields만 검사한다.
+
+```text
+model A response ─┐
+model B response ─┼→ Pi Adapter → same proposal contract → Work Core
+human evaluator ──┘
+```
+
+Model switch는 Outcome, open Judgment, Closure Requirements, Need Coverage, cleared Action, unsettled Effect를 자동으로 stale하게 만들지 않는다. 새 model proposal은 기존 accepted state 위에서 별도로 평가된다. Invalid proposal은 canonical transition을 만들지 않는다.
+
 ### Hook responsibilities
 
 - `before_agent_start`: current canonical work, unresolved Closure Requirements와 Contribution Needs를 model context에 제공한다.
@@ -528,6 +564,8 @@ Work Core는 filesystem을 검색하거나 raw TOC JSON을 해석하지 않는�
 
 Extension은 다음을 소유할 수 있다.
 
+- provider/model-independent canonical work semantics
+- model proposal validation과 accepted-transition boundary
 - canonical work status와 replay
 - judgment identity와 closure accounting
 - controlled Action Clearance 기록
@@ -591,6 +629,7 @@ Extension만으로 다음을 보장할 수는 없다.
 9. **Open-world capability composition**: 하나의 Need가 zero, one, several Skills 또는 non-Skill sources에 의해 다뤄지고, selected Skill은 zero, one, several References를 선택한다.
 10. **Partial and conflicting Coverage**: useful Contributions가 있어도 consequential residual이나 conflict가 있으면 Conclusion과 completion을 허용하지 않는다.
 11. **Capability identity and drift**: same human name이 source identity를 합치지 않고, Skill/TOC 또는 selected Reference drift가 dependent value를 stale하게 만든다.
+12. **Model substitution and failure**: 서로 다른 model이나 human evaluator가 같은 proposal contract를 사용하고, model 교체 또는 malformed/refused output이 accepted Work Case state를 지우거나 invalid transition을 만들지 않는다.
 
 추가 상태, event, abstraction은 이 trace 중 하나가 요구할 때만 도입한다.
 
@@ -606,6 +645,8 @@ Extension만으로 다음을 보장할 수는 없다.
 - 이전 runtime과의 post-reconstruction backward compatibility
 - Operator 변경 또는 통합
 - SDK-owned host 구현
+- provider/model-specific state machine, category, TOC, Work Core type
+- 특정 prompt wording이나 structured-output feature를 canonical correctness boundary로 사용
 
 ## 16. Source basis와 경계
 
@@ -629,6 +670,7 @@ Extension만으로 다음을 보장할 수는 없다.
 - 두 category가 같은 Judgment Subject에 대해 독립된 stop 없이 항상 함께 닫힌다.
 - pure transition으로 표현할 수 없는 host guarantee가 extension implementation을 실제로 막는다.
 - open-world capability가 필요한 contribution을 표현할 수 없다는 concrete case가 나온다.
+- model-neutral proposal contract가 accepted transition을 둘 이상의 materially different evaluator에서 표현하지 못한다.
 - effect settlement와 judgment closure가 동일한 상태로 합쳐져 forbidden completion을 허용한다.
 
 그 전까지는 category 추가, authority subsystem, SDK host, professional-role package를 설계하지 않는다.

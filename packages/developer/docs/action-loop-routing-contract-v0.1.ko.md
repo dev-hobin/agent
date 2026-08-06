@@ -543,6 +543,8 @@ Need + current Contributions + conflicts + limitations
 
 Changing selected TOC conditions, Skill body, selected Reference body, Need, disposition, or Work Case context invalidates dependent values. Name alone never establishes continuity. Adding an unrelated Capability or changing an unselected Reference body does not stale an already sealed contribution basis.
 
+Model or provider identity is not part of Capability ID, Capability revision ID, assignment ID, selection ID, or sealed context ID. Switching model does not stale accepted routing state. A normalized Contribution records proposal provenance separately so a later evaluator can inspect who or what produced it without turning that provenance into authority.
+
 ## 16. Contribution enforcement
 
 Skill Contribution must state:
@@ -654,6 +656,25 @@ The separation condition itself belongs to `SKILL.md` or Reference Boundary text
 
 The runtime cannot prove these semantic claims. It can require explicit basis, preserve exact provenance, reject stale or structurally impossible claims, and attach stronger evaluator or user assurance when available.
 
+### Model-neutral routing boundary
+
+Applicability, Reference disposition, material application, Contribution, and Coverage proposals use the same semantic contract regardless of model, provider, prompt style, tool-call dialect, or human evaluator.
+
+```text
+provider/model response
+  → adapter normalization
+    → model-neutral routing proposal
+      → deterministic shape and identity checks
+        → accepted proposal or explicit rejection
+```
+
+- Work Core and TOC schema contain no provider or model names.
+- Provider-specific parsing, retries, and prompt tuning do not change routing semantics.
+- Malformed, refused, empty, or timed-out output cannot become `not-applicable`, `not-needed`, `covered`, or resolved by default.
+- Model switch does not change Capability or sealed context identity.
+- Proposal provenance may name a model/provider but does not increase permission, Coverage, or Conclusion authority.
+- Semantic variance is expected; admissible states, required basis, provenance, and failure behavior remain invariant.
+
 ## 20. Failure behavior
 
 | Failure | Required outcome |
@@ -731,13 +752,14 @@ Co-required grouping, explicit route IDs, artifact declarations, custom read ord
 2. Write the minimal versioned TOC JSON Schema with a canonical `$schema` const.
 3. Implement bounded direct-child discovery, bundled schema mapping, raw-to-refined parsing, path checks, and physical containment.
 4. Bind Parsed TOC to Pi source provenance and generate Capability ID and Capability revision ID without self-declared ownership or identity.
-5. Implement pure Capability Applicability and Reference Disposition values.
-6. Implement selected-path-only acquisition and Sealed Skill Context.
-7. Implement selected-material application accounting in Skill Contribution.
-8. Implement Need Coverage as an Upper Judgment relation.
-9. Pilot `verify` and `model`; compare expected Skill and Reference selections against current policies.
-10. Only after pure traces pass, expose the transitions through the Pi adapter.
-11. Convert remaining first-party Skills and remove old policy formats in one explicit cutover.
+5. Define one model-neutral proposal contract for Capability Applicability, Reference Disposition, material application, Contribution, and Need Coverage; test malformed, refused, and evaluator-substitution cases.
+6. Implement pure Capability Applicability and Reference Disposition values.
+7. Implement selected-path-only acquisition and Sealed Skill Context.
+8. Implement selected-material application accounting in Skill Contribution.
+9. Implement Need Coverage as an Upper Judgment relation.
+10. Pilot `verify` and `model`; compare expected Skill and Reference selections against current policies.
+11. Only after pure traces pass, expose the transitions through the Pi adapter.
+12. Convert remaining first-party Skills and remove old policy formats in one explicit cutover.
 
 The first executable item is the minimal schema/parser and finite selection fixtures. Do not begin with TUI, XState, automatic migration generation, or a generalized routing framework.
 
@@ -775,6 +797,14 @@ The first executable item is the minimal schema/parser and finite selection fixt
 - partial and conflicting Contributions remain visible;
 - missing required Coverage prevents Upper completion;
 - replay detects selected-content and Need drift.
+
+### Model neutrality
+
+- two materially different model adapters and a deterministic fake evaluator emit the same proposal shape;
+- model substitution preserves accepted Work Case, assignment, selection, and sealed context identities;
+- malformed, refused, empty, and timed-out outputs produce no implicit routing or closure state;
+- provider metadata remains provenance and never becomes Capability identity or assurance authority;
+- provider-specific prompt or parsing changes cannot alter deterministic transition guards.
 
 ## 25. Open questions
 
