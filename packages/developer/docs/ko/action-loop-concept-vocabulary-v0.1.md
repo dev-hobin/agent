@@ -81,6 +81,7 @@ Contribution
 Need Coverage
 Action
 Effect
+Effect Remediation
 Claim
 ```
 
@@ -491,13 +492,21 @@ pending  // relied-on Observation이 없음
 unknown  // Observation은 있으나 intended Effect가 불확정
 ```
 
-### 5.20 Claim
+### 5.20 Effect Remediation
+
+> 하나의 `failed | partially-applied` Effect가 남긴 consequence를 별개의 후속 Effect의 `observed-success` settlement가 복구했음을 나타내는 current relation.
+
+Remediation은 adverse settlement를 교체하거나 다른 결과로 다시 표시하지 않는다. Exact current adverse settlement와 exact current resolving settlement를 결합하고 Work Case closure inventory에 들어가며, 어느 settlement든 reassess되면 stale해진다. Closure Claim은 두 settlement와 remediation relation을 모두 적용해야 한다. 하나의 Effect는 자신을 remediate할 수 없고 model proposal이나 성공한 unrelated Effect만으로 remediation이 성립하지 않는다.
+
+V0는 adverse consequence의 deliberate acceptance를 remediation으로 취급하지 않는다. 그러한 acceptance는 explicit human-owned decision과 Constraint compatibility contract가 정의될 때까지 blocked로 남으며 Claim Assurance나 evaluator provenance에서 추론할 수 없다.
+
+### 5.21 Claim
 
 > Evidence가 support하거나 challenge할 수 있는 명시적 proposition.
 
 Evidence는 독립 물체라기보다 Observation 또는 Contribution과 특정 Claim 사이의 support relation이다.
 
-### 5.21 Closure Claim
+### 5.22 Closure Claim
 
 > Work Case를 complete, blocked 또는 다른 explicit status로 전환하기 위해 제안된 Claim.
 
@@ -514,9 +523,9 @@ no-change:
   현재 implementation이 accepted contract를 이미 만족한다.
 ```
 
-Claim Assurance Judgment가 Closure Claim의 scope를 Evidence에 맞춘다. V0 completion path는 canonical Work Case revision의 모든 Outcome acceptance condition, Constraint, Conclusion, occurred Effect, current Effect assessment를 caller-selected subset 없이 `Closure Target`으로 seal한다. Missing Claim Assurance, missing Effect assessment, `pending | unknown`, unresolved `failed | partially-applied`는 target 생성을 막는다. Closure Claim은 Target의 모든 obligation과 current evidence를 정확히 accounting해야 하며 status transition을 직접 수행하지 않는다. Completion Claim mode는 `completed | no-change`다. `blocked`는 current Claim Assurance Conclusion이 모든 current closure blocker를 accounting하면서 현재 closure path가 없음을 지지할 때 별도 transition으로 만든다.
+Claim Assurance Judgment가 Closure Claim의 scope를 Evidence에 맞춘다. V0 completion path는 canonical Work Case revision의 모든 Outcome acceptance condition, Constraint, Conclusion, occurred Effect, current Effect assessment를 caller-selected subset 없이 `Closure Target`으로 seal한다. Missing Claim Assurance, missing Effect assessment, `pending | unknown`, current Effect Remediation이 없는 `failed | partially-applied`는 target 생성을 막는다. Closure Claim은 Target의 모든 obligation과 current evidence를 정확히 accounting해야 하며 status transition을 직접 수행하지 않는다. Completion Claim mode는 `completed | no-change`다. `blocked`는 current Claim Assurance Conclusion이 모든 current closure blocker를 accounting하면서 현재 closure path가 없음을 지지할 때 별도 transition으로 만든다.
 
-### 5.22 Work Status
+### 5.23 Work Status
 
 > Work Case가 continuation과 closure 관점에서 현재 어디에 있는지 나타내는 상태.
 

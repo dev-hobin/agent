@@ -336,6 +336,8 @@ unknown
 
 A known partial effect may be settled as partial, but it may prevent completion or reopen a Judgment. When an observed Effect materially diverges from expectations, Contextual Adequacy, Proportionate Intervention, Consequence Integrity, or Claim Assurance may reopen.
 
+A later successful Action does not rewrite an earlier adverse Effect. Closure may proceed only after a current Effect Remediation binds the exact `failed | partially-applied` settlement to a distinct exact `observed-success` settlement and both remain current. Reassessment invalidates that relation, and the Closure Claim must account for the adverse settlement, resolving settlement, and remediation relation. Deliberate acceptance of an adverse consequence remains deferred until an explicit human decision and Constraint-compatibility contract exist.
+
 ## 8. Judgment closure and Contribution composition
 
 An upper-level category does not declare a fixed Skill list. The Category contract derives Closure Requirements appropriate to the Judgment Subject and current context, and currently unmet requirements create Contribution Needs.
@@ -705,7 +707,7 @@ The first pure core must explain and validate the following finite traces.
 2. **Justified no-change**: the intervention judgment selects no-action and closes with an evidence-bounded claim.
 3. **Missing contribution**: become waiting or blocked because required evidence or a decision is unavailable.
 4. **Successful action**: distinguish tool success from actual effect observation, then settle.
-5. **Failed or partial effect**: failure or partial application prevents completion and reopens judgment.
+5. **Failed or partial effect**: failure or partial application prevents completion until a distinct observed-success Effect is bound as current remediation; the original adverse settlement remains in closure accounting.
 6. **External decision wait**: remain waiting while identifying the required decision without inventing a professional role.
 7. **No-progress pause**: preserve the outcome and pause when responses repeat or continuation makes no progress.
 8. **Evidence-bounded completion**: permit a completion claim only up to the scope supported by the verifier.

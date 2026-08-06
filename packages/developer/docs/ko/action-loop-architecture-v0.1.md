@@ -336,6 +336,8 @@ unknown
 
 Known partial effect는 partial로 settle될 수 있지만 completion을 막거나 Judgment를 다시 열 수 있다. 관찰된 Effect가 expectation과 materially diverge할 때 Contextual Adequacy, Proportionate Intervention, Consequence Integrity, 또는 Claim Assurance가 다시 열릴 수 있다.
 
+후속 successful Action은 이전 adverse Effect를 다시 쓰지 않는다. Closure는 current Effect Remediation이 exact `failed | partially-applied` settlement를 별개의 exact `observed-success` settlement와 결합하고 둘 다 current일 때만 진행할 수 있다. Reassessment는 이 relation을 무효화하며 Closure Claim은 adverse settlement, resolving settlement, remediation relation을 모두 accounting해야 한다. Adverse consequence의 deliberate acceptance는 explicit human decision과 Constraint compatibility contract가 생길 때까지 보류한다.
+
 ## 8. Judgment closure와 Contribution composition
 
 상위 category는 fixed Skill list를 선언하지 않는다. Category contract는 Judgment Subject와 current context에 맞는 Closure Requirements를 도출하고, 현재 충족되지 않은 requirement가 Contribution Needs를 만든다.
@@ -705,7 +707,7 @@ Conclusion
 2. **Justified no-change**: intervention judgment가 no-action을 선택하고 evidence-bounded claim으로 닫힌다.
 3. **Missing contribution**: 필요한 evidence 또는 decision이 없어 waiting이나 blocked가 된다.
 4. **Successful action**: tool success를 실제 effect observation과 구분한 뒤 settle한다.
-5. **Failed or partial effect**: failure 또는 partial application이 completion을 막고 judgment를 다시 연다.
+5. **Failed or partial effect**: failure 또는 partial application은 별개의 observed-success Effect가 current remediation으로 결합될 때까지 completion을 막으며, original adverse settlement는 closure accounting에 남는다.
 6. **External decision wait**: professional role을 발명하지 않고 필요한 decision을 명시해 waiting으로 남는다.
 7. **No-progress pause**: response가 반복되거나 continuation progress가 없을 때 outcome을 잃지 않고 pause한다.
 8. **Evidence-bounded completion**: verifier가 지지하는 scope까지만 completion claim을 허용한다.

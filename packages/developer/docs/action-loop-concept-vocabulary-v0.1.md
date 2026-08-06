@@ -81,6 +81,7 @@ Contribution
 Need Coverage
 Action
 Effect
+Effect Remediation
 Claim
 ```
 
@@ -492,13 +493,21 @@ pending  // there is no relied-on Observation
 unknown  // Observations exist, but the intended Effect is indeterminate
 ```
 
-### 5.20 Claim
+### 5.20 Effect Remediation
+
+> A current relation showing that a distinct later Effect with an `observed-success` settlement repaired the consequence left by one `failed | partially-applied` Effect.
+
+Remediation does not replace or relabel the adverse settlement. It binds the exact current adverse settlement and exact current resolving settlement, enters the Work Case closure inventory, and becomes stale if either settlement is reassessed. A Closure Claim must apply both settlements and the remediation relation. One Effect cannot remediate itself, and a model proposal or successful unrelated Effect cannot imply remediation.
+
+V0 does not treat deliberate acceptance of an adverse consequence as remediation. Such acceptance remains blocked until an explicit human-owned decision and Constraint-compatibility contract are defined; it cannot be inferred from Claim Assurance or evaluator provenance.
+
+### 5.21 Claim
 
 > An explicit proposition that Evidence can support or challenge.
 
 Evidence is not an independent object so much as a support relation between an Observation or Contribution and a specific Claim.
 
-### 5.21 Closure Claim
+### 5.22 Closure Claim
 
 > A proposed Claim for transitioning a Work Case to complete, blocked, or another explicit status.
 
@@ -515,9 +524,9 @@ no-change:
   the current implementation already satisfies the accepted contract.
 ```
 
-A Claim Assurance Judgment bounds the scope of a Closure Claim to the Evidence. The V0 completion path seals every Outcome acceptance condition, Constraint, Conclusion, occurred Effect, and current Effect assessment from the canonical Work Case revision as a `Closure Target`, without a caller-selected subset. Missing Claim Assurance, a missing Effect assessment, `pending | unknown`, or unresolved `failed | partially-applied` prevents target creation. A Closure Claim must account exactly for all obligations and current evidence in the Target and does not directly perform the status transition. Completion Claim mode is `completed | no-change`. `blocked` is created as a separate transition when the current Claim Assurance Conclusion accounts for every current closure blocker and supports the absence of a current closure path.
+A Claim Assurance Judgment bounds the scope of a Closure Claim to the Evidence. The V0 completion path seals every Outcome acceptance condition, Constraint, Conclusion, occurred Effect, and current Effect assessment from the canonical Work Case revision as a `Closure Target`, without a caller-selected subset. Missing Claim Assurance, a missing Effect assessment, `pending | unknown`, or `failed | partially-applied` without a current Effect Remediation prevents target creation. A Closure Claim must account exactly for all obligations and current evidence in the Target and does not directly perform the status transition. Completion Claim mode is `completed | no-change`. `blocked` is created as a separate transition when the current Claim Assurance Conclusion accounts for every current closure blocker and supports the absence of a current closure path.
 
-### 5.22 Work Status
+### 5.23 Work Status
 
 > The state indicating where a Work Case currently stands with respect to continuation and closure.
 
