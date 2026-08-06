@@ -114,8 +114,7 @@ function canonicalText(value: unknown): string | undefined {
 function isContained(root: string, candidate: string): boolean {
 	const remainder = relative(root, candidate);
 	return (
-		remainder === "" ||
-		(!remainder.startsWith("..") && !isAbsolute(remainder))
+		remainder === "" || (!remainder.startsWith("..") && !isAbsolute(remainder))
 	);
 }
 
@@ -317,11 +316,7 @@ async function resolveDescriptorPaths(
 			"Pi Skill sourceInfo.path must identify the same material as filePath",
 		);
 	}
-	const skillRoot = await canonicalDirectory(
-		skill.baseDir,
-		index,
-		"baseDir",
-	);
+	const skillRoot = await canonicalDirectory(skill.baseDir, index, "baseDir");
 	if (!skillRoot.ok) return skillRoot;
 	if (dirname(skillFile.value) !== skillRoot.value) {
 		return descriptorFailure(

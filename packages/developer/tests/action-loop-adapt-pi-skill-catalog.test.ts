@@ -1,11 +1,5 @@
 import assert from "node:assert/strict";
-import {
-	mkdtemp,
-	mkdir,
-	realpath,
-	rm,
-	writeFile,
-} from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
