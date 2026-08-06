@@ -4,6 +4,8 @@
 >
 > 기준선: `@hobin/developer@0.1.19`
 >
+> 개념어 계약: [Developer Action Loop Concept Vocabulary v0.1](./action-loop-concept-vocabulary-v0.1.ko.md)
+>
 > Runtime note: 0.1.19는 이 문서의 architecture를 아직 구현하지 않는다. 현재 release runtime과 Skills는 reconstruction 중에도 작동하는 보존 기준선이다.
 >
 > 작성 시점: 2026-08-06
@@ -25,7 +27,7 @@ Observe → Judge → Act → Settle → Complete | Block | Pause
 1. 언제 judgment를 열어야 하는가?
 2. 반복되는 warrant gap에는 어떤 상위 범주가 있는가?
 3. 각 범주는 어떤 질문과 독립적인 stop을 갖는가?
-4. 상위 범주, contribution role, Skill, Reference는 어떻게 분리되는가?
+4. 상위 범주, Contribution Need, Skill, Reference는 어떻게 분리되는가?
 
 여러 source와 transfer case를 비교한 결과 네 개의 상위 범주 후보를 얻었다.
 
@@ -56,9 +58,9 @@ closure-requirement union
 
 그러나 action trace와 extension contract보다 먼저 authority schema를 확정할 증거는 아직 없다. 현재 architecture에는 다음 최소 규칙만 남긴다.
 
-- category conclusion과 action authorization은 같은 것이 아니다.
-- 필요한 external decision이나 evidence가 없으면 judgment는 닫히지 않는다.
-- contribution source의 전문성이나 Skill 결과가 스스로 authorization을 만들지 않는다.
+- category Conclusion과 Action Clearance는 같은 것이 아니다.
+- 필요한 external decision이나 Evidence가 없으면 Judgment는 닫히지 않는다.
+- Contribution source의 전문성이나 Skill 결과가 스스로 permission 또는 Action Clearance를 만들지 않는다.
 - environment는 observation과 constraint를 제공하지만 judgment owner가 아니다.
 
 다음은 trace가 요구할 때까지 보류한다.
@@ -77,10 +79,10 @@ Developer는 role-playing agent나 자동 계획기가 아니다.
 Developer는 다음을 수행한다.
 
 1. intended outcome과 현재 relevant reality를 관찰한다.
-2. 다음 action 또는 completion candidate 주위의 consequential unresolved warrant gap을 식별한다.
-3. 필요한 상위 judgment instance만 연다.
-4. judgment가 요구하는 contribution role에 맞춰 internal, external, project-local capability와 context를 조합한다.
-5. category contract에 따라 contributions를 종합한다.
+2. 다음 Action Candidate 또는 Closure Claim 주위의 consequential unresolved Warrant Gap을 식별한다.
+3. 필요한 상위 Judgment instance만 연다.
+4. Judgment가 요구하는 Contribution Need에 맞춰 internal, external, project-local Capability와 context를 조합한다.
+5. category contract에 따라 Contributions를 종합한다.
 6. 정당화된 action, no-change, wait, block, pause, completion 중 하나로 진행한다.
 7. controlled action의 실제 effect를 관찰하고 settle한다.
 8. evidence가 지지하는 범위를 넘지 않는 completion claim만 허용한다.
@@ -288,26 +290,33 @@ Effect settlement:
 
 Effect settlement는 별도 상위 범주가 아니라 Action Loop의 canonical accounting obligation이다.
 
+다음은 settled conclusion이 될 수 있다.
+
 ```text
 observed-success
 observed-no-effect
 failed
 partially-applied
+```
+
+다음은 아직 unsettled state다.
+
+```text
 pending
 unknown
 ```
 
-관찰된 effect가 expectation과 materially diverge할 때 Contextual Adequacy, Proportionate Intervention, Consequence Integrity, 또는 Claim Assurance가 다시 열릴 수 있다.
+Known partial effect는 partial로 settle될 수 있지만 completion을 막거나 Judgment를 다시 열 수 있다. 관찰된 Effect가 expectation과 materially diverge할 때 Contextual Adequacy, Proportionate Intervention, Consequence Integrity, 또는 Claim Assurance가 다시 열릴 수 있다.
 
 ## 8. Contribution composition
 
-상위 category는 fixed Skill list가 아니라 필요한 contribution role을 선언한다.
+상위 category는 fixed Skill list가 아니라 필요한 Contribution Need를 선언한다.
 
 ```text
-judgment situation / referent
-  → upper judgment category
-    → required contribution roles
-      → context-matched capabilities
+Judgment situation / subject
+  → upper Judgment Category
+    → Contribution Needs
+      → context-matched Capabilities
         → Skill-specific References
 ```
 
@@ -338,29 +347,29 @@ Category:
 
 `AGENTS.md`, repository instructions, code, test는 context source다. 자동으로 Skill이나 상위 category가 되지 않는다. Skill이 추가되어도 top-level responsibility ontology가 자동으로 늘어나지 않는다.
 
-Contribution role의 구체적인 vocabulary와 matching representation은 아직 확정하지 않는다. 먼저 transition trace에서 실제로 필요한 contribution을 관찰한다.
+Contribution Need의 matching representation은 아직 확정하지 않는다. 먼저 transition trace에서 실제로 필요한 Contribution을 관찰한다.
 
 ## 9. 최소 canonical state
 
-첫 pure core는 다음보다 넓어지지 않는다.
+첫 Work Core는 다음보다 넓어지지 않는다.
 
 ```text
 WorkState {
-  intendedOutcome
+  outcome
   status
   openJudgments
-  authorizedAction?
-  unsettledEffects
-  completionCandidate?
+  clearedAction?
+  effectsPendingSettlement
+  closureClaim?
 }
 ```
 
 ```text
 Judgment {
   category
-  referent
+  subject
   question
-  requiredContributions
+  contributionNeeds
   contributions
   conclusion?
   status
@@ -405,8 +414,8 @@ record contribution
 close judgment
   → record category synthesis
 
-authorize action
-  → bind one justified controlled action
+clear action
+  → bind one warranted and permitted controlled action
 
 observe effect
   → record what happened
@@ -414,8 +423,8 @@ observe effect
 settle effect
   → classify actual outcome
 
-propose completion
-  → state an evidence-bounded claim
+propose closure
+  → state an evidence-bounded Closure Claim
 
 complete | block | pause
   → leave active only through an explicit supported transition
@@ -423,9 +432,9 @@ complete | block | pause
 
 ### Forbidden states
 
-- consequential Contextual Adequacy 또는 Proportionate Intervention gap이 열린 채 관련 action을 authorize한다.
-- unsettled consequential effect가 있는 상태에서 complete한다.
-- supporting evidence보다 넓은 completion claim을 만든다.
+- consequential Contextual Adequacy 또는 Proportionate Intervention gap이 열린 채 관련 Action을 clear한다.
+- unsettled consequential Effect가 있는 상태에서 complete한다.
+- supporting Evidence보다 넓은 Closure Claim을 만든다.
 - missing external decision을 Skill result로 대신 닫는다.
 - Skill output을 category synthesis 없이 final warrant로 취급한다.
 - trivial work에 불필요한 judgment를 생성한다.
@@ -442,19 +451,19 @@ complete | block | pause
                                     ▼
 ┌────────────────────────── Pi Extension Adapter ─────────────────────────┐
 │ host event를 pure work command/event로 번역                             │
-│ controlled tool action 전 authorization을 확인                          │
-│ tool result를 effect observation으로 기록                               │
+│ controlled tool action 전 Action Clearance를 확인                        │
+│ tool result를 Effect Observation으로 기록                               │
 └───────────────────────────────────┬─────────────────────────────────────┘
                                     │
                                     ▼
 ┌──────────────────────────── Pure Work Core ─────────────────────────────┐
-│ WorkState · pure transitions · invariants                               │
+│ Work Case · pure transitions · invariants                               │
 │ warrant-gap admission · category contracts                              │
 │ action/effect accounting · evidence-bounded completion                  │
 └───────────────┬───────────────────┬───────────────────┬─────────────────┘
                 │                   │                   │
                 ▼                   ▼                   ▼
-       Capability discovery   Model protocol      Read-only projection
+       Contribution routing   Model Protocol      Work View
        internal/external/     and guidance        session replay / TUI
        project-local Skills
 ```
@@ -463,8 +472,8 @@ complete | block | pause
 
 - `before_agent_start`: current canonical work와 unresolved obligations를 model context에 제공한다.
 - protocol tools: model이 judgment, contribution, action, settlement, completion transition을 명시적으로 제안하게 한다.
-- `tool_call`: controlled action이 현재 authorized action과 맞는지 확인한다.
-- `tool_result`: 실행 결과를 observation으로 기록한다.
+- `tool_call`: controlled Action이 현재 Cleared Action과 맞는지 확인한다.
+- `tool_result`: 실행 결과를 Effect Observation으로 기록한다.
 - `agent_settled`: completion으로 오인하지 않고 continuation, waiting, blocked, paused candidate를 판단한다.
 - session replay: append-only evidence에서 canonical state를 복구한다.
 - TUI projection: intended outcome, open judgment, action/effect, status를 read-only로 보여준다.
@@ -477,9 +486,9 @@ Extension은 다음을 소유할 수 있다.
 
 - canonical work status와 replay
 - judgment identity와 closure accounting
-- controlled action authorization 기록
-- observed effect와 settlement
-- completion claim과 evidence scope
+- controlled Action Clearance 기록
+- observed Effect와 settlement
+- Closure Claim과 Evidence scope
 - bounded continuation과 visible pause/block
 
 Extension만으로 다음을 보장할 수는 없다.
@@ -500,7 +509,7 @@ Extension만으로 다음을 보장할 수는 없다.
         ↓
 1. This architecture working contract
         ↓
-2. Pure WorkState and transitions
+2. Pure Work Core and transitions
         ↓
 3. Transition trace tests
         ↓
@@ -570,7 +579,7 @@ Extension만으로 다음을 보장할 수는 없다.
 이 working contract는 다음 evidence가 생길 때만 구조적으로 다시 연다.
 
 - finite trace가 네 category 어디에도 속하지 않는 consequential warrant gap을 드러낸다.
-- 두 category가 같은 referent에 대해 독립된 stop 없이 항상 함께 닫힌다.
+- 두 category가 같은 Judgment Subject에 대해 독립된 stop 없이 항상 함께 닫힌다.
 - pure transition으로 표현할 수 없는 host guarantee가 extension implementation을 실제로 막는다.
 - open-world capability가 필요한 contribution을 표현할 수 없다는 concrete case가 나온다.
 - effect settlement와 judgment closure가 동일한 상태로 합쳐져 forbidden completion을 허용한다.
