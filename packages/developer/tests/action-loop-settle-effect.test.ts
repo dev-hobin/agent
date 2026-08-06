@@ -9,7 +9,9 @@ import {
 	type IntendedEffectDispositionStatus,
 } from "../src/action-loop/effect/effect-settlement.ts";
 
-function effect(intendedEffects = ["The target artifact changed."]): PendingEffect {
+function effect(
+	intendedEffects = ["The target artifact changed."],
+): PendingEffect {
 	return Object.freeze({
 		effectId: "effect-1",
 		workCaseId: "work-1",
@@ -199,6 +201,7 @@ test("proposal cannot overstate derived outcome or omit accounting", () => {
 	for (const fixture of fixtures) {
 		const result = settleEffect(currentEffect, observations, fixture.proposal);
 		assert.equal(result.status, "invalid", fixture.code);
-		if (result.status === "invalid") assert.equal(result.error.code, fixture.code);
+		if (result.status === "invalid")
+			assert.equal(result.error.code, fixture.code);
 	}
 });

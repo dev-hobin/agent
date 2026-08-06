@@ -94,7 +94,10 @@ test("cross-Effect, malformed, or unbounded evidence is rejected", () => {
 		code: string;
 	}> = [
 		{ overrides: { effectId: "effect-other" }, code: "identity-mismatch" },
-		{ overrides: { occurrenceId: "tool-call-other" }, code: "identity-mismatch" },
+		{
+			overrides: { occurrenceId: "tool-call-other" },
+			code: "identity-mismatch",
+		},
 		{
 			overrides: {
 				evidence: {

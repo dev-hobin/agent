@@ -95,7 +95,10 @@ test("required Conclusions plus granted permission clear one exact Action", () =
 	assert.equal(first.status, "cleared");
 	assert.equal(repeated.status, "cleared");
 	if (first.status !== "cleared" || repeated.status !== "cleared") return;
-	assert.match(first.value.actionClearanceId, /^action_clearance_[a-f0-9]{64}$/);
+	assert.match(
+		first.value.actionClearanceId,
+		/^action_clearance_[a-f0-9]{64}$/,
+	);
 	assert.equal(repeated.value.actionClearanceId, first.value.actionClearanceId);
 	assert.equal(
 		first.value.controlledAction.fingerprint,
@@ -174,7 +177,8 @@ test("missing warrant remains not-cleared while malformed warrant is invalid", (
 			fixture.proposal,
 		);
 		assert.equal(result.status, "invalid", fixture.code);
-		if (result.status === "invalid") assert.equal(result.error.code, fixture.code);
+		if (result.status === "invalid")
+			assert.equal(result.error.code, fixture.code);
 	}
 });
 
@@ -182,11 +186,17 @@ test("permission must bind the candidate and retain explicit evidence", () => {
 	const currentCandidate = candidate();
 	for (const [currentPermission, code] of [
 		[
-			{ ...permission(currentCandidate), actionCandidateId: "action_candidate_other" },
+			{
+				...permission(currentCandidate),
+				actionCandidateId: "action_candidate_other",
+			},
 			"identity-mismatch",
 		],
 		[{ ...permission(currentCandidate), basis: [] }, "empty-permission-basis"],
-		[{ ...permission(currentCandidate), source: " " }, "invalid-permission-source"],
+		[
+			{ ...permission(currentCandidate), source: " " },
+			"invalid-permission-source",
+		],
 	] as const) {
 		const result = acceptActionClearance(
 			currentCandidate,

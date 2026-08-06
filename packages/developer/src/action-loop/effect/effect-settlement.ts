@@ -41,9 +41,7 @@ export type UnsettledEffectOutcome = "pending" | "unknown";
 export type EffectSettlementOutcome =
 	| SettledEffectOutcome
 	| UnsettledEffectOutcome;
-export type EffectObservationDispositionStatus =
-	| "relied-on"
-	| "not-relied-on";
+export type EffectObservationDispositionStatus = "relied-on" | "not-relied-on";
 export type IntendedEffectDispositionStatus =
 	| "observed"
 	| "not-observed"
@@ -345,7 +343,11 @@ function canonicalObservationIds(
 	if (!Array.isArray(values)) {
 		return {
 			ok: false,
-			error: { code: "undeclared-observation", path, message: "Expected Observation IDs" },
+			error: {
+				code: "undeclared-observation",
+				path,
+				message: "Expected Observation IDs",
+			},
 		};
 	}
 	const ids = new Set<string>();
@@ -515,12 +517,16 @@ function canonicalIntendedEffectDispositions(
 	const citedReliedIds = new Set<string>();
 	const byEffect = new Map<string, IntendedEffectDisposition>();
 	for (let index = 0; index < proposals.length; index += 1) {
-		const canonical = canonicalIntendedEffectDisposition(proposals[index], index, {
-			declared: new Set(effect.intendedEffects),
-			inventory,
-			reliedIds,
-			alreadyAccounted: new Set(byEffect.keys()),
-		});
+		const canonical = canonicalIntendedEffectDisposition(
+			proposals[index],
+			index,
+			{
+				declared: new Set(effect.intendedEffects),
+				inventory,
+				reliedIds,
+				alreadyAccounted: new Set(byEffect.keys()),
+			},
+		);
 		if (!canonical.ok) return canonical;
 		byEffect.set(canonical.value.intendedEffect, canonical.value);
 		for (const id of canonical.value.observationIds) citedReliedIds.add(id);
@@ -551,7 +557,9 @@ function deriveOutcome(
 	const statuses = intended.map(({ status }) => status);
 	if (statuses.includes("unknown")) return "unknown";
 	if (statuses.includes("partially-observed")) return "partially-applied";
-	const observedCount = statuses.filter((status) => status === "observed").length;
+	const observedCount = statuses.filter(
+		(status) => status === "observed",
+	).length;
 	if (observedCount === statuses.length) return "observed-success";
 	if (observedCount > 0) return "partially-applied";
 	if (statuses.includes("failed")) return "failed";
@@ -566,7 +574,9 @@ interface EffectAccountingIdentityInput {
 	readonly basis: readonly string[];
 }
 
-function accountingIdentityParts(input: EffectAccountingIdentityInput): string[] {
+function accountingIdentityParts(
+	input: EffectAccountingIdentityInput,
+): string[] {
 	const parts = [
 		input.effect.effectId,
 		input.effect.actionClearanceId,

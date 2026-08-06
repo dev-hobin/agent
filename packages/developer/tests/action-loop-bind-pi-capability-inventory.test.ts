@@ -326,9 +326,7 @@ test("bound unstructured inventory composes through Upper Judgment closure", asy
 				{
 					requirementId: "requirement-method",
 					statement: "The requested bounded method is contextually adequate.",
-					contributionNeedIds: [
-						applicability.assignment.contributionNeedId,
-					],
+					contributionNeedIds: [applicability.assignment.contributionNeedId],
 				},
 			],
 		},

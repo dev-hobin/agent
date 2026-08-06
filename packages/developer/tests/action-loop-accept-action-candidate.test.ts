@@ -40,8 +40,14 @@ test("exact controlled action and warrant requirements produce one candidate", (
 	assert.equal(first.status, "accepted");
 	assert.equal(reordered.status, "accepted");
 	if (first.status !== "accepted" || reordered.status !== "accepted") return;
-	assert.match(first.value.actionCandidateId, /^action_candidate_[a-f0-9]{64}$/);
-	assert.equal(reordered.value.actionCandidateId, first.value.actionCandidateId);
+	assert.match(
+		first.value.actionCandidateId,
+		/^action_candidate_[a-f0-9]{64}$/,
+	);
+	assert.equal(
+		reordered.value.actionCandidateId,
+		first.value.actionCandidateId,
+	);
 	assert.deepEqual(first.value.intendedEffects, [
 		"No unrelated artifact changes.",
 		"The target implementation reflects the accepted contract.",
@@ -69,7 +75,10 @@ test("a different controlled action fingerprint cannot reuse candidate identity"
 	assert.equal(first.status, "accepted");
 	assert.equal(changed.status, "accepted");
 	if (first.status === "accepted" && changed.status === "accepted") {
-		assert.notEqual(changed.value.actionCandidateId, first.value.actionCandidateId);
+		assert.notEqual(
+			changed.value.actionCandidateId,
+			first.value.actionCandidateId,
+		);
 	}
 });
 
