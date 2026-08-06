@@ -13,6 +13,7 @@ import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-ca
 import { recordWorkCaseEffectAssessment } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
 import {
+	deriveWorkCaseRevisionId,
 	openWorkCase,
 	type ActiveWorkCase,
 } from "../src/action-loop/work/work-case.ts";
@@ -95,6 +96,29 @@ test("missing Claim Assurance and stale Work Case cannot produce a target", () =
 			missing.blockers.map(({ code }) => code),
 			["missing-claim-assurance"],
 		);
+	}
+});
+
+test("revision-consistent but incoherent inventory fails closed", () => {
+	const opened = openCase();
+	const current = recordConclusion(
+		opened,
+		conclusion(opened.workCaseId, "Claim Assurance", "conclusion-claim"),
+	);
+	const duplicatedConclusions = Object.freeze([
+		...current.conclusions,
+		...current.conclusions,
+	]);
+	const draft = { ...current, conclusions: duplicatedConclusions };
+	const forged = {
+		...draft,
+		revisionId: deriveWorkCaseRevisionId(draft),
+	};
+	const result = prepareClosureTarget(forged);
+
+	assert.equal(result.status, "invalid");
+	if (result.status === "invalid") {
+		assert.equal(result.error.code, "invalid-work-case-inventory");
 	}
 });
 

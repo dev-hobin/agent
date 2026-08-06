@@ -1,6 +1,10 @@
 import { hashIdentity } from "../identity/hash-identity.ts";
 import { effectAssessmentId } from "./record-work-case-effect-assessment.ts";
-import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
+import {
+	deriveWorkCaseRevisionId,
+	workCaseInventoryIssue,
+	type ActiveWorkCase,
+} from "./work-case.ts";
 
 export const CLOSURE_TARGET_VERSION = "developer-closure-target/v1";
 
@@ -44,8 +48,8 @@ export type ClosureTargetPreparationResult =
 	| {
 			readonly status: "invalid";
 			readonly error: {
-				readonly code: "stale-work-case";
-				readonly path: "workCase.revisionId";
+				readonly code: "stale-work-case" | "invalid-work-case-inventory";
+				readonly path: string;
 				readonly message: string;
 			};
 	  };
@@ -143,6 +147,17 @@ export function prepareClosureTarget(
 				code: "stale-work-case",
 				path: "workCase.revisionId",
 				message: "Work Case revision does not match its closure inventory",
+			},
+		};
+	}
+	const inventoryIssue = workCaseInventoryIssue(workCase);
+	if (inventoryIssue !== undefined) {
+		return {
+			status: "invalid",
+			error: {
+				code: "invalid-work-case-inventory",
+				path: inventoryIssue.path,
+				message: inventoryIssue.message,
 			},
 		};
 	}

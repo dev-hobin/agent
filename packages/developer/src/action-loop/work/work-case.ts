@@ -232,6 +232,203 @@ export function deriveWorkCaseRevisionId(state: WorkCaseRevisionState): string {
 	]);
 }
 
+export interface WorkCaseInventoryIssue {
+	readonly code: "duplicate-record" | "identity-mismatch" | "missing-dependency";
+	readonly path: string;
+	readonly message: string;
+}
+
+function firstDuplicateId(ids: readonly string[]): string | undefined {
+	const seen = new Set<string>();
+	for (const id of ids) {
+		if (seen.has(id)) return id;
+		seen.add(id);
+	}
+	return undefined;
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+	return (
+		left.length === right.length &&
+		left.every((value, index) => value === right[index])
+	);
+}
+
+function duplicateInventoryIssue(
+	workCase: ActiveWorkCase,
+): WorkCaseInventoryIssue | undefined {
+	const collections: Array<[string, readonly string[]]> = [
+		["conclusions", workCase.conclusions.map(({ conclusionId }) => conclusionId)],
+		[
+			"actionCandidates",
+			workCase.actionCandidates.map(({ actionCandidateId }) => actionCandidateId),
+		],
+		[
+			"actionClearances",
+			workCase.actionClearances.map(({ actionClearanceId }) => actionClearanceId),
+		],
+		["effects", workCase.effects.map(({ effectId }) => effectId)],
+		[
+			"currentEffectAssessments",
+			workCase.currentEffectAssessments.map(({ effectId }) => effectId),
+		],
+	];
+	for (const [path, ids] of collections) {
+		const duplicateId = firstDuplicateId(ids);
+		if (duplicateId !== undefined) {
+			return {
+				code: "duplicate-record",
+				path: `workCase.${path}`,
+				message: `Duplicate canonical record: ${duplicateId}`,
+			};
+		}
+	}
+	return undefined;
+}
+
+function conclusionInventoryIssue(
+	workCase: ActiveWorkCase,
+): WorkCaseInventoryIssue | undefined {
+	const mismatched = workCase.conclusions.find(
+		({ workCaseId }) => workCaseId !== workCase.workCaseId,
+	);
+	return mismatched === undefined
+		? undefined
+		: {
+				code: "identity-mismatch",
+				path: "workCase.conclusions",
+				message: `Conclusion belongs to another Work Case: ${mismatched.conclusionId}`,
+			};
+}
+
+function candidateInventoryIssue(
+	workCase: ActiveWorkCase,
+	conclusions: ReadonlySet<string>,
+): WorkCaseInventoryIssue | undefined {
+	const invalid = workCase.actionCandidates.find(
+		(candidate) =>
+			candidate.workCaseId !== workCase.workCaseId ||
+			candidate.requiredConclusionIds.some((id) => !conclusions.has(id)),
+	);
+	return invalid === undefined
+		? undefined
+		: {
+				code: "missing-dependency",
+				path: "workCase.actionCandidates",
+				message: `Action Candidate has a missing Work Case dependency: ${invalid.actionCandidateId}`,
+			};
+}
+
+function clearanceInventoryIssue(
+	workCase: ActiveWorkCase,
+	conclusions: ReadonlySet<string>,
+	candidates: ReadonlyMap<string, ActionCandidate>,
+): WorkCaseInventoryIssue | undefined {
+	for (const clearance of workCase.actionClearances) {
+		const candidate = candidates.get(clearance.actionCandidateId);
+		if (
+			clearance.workCaseId !== workCase.workCaseId ||
+			candidate === undefined ||
+			clearance.conclusionIds.some((id) => !conclusions.has(id)) ||
+			candidate.controlledAction.kind !== clearance.controlledAction.kind ||
+			candidate.controlledAction.fingerprint !==
+				clearance.controlledAction.fingerprint ||
+			!sameStrings(candidate.intendedEffects, clearance.intendedEffects)
+		) {
+			return {
+				code: "missing-dependency",
+				path: "workCase.actionClearances",
+				message: `Action Clearance has a missing or changed dependency: ${clearance.actionClearanceId}`,
+			};
+		}
+	}
+	return undefined;
+}
+
+function effectInventoryIssue(
+	workCase: ActiveWorkCase,
+	clearances: ReadonlyMap<string, ActionClearance>,
+): WorkCaseInventoryIssue | undefined {
+	for (const effect of workCase.effects) {
+		const clearance = clearances.get(effect.actionClearanceId);
+		if (
+			effect.workCaseId !== workCase.workCaseId ||
+			clearance === undefined ||
+			clearance.actionCandidateId !== effect.actionCandidateId ||
+			clearance.controlledAction.kind !== effect.controlledAction.kind ||
+			clearance.controlledAction.fingerprint !==
+				effect.controlledAction.fingerprint ||
+			!sameStrings(clearance.intendedEffects, effect.intendedEffects)
+		) {
+			return {
+				code: "missing-dependency",
+				path: "workCase.effects",
+				message: `Effect has a missing or changed dependency: ${effect.effectId}`,
+			};
+		}
+	}
+	return undefined;
+}
+
+function assessmentInventoryIssue(
+	workCase: ActiveWorkCase,
+	effects: ReadonlyMap<string, PendingEffect>,
+): WorkCaseInventoryIssue | undefined {
+	for (const assessment of workCase.currentEffectAssessments) {
+		const effect = effects.get(assessment.effectId);
+		if (
+			assessment.workCaseId !== workCase.workCaseId ||
+			effect === undefined ||
+			effect.actionClearanceId !== assessment.actionClearanceId ||
+			effect.occurrenceId !== assessment.occurrenceId
+		) {
+			return {
+				code: "missing-dependency",
+				path: "workCase.currentEffectAssessments",
+				message: `Effect assessment has a missing or changed Effect: ${assessment.effectId}`,
+			};
+		}
+	}
+	return undefined;
+}
+
+/** Returns the first cross-inventory invariant violation, if any. */
+export function workCaseInventoryIssue(
+	workCase: ActiveWorkCase,
+): WorkCaseInventoryIssue | undefined {
+	const duplicateIssue = duplicateInventoryIssue(workCase);
+	if (duplicateIssue !== undefined) return duplicateIssue;
+	const conclusionIssue = conclusionInventoryIssue(workCase);
+	if (conclusionIssue !== undefined) return conclusionIssue;
+	const conclusions = new Set(
+		workCase.conclusions.map(({ conclusionId }) => conclusionId),
+	);
+	const candidateIssue = candidateInventoryIssue(workCase, conclusions);
+	if (candidateIssue !== undefined) return candidateIssue;
+	const candidates = new Map(
+		workCase.actionCandidates.map((candidate) => [
+			candidate.actionCandidateId,
+			candidate,
+		]),
+	);
+	const clearanceIssue = clearanceInventoryIssue(
+		workCase,
+		conclusions,
+		candidates,
+	);
+	if (clearanceIssue !== undefined) return clearanceIssue;
+	const clearances = new Map(
+		workCase.actionClearances.map((clearance) => [
+			clearance.actionClearanceId,
+			clearance,
+		]),
+	);
+	const effectIssue = effectInventoryIssue(workCase, clearances);
+	if (effectIssue !== undefined) return effectIssue;
+	const effects = new Map(workCase.effects.map((effect) => [effect.effectId, effect]));
+	return assessmentInventoryIssue(workCase, effects);
+}
+
 /** Opens one active Work Case around one bounded Outcome. */
 export function openWorkCase(
 	proposal: WorkCaseProposal,
