@@ -131,7 +131,10 @@ test("unstructured applicability requires basis without synthetic conditions", (
 	assert.equal(result.status, "assigned");
 	assert.equal(repeated.status, "assigned");
 	if (result.status !== "assigned" || repeated.status !== "assigned") return;
-	assert.equal(result.assignment.assignmentId, repeated.assignment.assignmentId);
+	assert.equal(
+		result.assignment.assignmentId,
+		repeated.assignment.assignmentId,
+	);
 	assert.deepEqual(result.assignment.matchedWhen, []);
 	assert.deepEqual(result.assignment.applicabilityBasis, [
 		"The admitted Skill method directly addresses the current Need.",

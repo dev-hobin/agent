@@ -208,7 +208,10 @@ test("bound unstructured inventory composes directly into applicability", async 
 	}
 	const entry = inventory.entries[0];
 	assert.equal(entry?.status, "bound");
-	assert.equal(entry?.status === "bound" ? entry.routing : undefined, "unstructured");
+	assert.equal(
+		entry?.status === "bound" ? entry.routing : undefined,
+		"unstructured",
+	);
 	if (entry?.status !== "bound" || entry.routing !== "unstructured") return;
 
 	const result = acceptCapabilityApplicability(
