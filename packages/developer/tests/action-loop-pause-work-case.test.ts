@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
+import { acceptClosureClaim } from "../src/action-loop/work/accept-closure-claim.ts";
+import { completeWorkCase } from "../src/action-loop/work/complete-work-case.ts";
 import { pauseWorkCase } from "../src/action-loop/work/pause-work-case.ts";
+import { prepareClosureTarget } from "../src/action-loop/work/prepare-closure-target.ts";
+import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import { resumePausedWorkCase } from "../src/action-loop/work/resume-paused-work-case.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
 
@@ -75,6 +80,70 @@ test("explicit human resume creates a new active continuity revision", () => {
 		resumed.value.continuityIds[1],
 	]);
 	assert.match(resumed.value.continuityIds[1] ?? "", /^work_case_resume_[a-f0-9]{64}$/);
+});
+
+test("pre-pause Closure Claim is stale after resume", () => {
+	const current = workCase();
+	const assurance: JudgmentConclusion = Object.freeze({
+		conclusionId: "conclusion-before-pause",
+		workCaseId: current.workCaseId,
+		judgmentId: "judgment-before-pause",
+		category: "Claim Assurance",
+		subject: "The current Outcome claim is assured.",
+		contextRevisionId: "context-before-pause",
+		requirementDispositions: Object.freeze([]),
+		coverageIds: Object.freeze([]),
+		basis: Object.freeze(["Current bounded evidence supports the Outcome."]),
+		answer: "The Outcome is currently supported.",
+		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
+	});
+	const withAssurance = recordWorkCaseConclusion(current, assurance);
+	if (withAssurance.status !== "recorded") return;
+	const target = prepareClosureTarget(withAssurance.value);
+	if (target.status !== "ready") return;
+	const claim = acceptClosureClaim(target.value, {
+		workCaseId: withAssurance.value.workCaseId,
+		closureTargetId: target.value.closureTargetId,
+		mode: "no-change",
+		obligationDispositions: target.value.obligations.map((obligation) => ({
+			closureObligationId: obligation.closureObligationId,
+			conclusionIds: target.value.conclusionIds,
+			effectAssessmentIds: [],
+			basis: ["The current Claim Assurance supports this obligation."],
+		})),
+		basis: ["Every current closure obligation is accounted."],
+		provenance: { kind: "model", source: "test-evaluator" },
+	});
+	if (claim.status !== "accepted") return;
+	const paused = pauseWorkCase(withAssurance.value, {
+		workCaseId: withAssurance.value.workCaseId,
+		expectedRevisionId: withAssurance.value.revisionId,
+		reason: "Pause before applying the completion transition.",
+		decision: {
+			kind: "human",
+			decisionId: "user-pause-before-completion",
+			source: "delegating-user",
+			basis: ["The user explicitly paused completion."],
+		},
+	});
+	if (paused.status !== "paused") return;
+	const resumed = resumePausedWorkCase(paused.value, {
+		workCaseId: paused.value.workCaseId,
+		expectedRevisionId: paused.value.revisionId,
+		decision: {
+			kind: "human",
+			decisionId: "user-resume-before-completion",
+			source: "delegating-user",
+			basis: ["The user explicitly resumed work."],
+		},
+	});
+	if (resumed.status !== "active") return;
+	const completion = completeWorkCase(resumed.value, target.value, claim.value);
+
+	assert.equal(completion.status, "refused");
+	if (completion.status === "refused") {
+		assert.equal(completion.refusal.code, "stale-closure-target");
+	}
 });
 
 test("model, stale, cross-Case, or basis-free pause attempts fail closed", () => {
