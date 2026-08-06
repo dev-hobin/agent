@@ -1,5 +1,7 @@
 # Developer Action Loop Concept Vocabulary v0.1
 
+[English](../action-loop-concept-vocabulary-v0.1.md) | 한국어
+
 > 상태: reconstruction concept contract
 >
 > 관련 문서:
