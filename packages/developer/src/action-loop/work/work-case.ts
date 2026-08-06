@@ -192,6 +192,48 @@ function canonicalProvenance(
 	};
 }
 
+type WorkCaseRevisionState = Omit<
+	ActiveWorkCase,
+	"revisionId" | "status" | "provenance" | "outcome"
+>;
+
+function sortedIds(ids: readonly string[]): readonly string[] {
+	return [...ids].sort((left, right) => left.localeCompare(right));
+}
+
+/** Derives the current Work Case revision from its complete closure inventory. */
+export function deriveWorkCaseRevisionId(
+	state: WorkCaseRevisionState,
+): string {
+	const assessmentIds = state.currentEffectAssessments.map((assessment) =>
+		"effectSettlementId" in assessment
+			? assessment.effectSettlementId
+			: assessment.effectAssessmentId,
+	);
+	return hashIdentity("work_case_revision", WORK_CASE_REVISION_VERSION, [
+		state.workCaseId,
+		"conclusions",
+		String(state.conclusions.length),
+		...sortedIds(state.conclusions.map(({ conclusionId }) => conclusionId)),
+		"action-candidates",
+		String(state.actionCandidates.length),
+		...sortedIds(
+			state.actionCandidates.map(({ actionCandidateId }) => actionCandidateId),
+		),
+		"action-clearances",
+		String(state.actionClearances.length),
+		...sortedIds(
+			state.actionClearances.map(({ actionClearanceId }) => actionClearanceId),
+		),
+		"effects",
+		String(state.effects.length),
+		...sortedIds(state.effects.map(({ effectId }) => effectId)),
+		"current-effect-assessments",
+		String(assessmentIds.length),
+		...sortedIds(assessmentIds),
+	]);
+}
+
 /** Opens one active Work Case around one bounded Outcome. */
 export function openWorkCase(
 	proposal: WorkCaseProposal,
@@ -240,23 +282,14 @@ export function openWorkCase(
 		constraints: constraints.value,
 	});
 	const workCaseId = hashIdentity("work_case", WORK_CASE_VERSION, [outcomeId]);
-	const revisionId = hashIdentity(
-		"work_case_revision",
-		WORK_CASE_REVISION_VERSION,
-		[
-			workCaseId,
-			"conclusions",
-			"0",
-			"action-candidates",
-			"0",
-			"action-clearances",
-			"0",
-			"effects",
-			"0",
-			"current-effect-assessments",
-			"0",
-		],
-	);
+	const revisionId = deriveWorkCaseRevisionId({
+		workCaseId,
+		conclusions: [],
+		actionCandidates: [],
+		actionClearances: [],
+		effects: [],
+		currentEffectAssessments: [],
+	});
 	return {
 		status: "opened",
 		value: Object.freeze({
