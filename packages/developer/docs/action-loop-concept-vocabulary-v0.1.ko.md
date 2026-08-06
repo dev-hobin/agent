@@ -535,7 +535,7 @@ Work Case transition과 invariant를 소유한다. Pi hook, TUI, Skill discovery
 
 ### Contribution Router
 
-Contribution Need와 Context를 보고 사용할 Capability를 선택한다. Skill-backed Capability가 선택되면 schema-identified TOC의 root applicability와 Skill-local Reference relevance를 적용한다. Conclusion이나 Need Coverage를 만들지 않고 fixed Skill order를 강제하지 않는다.
+Contribution Need와 Context를 보고 사용할 Capability를 선택한다. Structured Skill-backed Capability에는 schema-identified TOC의 root applicability와 Skill-local Reference relevance를 적용한다. Unstructured Capability에는 authored predicate나 Reference route를 합성하지 않고 Pi-admitted metadata와 explicit basis를 사용한 open-world applicability만 허용한다. Conclusion이나 Need Coverage를 만들지 않고 fixed Skill order를 강제하지 않는다.
 
 ### Model Protocol
 

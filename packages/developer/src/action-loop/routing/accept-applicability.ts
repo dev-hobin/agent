@@ -1,5 +1,8 @@
 import { hashIdentity } from "../identity/hash-identity.ts";
-import type { BoundCapability } from "./bind-capability.ts";
+import type {
+	BoundCapability,
+	BoundUnstructuredCapability,
+} from "./bind-capability.ts";
 
 export const CAPABILITY_ASSIGNMENT_VERSION =
 	"developer-capability-assignment/v1";
@@ -19,7 +22,7 @@ export interface ApplicabilityTarget {
 	readonly workCaseId: string;
 	readonly judgmentId: string;
 	readonly contributionNeedId: string;
-	readonly capability: BoundCapability;
+	readonly capability: BoundCapability | BoundUnstructuredCapability;
 }
 
 export interface CapabilityApplicabilityProposal {
@@ -176,6 +179,12 @@ function canonicalMatches(
 	};
 }
 
+function isStructuredCapability(
+	capability: BoundCapability | BoundUnstructuredCapability,
+): capability is BoundCapability {
+	return "toc" in capability;
+}
+
 function checkTarget(
 	target: ApplicabilityTarget,
 ): ApplicabilityAcceptanceResult | undefined {
@@ -229,6 +238,7 @@ function assessStatus(
 	matchedWhen: readonly string[],
 	matchedUnless: readonly string[],
 	missingContext: readonly string[],
+	requiresWhenMatch: boolean,
 ): ApplicabilityAcceptanceResult | undefined {
 	if (!APPLICABILITY_STATUSES.has(proposal.status)) {
 		return invalid(
@@ -245,11 +255,11 @@ function assessStatus(
 		);
 	}
 	if (proposal.status === "applicable") {
-		if (matchedWhen.length === 0) {
+		if (requiresWhenMatch && matchedWhen.length === 0) {
 			return invalid(
 				"applicable-without-when",
 				"proposal.matchedWhen",
-				"Applicable requires at least one declared when match",
+				"Structured applicability requires at least one declared when match",
 			);
 		}
 		if (matchedUnless.length > 0) {
@@ -344,15 +354,16 @@ export function acceptCapabilityApplicability(
 	const identityFailure = checkIdentity(target, proposal);
 	if (identityFailure !== undefined) return identityFailure;
 
+	const structured = isStructuredCapability(target.capability);
 	const matchedWhen = canonicalMatches(
 		proposal.matchedWhen,
-		target.capability.toc.when,
+		structured ? target.capability.toc.when : [],
 		"proposal.matchedWhen",
 	);
 	if (!matchedWhen.ok) return { status: "invalid", error: matchedWhen.error };
 	const matchedUnless = canonicalMatches(
 		proposal.matchedUnless,
-		target.capability.toc.unless,
+		structured ? target.capability.toc.unless : [],
 		"proposal.matchedUnless",
 	);
 	if (!matchedUnless.ok)
@@ -379,6 +390,7 @@ export function acceptCapabilityApplicability(
 		matchedWhen.value,
 		matchedUnless.value,
 		missingContext.value,
+		structured,
 	);
 	if (statusFailure !== undefined) return statusFailure;
 

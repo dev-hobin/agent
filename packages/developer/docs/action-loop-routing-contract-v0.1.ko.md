@@ -365,7 +365,9 @@ Root applicability is machine-visible, but `SKILL.md` owns the entire method.
 
 ### Unstructured Skill
 
-No matching TOC schema descriptor is present. Pi metadata and Skill description remain available for open-world matching, but the Capability advertises no structured Reference inventory.
+No matching TOC schema descriptor is present. Pi-admitted metadata and Skill description remain available for open-world matching, but the Capability advertises no authored applicability predicate or structured Reference inventory.
+
+Unstructured applicability uses the same proposal protocol as structured applicability. `matchedWhen` and `matchedUnless` must both be empty, an explicit nonblank basis is still required, and `applicable | not-applicable | needs-context` retain their ordinary meaning. Runtime does not invent a synthetic `when` merely to permit assignment.
 
 ### Invalid or ambiguous descriptor
 
@@ -397,14 +399,15 @@ Authors do not duplicate these values in TOC.
 Strong enforcement comes from generated refined values, not a large authoring schema.
 
 ```text
-Pi-discovered Skill root
-  → schema-identified TOC bytes
-  → Parsed TOC
-  → Skill-bound TOC
+Pi-admitted Skill material
+  → exact bounded Skill bytes
+  → structured: schema-identified TOC bytes → Parsed TOC
+    | unstructured: explicit versioned no-TOC state
+  → source-bound Capability revision
   → Capability Applicability
   → Capability Assignment
-  → Reference Dispositions
-  → Reference Selection
+  → structured: Reference Dispositions → Reference Selection
+    | unstructured: no synthetic Reference route
   → Sealed Skill Context
   → Skill Contribution
   → Need Coverage
@@ -418,12 +421,25 @@ Normalized `$schema`, `when`, `unless`, Reference paths, Reference conditions, a
 
 Binds Parsed TOC to Pi-discovered source provenance, canonical Skill root, `SKILL.md` descriptor, generated Capability ID, and Capability revision ID.
 
+### Unstructured Capability
+
+Binds the explicit no-TOC routing state and exact Skill hash to the same source-bound Capability identity. It has no `toc`, `tocHash`, or declared conditions.
+
 ### Capability Applicability
 
 ```text
 applicable(basis)
 not-applicable(reason, evidence)
 needs-context(missing)
+
+structured applicable
+  → at least one declared when matches
+  → no declared unless matches
+
+unstructured applicable
+  → matchedWhen = []
+  → matchedUnless = []
+  → explicit basis, without a synthetic predicate
 ```
 
 ### Capability Assignment
@@ -688,7 +704,8 @@ provider/model response
 | Recognized TOC fails validation | Structured routing advertisement rejected; no silent fallback. |
 | Multiple matching descriptors | Ambiguous TOC failure; none selected. |
 | Known schema family has unsupported version | Unsupported-version failure; no network fallback. |
-| Root applicability uncertain | `needs-context`; no positive structured assignment. |
+| Structured root applicability uncertain | `needs-context`; no positive assignment. |
+| Unstructured applicability uncertain | `needs-context`; no synthetic condition or positive assignment. |
 | Reference relevance uncertain | Selection remains unresolved or Contribution remains partial. |
 | Selected file missing or drifted | Atomic sealing failure. |
 | Undeclared Reference nominated | Selection rejected. |
@@ -816,7 +833,7 @@ Do not begin with TUI, XState, automatic migration generation, a generalized rou
 
 The following remain provisional and should be decided through fixtures rather than more authoring fields.
 
-- Whether every first-party Skill should have a TOC, including empty `references`, or leaf Skills may remain unstructured.
+- How an assigned unstructured Capability seals direct-file or directory Skill material and reaches Contribution without inventing a Reference route.
 - Whether declaration order is sufficient for all real co-required Reference cases.
 - Whether every Reference must be dispositioned or a bounded candidate shortlist can preserve omission safety at lower context cost.
 - How stronger evaluator and user assurance attach to Contributions.

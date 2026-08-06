@@ -7,6 +7,7 @@ import {
 } from "../src/action-loop/routing/accept-applicability.ts";
 import {
 	bindCapability,
+	bindUnstructuredCapability,
 	type BoundCapability,
 } from "../src/action-loop/routing/bind-capability.ts";
 import {
@@ -50,6 +51,24 @@ function target(): ApplicabilityTarget {
 		judgmentId: "judgment-1",
 		contributionNeedId: "need-1",
 		capability: capability(),
+	};
+}
+
+function unstructuredTarget(): ApplicabilityTarget {
+	const bound = bindUnstructuredCapability(
+		{
+			kind: "cli",
+			locator: "file:///tmp/project/direct.md",
+			skillRoot: ".",
+		},
+		encoder.encode("---\nname: direct\ndescription: Direct capability\n---\n"),
+	);
+	if (!bound.ok) throw new Error(bound.error.message);
+	return {
+		workCaseId: "work-1",
+		judgmentId: "judgment-1",
+		contributionNeedId: "need-1",
+		capability: bound.value,
 	};
 }
 
@@ -98,6 +117,68 @@ test("applicable proposal creates one deterministic immutable assignment", () =>
 	assert.equal(Object.isFrozen(result.assessment), true);
 	assert.equal(Object.isFrozen(result.assignment), true);
 	assert.equal(Object.isFrozen(result.assignment.matchedWhen), true);
+});
+
+test("unstructured applicability requires basis without synthetic conditions", () => {
+	const currentTarget = unstructuredTarget();
+	const input = proposal(currentTarget, {
+		matchedWhen: [],
+		basis: ["The admitted Skill method directly addresses the current Need."],
+	});
+	const result = acceptCapabilityApplicability(currentTarget, input);
+	const repeated = acceptCapabilityApplicability(currentTarget, input);
+
+	assert.equal(result.status, "assigned");
+	assert.equal(repeated.status, "assigned");
+	if (result.status !== "assigned" || repeated.status !== "assigned") return;
+	assert.equal(result.assignment.assignmentId, repeated.assignment.assignmentId);
+	assert.deepEqual(result.assignment.matchedWhen, []);
+	assert.deepEqual(result.assignment.applicabilityBasis, [
+		"The admitted Skill method directly addresses the current Need.",
+	]);
+
+	for (const overrides of [
+		{ matchedWhen: ["A synthetic applicability condition"] },
+		{ matchedUnless: ["A synthetic exclusion condition"] },
+	]) {
+		const synthetic = acceptCapabilityApplicability(
+			currentTarget,
+			proposal(currentTarget, overrides),
+		);
+		assert.equal(synthetic.status, "invalid");
+		if (synthetic.status === "invalid") {
+			assert.equal(synthetic.error.code, "undeclared-condition");
+		}
+	}
+});
+
+test("unstructured applicability preserves explicit unresolved outcomes", () => {
+	const currentTarget = unstructuredTarget();
+	const notApplicable = acceptCapabilityApplicability(
+		currentTarget,
+		proposal(currentTarget, {
+			status: "not-applicable",
+			matchedWhen: [],
+			basis: ["The admitted Skill method does not address this Need."],
+		}),
+	);
+	const needsContext = acceptCapabilityApplicability(
+		currentTarget,
+		proposal(currentTarget, {
+			status: "needs-context",
+			matchedWhen: [],
+			basis: ["The Skill may apply, but the target constraint is absent."],
+			missingContext: ["The target constraint is required."],
+		}),
+	);
+
+	assert.equal(notApplicable.status, "not-applicable");
+	assert.equal(needsContext.status, "needs-context");
+	if (needsContext.status === "needs-context") {
+		assert.deepEqual(needsContext.assessment.missingContext, [
+			"The target constraint is required.",
+		]);
+	}
 });
 
 test("no when match is accepted as not-applicable without an assignment", () => {
