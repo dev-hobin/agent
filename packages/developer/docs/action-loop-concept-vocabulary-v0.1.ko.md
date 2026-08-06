@@ -169,7 +169,7 @@ Need Coverage
 
 > 하나의 Outcome을 중심으로 Judgment, Action, Effect, Claim을 끝까지 연결하는 canonical work unit.
 
-Work Case는 chat session, assistant response, git branch, task list와 동일하지 않다.
+Work Case는 chat session, assistant response, git branch, task list와 동일하지 않다. V0 Work Case는 normalized Outcome statement, 하나 이상의 acceptance condition, zero or more constraints에서 content-bound identity를 만들고 `active`로 열린다. Proposal provenance는 보존하지만 model, provider, session, branch, professional role은 Outcome 또는 Work Case identity에 들어가지 않는다.
 
 - 여러 agent turn을 통과할 수 있다.
 - external wait 동안에도 유지된다.
