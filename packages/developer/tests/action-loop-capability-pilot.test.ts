@@ -544,10 +544,7 @@ const scenarios: readonly PilotScenario[] = [
 		name: "deployment-check",
 		loadedSkill: loadedSkill({
 			name: "deployment-check",
-			skillRootPath: join(
-				projectFixtureBase,
-				"action-loop-external-skill",
-			),
+			skillRootPath: join(projectFixtureBase, "action-loop-external-skill"),
 			sourceBaseDir: projectFixtureBase,
 			source: "local",
 			scope: "project",
