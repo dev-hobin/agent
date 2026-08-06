@@ -18,10 +18,7 @@ const REQUIREMENT_STATUSES: ReadonlySet<string> = new Set([
 	"not-satisfied",
 	"needs-context",
 ]);
-const CLOSURE_OUTCOMES: ReadonlySet<string> = new Set([
-	"conclude",
-	"refuse",
-]);
+const CLOSURE_OUTCOMES: ReadonlySet<string> = new Set(["conclude", "refuse"]);
 const PROVENANCE_KINDS: ReadonlySet<string> = new Set([
 	"model",
 	"human",
@@ -285,7 +282,10 @@ function buildRequirementInventory(
 	const byId = new Map<string, ClosureRequirement>();
 	const mappedNeedIds = new Set<string>();
 	for (const [index, requirement] of contract.requirements.entries()) {
-		if (!validId(requirement.requirementId) || byId.has(requirement.requirementId)) {
+		if (
+			!validId(requirement.requirementId) ||
+			byId.has(requirement.requirementId)
+		) {
 			return {
 				ok: false,
 				error: {
@@ -303,14 +303,18 @@ function buildRequirementInventory(
 		if (!statement.ok) return statement;
 		const needIds: string[] = [];
 		const localNeeds = new Set<string>();
-		for (const [needIndex, needId] of requirement.contributionNeedIds.entries()) {
+		for (const [
+			needIndex,
+			needId,
+		] of requirement.contributionNeedIds.entries()) {
 			if (!validId(needId) || localNeeds.has(needId)) {
 				return {
 					ok: false,
 					error: {
 						code: "invalid-contract",
 						path: `contract.requirements[${index}].contributionNeedIds[${needIndex}]`,
-						message: "Contribution Need ID must be canonical and unique per Requirement",
+						message:
+							"Contribution Need ID must be canonical and unique per Requirement",
 					},
 				};
 			}
@@ -370,8 +374,16 @@ function buildCoverageInventory(
 	const byNeedId = new Map<string, NeedCoverage>();
 	for (const [index, coverage] of coverages.entries()) {
 		for (const [path, actual, expected] of [
-			[`coverages[${index}].workCaseId`, coverage.workCaseId, contract.workCaseId],
-			[`coverages[${index}].judgmentId`, coverage.judgmentId, contract.judgmentId],
+			[
+				`coverages[${index}].workCaseId`,
+				coverage.workCaseId,
+				contract.workCaseId,
+			],
+			[
+				`coverages[${index}].judgmentId`,
+				coverage.judgmentId,
+				contract.judgmentId,
+			],
 		] as const) {
 			if (actual !== expected) {
 				return {
@@ -461,7 +473,8 @@ function canonicalCoverageCitations(
 			error: {
 				code: "coverage-citation",
 				path,
-				message: "Requirement must cite every current mapped Coverage exactly once",
+				message:
+					"Requirement must cite every current mapped Coverage exactly once",
 			},
 		};
 	}
@@ -847,17 +860,13 @@ function conclusionResult(
 	validated: ValidatedClosureInput & { readonly answer: string },
 ): JudgmentClosureResult {
 	const coverageIds = uniqueCoverageIds(validated.dispositions);
-	const conclusionId = hashIdentity(
-		"conclusion",
-		JUDGMENT_CONCLUSION_VERSION,
-		[
-			...contractIdentityParts(contract, validated.requirements.ordered),
-			...dispositionIdentityParts(validated.dispositions),
-			validated.answer,
-			String(validated.basis.length),
-			...validated.basis,
-		],
-	);
+	const conclusionId = hashIdentity("conclusion", JUDGMENT_CONCLUSION_VERSION, [
+		...contractIdentityParts(contract, validated.requirements.ordered),
+		...dispositionIdentityParts(validated.dispositions),
+		validated.answer,
+		String(validated.basis.length),
+		...validated.basis,
+	]);
 	return {
 		status: "concluded",
 		value: Object.freeze({

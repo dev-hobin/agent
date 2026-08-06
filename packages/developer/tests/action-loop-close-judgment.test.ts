@@ -93,7 +93,9 @@ test("covered Needs and satisfied requirements produce one bounded Conclusion", 
 	assert.match(result.value.conclusionId, /^conclusion_[a-f0-9]{64}$/);
 	assert.equal(result.value.category, "Claim Assurance");
 	assert.deepEqual(
-		result.value.requirementDispositions.map(({ requirementId }) => requirementId),
+		result.value.requirementDispositions.map(
+			({ requirementId }) => requirementId,
+		),
 		["requirement-behavior", "requirement-risk"],
 	);
 	assert.deepEqual(result.value.coverageIds, [
@@ -195,14 +197,15 @@ test("missing required Coverage is preserved as a refusal blocker", () => {
 
 test("unsatisfied or context-dependent Requirement refuses closure", () => {
 	for (const status of ["not-satisfied", "needs-context"] as const) {
-		const dispositions = proposal().requirementDispositions.map((disposition) =>
-			disposition.requirementId === "requirement-risk"
-				? {
-						...disposition,
-						status,
-						basis: ["The Requirement is not currently settled."],
-					}
-				: disposition,
+		const dispositions = proposal().requirementDispositions.map(
+			(disposition) =>
+				disposition.requirementId === "requirement-risk"
+					? {
+							...disposition,
+							status,
+							basis: ["The Requirement is not currently settled."],
+						}
+					: disposition,
 		);
 		const result = closeJudgment(
 			contract,
@@ -344,7 +347,11 @@ test("malformed contract or proposal cannot imply closure", () => {
 		{ contract, proposal: proposal({ basis: [] }) },
 		{
 			contract,
-			proposal: proposal({ outcome: "refuse", answer: undefined, refusalReasons: [] }),
+			proposal: proposal({
+				outcome: "refuse",
+				answer: undefined,
+				refusalReasons: [],
+			}),
 		},
 		{
 			contract,
