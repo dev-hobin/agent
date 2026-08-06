@@ -14,7 +14,6 @@ import {
 	type JudgmentClosureContract,
 	type JudgmentClosureProposal,
 } from "../src/action-loop/judgment/close-judgment.ts";
-import { discoverTocDescriptor } from "../src/action-loop/io/discover-skill-toc.ts";
 import {
 	sealSkillContext,
 	type SealedSkillContext,
@@ -34,6 +33,7 @@ import {
 	adaptPiSkillCatalog,
 	type AdaptedPiSkillDescriptor,
 } from "../src/action-loop/pi/adapt-skill-catalog.ts";
+import { discoverAdaptedSkillToc } from "../src/action-loop/pi/discover-admitted-skill-toc.ts";
 import {
 	bindCapability,
 	type BoundCapability,
@@ -370,12 +370,14 @@ async function runPilot(
 	evaluator: PilotEvaluator,
 ): Promise<PilotResult> {
 	const skillBytes = await readFile(candidate.skillFilePath);
-	const discovered = await discoverTocDescriptor(candidate.skillRootPath);
+	const discovered = await discoverAdaptedSkillToc(candidate);
 	if (discovered.status === "failed") {
 		throw new Error(discovered.error.message);
 	}
 	if (discovered.status === "unstructured") {
-		throw new Error(`Expected structured Capability ${scenario.name}`);
+		throw new Error(
+			`Expected structured Capability ${scenario.name} (${discovered.reason})`,
+		);
 	}
 	const bound = bindCapability(
 		candidate.source,
