@@ -465,7 +465,7 @@ Effect:
 
 > 실제 Effect를 evidence-bounded하게 판단할 수 있게 해주는 Observation.
 
-Filesystem diff, registry 조회, process state, test result가 Effect Observation이 될 수 있다. 어느 것도 모든 Effect를 자동으로 증명하지 않는다.
+Filesystem diff, registry 조회, process state, test result가 Effect Observation이 될 수 있다. V0 Observation은 evidence kind, locator, exact fingerprint, bounded statement, limitation을 Effect identity에 연결한다. 어느 것도 모든 Effect를 자동으로 증명하지 않는다. 특히 `tool-result` Observation은 host command outcome을 기록할 뿐 `observed-success` settlement를 만들지 않는다.
 
 ### 5.19 Effect Settlement
 
