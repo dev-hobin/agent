@@ -7,6 +7,8 @@ import type {
 	BeforeAgentStartEvent,
 	Skill,
 } from "@earendil-works/pi-coding-agent";
+import { acceptSkillContribution } from "../src/action-loop/contribution/accept-skill-contribution.ts";
+import { sealUnstructuredSkillContext } from "../src/action-loop/io/seal-skill-context.ts";
 import {
 	bindPiCapabilityInventory,
 	MAX_CAPABILITY_SKILL_BYTES,
@@ -190,7 +192,7 @@ test("binds structured and unstructured entries while preserving TOC failures", 
 	}
 });
 
-test("bound unstructured inventory composes directly into applicability", async (t) => {
+test("bound unstructured inventory composes through Skill Contribution", async (t) => {
 	const workspace = await createWorkspace(t);
 	const skillFile = join(workspace, "direct.md");
 	await writeSkill(skillFile, "direct");
@@ -214,7 +216,7 @@ test("bound unstructured inventory composes directly into applicability", async 
 	);
 	if (entry?.status !== "bound" || entry.routing !== "unstructured") return;
 
-	const result = acceptCapabilityApplicability(
+	const applicability = acceptCapabilityApplicability(
 		{
 			workCaseId: "work-1",
 			judgmentId: "judgment-1",
@@ -236,13 +238,54 @@ test("bound unstructured inventory composes directly into applicability", async 
 		},
 	);
 
-	assert.equal(result.status, "assigned");
-	if (result.status === "assigned") {
+	assert.equal(applicability.status, "assigned");
+	if (applicability.status !== "assigned") return;
+	assert.equal(
+		applicability.assignment.capabilityRevisionId,
+		entry.capability.capabilityRevisionId,
+	);
+	assert.deepEqual(applicability.assignment.matchedWhen, []);
+
+	const sealed = await sealUnstructuredSkillContext({
+		skillFilePath: entry.candidate.skillFilePath,
+		capability: entry.capability,
+		assignment: applicability.assignment,
+	});
+	assert.equal(sealed.ok, true);
+	if (!sealed.ok) return;
+	assert.equal("selectionId" in sealed.value, false);
+	assert.deepEqual(sealed.value.selectedPaths, []);
+
+	const contribution = acceptSkillContribution(
+		applicability.assignment,
+		sealed.value,
+		{
+			workCaseId: applicability.assignment.workCaseId,
+			judgmentId: applicability.assignment.judgmentId,
+			contributionNeedId: applicability.assignment.contributionNeedId,
+			assignmentId: applicability.assignment.assignmentId,
+			capabilityId: applicability.assignment.capabilityId,
+			capabilityRevisionId:
+				applicability.assignment.capabilityRevisionId,
+			sealedContextId: sealed.value.sealedContextId,
+			localStatus: "resolved",
+			result: "The direct Skill supplies the bounded requested method.",
+			referenceApplications: [],
+			limitations: [],
+			residualNeeds: [],
+			provenance: {
+				kind: "tool",
+				source: "unstructured-inventory-slice",
+			},
+		},
+	);
+	assert.equal(contribution.status, "accepted");
+	if (contribution.status === "accepted") {
 		assert.equal(
-			result.assignment.capabilityRevisionId,
-			entry.capability.capabilityRevisionId,
+			contribution.value.sealedContextId,
+			sealed.value.sealedContextId,
 		);
-		assert.deepEqual(result.assignment.matchedWhen, []);
+		assert.deepEqual(contribution.value.referenceApplications, []);
 	}
 });
 
