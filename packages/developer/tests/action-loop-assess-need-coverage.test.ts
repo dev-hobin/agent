@@ -62,7 +62,9 @@ function proposal(
 			},
 		],
 		conflicts: [],
-		basis: ["Current support is sufficient to evaluate the related requirement."],
+		basis: [
+			"Current support is sufficient to evaluate the related requirement.",
+		],
 		provenance: { kind: "model", source: "coverage-adapter:a" },
 		...overrides,
 	};
@@ -86,7 +88,11 @@ test("Upper assessment accepts complete Contribution accounting", () => {
 });
 
 test("proposal order and evaluator provenance do not alter Coverage identity", () => {
-	const firstAssessment = assessNeedCoverage(target, [first, second], proposal());
+	const firstAssessment = assessNeedCoverage(
+		target,
+		[first, second],
+		proposal(),
+	);
 	const secondAssessment = assessNeedCoverage(
 		target,
 		[second, first],
@@ -145,7 +151,9 @@ test("limited support derives partially-covered instead of covered", () => {
 			{
 				contributionId: partial.contributionId,
 				status: "limited-support",
-				basis: ["The result is useful but its stated limitation remains material."],
+				basis: [
+					"The result is useful but its stated limitation remains material.",
+				],
 			},
 		],
 		basis: ["Useful support exists, but a consequential limitation remains."],
@@ -237,7 +245,9 @@ test("zero or wholly not-relied-on Contributions derive missing", () => {
 });
 
 test("every current Contribution requires exactly one disposition", () => {
-	const missing = proposal({ dispositions: proposal().dispositions.slice(0, 1) });
+	const missing = proposal({
+		dispositions: proposal().dispositions.slice(0, 1),
+	});
 	const duplicate = proposal({
 		dispositions: [
 			proposal().dispositions[0]!,

@@ -213,8 +213,16 @@ function buildInventory(
 	const byId = new Map<string, CoverageInputContribution>();
 	for (const [index, contribution] of contributions.entries()) {
 		for (const [path, actual, expected] of [
-			[`contributions[${index}].workCaseId`, contribution.workCaseId, target.workCaseId],
-			[`contributions[${index}].judgmentId`, contribution.judgmentId, target.judgmentId],
+			[
+				`contributions[${index}].workCaseId`,
+				contribution.workCaseId,
+				target.workCaseId,
+			],
+			[
+				`contributions[${index}].judgmentId`,
+				contribution.judgmentId,
+				target.judgmentId,
+			],
 			[
 				`contributions[${index}].contributionNeedId`,
 				contribution.contributionNeedId,
@@ -270,7 +278,8 @@ function canonicalDispositions(
 				error: {
 					code: "contribution-accounting",
 					path: `proposal.dispositions[${index}].contributionId`,
-					message: "Contribution must be current and dispositioned exactly once",
+					message:
+						"Contribution must be current and dispositioned exactly once",
 				},
 			};
 		}
@@ -284,7 +293,10 @@ function canonicalDispositions(
 				},
 			};
 		}
-		if (contribution.localStatus === "partial" && proposal.status === "supports") {
+		if (
+			contribution.localStatus === "partial" &&
+			proposal.status === "supports"
+		) {
 			return {
 				ok: false,
 				error: {
@@ -352,9 +364,14 @@ function canonicalConflicts(
 	proposals: readonly CoverageConflictProposal[],
 ): CanonicalResult<readonly CoverageConflict[]> {
 	const dispositionById = new Map(
-		dispositions.map((disposition) => [disposition.contributionId, disposition]),
+		dispositions.map((disposition) => [
+			disposition.contributionId,
+			disposition,
+		]),
 	);
-	const conflicts: Array<CoverageConflict & { leftIndex: number; rightIndex: number }> = [];
+	const conflicts: Array<
+		CoverageConflict & { leftIndex: number; rightIndex: number }
+	> = [];
 	const seen = new Set<string>();
 	for (const [index, proposal] of proposals.entries()) {
 		const leftIndex = inventory.positions.get(proposal.leftContributionId);
