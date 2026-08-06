@@ -5,9 +5,7 @@ import {
 	type WorkCaseProposal,
 } from "../src/action-loop/work/work-case.ts";
 
-function proposal(
-	overrides: Partial<WorkCaseProposal> = {},
-): WorkCaseProposal {
+function proposal(overrides: Partial<WorkCaseProposal> = {}): WorkCaseProposal {
 	return {
 		outcome: {
 			statement: "The package implements the delegated bounded behavior.",
@@ -41,11 +39,23 @@ test("one bounded Outcome opens one deterministic active Work Case", () => {
 	assert.equal(reordered.status, "opened");
 	if (first.status !== "opened" || reordered.status !== "opened") return;
 	assert.match(first.value.workCaseId, /^work_case_[a-f0-9]{64}$/);
+	assert.match(
+		first.value.revisionId,
+		/^work_case_revision_[a-f0-9]{64}$/,
+	);
 	assert.match(first.value.outcome.outcomeId, /^outcome_[a-f0-9]{64}$/);
 	assert.equal(reordered.value.workCaseId, first.value.workCaseId);
-	assert.equal(reordered.value.outcome.outcomeId, first.value.outcome.outcomeId);
+	assert.equal(
+		reordered.value.outcome.outcomeId,
+		first.value.outcome.outcomeId,
+	);
 	assert.notDeepEqual(first.value.provenance, reordered.value.provenance);
 	assert.equal(first.value.status, "active");
+	assert.deepEqual(first.value.conclusions, []);
+	assert.deepEqual(first.value.actionCandidates, []);
+	assert.deepEqual(first.value.actionClearances, []);
+	assert.deepEqual(first.value.effects, []);
+	assert.deepEqual(first.value.currentSettlements, []);
 	assert.equal(Object.isFrozen(first.value), true);
 	assert.equal(Object.isFrozen(first.value.outcome), true);
 });
@@ -69,7 +79,10 @@ test("Outcome change opens a different Work Case", () => {
 });
 
 test("blank, acceptance-free, duplicate, or malformed Outcome is rejected", () => {
-	const fixtures: Array<{ overrides: Partial<WorkCaseProposal>; code: string }> = [
+	const fixtures: Array<{
+		overrides: Partial<WorkCaseProposal>;
+		code: string;
+	}> = [
 		{
 			overrides: { outcome: { ...proposal().outcome, statement: " " } },
 			code: "empty-outcome",
@@ -98,6 +111,7 @@ test("blank, acceptance-free, duplicate, or malformed Outcome is rejected", () =
 	for (const fixture of fixtures) {
 		const result = openWorkCase(proposal(fixture.overrides));
 		assert.equal(result.status, "invalid", fixture.code);
-		if (result.status === "invalid") assert.equal(result.error.code, fixture.code);
+		if (result.status === "invalid")
+			assert.equal(result.error.code, fixture.code);
 	}
 });

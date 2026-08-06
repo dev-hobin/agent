@@ -1,8 +1,16 @@
-import type { ActionCandidateProvenance } from "../action/accept-action-candidate.ts";
+import type {
+	ActionCandidate,
+	ActionCandidateProvenance,
+} from "../action/accept-action-candidate.ts";
+import type { ActionClearance } from "../action/action-clearance.ts";
+import type { PendingEffect } from "../effect/begin-effect.ts";
+import type { EffectSettlement } from "../effect/effect-settlement.ts";
 import { hashIdentity } from "../identity/hash-identity.ts";
+import type { JudgmentConclusion } from "../judgment/close-judgment.ts";
 
 export const OUTCOME_VERSION = "developer-outcome/v1";
 export const WORK_CASE_VERSION = "developer-work-case/v1";
+export const WORK_CASE_REVISION_VERSION = "developer-work-case-revision/v1";
 
 const PROVENANCE_KINDS: ReadonlySet<string> = new Set([
 	"model",
@@ -31,8 +39,14 @@ export interface Outcome {
 
 export interface ActiveWorkCase {
 	readonly workCaseId: string;
+	readonly revisionId: string;
 	readonly outcome: Outcome;
 	readonly status: "active";
+	readonly conclusions: readonly JudgmentConclusion[];
+	readonly actionCandidates: readonly ActionCandidate[];
+	readonly actionClearances: readonly ActionClearance[];
+	readonly effects: readonly PendingEffect[];
+	readonly currentSettlements: readonly EffectSettlement[];
 	readonly provenance: ActionCandidateProvenance;
 }
 
@@ -84,9 +98,7 @@ function canonicalText(
 interface CanonicalListContract {
 	readonly path: string;
 	readonly emptyCode?: "missing-acceptance-condition";
-	readonly invalidCode:
-		| "invalid-acceptance-condition"
-		| "invalid-constraint";
+	readonly invalidCode: "invalid-acceptance-condition" | "invalid-constraint";
 }
 
 function canonicalList(
@@ -175,7 +187,9 @@ function canonicalProvenance(
 }
 
 /** Opens one active Work Case around one bounded Outcome. */
-export function openWorkCase(proposal: WorkCaseProposal): WorkCaseOpeningResult {
+export function openWorkCase(
+	proposal: WorkCaseProposal,
+): WorkCaseOpeningResult {
 	if (typeof proposal.outcome !== "object" || proposal.outcome === null) {
 		return invalid("empty-outcome", "proposal.outcome", "Expected an Outcome");
 	}
@@ -220,12 +234,35 @@ export function openWorkCase(proposal: WorkCaseProposal): WorkCaseOpeningResult 
 		constraints: constraints.value,
 	});
 	const workCaseId = hashIdentity("work_case", WORK_CASE_VERSION, [outcomeId]);
+	const revisionId = hashIdentity(
+		"work_case_revision",
+		WORK_CASE_REVISION_VERSION,
+		[
+			workCaseId,
+			"conclusions",
+			"0",
+			"action-candidates",
+			"0",
+			"action-clearances",
+			"0",
+			"effects",
+			"0",
+			"current-settlements",
+			"0",
+		],
+	);
 	return {
 		status: "opened",
 		value: Object.freeze({
 			workCaseId,
+			revisionId,
 			outcome,
 			status: "active",
+			conclusions: Object.freeze([]),
+			actionCandidates: Object.freeze([]),
+			actionClearances: Object.freeze([]),
+			effects: Object.freeze([]),
+			currentSettlements: Object.freeze([]),
 			provenance: provenance.value,
 		}),
 	};
