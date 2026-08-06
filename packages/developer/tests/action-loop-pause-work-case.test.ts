@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { pauseWorkCase } from "../src/action-loop/work/pause-work-case.ts";
+import { resumePausedWorkCase } from "../src/action-loop/work/resume-paused-work-case.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
 
 function workCase() {
@@ -38,6 +39,42 @@ test("explicit human decision pauses exactly one current Work Case revision", ()
 	assert.equal(result.value.effects, current.effects);
 	assert.match(result.value.pause.workCasePauseId, /^work_case_pause_[a-f0-9]{64}$/);
 	assert.equal(current.status, "active");
+});
+
+test("explicit human resume creates a new active continuity revision", () => {
+	const current = workCase();
+	const paused = pauseWorkCase(current, {
+		workCaseId: current.workCaseId,
+		expectedRevisionId: current.revisionId,
+		reason: "Pause until the delegating user resumes the work.",
+		decision: {
+			kind: "human",
+			decisionId: "user-message-pause-1",
+			source: "delegating-user",
+			basis: ["The user explicitly requested a pause."],
+		},
+	});
+	if (paused.status !== "paused") return;
+	const resumed = resumePausedWorkCase(paused.value, {
+		workCaseId: current.workCaseId,
+		expectedRevisionId: paused.value.revisionId,
+		decision: {
+			kind: "human",
+			decisionId: "user-message-resume-1",
+			source: "delegating-user",
+			basis: ["The user explicitly requested continuation."],
+		},
+	});
+
+	assert.equal(resumed.status, "active");
+	if (resumed.status !== "active") return;
+	assert.notEqual(resumed.value.revisionId, current.revisionId);
+	assert.notEqual(resumed.value.revisionId, paused.value.revisionId);
+	assert.deepEqual(resumed.value.continuityIds, [
+		paused.value.pause.workCasePauseId,
+		resumed.value.continuityIds[1],
+	]);
+	assert.match(resumed.value.continuityIds[1] ?? "", /^work_case_resume_[a-f0-9]{64}$/);
 });
 
 test("model, stale, cross-Case, or basis-free pause attempts fail closed", () => {

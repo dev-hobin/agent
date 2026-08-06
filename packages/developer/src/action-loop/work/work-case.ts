@@ -193,7 +193,7 @@ function canonicalProvenance(
 	};
 }
 
-type WorkCaseRevisionState = Omit<
+export type WorkCaseInventoryState = Omit<
 	ActiveWorkCase,
 	"revisionId" | "status" | "provenance" | "outcome"
 >;
@@ -203,7 +203,7 @@ function sortedIds(ids: readonly string[]): readonly string[] {
 }
 
 /** Derives the current Work Case revision from its complete closure inventory. */
-export function deriveWorkCaseRevisionId(state: WorkCaseRevisionState): string {
+export function deriveWorkCaseRevisionId(state: WorkCaseInventoryState): string {
 	const assessmentIds = state.currentEffectAssessments.map((assessment) =>
 		"effectSettlementId" in assessment
 			? assessment.effectSettlementId
@@ -265,7 +265,7 @@ function sameStrings(
 }
 
 function duplicateInventoryIssue(
-	workCase: ActiveWorkCase,
+	workCase: WorkCaseInventoryState,
 ): WorkCaseInventoryIssue | undefined {
 	const collections: Array<[string, readonly string[]]> = [
 		[
@@ -305,7 +305,7 @@ function duplicateInventoryIssue(
 }
 
 function conclusionInventoryIssue(
-	workCase: ActiveWorkCase,
+	workCase: WorkCaseInventoryState,
 ): WorkCaseInventoryIssue | undefined {
 	const mismatched = workCase.conclusions.find(
 		({ workCaseId }) => workCaseId !== workCase.workCaseId,
@@ -320,7 +320,7 @@ function conclusionInventoryIssue(
 }
 
 function candidateInventoryIssue(
-	workCase: ActiveWorkCase,
+	workCase: WorkCaseInventoryState,
 	conclusions: ReadonlySet<string>,
 ): WorkCaseInventoryIssue | undefined {
 	const invalid = workCase.actionCandidates.find(
@@ -338,7 +338,7 @@ function candidateInventoryIssue(
 }
 
 function clearanceInventoryIssue(
-	workCase: ActiveWorkCase,
+	workCase: WorkCaseInventoryState,
 	conclusions: ReadonlySet<string>,
 	candidates: ReadonlyMap<string, ActionCandidate>,
 ): WorkCaseInventoryIssue | undefined {
@@ -364,7 +364,7 @@ function clearanceInventoryIssue(
 }
 
 function effectInventoryIssue(
-	workCase: ActiveWorkCase,
+	workCase: WorkCaseInventoryState,
 	clearances: ReadonlyMap<string, ActionClearance>,
 ): WorkCaseInventoryIssue | undefined {
 	for (const effect of workCase.effects) {
@@ -389,7 +389,7 @@ function effectInventoryIssue(
 }
 
 function assessmentInventoryIssue(
-	workCase: ActiveWorkCase,
+	workCase: WorkCaseInventoryState,
 	effects: ReadonlyMap<string, PendingEffect>,
 ): WorkCaseInventoryIssue | undefined {
 	for (const assessment of workCase.currentEffectAssessments) {
@@ -412,7 +412,7 @@ function assessmentInventoryIssue(
 
 /** Returns the first cross-inventory invariant violation, if any. */
 export function workCaseInventoryIssue(
-	workCase: ActiveWorkCase,
+	workCase: WorkCaseInventoryState,
 ): WorkCaseInventoryIssue | undefined {
 	const duplicateIssue = duplicateInventoryIssue(workCase);
 	if (duplicateIssue !== undefined) return duplicateIssue;
