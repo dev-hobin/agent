@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -30,13 +29,13 @@ import {
 	type CapabilityAssignment,
 } from "../src/action-loop/routing/accept-applicability.ts";
 import {
-	catalogBeforeAgentStartSkills,
-	type StructuredCataloguedPiSkillEntry,
-} from "../src/action-loop/pi/catalog-pi-loaded-skills.ts";
-import {
-	bindCapability,
-	type BoundCapability,
-	type CapabilitySource,
+	bindPiCapabilityInventory,
+	type BoundPiCapabilityEntry,
+} from "../src/action-loop/pi/bind-pi-capability-inventory.ts";
+import { catalogBeforeAgentStartSkills } from "../src/action-loop/pi/catalog-pi-loaded-skills.ts";
+import type {
+	BoundCapability,
+	CapabilitySource,
 } from "../src/action-loop/routing/bind-capability.ts";
 import { bindReferenceSelection } from "../src/action-loop/routing/bind-reference-selection.ts";
 import {
@@ -365,23 +364,15 @@ function tupleEvaluator(): PilotEvaluator {
 
 async function runPilot(
 	scenario: PilotScenario,
-	entry: StructuredCataloguedPiSkillEntry,
+	entry: BoundPiCapabilityEntry,
 	evaluator: PilotEvaluator,
 ): Promise<PilotResult> {
-	const candidate = entry.candidate;
-	const skillBytes = await readFile(candidate.skillFilePath);
-	const bound = bindCapability(
-		candidate.source,
-		entry.descriptor.toc,
-		skillBytes,
-	);
-	if (!bound.ok) throw new Error(bound.error.message);
-
+	const { candidate, capability } = entry;
 	const target = {
 		workCaseId: `work-pilot-${scenario.name}`,
 		judgmentId: `judgment-pilot-${scenario.name}`,
 		contributionNeedId: `need-pilot-${scenario.name}`,
-		capability: bound.value,
+		capability,
 	};
 	const applicability = acceptCapabilityApplicability(
 		target,
@@ -391,20 +382,20 @@ async function runPilot(
 		throw new Error(`Expected assignment, received ${applicability.status}`);
 	}
 	const selected = selectDeclaredReferences(
-		bound.value.toc.references,
-		evaluator.references(bound.value, scenario),
+		capability.toc.references,
+		evaluator.references(capability, scenario),
 	);
 	if (selected.status === "invalid") throw new Error("Invalid selection");
 	const selection = bindReferenceSelection(
 		applicability.assignment,
-		bound.value,
+		capability,
 		selected,
 	);
 	if (!selection.ok) throw new Error(selection.error.message);
 	assert.equal(selection.value.status, "ready");
 	const sealed = await sealSkillContext({
 		skillRootPath: candidate.skillRootPath,
-		capability: bound.value,
+		capability,
 		assignment: applicability.assignment,
 		selection: selection.value,
 	});
@@ -455,9 +446,9 @@ async function runPilot(
 
 	return {
 		descriptorName: entry.descriptor.name,
-		capabilitySource: bound.value.source,
-		capabilityId: bound.value.capabilityId,
-		capabilityRevisionId: bound.value.capabilityRevisionId,
+		capabilitySource: capability.source,
+		capabilityId: capability.capabilityId,
+		capabilityRevisionId: capability.capabilityRevisionId,
 		assignmentId: applicability.assignment.assignmentId,
 		selectionId: selection.value.selectionId,
 		sealedContextId: sealed.value.sealedContextId,
@@ -570,15 +561,17 @@ test("Pi-loaded package and project Skills preserve semantic identity across eva
 		},
 	});
 	if (catalog.status === "rejected") throw new Error(catalog.error.message);
-	assert.deepEqual(catalog.excluded, []);
-	assert.equal(catalog.entries.length, scenarios.length);
+	const inventory = await bindPiCapabilityInventory(catalog);
+	if (inventory.status === "rejected") throw new Error(inventory.error.message);
+	assert.deepEqual(inventory.excluded, []);
+	assert.equal(inventory.entries.length, scenarios.length);
 
 	const capabilityIds = new Set<string>();
 	for (const [index, scenario] of scenarios.entries()) {
-		const entry = catalog.entries[index];
+		const entry = inventory.entries[index];
 		assert.ok(entry);
-		if (entry.status !== "structured") {
-			throw new Error(`Expected structured pilot entry ${scenario.name}`);
+		if (entry.status !== "bound") {
+			throw new Error(`Expected bound pilot entry ${scenario.name}`);
 		}
 		const candidate = entry.candidate;
 		assert.equal(candidate.label, scenario.name);
@@ -630,7 +623,7 @@ test("Pi-loaded package and project Skills preserve semantic identity across eva
 		capabilityIds.add(record.capabilityId);
 	}
 	assert.deepEqual(
-		catalog.entries.map((entry) => entry.candidate.source.kind),
+		inventory.entries.map((entry) => entry.candidate.source.kind),
 		["package", "package", "project"],
 	);
 	assert.equal(capabilityIds.size, scenarios.length);
