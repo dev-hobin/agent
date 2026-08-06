@@ -10,10 +10,9 @@ import {
 } from "../extensions/tool-policy.ts";
 
 const protocolTools = [
-	"developer_open_judgment",
-	"developer_conclude_judgment",
-	"developer_authorize_change",
-	"developer_record_landing",
+	"developer_route_question",
+	"developer_load_reference",
+	"developer_record_judgment",
 ];
 const allTools = [
 	{ name: "read", sourceInfo: { source: "builtin" } },
@@ -21,10 +20,18 @@ const allTools = [
 	{ name: "write", sourceInfo: { source: "builtin" } },
 	{ name: "bash", sourceInfo: { source: "builtin" } },
 	{ name: "external_search", sourceInfo: { source: "/extensions/search.ts" } },
-	...protocolTools.map((name) => ({
-		name,
+	{
+		name: protocolTools[0],
 		sourceInfo: { source: "/extensions/developer.ts" },
-	})),
+	},
+	{
+		name: protocolTools[1],
+		sourceInfo: { source: "/extensions/developer.ts" },
+	},
+	{
+		name: protocolTools[2],
+		sourceInfo: { source: "/extensions/developer.ts" },
+	},
 ];
 
 const emptyMemory = (): ToolPolicyMemory => ({ withheldBuiltins: new Set() });
@@ -34,7 +41,7 @@ const idleAccess = {
 	hasBeforeImplementationGate: false,
 };
 const judgmentAccess = {
-	allowsShell: false,
+	allowsShell: true,
 	allowsArtifactTools: false,
 	hasBeforeImplementationGate: false,
 };
@@ -44,7 +51,7 @@ const implementationAccess = {
 	hasBeforeImplementationGate: false,
 };
 
-const protocol = "developer/v8";
+const protocol = "developer/v5";
 
 const lifecycleEntry = {
 	type: "custom",
@@ -103,7 +110,7 @@ test("current-protocol history without a lifecycle marker is treated as an unsaf
 					message: {
 						role: "toolResult",
 						toolName: protocolTools[0],
-						details: { protocol, kind: "judgment-opened" },
+						details: { protocol, kind: "route" },
 					},
 				},
 			],
@@ -136,7 +143,7 @@ test("enabled idle withholds controlled built-ins and preserves unrelated tools"
 	);
 });
 
-test("an active judgment withholds shell and artifact mutation", () => {
+test("a judgment route restores shell execution without restoring artifact mutation", () => {
 	const idle = reconcileProtocolTools({
 		activeTools: ["read", "edit", "write", "bash", "external_search"],
 		allTools,
@@ -154,12 +161,12 @@ test("an active judgment withholds shell and artifact mutation", () => {
 		memory: idle.memory,
 	});
 
-	assert.equal(judgment.activeTools.includes("bash"), false);
+	assert.ok(judgment.activeTools.includes("bash"));
 	assert.equal(judgment.activeTools.includes("edit"), false);
 	assert.equal(judgment.activeTools.includes("write"), false);
 });
 
-test("an authorized change additively restores only tools withheld by Developer", () => {
+test("an implementation route additively restores only tools withheld by Developer", () => {
 	const enabled = reconcileProtocolTools({
 		activeTools: ["read", "edit", "write", "external_search"],
 		allTools,
@@ -215,7 +222,7 @@ test("a before-implementation gate preserves the judgment evidence lane and with
 		protocolTools,
 		memory: gatedIdle.memory,
 	});
-	assert.equal(gatedJudgment.activeTools.includes("bash"), false);
+	assert.ok(gatedJudgment.activeTools.includes("bash"));
 	assert.equal(gatedJudgment.activeTools.includes("edit"), false);
 	assert.equal(gatedJudgment.activeTools.includes("write"), false);
 });

@@ -14,7 +14,7 @@ import {
 import {
 	assertAllowedOutcome,
 	classifyEvalOutcome,
-	statusFromDeveloperEvents,
+	parseDeveloperStatus,
 } from "./eval-outcome.mjs";
 import { createEvalWorkspace } from "./eval-workspace.mjs";
 import { createJsonlDecoder } from "./jsonl.mjs";
@@ -214,6 +214,19 @@ async function command(message) {
 	assert.equal(response.success, true, response.error);
 }
 
+async function currentDeveloperStatus() {
+	const start = events.length;
+	await command("/developer status");
+	const notification = events
+		.slice(start)
+		.find(
+			(event) =>
+				event.type === "extension_ui_request" && event.method === "notify",
+		);
+	assert.ok(notification, "Expected /developer status notification");
+	return parseDeveloperStatus(notification.message);
+}
+
 try {
 	const commandsResponse = await send({ type: "get_commands" });
 	assert.equal(commandsResponse.success, true, commandsResponse.error);
@@ -239,7 +252,7 @@ try {
 	const packageSkills = allLoadedSkills.filter((entry) =>
 		String(entry.sourceInfo?.path ?? "").startsWith(skills),
 	);
-	assert.equal(packageSkills.length, 10);
+	assert.equal(packageSkills.length, 11);
 	assert.equal(
 		packageSkills.some((entry) => entry.name === "skill:doctor"),
 		true,
@@ -265,13 +278,12 @@ try {
 				(event) =>
 					event.type === "extension_ui_request" &&
 					event.method === "setStatus" &&
-					event.statusKey === "developer" &&
-					String(event.statusText).includes("Developer · Deciding"),
+					String(event.statusText).includes("developer: on"),
 			),
-		"Expected /developer on to publish human progress status",
+		"Expected /developer on to publish branch-visible status",
 	);
-	process.stdout.write(
-		`RPC smoke: command, skills, and v8 activation are available on Pi ${piVersion}\n`,
+	console.log(
+		`RPC smoke: command, skills, and activation state are available on Pi ${piVersion}`,
 	);
 
 	const enabledStatusStart = events.length;
@@ -282,38 +294,81 @@ try {
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "notify" &&
-				String(event.message).includes("Developer · Deciding"),
+				String(event.message).includes("developer: on"),
 		);
-	assert.ok(enabledStatus, "Expected current human progress output");
-	assert.doesNotMatch(String(enabledStatus.message), /[a-f0-9]{64}/u);
-
-	const disabledStart = events.length;
-	await command("/developer off");
-	assert.ok(
-		events
-			.slice(disabledStart)
-			.some(
-				(event) =>
-					event.type === "extension_ui_request" &&
-					event.method === "notify" &&
-					String(event.message).includes("Developer v8: off"),
-			),
-		"Expected Developer v8 scope closure output",
+	assert.ok(enabledStatus, "Expected enabled status output");
+	for (const leaf of [
+		"specify",
+		"model",
+		"sketch",
+		"verify",
+		"adversarial-eval",
+	]) {
+		assert.ok(
+			String(enabledStatus.message).includes(leaf),
+			"Enabled status did not report the Pi-loaded leaf " + leaf,
+		);
+	}
+	const activeToolsLine = String(enabledStatus.message)
+		.split("\n")
+		.find((line) => line.startsWith("active tools: "));
+	assert.ok(activeToolsLine, "Enabled status did not include active tools");
+	const activeTools = new Set(
+		activeToolsLine.slice("active tools: ".length).split(", "),
 	);
-	const closedStatusStart = events.length;
+	for (const tool of [
+		"read",
+		"developer_route_question",
+		"developer_load_reference",
+		"developer_record_judgment",
+	]) {
+		assert.ok(
+			activeTools.has(tool),
+			"Enabled Developer did not expose " + tool,
+		);
+	}
+	for (const tool of ["grep", "find", "ls"]) {
+		assert.equal(
+			activeTools.has(tool),
+			false,
+			"Developer force-enabled user-disabled tool " + tool,
+		);
+	}
+	for (const tool of ["edit", "write", "bash"]) {
+		assert.equal(
+			activeTools.has(tool),
+			false,
+			"Enabled idle Developer exposed controlled tool " + tool,
+		);
+	}
+	await command("/developer off");
+	const disabledStatusStart = events.length;
 	await command("/developer status");
-	const closedStatus = events
-		.slice(closedStatusStart)
+	const disabledStatus = events
+		.slice(disabledStatusStart)
 		.find(
 			(event) =>
 				event.type === "extension_ui_request" &&
 				event.method === "notify" &&
-				String(event.message).includes("Developer · Off"),
+				String(event.message).includes("developer: off"),
 		);
-	assert.ok(closedStatus, "Expected closed-scope progress output");
+	assert.ok(disabledStatus, "Expected disabled status output");
+	const restoredLine = String(disabledStatus.message)
+		.split("\n")
+		.find((line) => line.startsWith("active tools: "));
+	assert.ok(restoredLine, "Disabled status did not include active tools");
+	const restoredTools = new Set(
+		restoredLine.slice("active tools: ".length).split(", "),
+	);
+	for (const tool of ["bash", "edit", "write"]) {
+		assert.ok(
+			restoredTools.has(tool),
+			"Disabling Developer did not restore " + tool,
+		);
+	}
 	await command("/developer on");
-	process.stdout.write(
-		`RPC smoke: v8 scope closure and receipt observation are available on Pi ${piVersion}\n`,
+	console.log(
+		`RPC smoke: route-bound active-tool gating is available on Pi ${piVersion}`,
 	);
 
 	if (live) {
@@ -329,7 +384,7 @@ try {
 					message:
 						"Evaluation workspace: " +
 						casePath +
-						". Work only in that directory. Run project commands by changing into this exact directory. The fixture may not be a Git repository, so verify through direct file reads and declared project commands rather than git.\n" +
+						". Work only in that directory.\n" +
 						fixture.request,
 				});
 				assert.equal(response.success, true, response.error);
@@ -346,20 +401,19 @@ try {
 					workspaceBefore,
 					await snapshotWorkspace(casePath),
 				);
-				const status = statusFromDeveloperEvents(executionTrace);
+				const status = await currentDeveloperStatus();
 				const outcome = classifyEvalOutcome({ changes, status });
 				assertAllowedOutcome(fixture, outcome);
-				process.stdout.write(
+				console.log(
 					"DEVELOPER_EVAL_RESULT " +
 						JSON.stringify({
 							fixtureId: fixture.id,
 							structuralValid: true,
 							outcome,
 							...traceSummary,
-						}) +
-						"\n",
+						}),
 				);
-				process.stdout.write(`Live eval passed: ${fixture.id} (${outcome})\n`);
+				console.log(`Live eval passed: ${fixture.id} (${outcome})`);
 			} catch (error) {
 				try {
 					await send({ type: "abort" }, 5000);

@@ -4,10 +4,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const OPEN_JUDGMENT_TOOL = "developer_open_judgment";
-const CONCLUDE_JUDGMENT_TOOL = "developer_conclude_judgment";
-const AUTHORIZE_CHANGE_TOOL = "developer_authorize_change";
-const RECORD_LANDING_TOOL = "developer_record_landing";
+const ROUTE_TOOL = "developer_route_question";
+const REFERENCE_TOOL = "developer_load_reference";
+const JUDGMENT_TOOL = "developer_record_judgment";
 
 function resultText(event) {
 	const content = event?.result?.content;
@@ -26,100 +25,67 @@ async function skillBody(root, target) {
 	return source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
 }
 
-const routeDefaultTargets = new Map([
-	["route:meaning-settlement", "specify"],
-	["route:condition-settlement", "model"],
-	["route:implementation-shaping", "sketch"],
-	["route:structural-pressure-observation", "signal"],
-	["route:name-sense-judgment", "naming-judgment"],
-	["route:candidate-reliability", "abstraction-review"],
-	["route:change-timing", "schedule"],
-	["route:claim-evidence-assessment", "verify"],
-]);
-
-function openingSkillName(execution) {
-	return execution.args.owner_skill?.skill_name;
-}
-
-function decisionTarget(execution) {
-	if (execution.toolName === OPEN_JUDGMENT_TOOL) {
-		return (
-			openingSkillName(execution) ??
-			routeDefaultTargets.get(execution.args.route_definition_id)
-		);
-	}
-	if (execution.toolName === AUTHORIZE_CHANGE_TOOL) return "implementation";
-	return undefined;
-}
-
-function conclusionText(conclusion) {
-	return JSON.stringify({
-		outcome: conclusion.args.outcome,
-		reason: conclusion.args.not_applicable_reason,
-		basis: conclusion.args.not_applicable_basis,
-	});
-}
-
 export function assertAgentBeforeImplementationResolution(fixture, executions) {
-	const needsEvidenceIndex = executions.findIndex(
+	const openingIndex = executions.findIndex(
 		(event) =>
-			event.toolName === CONCLUDE_JUDGMENT_TOOL &&
-			event.args.outcome?.kind === "needs-evidence",
+			event.toolName === JUDGMENT_TOOL &&
+			event.args.status === "needs-evidence" &&
+			event.args.open_questions?.some(
+				(question) =>
+					question.resolution_owner === "agent" &&
+					question.gate === "before-implementation",
+			),
 	);
 	assert.ok(
-		needsEvidenceIndex >= 0,
-		fixture.id + ": no agent-owned needs-evidence frame was recorded",
+		openingIndex >= 0,
+		fixture.id + ": no agent-owned before-implementation question was opened",
 	);
-	const resolutionOffset = executions
-		.slice(needsEvidenceIndex + 1)
+
+	const evidenceRouteOffset = executions
+		.slice(openingIndex + 1)
 		.findIndex(
 			(event) =>
-				event.toolName === CONCLUDE_JUDGMENT_TOOL &&
-				(event.args.outcome?.kind === "contextual-judgment" ||
-					event.args.disposition === "not-applicable"),
+				event.toolName === ROUTE_TOOL && event.args.target !== "implementation",
+		);
+	assert.ok(
+		evidenceRouteOffset >= 0,
+		fixture.id + ": no non-implementation evidence route followed the gate",
+	);
+	const evidenceRouteIndex = openingIndex + 1 + evidenceRouteOffset;
+	const resolutionOffset = executions
+		.slice(evidenceRouteIndex + 1)
+		.findIndex(
+			(event) =>
+				event.toolName === JUDGMENT_TOOL &&
+				event.args.question_updates?.some(
+					(update) =>
+						update.status === "resolved" || update.status === "not-applicable",
+				),
 		);
 	assert.ok(
 		resolutionOffset >= 0,
-		fixture.id + ": the needs-evidence frame was not explicitly resolved",
+		fixture.id + ": the agent-owned question was not explicitly resolved",
 	);
-	const resolutionIndex = needsEvidenceIndex + 1 + resolutionOffset;
+	const resolutionIndex = evidenceRouteIndex + 1 + resolutionOffset;
 
-	if (fixture.requiresJudgmentReadEvidence) {
+	if (fixture.requiresJudgmentBashEvidence) {
 		assert.ok(
 			executions
-				.slice(needsEvidenceIndex + 1, resolutionIndex)
-				.some((event) => event.toolName === "read"),
-			fixture.id + ": the open evidence frame did not read its target",
+				.slice(evidenceRouteIndex + 1, resolutionIndex)
+				.some((event) => event.toolName === "bash"),
+			fixture.id + ": the non-implementation evidence route did not run bash",
 		);
 	}
 	assert.ok(
 		executions
 			.slice(resolutionIndex + 1)
-			.some((event) => event.toolName === AUTHORIZE_CHANGE_TOOL),
-		fixture.id + ": no change authorization followed explicit frame resolution",
+			.some(
+				(event) =>
+					event.toolName === ROUTE_TOOL &&
+					event.args.target === "implementation",
+			),
+		fixture.id + ": no implementation route followed explicit gate resolution",
 	);
-}
-
-async function preparedReferenceForPath(root, expectedPath) {
-	const normalized = expectedPath.replaceAll("\\", "/");
-	const parts = normalized.split("/");
-	const skillIndex = parts.indexOf("skills");
-	if (skillIndex < 0 || !parts[skillIndex + 1]) return undefined;
-	const skillName = parts[skillIndex + 1];
-	const relativePath = parts.slice(skillIndex + 2).join("/");
-	const contractPath = join(root, "skills", skillName, "judgment.json");
-	let policy;
-	try {
-		policy = JSON.parse(await readFile(contractPath, "utf8"));
-	} catch (error) {
-		throw new Error(`Invalid Judgment policy JSON at ${contractPath}.`, {
-			cause: error,
-		});
-	}
-	const reference = policy.references?.find(
-		(candidate) => candidate.path === relativePath,
-	);
-	return reference ? { skillName, path: reference.path } : undefined;
 }
 
 export async function validateExecutionTrace(fixture, events, root, casePath) {
@@ -127,139 +93,156 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 		(event) => event.type === "tool_execution_start",
 	);
 	const endings = events.filter((event) => event.type === "tool_execution_end");
-	const decisions = executions.filter(
-		(event) =>
-			event.toolName === OPEN_JUDGMENT_TOOL ||
-			event.toolName === AUTHORIZE_CHANGE_TOOL,
-	);
-	const openings = executions.filter(
-		(event) => event.toolName === OPEN_JUDGMENT_TOOL,
-	);
-	const conclusions = executions.filter(
-		(event) => event.toolName === CONCLUDE_JUDGMENT_TOOL,
-	);
-	const authorizations = executions.filter(
-		(event) => event.toolName === AUTHORIZE_CHANGE_TOOL,
-	);
-	const landings = executions.filter(
-		(event) => event.toolName === RECORD_LANDING_TOOL,
+	const routes = executions.filter((event) => event.toolName === ROUTE_TOOL);
+	const judgments = executions.filter(
+		(event) => event.toolName === JUDGMENT_TOOL,
 	);
 
 	assert.ok(
-		decisions.length > 0,
-		fixture.id + ": no Developer decision opened",
+		routes.length > 0,
+		fixture.id + ": " + ROUTE_TOOL + " was not called",
 	);
-	const firstTarget = decisionTarget(decisions[0]);
+	const firstTarget = routes[0].args.target;
 	assert.ok(
 		fixture.admissibleFirstTargets.includes(firstTarget),
 		fixture.id +
-			": structurally inadmissible first target " +
-			JSON.stringify(decisions[0].args),
+			": structurally inadmissible first route " +
+			JSON.stringify(routes[0].args),
 	);
-	if (fixture.maxDecisions !== undefined) {
+	if (fixture.maxRoutes !== undefined) {
 		assert.ok(
-			decisions.length <= fixture.maxDecisions,
-			`${fixture.id}: opened ${decisions.length} decisions; expected at most ${fixture.maxDecisions}`,
+			routes.length <= fixture.maxRoutes,
+			fixture.id +
+				": routed " +
+				routes.length +
+				" times; expected at most " +
+				fixture.maxRoutes,
 		);
 	}
 	if (fixture.mustRecordJudgment) {
 		assert.ok(
-			conclusions.length > 0,
-			fixture.id + ": " + CONCLUDE_JUDGMENT_TOOL + " was not called",
-		);
-	}
-	if (fixture.mustRecordLanding) {
-		assert.ok(
-			landings.length > 0,
-			fixture.id + ": " + RECORD_LANDING_TOOL + " was not called",
+			judgments.length > 0,
+			fixture.id + ": " + JUDGMENT_TOOL + " was not called",
 		);
 	}
 
-	for (const expectedSourcePath of fixture.expectedPreparedReferences ?? []) {
-		const expected = await preparedReferenceForPath(root, expectedSourcePath);
-		assert.ok(
-			expected,
-			`${fixture.id}: expected prepared reference is not declared: ${expectedSourcePath}`,
+	for (const expectedRoute of fixture.expectedReferenceRoutes ?? []) {
+		const load = executions.find(
+			(event) =>
+				event.toolName === REFERENCE_TOOL &&
+				event.args?.reference_route === expectedRoute,
 		);
-		const application = conclusions.find((event) => {
-			const nomination = event.args.nominations?.find(
-				(candidate) =>
-					candidate.kind === "inventory-source" &&
-					(candidate.provenancePath?.endsWith(expected.path) ||
-						candidate.provenancePath === expected.path),
-			);
-			const contributionIndex = event.args.coverage?.contributions?.findIndex(
-				(contribution) =>
-					contribution.nominationId === nomination?.nominationId,
-			);
-			return (
-				nomination &&
-				contributionIndex >= 0 &&
-				event.args.outcome?.kind === "contextual-judgment" &&
-				event.args.outcome.citedUses?.some(
-					(citation) => citation.contributionIndex === contributionIndex,
-				)
-			);
-		});
 		assert.ok(
-			application,
-			`${fixture.id}: judgment did not select and cite prepared reference ${expectedSourcePath}`,
+			load,
+			fixture.id +
+				": Developer reference tool did not select policy route " +
+				expectedRoute,
+		);
+		assert.ok(
+			endings.some(
+				(event) =>
+					event.toolCallId === load.toolCallId && event.isError === false,
+			),
+			fixture.id +
+				": Developer reference route selection failed for " +
+				expectedRoute,
 		);
 	}
 
-	for (const opening of openings) {
+	for (const expectedReference of fixture.expectedReferenceReads ?? []) {
+		const routedPath = expectedReference.split("/").slice(-2).join("/");
+		const load = executions.find(
+			(event) =>
+				event.toolName === REFERENCE_TOOL &&
+				String(event.args?.path ?? "")
+					.replaceAll("\\", "/")
+					.endsWith(routedPath),
+		);
+		assert.ok(
+			load,
+			fixture.id +
+				": Developer reference tool did not load " +
+				expectedReference,
+		);
+		assert.ok(
+			endings.some(
+				(event) =>
+					event.toolCallId === load.toolCallId && event.isError === false,
+			),
+			fixture.id + ": Developer reference load failed for " + expectedReference,
+		);
+		assert.ok(
+			judgments.some((event) =>
+				event.args.reference_basis?.some(
+					(basis) =>
+						String(basis.path ?? "")
+							.replaceAll("\\", "/")
+							.endsWith(routedPath) &&
+						typeof basis.trigger === "string" &&
+						basis.trigger.length > 0 &&
+						typeof basis.applied_rule === "string" &&
+						basis.applied_rule.length > 0 &&
+						typeof basis.artifact === "string" &&
+						basis.artifact.length > 0,
+				),
+			),
+			fixture.id +
+				": judgment did not apply loaded reference " +
+				expectedReference,
+		);
+	}
+
+	for (const route of routes) {
 		const ending = endings.find(
 			(event) =>
-				event.toolName === OPEN_JUDGMENT_TOOL &&
-				event.toolCallId === opening.toolCallId,
+				event.toolName === ROUTE_TOOL && event.toolCallId === route.toolCallId,
 		);
-		assert.ok(ending, fixture.id + ": open-judgment result was not observed");
+		assert.ok(ending, fixture.id + ": route result was not observed");
 		assert.equal(
 			ending.isError,
 			false,
-			`${fixture.id}: open judgment failed for ${JSON.stringify(opening.args)}\n${resultText(ending)}`,
+			fixture.id +
+				": route result was an error for " +
+				JSON.stringify(route.args) +
+				"\n" +
+				resultText(ending),
 		);
-		const skillName = openingSkillName(opening);
-		if (skillName === undefined) {
-			assert.match(resultText(ending), /No owning Skill was invoked/u);
-			continue;
+		if (route.args.target !== "implementation") {
+			const expectedBody = await skillBody(root, route.args.target);
+			assert.ok(
+				resultText(ending).includes(expectedBody),
+				fixture.id +
+					": selected leaf body was not loaded exactly for " +
+					route.args.target,
+			);
+			assert.match(
+				resultText(ending),
+				/<developer-method name="[^"]+" location="[^"]+" base-dir="[^"]+">/,
+			);
+			assert.match(resultText(ending), /Resolve relative references from /);
 		}
-		const expectedBody = await skillBody(root, skillName);
-		assert.ok(
-			resultText(ending).includes(expectedBody),
-			`${fixture.id}: selected skill body was not loaded exactly for ${skillName}`,
-		);
-		assert.match(
-			resultText(ending),
-			/<developer-method name="[^"]+" location="[^"]+" base-dir="[^"]+">/u,
-		);
-		assert.match(
-			resultText(ending),
-			/Nominate only acquired current-branch context/u,
-		);
 	}
 
-	for (const operation of [...conclusions, ...authorizations, ...landings]) {
+	for (const judgment of judgments) {
 		const ending = endings.find(
 			(event) =>
-				event.toolName === operation.toolName &&
-				event.toolCallId === operation.toolCallId,
+				event.toolName === JUDGMENT_TOOL &&
+				event.toolCallId === judgment.toolCallId,
 		);
-		assert.ok(
-			ending,
-			`${fixture.id}: ${operation.toolName} result was not observed`,
-		);
+		assert.ok(ending, fixture.id + ": judgment result was not observed");
 		assert.equal(
 			ending.isError,
 			false,
-			`${fixture.id}: ${operation.toolName} failed for ${JSON.stringify(operation.args)}\n${resultText(ending)}`,
+			fixture.id +
+				": judgment result was an error for " +
+				JSON.stringify(judgment.args) +
+				"\n" +
+				resultText(ending),
 		);
 	}
-
-	const judgmentText = [
-		...conclusions.map(conclusionText),
-		...landings.map((landing) => JSON.stringify(landing.args)),
-	].join("\n");
+	const judgmentText = judgments
+		.map((judgment) => String(judgment.args.result ?? ""))
+		.join("\n");
 	const normalizedJudgment = judgmentText.toLocaleLowerCase();
 	for (const term of fixture.requiredJudgmentTerms ?? []) {
 		assert.ok(
@@ -277,35 +260,37 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 	}
 
 	if (fixture.requiresDoctorSynthesis) {
-		const doctorOpenings = openings.filter(
-			(event) => openingSkillName(event) === "doctor",
-		);
+		const finalRoute = routes.at(-1);
+		const finalRouteIndex = finalRoute
+			? executions.indexOf(finalRoute)
+			: -1;
 		assert.ok(
-			doctorOpenings.length >= 2,
+			routes.filter((event) => event.args.target === "doctor").length >= 2,
 			`${fixture.id}: Doctor did not return for final synthesis`,
 		);
-		const finalDecision = decisions.at(-1);
 		assert.equal(
-			decisionTarget(finalDecision),
+			finalRoute?.args.target,
 			"doctor",
-			`${fixture.id}: the final judgment opening was not Doctor synthesis`,
+			`${fixture.id}: the final route was not Doctor synthesis`,
 		);
 		assert.ok(
-			openings.some((event) => {
-				const skillName = openingSkillName(event);
-				return skillName !== "doctor" && skillName !== undefined;
-			}),
-			`${fixture.id}: Doctor did not delegate an owner-skill consultation`,
+			routes
+				.slice(1, -1)
+				.some(
+					(event) =>
+						event.args.target !== "doctor" &&
+						event.args.target !== "implementation",
+				),
+			`${fixture.id}: Doctor did not delegate any owner-skill consultation`,
 		);
-		const finalIndex = executions.indexOf(finalDecision);
-		const finalConclusion = executions
-			.slice(finalIndex + 1)
-			.find((event) => event.toolName === CONCLUDE_JUDGMENT_TOOL);
+		const finalJudgment = executions
+			.slice(finalRouteIndex + 1)
+			.find((event) => event.toolName === JUDGMENT_TOOL);
 		assert.ok(
-			finalConclusion,
-			`${fixture.id}: final Doctor judgment has no conclusion`,
+			finalJudgment,
+			`${fixture.id}: final Doctor route has no recorded synthesis judgment`,
 		);
-		const synthesis = conclusionText(finalConclusion).toLocaleLowerCase();
+		const synthesis = String(finalJudgment.args.result ?? "").toLocaleLowerCase();
 		for (const [label, alternatives] of [
 			["consultation ledger", ["consultation", "consult", "협진"]],
 			["diagnosis", ["diagnos", "진단"]],
@@ -318,7 +303,7 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 		}
 	}
 
-	if (fixture.mutationRequiresAuthorization) {
+	if (fixture.mutationRequiresImplementationRoute) {
 		const mutationIndex = executions.findIndex((event) =>
 			["edit", "write"].includes(event.toolName),
 		);
@@ -326,8 +311,12 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 			assert.ok(
 				executions
 					.slice(0, mutationIndex)
-					.some((event) => event.toolName === AUTHORIZE_CHANGE_TOOL),
-				fixture.id + ": mutation started before change authorization",
+					.some(
+						(event) =>
+							event.toolName === ROUTE_TOOL &&
+							event.args.target === "implementation",
+					),
+				fixture.id + ": mutation started before an implementation route",
 			);
 		}
 	}
@@ -344,7 +333,7 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 		);
 		assert.match(
 			source,
-			/export const PAUSED_EVAL_MARKER\s*=\s*["']stable-landing["']/u,
+			/export const PAUSED_EVAL_MARKER\s*=\s*["']stable-landing["']/,
 		);
 	}
 
@@ -356,7 +345,7 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 		);
 		assert.match(
 			source,
-			/export const AGENT_GATE_EVAL_MARKER\s*=\s*["']resolved["']/u,
+			/export const AGENT_GATE_EVAL_MARKER\s*=\s*["']resolved["']/,
 		);
 	}
 
@@ -376,33 +365,47 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 		});
 		assert.deepEqual(
 			contracts.toScheduleContent({ startDate: "2026-07-19", endDate: null }),
-			{ startsAt: "2026-07-19", endsAt: null },
+			{
+				startsAt: "2026-07-19",
+				endsAt: null,
+			},
 		);
 		const testSource = await readFile(
 			join(casePath, "test", "contracts.test.ts"),
 			"utf8",
 		);
-		assert.match(testSource, /toScheduleContent/u);
 		assert.match(
 			testSource,
-			/for\s*\(|\.forEach\s*\(|\.map\s*\(|test\.each\s*\(/u,
+			/toScheduleContent/,
+			fixture.id + ": tests do not exercise toScheduleContent",
+		);
+		assert.match(
+			testSource,
+			/for\s*\(|\.forEach\s*\(|\.map\s*\(|test\.each\s*\(/,
+			fixture.id + ": toScheduleContent cases are not table-driven",
 		);
 		const testRun = spawnSync(
 			process.execPath,
 			["--test", "test/contracts.test.ts"],
-			{ cwd: casePath, encoding: "utf8" },
+			{
+				cwd: casePath,
+				encoding: "utf8",
+			},
 		);
 		assert.equal(
 			testRun.status,
 			0,
-			`${fixture.id}: workspace tests failed\n${testRun.stdout}${testRun.stderr}`,
+			fixture.id +
+				": workspace tests failed\n" +
+				testRun.stdout +
+				testRun.stderr,
 		);
 	}
 
 	return {
 		firstTarget,
 		preferredFirstTarget: fixture.preferredFirstTargets.includes(firstTarget),
-		decisionCount: decisions.length,
+		routeCount: routes.length,
 		toolCallCount: executions.length,
 	};
 }

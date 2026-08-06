@@ -131,6 +131,7 @@ other than Doctor one disposition: `triggered`, `no-trigger`, `needs-evidence`,
 | `schedule` | When does a stable concrete structural candidate belong? | current invariant pressure, nested work, delay cost, or lost reversibility |
 | `verify` | What do current checks prove, and what plausible wrong shape still passes? | green checks with observer, source, branch, construction-path, or effect-order gaps |
 | `adversarial-eval` | Does a consequential claim need escalating finite counterexamples? | ordinary checks can pass while security, data, compatibility, or workflow behavior is wrong |
+| `visualize` | Would a visual surface materially lower the cost of inspecting this judgment? | prose obscures consequential relationships, order, state, comparison, or evidence gaps |
 
 Use this inspection surface:
 
@@ -144,15 +145,16 @@ smallest observation that could change the disposition.
 ## Consultation Workflow
 
 Doctor does not impersonate other skills or treat their reference catalogs as
-mandatory reading.
+mandatory reading. Doctor must not read sibling skill references directly; each
+owner skill selects and applies its own routed references.
 
 For every `triggered` disposition:
 
 1. write one bounded consultation question and its concrete trigger evidence;
 2. close the Doctor triage judgment;
 3. open the dynamic question with its owning Developer skill;
-4. apply a present policy's root `when`/winning `unless`, or use the complete
-   skill normally when no policy exists;
+4. apply every selected reference-policy route's trigger and separation
+   boundary, or use its evidence-backed exemption when no route applies;
 5. nominate and seal only current-branch material that can change the result;
 6. relate every selected material through a concrete contribution and bounded
    assurance while preserving conflicts and limitations;

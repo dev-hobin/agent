@@ -114,7 +114,7 @@ for (const fixture of fixtures) {
 				classification: classifyLiveFailure(output),
 				exitCode: child.status,
 				signal: child.signal,
-				evidence: output.trim().slice(0, 10_000),
+				evidence: output.trim().slice(0, 2_000),
 			});
 		}
 	}
@@ -131,13 +131,13 @@ const reportPath =
 await writeFile(reportPath, JSON.stringify(report, null, 2));
 for (const fixture of report.fixtures) {
 	const percent = (value) => `${(value * 100).toFixed(1)}%`;
-	process.stdout.write(
+	console.log(
 		`${fixture.fixtureId}: accepted ${fixture.accepted}/${fixture.trials} (${percent(fixture.acceptanceRate)}), ` +
 			`preferred ${fixture.preferred}/${fixture.accepted || 0} (${percent(fixture.preferredRateAmongAccepted)}), ` +
-			`inadmissible ${fixture.inadmissible}\n`,
+			`inadmissible ${fixture.inadmissible}`,
 	);
 }
-process.stdout.write(`Probabilistic eval report: ${reportPath}\n`);
+console.log(`Probabilistic eval report: ${reportPath}`);
 
 if (report.fixtures.some((fixture) => fixture.inadmissible > 0))
 	process.exitCode = 1;

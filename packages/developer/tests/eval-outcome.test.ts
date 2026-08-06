@@ -1,138 +1,118 @@
-import assert from "node:assert/strict";
+import assertModule from "node:assert";
 import test from "node:test";
 
 import {
 	assertAllowedOutcome,
 	classifyEvalOutcome,
-	parseDeveloperRuntimeResultDetails,
+	parseDeveloperStatus,
 	statusFromDeveloperEvents,
 } from "../scripts/eval-outcome.mjs";
 
-const runtime = (
-	overrides: Partial<{
-		state: "inactive" | "blocked" | "idle" | "frame" | "authorized";
-		reroutePending: boolean;
-		verificationPending: boolean;
-	}> = {},
-) => ({
-	state: "idle" as const,
-	reroutePending: false,
-	verificationPending: false,
+const assert: typeof assertModule.strict = assertModule.strict;
+
+const status = (overrides: Record<string, string> = {}) => ({
+	protocol: "idle",
+	active: "none",
+	checkpoint: "ready",
+	verification: "current",
+	pending: "none",
 	...overrides,
 });
 
-const details = (value = runtime()) => ({
-	protocol: "developer/v8-result",
-	workScopeId: "scope:evaluation",
-	eventIds: ["event:evaluation"],
-	runtime: value,
-});
-
-const toolResult = (value: unknown, errorResult = false) => ({
-	type: "tool_execution_end",
-	isError: errorResult,
-	result: { details: value },
-});
-
-test("eval outcomes distinguish unchanged, pending, paused, and verified v8 paths", () => {
+test("eval outcomes distinguish unchanged, pending, paused, and verified paths", () => {
 	assert.equal(
-		classifyEvalOutcome({ changes: [], status: runtime() }),
+		classifyEvalOutcome({ changes: [], status: status() }),
 		"settled-unchanged",
 	);
-	for (const status of [
-		runtime({ state: "inactive" }),
-		runtime({ state: "blocked" }),
-		runtime({ state: "frame" }),
-		runtime({ state: "authorized" }),
-		runtime({ reroutePending: true }),
-		runtime({ verificationPending: true }),
-	]) {
-		assert.equal(classifyEvalOutcome({ changes: [], status }), "pending");
-		assert.equal(
-			classifyEvalOutcome({
-				changes: [{ path: "src/file.ts", kind: "modified" }],
-				status,
-			}),
-			"changed-paused",
-		);
-	}
+	assert.equal(
+		classifyEvalOutcome({
+			changes: [],
+			status: status({ protocol: "needs-answer", pending: "question:1" }),
+		}),
+		"pending",
+	);
 	assert.equal(
 		classifyEvalOutcome({
 			changes: [{ path: "src/file.ts", kind: "modified" }],
-			status: runtime(),
+			status: status({
+				protocol: "needs-routing",
+				checkpoint: "reroute required",
+				verification: "required",
+			}),
+		}),
+		"changed-paused",
+	);
+	assert.equal(
+		classifyEvalOutcome({
+			changes: [{ path: "src/file.ts", kind: "modified" }],
+			status: status(),
 		}),
 		"changed-verified",
 	);
 });
 
-test("Developer v8 result details parse to an immutable exact status", () => {
-	const parsed = parseDeveloperRuntimeResultDetails(
-		JSON.parse(JSON.stringify(details())),
+test("compact and detailed Developer status produce the same outcome signals", () => {
+	assert.deepEqual(
+		parseDeveloperStatus(
+			"developer: on · target: none · needs-routing\nactive: none\ncheckpoint: reroute required\nverification: required\npending: none",
+		),
+		{
+			protocol: "needs-routing",
+			active: "none",
+			checkpoint: "reroute required",
+			verification: "required",
+			pending: "none",
+		},
 	);
-	assert.deepEqual(parsed, details());
-	assert.equal(Object.isFrozen(parsed), true);
-	assert.equal(Object.isFrozen(parsed?.eventIds), true);
-	assert.equal(Object.isFrozen(parsed?.runtime), true);
 	assert.equal(
-		parseDeveloperRuntimeResultDetails({ protocol: "foreign" }),
-		null,
+		classifyEvalOutcome({
+			changes: [{ path: "src/file.ts", kind: "modified" }],
+			status: parseDeveloperStatus("developer: on · target: none · idle"),
+		}),
+		"changed-verified",
 	);
 });
 
-test("matching malformed Developer v8 details fail before outcome classification", () => {
-	assert.throws(
-		() =>
-			parseDeveloperRuntimeResultDetails({
-				...details(),
-				extra: true,
-			}),
-		/unexpected fields/,
-	);
-	assert.throws(
-		() =>
-			parseDeveloperRuntimeResultDetails({
-				...details(),
-				runtime: { ...runtime(), state: "unknown" },
-			}),
-		/runtime state is invalid/,
-	);
-	assert.throws(
-		() =>
-			parseDeveloperRuntimeResultDetails({
-				...details(),
-				runtime: runtime({ state: "authorized", reroutePending: true }),
-			}),
-		/cannot carry landing debt/,
-	);
-	assert.throws(
-		() =>
-			parseDeveloperRuntimeResultDetails({
-				...details(),
-				eventIds: [""],
-			}),
-		/must be a non-empty string/,
-	);
-});
+test("JSON event replay recovers checkpoint and verification state without TUI status events", () => {
+	const route = {
+		protocol: "developer/v5",
+		kind: "route",
+		routeId: "route:implementation",
+		question: "Apply one change.",
+		target: "implementation",
+		reason: "The local movement is justified.",
+		knownEvidence: [],
+		consideredAlternatives: [],
+	};
+	const judgment = {
+		protocol: "developer/v5",
+		kind: "judgment",
+		routeId: route.routeId,
+		question: route.question,
+		target: route.target,
+		status: "resolved",
+		result: "The stable landing was reached.",
+		basis: ["The artifact changed."],
+		openedQuestions: [],
+		questionUpdates: [],
+		artifacts: ["src/file.ts"],
+		changedArtifacts: true,
+	};
+	const events = [route, judgment].map((details, index) => ({
+		type: "tool_execution_end",
+		toolName:
+			index === 0 ? "developer_route_question" : "developer_record_judgment",
+		isError: false,
+		result: { details },
+	}));
 
-test("event status uses the latest valid v8 result and fails closed when absent", () => {
-	const events = [
-		toolResult({ protocol: "foreign" }),
-		toolResult(details(runtime({ state: "frame" }))),
-		toolResult(details(runtime({ verificationPending: true })), true),
-		toolResult(details()),
-	];
-	assert.deepEqual(statusFromDeveloperEvents(events), runtime());
-	assert.throws(
-		() => statusFromDeveloperEvents([toolResult({ protocol: "foreign" })]),
-		/no valid Developer v8 result details/,
-	);
-	assert.throws(
-		() =>
-			statusFromDeveloperEvents([
-				toolResult({ ...details(), runtime: { ...runtime(), extra: true } }),
-			]),
-		/unexpected fields/,
-	);
+	assert.deepEqual(statusFromDeveloperEvents(events), {
+		protocol: "needs-routing",
+		active: "none",
+		checkpoint: "reroute required",
+		verification: "required",
+		pending: "none",
+	});
 });
 
 test("fixture outcome declarations reject pass-but-wrong terminal states", () => {

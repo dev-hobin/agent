@@ -14,6 +14,7 @@ import {
 import {
 	assertAllowedOutcome,
 	classifyEvalOutcome,
+	parseDeveloperStatus,
 	statusFromDeveloperEvents,
 } from "./eval-outcome.mjs";
 import { createEvalWorkspace } from "./eval-workspace.mjs";
@@ -167,24 +168,33 @@ for (const fixture of fixtures) {
 			root,
 			casePath,
 		);
-		const status = statusFromDeveloperEvents(events);
+		const statusEvent = events
+			.toReversed()
+			.find(
+				(event) =>
+					event.type === "extension_ui_request" &&
+					event.method === "setStatus" &&
+					String(event.statusText).startsWith("developer:"),
+			);
+		const status = statusEvent
+			? parseDeveloperStatus(statusEvent.statusText)
+			: statusFromDeveloperEvents(events);
 		const changes = diffWorkspaceSnapshots(
 			before,
 			await snapshotWorkspace(casePath),
 		);
 		const outcome = classifyEvalOutcome({ changes, status });
 		assertAllowedOutcome(fixture, outcome);
-		process.stdout.write(
+		console.log(
 			"DEVELOPER_EVAL_RESULT " +
 				JSON.stringify({
 					fixtureId: fixture.id,
 					structuralValid: true,
 					outcome,
 					...traceSummary,
-				}) +
-				"\n",
+				}),
 		);
-		process.stdout.write(`JSON eval passed: ${fixture.id} (${outcome})\n`);
+		console.log(`JSON eval passed: ${fixture.id} (${outcome})`);
 	} catch (error) {
 		const failure = error instanceof Error ? error : new Error(String(error));
 		const tracePath = join(tmpdir(), `developer-eval-${fixture.id}.json`);

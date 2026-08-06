@@ -1,7 +1,7 @@
 {
   "name": "@hobin/developer",
   "version": "0.1.19",
-  "description": "A Pi root runtime for explicit coding judgments, bounded mutation, and claim-relative verification.",
+  "description": "Branch-aware judgment routing, evidence gates, and focused development skills for Pi.",
   "type": "module",
   "keywords": ["pi-package", "pi", "developer", "skills"],
   "license": "MIT",
@@ -24,10 +24,9 @@
   "files": [
     "extensions",
     "skills",
-    "src",
     "docs",
     "README.md",
-    "README.ko.md",
+    "REFERENCE_ROUTING.md",
     "LICENSE"
   ],
   "engines": {
@@ -40,15 +39,9 @@
     "eval:live": "node scripts/eval-live.mjs --transport rpc",
     "eval:live:json": "node scripts/eval-live.mjs --transport json"
   },
-  "exports": {
-    ".": "./src/index.ts"
-  },
   "pi": {
     "extensions": ["./extensions/developer.ts"],
     "skills": ["./skills"]
-  },
-  "devDependencies": {
-    "typebox": "1.1.38"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
@@ -57,6 +50,6 @@
     "typebox": "*"
   },
   "dependencies": {
-    "@hobin/judgment": "workspace:^0.1.0"
+    "xstate": "5.32.5"
   }
 }

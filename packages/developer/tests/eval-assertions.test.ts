@@ -11,93 +11,78 @@ import {
 
 const assert: typeof assertModule.strict = assertModule.strict;
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const OPEN = "developer_open_judgment";
-const CONCLUDE = "developer_conclude_judgment";
-const AUTHORIZE = "developer_authorize_change";
-const LANDING = "developer_record_landing";
-
 const fixture = {
 	id: "agent-gate",
-	requiresJudgmentReadEvidence: true,
+	requiresJudgmentBashEvidence: true,
 };
 
-const gateTrace = [
+const trace = [
 	{
-		toolName: CONCLUDE,
+		toolName: "developer_record_judgment",
 		args: {
-			judgment_id: "frame:agent-evidence",
-			outcome: {
-				kind: "needs-evidence",
-				evidenceNeeded: ["Confirm the contract export owner."],
-			},
+			status: "needs-evidence",
+			open_questions: [
+				{ resolution_owner: "agent", gate: "before-implementation" },
+			],
 		},
 	},
-	{ toolName: "read", args: { path: "src/contracts.ts" } },
+	{ toolName: "developer_route_question", args: { target: "signal" } },
+	{ toolName: "bash", args: { command: "test -f src/contracts.ts" } },
 	{
-		toolName: CONCLUDE,
+		toolName: "developer_record_judgment",
 		args: {
-			judgment_id: "frame:agent-evidence",
-			outcome: { kind: "contextual-judgment" },
+			question_updates: [{ question_id: "question:1", status: "resolved" }],
 		},
 	},
-	{ toolName: AUTHORIZE, args: { movement: "Add the marker." } },
+	{ toolName: "developer_route_question", args: { target: "implementation" } },
 ];
 
-test("agent evidence frame requires a read, explicit resolution, then authorization", () => {
+test("agent before-implementation trace requires evidence routing, bash, explicit resolution, then implementation", () => {
 	assert.doesNotThrow(() =>
-		assertAgentBeforeImplementationResolution(fixture, gateTrace),
+		assertAgentBeforeImplementationResolution(fixture, trace),
 	);
 	assert.throws(
 		() =>
 			assertAgentBeforeImplementationResolution(
 				fixture,
-				gateTrace.filter((event) => event.toolName !== "read"),
+				trace.filter((event) => event.toolName !== "bash"),
 			),
-		/did not read its target/iu,
+		/did not run bash/,
 	);
 	assert.throws(
 		() =>
-			assertAgentBeforeImplementationResolution(
-				fixture,
-				gateTrace.slice(0, -1),
-			),
-		/no change authorization followed/iu,
+			assertAgentBeforeImplementationResolution(fixture, trace.slice(0, -1)),
+		/no implementation route followed/,
 	);
 });
 
 const implementationTrace = [
 	{
 		type: "tool_execution_start",
-		toolCallId: "change:1",
-		toolName: AUTHORIZE,
-		args: {
-			movement: "Apply one bounded marker change.",
-			stable_landing: "Marker change reached a stable landing.",
-			verification_target: "Run the focused check.",
-		},
+		toolCallId: "route:1",
+		toolName: "developer_route_question",
+		args: { target: "implementation" },
 	},
 	{
 		type: "tool_execution_end",
-		toolCallId: "change:1",
-		toolName: AUTHORIZE,
+		toolCallId: "route:1",
+		toolName: "developer_route_question",
 		isError: false,
-		result: { content: [{ type: "text", text: "authorized" }] },
+		result: { content: [{ type: "text", text: "implementation route" }] },
 	},
 	{
 		type: "tool_execution_start",
-		toolCallId: "landing:1",
-		toolName: LANDING,
+		toolCallId: "judgment:1",
+		toolName: "developer_record_judgment",
 		args: {
-			authorization_id: "change:1",
-			changed_paths: ["src/file.ts"],
+			status: "resolved",
 			result: "Marker change reached a stable landing.",
-			verification: [],
 		},
 	},
 	{
 		type: "tool_execution_end",
-		toolCallId: "landing:1",
-		toolName: LANDING,
+		toolCallId: "judgment:1",
+		toolName: "developer_record_judgment",
 		isError: false,
 		result: { content: [{ type: "text", text: "recorded" }] },
 	},
@@ -109,17 +94,145 @@ const structuralFixture = {
 	preferredFirstTargets: ["signal"],
 	requiredJudgmentTerms: ["Marker", "stable landing"],
 	requiredJudgmentConcepts: [["change", "movement"]],
-	mustRecordLanding: true,
+	mustRecordJudgment: true,
 };
 
-function completed(
-	toolCallId: string,
-	toolName: string,
-	args: Record<string, unknown>,
-	text = "ok",
-) {
-	return [
-		{ type: "tool_execution_start", toolCallId, toolName, args },
+test("reference expectations require a successful auditable load and applied judgment basis", async () => {
+	const source = await readFile(
+		join(packageRoot, "skills", "sketch", "SKILL.md"),
+		"utf8",
+	);
+	const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+	const events = [
+		{
+			type: "tool_execution_start",
+			toolCallId: "route:reference",
+			toolName: "developer_route_question",
+			args: { target: "sketch" },
+		},
+		{
+			type: "tool_execution_end",
+			toolCallId: "route:reference",
+			toolName: "developer_route_question",
+			isError: false,
+			result: {
+				content: [
+					{
+						type: "text",
+						text: `<developer-method name="sketch" location="/skills/sketch/SKILL.md" base-dir="/skills/sketch">\n${body}\n</developer-method>\nResolve relative references from /skills/sketch.`,
+					},
+				],
+			},
+		},
+		{
+			type: "tool_execution_start",
+			toolCallId: "reference:1",
+			toolName: "developer_load_reference",
+			args: {
+				reference_route: "data-driven-design",
+				path: "references/data-driven-design.md",
+			},
+		},
+		{
+			type: "tool_execution_end",
+			toolCallId: "reference:1",
+			toolName: "developer_load_reference",
+			isError: false,
+			result: { content: [{ type: "text", text: "loaded" }] },
+		},
+		{
+			type: "tool_execution_start",
+			toolCallId: "judgment:reference",
+			toolName: "developer_record_judgment",
+			args: {
+				status: "resolved",
+				result: "The data clauses derive the template.",
+				reference_basis: [
+					{
+						path: "references/data-driven-design.md",
+						trigger: "The variants determine branches.",
+						applied_rule: "One clause produces one branch.",
+						artifact: "A case-derived template.",
+					},
+				],
+			},
+		},
+		{
+			type: "tool_execution_end",
+			toolCallId: "judgment:reference",
+			toolName: "developer_record_judgment",
+			isError: false,
+			result: { content: [{ type: "text", text: "recorded" }] },
+		},
+	];
+	const referenceFixture = {
+		id: "reference-contract",
+		admissibleFirstTargets: ["sketch"],
+		preferredFirstTargets: ["sketch"],
+		mustRecordJudgment: true,
+		expectedReferenceRoutes: ["data-driven-design"],
+		expectedReferenceReads: ["skills/sketch/references/data-driven-design.md"],
+	};
+
+	await assert.doesNotReject(
+		validateExecutionTrace(referenceFixture, events, packageRoot),
+	);
+	const withoutApplication = structuredClone(events);
+	const judgmentStart = withoutApplication.find(
+		(event) =>
+			event.toolCallId === "judgment:reference" &&
+			event.type === "tool_execution_start",
+	);
+	assert.ok(judgmentStart);
+	assert.ok(judgmentStart.args);
+	assert.ok("reference_basis" in judgmentStart.args);
+	judgmentStart.args.reference_basis = [];
+	await assert.rejects(
+		validateExecutionTrace(referenceFixture, withoutApplication, packageRoot),
+		/judgment did not apply loaded reference/,
+	);
+	const withoutRouteSelection = structuredClone(events);
+	const routeLoadStart = withoutRouteSelection.find(
+		(event) =>
+			event.toolCallId === "reference:1" &&
+			event.type === "tool_execution_start",
+	);
+	assert.ok(routeLoadStart?.args);
+	delete routeLoadStart.args.reference_route;
+	await assert.rejects(
+		validateExecutionTrace(
+			referenceFixture,
+			withoutRouteSelection,
+			packageRoot,
+		),
+		/did not select policy route/,
+	);
+	const failedLoad = structuredClone(events);
+	const referenceEnd = failedLoad.find(
+		(event) =>
+			event.toolCallId === "reference:1" && event.type === "tool_execution_end",
+	);
+	assert.ok(referenceEnd && "isError" in referenceEnd);
+	referenceEnd.isError = true;
+	await assert.rejects(
+		validateExecutionTrace(referenceFixture, failedLoad, packageRoot),
+		/reference route selection failed/,
+	);
+});
+
+test("Doctor evaluation requires owner consultation and a final synthesis route", async () => {
+	const completed = (
+		toolCallId: string,
+		toolName: string,
+		args: Record<string, unknown>,
+		text = "ok",
+	) => [
+		{
+			type: "tool_execution_start",
+			toolCallId,
+			toolName,
+			args,
+		},
 		{
 			type: "tool_execution_end",
 			toolCallId,
@@ -128,129 +241,47 @@ function completed(
 			result: { content: [{ type: "text", text }] },
 		},
 	];
-}
-
-async function methodText(name: string) {
-	const source = await readFile(
-		join(packageRoot, "skills", name, "SKILL.md"),
-		"utf8",
-	);
-	const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
-	return `<developer-method name="${name}" location="/skills/${name}/SKILL.md" base-dir="/skills/${name}">\n${body}\n</developer-method>\nNominate only acquired current-branch context. Prepared references exist only when this method includes generated Context Directions.`;
-}
-
-test("context expectations require a selected prepared reference and cited contribution", async () => {
-	const sketchMethod = await methodText("sketch");
-	const events = [
-		...completed(
-			"open:reference",
-			OPEN,
-			{ owner_skill: { skill_name: "sketch" } },
-			sketchMethod,
-		),
-		...completed("conclude:reference", CONCLUDE, {
-			nominations: [
-				{
-					nominationId: "data-guidance",
-					kind: "inventory-source",
-					provenancePath: "/skills/sketch/references/data-driven-design.md",
-				},
-			],
-			coverage: {
-				contributions: [
-					{
-						nominationId: "data-guidance",
-						useAs: "guidance",
-					},
-				],
-			},
-			outcome: {
-				kind: "contextual-judgment",
-				citedUses: [{ contributionIndex: 0 }],
-				artifact: "The data clauses derive the template.",
-			},
-		}),
-	];
-	const contextFixture = {
-		id: "context-contract",
-		admissibleFirstTargets: ["sketch"],
-		preferredFirstTargets: ["sketch"],
-		mustRecordJudgment: true,
-		expectedPreparedReferences: [
-			"skills/sketch/references/data-driven-design.md",
-		],
+	const methodText = async (name: string) => {
+		const source = await readFile(
+			join(packageRoot, "skills", name, "SKILL.md"),
+			"utf8",
+		);
+		const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+		return `<developer-method name="${name}" location="/skills/${name}/SKILL.md" base-dir="/skills/${name}">\n${body}\n</developer-method>\nResolve relative references from /skills/${name}.`;
 	};
-
-	await assert.doesNotReject(
-		validateExecutionTrace(contextFixture, events, packageRoot),
-	);
-	const withoutCitation = structuredClone(events);
-	const conclusion = withoutCitation.find(
-		(event) =>
-			event.toolCallId === "conclude:reference" &&
-			event.type === "tool_execution_start",
-	);
-	const outcome = conclusion?.args?.outcome;
-	assert.ok(outcome && typeof outcome === "object");
-	Reflect.set(outcome, "citedUses", []);
-	await assert.rejects(
-		validateExecutionTrace(contextFixture, withoutCitation, packageRoot),
-		/did not select and cite prepared reference/iu,
-	);
-	const failedConclusion = structuredClone(events);
-	const ending = failedConclusion.find(
-		(event) =>
-			event.toolCallId === "conclude:reference" &&
-			event.type === "tool_execution_end",
-	);
-	assert.ok(ending && "isError" in ending);
-	ending.isError = true;
-	await assert.rejects(
-		validateExecutionTrace(contextFixture, failedConclusion, packageRoot),
-		/developer_conclude_judgment failed/iu,
-	);
-});
-
-test("Doctor evaluation requires owner consultation and a final synthesis judgment", async () => {
 	const doctorMethod = await methodText("doctor");
 	const sketchMethod = await methodText("sketch");
 	const events = [
 		...completed(
-			"open:triage",
-			OPEN,
-			{ owner_skill: { skill_name: "doctor" } },
+			"route:triage",
+			"developer_route_question",
+			{ target: "doctor" },
 			doctorMethod,
 		),
-		...completed("conclude:triage", CONCLUDE, {
-			outcome: {
-				kind: "needs-evidence",
-				artifact: "Consultation plan remains open.",
-			},
+		...completed("judgment:triage", "developer_record_judgment", {
+			status: "needs-evidence",
+			result: "Consultation plan remains open.",
 		}),
 		...completed(
-			"open:owner",
-			OPEN,
-			{ owner_skill: { skill_name: "sketch" } },
+			"route:owner",
+			"developer_route_question",
+			{ target: "sketch" },
 			sketchMethod,
 		),
-		...completed("conclude:owner", CONCLUDE, {
-			outcome: {
-				kind: "contextual-judgment",
-				artifact: "The boundary owner is explicit.",
-			},
+		...completed("judgment:owner", "developer_record_judgment", {
+			status: "resolved",
+			result: "The boundary owner is explicit.",
 		}),
 		...completed(
-			"open:synthesis",
-			OPEN,
-			{ owner_skill: { skill_name: "doctor" } },
+			"route:synthesis",
+			"developer_route_question",
+			{ target: "doctor" },
 			doctorMethod,
 		),
-		...completed("conclude:synthesis", CONCLUDE, {
-			outcome: {
-				kind: "contextual-judgment",
-				artifact:
-					"Consultation ledger integrated. Diagnosis is bounded. Treatment plan leaves speculative work alone.",
-			},
+		...completed("judgment:synthesis", "developer_record_judgment", {
+			status: "resolved",
+			result:
+				"Consultation ledger integrated. Diagnosis is bounded. Treatment plan leaves speculative work alone.",
 		}),
 	];
 	const doctorFixture = {
@@ -266,11 +297,11 @@ test("Doctor evaluation requires owner consultation and a final synthesis judgme
 	);
 	await assert.rejects(
 		validateExecutionTrace(doctorFixture, events.slice(0, -4), packageRoot),
-		/Doctor did not return for final synthesis|final judgment opening was not Doctor synthesis/iu,
+		/Doctor did not return for final synthesis|final route was not Doctor synthesis/,
 	);
 });
 
-test("structural admissibility is hard while preferred selection remains a score", async () => {
+test("structural admissibility is hard while preferred routing remains a score", async () => {
 	const summary = await validateExecutionTrace(
 		structuralFixture,
 		implementationTrace,
@@ -279,7 +310,7 @@ test("structural admissibility is hard while preferred selection remains a score
 	assert.deepEqual(summary, {
 		firstTarget: "implementation",
 		preferredFirstTarget: false,
-		decisionCount: 1,
+		routeCount: 1,
 		toolCallCount: 2,
 	});
 
@@ -289,7 +320,7 @@ test("structural admissibility is hard while preferred selection remains a score
 			implementationTrace,
 			".",
 		),
-		/structurally inadmissible first target/iu,
+		/structurally inadmissible first route/,
 	);
 	await assert.rejects(
 		validateExecutionTrace(
@@ -300,7 +331,7 @@ test("structural admissibility is hard while preferred selection remains a score
 			implementationTrace,
 			".",
 		),
-		/omitted required semantic term/iu,
+		/omitted required semantic term/,
 	);
 	await assert.rejects(
 		validateExecutionTrace(
@@ -311,6 +342,6 @@ test("structural admissibility is hard while preferred selection remains a score
 			implementationTrace,
 			".",
 		),
-		/omitted required semantic concept/iu,
+		/omitted required semantic concept/,
 	);
 });
