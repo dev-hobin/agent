@@ -144,7 +144,10 @@ test("binds structured and unstructured entries while preserving TOC failures", 
 		const bound = first.entries[0];
 		const rebound = second.entries[0];
 		assert.equal(bound?.status, "bound");
-		assert.equal(bound?.status === "bound" ? bound.routing : undefined, "structured");
+		assert.equal(
+			bound?.status === "bound" ? bound.routing : undefined,
+			"structured",
+		);
 		assert.equal(rebound?.status, "bound");
 		if (
 			bound?.status === "bound" &&
