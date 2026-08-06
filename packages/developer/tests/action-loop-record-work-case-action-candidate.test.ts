@@ -6,10 +6,12 @@ import {
 } from "../src/action-loop/action/accept-action-candidate.ts";
 import { acceptActionClearance } from "../src/action-loop/action/action-clearance.ts";
 import { beginEffect } from "../src/action-loop/effect/begin-effect.ts";
+import { settleEffect } from "../src/action-loop/effect/effect-settlement.ts";
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
 import { recordWorkCaseActionCandidate } from "../src/action-loop/work/record-work-case-action-candidate.ts";
 import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-work-case-action-clearance.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
+import { recordWorkCaseEffectAssessment } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
 
@@ -147,6 +149,77 @@ test("Action Clearance requires its Candidate and Conclusions in the same invent
 				recordWorkCaseEffect(withEffect.value, effect.value).status,
 				"unchanged",
 			);
+			const intendedEffect = effect.value.intendedEffects[0];
+			if (intendedEffect === undefined) return;
+			const assessment = settleEffect(effect.value, [], {
+				workCaseId: opened.workCaseId,
+				effectId: effect.value.effectId,
+				outcome: "unknown",
+				observationDispositions: [],
+				intendedEffectDispositions: [
+					{
+						intendedEffect,
+						status: "unknown",
+						observationIds: [],
+						basis: ["No decisive Observation is currently available."],
+					},
+				],
+				basis: ["The Effect remains explicitly unsettled."],
+				provenance: { kind: "model", source: "test-evaluator" },
+			});
+			if (assessment.status !== "unsettled") return;
+			const withAssessment = recordWorkCaseEffectAssessment(
+				withEffect.value,
+				assessment.value,
+				null,
+			);
+			assert.equal(withAssessment.status, "recorded");
+			if (withAssessment.status === "recorded") {
+				assert.equal(withAssessment.value.currentEffectAssessments.length, 1);
+				assert.equal(
+					recordWorkCaseEffectAssessment(
+						withAssessment.value,
+						assessment.value,
+						null,
+					).status,
+					"unchanged",
+				);
+				const reassessment = settleEffect(effect.value, [], {
+					workCaseId: opened.workCaseId,
+					effectId: effect.value.effectId,
+					outcome: "unknown",
+					observationDispositions: [],
+					intendedEffectDispositions: [
+						{
+							intendedEffect,
+							status: "unknown",
+							observationIds: [],
+							basis: ["A second bounded check remains inconclusive."],
+						},
+					],
+					basis: ["The later check still leaves the Effect unsettled."],
+					provenance: { kind: "model", source: "test-evaluator" },
+				});
+				if (reassessment.status !== "unsettled") return;
+				const staleReplacement = recordWorkCaseEffectAssessment(
+					withAssessment.value,
+					reassessment.value,
+					null,
+				);
+				const replacement = recordWorkCaseEffectAssessment(
+					withAssessment.value,
+					reassessment.value,
+					assessment.value.effectAssessmentId,
+				);
+				assert.equal(staleReplacement.status, "invalid");
+				assert.equal(replacement.status, "recorded");
+				if (staleReplacement.status === "invalid") {
+					assert.equal(
+						staleReplacement.error.code,
+						"stale-effect-assessment",
+					);
+				}
+			}
 		}
 	}
 	if (missingCandidate.status === "invalid") {
