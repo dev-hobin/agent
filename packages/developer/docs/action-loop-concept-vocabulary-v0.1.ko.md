@@ -414,9 +414,14 @@ Conclusion ≠ Work Case completion
 
 > 현재 Work Case를 진행시키기 위해 고려 중인 하나의 concrete controlled Action.
 
-Action Candidate는 아직 실행 가능한 상태가 아니다.
+Action Candidate는 아직 실행 가능한 상태가 아니다. V0 candidate는 host가 exact controlled action representation에 부여한 kind와 SHA-256 fingerprint, intended Effects, 그리고 필요한 Conclusion IDs를 함께 묶는다. Fingerprint는 permission이나 실행 성공을 뜻하지 않으며 Work Core가 provider-specific tool arguments를 소유하게 하지 않는다.
 
 ```text
+exact controlled action fingerprint
++ intended Effects
++ required Conclusions
+  → Action Candidate
+
 Action Candidate
 + sufficient warrant
 + current permission

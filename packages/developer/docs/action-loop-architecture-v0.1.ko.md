@@ -651,6 +651,7 @@ raw schema-identified TOC
 
 ```text
 Conclusion
+  → exact controlled-action fingerprint + intended Effects
   → Action Candidate
   → permission + Action Clearance
   → controlled Action
