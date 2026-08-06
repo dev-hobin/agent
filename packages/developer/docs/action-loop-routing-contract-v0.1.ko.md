@@ -167,11 +167,15 @@ CapabilityRevisionId =
   hash(
     CapabilityId,
     exact SKILL.md hash,
-    normalized TOC hash
+    routing fingerprint
   )
+
+routing fingerprint =
+  structured   → normalized TOC hash
+  unstructured → explicit versioned no-TOC marker
 ```
 
-`CapabilityId`는 어느 source의 어느 Skill occurrence인지를 보존한다. `CapabilityRevisionId`는 같은 occurrence의 current Skill and TOC content state를 보존한다. Selected Reference hashes는 더 뒤의 Sealed Skill Context가 소유하므로 unselected Reference body drift만으로 Capability revision을 바꾸지 않는다.
+`CapabilityId`는 어느 source의 어느 Skill occurrence인지를 보존한다. `CapabilityRevisionId`는 같은 occurrence의 current Skill content와 routing mode를 보존한다. Canonical TOC의 추가·삭제는 Capability ID를 유지하면서 revision을 바꾼다. Recognized invalid, ambiguous, 또는 unsupported descriptor는 no-TOC marker로 fallback하지 않는다. Selected Reference hashes는 더 뒤의 Sealed Skill Context가 소유하므로 unselected Reference body drift만으로 Capability revision을 바꾸지 않는다.
 
 ```text
 name: model
@@ -522,7 +526,7 @@ Identity chain:
 Pi source kind + canonical source locator + Skill-relative root
   → capabilityId
 
-capabilityId + exact SKILL.md + normalized TOC
+capabilityId + exact SKILL.md + (normalized TOC | versioned no-TOC marker)
   → capabilityRevisionId
 
 Contribution Need + Work Case + capabilityRevisionId + applicability basis
@@ -752,7 +756,7 @@ Co-required grouping, explicit route IDs, artifact declarations, custom read ord
 
 1. Complete Reference Selection: every declared Reference is dispositioned exactly once, uncertainty is preserved, and selected paths follow declaration order.
 2. Parse one schema-identified TOC: raw bytes either become one immutable Parsed TOC or fail before owner binding and file acquisition.
-3. Bind one Capability: Pi source provenance and Skill-relative root generate Capability identity; exact Skill and TOC generate revision identity.
+3. Bind one Capability: Pi source provenance and Skill-relative root generate Capability identity; exact Skill plus normalized TOC or an explicit versioned no-TOC marker generate revision identity.
 4. Accept one applicability proposal: `applicable | not-applicable | needs-context` requires model-neutral basis and binds exactly one Need and Capability revision.
 5. Seal one selected context: selected paths are acquired atomically with containment, exact bytes, hashes, and provenance.
 6. Accept one Skill Contribution: assignment and sealed context identities match and every selected Reference has an application disposition.

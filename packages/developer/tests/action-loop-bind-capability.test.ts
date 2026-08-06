@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
 	bindCapability,
+	bindUnstructuredCapability,
 	type CapabilitySource,
 } from "../src/action-loop/routing/bind-capability.ts";
 import {
@@ -116,6 +117,51 @@ test("equivalent normalized TOCs produce the same revision", () => {
 	);
 });
 
+test("an unstructured Skill receives source-bound identity without a synthetic TOC", () => {
+	const structured = bindCapability(packageSource, parseToc(), skillBytes);
+	const unstructured = bindUnstructuredCapability(packageSource, skillBytes);
+
+	assert.equal(structured.ok, true);
+	assert.equal(unstructured.ok, true);
+	if (!structured.ok || !unstructured.ok) return;
+	assert.equal(unstructured.value.routing, "unstructured");
+	assert.equal(unstructured.value.capabilityId, structured.value.capabilityId);
+	assert.notEqual(
+		unstructured.value.capabilityRevisionId,
+		structured.value.capabilityRevisionId,
+	);
+	assert.match(unstructured.value.skillHash, /^sha256_[a-f0-9]{64}$/);
+	assert.equal("toc" in unstructured.value, false);
+	assert.equal("tocHash" in unstructured.value, false);
+	assert.equal(Object.isFrozen(unstructured.value), true);
+	assert.equal(Object.isFrozen(unstructured.value.source), true);
+});
+
+test("unstructured revision changes with Skill content but not evaluator-independent source identity", () => {
+	const original = bindUnstructuredCapability(packageSource, skillBytes);
+	const repeated = bindUnstructuredCapability(packageSource, skillBytes);
+	const changed = bindUnstructuredCapability(
+		packageSource,
+		encoder.encode("---\nname: verify\n---\nchanged\n"),
+	);
+
+	assert.equal(original.ok, true);
+	assert.equal(repeated.ok, true);
+	assert.equal(changed.ok, true);
+	if (!original.ok || !repeated.ok || !changed.ok) return;
+	assert.equal(repeated.value.capabilityId, original.value.capabilityId);
+	assert.equal(
+		repeated.value.capabilityRevisionId,
+		original.value.capabilityRevisionId,
+	);
+	assert.equal(changed.value.capabilityId, original.value.capabilityId);
+	assert.notEqual(
+		changed.value.capabilityRevisionId,
+		original.value.capabilityRevisionId,
+	);
+	assert.notEqual(changed.value.skillHash, original.value.skillHash);
+});
+
 test("same content at different sources cannot collapse to one Capability", () => {
 	const packaged = bindCapability(packageSource, parseToc(), skillBytes);
 	const project = bindCapability(
@@ -182,14 +228,20 @@ test("invalid adapter provenance fails before identity creation", () => {
 	] as const;
 
 	for (const fixture of cases) {
-		const result = bindCapability(
+		const structured = bindCapability(
 			fixture.source as CapabilitySource,
 			parseToc(),
 			skillBytes,
 		);
-		assert.equal(result.ok, false);
-		if (result.ok) continue;
-		assert.equal(result.error.code, fixture.code);
-		assert.equal(result.error.path, fixture.path);
+		const unstructured = bindUnstructuredCapability(
+			fixture.source as CapabilitySource,
+			skillBytes,
+		);
+		for (const result of [structured, unstructured]) {
+			assert.equal(result.ok, false);
+			if (result.ok) continue;
+			assert.equal(result.error.code, fixture.code);
+			assert.equal(result.error.path, fixture.path);
+		}
 	}
 });

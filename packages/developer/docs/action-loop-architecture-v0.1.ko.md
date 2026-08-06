@@ -404,7 +404,7 @@ Category:
 
 TOC는 모든 Capability에 요구되지 않는다. Tool, direct Observation, external decision은 다른 adapter를 통해 Contribution을 만들 수 있다. `AGENTS.md`, repository instructions, code, test는 Context source이며 자동으로 Skill이나 상위 category가 되지 않는다. Skill이 추가되어도 top-level responsibility ontology가 자동으로 늘어나지 않는다.
 
-Skill의 human-facing `name`은 runtime identity가 아니다. Pi Adapter는 discovered source provenance와 Skill-relative root에서 source-bound Capability ID를 생성하고, exact `SKILL.md`와 normalized TOC에서 Capability revision ID를 생성한다. Current Pi가 name collision로 제외한 Skill을 Developer가 독자적인 filesystem scan으로 복원하지 않는다.
+Skill의 human-facing `name`은 runtime identity가 아니다. Pi Adapter는 discovered source provenance와 Skill-relative root에서 source-bound Capability ID를 생성하고, exact `SKILL.md`와 routing fingerprint에서 Capability revision ID를 생성한다. Structured Skill의 fingerprint는 normalized TOC hash이고, unstructured Skill은 explicit versioned no-TOC marker를 사용한다. Recognized invalid descriptor는 unstructured fallback이 아니다. Current Pi가 name collision로 제외한 Skill을 Developer가 독자적인 filesystem scan으로 복원하지 않는다.
 
 Contribution Need의 final TypeScript representation은 아직 확정하지 않는다. 그러나 Closure Requirement, Need, Capability routing, Reference routing, Contribution, Coverage, Conclusion 사이의 linking semantics는 [Capability and Material Routing](./action-loop-routing-contract-v0.1.ko.md)을 따른다.
 

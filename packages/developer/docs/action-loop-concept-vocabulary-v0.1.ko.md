@@ -545,7 +545,7 @@ Provider-specific response envelopes, tool-call dialects, structured-output limi
 
 ### Pi Adapter
 
-Pi hook과 Work Core transition 사이를 번역한다. Pi-selected Skill provenance와 schema-identified TOC를 refined Capability inventory로 결합하고 source-bound Capability ID와 content-bound revision ID를 생성한다. Provider/model-specific responses를 Model Protocol proposal로 정규화한다. Work Core가 raw filesystem, Pi discovery policy, provider SDK type을 소유하게 하지 않는다.
+Pi hook과 Work Core transition 사이를 번역한다. Pi-selected Skill provenance, exact Skill content, schema-identified TOC 또는 explicit no-TOC state를 refined Capability inventory로 결합하고 source-bound Capability ID와 content-and-routing-bound revision ID를 생성한다. Recognized invalid descriptor는 no-TOC state로 축소하지 않는다. Provider/model-specific responses를 Model Protocol proposal로 정규화한다. Work Core가 raw filesystem, Pi discovery policy, provider SDK type을 소유하게 하지 않는다.
 
 ### Work Record
 
