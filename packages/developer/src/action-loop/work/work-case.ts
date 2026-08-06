@@ -4,6 +4,7 @@ import type {
 } from "../action/accept-action-candidate.ts";
 import type { ActionClearance } from "../action/action-clearance.ts";
 import type { PendingEffect } from "../effect/begin-effect.ts";
+import type { EffectRemediation } from "../effect/accept-effect-remediation.ts";
 import type {
 	EffectSettlement,
 	UnsettledEffectAssessment,
@@ -53,6 +54,7 @@ export interface ActiveWorkCase {
 		| EffectSettlement
 		| UnsettledEffectAssessment
 	)[];
+	readonly effectRemediations: readonly EffectRemediation[];
 	readonly continuityIds: readonly string[];
 	readonly provenance: ActionCandidateProvenance;
 }
@@ -232,6 +234,13 @@ export function deriveWorkCaseRevisionId(
 		"current-effect-assessments",
 		String(assessmentIds.length),
 		...sortedIds(assessmentIds),
+		"effect-remediations",
+		String(state.effectRemediations.length),
+		...sortedIds(
+			state.effectRemediations.map(
+				({ effectRemediationId }) => effectRemediationId,
+			),
+		),
 		"continuity",
 		String(state.continuityIds.length),
 		...state.continuityIds,
@@ -290,6 +299,16 @@ function duplicateInventoryIssue(
 		[
 			"currentEffectAssessments",
 			workCase.currentEffectAssessments.map(({ effectId }) => effectId),
+		],
+		[
+			"effectRemediations",
+			workCase.effectRemediations.map(
+				({ effectRemediationId }) => effectRemediationId,
+			),
+		],
+		[
+			"remediatedAdverseEffects",
+			workCase.effectRemediations.map(({ adverseEffectId }) => adverseEffectId),
 		],
 		["continuityIds", workCase.continuityIds],
 	];
@@ -412,6 +431,37 @@ function assessmentInventoryIssue(
 	return undefined;
 }
 
+function remediationInventoryIssue(
+	workCase: WorkCaseInventoryState,
+	assessments: ReadonlyMap<string, EffectSettlement | UnsettledEffectAssessment>,
+): WorkCaseInventoryIssue | undefined {
+	for (const remediation of workCase.effectRemediations) {
+		const adverse = assessments.get(remediation.adverseEffectId);
+		const resolving = assessments.get(remediation.remediationEffectId);
+		if (
+			remediation.workCaseId !== workCase.workCaseId ||
+			adverse === undefined ||
+			resolving === undefined ||
+			!("effectSettlementId" in adverse) ||
+			!("effectSettlementId" in resolving) ||
+			adverse.effectSettlementId !== remediation.adverseEffectSettlementId ||
+			resolving.effectSettlementId !==
+				remediation.remediationEffectSettlementId ||
+			(adverse.outcome !== "failed" &&
+				adverse.outcome !== "partially-applied") ||
+			resolving.outcome !== "observed-success" ||
+			adverse.effectId === resolving.effectId
+		) {
+			return {
+				code: "missing-dependency",
+				path: "workCase.effectRemediations",
+				message: `Effect remediation has a missing, changed, or ineligible assessment: ${remediation.effectRemediationId}`,
+			};
+		}
+	}
+	return undefined;
+}
+
 /** Returns the first cross-inventory invariant violation, if any. */
 export function workCaseInventoryIssue(
 	workCase: WorkCaseInventoryState,
@@ -448,7 +498,15 @@ export function workCaseInventoryIssue(
 	const effects = new Map(
 		workCase.effects.map((effect) => [effect.effectId, effect]),
 	);
-	return assessmentInventoryIssue(workCase, effects);
+	const assessmentIssue = assessmentInventoryIssue(workCase, effects);
+	if (assessmentIssue !== undefined) return assessmentIssue;
+	const assessments = new Map(
+		workCase.currentEffectAssessments.map((assessment) => [
+			assessment.effectId,
+			assessment,
+		]),
+	);
+	return remediationInventoryIssue(workCase, assessments);
 }
 
 /** Opens one active Work Case around one bounded Outcome. */
@@ -506,6 +564,7 @@ export function openWorkCase(
 		actionClearances: [],
 		effects: [],
 		currentEffectAssessments: [],
+		effectRemediations: [],
 		continuityIds: [],
 	});
 	return {
@@ -520,6 +579,7 @@ export function openWorkCase(
 			actionClearances: Object.freeze([]),
 			effects: Object.freeze([]),
 			currentEffectAssessments: Object.freeze([]),
+			effectRemediations: Object.freeze([]),
 			continuityIds: Object.freeze([]),
 			provenance: provenance.value,
 		}),
