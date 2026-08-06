@@ -17,7 +17,8 @@ import {
 } from "../src/action-loop/routing/bind-capability.ts";
 
 const encoder = new TextEncoder();
-const skillText = "---\nname: direct\ndescription: Direct method\n---\n# Method\n";
+const skillText =
+	"---\nname: direct\ndescription: Direct method\n---\n# Method\n";
 
 async function temporaryRoot(t: TestContext): Promise<string> {
 	const root = await mkdtemp(join(tmpdir(), "developer-unstructured-seal-"));
@@ -100,7 +101,10 @@ test("direct-file and directory Skills seal one exact unstructured context", asy
 		assert.deepEqual(first.selectedPaths, []);
 		assert.equal(first.materials.length, 1);
 		assert.equal(first.materials[0]?.kind, "skill");
-		assert.equal(first.materials[0]?.path, skillFilePath.endsWith("SKILL.md") ? "SKILL.md" : "direct.md");
+		assert.equal(
+			first.materials[0]?.path,
+			skillFilePath.endsWith("SKILL.md") ? "SKILL.md" : "direct.md",
+		);
 		assert.equal(first.materials[0]?.content, skillText);
 		assert.equal(first.skillLocator, await realpath(skillFilePath));
 		assert.equal(Object.isFrozen(first), true);

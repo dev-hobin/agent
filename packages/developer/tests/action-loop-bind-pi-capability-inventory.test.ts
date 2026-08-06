@@ -265,8 +265,7 @@ test("bound unstructured inventory composes through Skill Contribution", async (
 			contributionNeedId: applicability.assignment.contributionNeedId,
 			assignmentId: applicability.assignment.assignmentId,
 			capabilityId: applicability.assignment.capabilityId,
-			capabilityRevisionId:
-				applicability.assignment.capabilityRevisionId,
+			capabilityRevisionId: applicability.assignment.capabilityRevisionId,
 			sealedContextId: sealed.value.sealedContextId,
 			localStatus: "resolved",
 			result: "The direct Skill supplies the bounded requested method.",
