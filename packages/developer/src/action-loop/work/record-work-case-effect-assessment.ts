@@ -109,7 +109,18 @@ export function recordWorkCaseEffectAssessment(
 			assessment,
 		].sort((left, right) => left.effectId.localeCompare(right.effectId)),
 	);
-	const nextState = { ...workCase, currentEffectAssessments };
+	const effectRemediations = Object.freeze(
+		workCase.effectRemediations.filter(
+			({ adverseEffectId, remediationEffectId }) =>
+				adverseEffectId !== assessment.effectId &&
+				remediationEffectId !== assessment.effectId,
+		),
+	);
+	const nextState = {
+		...workCase,
+		currentEffectAssessments,
+		effectRemediations,
+	};
 	return {
 		status: "recorded",
 		value: Object.freeze({

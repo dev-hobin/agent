@@ -175,6 +175,36 @@ test("Work Case records one current remediation and advances revision", () => {
 	);
 });
 
+test("reassessment invalidates a remediation bound to the replaced settlement", () => {
+	const fixture = remediationCase();
+	if (fixture.remediation.status !== "accepted") return;
+	const remediation = fixture.remediation.value;
+	const recorded = recordWorkCaseEffectRemediation(
+		fixture.workCase,
+		remediation,
+	);
+	if (recorded.status !== "recorded") return;
+	const current = recorded.value.currentEffectAssessments.find(
+		({ effectId }) => effectId === remediation.remediationEffectId,
+	);
+	if (current === undefined || !("effectSettlementId" in current)) return;
+	const reassessed: EffectSettlement = Object.freeze({
+		...current,
+		effectSettlementId: `${current.effectSettlementId}-reassessed`,
+		basis: Object.freeze(["New evidence replaced the resolving assessment."]),
+	});
+	const result = recordWorkCaseEffectAssessment(
+		recorded.value,
+		reassessed,
+		current.effectSettlementId,
+	);
+
+	assert.equal(result.status, "recorded");
+	if (result.status === "recorded") {
+		assert.deepEqual(result.value.effectRemediations, []);
+	}
+});
+
 test("stale, cross-Case, and second current remediation fail closed", () => {
 	const fixture = remediationCase();
 	if (fixture.remediation.status !== "accepted") return;
