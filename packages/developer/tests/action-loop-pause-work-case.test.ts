@@ -115,6 +115,7 @@ test("pre-pause Closure Claim is stale after resume", () => {
 			closureObligationId: obligation.closureObligationId,
 			conclusionIds: target.value.conclusionIds,
 			effectAssessmentIds: [],
+			effectRemediationIds: [],
 			basis: ["The current Claim Assurance supports this obligation."],
 		})),
 		basis: ["Every current closure obligation is accounted."],

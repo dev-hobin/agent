@@ -25,6 +25,7 @@ export interface SealedClosureTarget {
 	readonly actionClearanceIds: readonly string[];
 	readonly effectIds: readonly string[];
 	readonly effectAssessmentIds: readonly string[];
+	readonly effectRemediationIds: readonly string[];
 }
 
 export type ClosureTargetBlockerCode =
@@ -98,6 +99,9 @@ function effectBlockers(
 			assessment,
 		]),
 	);
+	const remediatedEffectIds = new Set(
+		workCase.effectRemediations.map(({ adverseEffectId }) => adverseEffectId),
+	);
 	for (const effect of workCase.effects) {
 		const assessment = assessments.get(effect.effectId);
 		if (assessment === undefined) {
@@ -121,8 +125,9 @@ function effectBlockers(
 			continue;
 		}
 		if (
-			assessment.outcome === "failed" ||
-			assessment.outcome === "partially-applied"
+			(assessment.outcome === "failed" ||
+				assessment.outcome === "partially-applied") &&
+			!remediatedEffectIds.has(effect.effectId)
 		) {
 			blockers.push(
 				Object.freeze({
@@ -194,6 +199,11 @@ export function prepareClosureTarget(
 	const effectAssessmentIds = sorted(
 		workCase.currentEffectAssessments.map(effectAssessmentId),
 	);
+	const effectRemediationIds = sorted(
+		workCase.effectRemediations.map(
+			({ effectRemediationId }) => effectRemediationId,
+		),
+	);
 	const identityParts = [
 		workCase.workCaseId,
 		workCase.revisionId,
@@ -210,6 +220,8 @@ export function prepareClosureTarget(
 		...effectIds,
 		"effect-assessments",
 		...effectAssessmentIds,
+		"effect-remediations",
+		...effectRemediationIds,
 	];
 	return {
 		status: "ready",
@@ -228,6 +240,7 @@ export function prepareClosureTarget(
 			actionClearanceIds,
 			effectIds,
 			effectAssessmentIds,
+			effectRemediationIds,
 		}),
 	};
 }

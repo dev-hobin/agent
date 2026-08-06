@@ -171,6 +171,7 @@ test("Outcome-bound Action reaches evidence-bounded canonical completion", () =>
 			closureObligationId: obligation.closureObligationId,
 			conclusionIds: target.value.conclusionIds,
 			effectAssessmentIds: target.value.effectAssessmentIds,
+			effectRemediationIds: target.value.effectRemediationIds,
 			basis: [`Current evidence satisfies: ${obligation.statement}`],
 		})),
 		basis: ["Every current closure obligation and evidence item is accounted."],

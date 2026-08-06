@@ -53,6 +53,7 @@ function proposal(
 			closureObligationId: obligation.closureObligationId,
 			conclusionIds: fixture.target.conclusionIds,
 			effectAssessmentIds: fixture.target.effectAssessmentIds,
+			effectRemediationIds: fixture.target.effectRemediationIds,
 			basis: [`Evidence satisfies: ${obligation.statement}`],
 		})),
 		basis: ["Every current Closure obligation and evidence item is accounted."],
@@ -72,6 +73,7 @@ test("complete target accounting creates one immutable Closure Claim", () => {
 				closureObligationId: obligation.closureObligationId,
 				conclusionIds: fixture.target.conclusionIds,
 				effectAssessmentIds: [],
+			effectRemediationIds: [],
 				basis: [`Evidence satisfies: ${obligation.statement}`],
 			})),
 		}),
@@ -108,6 +110,7 @@ test("proposal order and evaluator provenance do not change Claim identity", () 
 			closureObligationId: obligation.closureObligationId,
 			conclusionIds: fixture.target.conclusionIds,
 			effectAssessmentIds: [],
+			effectRemediationIds: [],
 			basis: [`Evidence satisfies: ${obligation.statement}`],
 		})),
 	});
@@ -135,6 +138,7 @@ test("omitted, duplicate, or evidence-free obligations are rejected", () => {
 			closureObligationId: obligation.closureObligationId,
 			conclusionIds: fixture.target.conclusionIds,
 			effectAssessmentIds: [],
+			effectRemediationIds: [],
 			basis: [
 				"The current Claim Assurance Conclusion supports this obligation.",
 			],
@@ -158,7 +162,12 @@ test("omitted, duplicate, or evidence-free obligations are rejected", () => {
 			value: {
 				...base,
 				obligationDispositions: [
-					{ ...first, conclusionIds: [], effectAssessmentIds: [] },
+					{
+						...first,
+						conclusionIds: [],
+						effectAssessmentIds: [],
+						effectRemediationIds: [],
+					},
 					...base.obligationDispositions.slice(1),
 				],
 			},
@@ -184,6 +193,7 @@ test("a new Work Case fact makes an accepted Closure Claim stale", () => {
 			closureObligationId: obligation.closureObligationId,
 			conclusionIds: fixture.target.conclusionIds,
 			effectAssessmentIds: [],
+			effectRemediationIds: [],
 			basis: [
 				"The current Claim Assurance Conclusion supports this obligation.",
 			],
@@ -227,6 +237,7 @@ test("cross-target and undeclared evidence cannot create a Claim", () => {
 			closureObligationId: obligation.closureObligationId,
 			conclusionIds: fixture.target.conclusionIds,
 			effectAssessmentIds: [],
+			effectRemediationIds: [],
 			basis: [
 				"The current Claim Assurance Conclusion supports this obligation.",
 			],

@@ -15,6 +15,7 @@ export interface ClosureObligationDispositionProposal {
 	readonly closureObligationId: string;
 	readonly conclusionIds: readonly string[];
 	readonly effectAssessmentIds: readonly string[];
+	readonly effectRemediationIds: readonly string[];
 	readonly basis: readonly string[];
 }
 
@@ -32,6 +33,7 @@ export interface ClosureObligationDisposition {
 	readonly status: "satisfied";
 	readonly conclusionIds: readonly string[];
 	readonly effectAssessmentIds: readonly string[];
+	readonly effectRemediationIds: readonly string[];
 	readonly basis: readonly string[];
 }
 
@@ -75,12 +77,14 @@ interface DispositionContext {
 	readonly accountedIds: ReadonlySet<string>;
 	readonly conclusionIds: ReadonlySet<string>;
 	readonly effectAssessmentIds: ReadonlySet<string>;
+	readonly effectRemediationIds: ReadonlySet<string>;
 }
 
 interface CanonicalDispositionAccounting {
 	readonly dispositions: readonly ClosureObligationDisposition[];
 	readonly citedConclusionIds: ReadonlySet<string>;
 	readonly citedEffectAssessmentIds: ReadonlySet<string>;
+	readonly citedEffectRemediationIds: ReadonlySet<string>;
 }
 
 function canonicalStrings(
@@ -177,7 +181,18 @@ function canonicalDisposition(
 		context.effectAssessmentIds,
 	);
 	if (!effectAssessmentIds.ok) return effectAssessmentIds;
-	if (conclusionIds.value.length + effectAssessmentIds.value.length === 0) {
+	const effectRemediationIds = canonicalStrings(
+		proposal.effectRemediationIds,
+		`${path}.effectRemediationIds`,
+		context.effectRemediationIds,
+	);
+	if (!effectRemediationIds.ok) return effectRemediationIds;
+	if (
+		conclusionIds.value.length +
+			effectAssessmentIds.value.length +
+			effectRemediationIds.value.length ===
+		0
+	) {
 		return {
 			ok: false,
 			error: {
@@ -196,6 +211,7 @@ function canonicalDisposition(
 			status: "satisfied",
 			conclusionIds: conclusionIds.value,
 			effectAssessmentIds: effectAssessmentIds.value,
+			effectRemediationIds: effectRemediationIds.value,
 			basis: basis.value,
 		}),
 	};
@@ -218,6 +234,7 @@ function canonicalDispositionAccounting(
 	const byId = new Map<string, ClosureObligationDisposition>();
 	const citedConclusionIds = new Set<string>();
 	const citedEffectAssessmentIds = new Set<string>();
+	const citedEffectRemediationIds = new Set<string>();
 	for (let index = 0; index < proposals.length; index += 1) {
 		const disposition = canonicalDisposition(proposals[index], index, {
 			obligationIds: new Set(
@@ -228,6 +245,7 @@ function canonicalDispositionAccounting(
 			accountedIds: new Set(byId.keys()),
 			conclusionIds: new Set(target.conclusionIds),
 			effectAssessmentIds: new Set(target.effectAssessmentIds),
+			effectRemediationIds: new Set(target.effectRemediationIds),
 		});
 		if (!disposition.ok) return disposition;
 		byId.set(disposition.value.closureObligationId, disposition.value);
@@ -235,6 +253,9 @@ function canonicalDispositionAccounting(
 			citedConclusionIds.add(id);
 		for (const id of disposition.value.effectAssessmentIds) {
 			citedEffectAssessmentIds.add(id);
+		}
+		for (const id of disposition.value.effectRemediationIds) {
+			citedEffectRemediationIds.add(id);
 		}
 	}
 	if (byId.size !== target.obligations.length) {
@@ -268,6 +289,7 @@ function canonicalDispositionAccounting(
 			dispositions: Object.freeze(dispositions),
 			citedConclusionIds,
 			citedEffectAssessmentIds,
+			citedEffectRemediationIds,
 		},
 	};
 }
@@ -280,6 +302,9 @@ function allEvidenceApplied(
 		target.conclusionIds.every((id) => accounting.citedConclusionIds.has(id)) &&
 		target.effectAssessmentIds.every((id) =>
 			accounting.citedEffectAssessmentIds.has(id),
+		) &&
+		target.effectRemediationIds.every((id) =>
+			accounting.citedEffectRemediationIds.has(id),
 		)
 	);
 }
@@ -326,6 +351,8 @@ function claimIdentityParts(
 			...disposition.conclusionIds,
 			"effect-assessments",
 			...disposition.effectAssessmentIds,
+			"effect-remediations",
+			...disposition.effectRemediationIds,
 			"basis",
 			...disposition.basis,
 		);
