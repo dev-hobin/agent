@@ -2,7 +2,9 @@
 
 > 상태: reconstruction concept contract
 >
-> 관련 문서: [Developer Action Loop Architecture v0.1](./action-loop-architecture-v0.1.ko.md)
+> 관련 문서:
+> [Action Loop Architecture](./action-loop-architecture-v0.1.ko.md) ·
+> [Capability and Material Routing](./action-loop-routing-contract-v0.1.ko.md)
 >
 > 기준선: `@hobin/developer@0.1.19`
 >

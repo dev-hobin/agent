@@ -4,7 +4,9 @@
 >
 > 기준선: `@hobin/developer@0.1.19`
 >
-> 개념어 계약: [Developer Action Loop Concept Vocabulary v0.1](./action-loop-concept-vocabulary-v0.1.ko.md)
+> 관련 계약:
+> [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.ko.md) ·
+> [Capability and Material Routing](./action-loop-routing-contract-v0.1.ko.md)
 >
 > Runtime note: 0.1.19는 이 문서의 architecture를 아직 구현하지 않는다. 현재 release runtime과 Skills는 reconstruction 중에도 작동하는 보존 기준선이다.
 >
