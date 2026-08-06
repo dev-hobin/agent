@@ -4,6 +4,7 @@ import {
 	acceptClosureClaim,
 	type ClosureClaimProposal,
 } from "../src/action-loop/work/accept-closure-claim.ts";
+import { completeWorkCase } from "../src/action-loop/work/complete-work-case.ts";
 import { prepareClosureTarget } from "../src/action-loop/work/prepare-closure-target.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
@@ -79,6 +80,19 @@ test("complete target accounting creates one immutable Closure Claim", () => {
 	assert.equal(accepted.value.mode, "no-change");
 	assert.equal("status" in accepted.value, false);
 	assert.equal(Object.isFrozen(accepted.value), true);
+	const completed = completeWorkCase(
+		fixture.workCase,
+		fixture.target,
+		accepted.value,
+	);
+	assert.equal(completed.status, "completed");
+	if (completed.status === "completed") {
+		assert.equal(completed.value.status, "complete");
+		assert.equal(completed.value.priorRevisionId, fixture.workCase.revisionId);
+		assert.notEqual(completed.value.revisionId, fixture.workCase.revisionId);
+		assert.equal(completed.value.closureClaim, accepted.value);
+		assert.equal(fixture.workCase.status, "active");
+	}
 });
 
 test("proposal order and evaluator provenance do not change Claim identity", () => {
@@ -149,6 +163,47 @@ test("omitted, duplicate, or evidence-free obligations are rejected", () => {
 		if (result.status === "invalid") {
 			assert.equal(result.error.code, fixtureCase.code);
 		}
+	}
+});
+
+test("a new Work Case fact makes an accepted Closure Claim stale", () => {
+	const fixture = target();
+	const claimProposal = proposal({
+		workCaseId: fixture.target.workCaseId,
+		closureTargetId: fixture.target.closureTargetId,
+		obligationDispositions: fixture.target.obligations.map((obligation) => ({
+			closureObligationId: obligation.closureObligationId,
+			conclusionIds: fixture.target.conclusionIds,
+			effectAssessmentIds: [],
+			basis: ["The current Claim Assurance Conclusion supports this obligation."],
+		})),
+	});
+	const accepted = acceptClosureClaim(fixture.target, claimProposal);
+	if (accepted.status !== "accepted") return;
+	const laterConclusion: JudgmentConclusion = Object.freeze({
+		conclusionId: "conclusion-later",
+		workCaseId: fixture.workCase.workCaseId,
+		judgmentId: "judgment-later",
+		category: "Claim Assurance",
+		subject: "A later material fact changes the closure inventory.",
+		contextRevisionId: "context-later",
+		requirementDispositions: Object.freeze([]),
+		coverageIds: Object.freeze([]),
+		basis: Object.freeze(["Later evidence requires a fresh Closure Target."]),
+		answer: "Reassess closure against the later evidence.",
+		provenance: Object.freeze({ kind: "model", source: "later-evaluator" }),
+	});
+	const advanced = recordWorkCaseConclusion(fixture.workCase, laterConclusion);
+	if (advanced.status !== "recorded") return;
+	const completion = completeWorkCase(
+		advanced.value,
+		fixture.target,
+		accepted.value,
+	);
+
+	assert.equal(completion.status, "refused");
+	if (completion.status === "refused") {
+		assert.equal(completion.refusal.code, "stale-closure-target");
 	}
 });
 
