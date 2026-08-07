@@ -11,6 +11,7 @@ import type {
 } from "../effect/effect-settlement.ts";
 import { hashIdentity } from "../identity/hash-identity.ts";
 import type { JudgmentConclusion } from "../judgment/close-judgment.ts";
+import type { OpenJudgment } from "../judgment/open-judgment.ts";
 
 export const OUTCOME_VERSION = "developer-outcome/v1";
 export const WORK_CASE_VERSION = "developer-work-case/v1";
@@ -46,6 +47,7 @@ export interface ActiveWorkCase {
 	readonly revisionId: string;
 	readonly outcome: Outcome;
 	readonly status: "active";
+	readonly openJudgments: readonly OpenJudgment[];
 	readonly conclusions: readonly JudgmentConclusion[];
 	readonly actionCandidates: readonly ActionCandidate[];
 	readonly actionClearances: readonly ActionClearance[];
@@ -215,6 +217,9 @@ export function deriveWorkCaseRevisionId(
 	);
 	return hashIdentity("work_case_revision", WORK_CASE_REVISION_VERSION, [
 		state.workCaseId,
+		"open-judgments",
+		String(state.openJudgments.length),
+		...sortedIds(state.openJudgments.map(({ judgmentId }) => judgmentId)),
 		"conclusions",
 		String(state.conclusions.length),
 		...sortedIds(state.conclusions.map(({ conclusionId }) => conclusionId)),
@@ -280,6 +285,10 @@ function duplicateInventoryIssue(
 ): WorkCaseInventoryIssue | undefined {
 	const collections: Array<[string, readonly string[]]> = [
 		[
+			"openJudgments",
+			workCase.openJudgments.map(({ judgmentId }) => judgmentId),
+		],
+		[
 			"conclusions",
 			workCase.conclusions.map(({ conclusionId }) => conclusionId),
 		],
@@ -323,6 +332,21 @@ function duplicateInventoryIssue(
 		}
 	}
 	return undefined;
+}
+
+function judgmentInventoryIssue(
+	workCase: WorkCaseInventoryState,
+): WorkCaseInventoryIssue | undefined {
+	const mismatched = workCase.openJudgments.find(
+		({ workCaseId }) => workCaseId !== workCase.workCaseId,
+	);
+	return mismatched === undefined
+		? undefined
+		: {
+				code: "identity-mismatch",
+				path: "workCase.openJudgments",
+				message: `Judgment belongs to another Work Case: ${mismatched.judgmentId}`,
+			};
 }
 
 function conclusionInventoryIssue(
@@ -471,6 +495,8 @@ export function workCaseInventoryIssue(
 ): WorkCaseInventoryIssue | undefined {
 	const duplicateIssue = duplicateInventoryIssue(workCase);
 	if (duplicateIssue !== undefined) return duplicateIssue;
+	const judgmentIssue = judgmentInventoryIssue(workCase);
+	if (judgmentIssue !== undefined) return judgmentIssue;
 	const conclusionIssue = conclusionInventoryIssue(workCase);
 	if (conclusionIssue !== undefined) return conclusionIssue;
 	const conclusions = new Set(
@@ -562,6 +588,7 @@ export function openWorkCase(
 	const workCaseId = hashIdentity("work_case", WORK_CASE_VERSION, [outcomeId]);
 	const revisionId = deriveWorkCaseRevisionId({
 		workCaseId,
+		openJudgments: [],
 		conclusions: [],
 		actionCandidates: [],
 		actionClearances: [],
@@ -577,6 +604,7 @@ export function openWorkCase(
 			revisionId,
 			outcome,
 			status: "active",
+			openJudgments: Object.freeze([]),
 			conclusions: Object.freeze([]),
 			actionCandidates: Object.freeze([]),
 			actionClearances: Object.freeze([]),
