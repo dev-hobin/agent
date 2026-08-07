@@ -22,7 +22,10 @@ export interface LiveContributionNeedSelection {
 }
 
 export type LiveContributionNeedSelectionResult =
-	| { readonly status: "selected"; readonly value: LiveContributionNeedSelection }
+	| {
+			readonly status: "selected";
+			readonly value: LiveContributionNeedSelection;
+	  }
 	| { readonly status: "invalid"; readonly message: string };
 
 export type LiveJudgmentOpeningResult =

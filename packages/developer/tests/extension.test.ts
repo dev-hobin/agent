@@ -323,18 +323,20 @@ async function openTestWorkCase(
 			basis: ["The current test delegates this bounded Outcome."],
 		});
 	if (!withJudgment) return;
-	await harness.tools.get("developer_open_judgment").execute("judgment-fixture", {
-		category: "Contextual Adequacy",
-		subject: `The ${label} test route.`,
-		question: `Which Contribution serves the ${label} test route?`,
-		requirements: [
-			{
-				statement: `The ${label} route is supported by a relevant Contribution.`,
-				contribution_needs: ["test-selected routing contribution"],
-			},
-		],
-		basis: ["The route requires one explicit functional Need."],
-	});
+	await harness.tools
+		.get("developer_open_judgment")
+		.execute("judgment-fixture", {
+			category: "Contextual Adequacy",
+			subject: `The ${label} test route.`,
+			question: `Which Contribution serves the ${label} test route?`,
+			requirements: [
+				{
+					statement: `The ${label} route is supported by a relevant Contribution.`,
+					contribution_needs: ["test-selected routing contribution"],
+				},
+			],
+			basis: ["The route requires one explicit functional Need."],
+		});
 }
 
 async function startHarness(loadedSkills: Skill[] = loadedLeaves) {
