@@ -6,6 +6,7 @@ import {
 import {
 	acceptEffectObservation,
 	type EffectObservation,
+	type EffectObservationProposal,
 } from "../src/action-loop/effect/effect-observation.ts";
 import { acceptEffectRemediation } from "../src/action-loop/effect/accept-effect-remediation.ts";
 import {
@@ -40,6 +41,11 @@ export interface LivePiToolResult {
 	readonly content: readonly unknown[];
 	readonly details: unknown;
 }
+
+export type LiveEffectObservationProposal = Omit<
+	EffectObservationProposal,
+	"workCaseId"
+>;
 
 export type LiveEffectObservationResult =
 	| {
@@ -99,6 +105,53 @@ export function beginLiveActionEffect(
 	};
 }
 
+/** Accepts one exact Effect Observation without inferring settlement. */
+export function acceptLiveEffectObservation(
+	state: LiveWorkCaseState,
+	proposal: LiveEffectObservationProposal,
+): LiveEffectObservationResult {
+	const effect = state.workCase.effects.find(
+		(current) =>
+			current.effectId === proposal.effectId &&
+			current.occurrenceId === proposal.occurrenceId,
+	);
+	if (effect === undefined) {
+		return {
+			status: "invalid",
+			message: `No pending Effect belongs to Observation occurrence: ${proposal.occurrenceId}`,
+		};
+	}
+	const accepted = acceptEffectObservation(effect, {
+		...proposal,
+		workCaseId: state.workCase.workCaseId,
+	});
+	if (accepted.status === "invalid") {
+		return { status: "invalid", message: accepted.error.message };
+	}
+	const current = state.effectObservations.find(
+		(observation) => observation.effectId === effect.effectId,
+	);
+	if (current !== undefined) {
+		return current.effectObservationId === accepted.value.effectObservationId
+			? { status: "unchanged", state, observation: current }
+			: {
+					status: "invalid",
+					message:
+						"A different Pi tool result Observation already exists for this Effect",
+				};
+	}
+	const effectObservations = Object.freeze(
+		[...state.effectObservations, accepted.value].sort((left, right) =>
+			left.effectObservationId.localeCompare(right.effectObservationId),
+		),
+	);
+	return {
+		status: "observed",
+		state: Object.freeze({ ...state, effectObservations }),
+		observation: accepted.value,
+	};
+}
+
 /** Records a Pi tool result as evidence without inferring Effect settlement. */
 export function observeLivePiToolResult(
 	state: LiveWorkCaseState,
@@ -127,8 +180,7 @@ export function observeLivePiToolResult(
 		details: result.details ?? null,
 	});
 	if (evidence.status === "invalid") return evidence;
-	const accepted = acceptEffectObservation(effect, {
-		workCaseId: state.workCase.workCaseId,
+	return acceptLiveEffectObservation(state, {
 		effectId: effect.effectId,
 		occurrenceId,
 		evidence: {
@@ -144,31 +196,6 @@ export function observeLivePiToolResult(
 		],
 		provenance: { kind: "tool", source: `pi:${toolName}:tool-result` },
 	});
-	if (accepted.status === "invalid") {
-		return { status: "invalid", message: accepted.error.message };
-	}
-	const current = state.effectObservations.find(
-		(observation) => observation.effectId === effect.effectId,
-	);
-	if (current !== undefined) {
-		return current.effectObservationId === accepted.value.effectObservationId
-			? { status: "unchanged", state, observation: current }
-			: {
-					status: "invalid",
-					message:
-						"A different Pi tool result Observation already exists for this Effect",
-				};
-	}
-	const effectObservations = Object.freeze(
-		[...state.effectObservations, accepted.value].sort((left, right) =>
-			left.effectObservationId.localeCompare(right.effectObservationId),
-		),
-	);
-	return {
-		status: "observed",
-		state: Object.freeze({ ...state, effectObservations }),
-		observation: accepted.value,
-	};
 }
 
 /** Accepts complete Effect accounting and records its current CAS assessment. */

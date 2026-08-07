@@ -77,14 +77,21 @@ import {
 	selectLiveContributionNeed,
 } from "./action-loop-judgment.ts";
 import {
+	ACTION_LOOP_SESSION_ENTRY,
 	ACTION_LOOP_SESSION_PROTOCOL,
+	actionLoopActionClearedEvent,
 	actionLoopCapabilityAssessedEvent,
 	actionLoopContributionAcceptedEvent,
 	actionLoopCoverageAssessedEvent,
+	actionLoopEffectBegunEvent,
+	actionLoopEffectObservedEvent,
+	actionLoopEffectRemediatedEvent,
+	actionLoopEffectSettledEvent,
 	actionLoopJudgmentConcludedEvent,
 	actionLoopJudgmentOpenedEvent,
 	actionLoopReferencesSelectedEvent,
 	actionLoopUnstructuredContextSealedEvent,
+	actionLoopWorkCaseCompletedEvent,
 	actionLoopWorkCaseOpenedEvent,
 	replayActionLoopSession,
 	withActionLoopReplayEvent,
@@ -1792,13 +1799,14 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const accepted = acceptLivePiActionCandidate(activeWorkCase, {
+			const proposal = {
 				toolName: params.tool_name,
 				toolInput: params.tool_input,
 				summary: params.summary,
 				intendedEffects: params.intended_effects,
 				requiredConclusionIds: params.required_conclusion_ids,
-			});
+			};
+			const accepted = acceptLivePiActionCandidate(activeWorkCase, proposal);
 			if (accepted.status === "invalid") fail(accepted.message);
 			const clearance = assessLiveActionClearance(
 				accepted.state,
@@ -1822,13 +1830,21 @@ export default async function developer(pi: ExtensionAPI) {
 			syncProtocolTools();
 			return textResult(
 				`Action Candidate ${accepted.status}: ${accepted.candidate.actionCandidateId} · Action Clearance ${clearance.status}: ${clearance.clearance.actionClearanceId}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: clearance.status,
-					candidate: accepted.candidate,
-					permission: clearance.clearance.permission,
-					clearance: clearance.clearance,
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: clearance.status,
+						candidate: accepted.candidate,
+						permission: clearance.clearance.permission,
+						clearance: clearance.clearance,
+					},
+					actionLoopActionClearedEvent(
+						proposal,
+						accepted.candidate.actionCandidateId,
+						clearance.clearance.actionClearanceId,
+						clearance.state.workCase.revisionId,
+					),
+				),
 			);
 		},
 	});
@@ -1915,7 +1931,7 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const settled = settleLiveEffect(activeWorkCase, params.effect_id, {
+			const proposal = {
 				outcome: params.outcome,
 				observationDispositions: params.observation_dispositions.map(
 					(disposition) => ({
@@ -1934,21 +1950,35 @@ export default async function developer(pi: ExtensionAPI) {
 				),
 				basis: params.basis,
 				expectedCurrentAssessmentId: params.expected_current_assessment_id,
-			});
+			};
+			const settled = settleLiveEffect(
+				activeWorkCase,
+				params.effect_id,
+				proposal,
+			);
 			if (settled.status === "invalid") fail(settled.message);
 			activeWorkCase = settled.state;
 			const assessmentId = currentLiveEffectAssessmentId(
 				settled.state,
 				params.effect_id,
 			);
+			if (!assessmentId) fail("Effect settlement has no current assessment ID.");
 			return textResult(
 				`Effect ${settled.status}: ${assessmentId} · ${settled.assessment.outcome}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: settled.status,
-					assessment: settled.assessment as unknown,
-					assessmentId,
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: settled.status,
+						assessment: settled.assessment as unknown,
+						assessmentId,
+					},
+					actionLoopEffectSettledEvent(
+						params.effect_id,
+						proposal,
+						assessmentId,
+						settled.state.workCase.revisionId,
+					),
+				),
 			);
 		},
 	});
@@ -1991,13 +2021,22 @@ export default async function developer(pi: ExtensionAPI) {
 			activeWorkCase = remediation.state;
 			return textResult(
 				`Effect remediation ${remediation.status}: ${remediation.remediationId}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: remediation.status,
-					remediationId: remediation.remediationId,
-					adverseEffectId: params.adverse_effect_id,
-					remediationEffectId: params.remediation_effect_id,
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: remediation.status,
+						remediationId: remediation.remediationId,
+						adverseEffectId: params.adverse_effect_id,
+						remediationEffectId: params.remediation_effect_id,
+					},
+					actionLoopEffectRemediatedEvent(
+						params.adverse_effect_id,
+						params.remediation_effect_id,
+						params.basis,
+						remediation.remediationId,
+						remediation.state.workCase.revisionId,
+					),
+				),
 			);
 		},
 	});
@@ -2101,7 +2140,7 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const completed = completeLiveWorkCase(activeWorkCase, {
+			const proposal = {
 				closureTargetId: params.closure_target_id,
 				mode: params.mode,
 				obligationDispositions: params.obligation_dispositions.map(
@@ -2114,18 +2153,22 @@ export default async function developer(pi: ExtensionAPI) {
 					}),
 				),
 				basis: params.basis,
-			});
+			};
+			const completed = completeLiveWorkCase(activeWorkCase, proposal);
 			if (completed.status === "invalid") fail(completed.message);
 			completedWorkCase = completed.value;
 			activeWorkCase = undefined;
 			syncProtocolTools();
 			return textResult(
 				`Work Case completed: ${completed.value.workCaseId} · ${completed.value.revisionId}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: "completed",
-					workCase: completed.value,
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: "completed",
+						workCase: completed.value,
+					},
+					actionLoopWorkCaseCompletedEvent(proposal, completed.value),
+				),
 			);
 		},
 	});
@@ -4050,6 +4093,15 @@ export default async function developer(pi: ExtensionAPI) {
 					reason: `Developer could not begin Effect accounting for the cleared Action: ${effect.message}`,
 				};
 			}
+			pi.appendEntry(
+				ACTION_LOOP_SESSION_ENTRY,
+				actionLoopEffectBegunEvent(
+					clearance.actionClearanceId,
+					event.toolCallId,
+					effect.effect.effectId,
+					effect.state.workCase.revisionId,
+				),
+			);
 			activeWorkCase = effect.state;
 			syncProtocolTools();
 			return;
@@ -4124,6 +4176,10 @@ export default async function developer(pi: ExtensionAPI) {
 				],
 			};
 		}
+		pi.appendEntry(
+			ACTION_LOOP_SESSION_ENTRY,
+			actionLoopEffectObservedEvent(observed.observation),
+		);
 		activeWorkCase = observed.state;
 	});
 

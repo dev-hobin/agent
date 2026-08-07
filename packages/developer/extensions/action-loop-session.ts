@@ -1,12 +1,18 @@
 import { Type, type Static } from "typebox";
 import { Check } from "typebox/value";
 
+import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
+import {
+	acceptLivePiActionCandidate,
+	assessLiveActionClearance,
+} from "./action-loop-action.ts";
 import {
 	assessLiveCapabilityApplicability,
 	assignedLiveCapability,
 } from "./action-loop-applicability.ts";
 import type { LiveCapabilityInventoryResult } from "./action-loop-capability-inventory.ts";
+import { completeLiveWorkCase } from "./action-loop-completion.ts";
 import { closeLiveJudgment } from "./action-loop-conclusion.ts";
 import { acceptLiveSkillContribution } from "./action-loop-contribution.ts";
 import { assessLiveNeedCoverage } from "./action-loop-coverage.ts";
@@ -14,6 +20,13 @@ import {
 	sealLiveUnstructuredCapability,
 	selectAndSealLiveStructuredCapability,
 } from "./action-loop-context.ts";
+import {
+	acceptLiveEffectObservation,
+	beginLiveActionEffect,
+	currentLiveEffectAssessmentId,
+	recordLiveEffectRemediation,
+	settleLiveEffect,
+} from "./action-loop-effect.ts";
 import { openLiveJudgment } from "./action-loop-judgment.ts";
 import {
 	openLiveWorkCase,
@@ -358,6 +371,201 @@ const JudgmentConcludedEventSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
+const PiActionProposalSchema = Type.Object(
+	{
+		toolName: Type.Union([
+			Type.Literal("bash"),
+			Type.Literal("edit"),
+			Type.Literal("write"),
+		]),
+		toolInput: Type.Record(Type.String(), Type.Unknown()),
+		summary: ShortTextSchema,
+		intendedEffects: Type.Array(ShortTextSchema, {
+			minItems: 1,
+			maxItems: 32,
+		}),
+		requiredConclusionIds: Type.Array(IdSchema, {
+			minItems: 1,
+			maxItems: 32,
+		}),
+	},
+	{ additionalProperties: false },
+);
+const ActionClearedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("action-cleared"),
+		proposal: PiActionProposalSchema,
+		expected: Type.Object(
+			{
+				actionCandidateId: IdSchema,
+				actionClearanceId: IdSchema,
+				revisionId: IdSchema,
+			},
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const EffectBegunEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("effect-begun"),
+		actionClearanceId: IdSchema,
+		occurrenceId: IdSchema,
+		expected: Type.Object(
+			{ effectId: IdSchema, revisionId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const EffectObservationProposalSchema = Type.Object(
+	{
+		effectId: IdSchema,
+		occurrenceId: IdSchema,
+		evidence: Type.Object(
+			{
+				kind: Type.Literal("tool-result"),
+				locator: ShortTextSchema,
+				fingerprint: IdSchema,
+			},
+			{ additionalProperties: false },
+		),
+		statement: ShortTextSchema,
+		limitations: Type.Array(ShortTextSchema, { maxItems: 32 }),
+		provenance: ProvenanceSchema,
+	},
+	{ additionalProperties: false },
+);
+const EffectObservedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("effect-observed"),
+		proposal: EffectObservationProposalSchema,
+		expected: Type.Object(
+			{ effectObservationId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const EffectSettlementProposalSchema = Type.Object(
+	{
+		outcome: Type.Union([
+			Type.Literal("observed-success"),
+			Type.Literal("observed-no-effect"),
+			Type.Literal("failed"),
+			Type.Literal("partially-applied"),
+			Type.Literal("pending"),
+			Type.Literal("unknown"),
+		]),
+		observationDispositions: Type.Array(
+			Type.Object(
+				{
+					effectObservationId: IdSchema,
+					status: Type.Union([
+						Type.Literal("relied-on"),
+						Type.Literal("not-relied-on"),
+					]),
+					basis: BasisSchema,
+				},
+				{ additionalProperties: false },
+			),
+			{ maxItems: 32 },
+		),
+		intendedEffectDispositions: Type.Array(
+			Type.Object(
+				{
+					intendedEffect: ShortTextSchema,
+					status: Type.Union([
+						Type.Literal("observed"),
+						Type.Literal("not-observed"),
+						Type.Literal("failed"),
+						Type.Literal("partially-observed"),
+						Type.Literal("unknown"),
+					]),
+					observationIds: Type.Array(IdSchema, { maxItems: 32 }),
+					basis: BasisSchema,
+				},
+				{ additionalProperties: false },
+			),
+			{ minItems: 1, maxItems: 32 },
+		),
+		basis: BasisSchema,
+		expectedCurrentAssessmentId: OptionalIdSchema,
+	},
+	{ additionalProperties: false },
+);
+const EffectSettledEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("effect-settled"),
+		effectId: IdSchema,
+		proposal: EffectSettlementProposalSchema,
+		expected: Type.Object(
+			{ assessmentId: IdSchema, revisionId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const EffectRemediatedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("effect-remediated"),
+		adverseEffectId: IdSchema,
+		remediationEffectId: IdSchema,
+		basis: BasisSchema,
+		expected: Type.Object(
+			{ remediationId: IdSchema, revisionId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const CompletionProposalSchema = Type.Object(
+	{
+		closureTargetId: IdSchema,
+		mode: Type.Union([
+			Type.Literal("completed"),
+			Type.Literal("no-change"),
+		]),
+		obligationDispositions: Type.Array(
+			Type.Object(
+				{
+					closureObligationId: IdSchema,
+					conclusionIds: Type.Array(IdSchema, { maxItems: 32 }),
+					effectAssessmentIds: Type.Array(IdSchema, { maxItems: 32 }),
+					effectRemediationIds: Type.Array(IdSchema, { maxItems: 32 }),
+					basis: BasisSchema,
+				},
+				{ additionalProperties: false },
+			),
+			{ minItems: 1, maxItems: 64 },
+		),
+		basis: BasisSchema,
+	},
+	{ additionalProperties: false },
+);
+const WorkCaseCompletedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("work-case-completed"),
+		proposal: CompletionProposalSchema,
+		expected: Type.Object(
+			{
+				workCaseId: IdSchema,
+				revisionId: IdSchema,
+				closureTargetId: IdSchema,
+				closureClaimId: IdSchema,
+			},
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+
 const SessionEventSchema = Type.Union([
 	WorkCaseOpenedEventSchema,
 	JudgmentOpenedEventSchema,
@@ -367,6 +575,12 @@ const SessionEventSchema = Type.Union([
 	ContributionAcceptedEventSchema,
 	CoverageAssessedEventSchema,
 	JudgmentConcludedEventSchema,
+	ActionClearedEventSchema,
+	EffectBegunEventSchema,
+	EffectObservedEventSchema,
+	EffectSettledEventSchema,
+	EffectRemediatedEventSchema,
+	WorkCaseCompletedEventSchema,
 ]);
 
 export type ActionLoopWorkCaseOpenedEvent = Static<
@@ -393,6 +607,18 @@ export type ActionLoopCoverageAssessedEvent = Static<
 export type ActionLoopJudgmentConcludedEvent = Static<
 	typeof JudgmentConcludedEventSchema
 >;
+export type ActionLoopActionClearedEvent = Static<typeof ActionClearedEventSchema>;
+export type ActionLoopEffectBegunEvent = Static<typeof EffectBegunEventSchema>;
+export type ActionLoopEffectObservedEvent = Static<
+	typeof EffectObservedEventSchema
+>;
+export type ActionLoopEffectSettledEvent = Static<typeof EffectSettledEventSchema>;
+export type ActionLoopEffectRemediatedEvent = Static<
+	typeof EffectRemediatedEventSchema
+>;
+export type ActionLoopWorkCaseCompletedEvent = Static<
+	typeof WorkCaseCompletedEventSchema
+>;
 export type ActionLoopSessionEvent = Static<typeof SessionEventSchema>;
 
 type JudgmentProposal = Static<typeof JudgmentProposalSchema>;
@@ -401,6 +627,14 @@ type ReferenceDisposition = Static<typeof ReferenceDispositionSchema>;
 type ContributionProposal = Static<typeof SkillContributionProposalSchema>;
 type CoverageProposal = Static<typeof NeedCoverageProposalSchema>;
 type ClosureProposal = Static<typeof JudgmentClosureProposalSchema>;
+type PiActionProposal = Static<typeof PiActionProposalSchema>;
+type EffectObservationProposal = Static<
+	typeof EffectObservationProposalSchema
+>;
+type EffectSettlementSessionProposal = Static<
+	typeof EffectSettlementProposalSchema
+>;
+type CompletionProposal = Static<typeof CompletionProposalSchema>;
 
 export interface ActionLoopSessionBranchEntry {
 	readonly type?: string;
@@ -582,6 +816,113 @@ export function actionLoopJudgmentConcludedEvent(
 		transitionId: conclusionId,
 		proposal,
 		expected: { conclusionId, revisionId },
+	});
+}
+
+export function actionLoopActionClearedEvent(
+	proposal: PiActionProposal,
+	actionCandidateId: string,
+	actionClearanceId: string,
+	revisionId: string,
+): ActionLoopActionClearedEvent {
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "action-cleared",
+		transitionId: actionClearanceId,
+		proposal,
+		expected: { actionCandidateId, actionClearanceId, revisionId },
+	});
+}
+
+export function actionLoopEffectBegunEvent(
+	actionClearanceId: string,
+	occurrenceId: string,
+	effectId: string,
+	revisionId: string,
+): ActionLoopEffectBegunEvent {
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "effect-begun",
+		transitionId: effectId,
+		actionClearanceId,
+		occurrenceId,
+		expected: { effectId, revisionId },
+	});
+}
+
+export function actionLoopEffectObservedEvent(
+	observation: EffectObservation,
+): ActionLoopEffectObservedEvent {
+	const proposal: EffectObservationProposal = {
+		effectId: observation.effectId,
+		occurrenceId: observation.occurrenceId,
+		evidence: {
+			kind: "tool-result",
+			locator: observation.evidence.locator,
+			fingerprint: observation.evidence.fingerprint,
+		},
+		statement: observation.statement,
+		limitations: [...observation.limitations],
+		provenance: { ...observation.provenance },
+	};
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "effect-observed",
+		transitionId: observation.effectObservationId,
+		proposal,
+		expected: { effectObservationId: observation.effectObservationId },
+	});
+}
+
+export function actionLoopEffectSettledEvent(
+	effectId: string,
+	proposal: EffectSettlementSessionProposal,
+	assessmentId: string,
+	revisionId: string,
+): ActionLoopEffectSettledEvent {
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "effect-settled",
+		transitionId: assessmentId,
+		effectId,
+		proposal,
+		expected: { assessmentId, revisionId },
+	});
+}
+
+export function actionLoopEffectRemediatedEvent(
+	adverseEffectId: string,
+	remediationEffectId: string,
+	basis: string[],
+	remediationId: string,
+	revisionId: string,
+): ActionLoopEffectRemediatedEvent {
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "effect-remediated",
+		transitionId: remediationId,
+		adverseEffectId,
+		remediationEffectId,
+		basis,
+		expected: { remediationId, revisionId },
+	});
+}
+
+export function actionLoopWorkCaseCompletedEvent(
+	proposal: CompletionProposal,
+	completed: CompletedWorkCase,
+): ActionLoopWorkCaseCompletedEvent {
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "work-case-completed",
+		transitionId: completed.closureClaim.closureClaimId,
+		proposal,
+		expected: {
+			workCaseId: completed.workCaseId,
+			revisionId: completed.revisionId,
+			closureTargetId: completed.closureTarget.closureTargetId,
+			closureClaimId: completed.closureClaim.closureClaimId,
+		},
 	});
 }
 
@@ -891,6 +1232,159 @@ function replayConclusion(
 	return applied(closed.state);
 }
 
+function replayActionClearance(
+	state: LiveWorkCaseState,
+	event: ActionLoopActionClearedEvent,
+): AppliedEventResult {
+	const accepted = acceptLivePiActionCandidate(state, event.proposal);
+	if (
+		accepted.status === "invalid" ||
+		accepted.candidate.actionCandidateId !== event.expected.actionCandidateId
+	) {
+		return eventUnavailable(
+			"Persisted Action Candidate does not reproduce its exact canonical identity.",
+		);
+	}
+	const clearance = assessLiveActionClearance(
+		accepted.state,
+		accepted.candidate.actionCandidateId,
+		{
+			actionCandidateId: accepted.candidate.actionCandidateId,
+			status: "granted",
+			source: "pi:default-permission-policy",
+			basis: [
+				"The live adapter inherits Pi's default permission policy without adding a separate approval step.",
+			],
+		},
+	);
+	if (
+		clearance.status !== "cleared" ||
+		clearance.clearance.actionClearanceId !==
+			event.expected.actionClearanceId ||
+		clearance.state.workCase.revisionId !== event.expected.revisionId ||
+		event.transitionId !== event.expected.actionClearanceId
+	) {
+		return eventUnavailable(
+			"Persisted Action Clearance does not reproduce its exact canonical identity.",
+		);
+	}
+	return applied(clearance.state);
+}
+
+function replayEffectBeginning(
+	state: LiveWorkCaseState,
+	event: ActionLoopEffectBegunEvent,
+): AppliedEventResult {
+	const clearance = state.workCase.actionClearances.find(
+		(candidate) => candidate.actionClearanceId === event.actionClearanceId,
+	);
+	if (!clearance) {
+		return eventUnavailable(
+			"Persisted Effect beginning has no exact Action Clearance.",
+		);
+	}
+	const begun = beginLiveActionEffect(state, clearance, event.occurrenceId);
+	if (
+		begun.status === "invalid" ||
+		begun.effect.effectId !== event.expected.effectId ||
+		begun.state.workCase.revisionId !== event.expected.revisionId ||
+		event.transitionId !== event.expected.effectId
+	) {
+		return eventUnavailable(
+			"Persisted Effect beginning does not reproduce its exact canonical identity.",
+		);
+	}
+	return applied(begun.state);
+}
+
+function replayEffectObservation(
+	state: LiveWorkCaseState,
+	event: ActionLoopEffectObservedEvent,
+): AppliedEventResult {
+	const observed = acceptLiveEffectObservation(state, event.proposal);
+	if (
+		observed.status === "invalid" ||
+		observed.observation.effectObservationId !==
+			event.expected.effectObservationId ||
+		event.transitionId !== event.expected.effectObservationId
+	) {
+		return eventUnavailable(
+			"Persisted Effect Observation does not reproduce its exact canonical identity.",
+		);
+	}
+	return applied(observed.state);
+}
+
+function replayEffectSettlement(
+	state: LiveWorkCaseState,
+	event: ActionLoopEffectSettledEvent,
+): AppliedEventResult {
+	const settled = settleLiveEffect(state, event.effectId, event.proposal);
+	const assessmentId =
+		settled.status === "invalid"
+			? undefined
+			: currentLiveEffectAssessmentId(settled.state, event.effectId);
+	if (
+		settled.status === "invalid" ||
+		assessmentId !== event.expected.assessmentId ||
+		settled.state.workCase.revisionId !== event.expected.revisionId ||
+		event.transitionId !== event.expected.assessmentId
+	) {
+		return eventUnavailable(
+			"Persisted Effect settlement does not reproduce its exact current assessment.",
+		);
+	}
+	return applied(settled.state);
+}
+
+function replayEffectRemediation(
+	state: LiveWorkCaseState,
+	event: ActionLoopEffectRemediatedEvent,
+): AppliedEventResult {
+	const remediated = recordLiveEffectRemediation(
+		state,
+		event.adverseEffectId,
+		event.remediationEffectId,
+		event.basis,
+	);
+	if (
+		remediated.status === "invalid" ||
+		remediated.remediationId !== event.expected.remediationId ||
+		remediated.state.workCase.revisionId !== event.expected.revisionId ||
+		event.transitionId !== event.expected.remediationId
+	) {
+		return eventUnavailable(
+			"Persisted Effect remediation does not reproduce its exact canonical identity.",
+		);
+	}
+	return applied(remediated.state);
+}
+
+function replayWorkCaseCompletion(
+	state: LiveWorkCaseState,
+	event: ActionLoopWorkCaseCompletedEvent,
+): AppliedEventResult {
+	const completed = completeLiveWorkCase(state, event.proposal);
+	if (
+		completed.status !== "completed" ||
+		completed.value.workCaseId !== event.expected.workCaseId ||
+		completed.value.revisionId !== event.expected.revisionId ||
+		completed.value.closureTarget.closureTargetId !==
+			event.expected.closureTargetId ||
+		completed.value.closureClaim.closureClaimId !==
+			event.expected.closureClaimId ||
+		event.transitionId !== event.expected.closureClaimId
+	) {
+		return eventUnavailable(
+			"Persisted Work Case completion does not reproduce its exact revision-bound closure.",
+		);
+	}
+	return {
+		status: "applied",
+		projection: { completedWorkCase: completed.value },
+	};
+}
+
 async function replayOwnedEvent(
 	state: LiveWorkCaseState,
 	event: Exclude<ActionLoopSessionEvent, ActionLoopWorkCaseOpenedEvent>,
@@ -911,6 +1405,18 @@ async function replayOwnedEvent(
 			return replayCoverage(state, event);
 		case "judgment-concluded":
 			return replayConclusion(state, event);
+		case "action-cleared":
+			return replayActionClearance(state, event);
+		case "effect-begun":
+			return replayEffectBeginning(state, event);
+		case "effect-observed":
+			return replayEffectObservation(state, event);
+		case "effect-settled":
+			return replayEffectSettlement(state, event);
+		case "effect-remediated":
+			return replayEffectRemediation(state, event);
+		case "work-case-completed":
+			return replayWorkCaseCompletion(state, event);
 		default:
 			return unreachableSessionEvent(event);
 	}

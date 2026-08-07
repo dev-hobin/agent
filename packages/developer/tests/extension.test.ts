@@ -2155,7 +2155,7 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 	const judgment = await first.tools
 		.get("developer_open_judgment")
 		.execute("replay-routing-judgment", {
-			category: "Contextual Adequacy",
+			category: "Claim Assurance",
 			subject: "The Action Loop replay boundary.",
 			question: "Does the current session preserve exact routing evidence?",
 			requirements: [
@@ -2236,20 +2236,32 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 			basis: ["Every current Requirement has exact Coverage."],
 		});
 
+	const activationEntries = first.entries.map((entry) => ({
+		type: "custom",
+		...entry,
+	}));
+	const routingResults = [
+		opened,
+		judgment,
+		assessed,
+		selected,
+		contribution,
+		coverage,
+		conclusion,
+	];
+	const routingBranch = [
+		...activationEntries,
+		...routingResults.map((result) => ({
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer-action-loop-test",
+				details: result.details,
+			},
+		})),
+	];
 	const second = createHarness();
-	second.setBranch([
-		...first.entries.map((entry) => ({ type: "custom", ...entry })),
-		...[opened, judgment, assessed, selected, contribution, coverage, conclusion].map(
-			(result) => ({
-				type: "message",
-				message: {
-					role: "toolResult",
-					toolName: "developer-action-loop-test",
-					details: result.details,
-				},
-			}),
-		),
-	]);
+	second.setBranch(routingBranch);
 	await developer(second.api);
 	await second.emit("session_start", {
 		type: "session_start",
@@ -2275,6 +2287,146 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 	assert.ok(
 		resumed.systemPrompt.includes(
 			`Sealed Skill context: ${selected.details.sealedContextId}`,
+		),
+	);
+
+	const toolInput = {
+		path: "/tmp/developer-action-loop-session-replay.txt",
+		content: "session replay",
+	};
+	const action = await first.tools
+		.get("developer_propose_action")
+		.execute("replay-action", {
+			tool_name: "write",
+			tool_input: toolInput,
+			summary: "Write the bounded replay fixture.",
+			intended_effects: ["The bounded replay fixture is written."],
+			required_conclusion_ids: [conclusion.details.artifact.conclusionId],
+		});
+	await first.emit("tool_call", {
+		toolName: "write",
+		input: toolInput,
+		toolCallId: "write:replay-action",
+	});
+	await first.emit("tool_result", {
+		toolName: "write",
+		toolCallId: "write:replay-action",
+		isError: false,
+		content: [{ type: "text", text: "Wrote replay fixture" }],
+		details: { path: toolInput.path },
+	});
+	const actionLoopEntries = first.entries.filter(
+		(entry) => entry.customType === "developer.action-loop.session-event",
+	);
+	const begunEvent = actionLoopEntries.find(
+		(entry) => entryKind(entry) === "effect-begun",
+	)?.data as any;
+	const observedEvent = actionLoopEntries.find(
+		(entry) => entryKind(entry) === "effect-observed",
+	)?.data as any;
+	assert.ok(begunEvent);
+	assert.ok(observedEvent);
+	const settlement = await first.tools
+		.get("developer_settle_effect")
+		.execute("replay-effect-settlement", {
+			effect_id: begunEvent.expected.effectId,
+			outcome: "observed-success",
+			observation_dispositions: [
+				{
+					effect_observation_id:
+						observedEvent.expected.effectObservationId,
+					status: "relied-on",
+					basis: ["The exact current Pi write result is occurrence evidence."],
+				},
+			],
+			intended_effect_dispositions: [
+				{
+					intended_effect: "The bounded replay fixture is written.",
+					status: "observed",
+					observation_ids: [observedEvent.expected.effectObservationId],
+					basis: ["The bounded Pi write returned without an execution error."],
+				},
+			],
+			basis: ["Every intended Effect and Observation is explicitly accounted."],
+		});
+	const prepared = await first.tools
+		.get("developer_prepare_closure")
+		.execute("replay-closure-target", {});
+	const closureTarget = prepared.details.artifact;
+	const completed = await first.tools
+		.get("developer_complete_work_case")
+		.execute("replay-completion", {
+			closure_target_id: closureTarget.closureTargetId,
+			mode: "completed",
+			obligation_dispositions: [
+				{
+					closure_obligation_id:
+						closureTarget.obligations[0].closureObligationId,
+					conclusion_ids: closureTarget.conclusionIds,
+					effect_assessment_ids: [],
+					effect_remediation_ids: [],
+					basis: ["The Claim Assurance Conclusion supports this obligation."],
+				},
+				{
+					closure_obligation_id:
+						closureTarget.obligations[1].closureObligationId,
+					conclusion_ids: [],
+					effect_assessment_ids: closureTarget.effectAssessmentIds,
+					effect_remediation_ids: [],
+					basis: ["The observed-success Effect supports this obligation."],
+				},
+			],
+			basis: ["Every current closure obligation and evidence item is accounted."],
+		});
+	const completedBranch = [
+		...routingBranch,
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_propose_action",
+				details: action.details,
+			},
+		},
+		...actionLoopEntries.map((entry) => ({ type: "custom", ...entry })),
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_settle_effect",
+				details: settlement.details,
+			},
+		},
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_complete_work_case",
+				details: completed.details,
+			},
+		},
+	];
+	const third = createHarness();
+	third.setBranch(completedBranch);
+	await developer(third.api);
+	await third.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	const completedResume = await third.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "resume completed",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.ok(
+		completedResume.systemPrompt.includes(
+			`Completed Action Loop Work Case: ${completed.details.workCase.workCaseId}`,
+		),
+	);
+	assert.ok(
+		completedResume.systemPrompt.includes(
+			`Closure Claim: ${completed.details.workCase.closureClaim.closureClaimId}`,
 		),
 	);
 });
