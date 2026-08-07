@@ -1,4 +1,8 @@
 import type { ActionCandidateProvenance } from "../src/action-loop/action/accept-action-candidate.ts";
+import type {
+	AcceptedApplicabilityAssessment,
+	CapabilityAssignment,
+} from "../src/action-loop/routing/accept-applicability.ts";
 import {
 	openWorkCase,
 	type ActiveWorkCase,
@@ -20,6 +24,8 @@ export interface LiveWorkCaseState {
 	readonly workCase: ActiveWorkCase;
 	readonly contextRevisionId: string;
 	readonly openingBasis: readonly string[];
+	readonly applicabilityAssessments: readonly AcceptedApplicabilityAssessment[];
+	readonly capabilityAssignments: readonly CapabilityAssignment[];
 }
 
 export type LiveWorkCaseOpeningResult =
@@ -130,6 +136,8 @@ export function openLiveWorkCase(
 			workCase: opened.value,
 			contextRevisionId: opened.value.revisionId,
 			openingBasis: basis,
+			applicabilityAssessments: Object.freeze([]),
+			capabilityAssignments: Object.freeze([]),
 		}),
 	};
 }
