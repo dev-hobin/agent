@@ -1901,6 +1901,23 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 	await harness.commands.get("developer").handler("block", harness.ctx);
 	assert.equal(harness.entries.length, entriesBefore);
 	assert.match(harness.notifications.at(-1)?.message ?? "", /--no-session/);
+	await assert.rejects(
+		harness.tools.get("developer_wait_work_case").execute("wait-no-session", {
+			effect_observation_id: "effect_observation_missing",
+			external_condition: "An external condition is observed.",
+			resume_predicate: "The external condition changes.",
+			basis: ["This must fail before process-local ownership is retained."],
+		}),
+		/--no-session/,
+	);
+	await assert.rejects(
+		harness.tools.get("developer_block_work_case").execute("block-no-session", {
+			claim_assurance_conclusion_id: "conclusion_missing",
+			reason: "No continuation exists.",
+			basis: ["This must fail before process-local ownership is retained."],
+		}),
+		/--no-session/,
+	);
 });
 
 test("a live Judgment exposes Closure Requirements and Contribution Needs", async () => {
@@ -2596,14 +2613,36 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 	)?.data as any;
 	assert.ok(begunEvent);
 	assert.ok(observedEvent);
-	first.setInputResult(
-		"The current Effect cannot yet be settled from the available evidence.",
+	const waited = await first.tools
+		.get("developer_wait_work_case")
+		.execute("wait-on-effect-observation", {
+			effect_observation_id: observedEvent.expected.effectObservationId,
+			external_condition:
+				"The write result exists but independent human verification is not yet observed.",
+			resume_predicate:
+				"The delegating human confirms the exact write result is available for settlement.",
+			basis: [
+				"The current Effect Observation establishes the write result while independent verification remains external.",
+			],
+		});
+	assert.match(resultText(waited), /Work Case waiting/);
+	await first.commands.get("developer").handler("resume", first.ctx);
+	const resumedWaitingEntry = first.entries.find(
+		(entry) => entryKind(entry) === "waiting-work-case-resumed",
 	);
-	await first.commands.get("developer").handler("block", first.ctx);
-	const blockedEntry = first.entries.find(
-		(entry) => entryKind(entry) === "work-case-blocked",
-	);
-	assert.ok(blockedEntry);
+	assert.ok(resumedWaitingEntry);
+
+	const blocked = await first.tools
+		.get("developer_block_work_case")
+		.execute("block-on-unsettled-effect", {
+			claim_assurance_conclusion_id: conclusion.details.artifact.conclusionId,
+			reason:
+				"The current Effect cannot yet be settled from the available evidence.",
+			basis: [
+				"The current Claim Assurance Conclusion accounts the exact unsettled Effect blocker.",
+			],
+		});
+	assert.match(resultText(blocked), /Work Case blocked/);
 	const blockedTurn = await first.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "inspect blocked",
@@ -2621,9 +2660,26 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 		(entry) => entryKind(entry) === "blocked-work-case-resumed",
 	);
 	assert.ok(resumedBlockedEntry);
-	const blockContinuityEntries = [blockedEntry, resumedBlockedEntry].map(
-		(entry) => ({ type: "custom", ...entry }),
-	);
+	const nonterminalEntries = [
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_wait_work_case",
+				details: waited.details,
+			},
+		},
+		{ type: "custom", ...resumedWaitingEntry },
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_block_work_case",
+				details: blocked.details,
+			},
+		},
+		{ type: "custom", ...resumedBlockedEntry },
+	];
 	const settlement = await first.tools
 		.get("developer_settle_effect")
 		.execute("replay-effect-settlement", {
@@ -2688,7 +2744,7 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 			},
 		},
 		...actionLoopEntries.map((entry) => ({ type: "custom", ...entry })),
-		...blockContinuityEntries,
+		...nonterminalEntries,
 		{
 			type: "message",
 			message: {

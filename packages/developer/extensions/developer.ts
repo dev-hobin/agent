@@ -106,6 +106,8 @@ import {
 	type ActionLoopUnstructuredContextSealedEvent,
 } from "./action-loop-session.ts";
 import {
+	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
+	ACTION_LOOP_WAIT_WORK_CASE_TOOL,
 	MAX_LIVE_CONTINUITY_TEXT,
 	blockLiveWorkCase,
 	pauseLiveWorkCase,
@@ -218,6 +220,8 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_PROPOSE_ACTION_TOOL,
 	ACTION_LOOP_SETTLE_EFFECT_TOOL,
 	ACTION_LOOP_RECORD_REMEDIATION_TOOL,
+	ACTION_LOOP_WAIT_WORK_CASE_TOOL,
+	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
 	ACTION_LOOP_PREPARE_CLOSURE_TOOL,
 	ACTION_LOOP_COMPLETE_WORK_CASE_TOOL,
 	ROUTE_TOOL,
@@ -820,6 +824,7 @@ export default async function developer(pi: ExtensionAPI) {
 		| readonly ActionLoopSessionBranchEntry[]
 		| undefined;
 	let actionLoopReplayFailure: string | undefined;
+	let actionLoopSessionDurable = false;
 	let state = initialState();
 	let routeOpening = false;
 	const routesWithMutation = new Set<string>();
@@ -960,6 +965,8 @@ export default async function developer(pi: ExtensionAPI) {
 
 	const reconstruct = (ctx: ExtensionContext) => {
 		const branch = ctx.sessionManager.getBranch();
+		actionLoopSessionDurable =
+			ctx.sessionManager.getSessionFile() !== undefined;
 		activeWorkCase = undefined;
 		heldWorkCase = undefined;
 		completedWorkCase = undefined;
@@ -2089,6 +2096,179 @@ export default async function developer(pi: ExtensionAPI) {
 						remediationId: remediation.remediationId,
 						revisionId: remediation.state.workCase.revisionId,
 					}),
+				),
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_WAIT_WORK_CASE_TOOL,
+		label: "Developer Wait Work Case",
+		description:
+			"Retain durable waiting ownership from one exact current Effect Observation, an observed external condition, and an observable resume predicate.",
+		promptSnippet: "Wait on an observed external condition",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_WAIT_WORK_CASE_TOOL} only when a current Effect Observation evidences an external condition that prevents continuation.`,
+			"State one exact observable resume predicate. Waiting blocks controlled Actions and replacement work until explicit predicate-bound resume or Developer-off reset.",
+		],
+		parameters: Type.Object(
+			{
+				effect_observation_id: Type.String({ minLength: 1, maxLength: 512 }),
+				external_condition: Type.String({
+					minLength: 1,
+					maxLength: MAX_LIVE_CONTINUITY_TEXT,
+				}),
+				resume_predicate: Type.String({
+					minLength: 1,
+					maxLength: MAX_LIVE_CONTINUITY_TEXT,
+				}),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: 16 },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!actionLoopSessionDurable) {
+				fail("Developer cannot retain waiting ownership in Pi --no-session mode.");
+			}
+			if (actionLoopReplayFailure) {
+				fail(`Developer cannot wait unavailable Action Loop state: ${actionLoopReplayFailure}`);
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			const observation = activeWorkCase.effectObservations.find(
+				(candidate) =>
+					candidate.effectObservationId === params.effect_observation_id,
+			);
+			if (!observation) {
+				fail("Waiting requires an exact current Effect Observation.");
+			}
+			const proposal = {
+				workCaseId: activeWorkCase.workCase.workCaseId,
+				expectedRevisionId: activeWorkCase.workCase.revisionId,
+				externalCondition: params.external_condition,
+				resumePredicate: params.resume_predicate,
+				observation: {
+					kind: "tool" as const,
+					observationId: observation.effectObservationId,
+					source: observation.provenance.source,
+					basis: [
+						...params.basis,
+						`Current Effect Observation ${observation.effectObservationId} supplies the exact host evidence.`,
+					],
+				},
+			};
+			const result = waitLiveWorkCase(activeWorkCase, proposal);
+			if (result.status === "invalid") fail(result.message);
+			activeWorkCase = undefined;
+			heldWorkCase = result.state;
+			completedWorkCase = undefined;
+			syncProtocolTools();
+			return textResult(
+				`Work Case waiting: ${result.state.workCase.wait.workCaseWaitId}`,
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: "waiting",
+						workCaseWaitId: result.state.workCase.wait.workCaseWaitId,
+						revisionId: result.state.workCase.revisionId,
+					},
+					actionLoopWorkCaseWaitingEvent(proposal, result.state),
+				),
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
+		label: "Developer Block Work Case",
+		description:
+			"Retain durable blocked ownership only when one exact current Claim Assurance Conclusion accounts every current closure blocker.",
+		promptSnippet: "Block with complete Claim Assurance",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_BLOCK_WORK_CASE_TOOL} only when there is no current continuation or closure path and a current Claim Assurance Conclusion accounts every blocker.`,
+			"Developer derives the complete blocker inventory. Do not omit blockers or use blocked as a synonym for waiting, failure, or incomplete work.",
+		],
+		parameters: Type.Object(
+			{
+				claim_assurance_conclusion_id: Type.String({
+					minLength: 1,
+					maxLength: 512,
+				}),
+				reason: Type.String({
+					minLength: 1,
+					maxLength: MAX_LIVE_CONTINUITY_TEXT,
+				}),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: 16 },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!actionLoopSessionDurable) {
+				fail("Developer cannot retain blocked ownership in Pi --no-session mode.");
+			}
+			if (actionLoopReplayFailure) {
+				fail(`Developer cannot block unavailable Action Loop state: ${actionLoopReplayFailure}`);
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			const assurance = activeWorkCase.workCase.conclusions.find(
+				(conclusion) =>
+					conclusion.conclusionId ===
+						params.claim_assurance_conclusion_id &&
+					conclusion.category === "Claim Assurance",
+			);
+			if (!assurance) {
+				fail("Blocking requires the exact ID of a current Claim Assurance Conclusion.");
+			}
+			const prepared = prepareLiveWorkCaseClosure(activeWorkCase);
+			if (prepared.status === "invalid") fail(prepared.message);
+			if (prepared.status === "ready") {
+				fail("A closure-ready Work Case cannot be declared blocked.");
+			}
+			if (prepared.blockers.length > MAX_ACTION_LOOP_BLOCKER_DISPOSITIONS) {
+				fail(`Current blocker accounting exceeds the durable limit of ${MAX_ACTION_LOOP_BLOCKER_DISPOSITIONS}.`);
+			}
+			const proposal = {
+				workCaseId: activeWorkCase.workCase.workCaseId,
+				expectedRevisionId: activeWorkCase.workCase.revisionId,
+				claimAssuranceConclusionId: assurance.conclusionId,
+				reason: params.reason,
+				blockerDispositions: prepared.blockers.map((blocker) => ({
+					code: blocker.code,
+					subjectId: blocker.subjectId,
+					basis: params.basis,
+				})),
+			};
+			const result = blockLiveWorkCase(activeWorkCase, proposal);
+			if (result.status === "invalid") fail(result.message);
+			activeWorkCase = undefined;
+			heldWorkCase = result.state;
+			completedWorkCase = undefined;
+			syncProtocolTools();
+			return textResult(
+				`Work Case blocked: ${result.state.workCase.block.workCaseBlockId}`,
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: "blocked",
+						workCaseBlockId: result.state.workCase.block.workCaseBlockId,
+						revisionId: result.state.workCase.revisionId,
+					},
+					actionLoopWorkCaseBlockedEvent(proposal, result.state),
 				),
 			);
 		},
