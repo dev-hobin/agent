@@ -3,6 +3,7 @@ export const DEVELOPER_COMMAND_ACTIONS = [
 	"questions",
 	"settings",
 	"pause",
+	"wait",
 	"resume",
 	"on",
 	"off",

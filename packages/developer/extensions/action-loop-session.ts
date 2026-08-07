@@ -26,6 +26,8 @@ import {
 import {
 	pauseLiveWorkCase,
 	resumeLivePausedWorkCase,
+	resumeLiveWaitingWorkCase,
+	waitLiveWorkCase,
 } from "./action-loop-continuity.ts";
 import { openLiveJudgment } from "./action-loop-judgment.ts";
 import {
@@ -46,12 +48,18 @@ import {
 	type ActionLoopSessionEvent,
 	type ActionLoopUnstructuredContextSealedEvent,
 	type ActionLoopWorkCaseCompletedEvent,
+	type ActionLoopWaitingWorkCaseResumedEvent,
 	type ActionLoopWorkCaseOpenedEvent,
 	type ActionLoopWorkCasePausedEvent,
+	type ActionLoopWorkCaseWaitingEvent,
 } from "./action-loop-session-event.ts";
 import {
+	isLivePausedWorkCaseState,
+	isLiveWaitingWorkCaseState,
 	openLiveWorkCase,
+	type LiveHeldWorkCaseState,
 	type LivePausedWorkCaseState,
+	type LiveWaitingWorkCaseState,
 	type LiveWorkCaseState,
 } from "./action-loop-work-case.ts";
 import { ACTIVATION_ENTRY, normalizeDeveloperEvent } from "./state.ts";
@@ -62,7 +70,7 @@ export type ActionLoopSessionReplayResult =
 	| {
 			readonly status: "ready";
 			readonly activeWorkCase?: LiveWorkCaseState;
-			readonly pausedWorkCase?: LivePausedWorkCaseState;
+			readonly heldWorkCase?: LiveHeldWorkCaseState;
 			readonly completedWorkCase?: CompletedWorkCase;
 			readonly appliedTransitions: number;
 	  }
@@ -93,7 +101,7 @@ function currentCapability(
 
 interface ReplayProjection {
 	readonly activeWorkCase?: LiveWorkCaseState;
-	readonly pausedWorkCase?: LivePausedWorkCaseState;
+	readonly heldWorkCase?: LiveHeldWorkCaseState;
 	readonly completedWorkCase?: CompletedWorkCase;
 }
 
@@ -114,12 +122,10 @@ function applied(
 	};
 }
 
-function appliedPaused(
-	pausedWorkCase: LivePausedWorkCaseState,
-): AppliedEventResult {
+function appliedHeld(heldWorkCase: LiveHeldWorkCaseState): AppliedEventResult {
 	return {
 		status: "applied",
-		projection: { pausedWorkCase },
+		projection: { heldWorkCase },
 	};
 }
 
@@ -135,9 +141,9 @@ function replayWorkCaseOpening(
 	projection: ReplayProjection,
 	event: ActionLoopWorkCaseOpenedEvent,
 ): AppliedEventResult {
-	if (projection.pausedWorkCase) {
+	if (projection.heldWorkCase) {
 		return eventUnavailable(
-			"Persisted Work Case opening cannot replace paused branch ownership.",
+			"Persisted Work Case opening cannot replace nonterminal branch ownership.",
 		);
 	}
 	const opened = openLiveWorkCase(projection.activeWorkCase, event.proposal);
@@ -525,7 +531,7 @@ function replayWorkCasePause(
 			"Persisted Work Case pause does not reproduce its exact human-owned revision.",
 		);
 	}
-	return appliedPaused(result.state);
+	return appliedHeld(result.state);
 }
 
 function replayPausedWorkCaseResume(
@@ -550,17 +556,61 @@ function replayPausedWorkCaseResume(
 	return applied(result.state);
 }
 
+function replayWorkCaseWaiting(
+	state: LiveWorkCaseState,
+	event: ActionLoopWorkCaseWaitingEvent,
+): AppliedEventResult {
+	const result = waitLiveWorkCase(state, event.proposal);
+	if (
+		result.status !== "waiting" ||
+		result.state.workCase.wait.workCaseWaitId !== event.expected.workCaseWaitId ||
+		result.state.workCase.revisionId !== event.expected.revisionId ||
+		event.transitionId !== event.expected.workCaseWaitId
+	) {
+		return eventUnavailable(
+			"Persisted Work Case wait does not reproduce its exact observed-condition revision.",
+		);
+	}
+	return appliedHeld(result.state);
+}
+
+function replayWaitingWorkCaseResume(
+	state: LiveWaitingWorkCaseState,
+	event: ActionLoopWaitingWorkCaseResumedEvent,
+): AppliedEventResult {
+	const result = resumeLiveWaitingWorkCase(state, event.proposal);
+	const workCaseWaitResumeId =
+		result.status === "active"
+			? result.state.workCase.continuityIds.at(-1)
+			: undefined;
+	if (
+		result.status !== "active" ||
+		workCaseWaitResumeId !== event.expected.workCaseWaitResumeId ||
+		result.state.workCase.revisionId !== event.expected.revisionId ||
+		event.transitionId !== event.expected.workCaseWaitResumeId
+	) {
+		return eventUnavailable(
+			"Persisted waiting Work Case resume does not reproduce its exact predicate-bound continuity revision.",
+		);
+	}
+	return applied(result.state);
+}
+
 async function replayOwnedEvent(
 	state: LiveWorkCaseState,
 	event: Exclude<
 		ActionLoopSessionEvent,
-		ActionLoopWorkCaseOpenedEvent | ActionLoopPausedWorkCaseResumedEvent
+		| ActionLoopWorkCaseOpenedEvent
+		| ActionLoopPausedWorkCaseResumedEvent
+		| ActionLoopWaitingWorkCaseResumedEvent
 	>,
 	inventory: LiveCapabilityInventoryResult | undefined,
 ): Promise<AppliedEventResult> {
 	switch (event.kind) {
 		case "work-case-paused":
 			return replayWorkCasePause(state, event);
+		case "work-case-waiting":
+			return replayWorkCaseWaiting(state, event);
 		case "judgment-opened":
 			return replayJudgmentOpening(state, event);
 		case "capability-assessed":
@@ -601,16 +651,30 @@ async function replaySessionEvent(
 		return replayWorkCaseOpening(projection, event);
 	}
 	if (event.kind === "paused-work-case-resumed") {
-		if (!projection.pausedWorkCase) {
+		if (
+			!projection.heldWorkCase ||
+			!isLivePausedWorkCaseState(projection.heldWorkCase)
+		) {
 			return eventUnavailable(
 				"Persisted paused Work Case resume has no paused branch owner.",
 			);
 		}
-		return replayPausedWorkCaseResume(projection.pausedWorkCase, event);
+		return replayPausedWorkCaseResume(projection.heldWorkCase, event);
 	}
-	if (projection.pausedWorkCase) {
+	if (event.kind === "waiting-work-case-resumed") {
+		if (
+			!projection.heldWorkCase ||
+			!isLiveWaitingWorkCaseState(projection.heldWorkCase)
+		) {
+			return eventUnavailable(
+				"Persisted waiting Work Case resume has no waiting branch owner.",
+			);
+		}
+		return replayWaitingWorkCaseResume(projection.heldWorkCase, event);
+	}
+	if (projection.heldWorkCase) {
 		return eventUnavailable(
-			`Persisted ${event.kind} transition cannot mutate paused branch ownership.`,
+			`Persisted ${event.kind} transition cannot mutate ${projection.heldWorkCase.workCase.status} branch ownership.`,
 		);
 	}
 	if (!projection.activeWorkCase) {

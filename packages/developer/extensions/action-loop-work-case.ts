@@ -11,6 +11,7 @@ import type {
 import type { NeedCoverage } from "../src/action-loop/need-coverage/assess-need-coverage.ts";
 import type { BoundReferenceSelection } from "../src/action-loop/routing/bind-reference-selection.ts";
 import type { PausedWorkCase } from "../src/action-loop/work/pause-work-case.ts";
+import type { WaitingWorkCase } from "../src/action-loop/work/wait-work-case.ts";
 import {
 	openWorkCase,
 	type ActiveWorkCase,
@@ -45,9 +46,29 @@ export type LivePausedWorkCaseState = Omit<LiveWorkCaseState, "workCase"> & {
 	readonly workCase: PausedWorkCase;
 };
 
+export type LiveWaitingWorkCaseState = Omit<LiveWorkCaseState, "workCase"> & {
+	readonly workCase: WaitingWorkCase;
+};
+
+export type LiveHeldWorkCaseState =
+	| LivePausedWorkCaseState
+	| LiveWaitingWorkCaseState;
+
 export type LiveWorkCaseOwnership =
 	| LiveWorkCaseState
-	| LivePausedWorkCaseState;
+	| LiveHeldWorkCaseState;
+
+export function isLivePausedWorkCaseState(
+	state: LiveHeldWorkCaseState,
+): state is LivePausedWorkCaseState {
+	return state.workCase.status === "paused";
+}
+
+export function isLiveWaitingWorkCaseState(
+	state: LiveHeldWorkCaseState,
+): state is LiveWaitingWorkCaseState {
+	return state.workCase.status === "waiting";
+}
 
 export type LiveWorkCaseOpeningResult =
 	| { readonly status: "opened"; readonly value: LiveWorkCaseState }
@@ -267,9 +288,21 @@ export function liveWorkCasePrompt(
 					`Pause: ${workCase.pause.workCasePauseId} · ${workCase.pause.reason}`,
 					"Resume requires an explicit human /developer resume decision on this durable Pi session branch.",
 				]
-			: [];
+			: workCase.status === "waiting"
+				? [
+						`Wait: ${workCase.wait.workCaseWaitId} · ${workCase.wait.externalCondition}`,
+						`Resume predicate: ${workCase.wait.resumePredicate}`,
+						"Resume requires a current Observation that satisfies this exact predicate.",
+					]
+				: [];
+	const statusLabel =
+		workCase.status === "active"
+			? "Active"
+			: workCase.status === "paused"
+				? "Paused"
+				: "Waiting";
 	return [
-		`${workCase.status === "active" ? "Active" : "Paused"} Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
+		`${statusLabel} Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
 		`Outcome: ${workCase.outcome.statement}`,
 		`Context revision: ${state.contextRevisionId}`,
 		`Acceptance conditions: ${workCase.outcome.acceptanceConditions.join(" | ")}`,

@@ -19,6 +19,7 @@ test("Developer command parser accepts only the canonical action grammar", () =>
 		"questions",
 		"settings",
 		"pause",
+		"wait",
 		"resume",
 		"on",
 		"off",
@@ -51,6 +52,9 @@ test("Developer argument completion exposes only canonical focused actions", () 
 	]);
 	assert.deepEqual(completeDeveloperArgs("r"), [
 		{ value: "resume", label: "resume" },
+	]);
+	assert.deepEqual(completeDeveloperArgs("w"), [
+		{ value: "wait", label: "wait" },
 	]);
 	assert.equal(completeDeveloperArgs(":"), null);
 	assert.equal(completeDeveloperArgs("develop"), null);

@@ -5,8 +5,11 @@ import type { EffectObservation } from "../src/action-loop/effect/effect-observa
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
 import type { PauseWorkCaseProposal } from "../src/action-loop/work/pause-work-case.ts";
 import type { ResumePausedWorkCaseProposal } from "../src/action-loop/work/resume-paused-work-case.ts";
+import type { ResumeWaitingWorkCaseProposal } from "../src/action-loop/work/resume-waiting-work-case.ts";
+import type { WaitWorkCaseProposal } from "../src/action-loop/work/wait-work-case.ts";
 import type {
 	LivePausedWorkCaseState,
+	LiveWaitingWorkCaseState,
 	LiveWorkCaseProposal,
 	LiveWorkCaseState,
 } from "./action-loop-work-case.ts";
@@ -121,6 +124,71 @@ const PausedWorkCaseResumedEventSchema = Type.Object(
 		proposal: ResumePausedWorkCaseProposalSchema,
 		expected: Type.Object(
 			{ workCaseResumeId: IdSchema, revisionId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const ObservationKindSchema = Type.Union([
+	Type.Literal("human"),
+	Type.Literal("tool"),
+	Type.Literal("external"),
+]);
+const WaitWorkCaseProposalSchema = Type.Object(
+	{
+		workCaseId: IdSchema,
+		expectedRevisionId: IdSchema,
+		externalCondition: ShortTextSchema,
+		resumePredicate: ShortTextSchema,
+		observation: Type.Object(
+			{
+				kind: ObservationKindSchema,
+				observationId: IdSchema,
+				source: ShortTextSchema,
+				basis: BasisSchema,
+			},
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const WorkCaseWaitingEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("work-case-waiting"),
+		proposal: WaitWorkCaseProposalSchema,
+		expected: Type.Object(
+			{ workCaseWaitId: IdSchema, revisionId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const ResumeWaitingWorkCaseProposalSchema = Type.Object(
+	{
+		workCaseId: IdSchema,
+		expectedRevisionId: IdSchema,
+		assessment: Type.Object(
+			{
+				resumePredicate: ShortTextSchema,
+				status: Type.Literal("satisfied"),
+				observationKind: ObservationKindSchema,
+				observationId: IdSchema,
+				source: ShortTextSchema,
+				basis: BasisSchema,
+			},
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const WaitingWorkCaseResumedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("waiting-work-case-resumed"),
+		proposal: ResumeWaitingWorkCaseProposalSchema,
+		expected: Type.Object(
+			{ workCaseWaitResumeId: IdSchema, revisionId: IdSchema },
 			{ additionalProperties: false },
 		),
 	},
@@ -595,6 +663,8 @@ const SessionEventSchema = Type.Union([
 	WorkCaseOpenedEventSchema,
 	WorkCasePausedEventSchema,
 	PausedWorkCaseResumedEventSchema,
+	WorkCaseWaitingEventSchema,
+	WaitingWorkCaseResumedEventSchema,
 	JudgmentOpenedEventSchema,
 	CapabilityAssessedEventSchema,
 	ReferencesSelectedEventSchema,
@@ -618,6 +688,12 @@ export type ActionLoopWorkCasePausedEvent = Static<
 >;
 export type ActionLoopPausedWorkCaseResumedEvent = Static<
 	typeof PausedWorkCaseResumedEventSchema
+>;
+export type ActionLoopWorkCaseWaitingEvent = Static<
+	typeof WorkCaseWaitingEventSchema
+>;
+export type ActionLoopWaitingWorkCaseResumedEvent = Static<
+	typeof WaitingWorkCaseResumedEventSchema
 >;
 export type ActionLoopJudgmentOpenedEvent = Static<
 	typeof JudgmentOpenedEventSchema
@@ -763,6 +839,73 @@ export function actionLoopPausedWorkCaseResumedEvent(
 		},
 		expected: {
 			workCaseResumeId,
+			revisionId: state.workCase.revisionId,
+		},
+	});
+}
+
+export function actionLoopWorkCaseWaitingEvent(
+	proposal: WaitWorkCaseProposal & {
+		readonly observation: WaitWorkCaseProposal["observation"] & {
+			readonly kind: "human" | "tool" | "external";
+		};
+	},
+	state: LiveWaitingWorkCaseState,
+): ActionLoopWorkCaseWaitingEvent {
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "work-case-waiting",
+		transitionId: state.workCase.wait.workCaseWaitId,
+		proposal: {
+			workCaseId: proposal.workCaseId,
+			expectedRevisionId: proposal.expectedRevisionId,
+			externalCondition: proposal.externalCondition,
+			resumePredicate: proposal.resumePredicate,
+			observation: {
+				kind: proposal.observation.kind,
+				observationId: proposal.observation.observationId,
+				source: proposal.observation.source,
+				basis: [...proposal.observation.basis],
+			},
+		},
+		expected: {
+			workCaseWaitId: state.workCase.wait.workCaseWaitId,
+			revisionId: state.workCase.revisionId,
+		},
+	});
+}
+
+export function actionLoopWaitingWorkCaseResumedEvent(
+	proposal: ResumeWaitingWorkCaseProposal & {
+		readonly assessment: ResumeWaitingWorkCaseProposal["assessment"] & {
+			readonly status: "satisfied";
+			readonly observationKind: "human" | "tool" | "external";
+		};
+	},
+	state: LiveWorkCaseState,
+): ActionLoopWaitingWorkCaseResumedEvent {
+	const workCaseWaitResumeId = state.workCase.continuityIds.at(-1);
+	if (workCaseWaitResumeId === undefined) {
+		throw new Error("Resumed waiting Work Case has no continuity transition ID");
+	}
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "waiting-work-case-resumed",
+		transitionId: workCaseWaitResumeId,
+		proposal: {
+			workCaseId: proposal.workCaseId,
+			expectedRevisionId: proposal.expectedRevisionId,
+			assessment: {
+				resumePredicate: proposal.assessment.resumePredicate,
+				status: "satisfied" as const,
+				observationKind: proposal.assessment.observationKind,
+				observationId: proposal.assessment.observationId,
+				source: proposal.assessment.source,
+				basis: [...proposal.assessment.basis],
+			},
+		},
+		expected: {
+			workCaseWaitResumeId,
 			revisionId: state.workCase.revisionId,
 		},
 	});

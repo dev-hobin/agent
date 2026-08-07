@@ -97,6 +97,7 @@ function createHarness() {
 	let editorResult: string | undefined;
 	let editorResults: Array<string | undefined> = [];
 	let inputResult: string | undefined;
+	let inputResults: Array<string | undefined> = [];
 	let sessionFile: string | undefined = "/tmp/developer-test-session.jsonl";
 	let confirmResult = true;
 	let customCalls = 0;
@@ -298,7 +299,7 @@ function createHarness() {
 			return editorResults.length > 0 ? editorResults.shift() : editorResult;
 		},
 		async input() {
-			return inputResult;
+			return inputResults.length > 0 ? inputResults.shift() : inputResult;
 		},
 		getEditorText() {
 			return editorText;
@@ -349,6 +350,10 @@ function createHarness() {
 		},
 		setInputResult(value: string | undefined) {
 			inputResult = value;
+			inputResults = [];
+		},
+		setInputResults(values: Array<string | undefined>) {
+			inputResults = [...values];
 		},
 		setSessionFile(value: string | undefined) {
 			sessionFile = value;
@@ -1769,7 +1774,61 @@ test("human commands durably pause and resume one live Work Case", async () => {
 	assert.doesNotMatch(resumedTurn.systemPrompt, /Pause:/);
 });
 
-test("Pi --no-session mode refuses live pause ownership", async () => {
+test("human Observation durably waits and resumes on an exact predicate", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	await openTestWorkCase(harness, "live-wait", false);
+	harness.setInputResults([
+		"The external package registry is unavailable.",
+		"A bounded package registry probe succeeds.",
+	]);
+	await harness.commands.get("developer").handler("wait", harness.ctx);
+	assert.equal(
+		(harness.entries.at(-1)?.data as { kind?: string }).kind,
+		"work-case-waiting",
+	);
+	const waitingTurn = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(waitingTurn.systemPrompt, /Waiting Action Loop Work Case:/);
+	assert.match(
+		waitingTurn.systemPrompt,
+		/Resume predicate: A bounded package registry probe succeeds\./,
+	);
+	const blockedAction = await harness.emit("tool_call", {
+		type: "tool_call",
+		toolName: "bash",
+		toolCallId: "bash-while-waiting",
+		input: { command: "printf blocked" },
+	});
+	assert.equal(blockedAction.block, true);
+	assert.match(blockedAction.reason, /waiting/);
+
+	harness.setConfirmResult(true);
+	await harness.commands.get("developer").handler("resume", harness.ctx);
+	assert.equal(
+		(harness.entries.at(-1)?.data as { kind?: string }).kind,
+		"waiting-work-case-resumed",
+	);
+	const resumedTurn = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(resumedTurn.systemPrompt, /Active Action Loop Work Case:/);
+	assert.doesNotMatch(resumedTurn.systemPrompt, /Resume predicate:/);
+});
+
+test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 	const harness = createHarness();
 	harness.setSessionFile(undefined);
 	await developer(harness.api);
@@ -1782,6 +1841,13 @@ test("Pi --no-session mode refuses live pause ownership", async () => {
 	harness.setInputResult("This must not become a process-local pause.");
 	const entriesBefore = harness.entries.length;
 	await harness.commands.get("developer").handler("pause", harness.ctx);
+	assert.equal(harness.entries.length, entriesBefore);
+	assert.match(harness.notifications.at(-1)?.message ?? "", /--no-session/);
+	harness.setInputResults([
+		"This must not become a process-local wait.",
+		"A durable predicate becomes satisfied.",
+	]);
+	await harness.commands.get("developer").handler("wait", harness.ctx);
 	assert.equal(harness.entries.length, entriesBefore);
 	assert.match(harness.notifications.at(-1)?.message ?? "", /--no-session/);
 });

@@ -6,8 +6,17 @@ import {
 	resumePausedWorkCase,
 	type ResumePausedWorkCaseProposal,
 } from "../src/action-loop/work/resume-paused-work-case.ts";
+import {
+	resumeWaitingWorkCase,
+	type ResumeWaitingWorkCaseProposal,
+} from "../src/action-loop/work/resume-waiting-work-case.ts";
+import {
+	waitWorkCase,
+	type WaitWorkCaseProposal,
+} from "../src/action-loop/work/wait-work-case.ts";
 import type {
 	LivePausedWorkCaseState,
+	LiveWaitingWorkCaseState,
 	LiveWorkCaseState,
 } from "./action-loop-work-case.ts";
 
@@ -21,13 +30,24 @@ export type LiveResumePausedResult =
 	| { readonly status: "active"; readonly state: LiveWorkCaseState }
 	| { readonly status: "invalid"; readonly message: string };
 
+export type LiveWaitResult =
+	| { readonly status: "waiting"; readonly state: LiveWaitingWorkCaseState }
+	| { readonly status: "invalid"; readonly message: string };
+
+export type LiveResumeWaitingResult =
+	| { readonly status: "active"; readonly state: LiveWorkCaseState }
+	| { readonly status: "waiting"; readonly state: LiveWaitingWorkCaseState }
+	| { readonly status: "invalid"; readonly message: string };
+
 /** Preserves the live projection while canonical ownership moves to paused. */
 export function pauseLiveWorkCase(
 	state: LiveWorkCaseState,
 	proposal: PauseWorkCaseProposal,
 ): LivePauseResult {
 	const result = pauseWorkCase(state.workCase, proposal);
-	if (result.status === "invalid") return { status: "invalid", message: result.error.message };
+	if (result.status === "invalid") {
+		return { status: "invalid", message: result.error.message };
+	}
 	return {
 		status: "paused",
 		state: Object.freeze({ ...state, workCase: result.value }),
@@ -40,7 +60,45 @@ export function resumeLivePausedWorkCase(
 	proposal: ResumePausedWorkCaseProposal,
 ): LiveResumePausedResult {
 	const result = resumePausedWorkCase(state.workCase, proposal);
-	if (result.status === "invalid") return { status: "invalid", message: result.error.message };
+	if (result.status === "invalid") {
+		return { status: "invalid", message: result.error.message };
+	}
+	return {
+		status: "active",
+		state: Object.freeze({ ...state, workCase: result.value }),
+	};
+}
+
+/** Preserves the live projection while observed external work becomes waiting. */
+export function waitLiveWorkCase(
+	state: LiveWorkCaseState,
+	proposal: WaitWorkCaseProposal,
+): LiveWaitResult {
+	const result = waitWorkCase(state.workCase, proposal);
+	if (result.status === "invalid") {
+		return { status: "invalid", message: result.error.message };
+	}
+	return {
+		status: "waiting",
+		state: Object.freeze({ ...state, workCase: result.value }),
+	};
+}
+
+/** Resumes waiting only when the exact external predicate is observed satisfied. */
+export function resumeLiveWaitingWorkCase(
+	state: LiveWaitingWorkCaseState,
+	proposal: ResumeWaitingWorkCaseProposal,
+): LiveResumeWaitingResult {
+	const result = resumeWaitingWorkCase(state.workCase, proposal);
+	if (result.status === "invalid") {
+		return { status: "invalid", message: result.error.message };
+	}
+	if (result.status === "waiting") {
+		return {
+			status: "waiting",
+			state: Object.freeze({ ...state, workCase: result.value }),
+		};
+	}
 	return {
 		status: "active",
 		state: Object.freeze({ ...state, workCase: result.value }),

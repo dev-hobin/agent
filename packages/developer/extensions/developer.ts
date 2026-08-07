@@ -80,7 +80,6 @@ import {
 	ACTION_LOOP_SESSION_ENTRY,
 	ACTION_LOOP_SESSION_PROTOCOL,
 	actionLoopActionClearedEvent,
-	actionLoopPausedWorkCaseResumedEvent,
 	actionLoopCapabilityAssessedEvent,
 	actionLoopContributionAcceptedEvent,
 	actionLoopCoverageAssessedEvent,
@@ -90,11 +89,14 @@ import {
 	actionLoopEffectSettledEvent,
 	actionLoopJudgmentConcludedEvent,
 	actionLoopJudgmentOpenedEvent,
+	actionLoopPausedWorkCaseResumedEvent,
 	actionLoopReferencesSelectedEvent,
 	actionLoopUnstructuredContextSealedEvent,
 	actionLoopWorkCaseCompletedEvent,
+	actionLoopWaitingWorkCaseResumedEvent,
 	actionLoopWorkCaseOpenedEvent,
 	actionLoopWorkCasePausedEvent,
+	actionLoopWorkCaseWaitingEvent,
 	replayActionLoopSession,
 	withActionLoopReplayEvent,
 	type ActionLoopSessionBranchEntry,
@@ -104,15 +106,18 @@ import {
 	MAX_LIVE_CONTINUITY_TEXT,
 	pauseLiveWorkCase,
 	resumeLivePausedWorkCase,
+	resumeLiveWaitingWorkCase,
+	waitLiveWorkCase,
 } from "./action-loop-continuity.ts";
 import {
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 	MAX_LIVE_BASIS_ITEMS,
 	MAX_LIVE_OUTCOME_ITEMS,
 	MAX_LIVE_OUTCOME_TEXT,
+	isLivePausedWorkCaseState,
 	liveWorkCasePrompt,
 	openLiveWorkCase,
-	type LivePausedWorkCaseState,
+	type LiveHeldWorkCaseState,
 	type LiveWorkCaseState,
 } from "./action-loop-work-case.ts";
 import {
@@ -802,7 +807,7 @@ export default async function developer(pi: ExtensionAPI) {
 	let availableSkills = new Map<string, Skill>();
 	let liveCapabilityInventory: LiveCapabilityInventoryResult | undefined;
 	let activeWorkCase: LiveWorkCaseState | undefined;
-	let pausedWorkCase: LivePausedWorkCaseState | undefined;
+	let heldWorkCase: LiveHeldWorkCaseState | undefined;
 	let completedWorkCase: CompletedWorkCase | undefined;
 	let pendingActionLoopBranch:
 		| readonly ActionLoopSessionBranchEntry[]
@@ -872,12 +877,18 @@ export default async function developer(pi: ExtensionAPI) {
 			ctx.ui.setWidget("developer", undefined);
 			return;
 		}
-		if (pausedWorkCase) {
-			ctx.ui.setStatus("developer", "developer · Action Loop paused");
+		if (heldWorkCase) {
+			ctx.ui.setStatus(
+				"developer",
+				`developer · Action Loop ${heldWorkCase.workCase.status}`,
+			);
+			const heldDetail = isLivePausedWorkCaseState(heldWorkCase)
+				? heldWorkCase.workCase.pause.reason
+				: heldWorkCase.workCase.wait.externalCondition;
 			ctx.ui.setWidget(
 				"developer",
 				[
-					`paused · ${compactLine(pausedWorkCase.workCase.pause.reason)}`,
+					`${heldWorkCase.workCase.status} · ${compactLine(heldDetail)}`,
 					"resume · /developer resume",
 				],
 				{ placement: "belowEditor" },
@@ -941,7 +952,7 @@ export default async function developer(pi: ExtensionAPI) {
 	const reconstruct = (ctx: ExtensionContext) => {
 		const branch = ctx.sessionManager.getBranch();
 		activeWorkCase = undefined;
-		pausedWorkCase = undefined;
+		heldWorkCase = undefined;
 		completedWorkCase = undefined;
 		pendingActionLoopBranch = toolPolicyRestartRequired ? undefined : branch;
 		actionLoopReplayFailure = undefined;
@@ -967,7 +978,7 @@ export default async function developer(pi: ExtensionAPI) {
 		state = applyDeveloperEvent(state, event);
 		if (!enabled) {
 			activeWorkCase = undefined;
-			pausedWorkCase = undefined;
+			heldWorkCase = undefined;
 			completedWorkCase = undefined;
 			pendingActionLoopBranch = undefined;
 			actionLoopReplayFailure = undefined;
@@ -1019,8 +1030,8 @@ export default async function developer(pi: ExtensionAPI) {
 					`Developer cannot replace unavailable Action Loop session state: ${actionLoopReplayFailure}`,
 				);
 			}
-			if (pausedWorkCase) {
-				fail("Developer cannot replace a paused Action Loop Work Case. Use /developer resume or /developer off.");
+			if (heldWorkCase) {
+				fail(`Developer cannot replace a ${heldWorkCase.workCase.status} Action Loop Work Case. Use /developer resume or /developer off.`);
 			}
 			const proposal = {
 				outcome: {
@@ -3767,8 +3778,8 @@ export default async function developer(pi: ExtensionAPI) {
 			: "none";
 		const actionLoopOwnership = activeWorkCase
 			? `active · ${activeWorkCase.workCase.workCaseId}@${activeWorkCase.workCase.revisionId}`
-			: pausedWorkCase
-				? `paused · ${pausedWorkCase.workCase.workCaseId}@${pausedWorkCase.workCase.revisionId}`
+			: heldWorkCase
+				? `${heldWorkCase.workCase.status} · ${heldWorkCase.workCase.workCaseId}@${heldWorkCase.workCase.revisionId}`
 				: "none";
 		const pending =
 			state.pendingQuestions.length > 0
@@ -3866,13 +3877,15 @@ export default async function developer(pi: ExtensionAPI) {
 				if (
 					ctx.mode === "tui" &&
 					(activeWorkCase ||
-						pausedWorkCase ||
+						heldWorkCase ||
 						state.activeRoute ||
 						state.pendingQuestions.length > 0)
 				) {
 					const work = [
 						...(activeWorkCase ? ["the active Action Loop Work Case"] : []),
-						...(pausedWorkCase ? ["the paused Action Loop Work Case"] : []),
+						...(heldWorkCase
+							? [`the ${heldWorkCase.workCase.status} Action Loop Work Case`]
+							: []),
 						...(state.activeRoute ? ["the active route"] : []),
 						...(state.pendingQuestions.length > 0
 							? [`${state.pendingQuestions.length} open question(s)`]
@@ -3907,8 +3920,11 @@ export default async function developer(pi: ExtensionAPI) {
 					);
 					return false;
 				}
-				if (pausedWorkCase) {
-					ctx.ui.notify("The current Action Loop Work Case is already paused.", "info");
+				if (heldWorkCase) {
+					ctx.ui.notify(
+						`The current Action Loop Work Case is already ${heldWorkCase.workCase.status}.`,
+						"info",
+					);
 					return false;
 				}
 				if (!activeWorkCase) {
@@ -3955,7 +3971,7 @@ export default async function developer(pi: ExtensionAPI) {
 					actionLoopWorkCasePausedEvent(proposal, result.state),
 				);
 				activeWorkCase = undefined;
-				pausedWorkCase = result.state;
+				heldWorkCase = result.state;
 				completedWorkCase = undefined;
 				syncProtocolTools();
 				refreshUI(ctx);
@@ -3963,7 +3979,95 @@ export default async function developer(pi: ExtensionAPI) {
 				return true;
 			};
 
-			const resumePausedWork = async (): Promise<boolean> => {
+			const waitCurrentWorkCase = async (): Promise<boolean> => {
+				if (!state.enabled) {
+					ctx.ui.notify("Developer is off. Run /developer on first.", "warning");
+					return false;
+				}
+				if (ctx.sessionManager.getSessionFile() === undefined) {
+					ctx.ui.notify(
+						"Developer cannot wait in Pi --no-session mode because restart continuity would be unavailable.",
+						"error",
+					);
+					return false;
+				}
+				if (actionLoopReplayFailure) {
+					ctx.ui.notify(
+						`Developer cannot wait unavailable Action Loop state: ${actionLoopReplayFailure}`,
+						"error",
+					);
+					return false;
+				}
+				if (heldWorkCase) {
+					ctx.ui.notify(
+						`The current Action Loop Work Case is already ${heldWorkCase.workCase.status}.`,
+						"info",
+					);
+					return false;
+				}
+				if (!activeWorkCase) {
+					ctx.ui.notify("Developer has no active Action Loop Work Case to wait.", "warning");
+					return false;
+				}
+				if (!ctx.hasUI) {
+					ctx.ui.notify("Waiting requires dialog-capable human Observation.", "error");
+					return false;
+				}
+				const enteredCondition = await ctx.ui.input(
+					"Wait on external condition",
+					"What observed external condition prevents continuation?",
+				);
+				const externalCondition = enteredCondition?.trim();
+				if (!externalCondition) return false;
+				const enteredPredicate = await ctx.ui.input(
+					"Observable resume predicate",
+					"What exact observable condition permits resume?",
+				);
+				const resumePredicate = enteredPredicate?.trim();
+				if (!resumePredicate) return false;
+				if (
+					externalCondition.length > MAX_LIVE_CONTINUITY_TEXT ||
+					resumePredicate.length > MAX_LIVE_CONTINUITY_TEXT
+				) {
+					ctx.ui.notify(
+						`Wait condition and resume predicate must each be at most ${MAX_LIVE_CONTINUITY_TEXT} characters.`,
+						"warning",
+					);
+					return false;
+				}
+				const proposal = {
+					workCaseId: activeWorkCase.workCase.workCaseId,
+					expectedRevisionId: activeWorkCase.workCase.revisionId,
+					externalCondition,
+					resumePredicate,
+					observation: {
+						kind: "human" as const,
+						observationId: `pi-command-wait:${activeWorkCase.workCase.revisionId}`,
+						source: "pi:/developer wait",
+						basis: [
+							"The delegating human explicitly invoked /developer wait and supplied the observed condition and resume predicate.",
+						],
+					},
+				};
+				const result = waitLiveWorkCase(activeWorkCase, proposal);
+				if (result.status === "invalid") {
+					ctx.ui.notify(result.message, "error");
+					return false;
+				}
+				pi.appendEntry(
+					ACTION_LOOP_SESSION_ENTRY,
+					actionLoopWorkCaseWaitingEvent(proposal, result.state),
+				);
+				activeWorkCase = undefined;
+				heldWorkCase = result.state;
+				completedWorkCase = undefined;
+				syncProtocolTools();
+				refreshUI(ctx);
+				ctx.ui.notify("Developer Action Loop Work Case is waiting.", "info");
+				return true;
+			};
+
+			const resumeHeldWork = async (): Promise<boolean> => {
 				if (!state.enabled) {
 					ctx.ui.notify("Developer is off. Run /developer on first.", "warning");
 					return false;
@@ -3975,41 +4079,80 @@ export default async function developer(pi: ExtensionAPI) {
 					);
 					return false;
 				}
-				if (!pausedWorkCase) {
-					ctx.ui.notify("Developer has no paused Action Loop Work Case.", "warning");
+				if (!heldWorkCase) {
+					ctx.ui.notify("Developer has no paused or waiting Action Loop Work Case.", "warning");
 					return false;
 				}
 				if (!ctx.hasUI) {
-					ctx.ui.notify("Resuming a pause requires dialog-capable human input.", "error");
+					ctx.ui.notify("Resuming requires dialog-capable human input.", "error");
 					return false;
 				}
+				if (isLivePausedWorkCaseState(heldWorkCase)) {
+					const confirmed = await ctx.ui.confirm(
+						"Resume Action Loop Work Case?",
+						`Resume the current human-owned pause?\n\n${heldWorkCase.workCase.pause.reason}`,
+					);
+					if (!confirmed) return false;
+					const proposal = {
+						workCaseId: heldWorkCase.workCase.workCaseId,
+						expectedRevisionId: heldWorkCase.workCase.revisionId,
+						decision: {
+							kind: "human",
+							decisionId: `pi-command-resume:${heldWorkCase.workCase.revisionId}`,
+							source: "pi:/developer resume",
+							basis: [
+								"The delegating human explicitly invoked and confirmed /developer resume for the current pause.",
+							],
+						},
+					};
+					const result = resumeLivePausedWorkCase(heldWorkCase, proposal);
+					if (result.status === "invalid") {
+						ctx.ui.notify(result.message, "error");
+						return false;
+					}
+					pi.appendEntry(
+						ACTION_LOOP_SESSION_ENTRY,
+						actionLoopPausedWorkCaseResumedEvent(proposal, result.state),
+					);
+					heldWorkCase = undefined;
+					activeWorkCase = result.state;
+					syncProtocolTools();
+					refreshUI(ctx);
+					ctx.ui.notify("Developer Action Loop Work Case resumed.", "info");
+					return true;
+				}
 				const confirmed = await ctx.ui.confirm(
-					"Resume Action Loop Work Case?",
-					`Resume the current human-owned pause?\n\n${pausedWorkCase.workCase.pause.reason}`,
+					"Resume waiting Action Loop Work Case?",
+					`Confirm that the exact resume predicate is now observed as satisfied:\n\n${heldWorkCase.workCase.wait.resumePredicate}`,
 				);
 				if (!confirmed) return false;
 				const proposal = {
-					workCaseId: pausedWorkCase.workCase.workCaseId,
-					expectedRevisionId: pausedWorkCase.workCase.revisionId,
-					decision: {
-						kind: "human",
-						decisionId: `pi-command-resume:${pausedWorkCase.workCase.revisionId}`,
+					workCaseId: heldWorkCase.workCase.workCaseId,
+					expectedRevisionId: heldWorkCase.workCase.revisionId,
+					assessment: {
+						resumePredicate: heldWorkCase.workCase.wait.resumePredicate,
+						status: "satisfied" as const,
+						observationKind: "human" as const,
+						observationId: `pi-command-wait-resume:${heldWorkCase.workCase.revisionId}`,
 						source: "pi:/developer resume",
 						basis: [
-							"The delegating human explicitly invoked and confirmed /developer resume for the current pause.",
+							"The delegating human explicitly confirmed that the current observed condition satisfies the exact waiting resume predicate.",
 						],
 					},
 				};
-				const result = resumeLivePausedWorkCase(pausedWorkCase, proposal);
-				if (result.status === "invalid") {
-					ctx.ui.notify(result.message, "error");
+				const result = resumeLiveWaitingWorkCase(heldWorkCase, proposal);
+				if (result.status !== "active") {
+					ctx.ui.notify(
+						result.status === "invalid" ? result.message : "The resume predicate is not satisfied.",
+						result.status === "invalid" ? "error" : "info",
+					);
 					return false;
 				}
 				pi.appendEntry(
 					ACTION_LOOP_SESSION_ENTRY,
-					actionLoopPausedWorkCaseResumedEvent(proposal, result.state),
+					actionLoopWaitingWorkCaseResumedEvent(proposal, result.state),
 				);
-				pausedWorkCase = undefined;
+				heldWorkCase = undefined;
 				activeWorkCase = result.state;
 				syncProtocolTools();
 				refreshUI(ctx);
@@ -4121,7 +4264,7 @@ export default async function developer(pi: ExtensionAPI) {
 			const parsed = parseDeveloperCommand(args);
 			if (!parsed.ok) {
 				ctx.ui.notify(
-					"Usage: /developer [status | questions | settings | pause | resume | on | off]",
+					"Usage: /developer [status | questions | settings | pause | wait | resume | on | off]",
 					"warning",
 				);
 				return;
@@ -4156,8 +4299,12 @@ export default async function developer(pi: ExtensionAPI) {
 				await pauseCurrentWorkCase();
 				return;
 			}
+			if (action === "wait") {
+				await waitCurrentWorkCase();
+				return;
+			}
 			if (action === "resume") {
-				await resumePausedWork();
+				await resumeHeldWork();
 				return;
 			}
 			if (action === "on") {
@@ -4196,12 +4343,12 @@ export default async function developer(pi: ExtensionAPI) {
 			pendingActionLoopBranch = undefined;
 			if (replayed.status === "ready") {
 				activeWorkCase = replayed.activeWorkCase;
-				pausedWorkCase = replayed.pausedWorkCase;
+				heldWorkCase = replayed.heldWorkCase;
 				completedWorkCase = replayed.completedWorkCase;
 				actionLoopReplayFailure = undefined;
 			} else {
 				activeWorkCase = undefined;
-				pausedWorkCase = undefined;
+				heldWorkCase = undefined;
 				completedWorkCase = undefined;
 				actionLoopReplayFailure = `entry ${replayed.entryIndex}: ${replayed.message}`;
 			}
@@ -4215,7 +4362,7 @@ export default async function developer(pi: ExtensionAPI) {
 				`\n${liveCapabilityInventoryPrompt(inventory)}` +
 				(actionLoopReplayFailure
 					? `\nAction Loop session replay unavailable (${ACTION_LOOP_SESSION_PROTOCOL}): ${actionLoopReplayFailure}. Do not open replacement work or infer completion.`
-					: `\n${liveWorkCasePrompt(activeWorkCase ?? pausedWorkCase)}\n${liveCompletedWorkCasePrompt(completedWorkCase)}`),
+					: `\n${liveWorkCasePrompt(activeWorkCase ?? heldWorkCase)}\n${liveCompletedWorkCasePrompt(completedWorkCase)}`),
 		};
 	});
 
@@ -4248,11 +4395,10 @@ export default async function developer(pi: ExtensionAPI) {
 			event.toolName,
 		);
 		if (!capability) return;
-		if (pausedWorkCase) {
+		if (heldWorkCase) {
 			return {
 				block: true,
-				reason:
-					"Developer blocks controlled Actions while the durable Action Loop Work Case is paused. A human must run /developer resume or /developer off.",
+				reason: `Developer blocks controlled Actions while the durable Action Loop Work Case is ${heldWorkCase.workCase.status}. A human must run /developer resume or /developer off.`,
 			};
 		}
 		if (pendingActionLoopBranch || actionLoopReplayFailure) {

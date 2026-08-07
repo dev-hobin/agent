@@ -4,14 +4,18 @@ import test from "node:test";
 import {
 	pauseLiveWorkCase,
 	resumeLivePausedWorkCase,
+	resumeLiveWaitingWorkCase,
+	waitLiveWorkCase,
 } from "../extensions/action-loop-continuity.ts";
 import {
 	ACTION_LOOP_SESSION_ENTRY,
 	ACTION_LOOP_SESSION_PROTOCOL,
 	MAX_ACTION_LOOP_SESSION_EVENT_BYTES,
 	actionLoopPausedWorkCaseResumedEvent,
+	actionLoopWaitingWorkCaseResumedEvent,
 	actionLoopWorkCaseOpenedEvent,
 	actionLoopWorkCasePausedEvent,
+	actionLoopWorkCaseWaitingEvent,
 	replayActionLoopSession,
 	withActionLoopReplayEvent,
 } from "../extensions/action-loop-session.ts";
@@ -106,7 +110,7 @@ test("human pause and resume replay as branch-local ownership transitions", asyn
 	if (pausedReplay.status !== "ready") return;
 	assert.equal(pausedReplay.activeWorkCase, undefined);
 	assert.equal(
-		pausedReplay.pausedWorkCase?.workCase.revisionId,
+		pausedReplay.heldWorkCase?.workCase.revisionId,
 		paused.state.workCase.revisionId,
 	);
 
@@ -137,7 +141,91 @@ test("human pause and resume replay as branch-local ownership transitions", asyn
 	]);
 	assert.equal(resumedReplay.status, "ready");
 	if (resumedReplay.status !== "ready") return;
-	assert.equal(resumedReplay.pausedWorkCase, undefined);
+	assert.equal(resumedReplay.heldWorkCase, undefined);
+	assert.equal(
+		resumedReplay.activeWorkCase?.workCase.revisionId,
+		resumed.state.workCase.revisionId,
+	);
+	assert.equal(resumedReplay.appliedTransitions, 3);
+});
+
+test("observed wait and predicate-bound resume replay branch-locally", async () => {
+	const opened = openLiveWorkCase(undefined, proposal);
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const waitProposal = {
+		workCaseId: opened.value.workCase.workCaseId,
+		expectedRevisionId: opened.value.workCase.revisionId,
+		externalCondition: "The external registry is currently unavailable.",
+		resumePredicate: "A bounded registry probe succeeds.",
+		observation: {
+			kind: "human" as const,
+			observationId: "pi-command-wait-test",
+			source: "pi:/developer wait",
+			basis: ["The human observed and reported the current external condition."],
+		},
+	};
+	const waiting = waitLiveWorkCase(opened.value, waitProposal);
+	assert.equal(waiting.status, "waiting");
+	if (waiting.status !== "waiting") return;
+	const openingEntry = {
+		type: "message",
+		message: {
+			role: "toolResult",
+			toolName: "developer_open_work_case",
+			details: withActionLoopReplayEvent(
+				{ protocol: "developer-action-loop/v1", kind: "opened" },
+				actionLoopWorkCaseOpenedEvent(proposal, opened.value),
+			),
+		},
+	};
+	const waitEntry = {
+		type: "custom",
+		customType: ACTION_LOOP_SESSION_ENTRY,
+		data: actionLoopWorkCaseWaitingEvent(waitProposal, waiting.state),
+	};
+	const waitingReplay = await replayActionLoopSession([
+		openingEntry,
+		waitEntry,
+	]);
+	assert.equal(waitingReplay.status, "ready");
+	if (waitingReplay.status !== "ready") return;
+	assert.equal(waitingReplay.heldWorkCase?.workCase.status, "waiting");
+	assert.equal(
+		waitingReplay.heldWorkCase?.workCase.revisionId,
+		waiting.state.workCase.revisionId,
+	);
+
+	const resumeProposal = {
+		workCaseId: waiting.state.workCase.workCaseId,
+		expectedRevisionId: waiting.state.workCase.revisionId,
+		assessment: {
+			resumePredicate: waiting.state.workCase.wait.resumePredicate,
+			status: "satisfied" as const,
+			observationKind: "human" as const,
+			observationId: "pi-command-wait-resume-test",
+			source: "pi:/developer resume",
+			basis: ["The human observed that the exact predicate is now satisfied."],
+		},
+	};
+	const resumed = resumeLiveWaitingWorkCase(waiting.state, resumeProposal);
+	assert.equal(resumed.status, "active");
+	if (resumed.status !== "active") return;
+	const resumedReplay = await replayActionLoopSession([
+		openingEntry,
+		waitEntry,
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopWaitingWorkCaseResumedEvent(
+				resumeProposal,
+				resumed.state,
+			),
+		},
+	]);
+	assert.equal(resumedReplay.status, "ready");
+	if (resumedReplay.status !== "ready") return;
+	assert.equal(resumedReplay.heldWorkCase, undefined);
 	assert.equal(
 		resumedReplay.activeWorkCase?.workCase.revisionId,
 		resumed.state.workCase.revisionId,
