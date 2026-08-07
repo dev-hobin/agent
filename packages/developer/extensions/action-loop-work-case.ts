@@ -10,6 +10,7 @@ import type {
 } from "../src/action-loop/routing/accept-applicability.ts";
 import type { NeedCoverage } from "../src/action-loop/need-coverage/assess-need-coverage.ts";
 import type { BoundReferenceSelection } from "../src/action-loop/routing/bind-reference-selection.ts";
+import type { PausedWorkCase } from "../src/action-loop/work/pause-work-case.ts";
 import {
 	openWorkCase,
 	type ActiveWorkCase,
@@ -39,6 +40,14 @@ export interface LiveWorkCaseState {
 	readonly needCoverages: readonly NeedCoverage[];
 	readonly effectObservations: readonly EffectObservation[];
 }
+
+export type LivePausedWorkCaseState = Omit<LiveWorkCaseState, "workCase"> & {
+	readonly workCase: PausedWorkCase;
+};
+
+export type LiveWorkCaseOwnership =
+	| LiveWorkCaseState
+	| LivePausedWorkCaseState;
 
 export type LiveWorkCaseOpeningResult =
 	| { readonly status: "opened"; readonly value: LiveWorkCaseState }
@@ -160,7 +169,7 @@ export function openLiveWorkCase(
 }
 
 export function liveWorkCasePrompt(
-	state: LiveWorkCaseState | undefined,
+	state: LiveWorkCaseOwnership | undefined,
 ): string {
 	if (state === undefined) {
 		return "No active Action Loop Work Case. Before consequential Developer routing or action, propose one bounded Outcome with developer_open_work_case; do not infer permission or completion from opening it.";
@@ -252,8 +261,15 @@ export function liveWorkCasePrompt(
 					(coverage) =>
 						`Need Coverage: ${coverage.coverageId} · ${coverage.status} → ${coverage.contributionNeedId}`,
 				);
+	const continuityLines =
+		workCase.status === "paused"
+			? [
+					`Pause: ${workCase.pause.workCasePauseId} · ${workCase.pause.reason}`,
+					"Resume requires an explicit human /developer resume decision on this durable Pi session branch.",
+				]
+			: [];
 	return [
-		`Active Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
+		`${workCase.status === "active" ? "Active" : "Paused"} Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
 		`Outcome: ${workCase.outcome.statement}`,
 		`Context revision: ${state.contextRevisionId}`,
 		`Acceptance conditions: ${workCase.outcome.acceptanceConditions.join(" | ")}`,
@@ -268,6 +284,7 @@ export function liveWorkCasePrompt(
 		...contributionLines,
 		...coverageLines,
 		...actionLines,
-		"This current Pi session-branch projection preserves active Outcome continuity but does not imply Action Clearance or completion.",
+		...continuityLines,
+		"This current Pi session-branch projection preserves Outcome continuity but does not imply Action Clearance or completion.",
 	].join("\n");
 }

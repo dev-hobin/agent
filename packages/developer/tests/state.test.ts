@@ -90,7 +90,10 @@ const reconstructEnabledState = (
 ) => reconstructState([activationEntry, ...entries]);
 
 test("a canonical Contribution replays its compatibility route closure", () => {
-	const judgment = resolved(route, "The canonical Contribution closes the route.");
+	const judgment = resolved(
+		route,
+		"The canonical Contribution closes the route.",
+	);
 	const replayed = reconstructEnabledState([
 		toolEntry(ROUTE_TOOL, route),
 		toolEntry("developer_accept_contribution", {

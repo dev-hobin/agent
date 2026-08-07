@@ -3,7 +3,10 @@ import { Check } from "typebox/value";
 
 import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
+import type { PauseWorkCaseProposal } from "../src/action-loop/work/pause-work-case.ts";
+import type { ResumePausedWorkCaseProposal } from "../src/action-loop/work/resume-paused-work-case.ts";
 import type {
+	LivePausedWorkCaseState,
 	LiveWorkCaseProposal,
 	LiveWorkCaseState,
 } from "./action-loop-work-case.ts";
@@ -61,6 +64,63 @@ const WorkCaseOpenedEventSchema = Type.Object(
 		proposal: WorkCaseProposalSchema,
 		expected: Type.Object(
 			{ workCaseId: IdSchema, revisionId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const PauseWorkCaseProposalSchema = Type.Object(
+	{
+		workCaseId: IdSchema,
+		expectedRevisionId: IdSchema,
+		reason: ShortTextSchema,
+		decision: Type.Object(
+			{
+				kind: Type.Literal("human"),
+				decisionId: IdSchema,
+				source: ShortTextSchema,
+				basis: BasisSchema,
+			},
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const WorkCasePausedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("work-case-paused"),
+		proposal: PauseWorkCaseProposalSchema,
+		expected: Type.Object(
+			{ workCasePauseId: IdSchema, revisionId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const ResumePausedWorkCaseProposalSchema = Type.Object(
+	{
+		workCaseId: IdSchema,
+		expectedRevisionId: IdSchema,
+		decision: Type.Object(
+			{
+				kind: Type.Literal("human"),
+				decisionId: IdSchema,
+				source: ShortTextSchema,
+				basis: BasisSchema,
+			},
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const PausedWorkCaseResumedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("paused-work-case-resumed"),
+		proposal: ResumePausedWorkCaseProposalSchema,
+		expected: Type.Object(
+			{ workCaseResumeId: IdSchema, revisionId: IdSchema },
 			{ additionalProperties: false },
 		),
 	},
@@ -302,10 +362,7 @@ const CoverageAssessedEventSchema = Type.Object(
 
 const JudgmentClosureProposalSchema = Type.Object(
 	{
-		outcome: Type.Union([
-			Type.Literal("conclude"),
-			Type.Literal("refuse"),
-		]),
+		outcome: Type.Union([Type.Literal("conclude"), Type.Literal("refuse")]),
 		answer: Type.Optional(ResultTextSchema),
 		refusalReasons: Type.Array(ShortTextSchema, { maxItems: 32 }),
 		requirementDispositions: Type.Array(
@@ -498,10 +555,7 @@ const EffectRemediatedEventSchema = Type.Object(
 const CompletionProposalSchema = Type.Object(
 	{
 		closureTargetId: IdSchema,
-		mode: Type.Union([
-			Type.Literal("completed"),
-			Type.Literal("no-change"),
-		]),
+		mode: Type.Union([Type.Literal("completed"), Type.Literal("no-change")]),
 		obligationDispositions: Type.Array(
 			Type.Object(
 				{
@@ -539,6 +593,8 @@ const WorkCaseCompletedEventSchema = Type.Object(
 
 const SessionEventSchema = Type.Union([
 	WorkCaseOpenedEventSchema,
+	WorkCasePausedEventSchema,
+	PausedWorkCaseResumedEventSchema,
 	JudgmentOpenedEventSchema,
 	CapabilityAssessedEventSchema,
 	ReferencesSelectedEventSchema,
@@ -556,6 +612,12 @@ const SessionEventSchema = Type.Union([
 
 export type ActionLoopWorkCaseOpenedEvent = Static<
 	typeof WorkCaseOpenedEventSchema
+>;
+export type ActionLoopWorkCasePausedEvent = Static<
+	typeof WorkCasePausedEventSchema
+>;
+export type ActionLoopPausedWorkCaseResumedEvent = Static<
+	typeof PausedWorkCaseResumedEventSchema
 >;
 export type ActionLoopJudgmentOpenedEvent = Static<
 	typeof JudgmentOpenedEventSchema
@@ -578,12 +640,16 @@ export type ActionLoopCoverageAssessedEvent = Static<
 export type ActionLoopJudgmentConcludedEvent = Static<
 	typeof JudgmentConcludedEventSchema
 >;
-export type ActionLoopActionClearedEvent = Static<typeof ActionClearedEventSchema>;
+export type ActionLoopActionClearedEvent = Static<
+	typeof ActionClearedEventSchema
+>;
 export type ActionLoopEffectBegunEvent = Static<typeof EffectBegunEventSchema>;
 export type ActionLoopEffectObservedEvent = Static<
 	typeof EffectObservedEventSchema
 >;
-export type ActionLoopEffectSettledEvent = Static<typeof EffectSettledEventSchema>;
+export type ActionLoopEffectSettledEvent = Static<
+	typeof EffectSettledEventSchema
+>;
 export type ActionLoopEffectRemediatedEvent = Static<
 	typeof EffectRemediatedEventSchema
 >;
@@ -599,9 +665,7 @@ type ContributionProposal = Static<typeof SkillContributionProposalSchema>;
 type CoverageProposal = Static<typeof NeedCoverageProposalSchema>;
 type ClosureProposal = Static<typeof JudgmentClosureProposalSchema>;
 type PiActionProposal = Static<typeof PiActionProposalSchema>;
-type EffectObservationProposal = Static<
-	typeof EffectObservationProposalSchema
->;
+type EffectObservationProposal = Static<typeof EffectObservationProposalSchema>;
 type EffectSettlementSessionProposal = Static<
 	typeof EffectSettlementProposalSchema
 >;
@@ -644,6 +708,61 @@ export function actionLoopWorkCaseOpenedEvent(
 		},
 		expected: {
 			workCaseId: state.workCase.workCaseId,
+			revisionId: state.workCase.revisionId,
+		},
+	});
+}
+
+export function actionLoopWorkCasePausedEvent(
+	proposal: PauseWorkCaseProposal,
+	state: LivePausedWorkCaseState,
+): ActionLoopWorkCasePausedEvent {
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "work-case-paused",
+		transitionId: state.workCase.pause.workCasePauseId,
+		proposal: {
+			workCaseId: proposal.workCaseId,
+			expectedRevisionId: proposal.expectedRevisionId,
+			reason: proposal.reason,
+			decision: {
+				kind: "human" as const,
+				decisionId: proposal.decision.decisionId,
+				source: proposal.decision.source,
+				basis: [...proposal.decision.basis],
+			},
+		},
+		expected: {
+			workCasePauseId: state.workCase.pause.workCasePauseId,
+			revisionId: state.workCase.revisionId,
+		},
+	});
+}
+
+export function actionLoopPausedWorkCaseResumedEvent(
+	proposal: ResumePausedWorkCaseProposal,
+	state: LiveWorkCaseState,
+): ActionLoopPausedWorkCaseResumedEvent {
+	const workCaseResumeId = state.workCase.continuityIds.at(-1);
+	if (workCaseResumeId === undefined) {
+		throw new Error("Resumed Work Case has no continuity transition ID");
+	}
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "paused-work-case-resumed",
+		transitionId: workCaseResumeId,
+		proposal: {
+			workCaseId: proposal.workCaseId,
+			expectedRevisionId: proposal.expectedRevisionId,
+			decision: {
+				kind: "human" as const,
+				decisionId: proposal.decision.decisionId,
+				source: proposal.decision.source,
+				basis: [...proposal.decision.basis],
+			},
+		},
+		expected: {
+			workCaseResumeId,
 			revisionId: state.workCase.revisionId,
 		},
 	});
@@ -899,17 +1018,15 @@ type ExtractedEvent =
 	| { readonly status: "event"; readonly event: ActionLoopSessionEvent }
 	| { readonly status: "invalid" };
 
-function claimedReplayEvent(
-	entry: ActionLoopSessionBranchEntry,
-): { readonly claimed: boolean; readonly value?: unknown } {
+function claimedReplayEvent(entry: ActionLoopSessionBranchEntry): {
+	readonly claimed: boolean;
+	readonly value?: unknown;
+} {
 	if (entry.customType === ACTION_LOOP_SESSION_ENTRY) {
 		return { claimed: true, value: entry.data };
 	}
 	const details = entry.message?.details;
-	if (
-		isRecord(details) &&
-		Object.hasOwn(details, "replayEvent")
-	) {
+	if (isRecord(details) && Object.hasOwn(details, "replayEvent")) {
 		return { claimed: true, value: details.replayEvent };
 	}
 	return { claimed: false };

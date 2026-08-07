@@ -15,7 +15,14 @@ test("Developer command parser accepts only the canonical action grammar", () =>
 		ok: true,
 		command: { kind: "status" },
 	});
-	for (const action of ["questions", "settings", "on", "off"] as const) {
+	for (const action of [
+		"questions",
+		"settings",
+		"pause",
+		"resume",
+		"on",
+		"off",
+	] as const) {
 		assert.deepEqual(parseDeveloperCommand(action), {
 			ok: true,
 			command: { kind: action },
@@ -38,6 +45,12 @@ test("Developer argument completion exposes only canonical focused actions", () 
 	assert.deepEqual(completeDeveloperArgs("s"), [
 		{ value: "status", label: "status" },
 		{ value: "settings", label: "settings" },
+	]);
+	assert.deepEqual(completeDeveloperArgs("p"), [
+		{ value: "pause", label: "pause" },
+	]);
+	assert.deepEqual(completeDeveloperArgs("r"), [
+		{ value: "resume", label: "resume" },
 	]);
 	assert.equal(completeDeveloperArgs(":"), null);
 	assert.equal(completeDeveloperArgs("develop"), null);

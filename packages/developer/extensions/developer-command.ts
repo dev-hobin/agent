@@ -2,6 +2,8 @@ export const DEVELOPER_COMMAND_ACTIONS = [
 	"status",
 	"questions",
 	"settings",
+	"pause",
+	"resume",
 	"on",
 	"off",
 ] as const;

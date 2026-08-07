@@ -80,6 +80,7 @@ import {
 	ACTION_LOOP_SESSION_ENTRY,
 	ACTION_LOOP_SESSION_PROTOCOL,
 	actionLoopActionClearedEvent,
+	actionLoopPausedWorkCaseResumedEvent,
 	actionLoopCapabilityAssessedEvent,
 	actionLoopContributionAcceptedEvent,
 	actionLoopCoverageAssessedEvent,
@@ -93,11 +94,17 @@ import {
 	actionLoopUnstructuredContextSealedEvent,
 	actionLoopWorkCaseCompletedEvent,
 	actionLoopWorkCaseOpenedEvent,
+	actionLoopWorkCasePausedEvent,
 	replayActionLoopSession,
 	withActionLoopReplayEvent,
 	type ActionLoopSessionBranchEntry,
 	type ActionLoopUnstructuredContextSealedEvent,
 } from "./action-loop-session.ts";
+import {
+	MAX_LIVE_CONTINUITY_TEXT,
+	pauseLiveWorkCase,
+	resumeLivePausedWorkCase,
+} from "./action-loop-continuity.ts";
 import {
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 	MAX_LIVE_BASIS_ITEMS,
@@ -105,6 +112,7 @@ import {
 	MAX_LIVE_OUTCOME_TEXT,
 	liveWorkCasePrompt,
 	openLiveWorkCase,
+	type LivePausedWorkCaseState,
 	type LiveWorkCaseState,
 } from "./action-loop-work-case.ts";
 import {
@@ -794,6 +802,7 @@ export default async function developer(pi: ExtensionAPI) {
 	let availableSkills = new Map<string, Skill>();
 	let liveCapabilityInventory: LiveCapabilityInventoryResult | undefined;
 	let activeWorkCase: LiveWorkCaseState | undefined;
+	let pausedWorkCase: LivePausedWorkCaseState | undefined;
 	let completedWorkCase: CompletedWorkCase | undefined;
 	let pendingActionLoopBranch:
 		| readonly ActionLoopSessionBranchEntry[]
@@ -863,6 +872,18 @@ export default async function developer(pi: ExtensionAPI) {
 			ctx.ui.setWidget("developer", undefined);
 			return;
 		}
+		if (pausedWorkCase) {
+			ctx.ui.setStatus("developer", "developer · Action Loop paused");
+			ctx.ui.setWidget(
+				"developer",
+				[
+					`paused · ${compactLine(pausedWorkCase.workCase.pause.reason)}`,
+					"resume · /developer resume",
+				],
+				{ placement: "belowEditor" },
+			);
+			return;
+		}
 
 		ctx.ui.setStatus(
 			"developer",
@@ -920,6 +941,7 @@ export default async function developer(pi: ExtensionAPI) {
 	const reconstruct = (ctx: ExtensionContext) => {
 		const branch = ctx.sessionManager.getBranch();
 		activeWorkCase = undefined;
+		pausedWorkCase = undefined;
 		completedWorkCase = undefined;
 		pendingActionLoopBranch = toolPolicyRestartRequired ? undefined : branch;
 		actionLoopReplayFailure = undefined;
@@ -945,6 +967,7 @@ export default async function developer(pi: ExtensionAPI) {
 		state = applyDeveloperEvent(state, event);
 		if (!enabled) {
 			activeWorkCase = undefined;
+			pausedWorkCase = undefined;
 			completedWorkCase = undefined;
 			pendingActionLoopBranch = undefined;
 			actionLoopReplayFailure = undefined;
@@ -995,6 +1018,9 @@ export default async function developer(pi: ExtensionAPI) {
 				fail(
 					`Developer cannot replace unavailable Action Loop session state: ${actionLoopReplayFailure}`,
 				);
+			}
+			if (pausedWorkCase) {
+				fail("Developer cannot replace a paused Action Loop Work Case. Use /developer resume or /developer off.");
 			}
 			const proposal = {
 				outcome: {
@@ -1968,7 +1994,8 @@ export default async function developer(pi: ExtensionAPI) {
 				settled.state,
 				params.effect_id,
 			);
-			if (!assessmentId) fail("Effect settlement has no current assessment ID.");
+			if (!assessmentId)
+				fail("Effect settlement has no current assessment ID.");
 			return textResult(
 				`Effect ${settled.status}: ${assessmentId} · ${settled.assessment.outcome}`,
 				withActionLoopReplayEvent(
@@ -2644,13 +2671,12 @@ export default async function developer(pi: ExtensionAPI) {
 					if (sealed.status === "invalid") fail(sealed.message);
 					activeWorkCase = sealed.state;
 					sealedSkillContext = sealed.context;
-					unstructuredReplayEvent =
-						actionLoopUnstructuredContextSealedEvent(
-							target,
-							boundCapabilityEntry.capability.capabilityRevisionId,
-							capabilityAssignment.assignmentId,
-							sealed.context.sealedContextId,
-						);
+					unstructuredReplayEvent = actionLoopUnstructuredContextSealedEvent(
+						target,
+						boundCapabilityEntry.capability.capabilityRevisionId,
+						capabilityAssignment.assignmentId,
+						sealed.context.sealedContextId,
+					);
 				}
 				if (
 					boundCapabilityEntry?.routing === "structured" &&
@@ -3739,6 +3765,11 @@ export default async function developer(pi: ExtensionAPI) {
 		const active = state.activeRoute
 			? `${state.activeRoute.routeId} · ${state.activeRoute.target} · ${state.activeRoute.question}`
 			: "none";
+		const actionLoopOwnership = activeWorkCase
+			? `active · ${activeWorkCase.workCase.workCaseId}@${activeWorkCase.workCase.revisionId}`
+			: pausedWorkCase
+				? `paused · ${pausedWorkCase.workCase.workCaseId}@${pausedWorkCase.workCase.revisionId}`
+				: "none";
 		const pending =
 			state.pendingQuestions.length > 0
 				? state.pendingQuestions
@@ -3782,6 +3813,7 @@ export default async function developer(pi: ExtensionAPI) {
 		return (
 			`${summarizeState(state)}` +
 			`\nactive: ${active}` +
+			`\nAction Loop: ${actionLoopOwnership}` +
 			`\nlast: ${last}` +
 			`\nbasis: ${basis}` +
 			`\nartifacts: ${artifacts}` +
@@ -3834,11 +3866,13 @@ export default async function developer(pi: ExtensionAPI) {
 				if (
 					ctx.mode === "tui" &&
 					(activeWorkCase ||
+						pausedWorkCase ||
 						state.activeRoute ||
 						state.pendingQuestions.length > 0)
 				) {
 					const work = [
 						...(activeWorkCase ? ["the active Action Loop Work Case"] : []),
+						...(pausedWorkCase ? ["the paused Action Loop Work Case"] : []),
 						...(state.activeRoute ? ["the active route"] : []),
 						...(state.pendingQuestions.length > 0
 							? [`${state.pendingQuestions.length} open question(s)`]
@@ -3851,6 +3885,135 @@ export default async function developer(pi: ExtensionAPI) {
 					if (!confirmed) return false;
 				}
 				setAndNotifyEnabled(false);
+				return true;
+			};
+
+			const pauseCurrentWorkCase = async (): Promise<boolean> => {
+				if (!state.enabled) {
+					ctx.ui.notify("Developer is off. Run /developer on first.", "warning");
+					return false;
+				}
+				if (ctx.sessionManager.getSessionFile() === undefined) {
+					ctx.ui.notify(
+						"Developer cannot pause in Pi --no-session mode because restart continuity would be unavailable.",
+						"error",
+					);
+					return false;
+				}
+				if (actionLoopReplayFailure) {
+					ctx.ui.notify(
+						`Developer cannot pause unavailable Action Loop state: ${actionLoopReplayFailure}`,
+						"error",
+					);
+					return false;
+				}
+				if (pausedWorkCase) {
+					ctx.ui.notify("The current Action Loop Work Case is already paused.", "info");
+					return false;
+				}
+				if (!activeWorkCase) {
+					ctx.ui.notify("Developer has no active Action Loop Work Case to pause.", "warning");
+					return false;
+				}
+				if (!ctx.hasUI) {
+					ctx.ui.notify("Pausing requires dialog-capable human input.", "error");
+					return false;
+				}
+				const enteredReason = await ctx.ui.input(
+					"Pause Action Loop Work Case",
+					"Why should this work remain paused?",
+				);
+				const reason = enteredReason?.trim();
+				if (!reason) return false;
+				if (reason.length > MAX_LIVE_CONTINUITY_TEXT) {
+					ctx.ui.notify(
+						`Pause reason exceeds ${MAX_LIVE_CONTINUITY_TEXT} characters.`,
+						"warning",
+					);
+					return false;
+				}
+				const proposal = {
+					workCaseId: activeWorkCase.workCase.workCaseId,
+					expectedRevisionId: activeWorkCase.workCase.revisionId,
+					reason,
+					decision: {
+						kind: "human",
+						decisionId: `pi-command-pause:${activeWorkCase.workCase.revisionId}`,
+						source: "pi:/developer pause",
+						basis: [
+							"The delegating human explicitly invoked /developer pause and supplied the current reason.",
+						],
+					},
+				};
+				const result = pauseLiveWorkCase(activeWorkCase, proposal);
+				if (result.status === "invalid") {
+					ctx.ui.notify(result.message, "error");
+					return false;
+				}
+				pi.appendEntry(
+					ACTION_LOOP_SESSION_ENTRY,
+					actionLoopWorkCasePausedEvent(proposal, result.state),
+				);
+				activeWorkCase = undefined;
+				pausedWorkCase = result.state;
+				completedWorkCase = undefined;
+				syncProtocolTools();
+				refreshUI(ctx);
+				ctx.ui.notify("Developer Action Loop Work Case paused.", "info");
+				return true;
+			};
+
+			const resumePausedWork = async (): Promise<boolean> => {
+				if (!state.enabled) {
+					ctx.ui.notify("Developer is off. Run /developer on first.", "warning");
+					return false;
+				}
+				if (ctx.sessionManager.getSessionFile() === undefined) {
+					ctx.ui.notify(
+						"Developer cannot resume durable Action Loop ownership in Pi --no-session mode.",
+						"error",
+					);
+					return false;
+				}
+				if (!pausedWorkCase) {
+					ctx.ui.notify("Developer has no paused Action Loop Work Case.", "warning");
+					return false;
+				}
+				if (!ctx.hasUI) {
+					ctx.ui.notify("Resuming a pause requires dialog-capable human input.", "error");
+					return false;
+				}
+				const confirmed = await ctx.ui.confirm(
+					"Resume Action Loop Work Case?",
+					`Resume the current human-owned pause?\n\n${pausedWorkCase.workCase.pause.reason}`,
+				);
+				if (!confirmed) return false;
+				const proposal = {
+					workCaseId: pausedWorkCase.workCase.workCaseId,
+					expectedRevisionId: pausedWorkCase.workCase.revisionId,
+					decision: {
+						kind: "human",
+						decisionId: `pi-command-resume:${pausedWorkCase.workCase.revisionId}`,
+						source: "pi:/developer resume",
+						basis: [
+							"The delegating human explicitly invoked and confirmed /developer resume for the current pause.",
+						],
+					},
+				};
+				const result = resumeLivePausedWorkCase(pausedWorkCase, proposal);
+				if (result.status === "invalid") {
+					ctx.ui.notify(result.message, "error");
+					return false;
+				}
+				pi.appendEntry(
+					ACTION_LOOP_SESSION_ENTRY,
+					actionLoopPausedWorkCaseResumedEvent(proposal, result.state),
+				);
+				pausedWorkCase = undefined;
+				activeWorkCase = result.state;
+				syncProtocolTools();
+				refreshUI(ctx);
+				ctx.ui.notify("Developer Action Loop Work Case resumed.", "info");
 				return true;
 			};
 
@@ -3958,7 +4121,7 @@ export default async function developer(pi: ExtensionAPI) {
 			const parsed = parseDeveloperCommand(args);
 			if (!parsed.ok) {
 				ctx.ui.notify(
-					"Usage: /developer [status | questions | settings | on | off]",
+					"Usage: /developer [status | questions | settings | pause | resume | on | off]",
 					"warning",
 				);
 				return;
@@ -3987,6 +4150,14 @@ export default async function developer(pi: ExtensionAPI) {
 						"info",
 					);
 				}
+				return;
+			}
+			if (action === "pause") {
+				await pauseCurrentWorkCase();
+				return;
+			}
+			if (action === "resume") {
+				await resumePausedWork();
 				return;
 			}
 			if (action === "on") {
@@ -4025,10 +4196,12 @@ export default async function developer(pi: ExtensionAPI) {
 			pendingActionLoopBranch = undefined;
 			if (replayed.status === "ready") {
 				activeWorkCase = replayed.activeWorkCase;
+				pausedWorkCase = replayed.pausedWorkCase;
 				completedWorkCase = replayed.completedWorkCase;
 				actionLoopReplayFailure = undefined;
 			} else {
 				activeWorkCase = undefined;
+				pausedWorkCase = undefined;
 				completedWorkCase = undefined;
 				actionLoopReplayFailure = `entry ${replayed.entryIndex}: ${replayed.message}`;
 			}
@@ -4042,7 +4215,7 @@ export default async function developer(pi: ExtensionAPI) {
 				`\n${liveCapabilityInventoryPrompt(inventory)}` +
 				(actionLoopReplayFailure
 					? `\nAction Loop session replay unavailable (${ACTION_LOOP_SESSION_PROTOCOL}): ${actionLoopReplayFailure}. Do not open replacement work or infer completion.`
-					: `\n${liveWorkCasePrompt(activeWorkCase)}\n${liveCompletedWorkCasePrompt(completedWorkCase)}`),
+					: `\n${liveWorkCasePrompt(activeWorkCase ?? pausedWorkCase)}\n${liveCompletedWorkCasePrompt(completedWorkCase)}`),
 		};
 	});
 
@@ -4075,6 +4248,13 @@ export default async function developer(pi: ExtensionAPI) {
 			event.toolName,
 		);
 		if (!capability) return;
+		if (pausedWorkCase) {
+			return {
+				block: true,
+				reason:
+					"Developer blocks controlled Actions while the durable Action Loop Work Case is paused. A human must run /developer resume or /developer off.",
+			};
+		}
 		if (pendingActionLoopBranch || actionLoopReplayFailure) {
 			return {
 				block: true,

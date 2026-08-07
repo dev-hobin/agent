@@ -96,6 +96,8 @@ function createHarness() {
 	let customResults: unknown[] = [];
 	let editorResult: string | undefined;
 	let editorResults: Array<string | undefined> = [];
+	let inputResult: string | undefined;
+	let sessionFile: string | undefined = "/tmp/developer-test-session.jsonl";
 	let confirmResult = true;
 	let customCalls = 0;
 	const customOptions: unknown[] = [];
@@ -295,6 +297,9 @@ function createHarness() {
 		async editor() {
 			return editorResults.length > 0 ? editorResults.shift() : editorResult;
 		},
+		async input() {
+			return inputResult;
+		},
 		getEditorText() {
 			return editorText;
 		},
@@ -304,9 +309,13 @@ function createHarness() {
 	};
 	const ctx = {
 		mode: "print",
+		hasUI: true,
 		ui,
 		isIdle: () => true,
-		sessionManager: { getBranch: () => [...branchEntries] },
+		sessionManager: {
+			getBranch: () => [...branchEntries],
+			getSessionFile: () => sessionFile,
+		},
 	};
 
 	return {
@@ -337,6 +346,12 @@ function createHarness() {
 		},
 		setEditorResults(values: Array<string | undefined>) {
 			editorResults = [...values];
+		},
+		setInputResult(value: string | undefined) {
+			inputResult = value;
+		},
+		setSessionFile(value: string | undefined) {
+			sessionFile = value;
 		},
 		customCalls: () => customCalls,
 		customOptions,
@@ -1689,6 +1704,88 @@ test("a live Work Case opens once and projects across agent turns", async () => 
 	assert.match(afterReset.systemPrompt, /No active Action Loop Work Case/);
 });
 
+test("human commands durably pause and resume one live Work Case", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	const opening = harness.tools.get("developer_open_work_case");
+	await opening.execute("open-before-pause", {
+		statement: "The current Work Case can retain human-owned pause continuity.",
+		acceptance_conditions: [
+			"The exact paused revision survives until explicit human resume.",
+		],
+		constraints: ["Controlled Actions remain blocked while paused."],
+		basis: ["The durable session boundary now owns nonterminal continuity."],
+	});
+	harness.setInputResult("The delegating human needs to inspect the current result.");
+	await harness.commands.get("developer").handler("pause", harness.ctx);
+	assert.equal(
+		(harness.entries.at(-1)?.data as { kind?: string }).kind,
+		"work-case-paused",
+	);
+	const pausedTurn = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(pausedTurn.systemPrompt, /Paused Action Loop Work Case:/);
+	assert.match(pausedTurn.systemPrompt, /\/developer resume/);
+	const blockedAction = await harness.emit("tool_call", {
+		type: "tool_call",
+		toolName: "write",
+		toolCallId: "write-while-paused",
+		input: { path: "/tmp/paused", content: "blocked" },
+	});
+	assert.equal(blockedAction.block, true);
+	assert.match(blockedAction.reason, /paused/);
+	await assert.rejects(
+		opening.execute("replace-paused", {
+			statement: "Replace paused ownership.",
+			acceptance_conditions: ["Replacement succeeds."],
+			constraints: [],
+			basis: ["A model attempted replacement."],
+		}),
+		/paused Action Loop Work Case/,
+	);
+
+	harness.setConfirmResult(true);
+	await harness.commands.get("developer").handler("resume", harness.ctx);
+	assert.equal(
+		(harness.entries.at(-1)?.data as { kind?: string }).kind,
+		"paused-work-case-resumed",
+	);
+	const resumedTurn = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(resumedTurn.systemPrompt, /Active Action Loop Work Case:/);
+	assert.doesNotMatch(resumedTurn.systemPrompt, /Pause:/);
+});
+
+test("Pi --no-session mode refuses live pause ownership", async () => {
+	const harness = createHarness();
+	harness.setSessionFile(undefined);
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	await openTestWorkCase(harness, "no-session-pause", false);
+	harness.setInputResult("This must not become a process-local pause.");
+	const entriesBefore = harness.entries.length;
+	await harness.commands.get("developer").handler("pause", harness.ctx);
+	assert.equal(harness.entries.length, entriesBefore);
+	assert.match(harness.notifications.at(-1)?.message ?? "", /--no-session/);
+});
+
 test("a live Judgment exposes Closure Requirements and Contribution Needs", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
@@ -2149,7 +2246,9 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 			acceptance_conditions: [
 				"The current Conclusion remains bound to its exact Contribution evidence.",
 			],
-			constraints: ["Sealed bytes are reacquired only when their hash matches."],
+			constraints: [
+				"Sealed bytes are reacquired only when their hash matches.",
+			],
 			basis: ["The selected replay design requires branch-exact continuity."],
 		});
 	const judgment = await first.tools
@@ -2160,7 +2259,8 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 			question: "Does the current session preserve exact routing evidence?",
 			requirements: [
 				{
-					statement: "The replay boundary preserves one exact routed Contribution.",
+					statement:
+						"The replay boundary preserves one exact routed Contribution.",
 					contribution_needs: ["session replay design evidence"],
 				},
 			],
@@ -2198,7 +2298,8 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 			capability: "model",
 			contribution_need_id: contributionNeedId,
 			local_status: "resolved",
-			result: "The branch event order and exact identity checks preserve routing evidence.",
+			result:
+				"The branch event order and exact identity checks preserve routing evidence.",
 			reference_applications: [],
 			limitations: [],
 			residual_needs: [],
@@ -2306,7 +2407,10 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 			skills: loadedLeaves.filter((skill) => skill.name !== "model"),
 		},
 	});
-	assert.match(unavailable.systemPrompt, /Action Loop session replay unavailable/);
+	assert.match(
+		unavailable.systemPrompt,
+		/Action Loop session replay unavailable/,
+	);
 	assert.match(unavailable.systemPrompt, /Capability model@caprev_/);
 	await assert.rejects(
 		excluded.tools.get("developer_open_work_case").execute("replace-replay", {
@@ -2329,9 +2433,13 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 		.get("developer_open_work_case")
 		.execute("reset-replay", {
 			statement: "An explicit Developer-off reset starts new bounded work.",
-			acceptance_conditions: ["The old unavailable branch state is not reused."],
+			acceptance_conditions: [
+				"The old unavailable branch state is not reused.",
+			],
 			constraints: [],
-			basis: ["The branch-local activation reset explicitly cleared ownership."],
+			basis: [
+				"The branch-local activation reset explicitly cleared ownership.",
+			],
 		});
 	assert.match(resultText(resetOpening), /Work Case opened/);
 
@@ -2378,8 +2486,7 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 			outcome: "observed-success",
 			observation_dispositions: [
 				{
-					effect_observation_id:
-						observedEvent.expected.effectObservationId,
+					effect_observation_id: observedEvent.expected.effectObservationId,
 					status: "relied-on",
 					basis: ["The exact current Pi write result is occurrence evidence."],
 				},
@@ -2421,7 +2528,9 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 					basis: ["The observed-success Effect supports this obligation."],
 				},
 			],
-			basis: ["Every current closure obligation and evidence item is accounted."],
+			basis: [
+				"Every current closure obligation and evidence item is accounted.",
+			],
 		});
 	const completedBranch = [
 		...routingBranch,

@@ -2,10 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+	pauseLiveWorkCase,
+	resumeLivePausedWorkCase,
+} from "../extensions/action-loop-continuity.ts";
+import {
 	ACTION_LOOP_SESSION_ENTRY,
 	ACTION_LOOP_SESSION_PROTOCOL,
 	MAX_ACTION_LOOP_SESSION_EVENT_BYTES,
+	actionLoopPausedWorkCaseResumedEvent,
 	actionLoopWorkCaseOpenedEvent,
+	actionLoopWorkCasePausedEvent,
 	replayActionLoopSession,
 	withActionLoopReplayEvent,
 } from "../extensions/action-loop-session.ts";
@@ -56,6 +62,87 @@ test("a Pi tool-result replay event reconstructs one exact active Work Case", as
 		opened.value.workCase.revisionId,
 	);
 	assert.equal(replayed.appliedTransitions, 1);
+});
+
+test("human pause and resume replay as branch-local ownership transitions", async () => {
+	const opened = openLiveWorkCase(undefined, proposal);
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const pauseProposal = {
+		workCaseId: opened.value.workCase.workCaseId,
+		expectedRevisionId: opened.value.workCase.revisionId,
+		reason: "The delegating human requested a bounded pause.",
+		decision: {
+			kind: "human",
+			decisionId: "pi-command-pause-test",
+			source: "pi:/developer pause",
+			basis: ["The human explicitly invoked the pause command."],
+		},
+	};
+	const paused = pauseLiveWorkCase(opened.value, pauseProposal);
+	assert.equal(paused.status, "paused");
+	if (paused.status !== "paused") return;
+	const openingEntry = {
+		type: "message",
+		message: {
+			role: "toolResult",
+			toolName: "developer_open_work_case",
+			details: withActionLoopReplayEvent(
+				{ protocol: "developer-action-loop/v1", kind: "opened" },
+				actionLoopWorkCaseOpenedEvent(proposal, opened.value),
+			),
+		},
+	};
+	const pauseEntry = {
+		type: "custom",
+		customType: ACTION_LOOP_SESSION_ENTRY,
+		data: actionLoopWorkCasePausedEvent(pauseProposal, paused.state),
+	};
+	const pausedReplay = await replayActionLoopSession([
+		openingEntry,
+		pauseEntry,
+	]);
+	assert.equal(pausedReplay.status, "ready");
+	if (pausedReplay.status !== "ready") return;
+	assert.equal(pausedReplay.activeWorkCase, undefined);
+	assert.equal(
+		pausedReplay.pausedWorkCase?.workCase.revisionId,
+		paused.state.workCase.revisionId,
+	);
+
+	const resumeProposal = {
+		workCaseId: paused.state.workCase.workCaseId,
+		expectedRevisionId: paused.state.workCase.revisionId,
+		decision: {
+			kind: "human",
+			decisionId: "pi-command-resume-test",
+			source: "pi:/developer resume",
+			basis: ["The human explicitly confirmed the resume command."],
+		},
+	};
+	const resumed = resumeLivePausedWorkCase(paused.state, resumeProposal);
+	assert.equal(resumed.status, "active");
+	if (resumed.status !== "active") return;
+	const resumedReplay = await replayActionLoopSession([
+		openingEntry,
+		pauseEntry,
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopPausedWorkCaseResumedEvent(
+				resumeProposal,
+				resumed.state,
+			),
+		},
+	]);
+	assert.equal(resumedReplay.status, "ready");
+	if (resumedReplay.status !== "ready") return;
+	assert.equal(resumedReplay.pausedWorkCase, undefined);
+	assert.equal(
+		resumedReplay.activeWorkCase?.workCase.revisionId,
+		resumed.state.workCase.revisionId,
+	);
+	assert.equal(resumedReplay.appliedTransitions, 3);
 });
 
 test("a later Developer-off entry clears replayed Action Loop ownership", async () => {
