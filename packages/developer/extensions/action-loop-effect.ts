@@ -7,6 +7,16 @@ import {
 	acceptEffectObservation,
 	type EffectObservation,
 } from "../src/action-loop/effect/effect-observation.ts";
+import {
+	settleEffect,
+	type EffectSettlementProposal,
+	type EffectSettlement,
+	type UnsettledEffectAssessment,
+} from "../src/action-loop/effect/effect-settlement.ts";
+import {
+	effectAssessmentId,
+	recordWorkCaseEffectAssessment,
+} from "../src/action-loop/work/record-work-case-effect-assessment.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
 import { fingerprintPiToolResult } from "./action-loop-pi-action.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
@@ -30,6 +40,19 @@ export type LiveEffectObservationResult =
 			readonly status: "observed" | "unchanged";
 			readonly state: LiveWorkCaseState;
 			readonly observation: EffectObservation;
+	  }
+	| { readonly status: "invalid"; readonly message: string };
+
+export type LiveEffectSettlementProposal = Omit<
+	EffectSettlementProposal,
+	"workCaseId" | "effectId" | "provenance"
+> & { readonly expectedCurrentAssessmentId?: string };
+
+export type LiveEffectSettlementResult =
+	| {
+			readonly status: "settled" | "unsettled" | "unchanged";
+			readonly state: LiveWorkCaseState;
+			readonly assessment: EffectSettlement | UnsettledEffectAssessment;
 	  }
 	| { readonly status: "invalid"; readonly message: string };
 
@@ -131,4 +154,82 @@ export function observeLivePiToolResult(
 		state: Object.freeze({ ...state, effectObservations }),
 		observation: accepted.value,
 	};
+}
+
+/** Accepts complete Effect accounting and records its current CAS assessment. */
+export function settleLiveEffect(
+	state: LiveWorkCaseState,
+	effectId: string,
+	proposal: LiveEffectSettlementProposal,
+): LiveEffectSettlementResult {
+	const effect = state.workCase.effects.find(
+		(current) => current.effectId === effectId,
+	);
+	if (effect === undefined) {
+		return {
+			status: "invalid",
+			message: `Effect is not recorded in the current Work Case: ${effectId}`,
+		};
+	}
+	const current = state.workCase.currentEffectAssessments.find(
+		(assessment) => assessment.effectId === effectId,
+	);
+	if (
+		current !== undefined &&
+		proposal.expectedCurrentAssessmentId === undefined
+	) {
+		return {
+			status: "invalid",
+			message:
+				"expectedCurrentAssessmentId is required to replace the current Effect assessment",
+		};
+	}
+	const settled = settleEffect(
+		effect,
+		state.effectObservations.filter(
+			(observation) => observation.effectId === effectId,
+		),
+		{
+			workCaseId: state.workCase.workCaseId,
+			effectId,
+			outcome: proposal.outcome,
+			observationDispositions: proposal.observationDispositions,
+			intendedEffectDispositions: proposal.intendedEffectDispositions,
+			basis: proposal.basis,
+			provenance: { kind: "model", source: "pi:tool-call" },
+		},
+	);
+	if (settled.status === "invalid") {
+		return { status: "invalid", message: settled.error.message };
+	}
+	const recorded = recordWorkCaseEffectAssessment(
+		state.workCase,
+		settled.value,
+		proposal.expectedCurrentAssessmentId ?? null,
+	);
+	if (recorded.status === "invalid") {
+		return { status: "invalid", message: recorded.error.message };
+	}
+	return {
+		status:
+			recorded.status === "unchanged" ? "unchanged" : settled.status,
+		state:
+			recorded.status === "recorded"
+				? Object.freeze({ ...state, workCase: recorded.value })
+				: state,
+		assessment:
+			recorded.status === "unchanged" && current !== undefined
+				? current
+				: settled.value,
+	};
+}
+
+export function currentLiveEffectAssessmentId(
+	state: LiveWorkCaseState,
+	effectId: string,
+): string | undefined {
+	const current = state.workCase.currentEffectAssessments.find(
+		(assessment) => assessment.effectId === effectId,
+	);
+	return current === undefined ? undefined : effectAssessmentId(current);
 }

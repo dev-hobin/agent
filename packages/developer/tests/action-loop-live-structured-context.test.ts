@@ -18,7 +18,9 @@ import { acceptLiveSkillContribution } from "../extensions/action-loop-contribut
 import { assessLiveNeedCoverage } from "../extensions/action-loop-coverage.ts";
 import {
 	beginLiveActionEffect,
+	currentLiveEffectAssessmentId,
 	observeLivePiToolResult,
+	settleLiveEffect,
 } from "../extensions/action-loop-effect.ts";
 import { closeLiveJudgment } from "../extensions/action-loop-conclusion.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
@@ -312,6 +314,50 @@ test("ready structured selection seals Skill and selected References atomically"
 									observed.observation.limitations[0] ?? "",
 									/does not by itself establish/,
 								);
+								const settlement = settleLiveEffect(
+									observed.state,
+									effect.effect.effectId,
+									{
+										outcome: "unknown",
+										observationDispositions: [
+											{
+												effectObservationId:
+													observed.observation.effectObservationId,
+												status: "relied-on",
+												basis: [
+													"The Pi tool result proves occurrence but not artifact state.",
+												],
+											},
+										],
+										intendedEffectDispositions: [
+											{
+												intendedEffect:
+													"The bounded artifact is updated.",
+												status: "unknown",
+												observationIds: [
+													observed.observation.effectObservationId,
+												],
+												basis: [
+													"No artifact-state verifier has observed the intended Effect.",
+												],
+											},
+										],
+										basis: [
+											"Keep the Effect unsettled until artifact state is observed.",
+										],
+									},
+								);
+								assert.equal(settlement.status, "unsettled");
+								if (settlement.status === "unsettled") {
+									assert.equal(settlement.assessment.outcome, "unknown");
+									assert.equal(
+										currentLiveEffectAssessmentId(
+											settlement.state,
+											effect.effect.effectId,
+										),
+										settlement.assessment.effectAssessmentId,
+									);
+								}
 							}
 						}
 					}
