@@ -86,7 +86,10 @@ function conclusionParameters(
 		...(contract.category === "Proportionate Intervention"
 			? {
 					intervention_disposition: Type.Optional(
-						StringEnum(["action-required", "no-action"] as const),
+						StringEnum(["action-required", "no-action"] as const, {
+							description:
+								"Required only when outcome is conclude. Omit this field when outcome is refuse.",
+						}),
 					),
 				}
 			: {}),
@@ -307,7 +310,7 @@ function conclusionPrompt(input: SdkJudgmentConclusionInput): string {
 		`Current Requirements and Need Coverage:\n${requirements}`,
 		...(input.contract.category === "Proportionate Intervention"
 			? [
-					"A Conclusion must set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when the proportionate decision is to preserve current state.",
+					"When outcome is conclude, set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when the proportionate decision is to preserve current state. When outcome is refuse, omit intervention_disposition entirely.",
 				]
 			: []),
 		"Conclude only when every Requirement is supported by complete current Coverage. Otherwise return an explicit refusal and preserve blockers.",

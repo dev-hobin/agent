@@ -21,9 +21,17 @@ const sdk = (await import(
 };
 const runtime = await createSdkEvalRuntime(packageRoot);
 const startedAt = Date.now();
+const fixture = process.env.DEVELOPER_SDK_INTERVENTION_CASE || "no-action";
+if (fixture !== "no-action" && fixture !== "refusal") {
+	throw new Error(
+		"DEVELOPER_SDK_INTERVENTION_CASE must be no-action or refusal.",
+	);
+}
 const request =
 	process.env.DEVELOPER_SDK_REQUEST ??
-	"Do not modify files. The requested analysis is already complete and the current workspace must remain unchanged. Decide whether any host Action is proportionate; current evidence supports no Action.";
+	(fixture === "no-action"
+		? "Do not modify files. The requested analysis is already complete and the current workspace must remain unchanged. Decide whether any host Action is proportionate; current evidence supports no Action."
+		: "Do not modify files. Current evidence does not establish whether any host Action is proportionate. Refuse the Proportionate Intervention Conclusion and preserve the missing-evidence blocker.");
 const workCaseId = "work-sdk-live-intervention";
 const judgmentId = "judgment-sdk-live-intervention";
 const contributionNeedId = "need-sdk-live-intervention";
@@ -32,11 +40,13 @@ const coverage = Object.freeze({
 	workCaseId,
 	judgmentId,
 	contributionNeedId,
-	status: "covered" as const,
+	status: fixture === "no-action" ? ("covered" as const) : ("missing" as const),
 	dispositions: Object.freeze([]),
 	conflicts: Object.freeze([]),
 	basis: Object.freeze([
-		"The delegated request explicitly forbids mutation and states that current evidence supports preserving workspace state.",
+		fixture === "no-action"
+			? "The delegated request explicitly forbids mutation and states that current evidence supports preserving workspace state."
+			: "No current Contribution establishes whether an intervention is warranted.",
 	]),
 	provenance: Object.freeze({ kind: "human" as const, source: "sdk:eval" }),
 });
@@ -65,6 +75,7 @@ const artifact = {
 	piVersion: runtime.piVersion,
 	model: runtime.modelSpec,
 	packageRoot,
+	fixture,
 	status: result.status,
 	...(result.status === "concluded" && result.conclusion
 		? { interventionDisposition: result.conclusion.interventionDisposition }
@@ -76,9 +87,13 @@ const artifact = {
 };
 process.stdout.write(`${JSON.stringify(artifact)}\n`);
 if (
+	fixture === "no-action" &&
 	result.status === "concluded" &&
 	result.conclusion?.interventionDisposition !== "no-action"
 ) {
 	process.exitCode = 2;
+}
+if (fixture === "refusal" && result.status !== "refused") {
+	process.exitCode = result.status === "invariant-failure" ? 1 : 2;
 }
 if (result.status === "invariant-failure") process.exitCode = 1;

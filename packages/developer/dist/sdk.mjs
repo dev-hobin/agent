@@ -8001,7 +8001,9 @@ function conclusionParameters(contract) {
     answer: Type7.Optional(Type7.String({ minLength: 1, maxLength: 12e3 })),
     ...contract.category === "Proportionate Intervention" ? {
       intervention_disposition: Type7.Optional(
-        StringEnum7(["action-required", "no-action"])
+        StringEnum7(["action-required", "no-action"], {
+          description: "Required only when outcome is conclude. Omit this field when outcome is refuse."
+        })
       )
     } : {},
     refusal_reasons_json: Type7.String({
@@ -8176,7 +8178,7 @@ ${input.contract.subject}`,
     `Current Requirements and Need Coverage:
 ${requirements}`,
     ...input.contract.category === "Proportionate Intervention" ? [
-      "A Conclusion must set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when the proportionate decision is to preserve current state."
+      "When outcome is conclude, set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when the proportionate decision is to preserve current state. When outcome is refuse, omit intervention_disposition entirely."
     ] : [],
     "Conclude only when every Requirement is supported by complete current Coverage. Otherwise return an explicit refusal and preserve blockers."
   ].join("\n\n");
