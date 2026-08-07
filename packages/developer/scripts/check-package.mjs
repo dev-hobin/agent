@@ -45,6 +45,7 @@ assert.match(
 );
 assert.deepEqual(manifest.files, [
 	"extensions",
+	"src/action-loop",
 	"skills",
 	"docs",
 	"README.md",
@@ -525,7 +526,7 @@ assert.match(extension, /registerFlag\("developer"/);
 assert.doesNotMatch(extension, /registerFlag\("develop"/);
 assert.match(extension, /getArgumentCompletions/);
 assert.match(extension, /ctx\.ui\.confirm/);
-assert.match(extension, /event\.systemPromptOptions\.skills/);
+assert.match(extension, /prepareLiveCapabilityInventory\(event, skillsRoot\)/);
 assert.match(extension, /behavior-preserving-structure/);
 assert.doesNotMatch(extension, /loadCandidateSkills|loadSkillsFromDir/);
 assert.doesNotMatch(
@@ -537,6 +538,14 @@ assert.doesNotMatch(
 	extension,
 	/compaction-language|COMPACTION_LANGUAGE|compactionLanguage|detectStrongUserLanguage/u,
 );
+
+const liveCapabilityIntegration = await readFile(
+	join(root, "extensions", "action-loop-capability-inventory.ts"),
+	"utf8",
+);
+assert.match(liveCapabilityIntegration, /event\.systemPromptOptions\.skills/);
+assert.match(liveCapabilityIntegration, /catalogBeforeAgentStartSkills\(event\)/);
+assert.match(liveCapabilityIntegration, /bindPiCapabilityInventory\(catalog\)/);
 
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),

@@ -1417,6 +1417,10 @@ test("the protocol prompt lists only skills Pi made available", async () => {
 	assert.match(result.systemPrompt, /Available Developer skills: specify\./);
 	assert.match(
 		result.systemPrompt,
+		/Action Loop capability inventory: 1 bound \(0 unavailable, 0 excluded\)\./,
+	);
+	assert.match(
+		result.systemPrompt,
 		/Route by the requested work product, not keywords/,
 	);
 	assert.match(

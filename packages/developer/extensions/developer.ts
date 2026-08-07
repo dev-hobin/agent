@@ -19,6 +19,11 @@ import { Container, Markdown, Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 
 import {
+	liveCapabilityInventoryPrompt,
+	prepareLiveCapabilityInventory,
+	type LiveCapabilityInventoryResult,
+} from "./action-loop-capability-inventory.ts";
+import {
 	completeDeveloperArgs,
 	parseDeveloperCommand,
 } from "./developer-command.ts";
@@ -28,7 +33,6 @@ import {
 	type DeveloperWorkbenchAction,
 } from "./developer-workbench-tui.ts";
 import {
-	availablePackageSkills,
 	isWithinRoot,
 	loadSkillReference,
 	loadSkillReferencePolicy,
@@ -2237,11 +2241,22 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	const refreshAvailableSkills = (ctx: ExtensionCommandContext) => {
+	const applyLiveCapabilityInventory = (
+		result: LiveCapabilityInventoryResult,
+	) => {
+		availableSkills =
+			result.status === "ready"
+				? new Map(result.value.availablePackageSkills)
+				: new Map();
+	};
+
+	const refreshAvailableSkills = async (ctx: ExtensionCommandContext) => {
 		if (typeof ctx.getSystemPromptOptions !== "function") return;
-		availableSkills = availablePackageSkills(
-			ctx.getSystemPromptOptions().skills ?? [],
-			skillsRoot,
+		applyLiveCapabilityInventory(
+			await prepareLiveCapabilityInventory(
+				{ systemPromptOptions: ctx.getSystemPromptOptions() },
+				skillsRoot,
+			),
 		);
 	};
 
@@ -2415,7 +2430,7 @@ export default async function developer(pi: ExtensionAPI) {
 			): Promise<void> => {
 				let section = initialSection;
 				while (true) {
-					refreshAvailableSkills(ctx);
+					await refreshAvailableSkills(ctx);
 					const action: DeveloperWorkbenchAction | undefined =
 						await showDeveloperWorkbench(
 							ctx,
@@ -2449,7 +2464,7 @@ export default async function developer(pi: ExtensionAPI) {
 			};
 
 			const inspectStatus = async (): Promise<void> => {
-				refreshAvailableSkills(ctx);
+				await refreshAvailableSkills(ctx);
 				if (ctx.mode === "tui") {
 					await inspectWorkbench("overview");
 					return;
@@ -2521,15 +2536,15 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	);
 
-	pi.on("before_agent_start", (event) => {
-		availableSkills = availablePackageSkills(
-			event.systemPromptOptions.skills ?? [],
-			skillsRoot,
-		);
+	pi.on("before_agent_start", async (event) => {
+		const inventory = await prepareLiveCapabilityInventory(event, skillsRoot);
+		applyLiveCapabilityInventory(inventory);
 		if (!state.enabled) return;
 		return {
 			systemPrompt:
-				event.systemPrompt + protocolPrompt(state, [...availableSkills.keys()]),
+				event.systemPrompt +
+				protocolPrompt(state, [...availableSkills.keys()]) +
+				`\n${liveCapabilityInventoryPrompt(inventory)}`,
 		};
 	});
 
