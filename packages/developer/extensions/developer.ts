@@ -24,6 +24,10 @@ import {
 	type LiveCapabilityInventoryResult,
 } from "./action-loop-capability-inventory.ts";
 import {
+	ACTION_LOOP_PROPOSE_ACTION_TOOL,
+	acceptLiveActionCandidate,
+} from "./action-loop-action.ts";
+import {
 	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
 	assessLiveCapabilityApplicability,
 	assignedLiveCapability,
@@ -149,6 +153,7 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL,
 	ACTION_LOOP_ASSESS_COVERAGE_TOOL,
 	ACTION_LOOP_CLOSE_JUDGMENT_TOOL,
+	ACTION_LOOP_PROPOSE_ACTION_TOOL,
 	ROUTE_TOOL,
 	REFERENCE_TOOL,
 	JUDGMENT_TOOL,
@@ -1605,6 +1610,68 @@ export default async function developer(pi: ExtensionAPI) {
 					artifactKind: "conclusion",
 					artifact: closed.conclusion as unknown,
 					workCaseRevisionId: closed.state.workCase.revisionId,
+				},
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_PROPOSE_ACTION_TOOL,
+		label: "Developer Propose Action",
+		description:
+			"Record one exact controlled Action Candidate warranted by current Conclusions. This grants neither permission nor Action Clearance.",
+		promptSnippet: "Propose one exact controlled Action",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_PROPOSE_ACTION_TOOL} only after the required Judgment Conclusions are canonical. Compute the exact host Action fingerprint outside this tool.`,
+			"A Candidate is not permission. Do not execute it until a separate human-owned Permission Decision and matching Action Clearance exist.",
+		],
+		parameters: Type.Object(
+			{
+				controlled_action_kind: Type.String({
+					minLength: 1,
+					maxLength: 256,
+				}),
+				controlled_action_fingerprint: Type.String({
+					pattern: "^[a-f0-9]{64}$",
+				}),
+				summary: Type.String({ minLength: 1, maxLength: MAX_QUESTION_CHARS }),
+				intended_effects: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: 32 },
+				),
+				required_conclusion_ids: Type.Array(
+					Type.String({ minLength: 1, maxLength: 512 }),
+					{ minItems: 1, maxItems: 32 },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			const accepted = acceptLiveActionCandidate(activeWorkCase, {
+				controlledAction: {
+					kind: params.controlled_action_kind,
+					fingerprint: params.controlled_action_fingerprint,
+				},
+				summary: params.summary,
+				intendedEffects: params.intended_effects,
+				requiredConclusionIds: params.required_conclusion_ids,
+			});
+			if (accepted.status === "invalid") fail(accepted.message);
+			activeWorkCase = accepted.state;
+			return textResult(
+				`Action Candidate ${accepted.status}: ${accepted.candidate.actionCandidateId} · not cleared`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: accepted.status,
+					candidate: accepted.candidate,
+					permission: "not-granted",
+					actionClearanceId: undefined,
 				},
 			);
 		},

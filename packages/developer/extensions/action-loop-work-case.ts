@@ -164,6 +164,17 @@ export function liveWorkCasePrompt(
 	}
 	const { workCase, openingBasis } = state;
 	const judgment = workCase.openJudgments[0];
+	const actionLines = [
+		...workCase.actionCandidates.map(
+			(candidate) =>
+				`Action Candidate: ${candidate.actionCandidateId} · ${candidate.controlledAction.kind}@${candidate.controlledAction.fingerprint} · clearance not implied`,
+		),
+		...workCase.actionClearances.map(
+			(clearance) =>
+				`Action Clearance: ${clearance.actionClearanceId} · ${clearance.controlledAction.kind}@${clearance.controlledAction.fingerprint}`,
+		),
+	];
+	if (actionLines.length === 0) actionLines.push("Actions: none");
 	const judgmentLines =
 		judgment === undefined
 			? ["Open Judgment: none"]
@@ -237,6 +248,7 @@ export function liveWorkCasePrompt(
 		...contextLines,
 		...contributionLines,
 		...coverageLines,
+		...actionLines,
 		"This process-local projection preserves active Outcome continuity but does not imply Action Clearance or completion.",
 	].join("\n");
 }

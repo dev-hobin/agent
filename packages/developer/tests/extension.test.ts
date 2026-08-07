@@ -1849,6 +1849,19 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 			basis: ["Current Coverage and Requirement accounting is complete."],
 		});
 	assert.match(resultText(closed), /Judgment concluded: conclusion_/);
+	const action = await harness.tools
+		.get("developer_propose_action")
+		.execute("propose-live-action", {
+			controlled_action_kind: "pi:write",
+			controlled_action_fingerprint: "a".repeat(64),
+			summary: "Write one bounded verified artifact.",
+			intended_effects: ["The bounded artifact is updated."],
+			required_conclusion_ids: [closed.details.artifact.conclusionId],
+		});
+	assert.match(resultText(action), /Action Candidate accepted: action_candidate_/);
+	assert.match(resultText(action), /not cleared/);
+	assert.equal(action.details.permission, "not-granted");
+	assert.equal(action.details.actionClearanceId, undefined);
 	const afterContribution = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",
@@ -1859,6 +1872,8 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 	assert.match(afterContribution.systemPrompt, /Need Coverage: coverage_.* · covered/);
 	assert.match(afterContribution.systemPrompt, /Open Judgment: none/);
 	assert.match(afterContribution.systemPrompt, /Judgment Conclusion: conclusion_/);
+	assert.match(afterContribution.systemPrompt, /Action Candidate: action_candidate_/);
+	assert.match(afterContribution.systemPrompt, /clearance not implied/);
 });
 
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {

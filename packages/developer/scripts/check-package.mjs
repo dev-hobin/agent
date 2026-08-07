@@ -526,6 +526,7 @@ assert.match(extension, /name: ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_ASSESS_COVERAGE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_CLOSE_JUDGMENT_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_PROPOSE_ACTION_TOOL/);
 assert.match(extension, /name: ROUTE_TOOL/);
 assert.match(extension, /name: JUDGMENT_TOOL/);
 assert.match(extension, /registerCommand\("developer"/);
@@ -613,6 +614,13 @@ const liveConclusionIntegration = await readFile(
 );
 assert.match(liveConclusionIntegration, /closeJudgment\(/);
 assert.match(liveConclusionIntegration, /recordWorkCaseConclusion\(/);
+
+const liveActionIntegration = await readFile(
+	join(root, "extensions", "action-loop-action.ts"),
+	"utf8",
+);
+assert.match(liveActionIntegration, /acceptActionCandidate\(/);
+assert.match(liveActionIntegration, /without granting permission or clearance/);
 
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),
