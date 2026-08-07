@@ -173,6 +173,10 @@ export function liveWorkCasePrompt(
 			(clearance) =>
 				`Action Clearance: ${clearance.actionClearanceId} · ${clearance.controlledAction.kind}@${clearance.controlledAction.fingerprint}`,
 		),
+		...workCase.effects.map(
+			(effect) =>
+				`Effect: ${effect.effectId} · ${effect.status} · occurrence ${effect.occurrenceId}`,
+		),
 	];
 	if (actionLines.length === 0) actionLines.push("Actions: none");
 	const judgmentLines =

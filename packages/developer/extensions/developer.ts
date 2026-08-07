@@ -27,7 +27,10 @@ import {
 	ACTION_LOOP_PROPOSE_ACTION_TOOL,
 	acceptLivePiActionCandidate,
 	assessLiveActionClearance,
+	clearedLivePiToolNames,
+	matchingLiveActionClearance,
 } from "./action-loop-action.ts";
+import { beginLiveActionEffect } from "./action-loop-effect.ts";
 import {
 	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
 	assessLiveCapabilityApplicability,
@@ -771,9 +774,16 @@ export default async function developer(pi: ExtensionAPI) {
 			protocolTools: PROTOCOL_TOOLS,
 			memory: toolPolicyMemory,
 		});
-		toolPolicyMemory = next.memory;
-		if (!sameToolSet(current, next.activeTools))
-			pi.setActiveTools(next.activeTools);
+		const nextActive = new Set(next.activeTools);
+		const nextWithheld = new Set(next.memory.withheldBuiltins);
+		for (const toolName of clearedLivePiToolNames(activeWorkCase)) {
+			nextActive.add(toolName);
+			nextWithheld.delete(toolName);
+		}
+		const nextActiveTools = [...nextActive];
+		toolPolicyMemory = { withheldBuiltins: nextWithheld };
+		if (!sameToolSet(current, nextActiveTools))
+			pi.setActiveTools(nextActiveTools);
 	};
 
 	const releaseProtocolTools = () => {
@@ -1693,6 +1703,7 @@ export default async function developer(pi: ExtensionAPI) {
 				);
 			}
 			activeWorkCase = clearance.state;
+			syncProtocolTools();
 			return textResult(
 				`Action Candidate ${accepted.status}: ${accepted.candidate.actionCandidateId} · Action Clearance ${clearance.status}: ${clearance.clearance.actionClearanceId}`,
 				{
@@ -3570,6 +3581,41 @@ export default async function developer(pi: ExtensionAPI) {
 		if (!capability) return;
 
 		const access = protocolToolAccess(state);
+		const implementationBlockers = state.pendingQuestions.filter(
+			(question) => question.gate === "before-implementation",
+		);
+		const clearance = activeWorkCase
+			? matchingLiveActionClearance(
+					activeWorkCase,
+					event.toolName,
+					event.input as unknown as Readonly<Record<string, unknown>>,
+				)
+			: undefined;
+		if (clearance && implementationBlockers.length === 0 && activeWorkCase) {
+			const effect = beginLiveActionEffect(
+				activeWorkCase,
+				clearance,
+				event.toolCallId,
+			);
+			if (effect.status === "invalid") {
+				return {
+					block: true,
+					reason: `Developer could not begin Effect accounting for the cleared Action: ${effect.message}`,
+				};
+			}
+			activeWorkCase = effect.state;
+			syncProtocolTools();
+			return;
+		}
+		if (activeWorkCase && activeWorkCase.workCase.actionClearances.length > 0) {
+			return {
+				block: true,
+				reason:
+					implementationBlockers.length > 0
+						? `Developer question gate blocks the cleared Action until resolved: ${implementationBlockers.map((question) => question.id).join(", ")}`
+						: "Developer requires the exact current unconsumed Action Clearance for this Pi tool input.",
+			};
+		}
 		if (
 			isControlledToolAllowed({ enabled: state.enabled, capability, access })
 		) {
@@ -3577,10 +3623,6 @@ export default async function developer(pi: ExtensionAPI) {
 				routesWithMutation.add(state.activeRoute.routeId);
 			return;
 		}
-
-		const implementationBlockers = state.pendingQuestions.filter(
-			(question) => question.gate === "before-implementation",
-		);
 		if (implementationBlockers.length > 0) {
 			const blockedAction =
 				capability === "shell"

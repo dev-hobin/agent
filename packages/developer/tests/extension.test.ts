@@ -1860,14 +1860,15 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 			basis: ["Current Coverage and Requirement accounting is complete."],
 		});
 	assert.match(resultText(closed), /Judgment concluded: conclusion_/);
+	const actionToolInput = {
+		path: "/tmp/developer-live-action.txt",
+		content: "bounded verified artifact",
+	};
 	const action = await harness.tools
 		.get("developer_propose_action")
 		.execute("propose-live-action", {
 			tool_name: "write",
-			tool_input: {
-				path: "/tmp/developer-live-action.txt",
-				content: "bounded verified artifact",
-			},
+			tool_input: actionToolInput,
 			summary: "Write one bounded verified artifact.",
 			intended_effects: ["The bounded artifact is updated."],
 			required_conclusion_ids: [closed.details.artifact.conclusionId],
@@ -1889,6 +1890,28 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		action.details.clearance.actionClearanceId,
 		/^action_clearance_/,
 	);
+	assert.equal(harness.activeTools().includes("write"), true);
+	const mismatchedAction = await harness.emit("tool_call", {
+		toolName: "write",
+		input: { ...actionToolInput, content: "different artifact" },
+		toolCallId: "write:mismatched-live-action",
+	});
+	assert.match(mismatchedAction.reason, /exact current unconsumed Action Clearance/);
+	assert.equal(
+		await harness.emit("tool_call", {
+			toolName: "write",
+			input: actionToolInput,
+			toolCallId: "write:cleared-live-action",
+		}),
+		undefined,
+	);
+	assert.equal(harness.activeTools().includes("write"), false);
+	const repeatedAction = await harness.emit("tool_call", {
+		toolName: "write",
+		input: actionToolInput,
+		toolCallId: "write:repeated-live-action",
+	});
+	assert.match(repeatedAction.reason, /exact current unconsumed Action Clearance/);
 	const afterContribution = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",
@@ -1917,6 +1940,7 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		afterContribution.systemPrompt,
 		/Action Clearance: action_clearance_/,
 	);
+	assert.match(afterContribution.systemPrompt, /Effect: effect_.* · pending/);
 });
 
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {
