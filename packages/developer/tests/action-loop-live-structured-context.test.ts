@@ -6,6 +6,7 @@ import test, { type TestContext } from "node:test";
 import {
 	acceptLivePiActionCandidate,
 	assessLiveActionClearance,
+	clearedLivePiToolNames,
 	matchingLiveActionClearance,
 } from "../extensions/action-loop-action.ts";
 import { assessLiveCapabilityApplicability } from "../extensions/action-loop-applicability.ts";
@@ -246,6 +247,9 @@ test("ready structured selection seals Skill and selected References atomically"
 					);
 					assert.equal(hostClearance.status, "cleared");
 					if (hostClearance.status === "cleared") {
+						assert.deepEqual(clearedLivePiToolNames(hostClearance.state), [
+							"write",
+						]);
 						assert.deepEqual(hostClearance.state.workCase.actionClearances, [
 							hostClearance.clearance,
 						]);
@@ -273,6 +277,15 @@ test("ready structured selection seals Skill and selected References atomically"
 						if (effect.status === "begun") {
 							assert.deepEqual(effect.state.workCase.effects, [effect.effect]);
 							assert.equal(effect.effect.status, "pending");
+							assert.deepEqual(clearedLivePiToolNames(effect.state), []);
+							assert.equal(
+								matchingLiveActionClearance(
+									effect.state,
+									"write",
+									toolInput,
+								),
+								undefined,
+							);
 						}
 					}
 				}

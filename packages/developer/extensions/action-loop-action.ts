@@ -113,10 +113,33 @@ export function matchingLiveActionClearance(
 	if (controlledAction.status === "invalid") return undefined;
 	return state.workCase.actionClearances.find(
 		(clearance) =>
+			!state.workCase.effects.some(
+				(effect) => effect.actionClearanceId === clearance.actionClearanceId,
+			) &&
 			clearance.controlledAction.kind === controlledAction.value.kind &&
 			clearance.controlledAction.fingerprint ===
 				controlledAction.value.fingerprint,
 	);
+}
+
+/** Lists only Pi built-ins with a current unconsumed Clearance. */
+export function clearedLivePiToolNames(
+	state: LiveWorkCaseState | undefined,
+): readonly ControlledPiToolName[] {
+	if (state === undefined) return [];
+	const names = new Set<ControlledPiToolName>();
+	for (const clearance of state.workCase.actionClearances) {
+		if (
+			state.workCase.effects.some(
+				(effect) => effect.actionClearanceId === clearance.actionClearanceId,
+			)
+		) {
+			continue;
+		}
+		const name = clearance.controlledAction.kind.replace("pi-tool-call:", "");
+		if (name === "bash" || name === "edit" || name === "write") names.add(name);
+	}
+	return Object.freeze([...names].sort((left, right) => left.localeCompare(right)));
 }
 
 /** Applies an adapter-owned host Permission Decision to one recorded Candidate. */
