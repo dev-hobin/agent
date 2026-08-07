@@ -188,6 +188,10 @@ export function liveWorkCasePrompt(
 			(assessment) =>
 				`Effect Assessment: ${"effectSettlementId" in assessment ? assessment.effectSettlementId : assessment.effectAssessmentId} · ${assessment.outcome}`,
 		),
+		...workCase.effectRemediations.map(
+			(remediation) =>
+				`Effect Remediation: ${remediation.effectRemediationId} · ${remediation.adverseEffectId} → ${remediation.remediationEffectId}`,
+		),
 	];
 	if (actionLines.length === 0) actionLines.push("Actions: none");
 	const judgmentLines =

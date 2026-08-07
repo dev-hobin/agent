@@ -1989,6 +1989,16 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		resultText(successfulSettlement),
 		/Effect settled: effect_settlement_.* · observed-success/,
 	);
+	await assert.rejects(
+		harness.tools
+			.get("developer_record_effect_remediation")
+			.execute("reject-non-adverse-remediation", {
+				adverse_effect_id: effectId,
+				remediation_effect_id: effectId,
+				basis: ["The same successful Effect cannot remediate itself."],
+			}),
+		/Only a failed or partially-applied Effect requires remediation/,
+	);
 	const repeatedAction = await harness.emit("tool_call", {
 		toolName: "write",
 		input: actionToolInput,

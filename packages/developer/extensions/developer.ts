@@ -32,10 +32,12 @@ import {
 	matchingLiveActionClearance,
 } from "./action-loop-action.ts";
 import {
+	ACTION_LOOP_RECORD_REMEDIATION_TOOL,
 	ACTION_LOOP_SETTLE_EFFECT_TOOL,
 	beginLiveActionEffect,
 	currentLiveEffectAssessmentId,
 	observeLivePiToolResult,
+	recordLiveEffectRemediation,
 	settleLiveEffect,
 } from "./action-loop-effect.ts";
 import {
@@ -173,6 +175,7 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_CLOSE_JUDGMENT_TOOL,
 	ACTION_LOOP_PROPOSE_ACTION_TOOL,
 	ACTION_LOOP_SETTLE_EFFECT_TOOL,
+	ACTION_LOOP_RECORD_REMEDIATION_TOOL,
 	ACTION_LOOP_PREPARE_CLOSURE_TOOL,
 	ACTION_LOOP_COMPLETE_WORK_CASE_TOOL,
 	ROUTE_TOOL,
@@ -1855,6 +1858,55 @@ export default async function developer(pi: ExtensionAPI) {
 					kind: settled.status,
 					assessment: settled.assessment as unknown,
 					assessmentId,
+				},
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_RECORD_REMEDIATION_TOOL,
+		label: "Developer Record Effect Remediation",
+		description:
+			"Bind one current failed or partially-applied Effect settlement to a distinct current observed-success repair settlement.",
+		promptSnippet: "Record exact adverse Effect remediation",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_RECORD_REMEDIATION_TOOL} only after both the adverse Effect and distinct repair Effect have current settled assessments.`,
+			"Never rewrite adverse history as success. Account for both Effect settlements and the remediation relation during closure.",
+		],
+		parameters: Type.Object(
+			{
+				adverse_effect_id: Type.String({ minLength: 1, maxLength: 512 }),
+				remediation_effect_id: Type.String({ minLength: 1, maxLength: 512 }),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: 16 },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			const remediation = recordLiveEffectRemediation(
+				activeWorkCase,
+				params.adverse_effect_id,
+				params.remediation_effect_id,
+				params.basis,
+			);
+			if (remediation.status === "invalid") fail(remediation.message);
+			activeWorkCase = remediation.state;
+			return textResult(
+				`Effect remediation ${remediation.status}: ${remediation.remediationId}`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: remediation.status,
+					remediationId: remediation.remediationId,
+					adverseEffectId: params.adverse_effect_id,
+					remediationEffectId: params.remediation_effect_id,
 				},
 			);
 		},

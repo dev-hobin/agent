@@ -528,6 +528,7 @@ assert.match(extension, /name: ACTION_LOOP_ASSESS_COVERAGE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_CLOSE_JUDGMENT_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_PROPOSE_ACTION_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_SETTLE_EFFECT_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_RECORD_REMEDIATION_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_PREPARE_CLOSURE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_COMPLETE_WORK_CASE_TOOL/);
 assert.match(extension, /name: ROUTE_TOOL/);
@@ -638,6 +639,8 @@ assert.match(liveEffectIntegration, /beginEffect\(/);
 assert.match(liveEffectIntegration, /acceptEffectObservation\(/);
 assert.match(liveEffectIntegration, /settleEffect\(/);
 assert.match(liveEffectIntegration, /recordWorkCaseEffectAssessment\(/);
+assert.match(liveEffectIntegration, /acceptEffectRemediation\(/);
+assert.match(liveEffectIntegration, /recordWorkCaseEffectRemediation\(/);
 assert.match(liveEffectIntegration, /does not by itself establish/);
 
 const liveCompletionIntegration = await readFile(
