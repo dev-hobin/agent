@@ -3,7 +3,12 @@
   "version": "0.2.0-rc.1",
   "description": "A model-neutral Action Loop for evidence-backed engineering work in Pi.",
   "type": "module",
-  "keywords": ["pi-package", "pi", "developer", "skills"],
+  "keywords": [
+    "pi-package",
+    "pi",
+    "developer",
+    "skills"
+  ],
   "license": "MIT",
   "author": {
     "name": "dev-hobin",
@@ -26,6 +31,7 @@
     "src/action-loop",
     "skills",
     "docs",
+    "dist",
     "README.md",
     "REFERENCE_ROUTING.md",
     "LICENSE"
@@ -34,20 +40,37 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check": "node scripts/check-package.mjs && node --test tests/*.test.ts",
+    "check": "node scripts/build-sdk-public-api.mjs --check && node scripts/check-package.mjs && node --test tests/*.test.ts",
+    "sdk:build": "node scripts/build-sdk-public-api.mjs",
     "eval": "node scripts/eval-rpc.mjs",
     "eval:json": "node scripts/eval-json.mjs",
     "eval:live": "node scripts/eval-live.mjs --transport rpc",
-    "eval:live:json": "node scripts/eval-live.mjs --transport json"
+    "eval:live:json": "node scripts/eval-live.mjs --transport json",
+    "eval:live:sdk": "node scripts/eval-live.mjs --transport sdk",
+    "prepack": "node scripts/build-sdk-public-api.mjs --check"
+  },
+  "exports": {
+    "./sdk": {
+      "types": "./src/action-loop/sdk/index.ts",
+      "import": "./dist/sdk.mjs",
+      "default": "./dist/sdk.mjs"
+    }
   },
   "pi": {
-    "extensions": ["./extensions/developer.ts"],
-    "skills": ["./skills"]
+    "extensions": [
+      "./extensions/developer.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
   }
 }

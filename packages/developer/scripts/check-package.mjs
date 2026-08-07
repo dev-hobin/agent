@@ -44,11 +44,29 @@ assert.match(
 	manifest.scripts["eval:live:json"],
 	/eval-live\.mjs --transport json/,
 );
+assert.match(
+	manifest.scripts["eval:live:sdk"],
+	/eval-live\.mjs --transport sdk/,
+);
+assert.match(
+	manifest.scripts.check,
+	/build-sdk-public-api\.mjs --check/,
+);
+assert.match(
+	manifest.scripts.prepack,
+	/build-sdk-public-api\.mjs --check/,
+);
+assert.deepEqual(manifest.exports["./sdk"], {
+	types: "./src/action-loop/sdk/index.ts",
+	import: "./dist/sdk.mjs",
+	default: "./dist/sdk.mjs",
+});
 assert.deepEqual(manifest.files, [
 	"extensions",
 	"src/action-loop",
 	"skills",
 	"docs",
+	"dist",
 	"README.md",
 	"REFERENCE_ROUTING.md",
 	"LICENSE",
@@ -67,6 +85,8 @@ for (const dependency of [
 ]) {
 	assert.equal(manifest.peerDependencies[dependency], "*");
 }
+assert.equal(manifest.devDependencies.esbuild, "0.25.12");
+await access(join(root, "dist", "sdk.mjs"));
 
 const entries = await readdir(join(root, "skills"), { withFileTypes: true });
 const skills = entries
