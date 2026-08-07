@@ -120,6 +120,8 @@ openWorkCaseWithSdk
 
 각 command는 한 가지 일만 하고 명시적인 값을 입력·출력하며, bounded in-memory proposal session을 통해서만 model output을 admit합니다. Pure progress inspector는 별도 checkpoint를 만들지 않고 canonical record에서 다음 Context, Contribution, Coverage 작업을 계산합니다. Controller는 retry, run별 time limit, complete inventory accounting, canonical identity binding, non-mutating `bounded-stop`을 소유합니다. Provider error는 domain invariant failure와 구분합니다.
 
+`progressJudgmentWithSdk`는 이미 열린 Judgment 하나에 대해 중간 command를 조합합니다. Accepted Inventory, Context, Contribution, Coverage, Conclusion transition마다 host checkpoint를 요구하고, checkpoint 실패 시 dependent work 전에 중단하며, 완료 batch를 재계산하지 않고 canonical record에서 재개합니다. Pi Extension은 이 transitional composition을 `developer_progress_judgment_with_sdk`로 노출합니다. 상세 public protocol prompt와 lower-level model-driven tool은 opening, Action, Effect, Completion도 controller 뒤로 이동할 때까지만 유지합니다.
+
 현재 RC는 upper Judgment Conclusion, exact Action Candidate proposal, 별도 host Permission clearance, explicit Effect settlement까지 SDK command로 제공합니다. Capability inventory admission은 하나의 atomic semantic batch로 journal하고, 각 sealed Context, Contribution, Coverage, cleared Action, Effect assessment는 Pi branch에서 독립적으로 replay할 수 있습니다. Exact host execution과 Effect Observation은 Extension bridge에 남으며 model output은 permission을 부여하거나 tool return을 success로 바꿀 수 없습니다. Production Extension 경로는 live evaluation parity와 host integration이 끝날 때까지 유지합니다. Canonical pause, wait, block, resume, Effect beginning, Observation admission, remediation command는 다른 manager로 다시 감싸지 않고 직접 export합니다. Completion은 trusted code가 complete current Closure Target을 준비하고 동일한 Work Case revision을 다시 검증한 뒤에만 admit됩니다. Pi session branch는 계속 유일한 durability boundary입니다.
 
 ## Canonical tools
@@ -127,6 +129,7 @@ openWorkCaseWithSdk
 ```text
 developer_open_work_case
 developer_open_judgment
+developer_progress_judgment_with_sdk
 developer_assess_capability
 developer_select_references
 developer_load_selected_reference

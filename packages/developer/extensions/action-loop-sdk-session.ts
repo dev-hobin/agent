@@ -11,6 +11,7 @@ import type { SdkSkillContributionResult } from "../src/action-loop/sdk/contribu
 import type { SdkNeedCoverageResult } from "../src/action-loop/sdk/coverage-controller.ts";
 import type { SdkEffectSettlementResult } from "../src/action-loop/sdk/effect-controller.ts";
 import type { SdkJudgmentOpeningResult } from "../src/action-loop/sdk/judgment-controller.ts";
+import type { SdkJudgmentCheckpoint } from "../src/action-loop/sdk/judgment-progression-controller.ts";
 import type { SdkWorkCaseOpeningResult } from "../src/action-loop/sdk/work-case-controller.ts";
 import {
 	actionLoopActionClearedEvent,
@@ -254,6 +255,43 @@ export function sdkCapabilityInventoryAssessedEvent(
 export type SdkCapabilityContextSessionEvent =
 	| ActionLoopReferencesSelectedEvent
 	| ActionLoopUnstructuredContextSealedEvent;
+
+export type SdkJudgmentCheckpointSessionEvent =
+	| ActionLoopCapabilityInventoryAssessedEvent
+	| SdkCapabilityContextSessionEvent
+	| ActionLoopContributionAcceptedEvent
+	| ActionLoopCoverageAssessedEvent
+	| ActionLoopJudgmentConcludedEvent;
+
+/** Converts one controller-owned checkpoint into the existing semantic Pi event. */
+export function sdkJudgmentCheckpointEvent(
+	checkpoint: SdkJudgmentCheckpoint,
+): SdkJudgmentCheckpointSessionEvent {
+	switch (checkpoint.kind) {
+		case "capability-inventory-assessed":
+			return sdkCapabilityInventoryAssessedEvent(checkpoint.result);
+		case "capability-context-prepared":
+			return sdkCapabilityContextEvent({
+				skillName: checkpoint.skillName,
+				assignment: checkpoint.assignment,
+				result: checkpoint.result,
+			});
+		case "contribution-accepted":
+			return sdkContributionAcceptedEvent({
+				skillName: checkpoint.skillName,
+				result: checkpoint.result,
+			});
+		case "coverage-assessed":
+			return sdkNeedCoverageAssessedEvent(checkpoint.result);
+		case "judgment-concluded":
+			return sdkJudgmentConcludedEvent({
+				result: checkpoint.result,
+				revisionId: checkpoint.workCase.revisionId,
+			});
+		default:
+			return checkpoint satisfies never;
+	}
+}
 
 export function sdkContributionAcceptedEvent(input: {
 	readonly skillName: string;

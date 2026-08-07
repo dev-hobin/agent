@@ -2137,13 +2137,13 @@ function conclusionInventoryIssue(workCase) {
   };
 }
 function candidateInventoryIssue(workCase, conclusions) {
-  const invalid23 = workCase.actionCandidates.find(
+  const invalid24 = workCase.actionCandidates.find(
     (candidate) => candidate.workCaseId !== workCase.workCaseId || candidate.requiredConclusionIds.some((id) => !conclusions.has(id))
   );
-  return invalid23 === void 0 ? void 0 : {
+  return invalid24 === void 0 ? void 0 : {
     code: "missing-dependency",
     path: "workCase.actionCandidates",
-    message: `Action Candidate has a missing Work Case dependency: ${invalid23.actionCandidateId}`
+    message: `Action Candidate has a missing Work Case dependency: ${invalid24.actionCandidateId}`
   };
 }
 function clearanceInventoryIssue(workCase, conclusions, candidates) {
@@ -9803,6 +9803,548 @@ async function openJudgmentWithSdk(input) {
   };
 }
 
+// src/action-loop/work/record-work-case-conclusion.ts
+function invalid23(code, path, message) {
+  return { status: "invalid", error: { code, path, message } };
+}
+function hasCurrentRevision(workCase) {
+  return workCase.revisionId === deriveWorkCaseRevisionId(workCase);
+}
+function recordWorkCaseConclusion(workCase, conclusion) {
+  if (!hasCurrentRevision(workCase)) {
+    return invalid23(
+      "stale-work-case",
+      "workCase.revisionId",
+      "Work Case revision does not match its closure inventory"
+    );
+  }
+  if (conclusion.workCaseId !== workCase.workCaseId) {
+    return invalid23(
+      "identity-mismatch",
+      "conclusion.workCaseId",
+      "Conclusion belongs to another Work Case"
+    );
+  }
+  if (workCase.conclusions.some(
+    ({ conclusionId }) => conclusionId === conclusion.conclusionId
+  )) {
+    return { status: "unchanged", value: workCase };
+  }
+  const openJudgment2 = workCase.openJudgments.find(
+    ({ judgmentId }) => judgmentId === conclusion.judgmentId
+  );
+  if (openJudgment2 !== void 0 && (openJudgment2.category !== conclusion.category || openJudgment2.subject !== conclusion.subject || openJudgment2.contextRevisionId !== conclusion.contextRevisionId)) {
+    return invalid23(
+      "identity-mismatch",
+      "conclusion",
+      "Conclusion changes the identity of its open Judgment"
+    );
+  }
+  const conclusions = Object.freeze(
+    [...workCase.conclusions, conclusion].sort(
+      (left, right) => left.conclusionId.localeCompare(right.conclusionId)
+    )
+  );
+  const openJudgments = Object.freeze(
+    workCase.openJudgments.filter(
+      ({ judgmentId }) => judgmentId !== conclusion.judgmentId
+    )
+  );
+  const nextState = {
+    ...workCase,
+    openJudgments,
+    conclusions
+  };
+  return {
+    status: "recorded",
+    value: Object.freeze({
+      ...nextState,
+      revisionId: deriveWorkCaseRevisionId(nextState)
+    })
+  };
+}
+
+// src/action-loop/sdk/judgment-progression-controller.ts
+function positiveInteger2(value, label) {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new RangeError(`${label} must be a positive safe integer`);
+  }
+  return value;
+}
+function compactError2(error) {
+  return (error instanceof Error ? error.message : String(error)).slice(0, 2048);
+}
+function snapshot(progress) {
+  return Object.freeze({
+    workCase: progress.workCase,
+    applicabilityAssessments: Object.freeze([
+      ...progress.applicabilityAssessments
+    ]),
+    assignments: Object.freeze([...progress.assignments]),
+    selections: Object.freeze([...progress.selections]),
+    contexts: Object.freeze([...progress.contexts]),
+    contributions: Object.freeze([...progress.contributions]),
+    coverages: Object.freeze([...progress.coverages])
+  });
+}
+function base(progress) {
+  return {
+    state: snapshot(progress),
+    steps: progress.steps,
+    checkpoints: progress.checkpoints
+  };
+}
+function invariantFailure(progress, stage, code, message) {
+  return {
+    status: "invariant-failure",
+    stage,
+    code,
+    message,
+    ...base(progress)
+  };
+}
+function capabilityByRevision(capabilities, capabilityRevisionId) {
+  return capabilities.find(
+    (candidate) => candidate.entry.capability.capabilityRevisionId === capabilityRevisionId
+  );
+}
+function currentNeedAssessments(progress, judgmentId, contributionNeedId) {
+  return progress.applicabilityAssessments.filter(
+    (assessment) => assessment.workCaseId === progress.workCase.workCaseId && assessment.judgmentId === judgmentId && assessment.contributionNeedId === contributionNeedId
+  );
+}
+function completeInventory(input) {
+  if (input.assessments.length === 0) return { status: "missing" };
+  const currentRevisions = new Set(
+    input.capabilities.map(
+      (capability) => capability.entry.capability.capabilityRevisionId
+    )
+  );
+  const assessedRevisions = new Set(
+    input.assessments.map((assessment) => assessment.capabilityRevisionId)
+  );
+  if (assessedRevisions.size !== input.assessments.length || input.assessments.some(
+    (assessment) => !currentRevisions.has(assessment.capabilityRevisionId)
+  )) {
+    return {
+      status: "invalid",
+      code: "capability-inventory-mismatch",
+      message: "Current applicability assessments contain duplicate or unavailable Capability revisions."
+    };
+  }
+  if (assessedRevisions.size !== currentRevisions.size) {
+    return {
+      status: "invalid",
+      code: "partial-capability-inventory",
+      message: "A current Contribution Need has a partial Capability inventory; progression requires one complete atomic inventory assessment."
+    };
+  }
+  return { status: "complete" };
+}
+async function commitCheckpoint(runtime, stage, checkpoint) {
+  try {
+    await runtime.input.checkpoint(checkpoint);
+    runtime.progress.checkpoints += 1;
+    return void 0;
+  } catch (error) {
+    return {
+      status: "checkpoint-failure",
+      stage,
+      message: compactError2(error),
+      pendingCheckpoint: checkpoint,
+      ...base(runtime.progress)
+    };
+  }
+}
+function consumeStep(runtime, stage) {
+  if (runtime.progress.steps >= runtime.maximumSteps) {
+    return {
+      status: "bounded-stop",
+      stage,
+      reason: "progression-step-budget",
+      ...base(runtime.progress)
+    };
+  }
+  runtime.progress.steps += 1;
+  return void 0;
+}
+function decisionFailure(progress, stage, result) {
+  if (result.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      stage,
+      reason: result.reason,
+      ...base(progress)
+    };
+  }
+  if (result.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      stage,
+      message: result.message,
+      ...base(progress)
+    };
+  }
+  return invariantFailure(
+    progress,
+    stage,
+    "code" in result ? result.code : result.status,
+    result.message
+  );
+}
+function skillContribution(contribution) {
+  return "assignmentId" in contribution && "sealedContextId" in contribution;
+}
+async function progressNeedInventory(runtime, need) {
+  const assessments = currentNeedAssessments(
+    runtime.progress,
+    runtime.judgment.judgmentId,
+    need.contributionNeedId
+  );
+  const inventory = completeInventory({
+    assessments,
+    capabilities: runtime.input.capabilities
+  });
+  if (inventory.status === "invalid") {
+    return invariantFailure(
+      runtime.progress,
+      "inventory",
+      inventory.code,
+      inventory.message
+    );
+  }
+  if (inventory.status === "complete") return void 0;
+  const stopped = consumeStep(runtime, "inventory");
+  if (stopped) return stopped;
+  const result = await assessCapabilityInventoryWithSdk({
+    request: runtime.input.request,
+    workCaseId: runtime.progress.workCase.workCaseId,
+    judgmentId: runtime.judgment.judgmentId,
+    contributionNeedId: need.contributionNeedId,
+    contributionNeed: need.function,
+    capabilities: runtime.input.capabilities,
+    runner: runtime.input.runner
+  });
+  if (result.status !== "assessed") {
+    return decisionFailure(runtime.progress, "inventory", result);
+  }
+  const failed = await commitCheckpoint(runtime, "inventory", {
+    kind: "capability-inventory-assessed",
+    contributionNeedId: need.contributionNeedId,
+    result
+  });
+  if (failed) return failed;
+  runtime.progress.applicabilityAssessments.push(
+    ...result.dispositions.map(({ assessment }) => assessment)
+  );
+  runtime.progress.assignments.push(...result.assignments);
+  return void 0;
+}
+function needAssignments(runtime, need) {
+  return runtime.progress.assignments.filter(
+    (assignment) => assignment.workCaseId === runtime.progress.workCase.workCaseId && assignment.judgmentId === runtime.judgment.judgmentId && assignment.contributionNeedId === need.contributionNeedId
+  ).sort((left, right) => left.assignmentId.localeCompare(right.assignmentId));
+}
+async function prepareAssignmentContext(runtime, assignment) {
+  const existingContext = runtime.progress.contexts.find(
+    (context) => context.assignmentId === assignment.assignmentId
+  );
+  if (existingContext) return void 0;
+  const unresolved = runtime.progress.selections.find(
+    (selection) => selection.assignmentId === assignment.assignmentId && selection.status === "needs-context"
+  );
+  if (unresolved) {
+    return {
+      status: "needs-context",
+      assignmentId: assignment.assignmentId,
+      ...base(runtime.progress)
+    };
+  }
+  const capability = capabilityByRevision(
+    runtime.input.capabilities,
+    assignment.capabilityRevisionId
+  );
+  if (!capability) {
+    return invariantFailure(
+      runtime.progress,
+      "context",
+      "assigned-capability-unavailable",
+      "A current Assignment has no exact Pi-admitted Capability revision."
+    );
+  }
+  const stopped = consumeStep(runtime, "context");
+  if (stopped) return stopped;
+  const result = await sealCapabilityContextWithSdk({
+    request: runtime.input.request,
+    entry: capability.entry,
+    assignment,
+    runner: runtime.input.runner
+  });
+  if (result.status !== "sealed" && result.status !== "needs-context") {
+    return decisionFailure(runtime.progress, "context", result);
+  }
+  const failed = await commitCheckpoint(runtime, "context", {
+    kind: "capability-context-prepared",
+    skillName: capability.name,
+    assignment,
+    result
+  });
+  if (failed) return failed;
+  if (result.selection) runtime.progress.selections.push(result.selection);
+  if (result.status === "needs-context") {
+    return {
+      status: "needs-context",
+      assignmentId: assignment.assignmentId,
+      ...base(runtime.progress)
+    };
+  }
+  runtime.progress.contexts.push(result.context);
+  return void 0;
+}
+async function progressNeedContexts(runtime, need) {
+  for (const assignment of needAssignments(runtime, need)) {
+    const stopped = await prepareAssignmentContext(runtime, assignment);
+    if (stopped) return stopped;
+  }
+  return void 0;
+}
+function needContexts(runtime, need) {
+  return runtime.progress.contexts.filter(
+    (context) => context.workCaseId === runtime.progress.workCase.workCaseId && context.judgmentId === runtime.judgment.judgmentId && context.contributionNeedId === need.contributionNeedId
+  ).sort((left, right) => left.assignmentId.localeCompare(right.assignmentId));
+}
+async function acceptContextContribution(runtime, need, context) {
+  const assignment = runtime.progress.assignments.find(
+    (candidate) => candidate.assignmentId === context.assignmentId
+  );
+  const capability = assignment ? capabilityByRevision(
+    runtime.input.capabilities,
+    assignment.capabilityRevisionId
+  ) : void 0;
+  if (!assignment || !capability) {
+    return invariantFailure(
+      runtime.progress,
+      "contribution",
+      "context-assignment-unavailable",
+      "A sealed Context has no exact current Assignment and Capability."
+    );
+  }
+  const stopped = consumeStep(runtime, "contribution");
+  if (stopped) return stopped;
+  const result = await contributeSkillWithSdk({
+    request: runtime.input.request,
+    contributionNeed: need.function,
+    assignment,
+    context,
+    runner: runtime.input.runner
+  });
+  if (result.status !== "accepted") {
+    return decisionFailure(runtime.progress, "contribution", result);
+  }
+  const failed = await commitCheckpoint(runtime, "contribution", {
+    kind: "contribution-accepted",
+    skillName: capability.name,
+    result
+  });
+  if (failed) return failed;
+  runtime.progress.contributions.push(result.contribution);
+  return void 0;
+}
+async function progressNeedContributions(runtime, need) {
+  const contributionProgress = inspectContributionProgress({
+    workCaseId: runtime.progress.workCase.workCaseId,
+    judgmentId: runtime.judgment.judgmentId,
+    contexts: needContexts(runtime, need),
+    contributions: runtime.progress.contributions.filter(skillContribution).filter(
+      (contribution) => contribution.contributionNeedId === need.contributionNeedId
+    )
+  });
+  if (contributionProgress.status === "invalid") {
+    return invariantFailure(
+      runtime.progress,
+      "contribution",
+      contributionProgress.code,
+      contributionProgress.message
+    );
+  }
+  for (const context of contributionProgress.pendingContexts) {
+    const stopped = await acceptContextContribution(runtime, need, context);
+    if (stopped) return stopped;
+  }
+  return void 0;
+}
+function currentNeedCoverage(runtime, need) {
+  return runtime.progress.coverages.find(
+    (coverage) => coverage.workCaseId === runtime.progress.workCase.workCaseId && coverage.judgmentId === runtime.judgment.judgmentId && coverage.contributionNeedId === need.contributionNeedId
+  );
+}
+async function progressNeedCoverage(runtime, need) {
+  if (currentNeedCoverage(runtime, need)) return void 0;
+  const stopped = consumeStep(runtime, "coverage");
+  if (stopped) return stopped;
+  const result = await assessNeedCoverageWithSdk({
+    request: runtime.input.request,
+    contributionNeed: need.function,
+    target: {
+      workCaseId: runtime.progress.workCase.workCaseId,
+      judgmentId: runtime.judgment.judgmentId,
+      contributionNeedId: need.contributionNeedId
+    },
+    contributions: runtime.progress.contributions.filter(
+      (contribution) => contribution.workCaseId === runtime.progress.workCase.workCaseId && contribution.judgmentId === runtime.judgment.judgmentId && contribution.contributionNeedId === need.contributionNeedId
+    ),
+    runner: runtime.input.runner
+  });
+  if (result.status !== "assessed") {
+    return decisionFailure(runtime.progress, "coverage", result);
+  }
+  const failed = await commitCheckpoint(runtime, "coverage", {
+    kind: "coverage-assessed",
+    result
+  });
+  if (failed) return failed;
+  runtime.progress.coverages.push(result.coverage);
+  return void 0;
+}
+async function progressNeed(runtime, need) {
+  const inventory = await progressNeedInventory(runtime, need);
+  if (inventory) return inventory;
+  const contexts = await progressNeedContexts(runtime, need);
+  if (contexts) return contexts;
+  const contributions = await progressNeedContributions(runtime, need);
+  if (contributions) return contributions;
+  return progressNeedCoverage(runtime, need);
+}
+function conclusionFailure(progress, conclusion) {
+  if (conclusion.status === "refused") {
+    return {
+      status: "refused",
+      refusal: conclusion.refusal,
+      ...base(progress)
+    };
+  }
+  if (conclusion.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      stage: "conclusion",
+      reason: conclusion.reason,
+      ...base(progress)
+    };
+  }
+  if (conclusion.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      stage: "conclusion",
+      message: conclusion.message,
+      ...base(progress)
+    };
+  }
+  return invariantFailure(
+    progress,
+    "conclusion",
+    conclusion.code,
+    conclusion.message
+  );
+}
+async function progressConclusion(runtime) {
+  const stopped = consumeStep(runtime, "conclusion");
+  if (stopped) return stopped;
+  const conclusion = await concludeJudgmentWithSdk({
+    request: runtime.input.request,
+    contract: runtime.judgment,
+    coverages: runtime.progress.coverages.filter(
+      (coverage) => coverage.judgmentId === runtime.judgment.judgmentId
+    ),
+    runner: runtime.input.runner
+  });
+  if (conclusion.status !== "concluded") {
+    return conclusionFailure(runtime.progress, conclusion);
+  }
+  const recorded = recordWorkCaseConclusion(
+    runtime.progress.workCase,
+    conclusion.conclusion
+  );
+  if (recorded.status === "invalid") {
+    return invariantFailure(
+      runtime.progress,
+      "conclusion",
+      recorded.error.code,
+      recorded.error.message
+    );
+  }
+  const checkpoint = {
+    kind: "judgment-concluded",
+    result: conclusion,
+    workCase: recorded.value
+  };
+  const failed = await commitCheckpoint(runtime, "conclusion", checkpoint);
+  if (failed) return failed;
+  runtime.progress.workCase = recorded.value;
+  return {
+    status: "concluded",
+    conclusionId: conclusion.conclusion.conclusionId,
+    ...base(runtime.progress)
+  };
+}
+function initializeRuntime(input) {
+  const maximumSteps = positiveInteger2(input.maxSteps, "maxSteps");
+  const progress = {
+    workCase: input.state.workCase,
+    applicabilityAssessments: [...input.state.applicabilityAssessments],
+    assignments: [...input.state.assignments],
+    selections: [...input.state.selections],
+    contexts: [...input.state.contexts],
+    contributions: [...input.state.contributions],
+    coverages: [...input.state.coverages],
+    steps: 0,
+    checkpoints: 0
+  };
+  if (input.capabilities.length === 0) {
+    return invariantFailure(
+      progress,
+      "inventory",
+      "empty-capability-inventory",
+      "Judgment progression requires the complete Pi-admitted Capability inventory."
+    );
+  }
+  const capabilityNames = new Set(input.capabilities.map(({ name }) => name));
+  const capabilityRevisions = new Set(
+    input.capabilities.map(
+      ({ entry }) => entry.capability.capabilityRevisionId
+    )
+  );
+  if (capabilityNames.size !== input.capabilities.length || capabilityRevisions.size !== input.capabilities.length) {
+    return invariantFailure(
+      progress,
+      "inventory",
+      "duplicate-capability-inventory",
+      "Pi-admitted Capability names and revisions must be unique."
+    );
+  }
+  if (progress.workCase.openJudgments.length !== 1) {
+    return invariantFailure(
+      progress,
+      "inventory",
+      "single-open-judgment-required",
+      "Judgment progression requires exactly one current open Judgment."
+    );
+  }
+  const judgment = progress.workCase.openJudgments[0];
+  if (judgment === void 0) {
+    throw new Error("unreachable open Judgment state");
+  }
+  return { input, progress, maximumSteps, judgment };
+}
+async function progressJudgmentWithSdk(input) {
+  const initialized = initializeRuntime(input);
+  if (!("judgment" in initialized)) return initialized;
+  for (const need of initialized.judgment.contributionNeeds) {
+    const stopped = await progressNeed(initialized, need);
+    if (stopped) return stopped;
+  }
+  return progressConclusion(initialized);
+}
+
 // src/action-loop/sdk/work-case-controller.ts
 import { Type as Type10 } from "typebox";
 var MAX_OUTCOME_ITEMS = 32;
@@ -9955,6 +10497,7 @@ export {
   openWorkCaseWithSdk,
   parseTocBytes,
   pauseWorkCase,
+  progressJudgmentWithSdk,
   proposeActionWithSdk,
   resumeBlockedWorkCase,
   resumePausedWorkCase,

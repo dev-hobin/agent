@@ -9,6 +9,10 @@ export type PiSdkModelRuntime = Awaited<
 
 export type PiSdkModel = NonNullable<ReturnType<PiSdkModelRuntime["getModel"]>>;
 
+export type PiSdkThinkingLevel = NonNullable<
+	NonNullable<Parameters<PiSdkModule["createAgentSession"]>[0]>["thinkingLevel"]
+>;
+
 type PiSdkAgentSession = Awaited<
 	ReturnType<PiSdkModule["createAgentSession"]>
 >["session"];
@@ -96,13 +100,7 @@ export interface PiSdkDecisionControllerOptions {
 	readonly maxToolErrorsPerRun: number;
 	readonly maxRunMs?: number;
 	readonly signal?: AbortSignal;
-	readonly thinkingLevel?:
-		| "off"
-		| "minimal"
-		| "low"
-		| "medium"
-		| "high"
-		| "xhigh";
+	readonly thinkingLevel?: PiSdkThinkingLevel;
 }
 
 interface DecisionCounters {

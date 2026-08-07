@@ -120,6 +120,8 @@ openWorkCaseWithSdk
 
 Each command does one job, accepts and returns explicit values, and admits model output only through a bounded in-memory proposal session. Pure progress inspectors derive the next Context, Contribution, or Coverage task from canonical records rather than creating a parallel checkpoint. The controller owns retries, per-run time limits, complete inventory accounting, canonical identity binding, and non-mutating `bounded-stop` results. Provider errors remain distinct from domain invariant failures.
 
+`progressJudgmentWithSdk` composes the middle commands for one already-open Judgment. It requires a host checkpoint after every accepted Inventory, Context, Contribution, Coverage, and Conclusion transition, stops before dependent work when checkpointing fails, and resumes from canonical records rather than recomputing completed batches. The Pi Extension exposes this transitional composition as `developer_progress_judgment_with_sdk`; detailed public protocol prompts and lower-level model-driven tools remain only until opening, Action, Effect, and Completion also move behind the controller.
+
 This RC provides SDK commands through upper Judgment Conclusion, exact Action Candidate proposal, separate host Permission clearance, and explicit Effect settlement. Capability inventory admission is journaled as one atomic semantic batch, while each sealed Context, Contribution, Coverage, cleared Action, and Effect assessment remains independently replayable from the Pi branch. Exact host execution and Effect Observation stay in the Extension bridge; model output cannot grant permission or turn a tool return into success. The production Extension path remains active until live-evaluation parity and host integration are complete. Canonical pause, wait, block, resume, Effect beginning, Observation admission, and remediation commands are exported directly instead of being wrapped by another manager. Completion is admitted only after trusted code prepares the complete current Closure Target and revalidates the same Work Case revision. The Pi session branch remains the only durability boundary.
 
 ## Canonical tools
@@ -127,6 +129,7 @@ This RC provides SDK commands through upper Judgment Conclusion, exact Action Ca
 ```text
 developer_open_work_case
 developer_open_judgment
+developer_progress_judgment_with_sdk
 developer_assess_capability
 developer_select_references
 developer_load_selected_reference

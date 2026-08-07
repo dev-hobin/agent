@@ -22,6 +22,13 @@ import {
 	type LiveCapabilityInventoryResult,
 } from "./action-loop-capability-inventory.ts";
 import {
+	ACTION_LOOP_PROGRESS_JUDGMENT_TOOL,
+	progressLiveJudgmentWithSdk,
+	sdkJudgmentProgressionFailure,
+	sdkJudgmentProgressionSummary,
+} from "./action-loop-sdk-progression.ts";
+import { createPiExtensionSdkRunner } from "./action-loop-sdk-runner.ts";
+import {
 	ACTION_LOOP_PROPOSE_ACTION_TOOL,
 	acceptLivePiActionCandidate,
 	assessLiveActionClearance,
@@ -167,6 +174,7 @@ const TOOL_POLICY_PROTOCOL = "developer-action-loop/tool-policy/v1";
 const PROTOCOL_TOOLS = [
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
+	ACTION_LOOP_PROGRESS_JUDGMENT_TOOL,
 	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
 	ACTION_LOOP_SELECT_REFERENCES_TOOL,
 	ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
@@ -256,9 +264,8 @@ function actionLoopProtocolPrompt(
 		"Operate Observe → Judge → Act → Settle until Complete, Block, or Pause. These are semantic responsibilities, not a mandatory phase order; revisit Judgment whenever evidence changes.",
 		`Open one bounded Outcome with ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} when no Work Case exists. Never replace unavailable replay state or infer completion.`,
 		`Open consequential Warrant Gaps with ${ACTION_LOOP_OPEN_JUDGMENT_TOOL}. Route each current Contribution Need through the admitted Capability inventory; Categories describe gaps and never hard-code Skill names.`,
-		`Use ${ACTION_LOOP_ASSESS_CAPABILITY_TOOL}, ${ACTION_LOOP_SELECT_REFERENCES_TOOL}, and ${ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL} for Skill-local Contributions. Every applicable Assignment must pass through ${ACTION_LOOP_SELECT_REFERENCES_TOOL}: disposition every Reference path shown for a structured Capability, or submit an empty dispositions array for an unstructured Capability. Load every selected Reference before accepting output, and never submit SKILL.md or a descriptor as a Reference disposition. If one Capability serves several Needs, each Need has an independent Assignment, sealed Context, and Contribution. A Skill result does not grant upper Coverage or Conclusion.`,
-		`Use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} only when an exact host-admitted user prompt or finalized tool result directly contributes to a current Need without Skill interpretation. Evidence is not automatically truth.`,
-		`Use ${ACTION_LOOP_ASSESS_COVERAGE_TOOL} to disposition every current Contribution for a Need, then ${ACTION_LOOP_CLOSE_JUDGMENT_TOOL} to synthesize the upper Conclusion from complete current Coverage.`,
+		`After one Judgment is open, use ${ACTION_LOOP_PROGRESS_JUDGMENT_TOOL} as the primary bounded controller through Conclusion; its accepted checkpoints persist before dependent work continues. The lower-level routing tools are transitional fallback controls. Every applicable Assignment still requires sealed source-bound Context, and a local Contribution never grants upper Coverage.`,
+		`Use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} only when exact host-admitted evidence directly contributes to a current Need without Skill interpretation. Evidence is not automatically truth.`,
 		`Before any controlled bash, edit, or write, use ${ACTION_LOOP_PROPOSE_ACTION_TOOL} for the exact one-use input. A tool return records an Observation, not Effect success; settle every Effect with ${ACTION_LOOP_SETTLE_EFFECT_TOOL} and remediate adverse Effects explicitly.`,
 		`Use ${ACTION_LOOP_PAUSE_WORK_CASE_TOOL}, ${ACTION_LOOP_WAIT_WORK_CASE_TOOL}, ${ACTION_LOOP_BLOCK_WORK_CASE_TOOL}, and ${ACTION_LOOP_RESUME_WORK_CASE_TOOL} only with their required current evidence. Routine pause, wait, and resume are driven by normal user messages, not dialogs.`,
 		`Use ${ACTION_LOOP_PREPARE_CLOSURE_TOOL} and ${ACTION_LOOP_COMPLETE_WORK_CASE_TOOL} only after revalidating the complete current Work Case revision. Never select a convenient subset of Conclusions or Effects.`,
@@ -279,6 +286,7 @@ export default async function developer(pi: ExtensionAPI) {
 	let actionLoopReplayFailure: string | undefined;
 	let actionLoopSessionDurable = false;
 	let liveHostObservations: LiveHostObservation[] = [];
+	let currentActionLoopRequest: string | undefined;
 	let developerEnabled = false;
 	let toolPolicyMemory: ToolPolicyMemory = { withheldBuiltins: new Set() };
 	let toolPolicyRestartRequired = false;
@@ -310,6 +318,8 @@ export default async function developer(pi: ExtensionAPI) {
 				return { title: "Define work", detail: text("statement") };
 			case ACTION_LOOP_OPEN_JUDGMENT_TOOL:
 				return { title: "Examine a decision", detail: text("question") };
+			case ACTION_LOOP_PROGRESS_JUDGMENT_TOOL:
+				return { title: "Progress the current decision" };
 			case ACTION_LOOP_ASSESS_CAPABILITY_TOOL:
 				return {
 					title: "Assess an available method",
@@ -515,6 +525,7 @@ export default async function developer(pi: ExtensionAPI) {
 		heldWorkCase = undefined;
 		completedWorkCase = undefined;
 		liveHostObservations = [];
+		currentActionLoopRequest = undefined;
 		pendingActionLoopBranch = toolPolicyRestartRequired ? undefined : branch;
 		actionLoopReplayFailure = undefined;
 		developerEnabled = toolPolicyRestartRequired
@@ -538,6 +549,7 @@ export default async function developer(pi: ExtensionAPI) {
 			heldWorkCase = undefined;
 			completedWorkCase = undefined;
 			liveHostObservations = [];
+			currentActionLoopRequest = undefined;
 			pendingActionLoopBranch = undefined;
 			actionLoopReplayFailure = undefined;
 		}
@@ -738,6 +750,90 @@ export default async function developer(pi: ExtensionAPI) {
 					),
 				),
 			);
+		},
+	});
+
+	registerActionLoopTool({
+		name: ACTION_LOOP_PROGRESS_JUDGMENT_TOOL,
+		label: "Developer Progress Judgment",
+		description:
+			"Run the bounded SDK controller for the current open Judgment. It owns complete Capability inventory assessment, Context sealing, local Contributions, Need Coverage, retries, checkpoints, and upper Conclusion.",
+		promptSnippet: "Progress the current Judgment with the SDK controller",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_PROGRESS_JUDGMENT_TOOL} after opening one Judgment instead of manually driving its lower-level routing tools.`,
+			"A bounded stop preserves every acknowledged Pi branch checkpoint and resumes from the next unfinished transition.",
+		],
+		parameters: Type.Object({}, { additionalProperties: false }),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
+			if (!developerEnabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!actionLoopSessionDurable) {
+				fail(
+					"SDK Judgment progression requires a durable Pi session branch for accepted checkpoints.",
+				);
+			}
+			if (pendingActionLoopBranch || actionLoopReplayFailure) {
+				fail(
+					pendingActionLoopBranch
+						? "Developer must replay the current Pi session branch before SDK progression."
+						: `Developer Action Loop session replay is unavailable: ${actionLoopReplayFailure}`,
+				);
+			}
+			if (!activeWorkCase) {
+				fail(
+					`No active Action Loop Work Case. Open one with ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} first.`,
+				);
+			}
+			if (activeWorkCase.workCase.openJudgments.length !== 1) {
+				fail(
+					`SDK progression requires exactly one open Judgment. Use ${ACTION_LOOP_OPEN_JUDGMENT_TOOL} first.`,
+				);
+			}
+			if (!currentActionLoopRequest) {
+				fail(
+					"The current delegated request is unavailable for SDK progression.",
+				);
+			}
+			if (liveCapabilityInventory?.status !== "ready") {
+				fail(
+					"The complete current Pi-admitted Capability inventory is unavailable.",
+				);
+			}
+			const prepared = createPiExtensionSdkRunner(ctx, {
+				...(signal ? { signal } : {}),
+				thinkingLevel: pi.getThinkingLevel(),
+			});
+			if (prepared.status !== "ready") {
+				fail("The current Pi session has no active model for SDK progression.");
+			}
+			const progressed = await progressLiveJudgmentWithSdk({
+				request: currentActionLoopRequest,
+				state: activeWorkCase,
+				inventory: liveCapabilityInventory.value,
+				runner: prepared.runner,
+				maxSteps: 32,
+				appendCheckpoint(event) {
+					pi.appendEntry(ACTION_LOOP_SESSION_ENTRY, event);
+				},
+			});
+			activeWorkCase = progressed.state;
+			syncProtocolTools();
+			refreshUI(ctx);
+			const result = progressed.result;
+			const failure = sdkJudgmentProgressionFailure(result);
+			if (failure) fail(failure);
+			return textResult(sdkJudgmentProgressionSummary(result), {
+				protocol: "developer-action-loop/sdk-progression/v1",
+				kind: "sdk-judgment-progression",
+				status: result.status,
+				steps: result.steps,
+				checkpoints: result.checkpoints,
+				...("stage" in result ? { stage: result.stage } : {}),
+				...("reason" in result ? { reason: result.reason } : {}),
+			});
 		},
 	});
 
@@ -3093,6 +3189,7 @@ export default async function developer(pi: ExtensionAPI) {
 			syncProtocolTools();
 		}
 		if (!developerEnabled) return;
+		currentActionLoopRequest = event.prompt;
 		liveHostObservations = [];
 		const ownership = activeWorkCase ?? heldWorkCase;
 		const admittedPrompt = admitLiveUserPromptObservation(

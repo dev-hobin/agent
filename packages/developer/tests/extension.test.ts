@@ -863,6 +863,12 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 	assert.equal(harness.entries.length, entriesBefore);
 	assert.match(harness.notifications.at(-1)?.message ?? "", /--no-session/);
 	await assert.rejects(
+		harness.tools
+			.get("developer_progress_judgment_with_sdk")
+			.execute("progress-no-session", {}),
+		/durable Pi session branch/,
+	);
+	await assert.rejects(
 		harness.tools.get("developer_pause_work_case").execute("pause-no-session", {
 			observation_id: "observation_missing",
 			reason: "This must not become a process-local pause.",
@@ -2067,6 +2073,7 @@ test("canonical tool rows never expose internal Action Loop identities", async (
 	const canonicalTools = [
 		"developer_open_work_case",
 		"developer_open_judgment",
+		"developer_progress_judgment_with_sdk",
 		"developer_assess_capability",
 		"developer_select_references",
 		"developer_load_selected_reference",

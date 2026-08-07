@@ -10,6 +10,7 @@ import {
 import {
 	createPiSdkDecisionRunner,
 	type PiSdkModelRuntime,
+	type PiSdkThinkingLevel,
 	type SdkDecisionRunner,
 } from "../src/action-loop/sdk/decision-controller.ts";
 
@@ -23,13 +24,7 @@ export interface PiExtensionSdkRunnerOptions {
 	readonly maxRuns?: number;
 	readonly maxToolErrorsPerRun?: number;
 	readonly maxRunMs?: number;
-	readonly thinkingLevel?:
-		| "off"
-		| "minimal"
-		| "low"
-		| "medium"
-		| "high"
-		| "xhigh";
+	readonly thinkingLevel?: PiSdkThinkingLevel;
 }
 
 export type PiExtensionSdkRunnerResult =
