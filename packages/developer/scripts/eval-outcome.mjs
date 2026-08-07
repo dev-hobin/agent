@@ -1,69 +1,82 @@
-import {
-	PROTOCOL,
-	applyDeveloperEvent,
-	initialState,
-	protocolState,
-} from "../extensions/state.ts";
-
-export function parseDeveloperStatus(message) {
-	const lines = String(message).split("\n");
-	const summary = lines[0] ?? "";
-	const field = (name) =>
-		lines.find((line) => line.startsWith(`${name}: `))?.slice(name.length + 2);
+function semanticStatus(label) {
+	const normalized = String(label).trim().toLowerCase();
 	return {
-		protocol: summary.split(" · ").at(-1) ?? "unknown",
-		active: field("active") ?? "unknown",
-		checkpoint: field("checkpoint") ?? "unknown",
-		verification: field("verification") ?? "unknown",
-		pending: field("pending") ?? "unknown",
+		protocol: normalized || "unknown",
+		active: normalized === "active" ? "active" : "none",
+		checkpoint:
+			normalized === "completed" || normalized === "idle" ? "ready" : "owned",
+		verification: normalized === "completed" ? "current" : "unsettled",
+		pending: ["paused", "waiting", "blocked", "unavailable"].includes(
+			normalized,
+		)
+			? normalized
+			: "none",
 	};
 }
 
+export function parseDeveloperStatus(message) {
+	const lines = String(message).split("\n");
+	const first = lines[0] ?? "";
+	const statusLabel = first.match(/^developer\s*·\s*(.+)$/i)?.[1];
+	if (statusLabel) return semanticStatus(statusLabel);
+	return semanticStatus("unknown");
+}
+
+function replayEventFrom(event) {
+	if (event.type !== "tool_execution_end" || event.isError) return undefined;
+	const details = event.result?.details;
+	return details?.replayEvent ?? details;
+}
+
 export function statusFromDeveloperEvents(events) {
-	let state = applyDeveloperEvent(initialState(), {
-		protocol: PROTOCOL,
-		kind: "activation",
-		enabled: true,
-	});
+	let status = semanticStatus("idle");
 	for (const event of events) {
-		if (event.type !== "tool_execution_end" || event.isError) continue;
-		const details = event.result?.details;
-		if (!details || (details.kind !== "route" && details.kind !== "judgment"))
-			continue;
-		state = applyDeveloperEvent(state, details);
+		const replay = replayEventFrom(event);
+		if (!replay || typeof replay.kind !== "string") continue;
+		switch (replay.kind) {
+			case "work-case-completed":
+				status = semanticStatus("completed");
+				break;
+			case "work-case-paused":
+				status = semanticStatus("paused");
+				break;
+			case "work-case-waiting":
+				status = semanticStatus("waiting");
+				break;
+			case "work-case-blocked":
+				status = semanticStatus("blocked");
+				break;
+			case "paused-work-case-resumed":
+			case "waiting-work-case-resumed":
+			case "blocked-work-case-resumed":
+			case "work-case-opened":
+			case "judgment-opened":
+			case "capability-assessed":
+			case "references-selected":
+			case "unstructured-context-sealed":
+			case "contribution-accepted":
+			case "host-contribution-accepted":
+			case "coverage-assessed":
+			case "judgment-concluded":
+			case "action-cleared":
+			case "effect-begun":
+			case "effect-observed":
+			case "effect-settled":
+			case "effect-remediated":
+				status = semanticStatus("active");
+				break;
+		}
 	}
-	return {
-		protocol: protocolState(state),
-		active: state.activeRoute?.routeId ?? "none",
-		checkpoint: state.rerouteRequired ? "reroute required" : "ready",
-		verification: state.verificationRequired ? "required" : "current",
-		pending:
-			state.pendingQuestions.length > 0
-				? state.pendingQuestions.map((question) => question.id).join(" | ")
-				: "none",
-	};
+	return status;
 }
 
 export function classifyEvalOutcome({ changes, status }) {
 	const changed = changes.length > 0;
-	const pendingProtocols = new Set([
-		"blocked",
-		"needs-answer",
-		"needs-evidence",
-	]);
-	const pending =
-		status.pending === "unknown"
-			? pendingProtocols.has(status.protocol)
-			: status.pending !== "none";
+	const pending = status.pending !== "none";
 	if (!changed) return pending ? "pending" : "settled-unchanged";
-
-	const explicitCompletionReady =
-		status.active === "none" &&
-		status.checkpoint === "ready" &&
-		status.verification === "current" &&
-		!pending;
-	const completionReady = explicitCompletionReady || status.protocol === "idle";
-	return completionReady ? "changed-verified" : "changed-paused";
+	return status.protocol === "completed"
+		? "changed-verified"
+		: "changed-paused";
 }
 
 export function assertAllowedOutcome(fixture, outcome) {

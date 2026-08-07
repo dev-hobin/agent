@@ -1,347 +1,118 @@
-import assertModule from "node:assert";
-import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-	assertAgentBeforeImplementationResolution,
+	assertObservedEvidenceBeforeMutation,
 	validateExecutionTrace,
 } from "../scripts/eval-assertions.mjs";
 
-const assert: typeof assertModule.strict = assertModule.strict;
-const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+function execution(
+	index: number,
+	toolName: string,
+	args: Record<string, unknown> = {},
+	details: Record<string, unknown> = {},
+) {
+	const toolCallId = `call-${index}`;
+	return [
+		{ type: "tool_execution_start", toolCallId, toolName, args },
+		{
+			type: "tool_execution_end",
+			toolCallId,
+			toolName,
+			isError: false,
+			result: { content: [], details },
+		},
+	];
+}
+
 const fixture = {
-	id: "agent-gate",
-	requiresJudgmentBashEvidence: true,
-};
-
-const trace = [
-	{
-		toolName: "developer_record_judgment",
-		args: {
-			status: "needs-evidence",
-			open_questions: [
-				{ resolution_owner: "agent", gate: "before-implementation" },
-			],
-		},
-	},
-	{ toolName: "developer_route_question", args: { target: "signal" } },
-	{ toolName: "bash", args: { command: "test -f src/contracts.ts" } },
-	{
-		toolName: "developer_record_judgment",
-		args: {
-			question_updates: [{ question_id: "question:1", status: "resolved" }],
-		},
-	},
-	{ toolName: "developer_route_question", args: { target: "implementation" } },
-];
-
-test("agent before-implementation trace requires evidence routing, bash, explicit resolution, then implementation", () => {
-	assert.doesNotThrow(() =>
-		assertAgentBeforeImplementationResolution(fixture, trace),
-	);
-	assert.throws(
-		() =>
-			assertAgentBeforeImplementationResolution(
-				fixture,
-				trace.filter((event) => event.toolName !== "bash"),
-			),
-		/did not run bash/,
-	);
-	assert.throws(
-		() =>
-			assertAgentBeforeImplementationResolution(fixture, trace.slice(0, -1)),
-		/no implementation route followed/,
-	);
-});
-
-const implementationTrace = [
-	{
-		type: "tool_execution_start",
-		toolCallId: "route:1",
-		toolName: "developer_route_question",
-		args: { target: "implementation" },
-	},
-	{
-		type: "tool_execution_end",
-		toolCallId: "route:1",
-		toolName: "developer_route_question",
-		isError: false,
-		result: { content: [{ type: "text", text: "implementation route" }] },
-	},
-	{
-		type: "tool_execution_start",
-		toolCallId: "judgment:1",
-		toolName: "developer_record_judgment",
-		args: {
-			status: "resolved",
-			result: "Marker change reached a stable landing.",
-		},
-	},
-	{
-		type: "tool_execution_end",
-		toolCallId: "judgment:1",
-		toolName: "developer_record_judgment",
-		isError: false,
-		result: { content: [{ type: "text", text: "recorded" }] },
-	},
-];
-
-const structuralFixture = {
-	id: "structural",
-	admissibleFirstTargets: ["implementation"],
+	id: "canonical",
+	admissibleFirstTargets: ["signal"],
 	preferredFirstTargets: ["signal"],
-	requiredJudgmentTerms: ["Marker", "stable landing"],
-	requiredJudgmentConcepts: [["change", "movement"]],
 	mustRecordJudgment: true,
+	mutationRequiresActionClearance: true,
+	maxRoutes: 2,
 };
 
-test("reference expectations require a successful auditable load and applied judgment basis", async () => {
-	const source = await readFile(
-		join(packageRoot, "skills", "sketch", "SKILL.md"),
-		"utf8",
-	);
-	const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
-	const events = [
-		{
-			type: "tool_execution_start",
-			toolCallId: "route:reference",
-			toolName: "developer_route_question",
-			args: { target: "sketch" },
-		},
-		{
-			type: "tool_execution_end",
-			toolCallId: "route:reference",
-			toolName: "developer_route_question",
-			isError: false,
-			result: {
-				content: [
-					{
-						type: "text",
-						text: `<developer-method name="sketch" location="/skills/sketch/SKILL.md" base-dir="/skills/sketch">\n${body}\n</developer-method>\nResolve relative references from /skills/sketch.`,
-					},
-				],
+function canonicalTrace() {
+	return [
+		...execution(1, "developer_open_work_case"),
+		...execution(2, "developer_open_judgment"),
+		...execution(3, "developer_assess_capability", {
+			capability: "signal",
+			status: "applicable",
+		}),
+		...execution(4, "developer_propose_action", {
+			tool_name: "bash",
+			tool_input: { command: "test -f src/contracts.ts" },
+		}),
+		...execution(5, "bash", { command: "test -f src/contracts.ts" }),
+		...execution(6, "developer_settle_effect"),
+		...execution(7, "developer_accept_observation_contribution"),
+		...execution(8, "developer_propose_action", {
+			tool_name: "write",
+			tool_input: {
+				path: "src/marker.ts",
+				content: "export const marker = true",
 			},
-		},
-		{
-			type: "tool_execution_start",
-			toolCallId: "reference:1",
-			toolName: "developer_load_reference",
-			args: {
-				reference_route: "data-driven-design",
-				path: "references/data-driven-design.md",
-			},
-		},
-		{
-			type: "tool_execution_end",
-			toolCallId: "reference:1",
-			toolName: "developer_load_reference",
-			isError: false,
-			result: { content: [{ type: "text", text: "loaded" }] },
-		},
-		{
-			type: "tool_execution_start",
-			toolCallId: "judgment:reference",
-			toolName: "developer_record_judgment",
-			args: {
-				status: "resolved",
-				result: "The data clauses derive the template.",
-				reference_basis: [
-					{
-						path: "references/data-driven-design.md",
-						trigger: "The variants determine branches.",
-						applied_rule: "One clause produces one branch.",
-						artifact: "A case-derived template.",
-					},
-				],
-			},
-		},
-		{
-			type: "tool_execution_end",
-			toolCallId: "judgment:reference",
-			toolName: "developer_record_judgment",
-			isError: false,
-			result: { content: [{ type: "text", text: "recorded" }] },
-		},
+		}),
+		...execution(9, "write", {
+			path: "src/marker.ts",
+			content: "export const marker = true",
+		}),
+		...execution(10, "developer_settle_effect"),
 	];
-	const referenceFixture = {
-		id: "reference-contract",
-		admissibleFirstTargets: ["sketch"],
-		preferredFirstTargets: ["sketch"],
-		mustRecordJudgment: true,
-		expectedReferenceRoutes: ["data-driven-design"],
-		expectedReferenceReads: ["skills/sketch/references/data-driven-design.md"],
-	};
+}
 
-	await assert.doesNotReject(
-		validateExecutionTrace(referenceFixture, events, packageRoot),
+test("canonical trace admits Capability routing and exact cleared Actions", async () => {
+	const result = await validateExecutionTrace(
+		fixture,
+		canonicalTrace(),
+		"/tmp/package",
 	);
-	const withoutApplication = structuredClone(events);
-	const judgmentStart = withoutApplication.find(
-		(event) =>
-			event.toolCallId === "judgment:reference" &&
-			event.type === "tool_execution_start",
-	);
-	assert.ok(judgmentStart);
-	assert.ok(judgmentStart.args);
-	assert.ok("reference_basis" in judgmentStart.args);
-	judgmentStart.args.reference_basis = [];
-	await assert.rejects(
-		validateExecutionTrace(referenceFixture, withoutApplication, packageRoot),
-		/judgment did not apply loaded reference/,
-	);
-	const withoutRouteSelection = structuredClone(events);
-	const routeLoadStart = withoutRouteSelection.find(
-		(event) =>
-			event.toolCallId === "reference:1" &&
-			event.type === "tool_execution_start",
-	);
-	assert.ok(routeLoadStart?.args);
-	delete routeLoadStart.args.reference_route;
+	assert.equal(result.firstTarget, "signal");
+	assert.equal(result.routeCount, 1);
+	assert.equal(result.preferredFirstTarget, true);
+});
+
+test("removed compatibility tools and unsettled Effects fail trace validation", async () => {
 	await assert.rejects(
 		validateExecutionTrace(
-			referenceFixture,
-			withoutRouteSelection,
-			packageRoot,
+			fixture,
+			[...canonicalTrace(), ...execution(11, "developer_route_question")],
+			"/tmp/package",
 		),
-		/did not select policy route/,
+		/removed compatibility tool/,
 	);
-	const failedLoad = structuredClone(events);
-	const referenceEnd = failedLoad.find(
-		(event) =>
-			event.toolCallId === "reference:1" && event.type === "tool_execution_end",
+	const unsettled = canonicalTrace().filter(
+		(event) => event.toolCallId !== "call-10",
 	);
-	assert.ok(referenceEnd && "isError" in referenceEnd);
-	referenceEnd.isError = true;
 	await assert.rejects(
-		validateExecutionTrace(referenceFixture, failedLoad, packageRoot),
-		/reference route selection failed/,
+		validateExecutionTrace(fixture, unsettled, "/tmp/package"),
+		/Effect was not settled/,
 	);
 });
 
-test("Doctor evaluation requires owner consultation and a final synthesis route", async () => {
-	const completed = (
-		toolCallId: string,
-		toolName: string,
-		args: Record<string, unknown>,
-		text = "ok",
-	) => [
+test("agent evidence sequence requires host Contribution before mutation", () => {
+	const executions = [
+		{ start: { toolName: "bash" } },
+		{ start: { toolName: "developer_accept_observation_contribution" } },
 		{
-			type: "tool_execution_start",
-			toolCallId,
-			toolName,
-			args,
-		},
-		{
-			type: "tool_execution_end",
-			toolCallId,
-			toolName,
-			isError: false,
-			result: { content: [{ type: "text", text }] },
+			start: {
+				toolName: "developer_propose_action",
+				args: { tool_name: "write" },
+			},
 		},
 	];
-	const methodText = async (name: string) => {
-		const source = await readFile(
-			join(packageRoot, "skills", name, "SKILL.md"),
-			"utf8",
-		);
-		const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
-		return `<developer-method name="${name}" location="/skills/${name}/SKILL.md" base-dir="/skills/${name}">\n${body}\n</developer-method>\nResolve relative references from /skills/${name}.`;
-	};
-	const doctorMethod = await methodText("doctor");
-	const sketchMethod = await methodText("sketch");
-	const events = [
-		...completed(
-			"route:triage",
-			"developer_route_question",
-			{ target: "doctor" },
-			doctorMethod,
-		),
-		...completed("judgment:triage", "developer_record_judgment", {
-			status: "needs-evidence",
-			result: "Consultation plan remains open.",
-		}),
-		...completed(
-			"route:owner",
-			"developer_route_question",
-			{ target: "sketch" },
-			sketchMethod,
-		),
-		...completed("judgment:owner", "developer_record_judgment", {
-			status: "resolved",
-			result: "The boundary owner is explicit.",
-		}),
-		...completed(
-			"route:synthesis",
-			"developer_route_question",
-			{ target: "doctor" },
-			doctorMethod,
-		),
-		...completed("judgment:synthesis", "developer_record_judgment", {
-			status: "resolved",
-			result:
-				"Consultation ledger integrated. Diagnosis is bounded. Treatment plan leaves speculative work alone.",
-		}),
-	];
-	const doctorFixture = {
-		id: "doctor-synthesis",
-		admissibleFirstTargets: ["doctor"],
-		preferredFirstTargets: ["doctor"],
-		mustRecordJudgment: true,
-		requiresDoctorSynthesis: true,
-	};
-
-	await assert.doesNotReject(
-		validateExecutionTrace(doctorFixture, events, packageRoot),
+	assert.doesNotThrow(() =>
+		assertObservedEvidenceBeforeMutation({ id: "agent-evidence" }, executions),
 	);
-	await assert.rejects(
-		validateExecutionTrace(doctorFixture, events.slice(0, -4), packageRoot),
-		/Doctor did not return for final synthesis|final route was not Doctor synthesis/,
-	);
-});
-
-test("structural admissibility is hard while preferred routing remains a score", async () => {
-	const summary = await validateExecutionTrace(
-		structuralFixture,
-		implementationTrace,
-		".",
-	);
-	assert.deepEqual(summary, {
-		firstTarget: "implementation",
-		preferredFirstTarget: false,
-		routeCount: 1,
-		toolCallCount: 2,
-	});
-
-	await assert.rejects(
-		validateExecutionTrace(
-			{ ...structuralFixture, admissibleFirstTargets: ["signal"] },
-			implementationTrace,
-			".",
-		),
-		/structurally inadmissible first route/,
-	);
-	await assert.rejects(
-		validateExecutionTrace(
-			{
-				...structuralFixture,
-				requiredJudgmentTerms: ["unrelated-required-term"],
-			},
-			implementationTrace,
-			".",
-		),
-		/omitted required semantic term/,
-	);
-	await assert.rejects(
-		validateExecutionTrace(
-			{
-				...structuralFixture,
-				requiredJudgmentConcepts: [["unrelated", "irrelevant"]],
-			},
-			implementationTrace,
-			".",
-		),
-		/omitted required semantic concept/,
+	assert.throws(
+		() =>
+			assertObservedEvidenceBeforeMutation({ id: "agent-evidence" }, [
+				executions[0],
+				executions[2],
+			]),
+		/host Contribution/,
 	);
 });

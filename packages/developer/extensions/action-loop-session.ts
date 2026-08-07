@@ -11,6 +11,7 @@ import type { LiveCapabilityInventoryResult } from "./action-loop-capability-inv
 import { completeLiveWorkCase } from "./action-loop-completion.ts";
 import { closeLiveJudgment } from "./action-loop-conclusion.ts";
 import { acceptLiveSkillContribution } from "./action-loop-contribution.ts";
+import { acceptLiveHostContribution } from "./action-loop-host-contribution.ts";
 import { assessLiveNeedCoverage } from "./action-loop-coverage.ts";
 import {
 	sealLiveUnstructuredCapability,
@@ -38,6 +39,7 @@ import {
 	type ActionLoopBlockedWorkCaseResumedEvent,
 	type ActionLoopCapabilityAssessedEvent,
 	type ActionLoopContributionAcceptedEvent,
+	type ActionLoopHostContributionAcceptedEvent,
 	type ActionLoopCoverageAssessedEvent,
 	type ActionLoopEffectBegunEvent,
 	type ActionLoopEffectObservedEvent,
@@ -331,6 +333,30 @@ function replayContribution(
 	) {
 		return eventUnavailable(
 			"Persisted Skill Contribution does not reproduce its exact canonical identity.",
+		);
+	}
+	return applied(accepted.state);
+}
+
+function replayHostContribution(
+	state: LiveWorkCaseState,
+	event: ActionLoopHostContributionAcceptedEvent,
+): AppliedEventResult {
+	const accepted = acceptLiveHostContribution(
+		state,
+		{
+			...event.observation,
+			workCaseId: state.workCase.workCaseId,
+		},
+		event.proposal,
+	);
+	if (
+		accepted.status === "invalid" ||
+		accepted.contribution.contributionId !== event.expected.contributionId ||
+		event.transitionId !== event.expected.contributionId
+	) {
+		return eventUnavailable(
+			"Persisted host Contribution does not reproduce its exact canonical identity.",
 		);
 	}
 	return applied(accepted.state);
@@ -675,6 +701,8 @@ async function replayOwnedEvent(
 			return replayUnstructuredContext(state, event, inventory);
 		case "contribution-accepted":
 			return replayContribution(state, event, inventory);
+		case "host-contribution-accepted":
+			return replayHostContribution(state, event);
 		case "coverage-assessed":
 			return replayCoverage(state, event);
 		case "judgment-concluded":

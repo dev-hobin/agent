@@ -570,8 +570,8 @@ Model switch는 Outcome, open Judgment, Closure Requirements, Need Coverage, cle
 before_agent_start.systemPromptOptions.skills
   → source-bound catalog and bounded TOC discovery
   → exact Skill-byte Capability binding
-  → bound first-party compatibility projection
-  → existing protocol prompt
+  → canonical Capability inventory
+  → Action Loop protocol prompt
 ```
 
 이 boundary는 reconstruction package에서 live다. Rejected catalog는 어떤 Developer Skill도 admit하지 않고, entry별 descriptor 또는 binding failure는 unstructured routing으로 fallback하지 않은 채 unavailable로 남는다.
@@ -586,7 +586,7 @@ developer_open_work_case proposal
   → next-turn, restart, session-tree projection
 ```
 
-Exact duplicate는 stutter하고, 다른 Outcome은 active work를 교체할 수 없으며, Developer를 끄면 기존 confirmation boundary 뒤에 branch-local activation reset을 append한다. Opening은 Action Clearance를 부여하지 않고 completion을 뜻하지 않는다. Live `developer_route_question` boundary는 이제 이 Work Case가 생기기 전 consequential routing을 거부하므로 preserved protocol이 Outcome continuity를 우회할 수 없다.
+Exact duplicate는 stutter하고, 다른 Outcome은 active work를 교체할 수 없으며, Developer를 끄면 기존 confirmation boundary 뒤에 canonical branch-local mode reset을 append한다. Opening은 Action Clearance를 부여하지 않고 completion을 뜻하지 않는다. 모든 canonical Judgment, Contribution, Action, Effect, continuity, completion transition은 current Work Case ownership을 요구하므로 compatibility protocol이 Outcome continuity를 우회할 수 없다.
 
 그 Work Case 안에서 current upper Judgment 하나를 여는 다음 slice도 live다.
 
@@ -602,7 +602,7 @@ developer_open_judgment proposal
 
 Pure Work Case revision은 이제 open Judgment identity를 포함하고 open Judgment는 Closure Target 준비를 막는다. Matching Conclusion은 open inventory에서 Judgment를 제거하고, Category, Subject, Context identity를 바꾸는 Conclusion은 거부된다. Narrow live adapter는 current open Judgment 하나만 admit한다. Exact duplicate는 stutter하고 다른 proposal은 그것을 교체할 수 없다.
 
-`developer_route_question`은 이제 그 open Judgment가 없으면 routing을 거부한다. Exact requested `contribution_need_id`를 선택하고, 선택이 모호하지 않은 Need 하나만 있을 때에만 sole Need를 자동 선택한다. Capability name이 Need를 도출하지 않는다.
+`developer_assess_capability`는 그 open Judgment가 없으면 routing을 거부한다. Exact requested `contribution_need_id`를 선택하고, 선택이 모호하지 않은 Need 하나만 있을 때에만 sole Need를 자동 선택한다. Capability name이 Need를 도출하지 않는다.
 
 Capability Applicability slice도 live다.
 
@@ -616,7 +616,7 @@ developer_assess_capability proposal
   → Capability Assignment only when applicable
 ```
 
-Unstructured Capability은 synthetic predicate 대신 empty condition match를 요구한다. 같은 Need, Capability revision, live Context에 대한 서로 다른 두 번째 assessment는 accepted state를 조용히 교체하지 않고 거부된다. Skill route는 exact current Assignment를 요구하며 `not-applicable`과 `needs-context`는 routing을 authorize할 수 없다. Route event는 Contribution Need, Assignment, Capability revision identity를 보존한다. Preserved implementation compatibility route는 Capability Assignment가 아니며 이 gate 밖에 남아 있다.
+Unstructured Capability은 synthetic predicate 대신 empty condition match를 요구한다. 같은 Need, Capability revision, live Context에 대한 서로 다른 두 번째 assessment는 accepted state를 조용히 교체하지 않고 거부된다. Skill Contribution은 exact current Assignment를 요구하며 `not-applicable`과 `needs-context`는 acquisition이나 Contribution을 authorize할 수 없다. Canonical event는 Contribution Need, Assignment, Capability revision identity를 보존한다.
 
 Selected-material과 Judgment synthesis path도 이제 live다.
 
@@ -643,13 +643,13 @@ Capability Assignment
   → atomic Work Case completion revalidation
 ```
 
-새 Contribution은 그 Need의 current Coverage를 invalidate한다. Refusal은 Judgment를 open 상태로 남긴다. Conclusion은 open Judgment를 제거하고 canonical Work Case revision을 전진시킨다. Accepted Contribution은 matching preserved compatibility route도 memory에서 닫지만 이 projection은 canonical Work Case evidence가 아니다. Route event는 Need, Assignment, Capability revision, Reference Selection, sealed Context identity를 보존한다.
+새 Contribution은 그 Need의 current Coverage를 invalidate한다. Refusal은 Judgment를 open 상태로 남긴다. Conclusion은 open Judgment를 제거하고 canonical Work Case revision을 전진시킨다. Skill Contribution과 host Contribution은 같은 minimal upper Coverage projection을 공유하고, Skill Contribution은 Assignment, Capability revision, Reference Selection, sealed Context identity도 보존한다.
 
 이 live slice는 이제 Pi의 append-only current branch에서 canonical Action Loop state를 replay한다. Protocol-tool result는 versioned semantic transition event를 가진다. Exact controlled-tool occurrence와 Effect Observation은 Developer protocol-tool result에 속하지 않으므로 작은 custom session entry를 사용한다. `session_start`와 `session_tree`는 `ctx.sessionManager.getBranch()`만 같은 domain transition으로 fold하고 expected canonical identity를 비교하며 active, nonterminal, 또는 last-completed ownership을 복구한다. Branch change는 selected branch를 fold하기 전에 prior in-memory projection을 제거한다. Duplicate nonterminal transition, stale resume, malformed event, unsupported claimed event는 ownership을 rewrite하거나 absence가 되지 않고 fail-closed한다.
 
-Session event는 Capability revision, source descriptor, selection, hash, proposal, expected identity를 유지하지만 sealed Skill 또는 Reference bytes를 저장하지 않는다. Claimed event 각각은 closed-shape decoding과 domain replay 전에 2 MiB로 제한된다. Replay는 current Pi-admitted bounded loader를 통해서만 selected material을 재획득한다. Exclusion, absence, oversize, content drift로 exact Capability 또는 sealed Context identity를 재생성하지 못하면 replay는 visibly unavailable해지고 replacement work를 block한다. Filesystem fallback이나 silent substitution은 없다. Pi `--no-session` mode는 정의상 restart를 넘으면 process-local이다.
+Session event는 Capability revision, source descriptor, selection, hash, proposal, expected identity를 유지하지만 sealed Skill 또는 Reference bytes를 저장하지 않는다. Claimed event 각각은 closed-shape decoding과 domain replay 전에 2 MiB로 제한된다. Replay는 current Pi-admitted bounded loader를 통해서만 selected material을 재획득한다. Exclusion, absence, oversize, content drift로 exact Capability 또는 sealed Context identity를 재생성하지 못하면 replay는 visibly unavailable해지고 replacement work를 block한다. Filesystem fallback이나 silent substitution은 없다. Pi `--no-session` mode는 process-local이며 restart를 넘어 continuity를 보존할 수 없다.
 
-Model은 계속 Candidate만 제안하고 adapter가 exact tool identity를 도출하며 Pi default policy에서 Permission Decision을 공급한다. Exact Clearance는 그 built-in tool을 일시적으로 expose하고 변경되거나 반복된 input을 거부한다. 별도 approval setting이나 prompt는 추가하지 않는다. 더 강한 approval policy는 implicit restriction이 아니라 나중의 optional feature로 남긴다. Tool result는 제한이 명시된 Observation으로 보존되며 explicit settlement accounting이 `pending`, `unknown`, 또는 settled outcome을 도출해야 한다. Current failed 또는 partially-applied settlement는 distinct current `observed-success` repair에만 bind할 수 있고 closure accounting은 두 Effect history를 모두 보존한다. Closure preparation은 전체 Work Case inventory를 소유하고 completion은 revision-bound Target과 Claim을 재검증한다. Durable substrate는 이제 `developer_wait_work_case`, `developer_block_work_case`, `/developer pause`, `/developer wait`, `/developer block`, `/developer resume`을 통해 human-owned pause, observed-condition waiting, Claim-Assured blocking을 보존한다. Model-facing waiting tool은 exact current Effect Observation을 요구하고 blocking tool은 caller-selected subset을 받지 않고 complete current blocker inventory를 도출한다. 이 transition은 Pi `--no-session`에서 사용할 수 없고 nonterminal ownership을 유지하는 동안 controlled Action을 block한다. Waiting은 explicit human Observation이 exact predicate를 만족한다고 confirm한 뒤에만 resume한다. Blocking은 모든 current closure blocker를 도출하고 current Claim Assurance Conclusion을 요구하며 observed change가 concrete continuation을 공급한 뒤에만 resume한다.
+Model은 계속 Candidate만 제안하고 adapter가 exact tool identity를 도출하며 Pi default policy에서 Permission Decision을 공급한다. Exact Clearance는 그 built-in tool을 일시적으로 expose하고 변경되거나 반복된 input을 거부한다. 별도 approval setting이나 prompt는 추가하지 않는다. 더 강한 approval policy는 implicit restriction이 아니라 나중의 optional feature로 남긴다. Exact user prompt와 finalized tool result는 truth나 Conclusion이 되지 않는 host Observation으로 admit된다. Action에 속한 tool result는 Effect Observation으로도 남고 explicit settlement accounting이 `pending`, `unknown`, 또는 settled outcome을 도출해야 한다. Current failed 또는 partially-applied settlement는 distinct current `observed-success` repair에만 bind할 수 있고 closure accounting은 두 Effect history를 모두 보존한다. Closure preparation은 전체 Work Case inventory를 소유하고 completion은 revision-bound Target과 Claim을 재검증한다. Durable substrate는 natural-language evidence와 canonical pause, wait, block, resume tool을 통해 human-owned pause, observed-condition waiting, Claim-Assured blocking을 보존한다. Waiting tool은 exact current host Observation과 exact resume predicate를 요구하고 blocking tool은 caller-selected subset을 받지 않고 complete current blocker inventory를 도출한다. 이 transition은 Pi `--no-session`에서 사용할 수 없고 nonterminal ownership을 유지하는 동안 controlled Action을 block한다. Waiting은 새 Observation이 stored predicate를 만족한 뒤에만 resume한다. Blocking은 모든 current closure blocker를 도출하고 current Claim Assurance Conclusion을 요구하며 observed change가 concrete continuation을 공급한 뒤에만 resume한다.
 
 ## 12. Extension-level guarantee boundary
 
@@ -780,10 +780,11 @@ Conclusion
 
 ### Behavior and structure separation
 
-- 0.1.19 runtime은 새 slices가 검증될 때까지 작동하는 기준선으로 둔다.
-- POC modules는 `src/action-loop/`에서 host와 분리해 만든다.
-- 새 adapter가 equivalent or intentionally changed behavior를 증명한 뒤 기존 `extensions/machine.ts`, `state.ts`, Workbench protocol을 제거한다.
-- `xstate`, 기존 eval scripts, package description, README는 실제 cutover에서 사용 여부를 확인한 뒤 정리한다.
+- Published 0.1.19는 immutable operational recovery baseline으로 남는다.
+- Pure module은 `src/action-loop/`에서 Pi adapter와 분리한다.
+- Canonical adapter, session replay, semantic Workbench, exact Action gating이 live runtime을 소유한다.
+- Legacy machine, state projection, route/question tool, Workbench protocol, `xstate` dependency를 제거했다.
+- Eval projection, package description, bilingual README는 canonical Action Loop semantics를 사용한다.
 - package version, publication, main merge는 reconstruction 완료와 별도 승인 사항이다.
 
 ## 14. Required transition traces
@@ -832,7 +833,7 @@ Conclusion
 - *Grokking Simplicity*: action, timing, repetition, shared resource, timeline, coordination으로 Consequence Integrity를 시험했다.
 - *Structure and Interpretation of Computer Programs*: procedure/process, abstraction barrier, state, identity, ordering, concurrency로 possible execution과 invariant-preserving outcome을 구분했다.
 
-현재 Developer Skills와 `reference-policy.json`은 capability와 Skill-to-Reference routing evidence다. 새 schema-identified TOC descriptor는 이 evidence를 작은 authoring surface로 옮기는 reconstruction contract다. 어느 파일 형식이나 Skill inventory도 upper ontology의 canonical representation으로 간주하지 않는다.
+이제 Reference를 포함하는 각 Developer Skill은 schema-identified `toc.json` 하나를 canonical Capability 및 local Reference-routing authoring surface로 선언한다. Pi가 admit한 Skill inventory는 runtime inventory로 유지되며, 어느 파일 형식이나 Skill inventory도 upper ontology의 canonical representation으로 간주하지 않는다.
 
 ## 17. Reopen and stop rule
 

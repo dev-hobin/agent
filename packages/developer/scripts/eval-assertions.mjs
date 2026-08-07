@@ -4,9 +4,21 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const ROUTE_TOOL = "developer_route_question";
-const REFERENCE_TOOL = "developer_load_reference";
-const JUDGMENT_TOOL = "developer_record_judgment";
+const LEGACY_TOOLS = new Set([
+	"developer_route_question",
+	"developer_load_reference",
+	"developer_record_judgment",
+]);
+const CONTROLLED_TOOLS = new Set(["bash", "edit", "write"]);
+const OPEN_WORK_CASE_TOOL = "developer_open_work_case";
+const OPEN_JUDGMENT_TOOL = "developer_open_judgment";
+const ASSESS_CAPABILITY_TOOL = "developer_assess_capability";
+const LOAD_REFERENCE_TOOL = "developer_load_selected_reference";
+const ACCEPT_HOST_CONTRIBUTION_TOOL =
+	"developer_accept_observation_contribution";
+const ACTION_TOOL = "developer_propose_action";
+const SETTLE_EFFECT_TOOL = "developer_settle_effect";
+const COMPLETE_TOOL = "developer_complete_work_case";
 
 function resultText(event) {
 	const content = event?.result?.content;
@@ -17,312 +29,203 @@ function resultText(event) {
 		.join("\n");
 }
 
-async function skillBody(root, target) {
-	const source = await readFile(
-		join(root, "skills", target, "SKILL.md"),
-		"utf8",
-	);
-	return source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+function canonicalJson(value) {
+	if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+	if (value && typeof value === "object") {
+		return `{${Object.entries(value)
+			.sort(([left], [right]) => left.localeCompare(right))
+			.map(([key, nested]) => `${JSON.stringify(key)}:${canonicalJson(nested)}`)
+			.join(",")}}`;
+	}
+	return JSON.stringify(value);
 }
 
-export function assertAgentBeforeImplementationResolution(fixture, executions) {
-	const openingIndex = executions.findIndex(
-		(event) =>
-			event.toolName === JUDGMENT_TOOL &&
-			event.args.status === "needs-evidence" &&
-			event.args.open_questions?.some(
-				(question) =>
-					question.resolution_owner === "agent" &&
-					question.gate === "before-implementation",
-			),
+function successfulExecutions(events) {
+	const endings = new Map(
+		events
+			.filter((event) => event.type === "tool_execution_end")
+			.map((event) => [event.toolCallId, event]),
 	);
-	assert.ok(
-		openingIndex >= 0,
-		fixture.id + ": no agent-owned before-implementation question was opened",
-	);
+	return events
+		.filter((event) => event.type === "tool_execution_start")
+		.map((start) => ({ start, end: endings.get(start.toolCallId) }))
+		.filter(({ end }) => end && end.isError === false);
+}
 
-	const evidenceRouteOffset = executions
-		.slice(openingIndex + 1)
-		.findIndex(
-			(event) =>
-				event.toolName === ROUTE_TOOL && event.args.target !== "implementation",
-		);
-	assert.ok(
-		evidenceRouteOffset >= 0,
-		fixture.id + ": no non-implementation evidence route followed the gate",
-	);
-	const evidenceRouteIndex = openingIndex + 1 + evidenceRouteOffset;
-	const resolutionOffset = executions
-		.slice(evidenceRouteIndex + 1)
-		.findIndex(
-			(event) =>
-				event.toolName === JUDGMENT_TOOL &&
-				event.args.question_updates?.some(
-					(update) =>
-						update.status === "resolved" || update.status === "not-applicable",
-				),
-		);
-	assert.ok(
-		resolutionOffset >= 0,
-		fixture.id + ": the agent-owned question was not explicitly resolved",
-	);
-	const resolutionIndex = evidenceRouteIndex + 1 + resolutionOffset;
+function canonicalTraceText(executions) {
+	return executions
+		.map(({ start, end }) =>
+			[
+				start.toolName,
+				canonicalJson(start.args),
+				canonicalJson(end?.result?.details),
+				resultText(end),
+			].join("\n"),
+		)
+		.join("\n")
+		.toLocaleLowerCase();
+}
 
-	if (fixture.requiresJudgmentBashEvidence) {
-		assert.ok(
-			executions
-				.slice(evidenceRouteIndex + 1, resolutionIndex)
-				.some((event) => event.toolName === "bash"),
-			fixture.id + ": the non-implementation evidence route did not run bash",
-		);
-	}
+export function assertObservedEvidenceBeforeMutation(fixture, executions) {
+	const bashIndex = executions.findIndex(
+		({ start }) => start.toolName === "bash",
+	);
+	assert.ok(
+		bashIndex >= 0,
+		`${fixture.id}: no bounded bash evidence Action ran`,
+	);
+	const contributionIndex = executions.findIndex(
+		({ start }, index) =>
+			index > bashIndex && start.toolName === ACCEPT_HOST_CONTRIBUTION_TOOL,
+	);
+	assert.ok(
+		contributionIndex > bashIndex,
+		`${fixture.id}: finalized bash evidence was not admitted as a host Contribution`,
+	);
 	assert.ok(
 		executions
-			.slice(resolutionIndex + 1)
+			.slice(contributionIndex + 1)
 			.some(
-				(event) =>
-					event.toolName === ROUTE_TOOL &&
-					event.args.target === "implementation",
+				({ start }) =>
+					start.toolName === ACTION_TOOL &&
+					["edit", "write"].includes(start.args?.tool_name),
 			),
-		fixture.id + ": no implementation route followed explicit gate resolution",
+		`${fixture.id}: no mutation Action followed the admitted evidence`,
 	);
 }
 
-export async function validateExecutionTrace(fixture, events, root, casePath) {
-	const executions = events.filter(
-		(event) => event.type === "tool_execution_start",
-	);
-	const endings = events.filter((event) => event.type === "tool_execution_end");
-	const routes = executions.filter((event) => event.toolName === ROUTE_TOOL);
-	const judgments = executions.filter(
-		(event) => event.toolName === JUDGMENT_TOOL,
-	);
+function assertControlledActions(fixture, executions) {
+	for (const [index, execution] of executions.entries()) {
+		if (!CONTROLLED_TOOLS.has(execution.start.toolName)) continue;
+		const expectedInput = canonicalJson(execution.start.args);
+		const actionIndex = executions
+			.slice(0, index)
+			.findLastIndex(
+				({ start }) =>
+					start.toolName === ACTION_TOOL &&
+					start.args?.tool_name === execution.start.toolName &&
+					canonicalJson(start.args?.tool_input) === expectedInput,
+			);
+		assert.ok(
+			actionIndex >= 0,
+			`${fixture.id}: ${execution.start.toolName} ran without an exact prior Action proposal`,
+		);
+		assert.ok(
+			executions
+				.slice(index + 1)
+				.some(({ start }) => start.toolName === SETTLE_EFFECT_TOOL),
+			`${fixture.id}: ${execution.start.toolName} Effect was not settled`,
+		);
+	}
+}
 
-	assert.ok(
-		routes.length > 0,
-		fixture.id + ": " + ROUTE_TOOL + " was not called",
+export async function validateExecutionTrace(fixture, events, _root, casePath) {
+	const executions = successfulExecutions(events);
+	assert.equal(
+		executions.some(({ start }) => LEGACY_TOOLS.has(start.toolName)),
+		false,
+		`${fixture.id}: trace used a removed compatibility tool`,
 	);
-	const firstTarget = routes[0].args.target;
+	const workCaseIndex = executions.findIndex(
+		({ start }) => start.toolName === OPEN_WORK_CASE_TOOL,
+	);
+	assert.ok(
+		workCaseIndex >= 0,
+		`${fixture.id}: no canonical Work Case was opened`,
+	);
+	const judgmentIndex = executions.findIndex(
+		({ start }) => start.toolName === OPEN_JUDGMENT_TOOL,
+	);
+	if (fixture.mustRecordJudgment) {
+		assert.ok(
+			judgmentIndex > workCaseIndex,
+			`${fixture.id}: no canonical Judgment followed Work Case opening`,
+		);
+	}
+
+	const capabilityAssessments = executions.filter(
+		({ start }) =>
+			start.toolName === ASSESS_CAPABILITY_TOOL &&
+			start.args?.status === "applicable",
+	);
+	const firstTarget = capabilityAssessments[0]?.start.args?.capability;
+	assert.ok(
+		firstTarget,
+		`${fixture.id}: no applicable Capability was assessed`,
+	);
 	assert.ok(
 		fixture.admissibleFirstTargets.includes(firstTarget),
-		fixture.id +
-			": structurally inadmissible first route " +
-			JSON.stringify(routes[0].args),
+		`${fixture.id}: structurally inadmissible first Capability ${firstTarget}`,
 	);
 	if (fixture.maxRoutes !== undefined) {
 		assert.ok(
-			routes.length <= fixture.maxRoutes,
-			fixture.id +
-				": routed " +
-				routes.length +
-				" times; expected at most " +
-				fixture.maxRoutes,
-		);
-	}
-	if (fixture.mustRecordJudgment) {
-		assert.ok(
-			judgments.length > 0,
-			fixture.id + ": " + JUDGMENT_TOOL + " was not called",
-		);
-	}
-
-	for (const expectedRoute of fixture.expectedReferenceRoutes ?? []) {
-		const load = executions.find(
-			(event) =>
-				event.toolName === REFERENCE_TOOL &&
-				event.args?.reference_route === expectedRoute,
-		);
-		assert.ok(
-			load,
-			fixture.id +
-				": Developer reference tool did not select policy route " +
-				expectedRoute,
-		);
-		assert.ok(
-			endings.some(
-				(event) =>
-					event.toolCallId === load.toolCallId && event.isError === false,
-			),
-			fixture.id +
-				": Developer reference route selection failed for " +
-				expectedRoute,
+			capabilityAssessments.length <= fixture.maxRoutes,
+			`${fixture.id}: assessed ${capabilityAssessments.length} applicable Capabilities; expected at most ${fixture.maxRoutes}`,
 		);
 	}
 
 	for (const expectedReference of fixture.expectedReferenceReads ?? []) {
 		const routedPath = expectedReference.split("/").slice(-2).join("/");
-		const load = executions.find(
-			(event) =>
-				event.toolName === REFERENCE_TOOL &&
-				String(event.args?.path ?? "")
-					.replaceAll("\\", "/")
-					.endsWith(routedPath),
-		);
 		assert.ok(
-			load,
-			fixture.id +
-				": Developer reference tool did not load " +
-				expectedReference,
-		);
-		assert.ok(
-			endings.some(
-				(event) =>
-					event.toolCallId === load.toolCallId && event.isError === false,
+			executions.some(
+				({ start }) =>
+					start.toolName === LOAD_REFERENCE_TOOL &&
+					String(start.args?.path ?? "")
+						.replaceAll("\\", "/")
+						.endsWith(routedPath),
 			),
-			fixture.id + ": Developer reference load failed for " + expectedReference,
-		);
-		assert.ok(
-			judgments.some((event) =>
-				event.args.reference_basis?.some(
-					(basis) =>
-						String(basis.path ?? "")
-							.replaceAll("\\", "/")
-							.endsWith(routedPath) &&
-						typeof basis.trigger === "string" &&
-						basis.trigger.length > 0 &&
-						typeof basis.applied_rule === "string" &&
-						basis.applied_rule.length > 0 &&
-						typeof basis.artifact === "string" &&
-						basis.artifact.length > 0,
-				),
-			),
-			fixture.id +
-				": judgment did not apply loaded reference " +
-				expectedReference,
+			`${fixture.id}: canonical sealed Reference was not loaded: ${expectedReference}`,
 		);
 	}
 
-	for (const route of routes) {
-		const ending = endings.find(
-			(event) =>
-				event.toolName === ROUTE_TOOL && event.toolCallId === route.toolCallId,
-		);
-		assert.ok(ending, fixture.id + ": route result was not observed");
-		assert.equal(
-			ending.isError,
-			false,
-			fixture.id +
-				": route result was an error for " +
-				JSON.stringify(route.args) +
-				"\n" +
-				resultText(ending),
-		);
-		if (route.args.target !== "implementation") {
-			const expectedBody = await skillBody(root, route.args.target);
-			assert.ok(
-				resultText(ending).includes(expectedBody),
-				fixture.id +
-					": selected leaf body was not loaded exactly for " +
-					route.args.target,
-			);
-			assert.match(
-				resultText(ending),
-				/<developer-method name="[^"]+" location="[^"]+" base-dir="[^"]+">/,
-			);
-			assert.match(resultText(ending), /Resolve relative references from /);
-		}
-	}
-
-	for (const judgment of judgments) {
-		const ending = endings.find(
-			(event) =>
-				event.toolName === JUDGMENT_TOOL &&
-				event.toolCallId === judgment.toolCallId,
-		);
-		assert.ok(ending, fixture.id + ": judgment result was not observed");
-		assert.equal(
-			ending.isError,
-			false,
-			fixture.id +
-				": judgment result was an error for " +
-				JSON.stringify(judgment.args) +
-				"\n" +
-				resultText(ending),
-		);
-	}
-	const judgmentText = judgments
-		.map((judgment) => String(judgment.args.result ?? ""))
-		.join("\n");
-	const normalizedJudgment = judgmentText.toLocaleLowerCase();
-	for (const term of fixture.requiredJudgmentTerms ?? []) {
-		assert.ok(
-			normalizedJudgment.includes(term.toLocaleLowerCase()),
-			`${fixture.id}: judgment omitted required semantic term ${term}`,
-		);
-	}
-	for (const alternatives of fixture.requiredJudgmentConcepts ?? []) {
-		assert.ok(
-			alternatives.some((term) =>
-				normalizedJudgment.includes(term.toLocaleLowerCase()),
-			),
-			`${fixture.id}: judgment omitted required semantic concept (${alternatives.join(" | ")})`,
-		);
-	}
-
-	if (fixture.requiresDoctorSynthesis) {
-		const finalRoute = routes.at(-1);
-		const finalRouteIndex = finalRoute
-			? executions.indexOf(finalRoute)
-			: -1;
-		assert.ok(
-			routes.filter((event) => event.args.target === "doctor").length >= 2,
-			`${fixture.id}: Doctor did not return for final synthesis`,
-		);
-		assert.equal(
-			finalRoute?.args.target,
-			"doctor",
-			`${fixture.id}: the final route was not Doctor synthesis`,
-		);
-		assert.ok(
-			routes
-				.slice(1, -1)
-				.some(
-					(event) =>
-						event.args.target !== "doctor" &&
-						event.args.target !== "implementation",
-				),
-			`${fixture.id}: Doctor did not delegate any owner-skill consultation`,
-		);
-		const finalJudgment = executions
-			.slice(finalRouteIndex + 1)
-			.find((event) => event.toolName === JUDGMENT_TOOL);
-		assert.ok(
-			finalJudgment,
-			`${fixture.id}: final Doctor route has no recorded synthesis judgment`,
-		);
-		const synthesis = String(finalJudgment.args.result ?? "").toLocaleLowerCase();
-		for (const [label, alternatives] of [
-			["consultation ledger", ["consultation", "consult", "협진"]],
-			["diagnosis", ["diagnos", "진단"]],
-			["treatment plan", ["treat", "처방", "개선 계획"]],
-		]) {
-			assert.ok(
-				alternatives.some((term) => synthesis.includes(term)),
-				`${fixture.id}: final Doctor synthesis omitted ${label}`,
-			);
-		}
-	}
-
-	if (fixture.mutationRequiresImplementationRoute) {
-		const mutationIndex = executions.findIndex((event) =>
-			["edit", "write"].includes(event.toolName),
+	assertControlledActions(fixture, executions);
+	if (fixture.mutationRequiresActionClearance) {
+		const mutationIndex = executions.findIndex(({ start }) =>
+			["edit", "write"].includes(start.toolName),
 		);
 		if (mutationIndex >= 0) {
 			assert.ok(
 				executions
 					.slice(0, mutationIndex)
 					.some(
-						(event) =>
-							event.toolName === ROUTE_TOOL &&
-							event.args.target === "implementation",
+						({ start }) =>
+							start.toolName === ACTION_TOOL &&
+							["edit", "write"].includes(start.args?.tool_name),
 					),
-				fixture.id + ": mutation started before an implementation route",
+				`${fixture.id}: mutation started before canonical Action Clearance`,
 			);
 		}
 	}
+	if (fixture.requiresObservedEvidenceBeforeMutation) {
+		assertObservedEvidenceBeforeMutation(fixture, executions);
+	}
 
-	if (fixture.requiresAgentBeforeImplementationResolution) {
-		assertAgentBeforeImplementationResolution(fixture, executions);
+	const traceText = canonicalTraceText(executions);
+	for (const term of fixture.requiredJudgmentTerms ?? []) {
+		assert.ok(
+			traceText.includes(term.toLocaleLowerCase()),
+			`${fixture.id}: canonical trace omitted required semantic term ${term}`,
+		);
+	}
+	for (const alternatives of fixture.requiredJudgmentConcepts ?? []) {
+		assert.ok(
+			alternatives.some((term) => traceText.includes(term.toLocaleLowerCase())),
+			`${fixture.id}: canonical trace omitted required concept (${alternatives.join(" | ")})`,
+		);
+	}
+	if (fixture.requiresDoctorSynthesis) {
+		assert.ok(
+			capabilityAssessments.some(
+				({ start }) => start.args?.capability === "doctor",
+			),
+			`${fixture.id}: Doctor Capability was not assessed`,
+		);
+		for (const term of ["consult", "diagnos", "treat-now", "leave-alone"]) {
+			assert.ok(
+				traceText.includes(term),
+				`${fixture.id}: Doctor synthesis omitted ${term}`,
+			);
+		}
 	}
 
 	if (fixture.workspaceAssertion === "paused-marker") {
@@ -334,6 +237,11 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 		assert.match(
 			source,
 			/export const PAUSED_EVAL_MARKER\s*=\s*["']stable-landing["']/,
+		);
+		assert.equal(
+			executions.some(({ start }) => start.toolName === COMPLETE_TOOL),
+			false,
+			`${fixture.id}: paused handoff was incorrectly completed`,
 		);
 	}
 
@@ -354,35 +262,23 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 		const moduleUrl = pathToFileURL(join(casePath, "src", "contracts.ts"));
 		moduleUrl.searchParams.set("eval", String(Date.now()));
 		const contracts = await import(moduleUrl.href);
-		assert.equal(
-			typeof contracts.toScheduleContent,
-			"function",
-			fixture.id + ": toScheduleContent was not exported",
-		);
+		assert.equal(typeof contracts.toScheduleContent, "function");
 		assert.deepEqual(contracts.toScheduleContent({}), {
 			startsAt: null,
 			endsAt: null,
 		});
 		assert.deepEqual(
 			contracts.toScheduleContent({ startDate: "2026-07-19", endDate: null }),
-			{
-				startsAt: "2026-07-19",
-				endsAt: null,
-			},
+			{ startsAt: "2026-07-19", endsAt: null },
 		);
 		const testSource = await readFile(
 			join(casePath, "test", "contracts.test.ts"),
 			"utf8",
 		);
-		assert.match(
-			testSource,
-			/toScheduleContent/,
-			fixture.id + ": tests do not exercise toScheduleContent",
-		);
+		assert.match(testSource, /toScheduleContent/);
 		assert.match(
 			testSource,
 			/for\s*\(|\.forEach\s*\(|\.map\s*\(|test\.each\s*\(/,
-			fixture.id + ": toScheduleContent cases are not table-driven",
 		);
 		const testRun = spawnSync(
 			process.execPath,
@@ -395,17 +291,14 @@ export async function validateExecutionTrace(fixture, events, root, casePath) {
 		assert.equal(
 			testRun.status,
 			0,
-			fixture.id +
-				": workspace tests failed\n" +
-				testRun.stdout +
-				testRun.stderr,
+			`${fixture.id}: workspace tests failed\n${testRun.stdout}${testRun.stderr}`,
 		);
 	}
 
 	return {
 		firstTarget,
 		preferredFirstTarget: fixture.preferredFirstTargets.includes(firstTarget),
-		routeCount: routes.length,
+		routeCount: capabilityAssessments.length,
 		toolCallCount: executions.length,
 	};
 }

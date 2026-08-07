@@ -1,252 +1,165 @@
 # Reference Routing Contract
 
-This document defines how `@hobin/developer` decides which packaged references
-an active skill judgment must load and apply.
+This document defines how `@hobin/developer` routes Pi-admitted Skills and their
+packaged References inside the canonical Action Loop.
 
 ## Decision
 
-`primary` and `companion` are not intrinsic properties of a reference file.
-They are too coarse for the package because the same document can be sufficient
-for one question and only one part of a larger derivation for another.
-
-The routing unit is instead:
+Upper Judgment owns cross-Skill routing. A Skill owns only the Reference
+selection needed to produce one Contribution for one assigned Need.
 
 ```text
-skill core judgment
--> one observable unresolved subquestion
--> one named skill-method step to refine
--> policy route ID and co-required reference set
--> one inspectable artifact and stop condition
--> separation/handoff boundary
--> reference_basis evidence
+Contribution Need
+→ Capability applicability
+→ Capability Assignment
+→ local Reference disposition
+→ sealed Skill Context
+→ Skill Contribution
+→ upper Coverage
+→ Conclusion
 ```
 
-Every path listed by one selected route is equally required for that route.
-Requiredness does not imply a global rank. Reading sequence is a separate,
-route-local property: `read_order: listed` is used only when a later document
-assumes the earlier document's method, vocabulary, or invariant; `any` is used
-when no such dependency exists. A singleton set is valid. Several routes may be
-selected when they answer distinct unresolved questions; the runtime checks the
-union of their reference sets without imposing cross-route order.
+Categories describe Warrant Gaps. They do not contain Skill names. Capability
+applicability is evaluated from the current Need and the admitted Capability
+inventory, never from a Category-to-Skill table.
 
-## Judgment Integration Rules
+## Canonical Capability TOC
 
-A reference is a conditional extension of a skill judgment, not a source summary
-or topic shelf. Its operational body must be understandable without its source,
-refine one declared method step, produce the route artifact, and stop at the same
-skill boundary. Runtime `Source Trace` uses ordinary bibliographic book,
-edition, chapter, and section citations. Exact URLs/anchors, reading sequence,
-source-local examples, defects, and edition verification belong in source audits
-unless they are the concept itself.
-
-Every source-derived insight must serve one of five roles:
-
-```text
-recognize a trigger
-make a consequential distinction
-constrain artifact derivation
-supply a falsifier or stop
-force a separation/handoff
-```
-
-If it serves none, it does not belong in an active runtime reference. If it is
-always required for the skill's judgment, move it into `SKILL.md`. If it changes
-the core question, output, owner, or stop, separate it into another route or
-skill rather than asking the model to synthesize unrelated material at runtime.
-
-Create separate routes when triggers can be observed independently and resulting
-artifacts answer different questions. Treat these as strong separation signals:
-
-- different core question;
-- independently observable trigger;
-- independently useful output artifact;
-- different falsifier or stop condition;
-- different owner or downstream handoff;
-- either judgment can complete without the other.
-
-Two or more signals normally require separation. For example, composition,
-generative recursion, and accumulator design share a broad recursion context but
-have independent triggers, artifacts, correctness obligations, and stops; they
-must not remain one OR-shaped route.
-
-Put several references in one route when the claimed artifact cannot be derived
-honestly from only one of them. Examples include:
-
-- the base data recipe plus the recursive template catalog;
-- the level-of-language method plus a representation-barrier construction;
-- the modeling method plus a complete specialized calibration;
-- an abstraction review field card plus the selected construction or repair
-  procedure.
-
-Use `read_order: listed` only when reversing the order would make the later
-reference incomplete or misleading—for example, a template catalog explicitly
-extends the six-artifact data recipe. Use `read_order: any` when every member can
-be understood independently even though all are needed for the final artifact.
-This sequence decision must come from document assumptions, not prestige,
-length, or book order.
-
-Use one reference in a route when that document independently supplies the
-needed method and stop check. Do not create hierarchy for hierarchy's sake. If
-several references are interchangeable ways to satisfy one obligation, model an
-explicit alternative selection mode in a future policy version rather than
-mislabeling them co-required; the current corpus contains no such route.
-
-Use no reference route when a skill has no packaged references. For a
-reference-bearing skill, use the declared exemption only when no route trigger
-applies and the required concrete evidence shows that the compact method is
-sufficient.
-
-Do not encode:
-
-- book prestige or chapter order;
-- a universal beginner-to-advanced progression;
-- a broad reference that must always be read merely because another file links
-  to it;
-- duplicate broad and narrow routes for the same unresolved question;
-- optional reading disguised as a hard dependency.
-
-## `SKILL.md` Responsibility
-
-`SKILL.md` remains the executive method, not merely a description or routing
-table. It owns:
-
-- Pi discovery metadata and capability boundary;
-- the core question and accepted inputs;
-- always-on method and invariants;
-- inspectable output shape;
-- completion, missing-evidence, and not-applicable behavior;
-- what the skill must not absorb from neighboring capabilities.
-
-`reference-policy.json` is the sole route-specific authority. It owns the
-narrower question, trigger classification, skill-method integration point,
-co-required reference set, application artifacts, stop, separation boundary, and
-exemption evidence. `references/*.md` owns the deeper source-independent
-derivation and bounded calibration. Repository-only source audits own source
-sequence, comparison, defects, edition fidelity, and provenance history; they
-are maintainer evidence and are excluded from the published package.
-
-Keeping those roles separate avoids two failure modes: hiding trigger recognition
-inside a long reference, and maintaining conflicting route tables in `SKILL.md`
-and JSON.
-
-## Policy Schema
-
-Each reference-bearing skill declares:
+A reference-bearing Skill contains one direct-child `toc.json`:
 
 ```json
 {
-  "version": 2,
-  "routes": [
-    {
-      "id": "stable-route-id",
-      "question": "One narrower judgment question",
-      "trigger": "Observable condition that makes the route relevant",
-      "method_step": "Exact skill judgment step this route refines",
-      "references": [
-        "references/one.md",
-        "references/two.md"
-      ],
-      "read_order": "listed",
-      "artifacts": [
-        "inspectable result proving the method was applied"
-      ],
-      "stop": "Observable condition that completes this route",
-      "separate_when": "Condition requiring another route or skill handoff"
-    }
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+  "when": [
+    "A condition under which this Capability contributes."
   ],
-  "exemption": {
-    "when": "Condition under which no route applies",
-    "evidence": [
-      "concrete fact required to justify that exemption"
-    ]
-  }
+  "unless": [
+    "A condition that overrides applicability."
+  ],
+  "references": [
+    {
+      "path": "references/example.md",
+      "when": [
+        "A local condition under which this Reference contributes."
+      ]
+    }
+  ]
 }
 ```
 
-Policy validation requires unique route IDs; non-empty questions, triggers,
-method steps, artifacts, stops, and separation boundaries; direct skill-relative
-reference paths; explicit `listed` or `any` order for every multi-reference
-route; and coverage of every packaged reference owned by the skill. Singleton
-routes default to `any`.
+The schema is closed. Unknown fields, duplicate normalized conditions, duplicate
+paths, path escape, malformed UTF-8, unsupported schema identity, oversized
+input, and unbounded discovery all fail closed.
+
+The TOC owns only:
+
+- Capability-level `when` and `unless` conditions;
+- the complete direct Reference catalog for that Skill;
+- local conditions for each Reference path.
+
+It does not author Category, Requirement, Need, Assignment, Coverage, Conclusion,
+identity, hash, confidence, artifact prose, stop prose, sibling Skill links, or
+runtime state. Those belong to the canonical Work Case, the Skill method, or the
+runtime adapter.
+
+A Skill without `toc.json` is unstructured. It declares no Reference routing and
+seals only its exact admitted `SKILL.md` after applicability creates an
+Assignment.
+
+## Skill and Reference Responsibilities
+
+`SKILL.md` owns:
+
+- Pi discovery metadata and the Capability boundary;
+- the Skill's core question and always-on method;
+- its inspectable output shape and stop;
+- residual and emergent Need behavior;
+- neighboring Capability boundaries.
+
+`toc.json` owns conditional local routing. `references/*.md` owns deeper,
+source-independent derivation for one local condition. Repository source audits
+own bibliographic provenance, source comparison, defects, and edition history;
+they are maintainer evidence and are not published runtime material.
+
+A Reference must refine the assigned Skill's method. It must not become a topic
+shelf, a second upper ontology, a hidden Category-to-Skill mapping, or an excuse
+to summarize unrelated source material.
 
 ## Runtime Contract
 
-1. `developer_route_question` loads and hashes the policy and exposes every
-   route's narrower question, trigger, method step, reference set, artifact,
-   stop, separation boundary, and exemption criteria.
-2. `developer_load_reference` receives `reference_route`, `path`, and observable
-   trigger evidence. The path must belong to that route.
-3. Loading any path selects that policy route. A `listed` route enforces its
-   declared sequence; an `any` route does not. Before judgment, every path in
-   every selected route must have loaded successfully. One load may satisfy
-   overlapping route sets. A shared path is loaded once; select another
-   overlapping route through one of its not-yet-loaded paths and provide one
-   `reference_basis` entry per distinct path.
-4. The branch records policy route IDs, path, content SHA-256, Source Trace, and
-   selection reason.
-5. A judgment must provide one `reference_basis` entry for every loaded path,
-   naming the trigger, applied rule, and resulting artifact.
-6. `reference_exemption` is valid only when no reference was loaded and no policy
-   trigger applies.
+1. Pi's admitted Skill inventory is canonical. Developer adapts only those
+   source-qualified descriptors and never rediscovers excluded Skills.
+2. `developer_assess_capability` dispositions one admitted Capability for one
+   exact current Contribution Need. Applicability creates an Assignment but no
+   Contribution.
+3. Every applicable Assignment passes through
+   `developer_select_references`.
+   - Structured Capability: disposition every declared Reference exactly once
+     as `selected`, `not-needed`, or `needs-context`.
+   - Unstructured Capability: submit an empty disposition list and seal
+     `SKILL.md` alone.
+4. Any `needs-context` disposition leaves structured selection unresolved. It
+   cannot produce a sealed Context or authorize Skill Contribution.
+5. A ready selection acquires and seals exact Skill and selected Reference
+   bytes atomically. Missing, drifting, symlink-escaped, non-regular, invalid,
+   or oversized material produces no partial Context.
+6. `developer_load_selected_reference` returns one exact already-sealed selected
+   Reference. Ordinary file reads are Observations, not canonical structured
+   Reference evidence.
+7. `developer_accept_contribution` must account exactly once for every selected
+   Reference and preserve local limitations, residual Needs, and emergent Needs.
+   Skill-local `resolved` never implies upper Coverage or Conclusion.
+8. Upper Judgment dispositions every current Contribution through
+   `developer_assess_coverage` and synthesizes the Conclusion through
+   `developer_close_judgment`.
 
-This runtime gate proves route selection, integration-point exposure, and
-claimed application. It does not prove the synthesis is semantically good; live
-evaluations still check route relevance, artifact quality, stop satisfaction,
-separation behavior, and pass-but-wrong cases.
+When the same Capability serves several Needs, each Need receives a distinct
+Assignment, sealed Context, Contribution, Coverage assessment, and upper
+synthesis path. Skill-local code cannot route a sibling Capability.
+
+## Acquisition and Replay Boundaries
+
+Structured and unstructured acquisition is bounded, source-qualified,
+hash-verified, atomic, and fail-closed. Sealed bytes remain external to Pi
+session events. Replay stores semantic proposals and expected identities, then
+reacquires current admitted Skill material where the transition requires it.
+Drift, missing material, malformed events, or a changed admitted inventory makes
+replay unavailable rather than silently degrading to absence.
 
 ## Package Coverage
 
-| Skill | Policy routes | Shape |
-| --- | --- | --- |
-| `doctor` | none | scope, preservation baseline, universal lens disposition, consultation ledger, diagnosis, and treatment order; owner skills select and apply their own references |
-| `abstraction-review` | `candidate-contract-review`, `failed-candidate-check`, `candidate-calibration` | review, failure localization, or promise-based calibration; no shadow construction |
-| `model` | `condition-space`, `contract-replacement`, `relational-constraints`, `temporal-behavior`, `proof-obligation`, `solver-result-boundary`, `logic-query-semantics`, `planning-model` | one model artifact per uncertainty and stop condition |
-| `sketch` | `data-driven-design`, `data-shape-template`, `composition-by-wishes`, `earned-abstraction`, `generative-recursion`, `accumulator-invariant`, `evidence-preserving-boundary`, `design-levels`, `representation-barrier`, `closure-interface`, `process-resources`, `state-history-order`, `generic-dispatch`, `meaning-preserving-conversion`, `language-semantics`, `runtime-compilation`, `responsibility-collaboration`, `variation-role`, `type-transition`, `selection-creation` | one implementable design question per route, with route-local common kernels only where required |
-| `signal` | `behavior-preserving-movement` | singleton |
-| `schedule` | `structural-timing-tradeoff` | singleton |
-| `naming-judgment` | `domain-sense-boundary` | singleton |
-| `verify` | `claim-evidence-gap` | singleton |
-| `specify` | none | no packaged reference |
-| `visualize` | none | no packaged reference |
-| `adversarial-eval` | none | no packaged reference |
+| Skill | Routing shape |
+| --- | --- |
+| `abstraction-review` | structured; review calibration References |
+| `model` | structured; condition, contract, relation, temporal, proof, solver, logic, and planning References |
+| `naming-judgment` | structured; domain-sense naming Reference |
+| `schedule` | structured; structural timing Reference |
+| `signal` | structured; structural movement Reference |
+| `sketch` | structured; data, composition, representation, process, state, dispatch, conversion, runtime, responsibility, and variation References |
+| `verify` | structured; verifier selection and pass-but-wrong Reference |
+| `adversarial-eval` | unstructured |
+| `doctor` | unstructured; delegates selected owner-Skill routing |
+| `specify` | unstructured |
+| `visualize` | unstructured |
 
-Doctor does not aggregate sibling reference files into its own policy. In a
-thorough Doctor review it dispositions every available skill, closes the Doctor
-triage route, and hands each triggered question to its owner skill. The owner
-route then applies this contract to every independently triggered policy route
-and co-required reference set before Doctor synthesizes the recorded judgments.
-This makes all references eligible without loading unrelated methods or losing
-route-local provenance.
-
-The implementation execution profile under `extensions/references/` is selected
-by `execution_profile`, not by skill reference routing, and remains a separate
-contract.
+Doctor does not aggregate sibling Reference catalogs. It dispositions available
+Capabilities at the upper level and leaves each selected owner Skill to seal and
+apply its own Context.
 
 ## Evaluation Contract
 
-Deterministic checks validate policy shape, reference coverage, runtime route
-membership, route-set completeness, provenance recording, and one-to-one loaded
-path/basis coverage.
+Live evaluation checks more than schema conformance. A valid trace must show:
 
-Live fixtures additionally declare expected policy route IDs and expected paths.
-They must reject at least these pass-but-wrong shapes:
+- canonical Work Case and Judgment ownership;
+- admissible first Capability routing;
+- exact sealed Reference loads required by the fixture;
+- Contribution before upper Coverage;
+- Coverage before Conclusion;
+- exact Action Clearance before controlled mutation;
+- explicit Effect settlement;
+- completion, pause, waiting, or blocking consistent with the fixture outcome.
 
-- reading a relevant path under an unrelated route;
-- ignoring a selected route's evidence-backed listed read order;
-- loading only part of a selected route set;
-- loading all paths but omitting application evidence;
-- producing the right final answer without refining the route's declared method
-  step or producing its derivation artifact;
-- satisfying topic keywords while missing the route stop condition;
-- absorbing work named by `separate_when` instead of handing it off;
-- selecting every broad route and over-designing a local question;
-- claiming exemption while an observable route trigger is present.
-
-## Source-Fidelity Gate
-
-Original PDF or book review binds each derived rule to an exact edition, chapter
-or section, and page range. Cross-source integration is a second gate: after
-fidelity repair, reorganize insights by source-independent judgment role, record
-moves and splits in an integration audit, and recheck that no source limitation
-was erased. Historical post-repair hashes attest the audited snapshot; a later
-integration audit must attest the current synthesized document set.
+The runtime proves admission, complete disposition accounting, exact acquisition,
+and provenance binding. It does not prove that model synthesis is semantically
+good; adversarial fixtures still check relevance, counterexamples, stop
+satisfaction, and pass-but-wrong risk.

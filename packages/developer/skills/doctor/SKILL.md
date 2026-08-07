@@ -75,9 +75,8 @@ Use `thorough-within-scope` unless the user explicitly asks for a faster pass.
 - `standard`: disposition every Developer lens, then deepen only the
   highest-consequence or currently pressured consultations;
 - `thorough-within-scope`: disposition every available Developer lens, route
-  every triggered distinct consultation, inspect every policy-route trigger in
-  each selected owner skill, and apply every reference required by every
-  selected route.
+  every triggered distinct consultation, evaluate every declared TOC Reference
+  condition in each selected owner Skill, and apply every selected Reference.
 
 Exhaustiveness applies to judgment coverage inside the claim boundary, not to
 unbounded file traversal or unsupported whole-system claims.
@@ -153,8 +152,8 @@ For every `triggered` disposition:
 1. write one bounded consultation question and its concrete trigger evidence;
 2. close the Doctor triage judgment;
 3. open the dynamic question with its owning Developer skill;
-4. apply every selected reference-policy route's trigger and separation
-   boundary, or use its evidence-backed exemption when no route applies;
+4. assess the owner Capability's TOC conditions, disposition every declared
+   Reference path, and apply every selected Reference;
 5. nominate and seal only current-branch material that can change the result;
 6. relate every selected material through a concrete contribution and bounded
    assurance while preserving conflicts and limitations;

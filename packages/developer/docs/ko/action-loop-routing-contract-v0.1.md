@@ -10,7 +10,7 @@
 >
 > 기준선: `@hobin/developer@0.1.19`
 >
-> Runtime note: 이 문서는 새 schema-identified TOC descriptor의 최소 authoring surface와 runtime enforcement boundary를 정의한다. 0.1.19 runtime은 이를 구현하지 않는다. 기존 `judgment.json`과 `reference-policy.json`은 compatibility target이 아니라 migration evidence다.
+> Runtime note: `@hobin/developer@0.2.0-rc.1`은 이 schema-identified TOC boundary를 구현한다. 이전 route-policy 파일은 제거되었으며 dual-format compatibility loader는 없다.
 >
 > 작성 시점: 2026-08-06
 
@@ -750,9 +750,9 @@ malformed presence rejected
 owner supplied outside file
 ```
 
-### Existing `reference-policy.json`
+### 제거된 route-policy representation
 
-Use its richer route metadata as migration evidence, not as fields users must reproduce.
+이전의 더 풍부한 route metadata는 사용자가 다시 작성해야 할 field가 아니라 migration evidence였다.
 
 Move information to its actual owner:
 
@@ -767,7 +767,7 @@ Move information to its actual owner:
 | read order | TOC declaration order |
 | exemption | runtime no-Reference selection basis |
 
-Do not build a dual-format compatibility loader. Cutover occurs after semantic selection fixtures prove the new TOCs preserve required Skill and Reference choices.
+Dual-format compatibility loader는 존재하지 않는다. 모든 Reference-bearing packaged Skill이 하나의 canonical TOC를 가지며 semantic selection fixtures가 필요한 Skill 및 Reference 선택을 검증하므로 cutover는 완료되었다.
 
 ## 22. Authoring complexity budget
 

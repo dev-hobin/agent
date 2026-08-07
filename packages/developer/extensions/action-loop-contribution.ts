@@ -80,7 +80,8 @@ export function acceptLiveSkillContribution(
 		return { status: "invalid", message: accepted.error.message };
 	}
 	const existing = state.contributions.find(
-		(contribution) =>
+		(contribution): contribution is SkillContribution =>
+			"assignmentId" in contribution &&
 			contribution.assignmentId === assignment.assignmentId &&
 			contribution.contributionNeedId === need.value.contributionNeedId &&
 			contribution.sealedContextId === context.sealedContextId,

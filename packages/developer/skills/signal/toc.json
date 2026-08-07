@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+  "when": [
+    "Requirements, code, diffs, tests, UI states, names, or recent changes need classification for structural movement."
+  ],
+  "unless": [
+    "A concrete implementation or abstraction decision is already the primary task."
+  ],
+  "references": [
+    {
+      "path": "references/structural-movement.md",
+      "when": [
+        "Duplication, parallel branches, repeated tests/UI states, conditionals, a recent refactor, change-relative coupling, or model-code mismatch needs consequential horizontal-versus-vertical classification."
+      ]
+    }
+  ]
+}

@@ -35,13 +35,12 @@ own artifact and stop, select or create a separate route.
 
 ## Reference Routing
 
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Each route answers one narrower design question and declares the
-judgment step, artifact, stop, and separation boundary it owns. Select a narrow
-route instead of its fallback; select several only when each produces an
-independent artifact needed by the same sketch. A co-required set means every
-member is necessary for that route's one result, not that the documents share a
-subject. Use the exemption only when no trigger applies and cite its evidence.
+The machine-readable [Capability TOC](toc.json) is the canonical routing
+authority. Its `when` and `unless` conditions determine applicability; each
+Reference path declares the local condition under which it contributes. After
+Upper Judgment assigns this Capability to one Need, disposition every declared
+Reference path and load every selected Reference before accepting the Skill
+Contribution. A separate Need receives a separate Assignment and sealed Context.
 
 ## Output
 

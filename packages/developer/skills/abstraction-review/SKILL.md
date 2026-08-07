@@ -94,9 +94,9 @@ still have to be invented; route that work to `sketch`.
 
 ## Reference Routing
 
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Each route answers one narrower review question, identifies the exact
-judgment step it refines, names its artifacts and stop, and states when to
-separate or hand off. Select only routes that deepen this candidate judgment;
-never use a review reference to recreate another skill's construction method.
-Use the exemption only when no route trigger applies and cite its evidence.
+The machine-readable [Capability TOC](toc.json) is the canonical routing
+authority. Its `when` and `unless` conditions determine applicability; each
+Reference path declares the local condition under which it contributes. After
+Upper Judgment assigns this Capability to one Need, disposition every declared
+Reference path and load every selected Reference before accepting the Skill
+Contribution. Never use a review Reference to recreate another Skill's construction method.

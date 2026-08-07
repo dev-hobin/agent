@@ -7,11 +7,16 @@ import {
 	resumeLiveWaitingWorkCase,
 	waitLiveWorkCase,
 } from "../extensions/action-loop-continuity.ts";
+import { acceptLiveHostContribution } from "../extensions/action-loop-host-contribution.ts";
+import { admitLiveUserPromptObservation } from "../extensions/action-loop-host-observation.ts";
+import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import {
 	ACTION_LOOP_SESSION_ENTRY,
 	ACTION_LOOP_SESSION_PROTOCOL,
 	MAX_ACTION_LOOP_SESSION_EVENT_BYTES,
 	actionLoopPausedWorkCaseResumedEvent,
+	actionLoopHostContributionAcceptedEvent,
+	actionLoopJudgmentOpenedEvent,
 	actionLoopWaitingWorkCaseResumedEvent,
 	actionLoopWorkCaseOpenedEvent,
 	actionLoopWorkCasePausedEvent,
@@ -69,6 +74,88 @@ test("a Pi tool-result replay event reconstructs one exact active Work Case", as
 		opened.value.workCase.revisionId,
 	);
 	assert.equal(replayed.appliedTransitions, 1);
+});
+
+test("an exact host Contribution replays without Skill material", async () => {
+	const opened = openLiveWorkCase(undefined, proposal);
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const judgmentProposal = {
+		category: "Contextual Adequacy" as const,
+		subject: "Compatibility policy",
+		question: "Which compatibility policy did the product owner choose?",
+		requirements: [
+			{
+				statement: "The exact product decision is represented.",
+				contributionNeeds: ["An exact product-owner decision"],
+			},
+		],
+		basis: ["Implementation cannot choose product policy."],
+		provenance: { kind: "model" as const, source: "pi:tool-call" },
+	};
+	const judgment = openLiveJudgment(opened.value, judgmentProposal);
+	assert.equal(judgment.status, "opened");
+	if (judgment.status !== "opened") return;
+	const observation = admitLiveUserPromptObservation(
+		"Use strict compatibility and reject unknown values.",
+		opened.value.workCase.workCaseId,
+	);
+	assert.equal(observation.status, "admitted");
+	if (observation.status !== "admitted") return;
+	const hostProposal = {
+		localStatus: "resolved" as const,
+		result: "Use strict compatibility and reject unknown values.",
+		limitations: [],
+		residualNeeds: [],
+		basis: ["The exact human Observation answers the current Need."],
+	};
+	const contribution = acceptLiveHostContribution(
+		judgment.state,
+		observation.observation,
+		hostProposal,
+	);
+	assert.equal(contribution.status, "accepted");
+	if (contribution.status !== "accepted") return;
+	const replayed = await replayActionLoopSession([
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopWorkCaseOpenedEvent(proposal, opened.value),
+		},
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopJudgmentOpenedEvent(
+				judgmentProposal,
+				judgment.judgment.judgmentId,
+				judgment.state.workCase.revisionId,
+			),
+		},
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopHostContributionAcceptedEvent(
+				{
+					observationId: observation.observation.observationId,
+					kind: observation.observation.kind,
+					source: observation.observation.source,
+					statement: observation.observation.statement,
+					evidenceFingerprint: observation.observation.evidenceFingerprint,
+					basis: [...observation.observation.basis],
+				},
+				hostProposal,
+				contribution.contribution.contributionId,
+			),
+		},
+	]);
+	assert.equal(replayed.status, "ready");
+	if (replayed.status !== "ready") return;
+	assert.equal(replayed.activeWorkCase?.contributions.length, 1);
+	assert.equal(
+		replayed.activeWorkCase?.contributions[0]?.contributionId,
+		contribution.contribution.contributionId,
+	);
+	assert.equal(replayed.appliedTransitions, 3);
 });
 
 test("human pause and resume replay as branch-local ownership transitions", async () => {

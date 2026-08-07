@@ -442,6 +442,57 @@ const ContributionAcceptedEventSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
+const HostContributionProposalSchema = Type.Object(
+	{
+		contributionNeedId: OptionalIdSchema,
+		localStatus: Type.Union([
+			Type.Literal("resolved"),
+			Type.Literal("partial"),
+		]),
+		result: ResultTextSchema,
+		limitations: Type.Array(ShortTextSchema, { maxItems: 32 }),
+		residualNeeds: Type.Array(
+			Type.Object(
+				{
+					kind: Type.Union([
+						Type.Literal("residual"),
+						Type.Literal("emergent"),
+					]),
+					description: ShortTextSchema,
+					basis: BasisSchema,
+				},
+				{ additionalProperties: false },
+			),
+			{ maxItems: 32 },
+		),
+		basis: BasisSchema,
+	},
+	{ additionalProperties: false },
+);
+const HostContributionAcceptedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("host-contribution-accepted"),
+		observation: Type.Object(
+			{
+				observationId: IdSchema,
+				kind: Type.Union([Type.Literal("human"), Type.Literal("tool")]),
+				source: ShortTextSchema,
+				statement: ResultTextSchema,
+				evidenceFingerprint: IdSchema,
+				basis: BasisSchema,
+			},
+			{ additionalProperties: false },
+		),
+		proposal: HostContributionProposalSchema,
+		expected: Type.Object(
+			{ contributionId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+
 const NeedCoverageProposalSchema = Type.Object(
 	{
 		contributionNeedId: OptionalIdSchema,
@@ -739,6 +790,7 @@ const SessionEventSchema = Type.Union([
 	ReferencesSelectedEventSchema,
 	UnstructuredContextSealedEventSchema,
 	ContributionAcceptedEventSchema,
+	HostContributionAcceptedEventSchema,
 	CoverageAssessedEventSchema,
 	JudgmentConcludedEventSchema,
 	ActionClearedEventSchema,
@@ -785,6 +837,9 @@ export type ActionLoopUnstructuredContextSealedEvent = Static<
 export type ActionLoopContributionAcceptedEvent = Static<
 	typeof ContributionAcceptedEventSchema
 >;
+export type ActionLoopHostContributionAcceptedEvent = Static<
+	typeof HostContributionAcceptedEventSchema
+>;
 export type ActionLoopCoverageAssessedEvent = Static<
 	typeof CoverageAssessedEventSchema
 >;
@@ -813,6 +868,7 @@ type JudgmentProposal = Static<typeof JudgmentProposalSchema>;
 type CapabilityProposal = Static<typeof CapabilityApplicabilityProposalSchema>;
 type ReferenceDisposition = Static<typeof ReferenceDispositionSchema>;
 type ContributionProposal = Static<typeof SkillContributionProposalSchema>;
+type HostContributionProposal = Static<typeof HostContributionProposalSchema>;
 type CoverageProposal = Static<typeof NeedCoverageProposalSchema>;
 type ClosureProposal = Static<typeof JudgmentClosureProposalSchema>;
 type PiActionProposal = Static<typeof PiActionProposalSchema>;
@@ -1147,6 +1203,21 @@ export function actionLoopContributionAcceptedEvent(
 		transitionId: contributionId,
 		skillName,
 		capabilityRevisionId,
+		proposal,
+		expected: { contributionId },
+	});
+}
+
+export function actionLoopHostContributionAcceptedEvent(
+	observation: ActionLoopHostContributionAcceptedEvent["observation"],
+	proposal: HostContributionProposal,
+	contributionId: string,
+): ActionLoopHostContributionAcceptedEvent {
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "host-contribution-accepted",
+		transitionId: contributionId,
+		observation,
 		proposal,
 		expected: { contributionId },
 	});

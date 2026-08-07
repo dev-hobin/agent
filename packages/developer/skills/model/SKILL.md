@@ -104,9 +104,9 @@ ownership, collaborators, or caller shape; route that original surface to
 
 ## Reference Routing
 
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Each route answers one modeling question, refines one judgment step,
-and declares its artifact, stop, and separation boundary. Prefer a specialized
-route over the broad condition-space fallback when it owns the unresolved
-obligation; combine routes only for independent model questions. Use the
-exemption only when no route trigger applies and cite its evidence.
+The machine-readable [Capability TOC](toc.json) is the canonical routing
+authority. Its `when` and `unless` conditions determine applicability; each
+Reference path declares the local condition under which it contributes. After
+Upper Judgment assigns this Capability to one Need, disposition every declared
+Reference path and load every selected Reference before accepting the Skill
+Contribution. Select several References only when each serves the same bounded model Need.

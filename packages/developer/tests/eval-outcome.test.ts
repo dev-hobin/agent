@@ -11,7 +11,7 @@ import {
 const assert: typeof assertModule.strict = assertModule.strict;
 
 const status = (overrides: Record<string, string> = {}) => ({
-	protocol: "idle",
+	protocol: "completed",
 	active: "none",
 	checkpoint: "ready",
 	verification: "current",
@@ -19,7 +19,7 @@ const status = (overrides: Record<string, string> = {}) => ({
 	...overrides,
 });
 
-test("eval outcomes distinguish unchanged, pending, paused, and verified paths", () => {
+test("eval outcomes distinguish unchanged, held, active-changed, and completed paths", () => {
 	assert.equal(
 		classifyEvalOutcome({ changes: [], status: status() }),
 		"settled-unchanged",
@@ -27,18 +27,14 @@ test("eval outcomes distinguish unchanged, pending, paused, and verified paths",
 	assert.equal(
 		classifyEvalOutcome({
 			changes: [],
-			status: status({ protocol: "needs-answer", pending: "question:1" }),
+			status: status({ protocol: "waiting", pending: "waiting" }),
 		}),
 		"pending",
 	);
 	assert.equal(
 		classifyEvalOutcome({
 			changes: [{ path: "src/file.ts", kind: "modified" }],
-			status: status({
-				protocol: "needs-routing",
-				checkpoint: "reroute required",
-				verification: "required",
-			}),
+			status: status({ protocol: "active", active: "active" }),
 		}),
 		"changed-paused",
 	);
@@ -51,68 +47,50 @@ test("eval outcomes distinguish unchanged, pending, paused, and verified paths",
 	);
 });
 
-test("compact and detailed Developer status produce the same outcome signals", () => {
+test("semantic Developer status is parsed without internal identities", () => {
 	assert.deepEqual(
-		parseDeveloperStatus(
-			"developer: on · target: none · needs-routing\nactive: none\ncheckpoint: reroute required\nverification: required\npending: none",
-		),
+		parseDeveloperStatus("developer · Waiting\nOutcome · Publish"),
 		{
-			protocol: "needs-routing",
+			protocol: "waiting",
 			active: "none",
-			checkpoint: "reroute required",
-			verification: "required",
-			pending: "none",
+			checkpoint: "owned",
+			verification: "unsettled",
+			pending: "waiting",
 		},
 	);
-	assert.equal(
-		classifyEvalOutcome({
-			changes: [{ path: "src/file.ts", kind: "modified" }],
-			status: parseDeveloperStatus("developer: on · target: none · idle"),
-		}),
-		"changed-verified",
-	);
+	assert.deepEqual(parseDeveloperStatus("developer · Completed"), status());
 });
 
-test("JSON event replay recovers checkpoint and verification state without TUI status events", () => {
-	const route = {
-		protocol: "developer/v5",
-		kind: "route",
-		routeId: "route:implementation",
-		question: "Apply one change.",
-		target: "implementation",
-		reason: "The local movement is justified.",
-		knownEvidence: [],
-		consideredAlternatives: [],
-	};
-	const judgment = {
-		protocol: "developer/v5",
-		kind: "judgment",
-		routeId: route.routeId,
-		question: route.question,
-		target: route.target,
-		status: "resolved",
-		result: "The stable landing was reached.",
-		basis: ["The artifact changed."],
-		openedQuestions: [],
-		questionUpdates: [],
-		artifacts: ["src/file.ts"],
-		changedArtifacts: true,
-	};
-	const events = [route, judgment].map((details, index) => ({
-		type: "tool_execution_end",
-		toolName:
-			index === 0 ? "developer_route_question" : "developer_record_judgment",
-		isError: false,
-		result: { details },
-	}));
-
+test("JSON event projection recovers canonical Action Loop ownership", () => {
+	const events = [
+		{
+			type: "tool_execution_end",
+			isError: false,
+			result: {
+				details: { replayEvent: { kind: "work-case-opened" } },
+			},
+		},
+		{
+			type: "tool_execution_end",
+			isError: false,
+			result: {
+				details: { replayEvent: { kind: "work-case-waiting" } },
+			},
+		},
+	];
 	assert.deepEqual(statusFromDeveloperEvents(events), {
-		protocol: "needs-routing",
+		protocol: "waiting",
 		active: "none",
-		checkpoint: "reroute required",
-		verification: "required",
-		pending: "none",
+		checkpoint: "owned",
+		verification: "unsettled",
+		pending: "waiting",
 	});
+	events.push({
+		type: "tool_execution_end",
+		isError: false,
+		result: { details: { replayEvent: { kind: "work-case-completed" } } },
+	});
+	assert.deepEqual(statusFromDeveloperEvents(events), status());
 });
 
 test("fixture outcome declarations reject pass-but-wrong terminal states", () => {

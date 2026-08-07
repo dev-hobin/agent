@@ -8,6 +8,7 @@ export interface DeveloperModeEvent {
 }
 
 export interface DeveloperModeBranchEntry {
+	readonly type?: string;
 	readonly customType?: string;
 	readonly data?: unknown;
 }
@@ -28,7 +29,11 @@ export function decodeDeveloperModeEvent(
 	value: unknown,
 ): DeveloperModeEvent | undefined {
 	if (!isObject(value)) return undefined;
-	if (Object.keys(value).sort((left, right) => left.localeCompare(right)).join("\0") !== "enabled\0kind\0protocol")
+	if (
+		Object.keys(value)
+			.sort((left, right) => left.localeCompare(right))
+			.join("\0") !== "enabled\0kind\0protocol"
+	)
 		return undefined;
 	if (
 		value.protocol !== DEVELOPER_MODE_PROTOCOL ||

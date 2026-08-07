@@ -1,5 +1,6 @@
+import { realpathSync } from "node:fs";
 import { realpath } from "node:fs/promises";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import type {
 	BeforeAgentStartEvent,
 	Skill,
@@ -10,7 +11,20 @@ import {
 	type PiCapabilityInventoryResult,
 } from "../src/action-loop/pi/bind-pi-capability-inventory.ts";
 import { catalogBeforeAgentStartSkills } from "../src/action-loop/pi/catalog-pi-loaded-skills.ts";
-import { isWithinRoot } from "./skills.ts";
+
+function isWithinRoot(root: string, path: string): boolean {
+	const canonical = (value: string) => {
+		try {
+			return realpathSync.native(value);
+		} catch {
+			return resolve(value);
+		}
+	};
+	const relation = relative(canonical(root), canonical(path));
+	return (
+		relation === "" || (!relation.startsWith("..") && !isAbsolute(relation))
+	);
+}
 
 export interface LiveCapabilityInventory {
 	readonly inventory: Extract<
@@ -35,7 +49,7 @@ export type LiveCapabilityInventoryResult =
 
 /**
  * Acquires only Pi-admitted Skill material and projects bound first-party
- * Capabilities into the preserved extension protocol.
+ * Capabilities into the canonical Action Loop protocol.
  */
 export async function prepareLiveCapabilityInventory(
 	event: Pick<BeforeAgentStartEvent, "systemPromptOptions">,
@@ -118,6 +132,7 @@ export function liveCapabilityInventoryPrompt(
 				: [
 						`Capability ${name} · ${capability.capabilityRevisionId} · unstructured`,
 						"  when/unless: none; matched_when and matched_unless must be empty",
+						"  references: none; call developer_select_references with an empty dispositions array to seal SKILL.md alone",
 					];
 		});
 	return [

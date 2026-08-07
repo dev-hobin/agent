@@ -64,7 +64,12 @@ function item(
 	tone: ActionLoopWorkbenchItem["tone"] = "normal",
 	details: readonly ActionLoopWorkbenchDetail[] = [],
 ): ActionLoopWorkbenchItem {
-	return Object.freeze({ title, summary, tone, details: Object.freeze(details) });
+	return Object.freeze({
+		title,
+		summary,
+		tone,
+		details: Object.freeze(details),
+	});
 }
 
 function detail(
@@ -143,7 +148,17 @@ export function inspectActionLoopWorkbench(
 	const workCase = ownership?.workCase ?? runtime.completedWorkCase;
 	const headline = workCase?.outcome.statement ?? "No current work";
 	const overviewItems: ActionLoopWorkbenchItem[] = [
-		item("Status", currentStatus.label, currentStatus.value === "blocked" || currentStatus.value === "unavailable" ? "error" : currentStatus.value === "waiting" ? "warning" : currentStatus.value === "completed" ? "success" : "normal"),
+		item(
+			"Status",
+			currentStatus.label,
+			currentStatus.value === "blocked" || currentStatus.value === "unavailable"
+				? "error"
+				: currentStatus.value === "waiting"
+					? "warning"
+					: currentStatus.value === "completed"
+						? "success"
+						: "normal",
+		),
 	];
 	if (workCase) {
 		overviewItems.push(
@@ -161,7 +176,11 @@ export function inspectActionLoopWorkbench(
 	if (runtime.heldWorkCase) {
 		if (isLivePausedWorkCaseState(runtime.heldWorkCase)) {
 			overviewItems.push(
-				item("Paused because", runtime.heldWorkCase.workCase.pause.reason, "muted"),
+				item(
+					"Paused because",
+					runtime.heldWorkCase.workCase.pause.reason,
+					"muted",
+				),
 			);
 		} else if (isLiveWaitingWorkCaseState(runtime.heldWorkCase)) {
 			overviewItems.push(
@@ -170,7 +189,9 @@ export function inspectActionLoopWorkbench(
 					runtime.heldWorkCase.workCase.wait.externalCondition,
 					"warning",
 					details(
-						detail("Continue when", [runtime.heldWorkCase.workCase.wait.resumePredicate]),
+						detail("Continue when", [
+							runtime.heldWorkCase.workCase.wait.resumePredicate,
+						]),
 					),
 				),
 			);
@@ -263,7 +284,8 @@ export function inspectActionLoopWorkbench(
 						assessment.outcome,
 						assessment.outcome === "observed-success"
 							? "success"
-							: assessment.outcome === "pending" || assessment.outcome === "unknown"
+							: assessment.outcome === "pending" ||
+									assessment.outcome === "unknown"
 								? "warning"
 								: "error",
 						details(detail("Basis", assessment.basis)),
@@ -285,7 +307,11 @@ export function inspectActionLoopWorkbench(
 
 	const sections: readonly ActionLoopWorkbenchSection[] = Object.freeze([
 		{ id: "overview", label: "Overview", items: Object.freeze(overviewItems) },
-		{ id: "decisions", label: "Decisions", items: Object.freeze(decisionItems) },
+		{
+			id: "decisions",
+			label: "Decisions",
+			items: Object.freeze(decisionItems),
+		},
 		{ id: "evidence", label: "Evidence", items: Object.freeze(evidenceItems) },
 		{ id: "effects", label: "Effects", items: Object.freeze(effectItems) },
 		{ id: "history", label: "History", items: Object.freeze(historyItems) },

@@ -1,4 +1,5 @@
 import type { ActionCandidateProvenance } from "../src/action-loop/action/accept-action-candidate.ts";
+import type { HostContribution } from "../src/action-loop/contribution/accept-host-contribution.ts";
 import type {
 	SkillContribution,
 	SkillContributionContext,
@@ -30,6 +31,8 @@ export interface LiveWorkCaseProposal {
 	readonly provenance: ActionCandidateProvenance;
 }
 
+export type LiveContribution = SkillContribution | HostContribution;
+
 export interface LiveWorkCaseState {
 	readonly workCase: ActiveWorkCase;
 	readonly contextRevisionId: string;
@@ -38,7 +41,7 @@ export interface LiveWorkCaseState {
 	readonly capabilityAssignments: readonly CapabilityAssignment[];
 	readonly referenceSelections: readonly BoundReferenceSelection[];
 	readonly sealedSkillContexts: readonly SkillContributionContext[];
-	readonly contributions: readonly SkillContribution[];
+	readonly contributions: readonly LiveContribution[];
 	readonly needCoverages: readonly NeedCoverage[];
 	readonly effectObservations: readonly EffectObservation[];
 }

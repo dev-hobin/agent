@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-routing-contract-v0.1.md)
 >
 > Baseline: `@hobin/developer@0.1.19`
 >
-> Runtime note: This document defines the minimal authoring surface and runtime enforcement boundary for the new schema-identified TOC descriptor. The 0.1.19 runtime does not implement it. Existing `judgment.json` and `reference-policy.json` files are migration evidence, not compatibility targets.
+> Runtime note: `@hobin/developer@0.2.0-rc.1` implements this schema-identified TOC boundary. The old route-policy files are removed; there is no dual-format compatibility loader.
 >
 > Authored: 2026-08-06
 
@@ -750,9 +750,9 @@ malformed presence rejected
 owner supplied outside file
 ```
 
-### Existing `reference-policy.json`
+### Removed route-policy representation
 
-Use its richer route metadata as migration evidence, not as fields users must reproduce.
+The earlier richer route metadata was migration evidence, not fields users must reproduce.
 
 Move information to its actual owner:
 
@@ -767,7 +767,7 @@ Move information to its actual owner:
 | read order | TOC declaration order |
 | exemption | runtime no-Reference selection basis |
 
-Do not build a dual-format compatibility loader. Cutover occurs after semantic selection fixtures prove that the new TOCs preserve required Skill and Reference choices.
+No dual-format compatibility loader exists. Cutover is complete: every reference-bearing packaged Skill has one canonical TOC, and semantic selection fixtures verify required Skill and Reference choices.
 
 ## 22. Authoring complexity budget
 

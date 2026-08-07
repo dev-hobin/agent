@@ -1,6 +1,5 @@
 export const DEVELOPER_COMMAND_ACTIONS = [
 	"status",
-	"questions",
 	"settings",
 	"pause",
 	"wait",

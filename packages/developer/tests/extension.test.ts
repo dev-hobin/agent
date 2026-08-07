@@ -3,7 +3,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { validateToolArguments } from "@earendil-works/pi-ai";
 import {
 	initTheme,
 	loadSkillsFromDir,
@@ -12,13 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import developer from "../extensions/developer.ts";
-import {
-	ACTIVATION_ENTRY,
-	JUDGMENT_TOOL,
-	REFERENCE_TOOL,
-	ROUTE_TOOL,
-} from "../extensions/state.ts";
-import { TOOL_POLICY_LIFECYCLE_ENTRY } from "../extensions/tool-policy.ts";
+import { DEVELOPER_MODE_ENTRY } from "../extensions/developer-mode.ts";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const loadedLeaves = loadSkillsFromDir({
@@ -37,13 +30,6 @@ const FULL_SCREEN_SURFACE_OPTIONS = {
 	},
 } as const;
 
-const TEST_CAPABILITY_WHEN: Readonly<Record<string, string>> = {
-	model:
-		"Consequential conditions, rules, contracts, histories, or proof boundaries must be modeled.",
-	verify:
-		"A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged.",
-};
-
 const TEST_CAPABILITY_REFERENCES: Readonly<Record<string, readonly string[]>> =
 	{
 		model: [
@@ -58,17 +44,6 @@ const TEST_CAPABILITY_REFERENCES: Readonly<Record<string, readonly string[]>> =
 		],
 		verify: ["references/verifier-selection-and-pass-but-wrong.md"],
 	};
-
-const TEST_IMPLEMENTATION_CONTRACT = {
-	movement: "Apply one bounded test movement",
-	stop_condition: "The focused test is green and the route is reviewable",
-	verification: "Run the focused test",
-	invariant_handling: {
-		kind: "not-applicable",
-		reason:
-			"The protocol behavior under test does not construct or narrow invariant-bearing domain data",
-	},
-} as const;
 
 interface HarnessBranchEntry {
 	type?: string;
@@ -106,126 +81,12 @@ function createHarness() {
 	let editorText = "";
 	let activeTools = ["read", "edit", "write", "bash"];
 	let branchEntries: HarnessBranchEntry[] = [];
-	const capabilityAssessmentPromises = new Map<string, Promise<unknown>>();
-	const readyCapabilityAssessments = new Set<string>();
-	const readyReferenceSelections = new Set<string>();
-
 	const api = {
 		on(name: string, handler: (event: any, ctx: any) => any) {
 			handlers.set(name, [...(handlers.get(name) ?? []), handler]);
 		},
 		registerTool(tool: any) {
-			// Direct harness calls bypass Pi's schema validation. Route fixtures
-			// explicitly propose Capability applicability and receive the public
-			// implementation contract unless a test overrides a field.
-			const registeredTool =
-				tool.name === "developer_assess_capability"
-					? {
-							...tool,
-							async execute(
-								toolCallId: string,
-								params: Record<string, unknown>,
-								...rest: unknown[]
-							) {
-								const capability = String(params.capability ?? "");
-								const pending = Promise.resolve(
-									tool.execute(toolCallId, params, ...rest),
-								);
-								if (capability)
-									capabilityAssessmentPromises.set(capability, pending);
-								try {
-									const result = await pending;
-									if (capability) readyCapabilityAssessments.add(capability);
-									return result;
-								} catch (error) {
-									if (capability)
-										capabilityAssessmentPromises.delete(capability);
-									throw error;
-								}
-							},
-						}
-					: tool.name === ROUTE_TOOL
-						? {
-								...tool,
-								async execute(
-									toolCallId: string,
-									params: Record<string, unknown>,
-									...rest: unknown[]
-								) {
-									if (
-										typeof params?.target === "string" &&
-										params.target !== "implementation" &&
-										!readyCapabilityAssessments.has(params.target)
-									) {
-										const assessment = tools.get("developer_assess_capability");
-										const declaredWhen = TEST_CAPABILITY_WHEN[params.target];
-										if (assessment) {
-											let pending = capabilityAssessmentPromises.get(
-												params.target,
-											);
-											if (!pending) {
-												pending = Promise.resolve(
-													assessment.execute("assess-route-fixture", {
-														capability: params.target,
-														status: "applicable",
-														matched_when: declaredWhen ? [declaredWhen] : [],
-														matched_unless: [],
-														basis: [
-															"The requested route fixture explicitly serves the current Contribution Need.",
-														],
-														missing_context: [],
-													}),
-												);
-												capabilityAssessmentPromises.set(
-													params.target,
-													pending,
-												);
-											}
-											try {
-												await pending;
-												readyCapabilityAssessments.add(params.target);
-											} catch (error) {
-												capabilityAssessmentPromises.delete(params.target);
-												throw error;
-											}
-										}
-									}
-									if (typeof params?.target === "string") {
-										const references =
-											TEST_CAPABILITY_REFERENCES[params.target];
-										if (
-											references &&
-											!readyReferenceSelections.has(params.target)
-										) {
-											const selection = tools.get(
-												"developer_select_references",
-											);
-											if (selection) {
-												await selection.execute("select-route-references", {
-													capability: params.target,
-													dispositions: references.map((path) => ({
-														path,
-														status: "selected",
-														basis: [
-															"The route fixture explicitly selects this canonical Reference.",
-														],
-													})),
-												});
-												readyReferenceSelections.add(params.target);
-											}
-										}
-									}
-									return tool.execute(
-										toolCallId,
-										params?.target === "implementation"
-											? { ...TEST_IMPLEMENTATION_CONTRACT, ...params }
-											: params,
-										...rest,
-									);
-								},
-							}
-						: tool;
-			tools.set(tool.name, registeredTool);
+			tools.set(tool.name, tool);
 			activeTools.push(tool.name);
 		},
 		registerCommand(name: string, command: any) {
@@ -389,27 +250,6 @@ const theme = {
 	fg: (color: string, text: string) => `<${color}>${text}</${color}>`,
 };
 
-function agentOpenQuestion(question: string) {
-	return {
-		question,
-		status: "open" as const,
-		resolution_owner: "agent" as const,
-		gate: "none" as const,
-		resolution_criteria: `Obtain concrete evidence that settles: ${question}`,
-	};
-}
-
-function referenceExemption(
-	reason = "The test exercises protocol behavior that does not depend on the routed reference methods.",
-) {
-	return {
-		reason,
-		evidence: [
-			"The asserted behavior is independent of reference-derived judgment.",
-		],
-	};
-}
-
 function resultText(result: {
 	content: Array<{ type: string; text?: string }>;
 }): string {
@@ -494,1107 +334,7 @@ async function startHarness(loadedSkills: Skill[] = loadedLeaves) {
 	});
 	return harness;
 }
-
-test("tool contract failures throw so Pi records them as errors", async () => {
-	const harness = createHarness();
-	await developer(harness.api);
-	await harness.emit("session_start", {
-		type: "session_start",
-		reason: "startup",
-	});
-	const route = harness.tools.get(ROUTE_TOOL);
-
-	await assert.rejects(
-		route.execute(
-			"off",
-			{ question: "Q", target: "implementation", reason: "R" },
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/protocol is off/,
-	);
-
-	await harness.commands.get("developer").handler("on", harness.ctx);
-	await harness.emit("before_agent_start", {
-		type: "before_agent_start",
-		prompt: "test",
-		systemPrompt: "base",
-		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
-	});
-	await assert.rejects(
-		route.execute(
-			"without-work-case",
-			{
-				question: "Can routing bypass Outcome continuity?",
-				target: "specify",
-				reason: "No Work Case has been opened.",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/active Action Loop Work Case/i,
-	);
-	await openTestWorkCase(harness, "tool-contract");
-	const opened = await route.execute(
-		"valid",
-		{
-			question: "What must be true?",
-			target: "specify",
-			reason: "Product meaning is unclear",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.match(opened.content[0].text.slice(0, 2_000), /Route ID: route:valid/);
-	assert.match(
-		opened.content[0].text.slice(0, 2_000),
-		/developer_record_judgment/,
-	);
-	assert.match(
-		opened.content[0].text,
-		/<developer-method name="specify" location="[^"]+" base-dir="[^"]+">/,
-	);
-	await assert.rejects(
-		route.execute(
-			"overlap",
-			{
-				question: "Can another route start?",
-				target: "implementation",
-				reason: "Testing route ownership",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/is still active/,
-	);
-
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	await assert.rejects(
-		judgment.execute(
-			"wrong",
-			{
-				route_id: "route:wrong",
-				status: "resolved",
-				result: "Done",
-				basis: ["Evidence"],
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/Route ID mismatch/,
-	);
-});
-
-test("concurrent route attempts cannot overwrite a route that is still opening", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	await harness.tools
-		.get("developer_assess_capability")
-		.execute("assess-before-concurrency", {
-			capability: "specify",
-			status: "applicable",
-			matched_when: [],
-			matched_unless: [],
-			basis: [
-				"The requested route fixture explicitly serves the current Contribution Need.",
-			],
-			missing_context: [],
-		});
-	const opening = route.execute(
-		"opening",
-		{
-			question: "What must be true?",
-			target: "specify",
-			reason: "Product meaning is unclear",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await assert.rejects(
-		route.execute(
-			"overlap",
-			{
-				question: "Can implementation work start too?",
-				target: "implementation",
-				reason: "Testing concurrent ownership",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/currently opening|still active/,
-	);
-	const opened = await opening;
-	assert.equal(opened.details.routeId, "route:opening");
-});
-
-test("oversized route output fails before protocol state is mutated", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	await assert.rejects(
-		route.execute(
-			"oversized",
-			{
-				question: "x".repeat(60_000),
-				target: "implementation",
-				reason: "The action is otherwise justified",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/exceeds Pi's tool-output limit/,
-	);
-
-	const opened = await route.execute(
-		"after-oversized",
-		{
-			question: "Can a valid route still open?",
-			target: "implementation",
-			reason: "The failed result was atomic",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(opened.details.routeId, "route:after-oversized");
-});
-
-test("oversized judgment output leaves the active route available for a valid retry", async () => {
-	const harness = await startHarness();
-	const route = await harness.tools.get(ROUTE_TOOL).execute(
-		"judgment-output",
-		{
-			question: "Record a bounded result",
-			target: "implementation",
-			reason: "The local action is justified",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	await assert.rejects(
-		judgment.execute(
-			"oversized-judgment",
-			{
-				route_id: route.details.routeId,
-				status: "resolved",
-				result: "x".repeat(60_000),
-				basis: ["Observed evidence"],
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/exceeds Pi's tool-output limit/,
-	);
-
-	const recorded = await judgment.execute(
-		"bounded-judgment",
-		{
-			route_id: route.details.routeId,
-			status: "resolved",
-			result: "The bounded result is recorded.",
-			basis: ["Observed evidence"],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(recorded.details.status, "resolved");
-});
-
-test("a judgment cannot commit an unbounded pending-question set", async () => {
-	const harness = await startHarness();
-	const route = await harness.tools.get(ROUTE_TOOL).execute(
-		"pending-limit",
-		{
-			question: "Which questions remain?",
-			target: "implementation",
-			reason: "The evidence has been inspected",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	await assert.rejects(
-		judgment.execute(
-			"too-many-pending",
-			{
-				route_id: route.details.routeId,
-				status: "needs-evidence",
-				result: "Too many separate questions were proposed.",
-				basis: [],
-				open_questions: Array.from({ length: 21 }, (_, index) =>
-					agentOpenQuestion(`Question ${index + 1}`),
-				),
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/pending questions; resolve or consolidate/,
-	);
-
-	const recorded = await judgment.execute(
-		"bounded-pending",
-		{
-			route_id: route.details.routeId,
-			status: "needs-evidence",
-			result: "One question remains.",
-			basis: [],
-			open_questions: [agentOpenQuestion("What evidence is missing?")],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(recorded.details.openedQuestions.length, 1);
-});
-
-test("a Pi-filtered leaf cannot be routed even though it exists in the package", async () => {
-	const harness = await startHarness([]);
-	await assert.rejects(
-		harness.tools.get(ROUTE_TOOL).execute(
-			"filtered",
-			{
-				question: "What must be true?",
-				target: "specify",
-				reason: "Need a contract",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/unavailable.*(?:disabled|excluded)/,
-	);
-});
-
-test("reference-free skill routes explicitly omit reference evidence fields", async () => {
-	const harness = await startHarness();
-	const routed = await harness.tools.get(ROUTE_TOOL).execute(
-		"reference-free",
-		{
-			question: "Which product meaning is established?",
-			target: "specify",
-			reason: "The bounded contract needs clarification",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-
-	assert.deepEqual(routed.details.availableReferences, []);
-	assert.match(
-		resultText(routed),
-		/has no packaged references; omit both reference_basis and reference_exemption/,
-	);
-});
-
-test("resolved skill judgments require auditable reference application or a concrete exemption", async () => {
-	const harness = await startHarness();
-	const routeTool = harness.tools.get(ROUTE_TOOL);
-	const referenceTool = harness.tools.get(REFERENCE_TOOL);
-	const judgmentTool = harness.tools.get(JUDGMENT_TOOL);
-	const routed = await routeTool.execute(
-		"reference-contract",
-		{
-			question: "How should totalEstimate follow the recursive Tasks shape?",
-			target: "sketch",
-			reason: "The data definition must determine the implementation skeleton",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.ok(
-		routed.details.availableReferences.includes(
-			"references/data-driven-design.md",
-		),
-	);
-	assert.deepEqual(
-		routed.details.referenceRoutes.find(
-			(route: { id: string }) => route.id === "data-shape-template",
-		)?.references,
-		[
-			"references/data-driven-design.md",
-			"references/data-shape-template-catalog.md",
-		],
-	);
-	const blockedDirectReferenceRead = await harness.emit("tool_call", {
-		toolName: "read",
-		input: {
-			path: join(
-				packageRoot,
-				"skills",
-				"sketch",
-				"references",
-				"data-driven-design.md",
-			),
-		},
-		toolCallId: "direct-reference-read",
-	});
-	assert.equal(blockedDirectReferenceRead.block, true);
-	assert.match(blockedDirectReferenceRead.reason, /developer_load_reference/);
-	await assert.rejects(
-		judgmentTool.execute(
-			"reference-contract-missing",
-			{
-				route_id: routed.details.routeId,
-				status: "resolved",
-				result: "The recursive skeleton is ready.",
-				basis: ["Tasks has Empty and Node clauses."],
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/must provide reference_basis.*reference_exemption/,
-	);
-
-	await assert.rejects(
-		referenceTool.execute(
-			"reference-catalog-before-listed-order",
-			{
-				reference_route: "data-shape-template",
-				path: "references/data-shape-template-catalog.md",
-				reason:
-					"Tasks is self-referential and needs an exact recursive template.",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/listed read order.*data-driven-design\.md/,
-	);
-	const loadedBase = await referenceTool.execute(
-		"reference-base-first",
-		{
-			reference_route: "data-shape-template",
-			path: "references/data-driven-design.md",
-			reason:
-				"The recursive template route starts with the six-artifact derivation.",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(loadedBase.details.contentSha256.length, 64);
-	assert.match(loadedBase.details.sourceTrace, /How to Design Programs/);
-	assert.match(resultText(loadedBase), /The Six-Artifact Recipe/);
-	await assert.rejects(
-		referenceTool.execute(
-			"reference-base-duplicate",
-			{
-				reference_route: "data-shape-template",
-				path: "references/data-driven-design.md",
-				reason: "A second selected route shares the base method.",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/already loaded.*overlapping route membership.*one reference_basis entry/,
-	);
-	await assert.rejects(
-		judgmentTool.execute(
-			"reference-contract-incomplete-route",
-			{
-				route_id: routed.details.routeId,
-				status: "resolved",
-				result: "The recursive skeleton is ready.",
-				basis: ["Tasks has Empty and Node clauses."],
-				reference_basis: [
-					{
-						path: "references/data-driven-design.md",
-						trigger: "Tasks variants determine the function cases.",
-						applied_rule: "One data clause produces one function branch.",
-						artifact: "Empty and Node branches.",
-					},
-				],
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/route data-shape-template is incomplete.*data-shape-template-catalog\.md/,
-	);
-	const loadedCatalog = await referenceTool.execute(
-		"reference-catalog-second",
-		{
-			reference_route: "data-shape-template",
-			path: "references/data-shape-template-catalog.md",
-			reason:
-				"Tasks is self-referential and needs an exact recursive template.",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.deepEqual(loadedCatalog.details.referenceRouteIds, [
-		"data-shape-template",
-	]);
-	await assert.rejects(
-		judgmentTool.execute(
-			"reference-contract-missing-loaded-basis",
-			{
-				route_id: routed.details.routeId,
-				status: "resolved",
-				result: "The recursive skeleton is ready.",
-				basis: ["Tasks has Empty and Node clauses."],
-				reference_basis: [
-					{
-						path: "references/data-shape-template-catalog.md",
-						trigger: "Tasks is self-referential.",
-						applied_rule: "Recurse at the exact self-reference position.",
-						artifact: "totalEstimate(rest)",
-					},
-				],
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/Every loaded reference must have a reference_basis entry.*data-driven-design\.md/,
-	);
-	const recorded = await judgmentTool.execute(
-		"reference-contract-close",
-		{
-			route_id: routed.details.routeId,
-			status: "resolved",
-			result: "The recursive skeleton follows the Tasks clauses.",
-			basis: ["Tasks has Empty and Node clauses."],
-			reference_basis: [
-				{
-					path: "references/data-driven-design.md",
-					trigger: "Tasks variants determine the function cases.",
-					applied_rule: "One data clause produces one function branch.",
-					artifact: "Empty and Node branches in the totalEstimate template.",
-				},
-				{
-					path: "references/data-shape-template-catalog.md",
-					trigger: "Tasks is self-referential.",
-					applied_rule: "Recurse at the exact self-reference position.",
-					artifact: "totalEstimate(rest)",
-				},
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(
-		recorded.details.referenceBasis[0].path,
-		loadedBase.details.path,
-	);
-	assert.equal(
-		recorded.details.referenceBasis[0].contentSha256,
-		loadedBase.details.contentSha256,
-	);
-	assert.equal(
-		recorded.details.referenceBasis[1].contentSha256,
-		loadedCatalog.details.contentSha256,
-	);
-	assert.deepEqual(recorded.details.referenceBasis[1].referenceRouteIds, [
-		"data-shape-template",
-	]);
-
-	const direct = await routeTool.execute(
-		"reference-exemption",
-		{
-			question: "Which already-accepted local helper signature is first?",
-			target: "sketch",
-			reason: "Only the protocol exemption behavior remains under test",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const exempted = await judgmentTool.execute(
-		"reference-exemption-close",
-		{
-			route_id: direct.details.routeId,
-			status: "resolved",
-			result: "The accepted local signature is the first item.",
-			basis: [
-				"Purpose, cases, data flow, and first item are already explicit.",
-			],
-			reference_exemption: referenceExemption(
-				"No ownership, data-shape, state, recursion, or variation question remains.",
-			),
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.match(exempted.details.referenceExemption.reason, /No ownership/);
-});
-
-test("implementation profiles load only the protocol selected for that action", async () => {
-	const ordinaryHarness = await startHarness();
-	const ordinary = await ordinaryHarness.tools.get(ROUTE_TOOL).execute(
-		"ordinary-implementation",
-		{
-			question: "Apply the already-justified generated-file update",
-			target: "implementation",
-			reason: "The output and verifier are already fixed",
-		},
-		undefined,
-		undefined,
-		ordinaryHarness.ctx,
-	);
-	assert.equal(ordinary.details.executionProfile, "ordinary");
-	assert.doesNotMatch(
-		ordinary.content[0].text,
-		/Smallest Green Transformation/,
-	);
-
-	const structuralHarness = await startHarness();
-	const structural = await structuralHarness.tools.get(ROUTE_TOOL).execute(
-		"structural-implementation",
-		{
-			question: "Move the accepted responsibility without changing behavior",
-			target: "implementation",
-			reason:
-				"Signal and abstraction review already justified one structural move",
-			execution_profile: "behavior-preserving-structure",
-		},
-		undefined,
-		undefined,
-		structuralHarness.ctx,
-	);
-	assert.equal(
-		structural.details.executionProfile,
-		"behavior-preserving-structure",
-	);
-	assert.match(
-		structural.content[0].text,
-		/<developer-implementation-profile name="behavior-preserving-structure">/,
-	);
-	assert.match(structural.content[0].text, /## Smallest Green Transformation/);
-	assert.match(structural.content[0].text, /## Stable Landing/);
-	assert.match(structural.content[0].text, /99 Bottles of OOP/);
-});
-
-test("route schema exposes provider-compatible object properties without union-only fields", async () => {
-	const harness = createHarness();
-	await developer(harness.api);
-	const route = harness.tools.get(ROUTE_TOOL);
-	const schema = route.parameters;
-	assert.equal(schema.type, "object");
-	assert.equal(schema.additionalProperties, false);
-	assert.equal(schema.anyOf, undefined);
-	assert.deepEqual(schema.required.sort(), ["question", "reason", "target"]);
-
-	const invariantHandling = schema.properties.invariant_handling;
-	assert.equal(invariantHandling.type, "object");
-	assert.equal(invariantHandling.anyOf, undefined);
-	assert.deepEqual(invariantHandling.properties.kind.enum, [
-		"not-applicable",
-		"evidence-preserving-boundary",
-		"trusted-compiler-gap",
-	]);
-	assert.ok(invariantHandling.required.includes("kind"));
-	assert.ok(invariantHandling.properties.reason);
-	assert.ok(invariantHandling.properties.raw_representation);
-	assert.ok(invariantHandling.properties.assertion);
-	assert.deepEqual(schema.properties.execution_profile.enum, [
-		"behavior-preserving-structure",
-	]);
-
-	const incompatibleKeywords: string[] = [];
-	const inspect = (value: unknown, path = "parameters") => {
-		if (!value || typeof value !== "object") return;
-		for (const [key, nested] of Object.entries(value)) {
-			if (key === "anyOf" || key === "oneOf" || key === "const") {
-				incompatibleKeywords.push(`${path}.${key}`);
-			}
-			inspect(nested, `${path}.${key}`);
-		}
-	};
-	inspect(schema);
-	assert.deepEqual(incompatibleKeywords, []);
-
-	const objectArguments = {
-		...TEST_IMPLEMENTATION_CONTRACT,
-		question: "Apply the justified local change",
-		target: "implementation",
-		reason: "The movement is explicit",
-	};
-	const validated = validateToolArguments(route, {
-		type: "toolCall",
-		id: "object-invariant",
-		name: ROUTE_TOOL,
-		arguments: objectArguments,
-	});
-	assert.deepEqual(
-		validated.invariant_handling,
-		TEST_IMPLEMENTATION_CONTRACT.invariant_handling,
-	);
-	assert.throws(
-		() =>
-			validateToolArguments(route, {
-				type: "toolCall",
-				id: "string-invariant",
-				name: ROUTE_TOOL,
-				arguments: {
-					...objectArguments,
-					invariant_handling: JSON.stringify(
-						TEST_IMPLEMENTATION_CONTRACT.invariant_handling,
-					),
-				},
-			}),
-		/invariant_handling/,
-	);
-});
-
-test("route runtime enforces target-specific fields after flattening the public schema", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	await assert.rejects(
-		route.execute(
-			"missing-invariant",
-			{
-				...TEST_IMPLEMENTATION_CONTRACT,
-				question: "Apply the justified local change",
-				target: "implementation",
-				reason: "The movement is explicit",
-				invariant_handling: undefined,
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/requires an invariant_handling object/,
-	);
-	await assert.rejects(
-		route.execute(
-			"incomplete-invariant",
-			{
-				...TEST_IMPLEMENTATION_CONTRACT,
-				question: "Apply the justified local change",
-				target: "implementation",
-				reason: "The movement is explicit",
-				invariant_handling: { kind: "not-applicable" },
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/invariant_handling\.reason is required/,
-	);
-	await assert.rejects(
-		route.execute(
-			"skill-with-implementation-fields",
-			{
-				question: "What does the product require?",
-				target: "specify",
-				reason: "Meaning remains unresolved",
-				movement: "Change the product code",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/movement is valid only when target=implementation/,
-	);
-	const accepted = await route.execute(
-		"object-invariant",
-		{
-			...TEST_IMPLEMENTATION_CONTRACT,
-			question: "Apply the justified local change",
-			target: "implementation",
-			reason: "The movement is explicit",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.deepEqual(
-		accepted.details.implementationStep.invariantHandling,
-		TEST_IMPLEMENTATION_CONTRACT.invariant_handling,
-	);
-});
-
-test("judgment schema classifies open questions and supports cross-route question updates", async () => {
-	const harness = createHarness();
-	await developer(harness.api);
-	const schema = harness.tools.get(JUDGMENT_TOOL).parameters;
-	const openQuestion = schema.properties.open_questions.items;
-	assert.ok(openQuestion.required.includes("resolution_owner"));
-	assert.ok(openQuestion.required.includes("gate"));
-	assert.ok(openQuestion.required.includes("resolution_criteria"));
-	assert.equal(openQuestion.required.includes("context"), false);
-	assert.equal(openQuestion.properties.context.maxLength, 8_000);
-	assert.equal(openQuestion.required.includes("response_spec"), false);
-	assert.match(
-		openQuestion.properties.response_spec.description,
-		/finite user-owned decisions/,
-	);
-	assert.equal(
-		openQuestion.properties.response_spec.properties.kind.const,
-		"choice-form",
-	);
-	assert.equal(
-		openQuestion.properties.response_spec.properties.fields.minItems,
-		1,
-	);
-	assert.equal(
-		openQuestion.properties.response_spec.properties.fields.maxItems,
-		20,
-	);
-	assert.equal(
-		openQuestion.properties.response_spec.properties.fields.items.properties
-			.options.minItems,
-		2,
-	);
-	assert.deepEqual(openQuestion.properties.resolution_owner.enum, [
-		"agent",
-		"user",
-		"environment",
-	]);
-	assert.deepEqual(openQuestion.properties.gate.enum, [
-		"none",
-		"before-implementation",
-		"before-completion",
-	]);
-	assert.ok(
-		schema.properties.question_updates.items.required.includes("question_id"),
-	);
-	assert.ok(schema.properties.reference_basis.items.required.includes("path"));
-	assert.ok(
-		schema.properties.reference_basis.items.required.includes("applied_rule"),
-	);
-	assert.equal(
-		schema.properties.reference_exemption.required.includes("reason"),
-		true,
-	);
-	assert.equal(
-		schema.properties.reference_exemption.properties.evidence.minItems,
-		1,
-	);
-	assert.deepEqual(harness.tools.get(REFERENCE_TOOL).parameters.required, [
-		"reference_route",
-		"path",
-		"reason",
-	]);
-	assert.match(
-		harness.tools.get(JUDGMENT_TOOL).promptGuidelines.join("\n"),
-		/choice-form response_spec with one field per decision/,
-	);
-	assert.match(
-		harness.tools.get(ROUTE_TOOL).description,
-		/sketch creates an original design surface, abstraction-review judges an already-shaped candidate/,
-	);
-	assert.match(
-		harness.tools.get(ROUTE_TOOL).promptGuidelines.join("\n"),
-		/choose sketch for an original interface or boundary/,
-	);
-});
-
-test("choice response specs are canonicalized and invalid producer contracts do not mutate judgment state", async () => {
-	const harness = await startHarness();
-	const route = await harness.tools.get(ROUTE_TOOL).execute(
-		"choice-response-route",
-		{
-			question: "Which empty-state policy applies?",
-			target: "specify",
-			reason: "The product owner must choose one explicit policy",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const openQuestion = {
-		question: "Should empty mean absent or explicitly cleared?",
-		context:
-			"Choose absent to omit the field, or explicitly cleared to preserve a user reset.",
-		status: "open" as const,
-		resolution_owner: "user" as const,
-		gate: "before-implementation" as const,
-		resolution_criteria: "The product owner selects one policy.",
-		response_spec: {
-			kind: "choice-form" as const,
-			fields: [
-				{
-					id: "A",
-					prompt: "Choose the empty-state policy",
-					options: [
-						{ value: "A1", label: "Absent" },
-						{
-							value: "A2",
-							label: "Explicitly cleared",
-							detail_prompt: "Describe the clearing signal.",
-						},
-					],
-				},
-			],
-		},
-	};
-	const recorded = await harness.tools.get(JUDGMENT_TOOL).execute(
-		"choice-response-judgment",
-		{
-			route_id: route.details.routeId,
-			status: "needs-evidence",
-			result: "An explicit product decision is required.",
-			basis: [],
-			open_questions: [openQuestion],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-
-	assert.deepEqual(recorded.details.openedQuestions[0].responseSpec, {
-		kind: "choice-form",
-		fields: [
-			{
-				id: "A",
-				prompt: "Choose the empty-state policy",
-				description: undefined,
-				options: [
-					{
-						value: "A1",
-						label: "Absent",
-						description: undefined,
-						detailPrompt: undefined,
-					},
-					{
-						value: "A2",
-						label: "Explicitly cleared",
-						description: undefined,
-						detailPrompt: "Describe the clearing signal.",
-					},
-				],
-			},
-		],
-	});
-
-	const invalidHarness = await startHarness();
-	const invalidRoute = await invalidHarness.tools.get(ROUTE_TOOL).execute(
-		"invalid-choice-response-route",
-		{
-			question: "Can this structured question be recorded?",
-			target: "specify",
-			reason: "The question contract must be validated before persistence",
-		},
-		undefined,
-		undefined,
-		invalidHarness.ctx,
-	);
-	const invalidParams = {
-		route_id: invalidRoute.details.routeId,
-		status: "needs-evidence",
-		result: "A user answer is required.",
-		basis: [],
-		open_questions: [
-			{
-				...openQuestion,
-				response_spec: {
-					...openQuestion.response_spec,
-					fields: [
-						{
-							...openQuestion.response_spec.fields[0],
-							options: [
-								{ value: "same", label: "First" },
-								{ value: "same", label: "Second" },
-							],
-						},
-					],
-				},
-			},
-		],
-	};
-	await assert.rejects(
-		invalidHarness.tools
-			.get(JUDGMENT_TOOL)
-			.execute(
-				"invalid-duplicate-values",
-				invalidParams,
-				undefined,
-				undefined,
-				invalidHarness.ctx,
-			),
-		/unique field IDs and unique option values/,
-	);
-	await assert.rejects(
-		invalidHarness.tools.get(JUDGMENT_TOOL).execute(
-			"invalid-non-user-spec",
-			{
-				...invalidParams,
-				open_questions: [
-					{
-						...openQuestion,
-						resolution_owner: "agent",
-					},
-				],
-			},
-			undefined,
-			undefined,
-			invalidHarness.ctx,
-		),
-		/valid only for user-owned questions/,
-	);
-	await assert.rejects(
-		invalidHarness.tools.get(JUDGMENT_TOOL).execute(
-			"invalid-missing-decision-context",
-			{
-				...invalidParams,
-				open_questions: [{ ...openQuestion, context: "   " }],
-			},
-			undefined,
-			undefined,
-			invalidHarness.ctx,
-		),
-		/require non-whitespace context that explains the decision/,
-	);
-	assert.equal(
-		invalidHarness.entries.filter((entry) => entry.customType === JUDGMENT_TOOL)
-			.length,
-		0,
-	);
-});
-
-test("resolved and not-applicable judgments can preserve distinct follow-up questions", async () => {
-	const resolvedHarness = await startHarness();
-	const resolvedRoute = await resolvedHarness.tools.get(ROUTE_TOOL).execute(
-		"resolved-follow-up",
-		{
-			question: "Is the current conversion contract settled?",
-			target: "specify",
-			reason:
-				"The current contract and later migration work are separate judgments",
-		},
-		undefined,
-		undefined,
-		resolvedHarness.ctx,
-	);
-	const resolvedJudgment = await resolvedHarness.tools
-		.get(JUDGMENT_TOOL)
-		.execute(
-			"resolved-follow-up-close",
-			{
-				route_id: resolvedRoute.details.routeId,
-				status: "resolved",
-				result: "The current conversion contract is settled.",
-				basis: ["Current callers agree on the contract."],
-				open_questions: [
-					agentOpenQuestion("Which legacy migration should happen later?"),
-				],
-			},
-			undefined,
-			undefined,
-			resolvedHarness.ctx,
-		);
-
-	const notApplicableHarness = await startHarness();
-	const notApplicableRoute = await notApplicableHarness.tools
-		.get(ROUTE_TOOL)
-		.execute(
-			"not-applicable-follow-up",
-			{
-				question: "Does the current conversion require a compatibility shim?",
-				target: "specify",
-				reason:
-					"The current shim and later migration work are separate judgments",
-			},
-			undefined,
-			undefined,
-			notApplicableHarness.ctx,
-		);
-	const notApplicableJudgment = await notApplicableHarness.tools
-		.get(JUDGMENT_TOOL)
-		.execute(
-			"not-applicable-follow-up-close",
-			{
-				route_id: notApplicableRoute.details.routeId,
-				status: "not-applicable",
-				result: "The current conversion does not require a compatibility shim.",
-				basis: ["Current callers already use the accepted representation."],
-				open_questions: [
-					agentOpenQuestion("Which legacy migration should happen later?"),
-				],
-			},
-			undefined,
-			undefined,
-			notApplicableHarness.ctx,
-		);
-
-	assert.equal(resolvedJudgment.details.status, "resolved");
-	assert.equal(notApplicableJudgment.details.status, "not-applicable");
-	assert.equal(
-		resolvedJudgment.details.openedQuestions[0].question,
-		"Which legacy migration should happen later?",
-	);
-	assert.equal(
-		notApplicableJudgment.details.openedQuestions[0].question,
-		"Which legacy migration should happen later?",
-	);
-});
-
-test("a resolved judgment cannot reopen its own question", async () => {
-	const harness = await startHarness();
-	const routed = await harness.tools.get(ROUTE_TOOL).execute(
-		"self-reopen",
-		{
-			question: "Can this conversion contract ship?",
-			target: "verify",
-			reason: "The shipping claim is under review",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-
-	await assert.rejects(
-		harness.tools.get(JUDGMENT_TOOL).execute(
-			"self-reopen-close",
-			{
-				route_id: routed.details.routeId,
-				status: "resolved",
-				result: "The conversion contract can ship.",
-				basis: ["The contract tests pass."],
-				reference_exemption: referenceExemption(),
-				open_questions: [
-					agentOpenQuestion("CAN this conversion contract ship?"),
-				],
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/cannot reopen its own question/,
-	);
-});
-
-test("skill routes reject implementation profiles", async () => {
-	const harness = await startHarness();
-	await assert.rejects(
-		harness.tools.get(ROUTE_TOOL).execute(
-			"profile-on-skill",
-			{
-				question: "What must be true?",
-				target: "specify",
-				reason: "Product meaning is unclear",
-				execution_profile: "behavior-preserving-structure",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/execution_profile is valid only when target=implementation/,
-	);
-});
-
-test("the protocol prompt lists only skills Pi made available", async () => {
+test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", async () => {
 	const specify = loadedLeaves.find((skill) => skill.name === "specify")!;
 	const harness = createHarness();
 	await developer(harness.api);
@@ -1610,36 +350,23 @@ test("the protocol prompt lists only skills Pi made available", async () => {
 		systemPromptOptions: { cwd: packageRoot, skills: [specify] },
 	});
 
-	assert.match(result.systemPrompt, /Available Developer skills: specify\./);
+	assert.match(result.systemPrompt, /Pi-admitted Developer Skills: specify\./);
 	assert.match(
 		result.systemPrompt,
 		/Action Loop capability inventory: 1 bound \(0 unavailable, 0 excluded\)\./,
 	);
+	assert.match(result.systemPrompt, /Observe → Judge → Act → Settle/);
 	assert.match(
 		result.systemPrompt,
-		/Route by the requested work product, not keywords/,
+		/developer_accept_observation_contribution/,
 	);
-	assert.match(
-		result.systemPrompt,
-		/Route doctor only for an explicitly requested scope-bound diagnosis/,
-	);
-	assert.match(
-		result.systemPrompt,
-		/disposition every other available Developer skill[\s\S]*owning skill[\s\S]*return to Doctor/,
-	);
-	assert.match(
-		result.systemPrompt,
-		/one agent-owned before-completion synthesis question/,
-	);
-	assert.match(
-		result.systemPrompt,
-		/choice-form response_spec with one field per decision/,
-	);
-	assert.match(result.systemPrompt, /Invariant gate:/);
-	assert.match(result.systemPrompt, /unchecked assertion.*is not evidence/i);
+	assert.match(result.systemPrompt, /Evidence is not automatically truth/);
+	assert.match(result.systemPrompt, /exact one-use input/);
+	assert.doesNotMatch(result.systemPrompt, /developer_route_question/);
+	assert.doesNotMatch(result.systemPrompt, /developer_record_judgment/);
 	assert.doesNotMatch(
 		result.systemPrompt,
-		/Available Developer skills:.*model/,
+		/Pi-admitted Developer Skills:.*model/,
 	);
 });
 
@@ -1675,11 +402,16 @@ test("a live Work Case opens once and projects across agent turns", async () => 
 		/The package exposes one live bounded Work Case\./,
 	);
 	await assert.rejects(
-		harness.tools.get(ROUTE_TOOL).execute("route-without-judgment", {
-			question: "Can routing bypass the upper Judgment?",
-			target: "specify",
-			reason: "No Judgment has supplied a Contribution Need.",
-		}),
+		harness.tools
+			.get("developer_assess_capability")
+			.execute("assess-without-judgment", {
+				capability: "specify",
+				status: "applicable",
+				matched_when: [],
+				matched_unless: [],
+				basis: ["No current Judgment has supplied a functional Need."],
+				missing_context: [],
+			}),
 		/open Judgment/i,
 	);
 	await assert.rejects(
@@ -1781,7 +513,7 @@ test("human commands durably pause and resume one live Work Case", async () => {
 	assert.doesNotMatch(resumedTurn.systemPrompt, /Pause:/);
 
 	const activationEntry = harness.entries.find(
-		(entry) => entry.customType === ACTIVATION_ENTRY,
+		(entry) => entry.customType === DEVELOPER_MODE_ENTRY,
 	)!;
 	const activeBranch = [
 		{ type: "custom", ...activationEntry },
@@ -1863,10 +595,52 @@ test("natural human decisions durably pause and resume without protocol commands
 		.get("developer_resume_work_case")
 		.execute("resume-paused-from-user-observation", {
 			observation_id: resumeObservationId,
-			basis: ["The exact current human message explicitly requests continuation."],
+			basis: [
+				"The exact current human message explicitly requests continuation.",
+			],
 		});
 	assert.equal(resumed.details.kind, "resumed-paused");
 	assert.doesNotMatch(resultText(resumed), /observation_[a-f0-9]+/);
+});
+
+test("natural user answers become exact Need-bound Contributions without a Skill route", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	await openTestWorkCase(harness, "direct-answer", true);
+	const answerTurn = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "Use strict compatibility and reject unknown values.",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	const observationId = answerTurn.systemPrompt.match(
+		/- (observation_[a-f0-9]+) ·/,
+	)?.[1];
+	assert.ok(observationId);
+	const contribution = await harness.tools
+		.get("developer_accept_observation_contribution")
+		.execute("contribute-from-user-observation", {
+			observation_id: observationId,
+			local_status: "resolved",
+			result: "Use strict compatibility and reject unknown values.",
+			limitations: [],
+			residual_needs: [],
+			basis: [
+				"The exact current human message directly answers the current functional Need.",
+			],
+		});
+	assert.equal(contribution.details.kind, "accepted");
+	assert.equal(contribution.details.result, contribution.details.result.trim());
+	assert.doesNotMatch(resultText(contribution), /observation_[a-f0-9]+/);
+	assert.equal(
+		(contribution.details.replayEvent as { kind?: string }).kind,
+		"host-contribution-accepted",
+	);
 });
 
 test("natural user Observations durably wait and resume without protocol commands", async () => {
@@ -1880,7 +654,8 @@ test("natural user Observations durably wait and resume without protocol command
 	await openTestWorkCase(harness, "live-wait", false);
 	const waitingPrompt = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
-		prompt: "The external package registry is unavailable, so wait until a bounded probe succeeds.",
+		prompt:
+			"The external package registry is unavailable, so wait until a bounded probe succeeds.",
 		systemPrompt: "base",
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
@@ -1900,6 +675,18 @@ test("natural user Observations durably wait and resume without protocol command
 		});
 	assert.equal(waited.details.kind, "waiting");
 	assert.doesNotMatch(resultText(waited), /observation_[a-f0-9]+/);
+	await harness.emit("agent_settled", { type: "agent_settled" });
+	const waitingSurface = JSON.stringify({
+		status: harness.statuses.at(-1)?.value,
+		widget: harness.widgets.at(-1)?.value,
+	});
+	assert.match(waitingSurface, /developer · waiting/);
+	assert.match(waitingSurface, /external package registry is unavailable/i);
+	assert.match(waitingSurface, /bounded package registry probe succeeds/i);
+	assert.doesNotMatch(
+		waitingSurface,
+		/(?:work_case|revision|observation|contribution|conclusion|assignment|sealed|transition)_[a-f0-9]+/i,
+	);
 	const blockedAction = await harness.emit("tool_call", {
 		type: "tool_call",
 		toolName: "bash",
@@ -1912,7 +699,8 @@ test("natural user Observations durably wait and resume without protocol command
 
 	const resumePrompt = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
-		prompt: "The bounded package registry probe now succeeds. Continue the work.",
+		prompt:
+			"The bounded package registry probe now succeeds. Continue the work.",
 		systemPrompt: "base",
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
@@ -2043,10 +831,12 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 		/--no-session/,
 	);
 	await assert.rejects(
-		harness.tools.get("developer_resume_work_case").execute("resume-no-session", {
-			observation_id: "observation_missing",
-			basis: ["This must fail before a process-local resume is accepted."],
-		}),
+		harness.tools
+			.get("developer_resume_work_case")
+			.execute("resume-no-session", {
+				observation_id: "observation_missing",
+				basis: ["This must fail before a process-local resume is accepted."],
+			}),
 		/--no-session/,
 	);
 });
@@ -2074,6 +864,14 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		basis: ["The active Outcome is approaching a closure Claim."],
 	});
 	assert.match(resultText(opened), /Judgment opened/);
+	assert.match(
+		resultText(opened),
+		new RegExp(opened.details.judgment.requirements[0].requirementId),
+	);
+	assert.match(
+		resultText(opened),
+		new RegExp(opened.details.judgment.contributionNeeds[0].contributionNeedId),
+	);
 	const next = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",
@@ -2153,20 +951,6 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		}),
 		/already open/i,
 	);
-	const routed = await harness.tools.get(ROUTE_TOOL).execute(
-		"route-one-need",
-		{
-			question: "What evidence supports the current completion Claim?",
-			target: "verify",
-			reason: "The sole current Contribution Need asks for a verifier.",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.match(resultText(routed), /Contribution Need: contribution_need_/);
-	assert.match(resultText(routed), /claim-relevant verifier/);
-	assert.match(resultText(routed), /Canonical selected Reference contract:/);
 	const contributed = await harness.tools
 		.get("developer_accept_contribution")
 		.execute("accept-live-verify-contribution", {
@@ -2188,7 +972,6 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		resultText(contributed),
 		/Skill Contribution accepted: contribution_/,
 	);
-	assert.equal(contributed.details.compatibilityRouteClosed, true);
 	const coverage = await harness.tools
 		.get("developer_assess_coverage")
 		.execute("assess-live-verify-coverage", {
@@ -2808,8 +1591,7 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 			observation_id: blockedResumeObservationId,
 			observed_change:
 				"The exact Effect Observation is now available for settlement.",
-			continuation:
-				"Settle the pending Effect from the current Observation.",
+			continuation: "Settle the pending Effect from the current Observation.",
 			basis: [
 				"The current human Observation supplies the changed blocker state and bounded continuation.",
 			],
@@ -2956,6 +1738,75 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 	);
 });
 
+test("an unstructured Capability seals SKILL.md through an empty Reference disposition", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	await openTestWorkCase(harness, "unstructured-capability", false);
+	const opened = await harness.tools
+		.get("developer_open_judgment")
+		.execute("open-unstructured-judgment", {
+			category: "Contextual Adequacy",
+			subject: "A bounded product meaning",
+			question: "What must the requested behavior mean?",
+			requirements: [
+				{
+					statement: "The product meaning is explicit.",
+					contribution_needs: ["A bounded product specification"],
+				},
+			],
+			basis: ["The active Outcome contains an unresolved product meaning."],
+		});
+	const needId = opened.details.judgment.contributionNeeds[0].contributionNeedId;
+	await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	const assessed = await harness.tools
+		.get("developer_assess_capability")
+		.execute("assess-unstructured", {
+			capability: "specify",
+			contribution_need_id: needId,
+			status: "applicable",
+			matched_when: [],
+			matched_unless: [],
+			basis: ["The current Need requires a bounded product specification."],
+			missing_context: [],
+		});
+	assert.match(resultText(assessed), /Capability specify: applicable/);
+	const sealed = await harness.tools
+		.get("developer_select_references")
+		.execute("seal-unstructured", {
+			capability: "specify",
+			contribution_need_id: needId,
+			dispositions: [],
+		});
+	assert.match(resultText(sealed), /Unstructured Skill context sealed: sealed_/);
+	assert.equal(sealed.details.selectedPaths.length, 0);
+	assert.equal(
+		sealed.details.replayEvent.kind,
+		"unstructured-context-sealed",
+	);
+	const contributed = await harness.tools
+		.get("developer_accept_contribution")
+		.execute("contribute-unstructured", {
+			capability: "specify",
+			contribution_need_id: needId,
+			local_status: "resolved",
+			result: "The requested behavior has one explicit bounded meaning.",
+			reference_applications: [],
+			limitations: [],
+			residual_needs: [],
+		});
+	assert.match(resultText(contributed), /Skill Contribution accepted/);
+});
+
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
@@ -2983,1079 +1834,18 @@ test("non-applicable Capability assessment cannot authorize Skill routing", asyn
 		});
 	assert.match(resultText(assessed), /Capability specify: not-applicable/);
 	await assert.rejects(
-		harness.tools.get(ROUTE_TOOL).execute(
-			"route-not-applicable",
-			{
-				question: "Can a non-applicable Capability still be routed?",
-				target: "specify",
-				reason: "This route must fail without an assignment.",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/no current applicable assignment/i,
+		harness.tools
+			.get("developer_accept_contribution")
+			.execute("contribute-without-assignment", {
+				capability: "specify",
+				local_status: "resolved",
+				result: "This result must not be accepted.",
+				reference_applications: [],
+				limitations: [],
+				residual_needs: [],
+			}),
+		/exact current Capability Assignment/i,
 	);
-});
-
-test("a later turn can recover the active leaf method from its canonical location", async () => {
-	const harness = await startHarness();
-	const routed = await harness.tools.get(ROUTE_TOOL).execute(
-		"recoverable",
-		{
-			question: "What must be true?",
-			target: "specify",
-			reason: "Product meaning is unclear",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.match(resultText(routed), /Sealed Skill context: sealed_/);
-	assert.match(resultText(routed), /exactly one Skill file · no References/);
-	assert.match(String(routed.details.sealedContextId), /^sealed_[a-f0-9]{64}$/);
-	const result = await harness.emit("before_agent_start", {
-		type: "before_agent_start",
-		prompt: "continue",
-		systemPrompt: "base",
-		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
-	});
-
-	assert.match(
-		result.systemPrompt,
-		/Active skill location: .*specify\/SKILL\.md/,
-	);
-	assert.match(result.systemPrompt, /Read it again if compaction/);
-});
-
-test("leaf routing remains adaptive rather than enforcing a phase order", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	const verifyFirst = await route.execute(
-		"verify-first",
-		{
-			question: "Does current evidence support the claim?",
-			target: "verify",
-			reason: "A claim already exists",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await judgment.execute(
-		"verify-close",
-		{
-			route_id: verifyFirst.details.routeId,
-			status: "resolved",
-			result: "The claim is supported.",
-			basis: ["Observed test output"],
-			reference_exemption: referenceExemption(),
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const modelSecond = await route.execute(
-		"model-second",
-		{
-			question: "Which condition distinguishes absence from empty?",
-			target: "model",
-			reason: "A new state question appeared",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-
-	assert.equal(verifyFirst.details.target, "verify");
-	assert.equal(modelSecond.details.target, "model");
-});
-
-test("resolved model work must pass through sketch or signal before implementation mutation", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	const modeled = await route.execute(
-		"model-feature",
-		{
-			question: "Which feature cases must the implementation support?",
-			target: "model",
-			reason: "The feature has consequential variants",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await judgment.execute(
-		"model-feature-close",
-		{
-			route_id: modeled.details.routeId,
-			status: "resolved",
-			result: "The implementation cases are explicit.",
-			basis: ["A representative case table was derived."],
-			reference_exemption: referenceExemption(),
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const framingWidget = harness.widgets.at(-1)?.value as string[];
-	assert.ok(
-		framingWidget.includes(
-			"gate · frame implementation before mutation (sketch or signal)",
-		),
-	);
-	assert.equal(
-		framingWidget.some((line) => line.startsWith("next · sketch")),
-		false,
-	);
-	const framingPrompt = await harness.emit("before_agent_start", {
-		type: "before_agent_start",
-		prompt: "test",
-		systemPrompt: "base",
-		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
-	});
-	assert.match(framingPrompt.systemPrompt, /Implementation gate:/);
-	assert.doesNotMatch(framingPrompt.systemPrompt, /Required next framing/);
-
-	await assert.rejects(
-		route.execute(
-			"premature-implementation",
-			{
-				question: "Implement the feature",
-				target: "implementation",
-				reason: "The cases are known",
-				movement: "Add the first feature path",
-				stop_condition: "The first path is green and reviewable",
-				verification: "Run its focused test",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/requires implementation framing/,
-	);
-
-	const sketched = await route.execute(
-		"feature-sketch",
-		{
-			question: "What is the first implementable feature surface?",
-			target: "sketch",
-			reason: "New behavior needs an initial implementation shape",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await judgment.execute(
-		"feature-sketch-close",
-		{
-			route_id: sketched.details.routeId,
-			status: "resolved",
-			result: "The first interface and check are explicit.",
-			basis: ["The sketch derives from the modeled cases."],
-			reference_exemption: referenceExemption(),
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const implementation = await route.execute(
-		"framed-implementation",
-		{
-			question: "Implement the first sketched item",
-			target: "implementation",
-			reason: "Its movement and stop check are now explicit",
-			movement: "Add the first wished interface implementation",
-			stop_condition: "The focused case is green and the diff has one purpose",
-			verification: "Run the focused representative-case test",
-			invariant_handling: {
-				kind: "evidence-preserving-boundary",
-				raw_representation: "ScheduleFormValues",
-				refined_representation: "ScheduleContent",
-				producer: "toScheduleContent",
-				failure: "Invalid form result",
-				first_effect: "Persist ScheduleContent",
-			},
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(
-		implementation.details.implementationStep.movement,
-		"Add the first wished interface implementation",
-	);
-	assert.deepEqual(
-		implementation.details.implementationStep.invariantHandling,
-		{
-			kind: "evidence-preserving-boundary",
-			rawRepresentation: "ScheduleFormValues",
-			refinedRepresentation: "ScheduleContent",
-			producer: "toScheduleContent",
-			failure: "Invalid form result",
-			firstEffect: "Persist ScheduleContent",
-		},
-	);
-	assert.match(implementation.content[0].text, /Invariant handling:/);
-});
-
-test("a changed implementation landing creates verification debt", async () => {
-	const harness = await startHarness();
-	const implementation = await harness.tools.get(ROUTE_TOOL).execute(
-		"changed-implementation",
-		{
-			question: "Apply one local change",
-			target: "implementation",
-			reason: "The step is justified",
-			movement: "Change one caller",
-			stop_condition: "The caller is green and reviewable",
-			verification: "Run the caller test",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await harness.emit("tool_call", {
-		toolName: "edit",
-		input: {},
-		toolCallId: "edit:1",
-	});
-	const recorded = await harness.tools.get(JUDGMENT_TOOL).execute(
-		"changed-implementation-close",
-		{
-			route_id: implementation.details.routeId,
-			status: "resolved",
-			result: "The caller reached its stable landing.",
-			basis: ["The focused caller test passes."],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(recorded.details.changedArtifacts, true);
-	assert.match(
-		recorded.content[0].text,
-		/verify is required before claiming completion/,
-	);
-	await harness.commands.get("developer").handler("status", harness.ctx);
-	const status = harness.notifications.at(-1)?.message ?? "";
-	assert.match(status, /developer: on · target: none · needs-routing/);
-	assert.match(status, /checkpoint: reroute required/);
-	assert.match(status, /verification: required/);
-});
-
-test("implementation evidence can resolve an unfocused agent question through question_updates", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	const evidenceRoute = await route.execute(
-		"evidence-question",
-		{
-			question: "Does the empty schedule preserve absence?",
-			target: "verify",
-			reason: "No focused implementation evidence exists yet",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const opened = await judgment.execute(
-		"evidence-open",
-		{
-			route_id: evidenceRoute.details.routeId,
-			status: "needs-evidence",
-			result: "A focused implementation test is still needed.",
-			basis: [],
-			open_questions: [
-				agentOpenQuestion("Does the empty schedule preserve absence?"),
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const questionId = opened.details.openedQuestions[0].id;
-
-	const implementationRoute = await route.execute(
-		"implementation-route",
-		{
-			question: "Implement the accepted schedule conversion",
-			target: "implementation",
-			reason: "The conversion contract is already explicit",
-			movement: "Add the empty-schedule conversion",
-			stop_condition: "The focused conversion test is green",
-			verification: "Run the focused conversion test",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const implemented = await judgment.execute(
-		"implementation-close",
-		{
-			route_id: implementationRoute.details.routeId,
-			status: "resolved",
-			result: "The conversion is implemented and its focused test passes.",
-			basis: ["The focused conversion test passes."],
-			question_updates: [
-				{
-					question_id: questionId,
-					status: "resolved",
-					result: "The empty schedule preserves absence.",
-					basis: ["The focused conversion test observes absence."],
-				},
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-
-	assert.equal(implemented.details.questionUpdates[0].questionId, questionId);
-	harness.ctx.mode = "tui";
-	await harness.commands.get("developer").handler("questions", harness.ctx);
-	assert.equal(
-		harness.notifications.at(-1)?.message,
-		"Developer has no open questions on the current branch.",
-	);
-});
-
-test("consecutive implementation routing records prior evidence and reconsidered skill routes without banning implementation", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	const first = await route.execute(
-		"first-implementation",
-		{
-			question: "Implement the first justified movement",
-			target: "implementation",
-			reason: "The current design makes the movement explicit",
-			movement: "Add the first boundary",
-			stop_condition: "The boundary test is green",
-			verification: "Run the boundary test",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await judgment.execute(
-		"first-implementation-close",
-		{
-			route_id: first.details.routeId,
-			status: "resolved",
-			result: "The first boundary is green.",
-			basis: ["The boundary test passes."],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-
-	const secondParams = {
-		question: "Implement the next justified movement",
-		target: "implementation",
-		reason: "The first landing exposes one local caller update",
-		movement: "Update the local caller",
-		stop_condition: "The caller test is green",
-		verification: "Run the caller test",
-	};
-	await assert.rejects(
-		route.execute(
-			"second-without-evidence",
-			secondParams,
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/cite evidence from the previous implementation landing/,
-	);
-	await assert.rejects(
-		route.execute(
-			"second-without-alternatives",
-			{ ...secondParams, known_evidence: ["The first boundary test passes."] },
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/must record the plausible available skill routes/,
-	);
-
-	const second = await route.execute(
-		"second-implementation",
-		{
-			...secondParams,
-			known_evidence: [
-				"The first boundary test passes and exposes one unchanged caller.",
-			],
-			alternatives_considered: [
-				{
-					target: "verify",
-					reason:
-						"The narrow boundary check already settled the current landing claim.",
-				},
-				{
-					target: "signal",
-					reason:
-						"No new structural direction appeared; the caller update was already exposed.",
-				},
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(second.details.target, "implementation");
-	assert.deepEqual(
-		second.details.consideredAlternatives.map(
-			(item: { target: string }) => item.target,
-		),
-		["verify", "signal"],
-	);
-});
-
-test("an immediate user decision accepts a custom answer outside the proposed options", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	const decisionRoute = await route.execute(
-		"custom-decision-route",
-		{
-			question: "Which status placement should Developer use?",
-			target: "specify",
-			reason: "The product owner may reject the proposed placements",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	harness.ctx.mode = "tui";
-	harness.setCustomResults(["continue", "__custom__", "submit"]);
-	harness.setEditorResult("Keep status visible before pending questions.");
-
-	const blocked = await judgment.execute(
-		"custom-decision-blocked",
-		{
-			route_id: decisionRoute.details.routeId,
-			status: "blocked",
-			result: "The product owner must choose the status placement.",
-			basis: ["No accepted placement exists."],
-			open_questions: [
-				{
-					question: "Where should Inspect status appear?",
-					context:
-						"Compare placing status before or after pending questions, or provide a better placement.",
-					response_spec: {
-						kind: "choice-form",
-						fields: [
-							{
-								id: "placement",
-								prompt: "Choose the status placement",
-								options: [
-									{ value: "top", label: "Place it first" },
-									{ value: "bottom", label: "Place it last" },
-								],
-							},
-						],
-					},
-					status: "open",
-					resolution_owner: "user",
-					gate: "before-implementation",
-					resolution_criteria: "The product owner chooses the placement.",
-				},
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-
-	assert.match(blocked.content[0].text, /Structured answer:/);
-	assert.match(
-		blocked.content[0].text,
-		/- placement: custom — user wrote: Keep status visible before pending questions\./,
-	);
-	assert.doesNotMatch(blocked.content[0].text, /__custom__/);
-});
-
-test("a user-owned before-implementation question blocks routes and built-in mutation until resolved", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	const decisionRoute = await route.execute(
-		"decision-route",
-		{
-			question: "What should an empty schedule mean?",
-			target: "specify",
-			reason: "The product meaning is human-owned",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	harness.ctx.mode = "tui";
-	harness.setCustomResults(["continue", "absent", "submit"]);
-	const customCallsBeforeQuestion = harness.customCalls();
-	const entriesBeforeQuestion = harness.entries.length;
-	const blocked = await judgment.execute(
-		"decision-blocked",
-		{
-			route_id: decisionRoute.details.routeId,
-			status: "blocked",
-			result: "The product owner must choose the empty-schedule meaning.",
-			basis: ["No accepted product policy exists."],
-			open_questions: [
-				{
-					question:
-						"Should an empty schedule mean absent or explicitly cleared?",
-					context:
-						"Choose one:\n- absent: omit the value\n- cleared: persist an explicit empty value",
-					response_spec: {
-						kind: "choice-form",
-						fields: [
-							{
-								id: "A",
-								prompt: "Choose the empty-schedule meaning",
-								options: [
-									{ value: "absent", label: "Omit the value" },
-									{
-										value: "cleared",
-										label: "Persist an explicit empty value",
-									},
-								],
-							},
-						],
-					},
-					status: "open",
-					resolution_owner: "user",
-					gate: "before-implementation",
-					resolution_criteria:
-						"The product owner chooses absent or explicitly cleared.",
-				},
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const questionId = blocked.details.openedQuestions[0].id;
-	assert.match(
-		blocked.details.openedQuestions[0].context,
-		/persist an explicit empty value/,
-	);
-	assert.equal(harness.customCalls(), customCallsBeforeQuestion + 3);
-	assert.equal(harness.entries.length, entriesBeforeQuestion);
-	assert.ok(
-		blocked.content[0].text.includes(`Immediate user answer for ${questionId}`),
-	);
-	assert.match(blocked.content[0].text, /Structured answer:/);
-	assert.match(blocked.content[0].text, /- A: absent — Omit the value/);
-	assert.ok(blocked.content[0].text.includes(`open_question_id=${questionId}`));
-
-	await assert.rejects(
-		route.execute(
-			"blocked-implementation",
-			{
-				question: "Implement the empty-schedule behavior",
-				target: "implementation",
-				reason: "Attempt mutation before the decision",
-				movement: "Change empty-schedule storage",
-				stop_condition: "The storage test passes",
-				verification: "Run the storage test",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/Implementation work is blocked/,
-	);
-	const mutationGate = await harness.emit("tool_call", {
-		toolName: "edit",
-		input: {},
-		toolCallId: "edit:blocked",
-	});
-	assert.match(mutationGate.reason, /question gate blocks artifact mutation/);
-
-	const answerRoute = await route.execute(
-		"answer-route",
-		{
-			question: "Should an empty schedule mean absent or explicitly cleared?",
-			target: "specify",
-			reason: "The product owner answered the focused decision",
-			known_evidence: ["The product owner chose absent."],
-			open_question_id: questionId,
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await assert.rejects(
-		judgment.execute(
-			"answer-without-question-review",
-			{
-				route_id: answerRoute.details.routeId,
-				status: "resolved",
-				result: "An empty schedule means absent.",
-				basis: ["The product owner explicitly chose absent."],
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/Include question_updates/,
-	);
-	await assert.rejects(
-		judgment.execute(
-			"answer-without-explicit-resolution",
-			{
-				route_id: answerRoute.details.routeId,
-				status: "resolved",
-				result: "An empty schedule means absent.",
-				basis: ["The product owner explicitly chose absent."],
-				question_updates: [],
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/requires an explicit question_updates entry/,
-	);
-	await judgment.execute(
-		"answer-resolved",
-		{
-			route_id: answerRoute.details.routeId,
-			status: "resolved",
-			result: "An empty schedule means absent.",
-			basis: ["The product owner explicitly chose absent."],
-			question_updates: [
-				{
-					question_id: questionId,
-					status: "resolved",
-					result: "The product owner chose absent.",
-					basis: ["Explicit product-owner answer."],
-				},
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-
-	const implementation = await route.execute(
-		"unblocked-implementation",
-		{
-			question: "Implement the accepted empty-schedule meaning",
-			target: "implementation",
-			reason: "The blocking product decision is resolved",
-			movement: "Store an empty schedule as absent",
-			stop_condition: "The storage test is green",
-			verification: "Run the storage test",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(implementation.details.target, "implementation");
-});
-
-test("an agent before-implementation question keeps the judgment evidence lane reachable", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	assert.equal(harness.activeTools().includes("bash"), false);
-
-	const discovery = await route.execute(
-		"guard-discovery",
-		{
-			question: "Which source file owns the schedule conversion?",
-			target: "signal",
-			reason: "Repository evidence is required before mutation",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(harness.activeTools().includes("bash"), true);
-	assert.equal(harness.activeTools().includes("edit"), false);
-	const opened = await judgment.execute(
-		"guard-discovery-open",
-		{
-			route_id: discovery.details.routeId,
-			status: "needs-evidence",
-			result: "A repository search is still required.",
-			basis: [],
-			open_questions: [
-				{
-					question: "Which source file owns the schedule conversion?",
-					status: "open",
-					resolution_owner: "agent",
-					gate: "before-implementation",
-					resolution_criteria:
-						"Repository search identifies the owning source file.",
-				},
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const questionId = opened.details.openedQuestions[0].id;
-	assert.equal(harness.activeTools().includes("bash"), false);
-
-	await assert.rejects(
-		route.execute(
-			"guard-blocked-implementation",
-			{
-				question: "Implement the schedule conversion",
-				target: "implementation",
-				reason: "Attempt implementation before locating the owner",
-				movement: "Add the conversion",
-				stop_condition: "The conversion test passes",
-				verification: "Run the conversion test",
-			},
-			undefined,
-			undefined,
-			harness.ctx,
-		),
-		/Implementation work is blocked/,
-	);
-
-	const resolution = await route.execute(
-		"guard-resolve-evidence",
-		{
-			question: "Which source file owns the schedule conversion?",
-			target: "signal",
-			reason:
-				"The pending agent question is resolved through repository evidence",
-			open_question_id: questionId,
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(harness.activeTools().includes("bash"), true);
-	assert.equal(harness.activeTools().includes("edit"), false);
-	assert.equal(
-		await harness.emit("tool_call", {
-			toolName: "bash",
-			input: { command: "find . -type f" },
-			toolCallId: "bash:evidence",
-		}),
-		undefined,
-	);
-	const blockedEdit = await harness.emit("tool_call", {
-		toolName: "edit",
-		input: {},
-		toolCallId: "edit:evidence",
-	});
-	assert.match(blockedEdit.reason, /blocks artifact mutation/);
-
-	await judgment.execute(
-		"guard-resolve-evidence-close",
-		{
-			route_id: resolution.details.routeId,
-			status: "resolved",
-			result: "src/contracts.ts owns the conversion.",
-			basis: ["Repository search result."],
-			reference_exemption: referenceExemption(),
-			question_updates: [
-				{
-					question_id: questionId,
-					status: "resolved",
-					result: "The owning source file is src/contracts.ts.",
-					basis: ["Repository search result."],
-				},
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-
-	const implementation = await route.execute(
-		"guard-unblocked-implementation",
-		{
-			question: "Implement the schedule conversion",
-			target: "implementation",
-			reason: "The owning file and local movement are now known",
-			movement: "Add the pure conversion in src/contracts.ts",
-			stop_condition: "The focused conversion test passes",
-			verification: "Run the conversion test",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(implementation.details.target, "implementation");
-	assert.equal(harness.activeTools().includes("edit"), true);
-	assert.equal(harness.activeTools().includes("bash"), true);
-});
-
-test("a before-completion question allows implementation work but keeps completion evidence unresolved", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	const acceptanceRoute = await route.execute(
-		"acceptance-question",
-		{
-			question: "Has the user accepted the rendered checkout behavior?",
-			target: "verify",
-			reason: "Acceptance is separate from implementation evidence",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const customCallsBeforeAcceptance = harness.customCalls();
-	const opened = await judgment.execute(
-		"acceptance-open",
-		{
-			route_id: acceptanceRoute.details.routeId,
-			status: "needs-evidence",
-			result:
-				"Implementation may continue, but user acceptance is still missing.",
-			basis: [],
-			open_questions: [
-				{
-					question: "Does the user accept the rendered checkout behavior?",
-					context:
-						"Review the rendered checkout flow and report acceptance or a reproducible mismatch.",
-					status: "open",
-					resolution_owner: "user",
-					gate: "before-completion",
-					resolution_criteria:
-						"The user explicitly accepts the rendered checkout behavior.",
-				},
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(opened.details.openedQuestions[0].gate, "before-completion");
-	assert.equal(harness.customCalls(), customCallsBeforeAcceptance);
-
-	const implementation = await route.execute(
-		"allowed-before-completion",
-		{
-			question: "Implement the already accepted checkout layout",
-			target: "implementation",
-			reason: "The remaining question gates completion, not implementation",
-			movement: "Apply the local checkout layout change",
-			stop_condition: "The focused checkout test is green",
-			verification: "Run the focused checkout test",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const mutationGate = await harness.emit("tool_call", {
-		toolName: "edit",
-		input: {},
-		toolCallId: "edit:before-completion",
-	});
-	assert.equal(mutationGate, undefined);
-	await judgment.execute(
-		"allowed-before-completion-close",
-		{
-			route_id: implementation.details.routeId,
-			status: "resolved",
-			result: "The local checkout change reached a stable landing.",
-			basis: ["The focused checkout test passes."],
-			question_updates: [],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-
-	const verifyRoute = await route.execute(
-		"verify-before-acceptance",
-		{
-			question:
-				"Does current implementation evidence support the checkout claim?",
-			target: "verify",
-			reason: "The changed landing requires current verification",
-			known_evidence: ["The focused checkout test passes."],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await judgment.execute(
-		"verify-before-acceptance-close",
-		{
-			route_id: verifyRoute.details.routeId,
-			status: "resolved",
-			result: "Implementation evidence is current, but acceptance is not.",
-			basis: ["The focused checkout test passes."],
-			reference_exemption: referenceExemption(),
-			question_updates: [],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await harness.commands.get("developer").handler("status", harness.ctx);
-	const status = harness.notifications.at(-1)?.message ?? "";
-	assert.match(status, /needs-answer/);
-	assert.match(status, /verification: required/);
-});
-
-test("a sole unrelated pending question is not implicitly focused or resolved", async () => {
-	const harness = await startHarness();
-	const route = harness.tools.get(ROUTE_TOOL);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	const evidenceRoute = await route.execute(
-		"sole-question",
-		{
-			question: "What does the narrow checkout viewport show?",
-			target: "verify",
-			reason: "A rendered observation is missing",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const opened = await judgment.execute(
-		"sole-question-open",
-		{
-			route_id: evidenceRoute.details.routeId,
-			status: "needs-evidence",
-			result: "The viewport observation is still missing.",
-			basis: [],
-			open_questions: [
-				agentOpenQuestion("What does the narrow checkout viewport show?"),
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const questionId = opened.details.openedQuestions[0].id;
-
-	const unrelated = await route.execute(
-		"unrelated-route",
-		{
-			question: "Are the schedule conversion tests current?",
-			target: "verify",
-			reason: "This is independent evidence",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(unrelated.details.targetQuestionId, undefined);
-	await judgment.execute(
-		"unrelated-route-close",
-		{
-			route_id: unrelated.details.routeId,
-			status: "resolved",
-			result: "The schedule conversion tests are current.",
-			basis: ["The focused schedule test passes."],
-			reference_exemption: referenceExemption(),
-			question_updates: [],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await harness.commands.get("developer").handler("questions", harness.ctx);
-	assert.ok((harness.notifications.at(-1)?.message ?? "").includes(questionId));
-});
-
-test("an unsafe in-process upgrade requires restart instead of silently stranding tools", async () => {
-	const legacyEntry = {
-		type: "custom",
-		customType: "developer.mode",
-		data: {
-			protocol: "developer/v4",
-			kind: "mode",
-			mode: "strict",
-		},
-	};
-	const harness = createHarness();
-	harness.setActiveTools(["read"]);
-	harness.setBranch([legacyEntry]);
-	await developer(harness.api);
-	await harness.emit("session_start", {
-		type: "session_start",
-		reason: "reload",
-	});
-
-	assert.deepEqual(harness.activeTools(), ["read"]);
-	assert.match(
-		harness.notifications.at(-1)?.message ?? "",
-		/restart the Pi process/i,
-	);
-	assert.equal(
-		harness.entries.some(
-			(entry) => entry.customType === TOOL_POLICY_LIFECYCLE_ENTRY,
-		),
-		false,
-	);
-
-	await harness.commands.get("developer").handler("on", harness.ctx);
-	assert.deepEqual(harness.activeTools(), ["read"]);
-	assert.equal(
-		harness.entries.some((entry) => entryKind(entry) === "activation"),
-		false,
-	);
-	await harness.emit("session_shutdown", {
-		type: "session_shutdown",
-		reason: "reload",
-	});
-	assert.equal(
-		harness.entries.some(
-			(entry) => entry.customType === TOOL_POLICY_LIFECYCLE_ENTRY,
-		),
-		false,
-	);
-});
-
-test("a fresh Pi startup accepts an older branch and establishes reload-safe ownership", async () => {
-	const harness = createHarness();
-	harness.setBranch([
-		{
-			type: "custom",
-			customType: "developer.mode",
-			data: {
-				protocol: "developer/v4",
-				kind: "mode",
-				mode: "strict",
-			},
-		},
-	]);
-	await developer(harness.api);
-	await harness.emit("session_start", {
-		type: "session_start",
-		reason: "startup",
-	});
-
-	assert.equal(
-		harness.entries.some(
-			(entry) => entry.customType === TOOL_POLICY_LIFECYCLE_ENTRY,
-		),
-		false,
-	);
-	await harness.commands.get("developer").handler("on", harness.ctx);
-	assert.equal(harness.activeTools().includes("edit"), false);
-
-	await harness.emit("session_shutdown", {
-		type: "session_shutdown",
-		reason: "reload",
-	});
-	assert.ok(harness.activeTools().includes("edit"));
-	assert.ok(harness.activeTools().includes("write"));
-	assert.ok(harness.activeTools().includes("bash"));
-	assert.ok(
-		harness.entries.some(
-			(entry) => entry.customType === TOOL_POLICY_LIFECYCLE_ENTRY,
-		),
-	);
-	assert.equal(harness.activeTools().includes(ROUTE_TOOL), false);
-	assert.equal(harness.activeTools().includes(JUDGMENT_TOOL), false);
 });
 
 test("a released tool delta is claimed safely by the reloaded extension instance", async () => {
@@ -4115,91 +1905,6 @@ test("shutdown restores only built-ins that Developer actually withheld", async 
 	assert.ok(harness.activeTools().includes("write"));
 	assert.equal(harness.activeTools().includes("bash"), false);
 });
-
-test("implementation routing uses additive built-in activation and preserves unrelated tools", async () => {
-	const harness = createHarness();
-	await developer(harness.api);
-	await harness.emit("session_start", {
-		type: "session_start",
-		reason: "startup",
-	});
-	await harness.commands.get("developer").handler("on", harness.ctx);
-	await openTestWorkCase(harness, "implementation-tools");
-	assert.equal(harness.activeTools().includes("edit"), false);
-
-	const beforeImplementation = [
-		...harness.activeTools(),
-		"other_extension_tool",
-	];
-	harness.setActiveTools(beforeImplementation);
-	const route = harness.tools.get(ROUTE_TOOL);
-	const opened = await route.execute(
-		"implementation",
-		{
-			question: "Apply the justified local change",
-			target: "implementation",
-			reason: "The contract is explicit",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.ok(harness.activeTools().includes("edit"));
-	assert.ok(harness.activeTools().includes("write"));
-	assert.ok(harness.activeTools().includes("bash"));
-	assert.ok(harness.activeTools().includes("other_extension_tool"));
-
-	await harness.tools.get(JUDGMENT_TOOL).execute(
-		"close",
-		{
-			route_id: opened.details.routeId,
-			status: "resolved",
-			result: "The local change is implemented.",
-			basis: ["Relevant test passes"],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(harness.activeTools().includes("edit"), false);
-	assert.ok(harness.activeTools().includes("other_extension_tool"));
-});
-
-test("persistent TUI state stays compact and disappears when routing is idle", async () => {
-	const harness = await startHarness();
-	assert.equal(harness.widgets.at(-1)?.value, undefined);
-
-	const route = await harness.tools.get(ROUTE_TOOL).execute(
-		"widget-route",
-		{
-			question: `${"A long active route question ".repeat(12)}?`,
-			target: "implementation",
-			reason: "The local action is justified",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const activeWidget = harness.widgets.at(-1)?.value as string[];
-	assert.equal(activeWidget.length, 1);
-	assert.match(activeWidget[0], /^route · implementation ·/);
-	assert.ok(activeWidget[0].length < 190);
-
-	await harness.tools.get(JUDGMENT_TOOL).execute(
-		"widget-close",
-		{
-			route_id: route.details.routeId,
-			status: "resolved",
-			result: "The action is complete.",
-			basis: ["The focused test passes."],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(harness.widgets.at(-1)?.value, undefined);
-});
-
 test("the canonical command and startup flag replace the old public names", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
@@ -4238,7 +1943,7 @@ test("the no-argument command opens a read-only Workbench only in TUI mode", asy
 
 	await harness.commands.get("developer").handler("", harness.ctx);
 	assert.equal(harness.customCalls(), 0);
-	assert.match(harness.notifications.at(-1)?.message ?? "", /developer: off/);
+	assert.match(harness.notifications.at(-1)?.message ?? "", /developer · Off/);
 
 	harness.ctx.mode = "tui";
 	harness.setCustomResult(undefined);
@@ -4254,81 +1959,23 @@ test("the no-argument command opens a read-only Workbench only in TUI mode", asy
 	assert.equal(harness.activeTools().includes("edit"), false);
 });
 
-test("Settings is secondary and returns to the Workbench without hidden state changes", async () => {
+test("Settings is a read-only activation hint without hidden state changes", async () => {
 	const harness = await startHarness();
 	harness.ctx.mode = "tui";
 	const entriesBeforeInspection = harness.entries.length;
 	const callsBefore = harness.customCalls();
-	harness.setCustomResults([undefined, undefined]);
 
 	await harness.commands.get("developer").handler("settings", harness.ctx);
 
-	assert.equal(harness.customCalls(), callsBefore + 2);
-	assert.deepEqual(harness.customOptions.slice(-2), [
-		undefined,
-		FULL_SCREEN_SURFACE_OPTIONS,
-	]);
+	assert.equal(harness.customCalls(), callsBefore);
+	assert.match(
+		harness.notifications.at(-1)?.message ?? "",
+		/activation on.*\/developer on.*\/developer off/,
+	);
 	assert.equal(harness.entries.length, entriesBeforeInspection);
 });
 
-test("Workbench history inspection is read-only", async () => {
-	const harness = await startHarness();
-	harness.ctx.mode = "tui";
-	const route = await harness.tools.get(ROUTE_TOOL).execute(
-		"history-route",
-		{
-			question: "Is history inspection ready?",
-			target: "verify",
-			reason: "The rendered detail requires inspection.",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await harness.tools.get(JUDGMENT_TOOL).execute(
-		"history-judgment",
-		{
-			route_id: route.details.routeId,
-			status: "resolved",
-			result: "History inspection is ready.",
-			basis: ["The detail contract is exercised."],
-			reference_exemption: referenceExemption(),
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const entriesBeforeInspection = harness.entries.length;
-	const customCallsBeforeInspection = harness.customCalls();
-	harness.setCustomResult(undefined);
-
-	await harness.commands.get("developer").handler("", harness.ctx);
-
-	assert.equal(harness.customCalls(), customCallsBeforeInspection + 1);
-	assert.equal(harness.entries.length, entriesBeforeInspection);
-});
-
-test("Workbench rejects a stale Question action without branch mutation", async () => {
-	const harness = await startHarness();
-	harness.ctx.mode = "tui";
-	const entriesBefore = harness.entries.length;
-	const callsBefore = harness.customCalls();
-	harness.setCustomResults([
-		{ kind: "question", questionId: "question:stale" },
-		undefined,
-	]);
-
-	await harness.commands.get("developer").handler("", harness.ctx);
-
-	assert.equal(harness.customCalls(), callsBefore + 2);
-	assert.equal(harness.entries.length, entriesBefore);
-	assert.equal(
-		harness.notifications.at(-1)?.message,
-		"That Developer question is no longer open on the current branch.",
-	);
-});
-
-test("/developer completes actions and confirms before discarding active TUI state", async () => {
+test("/developer completes actions and confirms before discarding active canonical work", async () => {
 	const harness = await startHarness();
 	const command = harness.commands.get("developer");
 	assert.deepEqual(command.getArgumentCompletions("st"), [
@@ -4336,17 +1983,6 @@ test("/developer completes actions and confirms before discarding active TUI sta
 	]);
 	assert.equal(command.getArgumentCompletions("unknown"), null);
 
-	await harness.tools.get(ROUTE_TOOL).execute(
-		"off-confirmation",
-		{
-			question: "Should the active work be discarded?",
-			target: "implementation",
-			reason: "The next action was already justified",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
 	harness.ctx.mode = "tui";
 	const entryCount = harness.entries.length;
 
@@ -4356,7 +1992,7 @@ test("/developer completes actions and confirms before discarding active TUI sta
 	assert.deepEqual(harness.confirmations.at(-1), {
 		title: "Turn off Developer?",
 		message:
-			"This clears the active Action Loop Work Case and the active route from the current protocol state. Existing session history remains.",
+			"This clears the active Action Loop Work Case from the current protocol state. Existing session history remains.",
 	});
 
 	harness.setConfirmResult(true);
@@ -4365,218 +2001,6 @@ test("/developer completes actions and confirms before discarding active TUI sta
 		(harness.entries.at(-1)?.data as { enabled: boolean }).enabled,
 		false,
 	);
-});
-
-test("TUI question selection focuses the pending question and the next route associates it automatically", async () => {
-	const harness = await startHarness();
-	const route = await harness.tools.get(ROUTE_TOOL).execute(
-		"question-picker",
-		{
-			question: "Which browser observation remains?",
-			target: "implementation",
-			reason: "The implementation evidence has been inspected",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const judgment = await harness.tools.get(JUDGMENT_TOOL).execute(
-		"question-picker-close",
-		{
-			route_id: route.details.routeId,
-			status: "needs-evidence",
-			result: "A rendered-state observation is missing.",
-			basis: ["Pure-function tests pass."],
-			open_questions: [agentOpenQuestion("Which browser observation remains?")],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const questionId = judgment.details.openedQuestions[0].id;
-	assert.equal(judgment.details.status, "needs-evidence");
-
-	harness.ctx.mode = "tui";
-	harness.setCustomResult(undefined);
-	await harness.commands.get("developer").handler("status", harness.ctx);
-	assert.deepEqual(harness.customOptions.at(-1), FULL_SCREEN_SURFACE_OPTIONS);
-
-	const customCallsBeforeImplementationQuestion = harness.customCalls();
-	harness.setCustomResults([
-		{ kind: "question", questionId },
-		"defer",
-		undefined,
-	]);
-	harness.setEditorResult(undefined);
-	await harness.commands.get("developer").handler("", harness.ctx);
-	assert.equal(
-		harness.customCalls(),
-		customCallsBeforeImplementationQuestion + 3,
-	);
-	assert.equal(harness.sentUserMessages.length, 0);
-
-	const customCallsBeforeSingleQuestionCancel = harness.customCalls();
-	harness.setCustomResults(["continue", "defer"]);
-	harness.setEditorResult(undefined);
-	await harness.commands.get("developer").handler("questions", harness.ctx);
-	assert.equal(
-		harness.customCalls(),
-		customCallsBeforeSingleQuestionCancel + 2,
-	);
-	assert.equal(harness.sentUserMessages.length, 0);
-
-	const customCallsBeforeSingleQuestionCommand = harness.customCalls();
-	harness.setCustomResults(["continue"]);
-	harness.setEditorResult(
-		"Resolve this open Developer question.\n\nQuestion: Which browser observation remains?\n\nAnswer/evidence: the value remains visible.",
-	);
-	await harness.commands.get("developer").handler("questions", harness.ctx);
-	assert.equal(
-		harness.customCalls(),
-		customCallsBeforeSingleQuestionCommand + 1,
-	);
-	assert.equal(harness.editorText(), "");
-	assert.match(
-		harness.sentUserMessages.at(-1)?.content ?? "",
-		/Which browser observation remains/,
-	);
-	assert.match(
-		harness.sentUserMessages.at(-1)?.content ?? "",
-		/value remains visible/,
-	);
-	assert.doesNotMatch(
-		harness.sentUserMessages.at(-1)?.content ?? "",
-		/question:route:/,
-	);
-	assert.equal(harness.entries.at(-1)?.customType, "developer.question-focus");
-
-	const revisited = await harness.tools.get(ROUTE_TOOL).execute(
-		"question-picker-revisit",
-		{
-			question: "What does the browser now show?",
-			target: "verify",
-			reason: "The focused observation is now available",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	assert.equal(revisited.details.targetQuestionId, questionId);
-	await harness.tools.get(JUDGMENT_TOOL).execute(
-		"question-picker-resolved",
-		{
-			route_id: revisited.details.routeId,
-			status: "resolved",
-			result: "The rendered state now supports the claim.",
-			basis: ["The focused browser observation was recorded."],
-			reference_exemption: referenceExemption(),
-			question_updates: [
-				{
-					question_id: questionId,
-					status: "resolved",
-					result: "The browser observation now supports the claim.",
-					basis: ["Recorded focused browser observation."],
-				},
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	await harness.commands.get("developer").handler("questions", harness.ctx);
-	assert.equal(
-		harness.notifications.at(-1)?.message,
-		"Developer has no open questions on the current branch.",
-	);
-});
-
-test("a multi-question editor cancel returns to the Workbench", async () => {
-	const harness = await startHarness();
-	const routed = await harness.tools.get(ROUTE_TOOL).execute(
-		"multi-question-picker",
-		{
-			question: "Which rendered observations remain?",
-			target: "verify",
-			reason: "Two independent rendered states still need evidence",
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const judgment = await harness.tools.get(JUDGMENT_TOOL).execute(
-		"multi-question-picker-close",
-		{
-			route_id: routed.details.routeId,
-			status: "needs-evidence",
-			result: "Two rendered observations remain.",
-			basis: [],
-			open_questions: [
-				agentOpenQuestion("What does the narrow viewport show?"),
-				agentOpenQuestion("What does the wide viewport show?"),
-			],
-		},
-		undefined,
-		undefined,
-		harness.ctx,
-	);
-	const [narrowQuestion, wideQuestion] = judgment.details.openedQuestions;
-	harness.ctx.mode = "tui";
-	harness.setCustomResults([
-		narrowQuestion.id,
-		"continue",
-		"defer",
-		wideQuestion.id,
-		"continue",
-	]);
-	harness.setEditorResults([
-		undefined,
-		"The wide viewport preserves the selected value.",
-	]);
-	const customCallsBeforeQuestions = harness.customCalls();
-
-	await harness.commands.get("developer").handler("questions", harness.ctx);
-
-	assert.equal(harness.customCalls(), customCallsBeforeQuestions + 5);
-	const questionFlowOptions = harness.customOptions.slice(-5);
-	assert.deepEqual(questionFlowOptions[0], FULL_SCREEN_SURFACE_OPTIONS);
-	assert.equal(
-		(questionFlowOptions[1] as { overlay?: boolean } | undefined)?.overlay,
-		true,
-	);
-	assert.equal(
-		(questionFlowOptions[2] as { overlay?: boolean } | undefined)?.overlay,
-		true,
-	);
-	assert.deepEqual(questionFlowOptions[3], FULL_SCREEN_SURFACE_OPTIONS);
-	assert.equal(
-		(questionFlowOptions[4] as { overlay?: boolean } | undefined)?.overlay,
-		true,
-	);
-	assert.match(
-		harness.sentUserMessages.at(-1)?.content ?? "",
-		/wide viewport preserves/,
-	);
-	assert.equal(
-		(harness.entries.at(-1)?.data as { questionId?: string } | undefined)
-			?.questionId,
-		wideQuestion.id,
-	);
-
-	const customCallsBeforeSelectorCancel = harness.customCalls();
-	harness.setCustomResults([
-		{ kind: "question", questionId: narrowQuestion.id },
-		undefined,
-		undefined,
-	]);
-	await harness.commands.get("developer").handler("", harness.ctx);
-	assert.equal(harness.customCalls(), customCallsBeforeSelectorCancel + 3);
-	const workbenchQuestionOptions = harness.customOptions.slice(-3);
-	assert.deepEqual(workbenchQuestionOptions[0], FULL_SCREEN_SURFACE_OPTIONS);
-	assert.equal(
-		(workbenchQuestionOptions[1] as { overlay?: boolean } | undefined)?.overlay,
-		true,
-	);
-	assert.deepEqual(workbenchQuestionOptions[2], FULL_SCREEN_SURFACE_OPTIONS);
 });
 
 test("canonical tool rows never expose internal Action Loop identities", async () => {
@@ -4589,6 +2013,7 @@ test("canonical tool rows never expose internal Action Loop identities", async (
 		"developer_select_references",
 		"developer_load_selected_reference",
 		"developer_accept_contribution",
+		"developer_accept_observation_contribution",
 		"developer_assess_coverage",
 		"developer_close_judgment",
 		"developer_propose_action",
@@ -4616,9 +2041,7 @@ test("canonical tool rows never expose internal Action Loop identities", async (
 		const result = renderedText(
 			tool.renderResult(
 				{
-					content: [
-						{ type: "text", text: `internal ${internalId}` },
-					],
+					content: [{ type: "text", text: `internal ${internalId}` }],
 					details: { observationId: internalId },
 				},
 				{ expanded: true, isPartial: false },
@@ -4630,153 +2053,4 @@ test("canonical tool rows never expose internal Action Loop identities", async (
 		assert.doesNotMatch(call, /(?:observation|work_case|revision)_[a-f0-9]+/);
 		assert.doesNotMatch(result, /(?:observation|work_case|revision)_[a-f0-9]+/);
 	}
-});
-
-test("tool renderers are partial-safe and expose routing evidence when expanded", async () => {
-	const harness = createHarness();
-	await developer(harness.api);
-	const route = harness.tools.get(ROUTE_TOOL);
-	assert.equal(route.renderShell, "self");
-	const callComponent = route.renderCall({}, theme, {});
-	const partialCall = renderedText(callComponent);
-	assert.match(partialCall, /…/);
-	assert.equal(
-		route.renderCall({ target: "implementation", question: "Q" }, theme, {
-			lastComponent: callComponent,
-		}),
-		callComponent,
-	);
-	const partialResult = renderedText(
-		route.renderResult(
-			{ content: [], details: undefined },
-			{ expanded: false, isPartial: true, isError: false },
-			theme,
-			{},
-		),
-	);
-	assert.match(partialResult, /routing development question/);
-
-	const expanded = renderedText(
-		route.renderResult(
-			{
-				content: [],
-				details: {
-					protocol: "developer/v5",
-					kind: "route",
-					routeId: "route:render",
-					question: "What should own this change?",
-					target: "specify",
-					reason: "The invariant is unclear",
-					knownEvidence: ["The current behavior differs across callers"],
-					consideredAlternatives: [],
-					targetQuestionId: "question:earlier",
-					methodLocation: "/skills/specify/SKILL.md",
-					executionProfile: undefined,
-				},
-			},
-			{ expanded: true, isPartial: false, isError: false },
-			theme,
-			{},
-		),
-	);
-	assert.match(
-		expanded,
-		/<dim>reason · <\/dim><muted>The invariant is unclear<\/muted>/,
-	);
-	assert.match(
-		expanded,
-		/evidence · <\/dim><muted>The current behavior differs across callers/,
-	);
-	assert.match(
-		expanded,
-		/<dim>revisits · <\/dim><muted>question:earlier<\/muted>/,
-	);
-	assert.match(expanded, /skill · <\/dim><muted>\/skills\/specify\/SKILL\.md/);
-});
-
-test("judgment renderers use status semantics and show opened questions", async () => {
-	const harness = createHarness();
-	await developer(harness.api);
-	const judgment = harness.tools.get(JUDGMENT_TOOL);
-	const expanded = renderedText(
-		judgment.renderResult(
-			{
-				content: [],
-				details: {
-					protocol: "developer/v5",
-					kind: "judgment",
-					routeId: "route:render",
-					question: "Is the evidence sufficient?",
-					target: "verify",
-					status: "needs-evidence",
-					result: "A browser observation is still missing.",
-					basis: ["Unit tests cover only the pure function."],
-					artifacts: ["pnpm test"],
-					openedQuestions: [
-						{
-							id: "question:route:render:open:1",
-							question: "What does the rendered UI show?",
-							status: "open",
-							resolutionOwner: "agent",
-							gate: "none",
-							resolutionCriteria: "Observe the rendered UI.",
-							sourceRouteId: "route:render",
-						},
-					],
-					questionUpdates: [],
-				},
-			},
-			{ expanded: true, isPartial: false, isError: false },
-			theme,
-			{},
-		),
-	);
-	assert.match(expanded, /<warning>needs-evidence/);
-	assert.match(expanded, /A browser observation is still missing\./);
-	assert.match(
-		expanded,
-		/basis · <\/dim><muted>Unit tests cover only the pure function/,
-	);
-	assert.match(expanded, /artifact · <\/dim><muted>pnpm test/);
-	assert.match(
-		expanded,
-		/opened agent\/none · <\/dim><warning>What does the rendered UI show\?/,
-	);
-
-	const markdownSurface = judgment.renderResult(
-		{
-			content: [],
-			details: {
-				protocol: "developer/v5",
-				kind: "judgment",
-				routeId: "route:markdown",
-				question: "Which claims are supported?",
-				target: "verify",
-				status: "resolved",
-				result:
-					"## Evidence matrix\n\n| Claim | Evidence | Status |\n| --- | --- | --- |\n| UI state | Browser observation | supported |",
-				basis: ["Observed in browser"],
-				artifacts: [],
-				openedQuestions: [],
-				changedArtifacts: false,
-			},
-		},
-		{ expanded: true, isPartial: false, isError: false },
-		theme,
-		{},
-	);
-	const markdownOutput = markdownSurface.render(100).join("\n");
-	assert.match(markdownOutput, /Evidence matrix/);
-	assert.match(markdownOutput, /Claim/);
-	assert.match(markdownOutput, /Browser observation/);
-
-	assert.equal(judgment.renderShell, "self");
-	const blockedCall = renderedText(
-		judgment.renderCall(
-			{ status: "blocked", result: "External access is unavailable." },
-			theme,
-			{},
-		),
-	);
-	assert.match(blockedCall, /<error>blocked<\/error>/);
 });

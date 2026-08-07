@@ -26,12 +26,6 @@ export interface ToolPolicyResult {
 	memory: ToolPolicyMemory;
 }
 
-export interface ProtocolToolAccess {
-	allowsShell: boolean;
-	allowsArtifactTools: boolean;
-	hasBeforeImplementationGate: boolean;
-}
-
 interface ToolPolicyBranchEntry {
 	type?: string;
 	customType?: string;
@@ -109,7 +103,8 @@ export function toolPolicyReloadRequiresRestart(input: {
 		if (
 			isObject(value) &&
 			typeof value.protocol === "string" &&
-			value.protocol.startsWith("developer/")
+			(value.protocol === "developer.mode/v1" ||
+				value.protocol.startsWith("developer-action-loop/"))
 		)
 			return true;
 	}
@@ -128,27 +123,10 @@ export function builtinControlledToolCapabilities(
 	return result;
 }
 
-export function isControlledToolAllowed(input: {
-	enabled: boolean;
-	capability: ControlledToolCapability;
-	access: ProtocolToolAccess;
-}): boolean {
-	if (!input.enabled) return true;
-
-	if (input.access.hasBeforeImplementationGate) {
-		if (input.capability === "artifact") return false;
-		return input.access.allowsShell && !input.access.allowsArtifactTools;
-	}
-
-	if (input.capability === "shell") return input.access.allowsShell;
-	return input.access.allowsArtifactTools;
-}
-
 export function reconcileProtocolTools(input: {
 	activeTools: string[];
 	allTools: ToolMetadataLike[];
 	enabled: boolean;
-	access: ProtocolToolAccess;
 	protocolTools: readonly string[];
 	memory: ToolPolicyMemory;
 }): ToolPolicyResult {
@@ -166,17 +144,8 @@ export function reconcileProtocolTools(input: {
 		for (const tool of input.protocolTools) active.delete(tool);
 	} else {
 		for (const tool of input.protocolTools) active.add(tool);
-		for (const [name, capability] of controlledBuiltins) {
-			const allowed = isControlledToolAllowed({
-				enabled: input.enabled,
-				capability,
-				access: input.access,
-			});
-			if (allowed) {
-				if (withheld.delete(name)) active.add(name);
-			} else if (active.delete(name)) {
-				withheld.add(name);
-			}
+		for (const name of controlledBuiltins.keys()) {
+			if (active.delete(name)) withheld.add(name);
 		}
 	}
 

@@ -33,10 +33,11 @@ coverage connect it to the claim.
 
 ## Reference Routing
 
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Its routed extension refines claim splitting, verifier relevance, and
-pass-but-wrong search, then declares the evidence artifact, stop, and handoff.
-Use the exemption only when no trigger applies and cite its evidence.
+The machine-readable [Capability TOC](toc.json) is the canonical routing
+authority. Its `when` and `unless` conditions determine applicability; each
+Reference path declares the local condition under which it contributes. After
+Upper Judgment assigns this Capability to one Need, disposition every declared
+Reference path and load every selected Reference before accepting the Skill Contribution.
 
 ## Output
 

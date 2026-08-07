@@ -222,19 +222,22 @@ Landing은 `target === implementation` Judgment와 해당 Route의 implementatio
 
 ## 9. 명령 계약
 
-Developer 0.1.15의 canonical surface:
+Canonical Action Loop command surface:
 
 ```text
 /developer
 /developer status
-/developer questions
 /developer settings
+/developer pause
+/developer wait
+/developer block
+/developer resume
 /developer on
 /developer off
 pi --developer
 ```
 
-기존 `/develop`, `--develop`, colon-style 명령은 등록하지 않는다. Persisted `developer/v5` event protocol과 Skill/tool 이름은 command rename과 무관하므로 유지한다.
+기존 `/develop`, `--develop`, colon-style command와 제거된 question/route compatibility surface는 등록하지 않는다. Activation은 closed `developer.mode/v1` event를 사용하고 Work Case continuity는 closed Action Loop replay event를 사용한다.
 
 ## 10. 안전과 검증 계약
 

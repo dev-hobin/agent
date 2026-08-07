@@ -1,394 +1,139 @@
-# Developer for Pi
+# @hobin/developer
 
-English | [한국어](./README.ko.md)
+English | [한국어](README.ko.md)
 
-Developer is a branch-aware judgment workbench that helps [Pi](https://pi.dev)
-stop guessing, choose the right design or review method, make one justified
-change, and show the evidence behind it.
+Developer is a Pi package for carrying one bounded engineering Outcome through evidence-backed judgment, exact action, effect settlement, and completion.
 
-Use it when a task may hide product rules, consequential cases, ownership,
-compatibility, structural timing, or pass-but-wrong verification. Developer:
+It is model-neutral and role-independent. Its canonical loop is:
 
-- turns consequential uncertainty into explicit questions;
-- routes Pi to one of eleven focused judgment skills;
-- loads deeper references only when an observable trigger calls for them;
-- keeps implementation, unresolved questions, and verification evidence visible
-  on the current session branch.
+```text
+Observe → Judge → Act → Settle → Complete | Block | Pause
+```
 
-Developer is adaptive rather than phase-driven. It does not force every task
-through a fixed plan, design, implementation, and review sequence.
+The loop names responsibilities, not a mandatory phase order. New evidence can reopen judgment at any time.
+
+## Canonical ownership
+
+One Work Case is the sole owner of:
+
+- the delegated Outcome, acceptance conditions, and constraints,
+- open Judgments and their functional Contribution Needs,
+- admitted Capabilities and sealed Skill/Reference context,
+- Contributions, Need Coverage, and Conclusions,
+- exact one-use Action Clearances,
+- observed Effects, settlements, and remediations,
+- pause, waiting, block, resume, and completion continuity.
+
+Developer does not maintain a parallel persistence database. The current Pi session branch is the durability boundary. Session deletion deletes Developer continuity.
+
+## Evidence boundary
+
+Developer admits two exact host Observation kinds:
+
+- the current user prompt,
+- a finalized Pi tool result.
+
+An Observation proves that Pi received those bytes and provenance. It is evidence, not truth and not a Conclusion. When an Observation directly answers a current functional Need, `developer_accept_observation_contribution` can bind it as an open-world Contribution. Otherwise a Skill may interpret sealed context and return a Skill-local Contribution.
+
+Internal Work Case, revision, Observation, Contribution, and transition identities are available only to the protocol and model context. Normal and expanded user rendering shows semantic status, reasons, resume conditions, obligations, evidence, Effects, and history instead.
+
+## Judgment and Capability routing
+
+The four v0 Warrant Gap Categories are:
+
+- **Contextual Adequacy**
+- **Proportionate Intervention**
+- **Consequence Integrity**
+- **Claim Assurance**
+
+Categories never hard-code Skill names. Upper Judgment identifies functional Contribution Needs and routes them through Pi's already admitted Skill inventory. Developer never rediscovers excluded Skills or bypasses Pi's trust, filter, or dedup decisions.
+
+Included Skills:
+
+- `specify`
+- `model`
+- `signal`
+- `sketch`
+- `abstraction-review`
+- `naming-judgment`
+- `schedule`
+- `verify`
+- `adversarial-eval`
+- `doctor`
+- `visualize`
+
+Structured Skills select declared References, seal exact bytes and hashes, and fail closed on drift. Unstructured Skills seal the exact admitted `SKILL.md`. Skill-local resolution never grants upper Need Coverage or closes Judgment.
+
+## Exact Actions and Effects
+
+Controlled `bash`, `edit`, and `write` inputs require an exact one-use Action Clearance. Developer inherits Pi's default permission policy; it does not add a separate approval feature.
+
+A tool return records an Effect Observation. Exit status or returned text does not imply success. Every Effect remains explicitly `pending`, `unknown`, successful, partially applied, failed, or adverse until settled. Adverse history cannot be rewritten as success; a distinct successful remediation is recorded separately.
+
+Completion revalidates the complete current Work Case revision. Callers cannot choose convenient Conclusion or Effect subsets.
+
+## Pause, waiting, block, and resume
+
+Routine continuity uses normal conversation:
+
+- a human prompt may pause work,
+- an observed external condition plus an exact predicate may enter waiting,
+- current Claim Assurance plus complete blocker accounting may block work,
+- new host evidence may resume held work when the stored conditions are satisfied.
+
+No background polling, timer, webhook, watcher, or idle-agent wake-up is implied. `--no-session` cannot truthfully preserve durable nonterminal ownership, so pause, waiting, and block transitions fail closed there.
+
+Slash commands remain fallback controls:
+
+```text
+/developer
+/developer status
+/developer settings
+/developer pause
+/developer wait
+/developer block
+/developer resume
+/developer on
+/developer off
+```
+
+`/developer` opens the read-only canonical Workbench in TUI mode. The Workbench projects `off`, `idle`, `active`, `paused`, `waiting`, `blocked`, `completed`, and `unavailable` without exposing internal identities.
+
+## Canonical tools
+
+```text
+developer_open_work_case
+developer_open_judgment
+developer_assess_capability
+developer_select_references
+developer_load_selected_reference
+developer_accept_contribution
+developer_accept_observation_contribution
+developer_assess_coverage
+developer_close_judgment
+developer_propose_action
+developer_settle_effect
+developer_record_effect_remediation
+developer_pause_work_case
+developer_wait_work_case
+developer_block_work_case
+developer_resume_work_case
+developer_prepare_closure
+developer_complete_work_case
+```
+
+Every applicable Capability Assignment passes through `developer_select_references`: structured Capabilities disposition every TOC Reference, while unstructured Capabilities submit an empty list and seal `SKILL.md` alone. The former route/question compatibility tools and XState runtime are not part of the package.
+
+## Replay and boundedness
+
+Action Loop replay events are closed-shape decoded, capped at 2,097,152 bytes, and replayed atomically. Malformed, stale, duplicate, unsupported, or source-drifting events fail closed. Sealed Skill and Reference bytes are not copied into session events; accepted history remains, while byte-dependent reuse requires exact reacquisition.
+
+Host Observation statements and model projections are bounded. Capability acquisition is source-bound, hash-verified, and atomic.
 
 ## Install
 
-Requires Node.js 22.19 or newer. The 0.1.16 Workbench was verified with Pi
-0.80.10, 0.82.1, and 0.83.0; the corresponding bundled TypeBox resolutions
-included 1.3.6 and 1.3.7.
-
-```sh
+```bash
 pi install npm:@hobin/developer
 ```
 
-Try it for one run without installing:
-
-```sh
-pi -e npm:@hobin/developer
-```
-
-Start Pi and enable Developer:
-
-```text
-/developer on
-```
-
-Run `pi list` if you want to confirm that the package is installed.
-
-## Try it
-
-Describe the product task normally. You do not need to name a skill or call an
-internal protocol tool.
-
-```text
-/developer on
-The selected payment method disappears after navigating back to checkout.
-Find the cause and fix it.
-```
-
-Depending on what the repository already establishes, Developer may ask for a
-missing product decision, inspect the relevant behavior, route a focused model
-or sketch, permit one implementation movement, and require evidence before the
-changed work is treated as complete.
-
-Other useful first requests:
-
-```text
-Add scheduled invoice delivery.
-Clarify any missing product rules before editing.
-```
-
-```text
-This parser change is green, but the conditionals are spreading.
-Decide whether structural work belongs now.
-```
-
-```text
-The tests pass after this cache rewrite.
-Check what they do not prove before calling it done.
-```
-
-For a scope-bound existing-code diagnosis and improvement plan, ask for Doctor
-explicitly and name a path, flow, boundary, package, or subsystem when you can:
-
-```text
-Run a thorough Doctor review of the checkout request-to-persistence flow.
-Preserve current external behavior, consult every triggered Developer judgment,
-and produce a now/next/observe/leave-alone plan without modifying files.
-```
-
-When no useful scope is supplied, Doctor performs a cheap orientation pass and
-proposes one. It distinguishes requested, inspected, and claim scope rather than
-presenting a repository sample as an exhaustive review.
-
-## Why Developer
-
-Ordinary coding requests often contain decisions that look like implementation
-details but are actually product, model, boundary, or evidence questions.
-
-| Before | With Developer |
-| --- | --- |
-| Vague requests decide product behavior | Unknowns become owned questions |
-| Green tests stand in for claims | Evidence is matched to each claim |
-| Refactoring follows taste or momentum | Structure follows observed pressure |
-| All methods enter context | Only triggered methods load |
-| Branches lose rationale | Evidence replays with its branch |
-
-Developer coordinates judgment; Pi still reads, edits, runs, and tests the
-product with its normal tools. Across those judgments, an unchecked assertion,
-cast, non-null claim, or typed decode is never treated as evidence that a domain
-invariant holds: broader input must cross an owned parser or smart-constructor
-boundary whose success returns the refined value.
-
-## How it works
-
-Developer follows a small adaptive loop:
-
-```text
-Discover → Load → Derive → Act → Check → Learn
-```
-
-1. **Discover** the current unresolved question from the request, repository,
-   and latest evidence.
-2. **Load** one focused skill, plus only the deeper references whose triggers
-   actually apply.
-3. **Derive** an inspectable artifact such as a case table, boundary map, wished
-   interface, review card, timing matrix, or evidence matrix.
-4. **Act** through one justified implementation movement when mutation is the
-   right next step.
-5. **Check** the changed claim with an appropriate observer and verifier.
-6. **Learn** from the stable landing, preserve remaining questions, and route
-   again rather than continuing by momentum.
-
-This is not a mandatory phase sequence. A simple task can move directly to
-implementation. New evidence can route backward or sideways. Consecutive
-implementation movements are allowed when the previous landing is re-observed
-and the plausible judgment routes add no useful information.
-
-## Common workflows
-
-| Need | Developer helps Pi… |
-| --- | --- |
-| Diagnose existing code | Bound the review, preserve behavior, consult triggered judgments, and order justified improvements |
-| Clarify a feature | Separate meaning, constraints, examples, and blockers |
-| Model behavior | Enumerate cases, contracts, transitions, and guarantees |
-| Shape code | Expose data, interfaces, collaboration, state, and checks |
-| Refine input safely | Turn broader input into invariant-carrying domain values before dependent effects |
-| Inspect a design | Identify structural movement and model-code mismatch |
-| Review an abstraction | Keep, revise, split, reject, or defer the candidate |
-| Time a refactor | Separate behavior work and judge the cost of delay |
-| Name code | Preserve domain meaning and expose effects or multiple senses |
-| Verify completion | Match evidence to claims and find pass-but-wrong risks |
-| Challenge a claim | Run finite adversarial checks with an explicit stop |
-| Clarify a decision | Choose the smallest useful visual surface |
-
-## Skills
-
-Developer may route these skills automatically. You can also invoke any one
-directly with `/skill:<name>`.
-
-| Skill | Helps decide |
-| --- | --- |
-| `doctor` | What a bounded existing-code scope must preserve, treat, observe, or leave alone |
-| `specify` | Product meaning, scope, invariants, and blockers |
-| `model` | Cases, contracts, transitions, guarantees, and checks |
-| `sketch` | Data, interfaces, collaboration, flow, state, and code shape |
-| `signal` | Structural movement and model-code mismatch |
-| `naming-judgment` | Stable domain meaning, effects, and multiple senses |
-| `abstraction-review` | Whether to keep, revise, split, reject, or defer |
-| `schedule` | Whether structural work belongs now, after, or never |
-| `verify` | What evidence proves and what pass-but-wrong risk remains |
-| `visualize` | Which visual surface materially lowers judgment cost |
-| `adversarial-eval` | Which finite checks could falsify a claim |
-
-Each skill produces an artifact suited to its question instead of defaulting to
-undifferentiated prose. Simple judgments remain compact when prose is genuinely
-clearer.
-
-Doctor is an explicit coordination workflow, not the default front door for
-ordinary tasks. It first makes a broad, shallow disposition of every available
-Developer judgment lens inside a declared scope. It then closes so each
-triggered question can run through its owning skill and all reference-policy
-routes supported by observable evidence. A final Doctor route synthesizes those
-owner judgments into a treatment plan; Doctor never reads sibling references or
-replaces their methods with one giant checklist.
-
-## Commands
-
-| Command | Effect |
-| --- | --- |
-| `/developer` | Open the branch-aware judgment Workbench |
-| `/developer status` | Open Workbench Overview, or print current state outside TUI mode |
-| `/developer questions` | Review, answer, or investigate an unresolved Question |
-| `/developer settings` | Open activation Settings, then return to the Workbench |
-| `/developer pause` | Explicitly pause the current Work Case with a human-supplied reason |
-| `/developer wait` | Record a human-observed external condition and exact resume predicate |
-| `/developer block` | Seal every current closure blocker under a current Claim Assurance Conclusion |
-| `/developer resume` | Confirm a pause or waiting predicate, or supply an observed blocker change and continuation |
-| `/developer on` | Enable adaptive routing and route-bound tool access |
-| `/developer off` | Disable Developer and clear current protocol state |
-
-Start a preconfigured session with Developer enabled:
-
-```sh
-pi --developer
-```
-
-Developer 0.1.15 and later intentionally replace the old `/develop` command and
-`--develop` startup flag without aliases. Commands use Pi's normal
-`/developer <action>` grammar; colon-style command names are not registered.
-
-Turning Developer off while work or questions remain asks for confirmation in
-interactive mode. Historical session entries remain; only current protocol state
-is cleared.
-
-## Workbench and visible state
-
-`/developer` makes the current judgment state visible without changing it:
-
-```text
-Overview → Active Route → Questions → Judgments → Landings → Settings
-```
-
-Overview shows the current obligation, mutation authority, gates, active target,
-next action, runtime resources, and verification debt. Active Route exposes the
-route question, reason, known evidence, alternatives, reference provenance, and
-one bounded implementation contract when mutation is authorized. Judgments keep
-complete result Markdown with basis and artifacts. Landings index implementation
-judgments without inventing a per-landing `Verified` claim that the event schema
-does not record.
-
-The Workbench is a screen-relative, keyboard-complete viewport; it does not rely
-on terminal scrollback. Use arrows or `j/k` to move, Enter to open, Escape to
-return one level, Tab to change focus, Page Up/Page Down and Home/End to scroll,
-`y` to copy the focused semantic selection, and `?` for contextual help. Copying
-a section yields its identity; copying an item or detail yields the complete
-unwrapped record without borders, neighboring panes, terminal styling, or
-viewport truncation. Pi does not yet expose extension-scoped wheel capture, so
-Developer does not take over the mouse globally; native terminal drag selection
-therefore remains screen-wide rather than pane-bounded. Opening, scrolling, and
-copying Workbench content does not append session entries, send messages, change
-active tools, or write files.
-
-Developer keeps consequential unknowns explicit instead of silently turning them
-into assumptions. A Question records who can resolve it, what evidence or answer
-would close it, and whether it blocks implementation or completion.
-
-`/developer questions` opens a bounded decision brief with the Markdown
-explanation visible in the initial viewport and answer/defer actions pinned below
-it. Page Up and Page Down move through longer detail without displacing those
-actions. User-owned Questions accept an answer, agent-owned Questions can be
-sent back to Pi for investigation, and environment-owned Questions identify
-access or observations that must come from outside the session.
-
-The footer shows activation and the current route. A compact widget appears only
-while a route or unresolved Question exists. `/developer status` and
-`/developer questions` remain direct accelerators for explicit inspection and
-action.
-
-Visible routing states include:
-
-| State | Meaning |
-| --- | --- |
-| `idle` | No active route or unresolved Developer question |
-| `needs-judgment` | Current route still needs a recorded result |
-| `needs-evidence` | Agent or environment evidence is still required |
-| `needs-answer` | A user decision is still required |
-| `needs-routing` | An implementation landing must be routed again |
-| `needs-verification` | Changed artifacts still need verification |
-| `blocked` | A required answer, observation, or access is unavailable |
-
-These are routing states, not timeless product-completion claims. In particular,
-`idle` does not mean that the user's task is complete, and later changes can
-invalidate an earlier verification judgment.
-
-## Tool boundaries
-
-While Developer is on:
-
-- Pi's built-in `bash` is available for repository inspection and verification
-  during skill and implementation routes;
-- built-in `edit` and `write` require an active implementation route with no
-  unresolved before-implementation gate;
-- unrelated tools and user-disabled tools keep their existing configuration;
-- product changes still happen through Pi's normal tools, not through
-  Developer's coordination tools.
-
-These controls protect workflow integrity. They are **not a security sandbox**:
-shell commands are not parsed as a security language, and Pi packages run with
-the access of the Pi process. Review the package before installation and use an
-external sandbox when you need an operating-system security boundary.
-
-## References and auditability
-
-A skill's always-needed method lives in `SKILL.md`. Conditional derivations live
-in `references/*.md`, while `reference-policy.json` maps an observable trigger
-to one question, required reference set, expected artifact, stop condition, and
-handoff boundary.
-
-During a Developer route, selected references are loaded through a dedicated
-trace rather than an ordinary file read. A resolved judgment connects each
-relied-upon reference to the observed trigger, applied rule, and resulting
-artifact.
-Reference and policy hashes make that application replayable on the current
-branch; they do not by themselves prove source fidelity.
-
-See [Reference routing](./REFERENCE_ROUTING.md) for the runtime contract and
-policy schema. See the
-[Terminal Judgment Workbench study](./docs/terminal-judgment-workbench-study-v0.1.md)
-for the product meaning, comparative terminal research, transfer boundaries, and
-inspection contract behind the Workbench.
-
-## Action Loop reconstruction boundary
-
-The reconstruction package now includes `src/action-loop` and its live `before_agent_start` boundary admits Capabilities only from Pi’s trust-filtered Skill catalog.
-
-```text
-Pi-admitted Skills
-→ bounded TOC discovery
-→ exact Skill-byte binding
-→ source-bound Capability inventory
-→ first-party compatibility projection
-```
-
-A rejected catalog admits no Developer Skill. An invalid descriptor or failed entry does not silently become unstructured. The extension can accept one bounded `developer_open_work_case` proposal and project that active Outcome into later turns. Exact duplicates stutter, another Outcome cannot replace active work, and opening grants neither Action Clearance nor completion. `developer_route_question` rejects consequential routing until this Work Case exists.
-
-Within that Work Case, `developer_open_judgment` accepts one Category, Subject, Question, explicit Closure Requirements, functional Contribution Needs, and basis. The adapter supplies the Work Case identity and separate current Context revision, records the open Judgment in canonical Work Case inventory, and projects its requirements and Needs into later turns. An exact duplicate stutters; a different Judgment cannot replace the current open Judgment in this narrow live slice. Consequential routing now requires that open Judgment and binds the route to an exact `contribution_need_id`, except when the Judgment has one unambiguous Need. `before_agent_start` projects each bound Capability revision and its exact declared `when`/`unless` conditions. `developer_assess_capability` accepts `applicable`, `not-applicable`, or `needs-context` proposals without deriving a Need from the Skill name or synthesizing predicates for unstructured Skills. Only an `applicable` assessment creates a revision-bound Capability Assignment, and a Skill route must carry that exact assignment. The route event preserves the Need, Assignment, and Capability revision identities. Unstructured Capabilities seal exactly one Skill file and no References. Structured Capabilities require complete Reference dispositions; only a ready selection atomically seals the Skill and selected References, which are loaded from sealed bytes rather than reacquired from the filesystem. `developer_accept_contribution` binds the Skill-local result and exact Reference applications to that context. `developer_assess_coverage` owns cross-Contribution Need Coverage, and `developer_close_judgment` records a Conclusion only after exact Requirement and Coverage accounting. `developer_propose_action` then derives an exact `bash`, `edit`, or `write` identity from the proposed Pi tool input and records its Action Candidate. The live adapter—not the model proposal—inherits Pi's default permission policy and records the matching Action Clearance without adding a separate approval setting or prompt. Only the exact unconsumed tool input can pass that Clearance; the host occurrence begins a pending Effect and consumes it once. `tool_result` records exact evidence but does not imply Effect success. `developer_settle_effect` requires complete Observation and intended-Effect accounting. `developer_wait_work_case` can retain waiting only from an exact current Effect Observation and observable resume predicate. `developer_block_work_case` derives every current blocker and requires an exact current Claim Assurance Conclusion. `developer_prepare_closure` derives a Closure Target from the whole canonical Work Case, and `developer_complete_work_case` accepts complete obligation/evidence accounting before atomically revalidating completion.
-
-The current Pi session branch now durably owns this Work Case. Accepted protocol-tool transitions store versioned semantic replay events in tool-result `details`; exact controlled-tool occurrences, their Effect Observations, and human pause/wait/block/resume transitions store small custom session entries. On `session_start` or `session_tree`, Developer folds only `ctx.sessionManager.getBranch()` through the same transition boundaries and verifies every reproduced canonical identity. Forks therefore inherit only their branch history, while pause restores its human-owned reason, waiting restores its observed condition and exact resume predicate, blocked restores complete Claim Assurance accounting, resume creates a new continuity-bound active revision from the required decision or Observation, and completion restores the last revision-bound `CompletedWorkCase` projection.
-
-Replay events do not persist sealed Skill or Reference bytes. They retain source-bound Capability revisions, selections, hashes, canonical proposals, and expected identities. Each claimed event is limited to 2 MiB before closed-shape decoding and domain replay. Replay reacquires material only from the current Pi-admitted inventory through the bounded loader and accepts it only when the exact Capability and sealed Context identities reproduce. Missing, excluded, changed, oversized, malformed, or unsupported material makes replay visibly unavailable; it never becomes absence, a replacement Work Case, unstructured fallback, or silently substituted evidence. A `--no-session` Pi process retains only its in-memory branch and therefore has no restart durability.
-
-Human-owned `paused`, observational `waiting`, and assured `blocked` are now live through `/developer pause`, `/developer wait`, `/developer block`, and `/developer resume`. They are unavailable under Pi `--no-session` and block controlled Actions or replacement work while branch ownership remains nonterminal. Pause resumes only by explicit human confirmation, waiting only by confirmation of its exact predicate, and blocked only after an observed change supplies a concrete continuation. `/developer off` remains the explicit ownership reset. A stronger optional approval policy may be added later as an explicit feature, but it is not part of this cutover. The npm 0.1.19 registry artifact remains the recovery baseline; this reconstruction surface is not published.
-
-## Branches, compaction, and reloads
-
-Routes, judgments, questions, activation changes, and canonical Action Loop
-transitions are stored in Pi session entries and replayed from the current
-branch. A fork therefore inherits only its own branch history.
-
-Developer leaves compaction to Pi. Current route and recovery metadata are
-placed where the normal Pi compactor can preserve them. Configure Pi's
-compaction settings if you want an earlier threshold.
-
-Developer restores only the built-in tool changes it owns when a session runtime
-shuts down. If a hot reload encounters older Developer history without a safe
-release marker, restart the Pi process rather than guessing the user's original
-tool configuration.
-
-## Update, configure, and remove
-
-```sh
-pi list
-pi config
-pi update npm:@hobin/developer
-pi remove npm:@hobin/developer
-```
-
-Use a project-local install when a repository should declare the package in
-`.pi/settings.json`:
-
-```sh
-pi install -l npm:@hobin/developer
-```
-
-See the [Pi package documentation](https://pi.dev/docs/latest/packages) for
-package scope, filtering, pinning, and security behavior.
-
-## Development
-
-From the monorepo root:
-
-```sh
-pnpm install
-pnpm --filter @hobin/developer check
-pnpm --filter @hobin/developer eval
-```
-
-Load the workspace package into Pi without installing it:
-
-```sh
-pi -e ./packages/developer
-```
-
-`check` validates package structure and deterministic behavior. `eval` exercises
-the real Pi RPC surface without a model. Model-dependent evaluations are
-probabilistic and must not be interpreted as proof from a single successful
-sample. Set `PI_BIN` to bind the RPC compatibility smoke to an exact Pi
-installation; the smoke reports that installation's `pi --version` in its
-output.
-
-The published npm package contains the runtime extension, skills, user-facing
-documentation, and license. Source audits, evaluation fixtures, scripts, and
-tests remain repository-only maintenance evidence.
-
-## License
-
-[MIT](./LICENSE)
+Enable it with `/developer on` or start Pi with `--developer`.

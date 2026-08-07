@@ -29,7 +29,7 @@ test("Developer mode replays only exact closed activation events", () => {
 	);
 	assert.equal(
 		decodeDeveloperModeEvent({
-			protocol: "developer/v5",
+			protocol: "not-developer-mode/v1",
 			kind: "activation",
 			enabled: true,
 		}),

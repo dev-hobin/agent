@@ -12,7 +12,9 @@ function openedWorkCase() {
 	const opened = openLiveWorkCase(undefined, {
 		outcome: {
 			statement: "Release the verified package.",
-			acceptanceConditions: ["The packed artifact passes its supported Pi smoke."],
+			acceptanceConditions: [
+				"The packed artifact passes its supported Pi smoke.",
+			],
 			constraints: ["Do not publish without authorization."],
 		},
 		basis: ["The current request delegates release preparation."],
@@ -51,7 +53,10 @@ test("canonical Workbench shows waiting meaning without internal identity", () =
 	assert.equal(snapshot.status, "waiting");
 	assert.equal(snapshot.statusLabel, "Waiting");
 	assert.match(semanticText(snapshot), /External security approval is pending/);
-	assert.match(semanticText(snapshot), /approval status is confirmed as granted/);
+	assert.match(
+		semanticText(snapshot),
+		/approval status is confirmed as granted/,
+	);
 	assert.match(snapshot.next, /normal update/);
 	assert.doesNotMatch(
 		semanticText(snapshot),
@@ -63,12 +68,15 @@ test("canonical Workbench distinguishes off, ready, active, and unavailable", ()
 	assert.equal(inspectActionLoopWorkbench({ enabled: false }).status, "off");
 	assert.equal(inspectActionLoopWorkbench({ enabled: true }).status, "idle");
 	assert.equal(
-		inspectActionLoopWorkbench({ enabled: true, activeWorkCase: openedWorkCase() })
-			.status,
+		inspectActionLoopWorkbench({
+			enabled: true,
+			activeWorkCase: openedWorkCase(),
+		}).status,
 		"active",
 	);
 	assert.equal(
-		inspectActionLoopWorkbench({ enabled: true, replayUnavailable: true }).status,
+		inspectActionLoopWorkbench({ enabled: true, replayUnavailable: true })
+			.status,
 		"unavailable",
 	);
 });

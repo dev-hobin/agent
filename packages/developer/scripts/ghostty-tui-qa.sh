@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-FIXTURE="$REPO_ROOT/packages/developer/tests/fixtures/tui-visual.ts"
+FIXTURE="$REPO_ROOT/packages/developer/tests/fixtures/action-loop-tui-visual.ts"
 SELF="$SCRIPT_DIR/ghostty-tui-qa.sh"
 PI_BIN="$(command -v pi || true)"
 

@@ -152,7 +152,7 @@ export function liveHostObservationPrompt(
 ): string {
 	if (observations.length === 0) return "Host-admitted observations: none.";
 	return [
-		"Host-admitted observations are evidence, not conclusions. Use only an exact listed observation ID when proposing waiting or resume:",
+		"Host-admitted observations are evidence, not conclusions. Use only an exact listed observation ID when recording a direct observed Contribution or proposing pause, waiting, or resume:",
 		...observations
 			.slice(-MAX_LIVE_HOST_OBSERVATIONS)
 			.map(

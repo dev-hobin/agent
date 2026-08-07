@@ -35,7 +35,8 @@ const expectedSkills = [
 
 const manifest = await readJson(join(root, "package.json"));
 assert.equal(manifest.name, "@hobin/developer");
-assert.equal(manifest.version, "0.1.19");
+assert.equal(manifest.version, "0.2.0-rc.1");
+assert.equal(manifest.dependencies?.xstate, undefined);
 assert.deepEqual(manifest.pi.extensions, ["./extensions/developer.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
 assert.match(manifest.scripts["eval:live"], /eval-live\.mjs --transport rpc/);
@@ -148,14 +149,14 @@ const requiredReferences = [
 	"skills/verify/references/verifier-selection-and-pass-but-wrong.md",
 ];
 
-const requiredReferencePolicies = [
-	"skills/abstraction-review/reference-policy.json",
-	"skills/model/reference-policy.json",
-	"skills/naming-judgment/reference-policy.json",
-	"skills/schedule/reference-policy.json",
-	"skills/signal/reference-policy.json",
-	"skills/sketch/reference-policy.json",
-	"skills/verify/reference-policy.json",
+const requiredCapabilityTocs = [
+	"skills/abstraction-review/toc.json",
+	"skills/model/toc.json",
+	"skills/naming-judgment/toc.json",
+	"skills/schedule/toc.json",
+	"skills/signal/toc.json",
+	"skills/sketch/toc.json",
+	"skills/verify/toc.json",
 ];
 
 const referenceCatalog = {
@@ -231,8 +232,8 @@ for (const name of Object.keys(referenceCatalog)) {
 		`Expected ${name} to own one source-independent judgment spine`,
 	);
 	assert.ok(
-		source.includes("](reference-policy.json)"),
-		`Expected ${name} to link its v2 reference policy`,
+		source.includes("](toc.json)"),
+		`Expected ${name} to link its canonical Capability TOC`,
 	);
 	assert.doesNotMatch(source, /^## Context Directions$/mu);
 	await assert.rejects(access(join(root, "skills", name, "judgment.json")));
@@ -243,70 +244,40 @@ for (const path of requiredReferences) {
 	assert.ok(source.length > 0, `Expected non-empty reference: ${path}`);
 }
 
-for (const path of requiredReferencePolicies) {
-	const policy = await readJson(join(root, path));
-	assert.equal(policy.version, 2);
-	assert.ok(Array.isArray(policy.routes) && policy.routes.length > 0);
-	assert.equal(typeof policy.exemption?.when, "string");
-	assert.ok(
-		Array.isArray(policy.exemption?.evidence) &&
-			policy.exemption.evidence.length > 0,
+for (const path of requiredCapabilityTocs) {
+	const toc = await readJson(join(root, path));
+	assert.equal(
+		toc.$schema,
+		"https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
 	);
+	assert.ok(Array.isArray(toc.when) && toc.when.length > 0);
+	assert.ok(Array.isArray(toc.unless) && toc.unless.length > 0);
+	assert.ok(Array.isArray(toc.references) && toc.references.length > 0);
 	const skillName = path.split("/")[1];
 	const catalog = new Set(referenceCatalog[skillName] ?? []);
-	const covered = new Set();
-	const routeIds = new Set();
-	for (const route of policy.routes) {
-		assert.match(route.id, /^[a-z][a-z0-9-]*$/);
+	const declared = new Set();
+	for (const reference of toc.references) {
+		assert.ok(
+			catalog.has(reference.path),
+			`${path} names unknown Reference ${reference.path}`,
+		);
 		assert.equal(
-			routeIds.has(route.id),
+			declared.has(reference.path),
 			false,
-			`${path} duplicates ${route.id}`,
+			`${path} duplicates ${reference.path}`,
 		);
-		routeIds.add(route.id);
-		assert.equal(typeof route.question, "string");
-		assert.equal(typeof route.trigger, "string");
-		assert.equal(typeof route.method_step, "string");
-		assert.ok(Array.isArray(route.references) && route.references.length > 0);
-		if (route.references.length > 1) {
-			assert.ok(
-				route.read_order === "listed" || route.read_order === "any",
-				`${path} route ${route.id} must separate co-required membership from read order`,
-			);
-		}
-		assert.ok(Array.isArray(route.artifacts) && route.artifacts.length > 0);
-		assert.equal(typeof route.stop, "string");
-		assert.equal(typeof route.separate_when, "string");
-		assert.doesNotMatch(
-			JSON.stringify(route),
-			/99 Bottles|SICP|HtDP|Logic for Programmers|Elements of Clojure|Tidy First/i,
-			`${path} route ${route.id} must describe a judgment, not a source`,
-		);
-		for (const reference of route.references) {
-			assert.ok(
-				catalog.has(reference),
-				`${path} route ${route.id} names unknown reference ${reference}`,
-			);
-			covered.add(reference);
-		}
+		declared.add(reference.path);
+		assert.ok(Array.isArray(reference.when) && reference.when.length > 0);
 	}
 	assert.deepEqual(
-		[...covered].sort(),
+		[...declared].sort(),
 		[...catalog].sort(),
-		`${path} must route every reference owned by ${skillName}`,
+		`${path} must declare every Reference owned by ${skillName}`,
+	);
+	await assert.rejects(
+		access(join(root, "skills", skillName, "reference-policy.json")),
 	);
 }
-
-assert.match(
-	(await readJson(join(root, "skills/model/reference-policy.json"))).exemption
-		.when,
-	/already-settled laws or invariants/u,
-);
-assert.match(
-	(await readJson(join(root, "skills/sketch/reference-policy.json"))).exemption
-		.when,
-	/product meaning and condition semantics are settled/u,
-);
 
 const referenceAnchors = {
 	"skills/abstraction-review/references/field-card.md":
@@ -424,16 +395,6 @@ for (const fixture of evalFixtures) {
 			`Eval fixture ${fixture.id} has an invalid required judgment concept`,
 		);
 	}
-	for (const routeId of fixture.expectedReferenceRoutes ?? []) {
-		const target = fixture.preferredFirstTargets[0];
-		const policy = await readJson(
-			join(root, "skills", target, "reference-policy.json"),
-		);
-		assert.ok(
-			policy.routes.some((route) => route.id === routeId),
-			`Expected live eval route ${routeId} to be declared by ${target}`,
-		);
-	}
 	for (const referencePath of fixture.expectedReferenceReads ?? []) {
 		assert.ok(
 			requiredReferences.includes(referencePath),
@@ -481,16 +442,6 @@ const scheduleReference = await readFile(
 );
 assert.doesNotMatch(scheduleReference, /newsletter\.kentbeck\.com/);
 
-const implementationReferenceSource = await readFile(
-	join(root, "extensions/references/behavior-preserving-structural-change.md"),
-	"utf8",
-);
-assert.doesNotMatch(
-	implementationReferenceSource.split("## Source Trace", 2)[1],
-	/\[[^\]\n]+\]\([^)\n]+\)/,
-	"Implementation reference Source Trace must be bibliographic; audit workpapers are repository-only and unpublished",
-);
-
 const markdownDocuments = [
 	...skills.map((name) => `skills/${name}/SKILL.md`),
 	...requiredReferences,
@@ -498,7 +449,6 @@ const markdownDocuments = [
 	"SOURCES.md",
 	"source-audits/cross-source-judgment-integration-2026-07-24.md",
 	"source-audits/parse-dont-validate-2019-11-05.md",
-	"extensions/references/behavior-preserving-structural-change.md",
 	"README.md",
 	"docs/ko/terminal-judgment-workbench-study-v0.1.md",
 ];
@@ -524,6 +474,7 @@ assert.match(extension, /name: ACTION_LOOP_ASSESS_CAPABILITY_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_SELECT_REFERENCES_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_ASSESS_COVERAGE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_CLOSE_JUDGMENT_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_PROPOSE_ACTION_TOOL/);
@@ -531,8 +482,10 @@ assert.match(extension, /name: ACTION_LOOP_SETTLE_EFFECT_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_RECORD_REMEDIATION_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_PREPARE_CLOSURE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_COMPLETE_WORK_CASE_TOOL/);
-assert.match(extension, /name: ROUTE_TOOL/);
-assert.match(extension, /name: JUDGMENT_TOOL/);
+assert.doesNotMatch(
+	extension,
+	/name: ROUTE_TOOL|name: REFERENCE_TOOL|name: JUDGMENT_TOOL/,
+);
 assert.match(extension, /registerCommand\("developer"/);
 assert.doesNotMatch(extension, /registerCommand\("develop"/);
 assert.match(extension, /registerFlag\("developer"/);
@@ -540,7 +493,6 @@ assert.doesNotMatch(extension, /registerFlag\("develop"/);
 assert.match(extension, /getArgumentCompletions/);
 assert.match(extension, /ctx\.ui\.confirm/);
 assert.match(extension, /prepareLiveCapabilityInventory\(event, skillsRoot\)/);
-assert.match(extension, /behavior-preserving-structure/);
 assert.doesNotMatch(extension, /loadCandidateSkills|loadSkillsFromDir/);
 assert.doesNotMatch(
 	extension,
@@ -651,63 +603,30 @@ assert.match(liveCompletionIntegration, /prepareClosureTarget\(/);
 assert.match(liveCompletionIntegration, /acceptClosureClaim\(/);
 assert.match(liveCompletionIntegration, /completeWorkCase\(/);
 
-const skillIntegration = await readFile(
-	join(root, "extensions", "skills.ts"),
-	"utf8",
-);
-assert.doesNotMatch(skillIntegration, /loadSkillsFromDir/);
-
-const implementationReference = await readFile(
-	join(
-		root,
-		"extensions",
-		"references",
-		"behavior-preserving-structural-change.md",
-	),
-	"utf8",
-);
-assert.match(
-	implementationReference,
-	/## Smallest Green Transformation[\s\S]*## Stable Landing/,
-);
-assert.match(
-	implementationReference,
-	/## Worked Mutation Trace[\s\S]*## Failure Checks/,
-);
-assert.match(
-	implementationReference,
-	/## Source Trace[\s\S]*99 Bottles of OOP[\s\S]*Tidy First\?/,
-);
-
 const sourceTrace = await readFile(join(root, "SOURCES.md"), "utf8");
 assert.match(sourceTrace, /## Capability Matrix/);
 assert.match(sourceTrace, /## Runtime Reference Quality/);
 assert.match(sourceTrace, /cross-source-judgment-integration-2026-07-24\.md/);
 assert.match(sourceTrace, /## Intentionally Not Imported As Universal Rules/);
 
-const tui = await readFile(join(root, "extensions", "tui.ts"), "utf8");
-assert.match(tui, /SelectList/);
-assert.match(tui, /showPendingQuestionSelector/);
-assert.match(tui, /overlay:\s*true/);
-assert.doesNotMatch(tui, /DeveloperStatusPanel|DeveloperHistoryDetailPanel/);
-
 const workbench = await readFile(
-	join(root, "extensions", "developer-workbench.ts"),
+	join(root, "extensions", "action-loop-workbench.ts"),
 	"utf8",
 );
-assert.match(workbench, /inspectDeveloperWorkbench/);
+assert.match(workbench, /inspectActionLoopWorkbench/);
 assert.match(
 	workbench,
-	/Overview[\s\S]*Active route[\s\S]*Questions[\s\S]*Judgments[\s\S]*Landings[\s\S]*Settings/,
+	/Overview[\s\S]*Decisions[\s\S]*Evidence[\s\S]*Effects[\s\S]*History/,
 );
-assert.match(workbench, /no per-landing Verified claim is inferred/);
+assert.doesNotMatch(workbench, /workCaseId|revisionId|contributionId/);
 
 const workbenchTui = await readFile(
-	join(root, "extensions", "developer-workbench-tui.ts"),
+	join(root, "extensions", "action-loop-workbench-tui.ts"),
 	"utf8",
 );
-assert.match(workbenchTui, /DeveloperWorkbenchSurface/);
-assert.match(workbenchTui, /PgUp\/PgDn[\s\S]*Contextual actions/);
+assert.match(workbenchTui, /ActionLoopWorkbenchSurface/);
+assert.match(workbenchTui, /←→ sections · ↑↓ items/);
+assert.match(workbenchTui, /overlay:\s*true/);
 
 const command = await readFile(
 	join(root, "extensions", "developer-command.ts"),
@@ -715,11 +634,28 @@ const command = await readFile(
 );
 assert.match(command, /parseDeveloperCommand/);
 assert.match(command, /completeDeveloperArgs/);
+assert.doesNotMatch(command, /questions/);
 
-const state = await readFile(join(root, "extensions", "state.ts"), "utf8");
-assert.match(state, /developer\/v5/);
-assert.doesNotMatch(state, /developer\/v[1-4]/);
-assert.match(state, /pendingQuestions/);
-assert.doesNotMatch(state, /acceptedContract|verifiedClaims/);
+const mode = await readFile(
+	join(root, "extensions", "developer-mode.ts"),
+	"utf8",
+);
+assert.match(mode, /developer\.mode\/v1/);
+assert.match(mode, /reconstructDeveloperMode/);
+
+assert.doesNotMatch(
+	extension,
+	/developer_route_question|developer_load_reference|developer_record_judgment/,
+);
+assert.doesNotMatch(extension, /\.\/state\.ts|\.\/machine\.ts|from "xstate"/);
+for (const legacyPath of [
+	"state.ts",
+	"machine.ts",
+	"tui.ts",
+	"developer-workbench.ts",
+	"developer-workbench-tui.ts",
+]) {
+	await assert.rejects(access(join(root, "extensions", legacyPath)));
+}
 
 console.log("developer package structure is consistent");

@@ -187,7 +187,9 @@ export class ActionLoopWorkbenchSurface {
 		if (this.expanded) {
 			const current = section.items[selected];
 			if (current) {
-				lines.push(this.theme.fg("borderMuted", "─".repeat(Math.max(1, width))));
+				lines.push(
+					this.theme.fg("borderMuted", "─".repeat(Math.max(1, width))),
+				);
 				for (const currentDetail of current.details)
 					lines.push(...detailLines(currentDetail, width, this.theme));
 				if (current.details.length === 0)
@@ -221,10 +223,7 @@ export class ActionLoopWorkbenchSurface {
 				),
 			);
 		}
-		const height = Math.max(
-			6,
-			Math.min(MAX_WORKBENCH_ROWS, maximumHeight),
-		);
+		const height = Math.max(6, Math.min(MAX_WORKBENCH_ROWS, maximumHeight));
 		const bounded = lines.slice(0, height);
 		return bounded.map((line) =>
 			visibleWidth(line) <= safeWidth ? line : fit(line, safeWidth),
@@ -239,18 +238,28 @@ export async function showActionLoopWorkbench(
 	snapshot: ActionLoopWorkbenchSnapshot,
 	initialSection?: ActionLoopWorkbenchSectionId,
 ): Promise<void> {
-	await ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
-		const surface = new ActionLoopWorkbenchSurface({
-			snapshot,
-			theme,
-			done: () => done(undefined),
-			requestRender: () => tui.requestRender(),
-			initialSection,
-		});
-		return {
-			render: (width) => surface.render(width, tui.terminal.rows - 4),
-			handleInput: (data) => surface.handleInput(data),
-			invalidate: () => surface.invalidate(),
-		};
-	}, { overlay: false });
+	await ctx.ui.custom<void>(
+		(tui, theme, _keybindings, done) => {
+			const surface = new ActionLoopWorkbenchSurface({
+				snapshot,
+				theme,
+				done: () => done(undefined),
+				requestRender: () => tui.requestRender(),
+				initialSection,
+			});
+			return {
+				render: (width) => surface.render(width, tui.terminal.rows - 4),
+				handleInput: (data) => surface.handleInput(data),
+				invalidate: () => surface.invalidate(),
+			};
+		},
+		{
+			overlay: true,
+			overlayOptions: {
+				anchor: "top-center",
+				width: "100%",
+				maxHeight: "100%",
+			},
+		},
+	);
 }

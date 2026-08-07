@@ -19,7 +19,8 @@ const theme = {
 const snapshot: ActionLoopWorkbenchSnapshot = {
 	status: "waiting",
 	statusLabel: "Waiting",
-	headline: "Release the verified package without exposing internal protocol state.",
+	headline:
+		"Release the verified package without exposing internal protocol state.",
 	next: "Send a normal update when the external condition changes.",
 	sections: [
 		{
@@ -46,7 +47,11 @@ const snapshot: ActionLoopWorkbenchSnapshot = {
 	],
 };
 
-function rendered(surface: ActionLoopWorkbenchSurface, width: number, height: number) {
+function rendered(
+	surface: ActionLoopWorkbenchSurface,
+	width: number,
+	height: number,
+) {
 	return surface.render(width, height);
 }
 
@@ -95,6 +100,51 @@ test("canonical Workbench section navigation stays read-only", () => {
 	});
 	surface.handleInput("\x1b[C");
 	assert.match(rendered(surface, 80, 20).join("\n"), /No current items/);
-	assert.equal(snapshot.sections[0]?.items[0]?.summary, "External security approval is pending.");
+	assert.equal(
+		snapshot.sections[0]?.items[0]?.summary,
+		"External security approval is pending.",
+	);
 	assert.ok(renders > 0);
+});
+
+test("canonical Workbench bounds Korean text in a narrow terminal", () => {
+	const koreanSnapshot: ActionLoopWorkbenchSnapshot = {
+		...snapshot,
+		headline: "외부 패키지 검증이 끝나면 안전하게 릴리스한다.",
+		next: "외부 조건이 바뀌면 일반 메시지로 알려 주세요.",
+		sections: snapshot.sections.map((section) =>
+			section.id === "overview"
+				? {
+						...section,
+						items: [
+							{
+								...section.items[0]!,
+								summary: "registry 응답을 기다리는 중입니다.",
+								details: [
+									{
+										label: "계속할 조건",
+										lines: ["검증된 release가 확인됨"],
+									},
+								],
+							},
+						],
+					}
+				: section,
+		),
+	};
+	const surface = new ActionLoopWorkbenchSurface({
+		snapshot: koreanSnapshot,
+		theme,
+		done: () => {},
+		requestRender: () => {},
+	});
+	const compact = rendered(surface, 28, 10);
+	assert.ok(compact.length <= 10);
+	assert.ok(compact.every((line) => visibleWidth(line) <= 28));
+	assert.match(compact.join("\n"), /외부|registry/);
+
+	surface.handleInput("\r");
+	const expanded = rendered(surface, 28, 12);
+	assert.ok(expanded.every((line) => visibleWidth(line) <= 28));
+	assert.match(expanded.join("\n"), /계속할 조건|검증된 release/);
 });

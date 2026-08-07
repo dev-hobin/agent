@@ -92,7 +92,8 @@ Reuse does not prove that a generic name is sound.
 
 ## Reference Routing
 
-The machine-readable [reference policy](reference-policy.json) is the routing
-authority. Its routed extension refines the sense step, declares the rename
-artifact and stop, and names when model or design work owns the instability. Use
-the exemption only when no trigger applies and cite its evidence.
+The machine-readable [Capability TOC](toc.json) is the canonical routing
+authority. Its `when` and `unless` conditions determine applicability; each
+Reference path declares the local condition under which it contributes. After
+Upper Judgment assigns this Capability to one Need, disposition every declared
+Reference path and load every selected Reference before accepting the Skill Contribution.

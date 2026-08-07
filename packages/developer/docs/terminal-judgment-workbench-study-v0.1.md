@@ -222,19 +222,22 @@ A Landing combines a `target === implementation` Judgment with that Route's impl
 
 ## 9. Command contract
 
-Developer 0.1.15 canonical surface:
+Canonical Action Loop command surface:
 
 ```text
 /developer
 /developer status
-/developer questions
 /developer settings
+/developer pause
+/developer wait
+/developer block
+/developer resume
 /developer on
 /developer off
 pi --developer
 ```
 
-Do not register the old `/develop`, `--develop`, or colon-style commands. Persisted `developer/v5` events and Skill/tool names are independent of the command rename and remain unchanged.
+Do not register the old `/develop`, `--develop`, colon-style commands, or the removed question/route compatibility surface. Activation uses closed `developer.mode/v1` events, while Work Case continuity uses closed Action Loop replay events.
 
 ## 10. Safety and verification contract
 

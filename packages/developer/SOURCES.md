@@ -30,10 +30,10 @@ synthesizes the resulting evidence without copying sibling references.
 
 `SKILL.md` owns discovery, the core question, always-on method, output,
 completion, missing-evidence behavior, and capability boundary.
-`reference-policy.json` separately owns conditional reference routing: observable
-triggers, route-local co-required reference sets, expected application artifacts,
-and exemption evidence. A loaded reference must be usable without reopening the
-original source or reconstructing unstated steps.
+`toc.json` separately owns bounded conditional Reference routing: Capability
+`when`/`unless`, complete Reference paths, and each path's local `when`
+conditions. A loaded Reference must be usable without reopening the original
+source or reconstructing unstated steps.
 
 Match detail to the reference's job:
 
@@ -53,14 +53,13 @@ to load. Keep enough central insight and one complete case in each independently
 routable document for its promised job. Splitting by chapter title or merely to
 shorten a file is not a capability boundary.
 
-Do not assign global `primary` and `companion` ranks. Encode the actual relation
-in a policy route: an observable trigger selects a set of references that are
-co-required for that question. Requiredness and reading sequence remain distinct:
-use listed order only when a later document assumes an earlier method, vocabulary,
-or invariant. A file can stand alone on one route and be co-required with another
-on a more specialized route. Singleton routes and reference-free skills need no
-artificial hierarchy. Runtime loading and judgment evidence enforce selected-route
-completeness and declared route-local sequence, not document rank. See
+Do not assign global `primary` and `companion` ranks. Each TOC Reference path
+states only the local condition under which it contributes. When several
+References are required for one Need, their conditions must independently make
+that requirement visible and TOC declaration order is preserved. Reference-free
+Skills remain unstructured and need no artificial hierarchy. Runtime loading and
+Judgment evidence enforce complete disposition accounting, exact sealed
+acquisition, and claimed application rather than document rank. See
 [REFERENCE_ROUTING.md](./REFERENCE_ROUTING.md).
 
 ## Runtime Use Versus Source Fidelity
@@ -123,8 +122,8 @@ record attests only the document set and source addition it names.
 | *Tidy First?* | First Edition, Second Release, 2025-12-12, ISBN 978-1-098-15124-9, 125 physical PDF pages; official [O'Reilly catalog](https://www.oreilly.com/library/view/tidy-first/9781098151232/) and [errata](https://www.oreilly.com/catalog/errata.csp?isbn=9781098151249) | [`source-audits/tidy-first-first-edition-second-release-2025-12-12.md`](./source-audits/tidy-first-first-edition-second-release-2025-12-12.md), all 125 pages read in order and visually inspected; authorized 13-page first-release retail preview and three corrected errata cross-checked | references retain source-independent observation, timing, and mutation artifacts with printed chapter/page provenance; option pricing, absolute safety, integration/deployment equivalence, universal clustering, Constantine's Equivalence, and unqualified reversibility/coupling claims are excluded or narrowed; production telemetry, migration, rollout, and recovery remain Developer adaptations; local PDFs are not packaged |
 | “Parse, don’t validate” | canonical article by Alexis King, published 2019-11-05, [official page](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) | [`source-audits/parse-dont-validate-2019-11-05.md`](./source-audits/parse-dont-validate-2019-11-05.md), canonical article read in full including footnotes; retrieved HTML hash and source qualifications recorded | runtime guidance retains the source-independent evidence-preserving-boundary method and ordinary bibliographic provenance; Haskell APIs, maximal type machinery, blanket cast bans, and unaudited secondary-source claims are excluded; construction-path, trusted-compiler-gap, effect-order, compatibility, and adversarial-evaluation surfaces are Developer adaptations |
 
-A source pin is provenance, not a runtime route. `reference-policy.json` still
-selects only the reference set needed for the observable question.
+A source pin is provenance, not a runtime route. The canonical Capability TOC
+selects only the Reference set needed for the observable question.
 
 ## Capability Matrix
 

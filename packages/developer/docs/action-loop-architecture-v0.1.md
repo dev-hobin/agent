@@ -570,8 +570,8 @@ The first authorized live cutover is narrower than Work Case activation:
 before_agent_start.systemPromptOptions.skills
   → source-bound catalog and bounded TOC discovery
   → exact Skill-byte Capability binding
-  → bound first-party compatibility projection
-  → existing protocol prompt
+  → canonical Capability inventory
+  → Action Loop protocol prompt
 ```
 
 This boundary is live in the reconstruction package. Rejected catalogs admit no Developer Skill, while per-entry descriptor or binding failures remain unavailable rather than falling back to unstructured routing.
@@ -586,7 +586,7 @@ developer_open_work_case proposal
   → next-turn, restart, and session-tree projection
 ```
 
-An exact duplicate stutters, a different Outcome cannot replace active work, and turning Developer off appends the branch-local activation reset after the existing confirmation boundary. Opening grants no Action Clearance and implies no completion. The live `developer_route_question` boundary now rejects consequential routing until this Work Case exists, so the preserved protocol cannot bypass Outcome continuity.
+An exact duplicate stutters, a different Outcome cannot replace active work, and turning Developer off appends a canonical branch-local mode reset after the existing confirmation boundary. Opening grants no Action Clearance and implies no completion. Every canonical Judgment, Contribution, Action, Effect, continuity, and completion transition requires current Work Case ownership, so no compatibility protocol can bypass Outcome continuity.
 
 The following slice opens one current upper Judgment inside that Work Case:
 
@@ -602,7 +602,7 @@ developer_open_judgment proposal
 
 The pure Work Case revision now includes open Judgment identities, and an open Judgment blocks Closure Target preparation. A matching Conclusion removes it from open inventory; a Conclusion that changes Category, Subject, or Context identity is refused. The narrow live adapter admits only one current open Judgment: an exact duplicate stutters and a different proposal cannot replace it.
 
-`developer_route_question` now refuses routing without that open Judgment. It selects the exact requested `contribution_need_id`, or the sole Need only when selection is unambiguous. A Capability name never derives the Need.
+`developer_assess_capability` refuses routing without that open Judgment. It selects the exact requested `contribution_need_id`, or the sole Need only when selection is unambiguous. A Capability name never derives the Need.
 
 The Capability Applicability slice is also live:
 
@@ -616,7 +616,7 @@ developer_assess_capability proposal
   → Capability Assignment only when applicable
 ```
 
-Unstructured Capabilities require empty condition matches rather than synthetic predicates. A second different assessment for the same Need, Capability revision, and live Context is refused instead of silently replacing accepted state. A Skill route requires the exact current Assignment; `not-applicable` and `needs-context` cannot authorize routing. The route event preserves Contribution Need, Assignment, and Capability revision identities. The preserved implementation compatibility route is not a Capability Assignment and remains outside this gate.
+Unstructured Capabilities require empty condition matches rather than synthetic predicates. A second different assessment for the same Need, Capability revision, and live Context is refused instead of silently replacing accepted state. A Skill Contribution requires the exact current Assignment; `not-applicable` and `needs-context` cannot authorize acquisition or Contribution. Canonical events preserve Contribution Need, Assignment, and Capability revision identities.
 
 The selected-material and Judgment synthesis path is now live:
 
@@ -643,13 +643,13 @@ Capability Assignment
   → atomic Work Case completion revalidation
 ```
 
-A new Contribution invalidates current Coverage for its Need. A refusal leaves the Judgment open. A Conclusion removes the open Judgment and advances canonical Work Case revision. The accepted Contribution also closes the matching preserved compatibility route in memory, but that projection does not become canonical Work Case evidence. The route event preserves Need, Assignment, Capability revision, Reference Selection, and sealed Context identities.
+A new Contribution invalidates current Coverage for its Need. A refusal leaves the Judgment open. A Conclusion removes the open Judgment and advances canonical Work Case revision. Skill and host Contributions share the same minimal upper Coverage projection, while Skill Contributions additionally preserve Assignment, Capability revision, Reference Selection, and sealed Context identities.
 
 This live slice now replays canonical Action Loop state from Pi's append-only current branch. Protocol-tool results carry versioned semantic transition events. Exact controlled-tool occurrences and Effect Observations use small custom session entries because they do not belong to a Developer protocol-tool result. `session_start` and `session_tree` fold only `ctx.sessionManager.getBranch()` through the same domain transitions, compare expected canonical identities, and restore active, nonterminal, or last-completed ownership. A branch change discards the prior in-memory projection before folding the selected branch. Duplicate nonterminal transitions, stale resumes, malformed events, and unsupported claimed events fail closed rather than rewriting ownership or becoming absence.
 
-The session events retain Capability revisions, source descriptors, selections, hashes, proposals, and expected identities, but do not persist sealed Skill or Reference bytes. Every claimed event is limited to 2 MiB before closed-shape decoding and domain replay. Replay reacquires selected material only through the current Pi-admitted bounded loader. Exclusion, absence, oversize, or content drift prevents exact Capability or sealed Context identity reproduction, makes replay visibly unavailable, and blocks replacement work; no filesystem fallback or silent substitution occurs. Pi `--no-session` mode remains process-local across restart by definition.
+The session events retain Capability revisions, source descriptors, selections, hashes, proposals, and expected identities, but do not persist sealed Skill or Reference bytes. Every claimed event is limited to 2 MiB before closed-shape decoding and domain replay. Replay reacquires selected material only through the current Pi-admitted bounded loader. Exclusion, absence, oversize, or content drift prevents exact Capability or sealed Context identity reproduction, makes replay visibly unavailable, and blocks replacement work; no filesystem fallback or silent substitution occurs. Pi `--no-session` mode is process-local and cannot preserve continuity across restart.
 
-The model still proposes only the Candidate; the adapter derives the exact tool identity and supplies the Permission Decision from Pi's default policy. An exact Clearance temporarily exposes its built-in tool and rejects changed or repeated input. No separate approval setting or prompt is added. A stronger approval policy remains a possible later feature rather than an implicit restriction. Tool results are preserved as limited Observations, while explicit settlement accounting must derive `pending`, `unknown`, or a settled outcome. A current failed or partially-applied settlement may bind only to a distinct current `observed-success` repair, preserving both Effect histories in closure accounting. Closure preparation owns the complete Work Case inventory, and completion revalidates its revision-bound Target and Claim. The durable substrate now preserves human-owned pause, observed-condition waiting, and Claim-Assured blocking through `developer_wait_work_case`, `developer_block_work_case`, `/developer pause`, `/developer wait`, `/developer block`, and `/developer resume`. The model-facing waiting tool requires an exact current Effect Observation; the blocking tool derives the complete current blocker inventory rather than accepting a caller-selected subset. These transitions are unavailable under Pi `--no-session` and block controlled Actions while nonterminal ownership is retained. Waiting resumes only after an explicit human Observation confirms its exact predicate. Blocking derives every current closure blocker, requires a current Claim Assurance Conclusion, and resumes only after an observed change supplies a concrete continuation.
+The model still proposes only the Candidate; the adapter derives the exact tool identity and supplies the Permission Decision from Pi's default policy. An exact Clearance temporarily exposes its built-in tool and rejects changed or repeated input. No separate approval setting or prompt is added. A stronger approval policy remains a possible later feature rather than an implicit restriction. Exact user prompts and finalized tool results are admitted as host Observations without becoming truth or Conclusion. Tool results that belong to Actions also remain Effect Observations, while explicit settlement accounting must derive `pending`, `unknown`, or a settled outcome. A current failed or partially-applied settlement may bind only to a distinct current `observed-success` repair, preserving both Effect histories in closure accounting. Closure preparation owns the complete Work Case inventory, and completion revalidates its revision-bound Target and Claim. The durable substrate preserves human-owned pause, observed-condition waiting, and Claim-Assured blocking through natural-language evidence and canonical pause, wait, block, and resume tools. The waiting tool requires one exact current host Observation and an exact resume predicate; the blocking tool derives the complete current blocker inventory rather than accepting a caller-selected subset. These transitions are unavailable under Pi `--no-session` and block controlled Actions while nonterminal ownership is retained. Waiting resumes only after a new Observation satisfies its stored predicate. Blocking derives every current closure blocker, requires a current Claim Assurance Conclusion, and resumes only after an observed change supplies a concrete continuation.
 
 ## 12. Extension-level guarantee boundary
 
@@ -780,11 +780,12 @@ Conclusion
 
 ### Behavior and structure separation
 
-- The 0.1.19 runtime remains an operational baseline until the new slices are verified.
-- POC modules are built under `src/action-loop/`, separated from the host.
-- After the new adapter demonstrates equivalent or intentionally changed behavior, the existing `extensions/machine.ts`, `state.ts`, and Workbench protocol are removed.
-- `xstate`, existing eval scripts, package description, and README are cleaned up after verifying actual use during cutover.
-- Package versioning, publication, and merge to main are separate approval matters from reconstruction completion.
+- Published 0.1.19 remains the immutable operational recovery baseline.
+- Pure modules live under `src/action-loop/`, separated from the Pi adapter.
+- The canonical adapter, session replay, semantic Workbench, and exact Action gating now own the live runtime.
+- The legacy machine, state projection, route/question tools, Workbench protocol, and `xstate` dependency have been removed.
+- Eval projection, package description, and bilingual README now use canonical Action Loop semantics.
+- Package versioning, publication, and merge to main remain separate approval matters from reconstruction completion.
 
 ## 14. Required transition traces
 
@@ -832,7 +833,7 @@ The upper-level categories were not derived directly from book titles, chapters,
 - *Grokking Simplicity*: tested Consequence Integrity through action, timing, repetition, shared resources, timelines, and coordination.
 - *Structure and Interpretation of Computer Programs*: distinguished possible execution from invariant-preserving outcome through procedure/process, abstraction barriers, state, identity, ordering, and concurrency.
 
-Current Developer Skills and `reference-policy.json` are evidence for capability and Skill-to-Reference routing. The new schema-identified TOC descriptor moves this evidence into a small authoring surface as a reconstruction contract. No file format or Skill inventory is treated as the canonical representation of the upper ontology.
+Each reference-bearing Developer Skill now declares one schema-identified `toc.json` as its canonical Capability and local Reference-routing authoring surface. Pi's admitted Skill inventory remains the runtime inventory; no file format or Skill inventory is treated as the canonical representation of the upper ontology.
 
 ## 17. Reopen and stop rule
 

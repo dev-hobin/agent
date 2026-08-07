@@ -5,15 +5,26 @@ import {
 	snapshotWorkspace,
 } from "./eval-filesystem.mjs";
 
-const ROUTE_TOOL = "developer_route_question";
-const JUDGMENT_TOOL = "developer_record_judgment";
+const ACTION_TOOL = "developer_propose_action";
 const monitoredTools = new Set(["bash", "edit", "write"]);
+
+function canonicalJson(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+	if (value && typeof value === "object") {
+		return `{${Object.entries(value)
+			.sort(([left], [right]) => left.localeCompare(right))
+			.map(([key, nested]) => `${JSON.stringify(key)}:${canonicalJson(nested)}`)
+			.join(",")}}`;
+	}
+	return JSON.stringify(value);
+}
 
 export default function evalObserver(pi: ExtensionAPI): void {
 	const workspace = process.env.DEVELOPER_EVAL_WORKSPACE;
 	if (!workspace) return;
 
-	let activeTarget: string | undefined;
+	const clearedInputs: Array<{ toolName: string; input: string }> = [];
+	const authorizedCalls = new Set<string>();
 	const beforeSnapshots = new Map<
 		string,
 		Awaited<ReturnType<typeof snapshotWorkspace>>
@@ -21,28 +32,46 @@ export default function evalObserver(pi: ExtensionAPI): void {
 
 	pi.on("tool_call", async (event) => {
 		if (!monitoredTools.has(event.toolName)) return;
+		const input = canonicalJson(event.input);
+		const clearanceIndex = clearedInputs.findIndex(
+			(clearance) =>
+				clearance.toolName === event.toolName && clearance.input === input,
+		);
+		if (clearanceIndex >= 0) {
+			clearedInputs.splice(clearanceIndex, 1);
+			authorizedCalls.add(event.toolCallId);
+		}
 		beforeSnapshots.set(event.toolCallId, await snapshotWorkspace(workspace));
 	});
 
 	pi.on("tool_result", async (event) => {
-		if (event.toolName === ROUTE_TOOL && !event.isError) {
-			activeTarget = (event.details as { target?: string } | undefined)?.target;
-			return;
-		}
-		if (event.toolName === JUDGMENT_TOOL && !event.isError) {
-			activeTarget = undefined;
+		if (event.toolName === ACTION_TOOL && !event.isError) {
+			const candidate = (
+				event.details as
+					| {
+							candidate?: { toolName?: string; toolInput?: unknown };
+					  }
+					| undefined
+			)?.candidate;
+			if (candidate?.toolName && monitoredTools.has(candidate.toolName)) {
+				clearedInputs.push({
+					toolName: candidate.toolName,
+					input: canonicalJson(candidate.toolInput),
+				});
+			}
 			return;
 		}
 		if (!monitoredTools.has(event.toolName)) return;
 
 		const before = beforeSnapshots.get(event.toolCallId);
 		beforeSnapshots.delete(event.toolCallId);
+		const authorized = authorizedCalls.delete(event.toolCallId);
 		if (!before) return;
 		const changes = diffWorkspaceSnapshots(
 			before,
 			await snapshotWorkspace(workspace),
 		);
-		if (changes.length === 0 || activeTarget === "implementation") return;
+		if (changes.length === 0 || authorized) return;
 
 		const summary = changes
 			.map((change) => `${change.kind}:${change.path}`)
@@ -53,7 +82,7 @@ export default function evalObserver(pi: ExtensionAPI): void {
 				...event.content,
 				{
 					type: "text" as const,
-					text: `Developer eval mutation audit: ${event.toolName} changed product artifacts outside an implementation route (${summary}).`,
+					text: `Developer eval mutation audit: ${event.toolName} changed product artifacts without an exact canonical Action Clearance (${summary}).`,
 				},
 			],
 		};
