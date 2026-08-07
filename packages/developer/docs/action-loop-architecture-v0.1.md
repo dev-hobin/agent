@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-architecture-v0.1.md)
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, opens one bounded process-local Work Case, and records one current Category-scoped Judgment through explicit proposal tools. Judgment closure, Action, Effect, and completion transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
+> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, opens one bounded process-local Work Case and one current Category-scoped Judgment, and accepts Capability Applicability and Assignment through explicit proposal tools. Reference selection, Contribution, Judgment closure, Action, Effect, and completion transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
 >
 > Date written: 2026-08-06
 
@@ -602,9 +602,23 @@ developer_open_judgment proposal
 
 The pure Work Case revision now includes open Judgment identities, and an open Judgment blocks Closure Target preparation. A matching Conclusion removes it from open inventory; a Conclusion that changes Category, Subject, or Context identity is refused. The narrow live adapter admits only one current open Judgment: an exact duplicate stutters and a different proposal cannot replace it.
 
-`developer_route_question` now refuses routing without that open Judgment. It selects the exact requested `contribution_need_id`, or the sole Need only when selection is unambiguous, and preserves that identity on the route event. A Capability name never derives the Need. Preserved route results are still not accepted Capabilities or Contributions in canonical Work Case inventory, and live Judgment closure is not connected yet.
+`developer_route_question` now refuses routing without that open Judgment. It selects the exact requested `contribution_need_id`, or the sole Need only when selection is unambiguous. A Capability name never derives the Need.
 
-This live slice deliberately has no session replay yet; reconstruction or process restart clears it rather than guessing canonical history. Capability Applicability, Reference routing, Contribution, Need Coverage, Action, Effect, and later Work Case transitions remain pure-only.
+The Capability Applicability slice is also live:
+
+```text
+before_agent_start bound Capability projection
+  → exact Capability revision + declared when/unless conditions
+developer_assess_capability proposal
+  → applicable | not-applicable | needs-context
+  → acceptCapabilityApplicability
+  → current assessment
+  → Capability Assignment only when applicable
+```
+
+Unstructured Capabilities require empty condition matches rather than synthetic predicates. A second different assessment for the same Need, Capability revision, and live Context is refused instead of silently replacing accepted state. A Skill route requires the exact current Assignment; `not-applicable` and `needs-context` cannot authorize routing. The route event preserves Contribution Need, Assignment, and Capability revision identities. The preserved implementation compatibility route is not a Capability Assignment and remains outside this gate.
+
+This live slice deliberately has no session replay yet; reconstruction or process restart clears its Work Case, assessments, and Assignments rather than guessing canonical history. Reference routing, selected-material sealing, Contribution, Need Coverage, Judgment closure, Action, Effect, and later Work Case transitions remain pure-only.
 
 ## 12. Extension-level guarantee boundary
 

@@ -10,7 +10,7 @@
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 explicit proposal tool로 하나의 bounded process-local Work Case와 하나의 current Category-scoped Judgment를 기록한다. Judgment closure, Action, Effect, completion transition은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
+> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 explicit proposal tool로 하나의 bounded process-local Work Case와 current Category-scoped Judgment를 열고 Capability Applicability와 Assignment를 accept한다. Reference selection, Contribution, Judgment closure, Action, Effect, completion transition은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
 >
 > 작성 시점: 2026-08-06
 
@@ -602,9 +602,23 @@ developer_open_judgment proposal
 
 Pure Work Case revision은 이제 open Judgment identity를 포함하고 open Judgment는 Closure Target 준비를 막는다. Matching Conclusion은 open inventory에서 Judgment를 제거하고, Category, Subject, Context identity를 바꾸는 Conclusion은 거부된다. Narrow live adapter는 current open Judgment 하나만 admit한다. Exact duplicate는 stutter하고 다른 proposal은 그것을 교체할 수 없다.
 
-`developer_route_question`은 이제 그 open Judgment가 없으면 routing을 거부한다. Exact requested `contribution_need_id`를 선택하고, 선택이 모호하지 않은 Need 하나만 있을 때에만 sole Need를 자동 선택하며 route event에 그 identity를 보존한다. Capability name이 Need를 도출하지 않는다. Preserved route result는 아직 canonical Work Case inventory에서 accepted Capability나 Contribution이 아니고, live Judgment closure도 아직 연결되지 않았다.
+`developer_route_question`은 이제 그 open Judgment가 없으면 routing을 거부한다. Exact requested `contribution_need_id`를 선택하고, 선택이 모호하지 않은 Need 하나만 있을 때에만 sole Need를 자동 선택한다. Capability name이 Need를 도출하지 않는다.
 
-이 live slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 state를 제거한다. Capability Applicability, Reference routing, Contribution, Need Coverage, Action, Effect, 이후 Work Case transition은 pure-only로 남는다.
+Capability Applicability slice도 live다.
+
+```text
+before_agent_start bound Capability projection
+  → exact Capability revision + declared when/unless conditions
+developer_assess_capability proposal
+  → applicable | not-applicable | needs-context
+  → acceptCapabilityApplicability
+  → current assessment
+  → Capability Assignment only when applicable
+```
+
+Unstructured Capability은 synthetic predicate 대신 empty condition match를 요구한다. 같은 Need, Capability revision, live Context에 대한 서로 다른 두 번째 assessment는 accepted state를 조용히 교체하지 않고 거부된다. Skill route는 exact current Assignment를 요구하며 `not-applicable`과 `needs-context`는 routing을 authorize할 수 없다. Route event는 Contribution Need, Assignment, Capability revision identity를 보존한다. Preserved implementation compatibility route는 Capability Assignment가 아니며 이 gate 밖에 남아 있다.
+
+이 live slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 Work Case, assessment, Assignment를 제거한다. Reference routing, selected-material sealing, Contribution, Need Coverage, Judgment closure, Action, Effect, 이후 Work Case transition은 pure-only로 남는다.
 
 ## 12. Extension-level guarantee boundary
 
