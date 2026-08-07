@@ -96,8 +96,7 @@ export function beginLiveActionEffect(
 		return { status: "invalid", message: recorded.error.message };
 	}
 	const piActionProposals = state.piActionProposals.filter(
-		(proposal) =>
-			proposal.actionCandidateId !== clearance.actionCandidateId,
+		(proposal) => proposal.actionCandidateId !== clearance.actionCandidateId,
 	);
 	return {
 		status: recorded.status === "recorded" ? "begun" : "unchanged",

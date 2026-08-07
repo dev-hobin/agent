@@ -160,7 +160,9 @@ test("SDK Action Loop progression does not open a replacement Judgment after Con
 	const opened = openWorkCase({
 		outcome: {
 			statement: "The bounded retry decision is ready for action.",
-			acceptanceConditions: ["The current Conclusion warrants the next action."],
+			acceptanceConditions: [
+				"The current Conclusion warrants the next action.",
+			],
 			constraints: ["Do not replace concluded Judgment ownership."],
 		},
 		provenance: { kind: "human", source: "sdk:test" },
@@ -180,7 +182,8 @@ test("SDK Action Loop progression does not open a replacement Judgment after Con
 		answer: "Proceed to exact Action proposal.",
 	});
 	const recorded = recordWorkCaseConclusion(opened.value, conclusion);
-	if (recorded.status !== "recorded") throw new Error("Conclusion not recorded");
+	if (recorded.status !== "recorded")
+		throw new Error("Conclusion not recorded");
 
 	const result = await progressActionLoopWithSdk({
 		request,
@@ -211,7 +214,8 @@ test("SDK Action Loop progression does not open a replacement Judgment after Con
 test("SDK Action Loop progression opens the next required intervention Judgment", async () => {
 	const opened = openWorkCase({
 		outcome: {
-			statement: "The bounded retry model advances through warranted decisions.",
+			statement:
+				"The bounded retry model advances through warranted decisions.",
 			acceptanceConditions: ["The next intervention is explicitly warranted."],
 			constraints: ["A prior Conclusion cannot imply permission."],
 		},
@@ -227,12 +231,15 @@ test("SDK Action Loop progression opens the next required intervention Judgment"
 		contextRevisionId: opened.value.revisionId,
 		requirementDispositions: Object.freeze([]),
 		coverageIds: Object.freeze([]),
-		basis: Object.freeze(["The current context is adequate for intervention judgment."]),
+		basis: Object.freeze([
+			"The current context is adequate for intervention judgment.",
+		]),
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 		answer: "The consequential retry context is explicit.",
 	});
 	const recorded = recordWorkCaseConclusion(opened.value, contextual);
-	if (recorded.status !== "recorded") throw new Error("Conclusion not recorded");
+	if (recorded.status !== "recorded")
+		throw new Error("Conclusion not recorded");
 	const checkpoints: SdkActionLoopCheckpoint[] = [];
 	const result = await progressActionLoopWithSdk({
 		request,
@@ -265,7 +272,10 @@ test("SDK Action Loop progression opens the next required intervention Judgment"
 	assert.equal(result.status, "bounded-stop");
 	if (result.status !== "bounded-stop") return;
 	assert.equal(result.stage, "inventory");
-	assert.deepEqual(checkpoints.map(({ kind }) => kind), ["judgment-opened"]);
+	assert.deepEqual(
+		checkpoints.map(({ kind }) => kind),
+		["judgment-opened"],
+	);
 	const checkpoint = checkpoints[0];
 	if (checkpoint?.kind !== "judgment-opened") return;
 	assert.equal(
@@ -355,9 +365,10 @@ test("SDK Action Loop progression completes a Claim-Assured no-change Outcome be
 	assert.equal(result.status, "completed");
 	if (result.status !== "completed") return;
 	assert.equal(result.completedWorkCase.closureClaim.mode, "no-change");
-	assert.deepEqual(checkpoints.map(({ kind }) => kind), [
-		"work-case-completed",
-	]);
+	assert.deepEqual(
+		checkpoints.map(({ kind }) => kind),
+		["work-case-completed"],
+	);
 });
 
 test("SDK Action Loop progression checkpoints one exact host-cleared Action", async () => {
@@ -384,7 +395,8 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 		answer: "Write config.json with the accepted content.",
 	});
 	const recorded = recordWorkCaseConclusion(opened.value, conclusion);
-	if (recorded.status !== "recorded") throw new Error("Conclusion not recorded");
+	if (recorded.status !== "recorded")
+		throw new Error("Conclusion not recorded");
 	const assurance: JudgmentConclusion = Object.freeze({
 		...conclusion,
 		conclusionId: "conclusion-action-loop-assurance",
@@ -462,12 +474,18 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 		path: "config.json",
 		content: '{\n  "enabled": true\n}\n',
 	});
-	assert.deepEqual(checkpoints.map(({ kind }) => kind), ["action-cleared"]);
+	assert.deepEqual(
+		checkpoints.map(({ kind }) => kind),
+		["action-cleared"],
+	);
 	assert.equal(result.state?.workCase.actionCandidates.length, 1);
 	assert.equal(result.state?.workCase.actionClearances.length, 1);
 	const actionCheckpoint = checkpoints[0];
 	if (actionCheckpoint?.kind !== "action-cleared") return;
-	assert.equal(sdkActionLoopCheckpointEvent(actionCheckpoint).kind, "action-cleared");
+	assert.equal(
+		sdkActionLoopCheckpointEvent(actionCheckpoint).kind,
+		"action-cleared",
+	);
 	const live = applySdkActionLoopCheckpoint(
 		{
 			workCase: state.workCase,
@@ -611,9 +629,10 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 	assert.equal(settled.status, "effect-settled");
 	if (settled.status !== "effect-settled") return;
 	assert.equal(settled.outcome, "observed-success");
-	assert.deepEqual(effectCheckpoints.map(({ kind }) => kind), [
-		"effect-settled",
-	]);
+	assert.deepEqual(
+		effectCheckpoints.map(({ kind }) => kind),
+		["effect-settled"],
+	);
 	const effectCheckpoint = effectCheckpoints[0];
 	if (effectCheckpoint?.kind !== "effect-settled") return;
 	const effectEvent = sdkActionLoopCheckpointEvent(effectCheckpoint);

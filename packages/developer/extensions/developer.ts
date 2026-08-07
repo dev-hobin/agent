@@ -572,7 +572,8 @@ export default async function developer(pi: ExtensionAPI) {
 		return (["bash", "edit", "write"] as const).map((name) => ({
 			name,
 			description:
-				descriptions.get(name) ?? `Execute one exact controlled Pi ${name} Action.`,
+				descriptions.get(name) ??
+				`Execute one exact controlled Pi ${name} Action.`,
 			bind(input: Readonly<Record<string, unknown>>) {
 				const bound = bindPiControlledAction(name, input);
 				if (bound.status === "invalid") return bound;

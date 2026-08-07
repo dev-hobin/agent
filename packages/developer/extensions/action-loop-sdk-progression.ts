@@ -57,10 +57,7 @@ export interface LiveSdkActionLoopProgressionInput {
 	readonly complete?: boolean;
 	readonly actions?: readonly SdkControlledActionAdapter[];
 	readonly authorizeAction?: (
-		action: Extract<
-			SdkActionCandidateResult,
-			{ readonly status: "accepted" }
-		>,
+		action: Extract<SdkActionCandidateResult, { readonly status: "accepted" }>,
 	) => Promise<PermissionDecision> | PermissionDecision;
 	readonly maxSteps: number;
 	readonly appendCheckpoint: (
@@ -229,7 +226,8 @@ export function applySdkActionLoopCheckpoint(
 				"SDK Work Case completion must be applied as a terminal projection.",
 			);
 		case "work-case-opened":
-			if (state) throw new Error("SDK Work Case opening cannot replace active work.");
+			if (state)
+				throw new Error("SDK Work Case opening cannot replace active work.");
 			return Object.freeze({
 				workCase: checkpoint.result.workCase,
 				contextRevisionId: checkpoint.result.workCase.revisionId,
@@ -247,7 +245,8 @@ export function applySdkActionLoopCheckpoint(
 			if (!state) throw new Error("SDK Judgment opening requires active work.");
 			return Object.freeze({ ...state, workCase: checkpoint.result.workCase });
 		case "effect-settled": {
-			if (!state) throw new Error("SDK Effect settlement requires active work.");
+			if (!state)
+				throw new Error("SDK Effect settlement requires active work.");
 			const assessment =
 				checkpoint.result.status === "settled"
 					? checkpoint.result.settlement
@@ -307,7 +306,8 @@ export function applySdkActionLoopCheckpoint(
 			return cleared.state;
 		}
 		default:
-			if (!state) throw new Error("SDK Judgment checkpoint requires active work.");
+			if (!state)
+				throw new Error("SDK Judgment checkpoint requires active work.");
 			return applySdkJudgmentCheckpoint(state, checkpoint);
 	}
 }

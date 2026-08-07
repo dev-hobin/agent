@@ -188,10 +188,7 @@ export interface SdkActionLoopProgressionInput {
 	readonly complete?: boolean;
 	readonly actions?: readonly SdkControlledActionAdapter[];
 	readonly authorizeAction?: (
-		action: Extract<
-			SdkActionCandidateResult,
-			{ readonly status: "accepted" }
-		>,
+		action: Extract<SdkActionCandidateResult, { readonly status: "accepted" }>,
 	) => Promise<PermissionDecision> | PermissionDecision;
 	readonly runner: SdkDecisionRunner;
 	readonly maxSteps: number;
@@ -268,9 +265,19 @@ function mapJudgmentResult(
 				refusal: result.refusal,
 			};
 		case "bounded-stop":
-			return { ...common, status: result.status, stage: result.stage, reason: result.reason };
+			return {
+				...common,
+				status: result.status,
+				stage: result.stage,
+				reason: result.reason,
+			};
 		case "runtime-failure":
-			return { ...common, status: result.status, stage: result.stage, message: result.message };
+			return {
+				...common,
+				status: result.status,
+				stage: result.stage,
+				message: result.message,
+			};
 		case "invariant-failure":
 			return {
 				...common,
@@ -437,9 +444,7 @@ async function progressEffect(input: {
 		return {
 			status: "ready-for-completion",
 			effectAssessmentIds:
-				input.state.workCase.currentEffectAssessments.map(
-					currentAssessmentId,
-				),
+				input.state.workCase.currentEffectAssessments.map(currentAssessmentId),
 			state: input.state,
 			steps: input.steps,
 			checkpoints: input.checkpoints,
@@ -534,9 +539,7 @@ async function progressEffect(input: {
 	const checkpoint: SdkActionLoopCheckpoint = {
 		kind: "effect-settled",
 		result,
-		...(expectedCurrentAssessmentId
-			? { expectedCurrentAssessmentId }
-			: {}),
+		...(expectedCurrentAssessmentId ? { expectedCurrentAssessmentId } : {}),
 		workCase: recorded.value,
 	};
 	try {
