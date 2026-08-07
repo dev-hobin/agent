@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { assessLiveCapabilityApplicability } from "../extensions/action-loop-applicability.ts";
 import { sealLiveUnstructuredCapability } from "../extensions/action-loop-context.ts";
+import { acceptLiveSkillContribution } from "../extensions/action-loop-contribution.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
 import { bindUnstructuredCapability } from "../src/action-loop/routing/bind-capability.ts";
@@ -95,6 +96,38 @@ test("live unstructured sealing acquires exactly one assigned Skill file", async
 		current.assignment,
 	);
 	assert.equal(repeated.status, "unchanged");
+	const contributed = acceptLiveSkillContribution(sealed.state, current.entry, {
+		localStatus: "resolved",
+		result: "The exact direct method supplies the bounded distinction.",
+		referenceApplications: [],
+		limitations: [],
+		residualNeeds: [],
+		provenance: { kind: "model", source: "test-evaluator" },
+	});
+	assert.equal(contributed.status, "accepted");
+	if (contributed.status === "accepted") {
+		assert.deepEqual(contributed.contribution.referenceApplications, []);
+		assert.deepEqual(contributed.state.contributions, [
+			contributed.contribution,
+		]);
+		assert.equal(
+			acceptLiveSkillContribution(
+				contributed.state,
+				current.entry,
+				{
+					localStatus: "resolved",
+					result:
+						"The exact direct method supplies the bounded distinction.",
+					referenceApplications: [],
+					limitations: [],
+					residualNeeds: [],
+					provenance: { kind: "model", source: "test-evaluator" },
+				},
+			).status,
+			"unchanged",
+		);
+	}
+
 });
 
 test("live unstructured sealing rejects drift and non-current Assignment", async (t) => {

@@ -8,6 +8,7 @@ import {
 	loadLiveSelectedReference,
 	selectAndSealLiveStructuredCapability,
 } from "../extensions/action-loop-context.ts";
+import { acceptLiveSkillContribution } from "../extensions/action-loop-contribution.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
 import { bindCapability } from "../src/action-loop/routing/bind-capability.ts";
@@ -145,6 +146,27 @@ test("ready structured selection seals Skill and selected References atomically"
 		).status,
 		"invalid",
 	);
+	const contributed = acceptLiveSkillContribution(result.state, current.entry, {
+		localStatus: "resolved",
+		result: "The selected verifier rule supports the current Claim.",
+		referenceApplications: [
+			{
+				path: relevantPath,
+				status: "applied",
+				application: "Used the relevance rule to choose the verifier.",
+			},
+		],
+		limitations: ["The separate risk was explicitly outside this Claim."],
+		residualNeeds: [],
+		provenance: { kind: "model", source: "test-evaluator" },
+	});
+	assert.equal(contributed.status, "accepted");
+	if (contributed.status === "accepted") {
+		assert.deepEqual(
+			contributed.contribution.referenceApplications.map(({ path }) => path),
+			[relevantPath],
+		);
+	}
 	const repeated = await selectAndSealLiveStructuredCapability(
 		result.state,
 		current.entry,
