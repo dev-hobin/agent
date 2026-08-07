@@ -127,6 +127,10 @@ export function summarizeTrialObservations(fixtureId, observations) {
 		medianDecisionRetries: median(numeric("decisionRetryCount")),
 		medianRecoveryCount: median(numeric("recoveryCount")),
 		medianToolErrors: median(numeric("toolErrorCount")),
+		medianSelectedTargets: median(numeric("selectedTargetCount")),
+		medianExtraTargets: median(numeric("extraTargetCount")),
+		medianWallTimeMs: median(numeric("wallTimeMs")),
+		medianTimeBudgetStops: median(numeric("timeBudgetStopCount")),
 		observations,
 	};
 }

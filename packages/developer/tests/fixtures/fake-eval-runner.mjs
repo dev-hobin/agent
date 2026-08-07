@@ -15,16 +15,18 @@ process.stdout.write(
 					? "active-unchanged"
 					: "settled-unchanged",
 			firstTarget: sdkMode
-				? "model"
+				? "sketch"
 				: preferredFirstTarget
 					? "specify"
 					: "model",
+			...(sdkMode ? { selectedTargets: ["model", "sketch"] } : {}),
 			preferredFirstTarget,
 			...(sdkMode
 				? {
 						controllerDecisionCount: 2,
 						decisionRetryCount: 0,
 						recoveryCount: 0,
+						timeBudgetStopCount: 0,
 					}
 				: { routeCount: 1, routeAttemptCount: 2, toolCallCount: 2 }),
 			toolCallAttemptCount: sdkMode ? 2 : 6,

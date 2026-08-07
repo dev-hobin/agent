@@ -114,10 +114,28 @@ for (const fixture of fixtures) {
 		const result = child.status === 0 ? parseEvalResult(output) : undefined;
 		if (result?.structuralValid) {
 			const trialOutcome = result.trialOutcome ?? "completed";
+			const selectedTargets = Array.isArray(result.selectedTargets)
+				? result.selectedTargets.filter((target) => typeof target === "string")
+				: [];
+			const targetCandidates =
+				selectedTargets.length > 0 ? selectedTargets : [result.firstTarget];
+			const admissibleTarget = targetCandidates.some((target) =>
+				fixture.admissibleFirstTargets.includes(target),
+			);
+			const preferredTarget = targetCandidates.some((target) =>
+				fixture.preferredFirstTargets.includes(target),
+			);
+			const targetObservation = {
+				selectedTargetCount: selectedTargets.length,
+				extraTargetCount: selectedTargets.filter(
+					(target) => !fixture.admissibleFirstTargets.includes(target),
+				).length,
+			};
 			if (trialOutcome === "provider-blocked") {
 				observations.push({
 					trial,
 					...result,
+					...targetObservation,
 					classification: "blocked-environment",
 				});
 			} else if (
@@ -128,17 +146,16 @@ for (const fixture of fixtures) {
 				observations.push({
 					trial,
 					...result,
+					...targetObservation,
 					classification: trialOutcome,
 				});
-			} else if (fixture.admissibleFirstTargets.includes(result.firstTarget)) {
-				const preferredFirstTarget = fixture.preferredFirstTargets.includes(
-					result.firstTarget,
-				);
+			} else if (admissibleTarget) {
 				observations.push({
 					trial,
 					...result,
-					preferredFirstTarget,
-					classification: preferredFirstTarget
+					...targetObservation,
+					preferredFirstTarget: preferredTarget,
+					classification: preferredTarget
 						? "preferred"
 						: "admissible-non-preferred",
 				});
@@ -146,8 +163,9 @@ for (const fixture of fixtures) {
 				observations.push({
 					trial,
 					...result,
+					...targetObservation,
 					classification: "inadmissible-result",
-					evidence: `Runner accepted terminal result with inadmissible first target ${result.firstTarget}`,
+					evidence: `Runner accepted terminal result without an admissible target: ${targetCandidates.join(", ")}`,
 				});
 			}
 		} else {
@@ -181,7 +199,10 @@ for (const fixture of report.fixtures) {
 			`median calls/routes/decisions/retries/recoveries/errors ` +
 			`${fixture.medianToolCallAttempts ?? "n/a"}/${fixture.medianRouteAttempts ?? "n/a"}/` +
 			`${fixture.medianControllerDecisions ?? "n/a"}/${fixture.medianDecisionRetries ?? "n/a"}/` +
-			`${fixture.medianRecoveryCount ?? "n/a"}/${fixture.medianToolErrors ?? "n/a"}\n`,
+			`${fixture.medianRecoveryCount ?? "n/a"}/${fixture.medianToolErrors ?? "n/a"}; ` +
+			`median targets/extra/wall-ms/time-stops ` +
+			`${fixture.medianSelectedTargets ?? "n/a"}/${fixture.medianExtraTargets ?? "n/a"}/` +
+			`${fixture.medianWallTimeMs ?? "n/a"}/${fixture.medianTimeBudgetStops ?? "n/a"}\n`,
 	);
 }
 process.stdout.write(`Probabilistic eval report: ${reportPath}\n`);

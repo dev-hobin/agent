@@ -132,7 +132,11 @@ test("probabilistic live evaluation aggregates isolated trials instead of treati
 		assert.equal(sdkReport.fixtures[0].accepted, 1);
 		assert.equal(sdkReport.fixtures[0].medianControllerDecisions, 2);
 		assert.equal(sdkReport.fixtures[0].medianRouteAttempts, null);
+		assert.equal(sdkReport.fixtures[0].medianSelectedTargets, 2);
+		assert.equal(sdkReport.fixtures[0].medianExtraTargets, 1);
+		assert.equal(sdkReport.fixtures[0].medianTimeBudgetStops, 0);
 		assert.match(sdkRun.stdout, /decisions\/retries\/recoveries/);
+		assert.match(sdkRun.stdout, /targets\/extra\/wall-ms\/time-stops/);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
 	}
