@@ -40,6 +40,11 @@ const noProgressTimeoutMs = Number(
 const continuationPrompt =
 	process.env.DEVELOPER_EVAL_CONTINUATION_PROMPT ||
 	"Resume the current canonical Action Loop from its acknowledged Pi branch checkpoints. Use developer_progress_action_loop_with_sdk only for protocol progression. Do not recompute completed transitions, use transitional lower-level protocol tools, or infer Effect success from a tool return.";
+const sessionOperation = process.env.DEVELOPER_EVAL_SESSION_OPERATION || "none";
+const compactBeforeResume = process.env.DEVELOPER_EVAL_COMPACT === "1";
+const compactionPaddingBytes = Number(
+	process.env.DEVELOPER_EVAL_COMPACTION_PADDING_BYTES || 0,
+);
 
 if (!Number.isInteger(maximumRuns) || maximumRuns < 1 || maximumRuns > 32) {
 	throw new Error("DEVELOPER_EVAL_MAX_RUNS must be an integer from 1 through 32.");
@@ -49,6 +54,20 @@ if (!Number.isFinite(runTimeoutMs) || runTimeoutMs < 1_000) {
 }
 if (!Number.isFinite(noProgressTimeoutMs) || noProgressTimeoutMs < 1_000) {
 	throw new Error("DEVELOPER_EVAL_NO_PROGRESS_MS must be at least 1000.");
+}
+if (!["none", "clone", "fork-latest"].includes(sessionOperation)) {
+	throw new Error(
+		"DEVELOPER_EVAL_SESSION_OPERATION must be none, clone, or fork-latest.",
+	);
+}
+if (
+	!Number.isInteger(compactionPaddingBytes) ||
+	compactionPaddingBytes < 0 ||
+	compactionPaddingBytes > 1_000_000
+) {
+	throw new Error(
+		"DEVELOPER_EVAL_COMPACTION_PADDING_BYTES must be an integer from 0 through 1000000.",
+	);
 }
 
 const piVersionResult = spawnSync(piBin, ["--version"], { encoding: "utf8" });
@@ -259,6 +278,80 @@ try {
 		"Pi selected a different model.",
 	);
 
+	let forkedFromEntryId;
+	if (sessionOperation === "clone") {
+		const cloned = await send({ type: "clone" }, 30_000);
+		assert.equal(cloned.success, true, cloned.error);
+		assert.equal(cloned.data.cancelled, false, "Session clone was cancelled.");
+	}
+	if (sessionOperation === "fork-latest") {
+		const available = await send({ type: "get_fork_messages" });
+		assert.equal(available.success, true, available.error);
+		const latest = available.data.messages.at(-1);
+		assert.ok(latest, "Current session has no user message available to fork.");
+		forkedFromEntryId = latest.entryId;
+		const forked = await send(
+			{ type: "fork", entryId: latest.entryId },
+			30_000,
+		);
+		assert.equal(forked.success, true, forked.error);
+		assert.equal(forked.data.cancelled, false, "Session fork was cancelled.");
+	}
+	const preparedState = await send({ type: "get_state" });
+	assert.equal(preparedState.success, true, preparedState.error);
+	const activeSessionFile = resolve(preparedState.data.sessionFile);
+	if (sessionOperation !== "none") {
+		assert.notEqual(
+			activeSessionFile,
+			sessionFile,
+			`${sessionOperation} did not create a new Pi session file.`,
+		);
+	}
+
+	let compaction;
+	if (compactBeforeResume) {
+		const compactCommand = {
+			type: "compact",
+			customInstructions:
+				"Preserve the current Developer Action Loop goal and user-visible progress; canonical extension state remains in semantic branch entries.",
+		};
+		let compacted = await send(compactCommand, runTimeoutMs);
+		if (
+			!compacted.success &&
+			compactionPaddingBytes > 0 &&
+			String(compacted.error).includes("Nothing to compact")
+		) {
+			const firstChunkBytes = Math.ceil(compactionPaddingBytes / 2);
+			const paddingChunks = [
+				firstChunkBytes,
+				compactionPaddingBytes - firstChunkBytes,
+			].filter((bytes) => bytes > 0);
+			for (const bytes of paddingChunks) {
+				const padded = await send(
+					{
+						type: "bash",
+						command: `node -e "process.stdout.write('x'.repeat(${bytes}))"`,
+					},
+					30_000,
+				);
+				assert.equal(padded.success, true, padded.error);
+				assert.equal(
+					padded.data.exitCode,
+					0,
+					"Compaction padding command failed.",
+				);
+			}
+			compacted = await send(compactCommand, runTimeoutMs);
+		}
+		assert.equal(compacted.success, true, compacted.error);
+		compaction = {
+			firstKeptEntryId: compacted.data.firstKeptEntryId,
+			tokensBefore: compacted.data.tokensBefore,
+			estimatedTokensAfter: compacted.data.estimatedTokensAfter,
+			paddingBytes: compactionPaddingBytes,
+		};
+	}
+
 	for (let index = 1; index <= maximumRuns; index += 1) {
 		const start = events.length;
 		const response = await send({ type: "prompt", message: continuationPrompt });
@@ -303,8 +396,12 @@ try {
 		piVersion,
 		model,
 		packageRoot,
-		sessionFile,
+		sourceSessionFile: sessionFile,
+		sessionFile: activeSessionFile,
 		workspace,
+		sessionOperation,
+		...(forkedFromEntryId ? { forkedFromEntryId } : {}),
+		...(compaction ? { compaction } : {}),
 		status: status.protocol,
 		runs,
 		totals: {
