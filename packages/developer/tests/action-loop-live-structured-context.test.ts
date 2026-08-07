@@ -3,7 +3,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { acceptLiveActionCandidate } from "../extensions/action-loop-action.ts";
+import {
+	acceptLiveActionCandidate,
+	assessLiveActionClearance,
+} from "../extensions/action-loop-action.ts";
 import { assessLiveCapabilityApplicability } from "../extensions/action-loop-applicability.ts";
 import {
 	loadLiveSelectedReference,
@@ -128,9 +131,10 @@ test("ready structured selection seals Skill and selected References atomically"
 		result.context.materials.map(({ path }) => path),
 		["SKILL.md", relevantPath],
 	);
-	assert.deepEqual(result.state.referenceSelections.map(({ status }) => status), [
-		"ready",
-	]);
+	assert.deepEqual(
+		result.state.referenceSelections.map(({ status }) => status),
+		["ready"],
+	);
 	const loaded = loadLiveSelectedReference(
 		result.state,
 		result.context.sealedContextId,
@@ -206,7 +210,9 @@ test("ready structured selection seals Skill and selected References atomically"
 			assert.equal(closed.status, "concluded");
 			if (closed.status === "concluded") {
 				assert.deepEqual(closed.state.workCase.openJudgments, []);
-				assert.deepEqual(closed.state.workCase.conclusions, [closed.conclusion]);
+				assert.deepEqual(closed.state.workCase.conclusions, [
+					closed.conclusion,
+				]);
 				const action = acceptLiveActionCandidate(closed.state, {
 					controlledAction: {
 						kind: "pi:write",
@@ -222,6 +228,25 @@ test("ready structured selection seals Skill and selected References atomically"
 						action.candidate,
 					]);
 					assert.deepEqual(action.state.workCase.actionClearances, []);
+					const hostClearance = assessLiveActionClearance(
+						action.state,
+						action.candidate.actionCandidateId,
+						{
+							actionCandidateId: action.candidate.actionCandidateId,
+							status: "granted",
+							source: "pi:default-permission-policy",
+							basis: [
+								"The live adapter inherits Pi's default permission policy.",
+							],
+						},
+					);
+					assert.equal(hostClearance.status, "cleared");
+					if (hostClearance.status === "cleared") {
+						assert.deepEqual(
+							hostClearance.state.workCase.actionClearances,
+							[hostClearance.clearance],
+						);
+					}
 				}
 			}
 		}
