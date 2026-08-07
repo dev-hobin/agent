@@ -6,6 +6,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	bindPiCapabilityInventory,
+	type BoundPiCapabilityEntry,
 	type PiCapabilityInventoryResult,
 } from "../src/action-loop/pi/bind-pi-capability-inventory.ts";
 import { catalogBeforeAgentStartSkills } from "../src/action-loop/pi/catalog-pi-loaded-skills.ts";
@@ -17,6 +18,10 @@ export interface LiveCapabilityInventory {
 		{ readonly status: "inventoried" }
 	>;
 	readonly availablePackageSkills: ReadonlyMap<string, Skill>;
+	readonly boundCapabilitiesBySkillName: ReadonlyMap<
+		string,
+		BoundPiCapabilityEntry
+	>;
 	readonly summary: {
 		readonly bound: number;
 		readonly unavailable: number;
@@ -40,14 +45,15 @@ export async function prepareLiveCapabilityInventory(
 	const inventory = await bindPiCapabilityInventory(catalog);
 	if (inventory.status === "rejected") return inventory;
 
-	const boundSkillPaths = new Set<string>();
+	const boundCapabilitiesByPath = new Map<string, BoundPiCapabilityEntry>();
 	let bound = 0;
 	for (const entry of inventory.entries) {
 		if (entry.status !== "bound") continue;
 		bound += 1;
-		boundSkillPaths.add(entry.candidate.skillFilePath);
+		boundCapabilitiesByPath.set(entry.candidate.skillFilePath, entry);
 	}
 	const admittedPackageSkills = new Map<string, Skill>();
+	const admittedCapabilities = new Map<string, BoundPiCapabilityEntry>();
 	const ambiguousNames = new Set<string>();
 	for (const skill of event.systemPromptOptions.skills ?? []) {
 		if (
@@ -59,21 +65,23 @@ export async function prepareLiveCapabilityInventory(
 		const canonicalPath = await realpath(skill.filePath).catch(() =>
 			resolve(skill.filePath),
 		);
-		if (!boundSkillPaths.has(canonicalPath) || ambiguousNames.has(skill.name)) {
-			continue;
-		}
+		const boundCapability = boundCapabilitiesByPath.get(canonicalPath);
+		if (boundCapability === undefined || ambiguousNames.has(skill.name)) continue;
 		if (admittedPackageSkills.has(skill.name)) {
 			admittedPackageSkills.delete(skill.name);
+			admittedCapabilities.delete(skill.name);
 			ambiguousNames.add(skill.name);
 			continue;
 		}
 		admittedPackageSkills.set(skill.name, skill);
+		admittedCapabilities.set(skill.name, boundCapability);
 	}
 	return Object.freeze({
 		status: "ready",
 		value: Object.freeze({
 			inventory,
 			availablePackageSkills: admittedPackageSkills,
+			boundCapabilitiesBySkillName: admittedCapabilities,
 			summary: Object.freeze({
 				bound,
 				unavailable: inventory.entries.length - bound,

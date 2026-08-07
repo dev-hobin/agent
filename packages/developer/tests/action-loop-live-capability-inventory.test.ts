@@ -79,6 +79,15 @@ test("live inventory admits only bound Pi-loaded package Skills", async (t) => {
 		excluded: 0,
 	});
 	assert.deepEqual([...result.value.availablePackageSkills.keys()], ["ready"]);
+	assert.deepEqual(
+		[...result.value.boundCapabilitiesBySkillName.keys()],
+		["ready"],
+	);
+	assert.match(
+		result.value.boundCapabilitiesBySkillName.get("ready")?.capability
+			.capabilityRevisionId ?? "",
+		/^caprev_[a-f0-9]{64}$/,
+	);
 	assert.equal(
 		liveCapabilityInventoryPrompt(result),
 		"Action Loop capability inventory: 1 bound (1 unavailable, 0 excluded).",
