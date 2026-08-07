@@ -99,13 +99,25 @@ test("idle means no routed or pending question, not task completion", () => {
 	assert.equal(state.lastJudgment, undefined);
 });
 
-test("replays the exact Contribution Need bound to a live route", () => {
+test("replays the exact Need and Capability assignment bound to a live route", () => {
 	const contributionNeedId = "contribution_need_context_observation";
+	const capabilityAssignmentId = `assign_${"a".repeat(64)}`;
+	const capabilityRevisionId = `caprev_${"b".repeat(64)}`;
 	const replayed = reconstructEnabledState([
-		toolEntry(ROUTE_TOOL, { ...route, contributionNeedId }),
+		toolEntry(ROUTE_TOOL, {
+			...route,
+			contributionNeedId,
+			capabilityAssignmentId,
+			capabilityRevisionId,
+		}),
 	]);
 
 	assert.equal(replayed.activeRoute?.contributionNeedId, contributionNeedId);
+	assert.equal(
+		replayed.activeRoute?.capabilityAssignmentId,
+		capabilityAssignmentId,
+	);
+	assert.equal(replayed.activeRoute?.capabilityRevisionId, capabilityRevisionId);
 });
 
 test("records and replays branch-local reference loads on the active route", () => {

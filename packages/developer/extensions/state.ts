@@ -148,6 +148,8 @@ export interface RouteEvent {
 	referencePolicySha256?: string;
 	loadedReferences: ReferenceLoad[];
 	contributionNeedId?: string;
+	capabilityAssignmentId?: string;
+	capabilityRevisionId?: string;
 	targetQuestionId?: string;
 	methodLocation?: string;
 	executionProfile?: ImplementationProfile;
@@ -714,6 +716,10 @@ export function normalizeDeveloperEvent(
 				!Array.isArray(value.loadedReferences)) ||
 			(value.contributionNeedId !== undefined &&
 				typeof value.contributionNeedId !== "string") ||
+			(value.capabilityAssignmentId !== undefined &&
+				typeof value.capabilityAssignmentId !== "string") ||
+			(value.capabilityRevisionId !== undefined &&
+				typeof value.capabilityRevisionId !== "string") ||
 			(value.targetQuestionId !== undefined &&
 				typeof value.targetQuestionId !== "string") ||
 			(value.methodLocation !== undefined &&
@@ -759,6 +765,12 @@ export function normalizeDeveloperEvent(
 			loadedReferences,
 			...(typeof value.contributionNeedId === "string"
 				? { contributionNeedId: value.contributionNeedId }
+				: {}),
+			...(typeof value.capabilityAssignmentId === "string"
+				? { capabilityAssignmentId: value.capabilityAssignmentId }
+				: {}),
+			...(typeof value.capabilityRevisionId === "string"
+				? { capabilityRevisionId: value.capabilityRevisionId }
 				: {}),
 			targetQuestionId: value.targetQuestionId,
 			methodLocation: value.methodLocation,

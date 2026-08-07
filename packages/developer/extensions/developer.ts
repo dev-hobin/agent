@@ -26,6 +26,7 @@ import {
 import {
 	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
 	assessLiveCapabilityApplicability,
+	assignedLiveCapability,
 } from "./action-loop-applicability.ts";
 import {
 	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
@@ -1524,6 +1525,27 @@ export default async function developer(pi: ExtensionAPI) {
 						`Developer skill ${target} is unavailable or disabled in the current Pi resource configuration.`,
 					);
 				}
+				const boundCapabilityEntry =
+					target === "implementation" ||
+					!liveCapabilityInventory ||
+					liveCapabilityInventory.status !== "ready"
+						? undefined
+						: liveCapabilityInventory.value.boundCapabilitiesBySkillName.get(
+								target,
+							);
+				const capabilityAssignment =
+					boundCapabilityEntry === undefined
+						? undefined
+						: assignedLiveCapability(
+								activeWorkCase,
+								boundCapabilityEntry,
+								selectedNeed.contributionNeedId,
+							);
+				if (target !== "implementation" && capabilityAssignment === undefined) {
+					fail(
+						`Capability ${target} has no current applicable assignment for Contribution Need ${selectedNeed.contributionNeedId}. Use ${ACTION_LOOP_ASSESS_CAPABILITY_TOOL} first.`,
+					);
+				}
 				const availableReferences = skill
 					? await skillReferencePaths(skill)
 					: [];
@@ -1567,6 +1589,8 @@ export default async function developer(pi: ExtensionAPI) {
 					referencePolicySha256: referencePolicy.contentSha256,
 					loadedReferences: [],
 					contributionNeedId: selectedNeed.contributionNeedId,
+					capabilityAssignmentId: capabilityAssignment?.assignmentId,
+					capabilityRevisionId: capabilityAssignment?.capabilityRevisionId,
 					targetQuestionId,
 					methodLocation: skill?.filePath,
 					executionProfile,
@@ -1577,6 +1601,9 @@ export default async function developer(pi: ExtensionAPI) {
 					`Question: ${event.question}`,
 					`Target: ${event.target}`,
 					`Contribution Need: ${selectedNeed.contributionNeedId} — ${selectedNeed.function}`,
+					capabilityAssignment
+						? `Capability assignment: ${capabilityAssignment.assignmentId} · ${capabilityAssignment.capabilityRevisionId}`
+						: "Capability assignment: implementation compatibility route",
 					skill
 						? `Skill location: ${skill.filePath}`
 						: "Skill location: implementation action; no skill file",
@@ -1690,6 +1717,7 @@ export default async function developer(pi: ExtensionAPI) {
 				}
 				text += `\n${detailLine(theme, "revisits", event.targetQuestionId ?? "none")}`;
 				text += `\n${detailLine(theme, "Contribution Need", event.contributionNeedId ?? "unbound legacy route")}`;
+				text += `\n${detailLine(theme, "Capability assignment", event.capabilityAssignmentId ?? "implementation compatibility route")}`;
 				text += `\n${detailLine(theme, "skill", event.methodLocation ?? "implementation action")}`;
 				if ((event.availableReferences ?? []).length > 0) {
 					text += `\n${detailLine(theme, "references", event.availableReferences.join(", "))}`;

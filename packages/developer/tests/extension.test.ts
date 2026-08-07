@@ -36,6 +36,13 @@ const FULL_SCREEN_SURFACE_OPTIONS = {
 	},
 } as const;
 
+const TEST_CAPABILITY_WHEN: Readonly<Record<string, string>> = {
+	model:
+		"Consequential conditions, rules, contracts, histories, or proof boundaries must be modeled.",
+	verify:
+		"A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged.",
+};
+
 const TEST_IMPLEMENTATION_CONTRACT = {
 	movement: "Apply one bounded test movement",
 	stop_condition: "The focused test is green and the route is reviewable",
@@ -80,33 +87,94 @@ function createHarness() {
 	let editorText = "";
 	let activeTools = ["read", "edit", "write", "bash"];
 	let branchEntries: HarnessBranchEntry[] = [];
+	const capabilityAssessmentPromises = new Map<string, Promise<unknown>>();
+	const readyCapabilityAssessments = new Set<string>();
 
 	const api = {
 		on(name: string, handler: (event: any, ctx: any) => any) {
 			handlers.set(name, [...(handlers.get(name) ?? []), handler]);
 		},
 		registerTool(tool: any) {
-			// Direct harness calls bypass Pi's schema validation, so implementation
-			// fixtures receive the public contract unless a test overrides a field.
+			// Direct harness calls bypass Pi's schema validation. Route fixtures
+			// explicitly propose Capability applicability and receive the public
+			// implementation contract unless a test overrides a field.
 			const registeredTool =
-				tool.name === ROUTE_TOOL
+				tool.name === "developer_assess_capability"
 					? {
 							...tool,
-							execute(
+							async execute(
 								toolCallId: string,
 								params: Record<string, unknown>,
 								...rest: unknown[]
 							) {
-								return tool.execute(
-									toolCallId,
-									params?.target === "implementation"
-										? { ...TEST_IMPLEMENTATION_CONTRACT, ...params }
-										: params,
-									...rest,
+								const capability = String(params.capability ?? "");
+								const pending = Promise.resolve(
+									tool.execute(toolCallId, params, ...rest),
 								);
+								if (capability) capabilityAssessmentPromises.set(capability, pending);
+								try {
+									const result = await pending;
+									if (capability) readyCapabilityAssessments.add(capability);
+									return result;
+								} catch (error) {
+									if (capability) capabilityAssessmentPromises.delete(capability);
+									throw error;
+								}
 							},
 						}
-					: tool;
+					: tool.name === ROUTE_TOOL
+						? {
+								...tool,
+								async execute(
+									toolCallId: string,
+									params: Record<string, unknown>,
+									...rest: unknown[]
+								) {
+									if (
+										typeof params?.target === "string" &&
+										params.target !== "implementation" &&
+										!readyCapabilityAssessments.has(params.target)
+									) {
+										const assessment = tools.get(
+											"developer_assess_capability",
+										);
+										const declaredWhen = TEST_CAPABILITY_WHEN[params.target];
+										if (assessment) {
+											let pending = capabilityAssessmentPromises.get(params.target);
+											if (!pending) {
+												pending = Promise.resolve(
+													assessment.execute("assess-route-fixture", {
+														capability: params.target,
+														status: "applicable",
+														matched_when: declaredWhen ? [declaredWhen] : [],
+														matched_unless: [],
+														basis: [
+															"The requested route fixture explicitly serves the current Contribution Need.",
+														],
+														missing_context: [],
+													}),
+												);
+												capabilityAssessmentPromises.set(params.target, pending);
+											}
+											try {
+												await pending;
+												readyCapabilityAssessments.add(params.target);
+											} catch (error) {
+												capabilityAssessmentPromises.delete(params.target);
+												throw error;
+											}
+										}
+									}
+									return tool.execute(
+										toolCallId,
+										params?.target === "implementation"
+											? { ...TEST_IMPLEMENTATION_CONTRACT, ...params }
+											: params,
+										...rest,
+									);
+								},
+							}
+						: tool;
 			tools.set(tool.name, registeredTool);
 			activeTools.push(tool.name);
 		},
@@ -455,6 +523,18 @@ test("tool contract failures throw so Pi records them as errors", async () => {
 test("concurrent route attempts cannot overwrite a route that is still opening", async () => {
 	const harness = await startHarness();
 	const route = harness.tools.get(ROUTE_TOOL);
+	await harness.tools
+		.get("developer_assess_capability")
+		.execute("assess-before-concurrency", {
+			capability: "specify",
+			status: "applicable",
+			matched_when: [],
+			matched_unless: [],
+			basis: [
+				"The requested route fixture explicitly serves the current Contribution Need.",
+			],
+			missing_context: [],
+		});
 	const opening = route.execute(
 		"opening",
 		{
@@ -624,7 +704,7 @@ test("a Pi-filtered leaf cannot be routed even though it exists in the package",
 			undefined,
 			harness.ctx,
 		),
-		/unavailable or disabled/,
+		/unavailable.*(?:disabled|excluded)/,
 	);
 });
 
@@ -1517,7 +1597,7 @@ test("a live Work Case opens once and projects across agent turns", async () => 
 		type: "before_agent_start",
 		prompt: "continue",
 		systemPrompt: "base",
-		systemPromptOptions: { cwd: packageRoot, skills: [] },
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
 	assert.match(next.systemPrompt, /Active Action Loop Work Case:/);
 	assert.match(
@@ -1608,7 +1688,9 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 				"A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged.",
 			],
 			matched_unless: [],
-			basis: ["The current Contribution Need asks for a claim-relevant verifier."],
+			basis: [
+				"The requested route fixture explicitly serves the current Contribution Need.",
+			],
 			missing_context: [],
 		});
 	assert.match(resultText(assessed), /Capability verify: applicable · assign_/);
