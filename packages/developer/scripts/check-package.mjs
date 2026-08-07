@@ -624,6 +624,8 @@ const liveActionIntegration = await readFile(
 );
 assert.match(liveActionIntegration, /acceptActionCandidate\(/);
 assert.match(liveActionIntegration, /without granting permission or clearance/);
+assert.match(liveActionIntegration, /acceptActionClearance\(/);
+assert.match(liveActionIntegration, /adapter-owned host Permission Decision/);
 
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),
