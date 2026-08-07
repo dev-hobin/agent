@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import {
-	acceptLiveActionCandidate,
+	acceptLivePiActionCandidate,
 	assessLiveActionClearance,
+	matchingLiveActionClearance,
 } from "../extensions/action-loop-action.ts";
 import { assessLiveCapabilityApplicability } from "../extensions/action-loop-applicability.ts";
 import {
@@ -213,11 +214,13 @@ test("ready structured selection seals Skill and selected References atomically"
 				assert.deepEqual(closed.state.workCase.conclusions, [
 					closed.conclusion,
 				]);
-				const action = acceptLiveActionCandidate(closed.state, {
-					controlledAction: {
-						kind: "pi:write",
-						fingerprint: "a".repeat(64),
-					},
+				const toolInput = {
+					path: "/tmp/bounded-artifact.txt",
+					content: "verified content",
+				};
+				const action = acceptLivePiActionCandidate(closed.state, {
+					toolName: "write",
+					toolInput,
 					summary: "Write one bounded verified artifact.",
 					intendedEffects: ["The bounded artifact is updated."],
 					requiredConclusionIds: [closed.conclusion.conclusionId],
@@ -245,6 +248,21 @@ test("ready structured selection seals Skill and selected References atomically"
 						assert.deepEqual(hostClearance.state.workCase.actionClearances, [
 							hostClearance.clearance,
 						]);
+						assert.deepEqual(
+							matchingLiveActionClearance(
+								hostClearance.state,
+								"write",
+								toolInput,
+							),
+							hostClearance.clearance,
+						);
+						assert.equal(
+							matchingLiveActionClearance(hostClearance.state, "write", {
+								...toolInput,
+								content: "different content",
+							}),
+							undefined,
+						);
 					}
 				}
 			}

@@ -12,6 +12,10 @@ import {
 } from "../src/action-loop/action/action-clearance.ts";
 import { recordWorkCaseActionCandidate } from "../src/action-loop/work/record-work-case-action-candidate.ts";
 import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-work-case-action-clearance.ts";
+import {
+	bindPiControlledAction,
+	type ControlledPiToolName,
+} from "./action-loop-pi-action.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
 export const ACTION_LOOP_PROPOSE_ACTION_TOOL = "developer_propose_action";
@@ -20,6 +24,14 @@ export type LiveActionCandidateProposal = Omit<
 	ActionCandidateProposal,
 	"workCaseId" | "provenance"
 >;
+
+export interface LivePiActionCandidateProposal {
+	readonly toolName: ControlledPiToolName;
+	readonly toolInput: Readonly<Record<string, unknown>>;
+	readonly summary: string;
+	readonly intendedEffects: readonly string[];
+	readonly requiredConclusionIds: readonly string[];
+}
 
 export type LiveActionCandidateResult =
 	| {
@@ -71,6 +83,40 @@ export function acceptLiveActionCandidate(
 				: state,
 		candidate: accepted.value,
 	};
+}
+
+/** Derives rather than model-authors the exact Pi tool-call identity. */
+export function acceptLivePiActionCandidate(
+	state: LiveWorkCaseState,
+	proposal: LivePiActionCandidateProposal,
+): LiveActionCandidateResult {
+	const controlledAction = bindPiControlledAction(
+		proposal.toolName,
+		proposal.toolInput,
+	);
+	if (controlledAction.status === "invalid") return controlledAction;
+	return acceptLiveActionCandidate(state, {
+		controlledAction: controlledAction.value,
+		summary: proposal.summary,
+		intendedEffects: proposal.intendedEffects,
+		requiredConclusionIds: proposal.requiredConclusionIds,
+	});
+}
+
+/** Finds a current Clearance only for the exact observed Pi tool input. */
+export function matchingLiveActionClearance(
+	state: LiveWorkCaseState,
+	toolName: string,
+	toolInput: Readonly<Record<string, unknown>>,
+): ActionClearance | undefined {
+	const controlledAction = bindPiControlledAction(toolName, toolInput);
+	if (controlledAction.status === "invalid") return undefined;
+	return state.workCase.actionClearances.find(
+		(clearance) =>
+			clearance.controlledAction.kind === controlledAction.value.kind &&
+			clearance.controlledAction.fingerprint ===
+				controlledAction.value.fingerprint,
+	);
 }
 
 /** Applies an adapter-owned host Permission Decision to one recorded Candidate. */
