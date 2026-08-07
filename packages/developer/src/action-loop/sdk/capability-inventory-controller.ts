@@ -9,7 +9,8 @@ import {
 } from "../routing/accept-applicability.ts";
 import type {
 	SdkDecisionMetrics,
-	SdkDecisionRunner,SdkDecisionStopReason,
+	SdkDecisionRunner,
+	SdkDecisionStopReason,
 	SdkProposalAdmission,
 } from "./decision-controller.ts";
 

@@ -3,7 +3,8 @@ import { Type } from "typebox";
 import { openWorkCase, type ActiveWorkCase } from "../work/work-case.ts";
 import type {
 	SdkDecisionMetrics,
-	SdkDecisionRunner,SdkDecisionStopReason,
+	SdkDecisionRunner,
+	SdkDecisionStopReason,
 	SdkProposalAdmission,
 } from "./decision-controller.ts";
 import { decodeSdkStringList } from "./proposal-json.ts";

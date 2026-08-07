@@ -42,7 +42,8 @@ export async function createSdkEvalRuntime(
 	const sdkPackage = sdkRequire("./package.json") as {
 		readonly version?: string;
 	};
-	if (!sdkPackage.version) throw new Error("SDK package version is unavailable");
+	if (!sdkPackage.version)
+		throw new Error("SDK package version is unavailable");
 	const modelSpec =
 		process.env.DEVELOPER_SDK_MODEL ?? "openai-codex/gpt-5.6-sol";
 	const { provider, modelId } = parseModelSpec(modelSpec);

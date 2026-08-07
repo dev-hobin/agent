@@ -61,8 +61,7 @@ function decisionTotals(decisions: readonly DecisionObservation[]) {
 			0,
 		),
 		decisionRetryCount: decisions.reduce(
-			(total, decision) =>
-				total + Math.max(0, decision.metrics.runs - 1),
+			(total, decision) => total + Math.max(0, decision.metrics.runs - 1),
 			0,
 		),
 		timeBudgetStopCount: decisions.reduce(
@@ -92,9 +91,7 @@ async function loadCapabilities(
 	if (inventory.status === "rejected") throw new Error(inventory.error.message);
 	return Object.freeze(
 		inventory.entries.flatMap((entry) =>
-			entry.status === "bound"
-				? [{ name: entry.candidate.label, entry }]
-				: [],
+			entry.status === "bound" ? [{ name: entry.candidate.label, entry }] : [],
 		),
 	);
 }

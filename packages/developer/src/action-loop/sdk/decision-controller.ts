@@ -402,10 +402,7 @@ export function createPiSdkDecisionRunner(
 		options.maxToolErrorsPerRun,
 		"maxToolErrorsPerRun",
 	);
-	const maximumRunMs = positiveInteger(
-		options.maxRunMs ?? 120_000,
-		"maxRunMs",
-	);
+	const maximumRunMs = positiveInteger(options.maxRunMs ?? 120_000, "maxRunMs");
 	return Object.freeze({
 		run: <T>(request: SdkDecisionRequest<T>) =>
 			runBoundedDecision(

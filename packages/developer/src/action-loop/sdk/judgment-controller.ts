@@ -11,7 +11,8 @@ import { recordWorkCaseJudgment } from "../work/record-work-case-judgment.ts";
 import type { ActiveWorkCase } from "../work/work-case.ts";
 import type {
 	SdkDecisionMetrics,
-	SdkDecisionRunner,SdkDecisionStopReason,
+	SdkDecisionRunner,
+	SdkDecisionStopReason,
 	SdkProposalAdmission,
 } from "./decision-controller.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
@@ -72,9 +73,7 @@ function isCategory(value: unknown): value is (typeof categories)[number] {
 	return categories.some((category) => category === value);
 }
 
-function decodeRequirements(
-	value: unknown,
-):
+function decodeRequirements(value: unknown):
 	| {
 			readonly ok: true;
 			readonly value: readonly JudgmentRequirementProposal[];
