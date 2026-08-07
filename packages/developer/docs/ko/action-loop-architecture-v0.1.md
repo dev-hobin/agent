@@ -10,7 +10,7 @@
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: 0.1.19는 이 문서의 architecture를 아직 구현하지 않는다. 현재 release runtime과 Skills는 reconstruction 중에도 작동하는 보존 기준선이다.
+> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하지만, canonical Work Case transition, routing proposal, completion은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
 >
 > 작성 시점: 2026-08-06
 
@@ -563,6 +563,18 @@ Model switch는 Outcome, open Judgment, Closure Requirements, Need Coverage, cle
 - TUI projection: intended outcome, open judgment, action/effect, status를 read-only로 보여준다.
 
 첫 adapter surface는 pure trace에서 필요한 transition만 노출한다. 이전 runtime의 protocol tool, state region, workbench surface를 그대로 계승하지 않는다.
+
+처음 승인된 live cutover는 Work Case activation보다 좁다.
+
+```text
+before_agent_start.systemPromptOptions.skills
+  → source-bound catalog and bounded TOC discovery
+  → exact Skill-byte Capability binding
+  → bound first-party compatibility projection
+  → existing protocol prompt
+```
+
+이 boundary는 reconstruction package에서 live다. Rejected catalog는 어떤 Developer Skill도 admit하지 않고, entry별 descriptor 또는 binding failure는 unstructured routing으로 fallback하지 않은 채 unavailable로 남는다. 아직 Work Case를 만들거나 applicability를 accept하거나 Reference를 route하거나 canonical Action Loop state를 mutate하지 않는다.
 
 ## 12. Extension-level guarantee boundary
 

@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-architecture-v0.1.md)
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: 0.1.19 does not yet implement the architecture in this document. The current release runtime and Skills remain an operational preservation baseline during reconstruction.
+> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission and packages `src/action-loop`; canonical Work Case transitions, routing proposals, and completion are not yet live extension state. The published runtime and Skills remain the recovery baseline.
 >
 > Date written: 2026-08-06
 
@@ -563,6 +563,18 @@ A model switch does not automatically make Outcome, open Judgment, Closure Requi
 - TUI projection: presents intended outcome, open judgment, action/effect, and status as read-only information.
 
 The first adapter surface exposes only the transitions required by pure traces. It does not inherit the previous runtime’s protocol tools, state region, or workbench surface as-is.
+
+The first authorized live cutover is narrower than Work Case activation:
+
+```text
+before_agent_start.systemPromptOptions.skills
+  → source-bound catalog and bounded TOC discovery
+  → exact Skill-byte Capability binding
+  → bound first-party compatibility projection
+  → existing protocol prompt
+```
+
+This boundary is live in the reconstruction package. Rejected catalogs admit no Developer Skill, while per-entry descriptor or binding failures remain unavailable rather than falling back to unstructured routing. It does not yet create a Work Case, accept applicability, route References, or mutate canonical Action Loop state.
 
 ## 12. Extension-level guarantee boundary
 

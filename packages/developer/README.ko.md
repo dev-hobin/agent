@@ -167,6 +167,20 @@ Developer가 켜져 있을 때 built-in `bash`는 inspection과 verification에 
 
 [Reference routing](./REFERENCE_ROUTING.md)과 [Terminal Judgment Workbench 연구](./docs/ko/terminal-judgment-workbench-study-v0.1.md)를 참고하세요.
 
+## Action Loop reconstruction boundary
+
+Reconstruction package는 이제 `src/action-loop`을 포함하며 live `before_agent_start` boundary는 Pi가 trust-filter한 Skill catalog에서만 Capability를 admit합니다.
+
+```text
+Pi-admitted Skills
+→ bounded TOC discovery
+→ exact Skill-byte binding
+→ source-bound Capability inventory
+→ first-party compatibility projection
+```
+
+Rejected catalog는 어떤 Developer Skill도 admit하지 않습니다. Invalid descriptor나 failed entry는 조용히 unstructured로 바뀌지 않습니다. 현재 cutover는 Capability admission만 변경합니다. Canonical Work Case, applicability와 Reference proposal, Action Clearance, Effect settlement, revision-bound completion은 아직 live extension state가 아니라 검증된 pure module입니다. npm registry의 0.1.19 artifact는 recovery baseline이며 이 reconstruction surface는 publish되지 않았습니다.
+
 ## Branch, compaction, reload
 
 Route, Judgment, Question, activation은 Pi session entry에 저장되고 current branch에서 replay됩니다. Fork는 자기 branch history만 상속합니다. Compaction은 Pi에 맡기며 Developer는 current route와 recovery metadata를 보존 가능한 위치에 둡니다. Unsafe hot reload는 tool configuration을 추측하지 않고 Pi restart를 요구합니다.

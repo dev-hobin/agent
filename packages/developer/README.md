@@ -302,6 +302,20 @@ policy schema. See the
 for the product meaning, comparative terminal research, transfer boundaries, and
 inspection contract behind the Workbench.
 
+## Action Loop reconstruction boundary
+
+The reconstruction package now includes `src/action-loop` and its live `before_agent_start` boundary admits Capabilities only from Pi’s trust-filtered Skill catalog.
+
+```text
+Pi-admitted Skills
+→ bounded TOC discovery
+→ exact Skill-byte binding
+→ source-bound Capability inventory
+→ first-party compatibility projection
+```
+
+A rejected catalog admits no Developer Skill. An invalid descriptor or failed entry does not silently become unstructured. This cutover currently changes Capability admission only: canonical Work Cases, applicability and Reference proposals, Action Clearance, Effect settlement, and revision-bound completion remain proven pure modules rather than live extension state. The npm 0.1.19 registry artifact remains the recovery baseline; this reconstruction surface is not published.
+
 ## Branches, compaction, and reloads
 
 Routes, judgments, questions, and activation changes are stored in Pi session
