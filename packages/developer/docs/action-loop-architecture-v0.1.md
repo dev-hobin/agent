@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-architecture-v0.1.md)
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission and packages `src/action-loop`; canonical Work Case transitions, routing proposals, and completion are not yet live extension state. The published runtime and Skills remain the recovery baseline.
+> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, and opens one bounded process-local Work Case through an explicit proposal tool. Downstream Judgment, Action, Effect, and completion transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
 >
 > Date written: 2026-08-06
 
@@ -574,7 +574,19 @@ before_agent_start.systemPromptOptions.skills
   → existing protocol prompt
 ```
 
-This boundary is live in the reconstruction package. Rejected catalogs admit no Developer Skill, while per-entry descriptor or binding failures remain unavailable rather than falling back to unstructured routing. It does not yet create a Work Case, accept applicability, route References, or mutate canonical Action Loop state.
+This boundary is live in the reconstruction package. Rejected catalogs admit no Developer Skill, while per-entry descriptor or binding failures remain unavailable rather than falling back to unstructured routing.
+
+The next live slice opens and projects one bounded Work Case:
+
+```text
+developer_open_work_case proposal
+  → bounded Outcome, acceptance conditions, Constraints, and basis
+  → openWorkCase transition
+  → process-local active Work Case
+  → next-turn before_agent_start projection
+```
+
+An exact duplicate stutters, a different Outcome cannot replace active work, and turning Developer off clears this process-local state after the existing confirmation boundary. Opening grants no Action Clearance and implies no completion. This slice deliberately has no session replay yet; reconstruction or process restart clears it rather than guessing canonical history. Applicability, Reference routing, Contribution, and later Work Case transitions remain pure-only.
 
 ## 12. Extension-level guarantee boundary
 

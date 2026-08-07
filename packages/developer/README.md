@@ -314,7 +314,7 @@ Pi-admitted Skills
 → first-party compatibility projection
 ```
 
-A rejected catalog admits no Developer Skill. An invalid descriptor or failed entry does not silently become unstructured. This cutover currently changes Capability admission only: canonical Work Cases, applicability and Reference proposals, Action Clearance, Effect settlement, and revision-bound completion remain proven pure modules rather than live extension state. The npm 0.1.19 registry artifact remains the recovery baseline; this reconstruction surface is not published.
+A rejected catalog admits no Developer Skill. An invalid descriptor or failed entry does not silently become unstructured. The extension can also accept one bounded `developer_open_work_case` proposal and project that active Outcome into later turns. Exact duplicates stutter, another Outcome cannot replace active work, and opening grants neither Action Clearance nor completion. This Work Case is intentionally process-local and is cleared by restart, reconstruction, or confirmed Developer shutdown; session replay is not implemented yet. Applicability and Reference proposals, Action Clearance, Effect settlement, and revision-bound completion remain proven pure modules rather than live extension state. The npm 0.1.19 registry artifact remains the recovery baseline; this reconstruction surface is not published.
 
 ## Branches, compaction, and reloads
 

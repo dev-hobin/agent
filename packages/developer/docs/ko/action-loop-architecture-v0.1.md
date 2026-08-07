@@ -10,7 +10,7 @@
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하지만, canonical Work Case transition, routing proposal, completion은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
+> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 explicit proposal tool을 통해 하나의 bounded process-local Work Case를 연다. Downstream Judgment, Action, Effect, completion transition은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
 >
 > 작성 시점: 2026-08-06
 
@@ -574,7 +574,19 @@ before_agent_start.systemPromptOptions.skills
   → existing protocol prompt
 ```
 
-이 boundary는 reconstruction package에서 live다. Rejected catalog는 어떤 Developer Skill도 admit하지 않고, entry별 descriptor 또는 binding failure는 unstructured routing으로 fallback하지 않은 채 unavailable로 남는다. 아직 Work Case를 만들거나 applicability를 accept하거나 Reference를 route하거나 canonical Action Loop state를 mutate하지 않는다.
+이 boundary는 reconstruction package에서 live다. Rejected catalog는 어떤 Developer Skill도 admit하지 않고, entry별 descriptor 또는 binding failure는 unstructured routing으로 fallback하지 않은 채 unavailable로 남는다.
+
+다음 live slice는 하나의 bounded Work Case를 열고 projection한다.
+
+```text
+developer_open_work_case proposal
+  → bounded Outcome, acceptance conditions, Constraints, and basis
+  → openWorkCase transition
+  → process-local active Work Case
+  → next-turn before_agent_start projection
+```
+
+Exact duplicate는 stutter하고, 다른 Outcome은 active work를 교체할 수 없으며, Developer를 끄면 기존 confirmation boundary 뒤에 process-local state가 제거된다. Opening은 Action Clearance를 부여하지 않고 completion을 뜻하지 않는다. 이 slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 state를 제거한다. Applicability, Reference routing, Contribution, 이후 Work Case transition은 pure-only로 남는다.
 
 ## 12. Extension-level guarantee boundary
 
