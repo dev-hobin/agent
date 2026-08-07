@@ -29,6 +29,7 @@ export interface SealedClosureTarget {
 }
 
 export type ClosureTargetBlockerCode =
+	| "open-judgment"
 	| "missing-claim-assurance"
 	| "missing-effect-assessment"
 	| "unsettled-effect"
@@ -166,7 +167,16 @@ export function prepareClosureTarget(
 			},
 		};
 	}
-	const blockers = [...effectBlockers(workCase)];
+	const blockers = [
+		...workCase.openJudgments.map((judgment) =>
+			Object.freeze({
+				code: "open-judgment" as const,
+				subjectId: judgment.judgmentId,
+				message: `Judgment remains open: ${judgment.question}`,
+			}),
+		),
+		...effectBlockers(workCase),
+	];
 	if (
 		!workCase.conclusions.some(({ category }) => category === "Claim Assurance")
 	) {

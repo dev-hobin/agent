@@ -57,13 +57,34 @@ export function recordWorkCaseConclusion(
 	) {
 		return { status: "unchanged", value: workCase };
 	}
+	const openJudgment = workCase.openJudgments.find(
+		({ judgmentId }) => judgmentId === conclusion.judgmentId,
+	);
+	if (
+		openJudgment !== undefined &&
+		(openJudgment.category !== conclusion.category ||
+			openJudgment.subject !== conclusion.subject ||
+			openJudgment.contextRevisionId !== conclusion.contextRevisionId)
+	) {
+		return invalid(
+			"identity-mismatch",
+			"conclusion",
+			"Conclusion changes the identity of its open Judgment",
+		);
+	}
 	const conclusions = Object.freeze(
 		[...workCase.conclusions, conclusion].sort((left, right) =>
 			left.conclusionId.localeCompare(right.conclusionId),
 		),
 	);
+	const openJudgments = Object.freeze(
+		workCase.openJudgments.filter(
+			({ judgmentId }) => judgmentId !== conclusion.judgmentId,
+		),
+	);
 	const nextState = {
 		...workCase,
+		openJudgments,
 		conclusions,
 	};
 	return {

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
 import { openJudgment } from "../src/action-loop/judgment/open-judgment.ts";
+import { prepareClosureTarget } from "../src/action-loop/work/prepare-closure-target.ts";
+import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import { recordWorkCaseJudgment } from "../src/action-loop/work/record-work-case-judgment.ts";
 import {
 	deriveWorkCaseRevisionId,
@@ -47,6 +50,43 @@ test("one open Judgment advances the owning Work Case revision", () => {
 	assert.equal(Object.isFrozen(result.value.openJudgments), true);
 });
 
+test("open Judgment blocks closure until a matching Conclusion removes it", () => {
+	const current = fixture();
+	const recorded = recordWorkCaseJudgment(current.workCase, current.judgment);
+	if (recorded.status !== "recorded") return;
+	const blocked = prepareClosureTarget(recorded.value);
+	assert.equal(blocked.status, "not-ready");
+	if (blocked.status === "not-ready") {
+		assert.ok(blocked.blockers.some(({ code }) => code === "open-judgment"));
+	}
+	const conclusion: JudgmentConclusion = Object.freeze({
+		conclusionId: "conclusion-context-fit",
+		workCaseId: current.judgment.workCaseId,
+		judgmentId: current.judgment.judgmentId,
+		category: current.judgment.category,
+		subject: current.judgment.subject,
+		contextRevisionId: current.judgment.contextRevisionId,
+		requirementDispositions: Object.freeze([]),
+		coverageIds: Object.freeze([]),
+		basis: Object.freeze(["The bounded Judgment has been concluded."]),
+		answer: "The interpretation fits the current context.",
+		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
+	});
+	const concluded = recordWorkCaseConclusion(recorded.value, conclusion);
+
+	assert.equal(concluded.status, "recorded");
+	if (concluded.status === "recorded") {
+		assert.deepEqual(concluded.value.openJudgments, []);
+		assert.deepEqual(concluded.value.conclusions, [conclusion]);
+	}
+	const mismatched = recordWorkCaseConclusion(recorded.value, {
+		...conclusion,
+		conclusionId: "conclusion-mismatched",
+		subject: "A changed Judgment Subject.",
+	});
+	assert.equal(mismatched.status, "invalid");
+});
+
 test("an exact duplicate Judgment is idempotent", () => {
 	const current = fixture();
 	const first = recordWorkCaseJudgment(current.workCase, current.judgment);
@@ -71,9 +111,7 @@ test("cross-Case, stale, and revision-consistent incoherent recording fail close
 	);
 	const incoherentDraft = {
 		...current.workCase,
-		openJudgments: [
-			{ ...current.judgment, workCaseId: "work-case-other" },
-		],
+		openJudgments: [{ ...current.judgment, workCaseId: "work-case-other" }],
 	};
 	const incoherent = recordWorkCaseJudgment(
 		{
