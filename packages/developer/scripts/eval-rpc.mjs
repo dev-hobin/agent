@@ -28,9 +28,6 @@ const packageUnderTest = process.env.DEVELOPER_EVAL_PACKAGE_PATH || root;
 const extension = join(packageUnderTest, "extensions", "developer.ts");
 const observerExtension = join(root, "scripts", "eval-observer.ts");
 const skills = join(packageUnderTest, "skills");
-const loadedSkillsPath = process.env.DEVELOPER_EVAL_SKILL_PATH
-	? resolve(process.env.DEVELOPER_EVAL_SKILL_PATH)
-	: skills;
 const expectedSkillCount = Number(
 	process.env.DEVELOPER_EVAL_EXPECTED_SKILL_COUNT || 11,
 );
@@ -66,6 +63,21 @@ function parseJson(value, label) {
 		);
 	}
 }
+
+const configuredSkillPaths = process.env.DEVELOPER_EVAL_SKILL_PATHS_JSON
+	? parseJson(
+			process.env.DEVELOPER_EVAL_SKILL_PATHS_JSON,
+			"Invalid DEVELOPER_EVAL_SKILL_PATHS_JSON",
+		)
+	: [process.env.DEVELOPER_EVAL_SKILL_PATH || skills];
+if (
+	!Array.isArray(configuredSkillPaths) ||
+	configuredSkillPaths.length === 0 ||
+	configuredSkillPaths.some((path) => typeof path !== "string")
+) {
+	throw new Error("At least one exact Developer eval Skill path is required.");
+}
+const loadedSkillPaths = configuredSkillPaths.map((path) => resolve(path));
 
 const allFixtures = parseJson(
 	await readFile(join(root, "evals", "fixtures.json"), "utf8"),
@@ -108,8 +120,7 @@ const resourceArgs = loadAsPackage
 			extension,
 			"--extension",
 			observerExtension,
-			"--skill",
-			loadedSkillsPath,
+			...loadedSkillPaths.flatMap((path) => ["--skill", path]),
 		];
 const child = spawn(
 	piBin,
@@ -280,7 +291,7 @@ try {
 		String(entry.sourceInfo?.path ?? "").startsWith(skills),
 	);
 	assert.equal(packageSkills.length, expectedSkillCount);
-	if (loadedSkillsPath === skills) {
+	if (loadedSkillPaths.length === 1 && loadedSkillPaths[0] === skills) {
 		assert.equal(
 			packageSkills.some((entry) => entry.name === "skill:doctor"),
 			true,
@@ -292,8 +303,10 @@ try {
 	);
 	for (const entry of packageSkills) {
 		assert.ok(
-			String(entry.sourceInfo.path).startsWith(loadedSkillsPath),
-			"Package skill provenance escaped the exact admitted Skill path: " +
+			loadedSkillPaths.some((path) =>
+				String(entry.sourceInfo.path).startsWith(path),
+			),
+			"Package skill provenance escaped the exact admitted Skill paths: " +
 				entry.sourceInfo.path,
 		);
 	}

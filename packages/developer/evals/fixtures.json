@@ -1,5 +1,30 @@
 [
   {
+    "id": "no-action-intervention-completion",
+    "request": "파일을 읽거나 수정하지 말고 주어진 사실만으로 판단을 완료해라. Locker fulfillment behavior는 아직 요청되지 않았고 현재 public API는 accepted 상태다. FulfillmentStrategy registry를 지금 공개하면 새 compatibility promise와 extension surface가 생기지만 현재 caller guarantee는 늘지 않는다. 나중에 실제 두 번째 fulfillment behavior가 요청되면 같은 variation이 반복되는지 관찰할 수 있고, 그때 registry 도입은 여전히 국소적이고 reversible하다. 지금 action 또는 no-action 중 무엇이 비례적인지 now/after/never로 결정하고, after라면 observable reopen condition을 제시한 뒤 no-change completion claim을 검증해라.",
+    "admissibleFirstTargets": [
+      "schedule",
+      "verify"
+    ],
+    "preferredFirstTargets": [
+      "schedule"
+    ],
+    "allowedOutcomes": [
+      "settled-unchanged"
+    ],
+    "requiredJudgmentTerms": [
+      "after",
+      "reopen",
+      "no-action"
+    ],
+    "expectedReferenceReads": [
+      "skills/schedule/references/structural-change-timing.md",
+      "skills/verify/references/verifier-selection-and-pass-but-wrong.md"
+    ],
+    "mustRecordJudgment": true,
+    "maxRoutes": 4
+  },
+  {
     "id": "vague-product-request",
     "request": "계약 기능을 개선해줘. 아직 무엇을 개선해야 하는지는 이 요청 외에 명시되어 있지 않다.",
     "admissibleFirstTargets": [

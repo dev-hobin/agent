@@ -70,6 +70,33 @@ if (
 	);
 }
 
+function configuredSkillPaths() {
+	const encoded = process.env.DEVELOPER_EVAL_SKILL_PATHS_JSON;
+	if (!encoded) {
+		return [
+			process.env.DEVELOPER_EVAL_SKILL_PATH
+				? resolve(process.env.DEVELOPER_EVAL_SKILL_PATH)
+				: resolve(packageRoot, "skills"),
+		];
+	}
+	try {
+		const decoded = JSON.parse(encoded);
+		if (
+			!Array.isArray(decoded) ||
+			decoded.length === 0 ||
+			decoded.some((path) => typeof path !== "string")
+		) {
+			throw new Error("expected a nonempty string array");
+		}
+		return decoded.map((path) => resolve(path));
+	} catch (error) {
+		throw new Error(
+			`Invalid DEVELOPER_EVAL_SKILL_PATHS_JSON: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error },
+		);
+	}
+}
+
 const piVersionResult = spawnSync(piBin, ["--version"], { encoding: "utf8" });
 if (piVersionResult.status !== 0) {
 	throw new Error(
@@ -78,9 +105,7 @@ if (piVersionResult.status !== 0) {
 }
 const piVersion = piVersionResult.stdout.trim();
 const extension = resolve(packageRoot, "extensions", "developer.ts");
-const skills = process.env.DEVELOPER_EVAL_SKILL_PATH
-	? resolve(process.env.DEVELOPER_EVAL_SKILL_PATH)
-	: resolve(packageRoot, "skills");
+const skills = configuredSkillPaths();
 const observer = resolve(
 	import.meta.dirname,
 	"eval-observer.ts",
@@ -103,8 +128,7 @@ const child = spawn(
 		extension,
 		"--extension",
 		observer,
-		"--skill",
-		skills,
+		...skills.flatMap((path) => ["--skill", path]),
 	],
 	{
 		cwd: workspace,
