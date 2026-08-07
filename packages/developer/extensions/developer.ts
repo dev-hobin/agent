@@ -271,9 +271,9 @@ function actionLoopProtocolPrompt(
 		"Operate Observe → Judge → Act → Settle until Complete, Block, or Pause. These are semantic responsibilities, not a mandatory phase order; revisit Judgment whenever evidence changes.",
 		`Use ${ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL} as the primary bounded controller when canonical work or a Judgment is missing. It checkpoints Work Case opening, Judgment opening, complete admitted Capability routing, sealed Context, Contribution, Coverage, and Conclusion before dependent work. Lower-level opening and routing tools are transitional fallback controls.`,
 		`Evidence is not automatically truth. ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} is only for exact admitted host evidence that directly answers a current Need without Skill interpretation.`,
-		`Before controlled bash, edit, or write, use ${ACTION_LOOP_PROPOSE_ACTION_TOOL} for the exact one-use input. Tool return is an Observation, not Effect success; use ${ACTION_LOOP_SETTLE_EFFECT_TOOL} for complete settlement.`,
+		`When the primary controller returns an exact one-use input for cleared bash, edit, or write, execute only that input and then call the primary controller again for Effect settlement and Completion. Manual fallback Actions still require ${ACTION_LOOP_PROPOSE_ACTION_TOOL}; tool return never implies Effect success.`,
 		`Pause, wait, block, resume, and completion require their exact current evidence and complete current Work Case inventory; never infer terminal status or choose convenient Conclusion and Effect subsets.`,
-		`The current SDK cutover owns opening through exact Action Clearance. The Pi host executes only that one-use input; Effect settlement and Completion remain transitional until their controller cutover completes.`,
+		`The SDK controller owns opening through revision-revalidated Completion. The Pi Extension alone bridges exact host execution and captures its result as an Observation; model output cannot grant permission, settle from absence, or claim completion.`,
 		"Internal IDs shown in model context are exact protocol arguments. Never repeat IDs, revisions, hashes, fingerprints, or transition identities to the user.",
 		`Pi-admitted Developer Skills: ${availableSkillNames.length > 0 ? availableSkillNames.join(", ") : "none"}. Never rediscover excluded Skills or bypass the admitted inventory.`,
 	].join("\n");
@@ -591,11 +591,11 @@ export default async function developer(pi: ExtensionAPI) {
 		name: ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL,
 		label: "Developer Progress Action Loop",
 		description:
-			"Run the bounded SDK controller from missing Work Case ownership through upper Judgment Conclusion and exact host Action Clearance. Every accepted transition is durably checkpointed before dependent work.",
+			"Run the bounded SDK controller from missing Work Case ownership through Judgment, exact host Action Clearance, Effect settlement, and revision-revalidated Completion. Every accepted transition is durably checkpointed before dependent work.",
 		promptSnippet: "Progress canonical work with the SDK controller",
 		promptGuidelines: [
-			`Use ${ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL} as the primary Developer entry point when no Work Case exists or the current Work Case has one unfinished Judgment.`,
-			"A bounded stop preserves acknowledged branch checkpoints. Do not replace replay-unavailable or held ownership.",
+			`Use ${ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL} as the primary Developer entry point and call it again after the exact cleared host Action returns.`,
+			"A bounded stop preserves acknowledged branch checkpoints. Do not replace replay-unavailable or held ownership, infer Effect success from a tool return, or bypass complete closure revalidation.",
 		],
 		parameters: Type.Object({}, { additionalProperties: false }),
 		executionMode: "sequential",
@@ -647,6 +647,7 @@ export default async function developer(pi: ExtensionAPI) {
 				...(activeWorkCase ? { state: activeWorkCase } : {}),
 				inventory: liveCapabilityInventory.value,
 				runner: prepared.runner,
+				complete: true,
 				actions: piSdkControlledActions(),
 				authorizeAction(action) {
 					return {
@@ -668,7 +669,7 @@ export default async function developer(pi: ExtensionAPI) {
 				bindPendingHostObservations(activeWorkCase.workCase.workCaseId);
 			}
 			pendingActionLoopBranch = undefined;
-			completedWorkCase = undefined;
+			completedWorkCase = progressed.completedWorkCase;
 			syncProtocolTools();
 			refreshUI(ctx);
 			const result = progressed.result;

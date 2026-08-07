@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import {
+	beginLiveActionEffect,
+	settleLiveEffect,
+} from "../extensions/action-loop-effect.ts";
 import { bindPiControlledAction } from "../extensions/action-loop-pi-action.ts";
 import {
 	applySdkActionLoopCheckpoint,
@@ -13,6 +17,7 @@ import {
 	type SdkActionLoopCheckpoint,
 } from "../src/action-loop/sdk/action-loop-progression-controller.ts";
 import type { SdkJudgmentProgressState } from "../src/action-loop/sdk/judgment-progression-controller.ts";
+import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
@@ -217,8 +222,8 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 		conclusionId: "conclusion-action-loop-write",
 		workCaseId: opened.value.workCaseId,
 		judgmentId: "judgment-action-loop-write",
-		category: "Proportionate Intervention",
-		subject: "The exact bounded write",
+		category: "Claim Assurance",
+		subject: "The exact bounded write and its completion evidence",
 		contextRevisionId: opened.value.revisionId,
 		requirementDispositions: Object.freeze([]),
 		coverageIds: Object.freeze([]),
@@ -380,6 +385,153 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 	assert.equal(unacknowledged.stage, "action");
 	assert.equal(unacknowledged.pendingCheckpoint.kind, "action-cleared");
 	assert.equal(unacknowledged.state?.workCase.actionClearances.length, 0);
+
+	const clearance = live.workCase.actionClearances[0];
+	assert.ok(clearance);
+	const begun = beginLiveActionEffect(live, clearance, "write:config-json");
+	if (begun.status === "invalid") throw new Error(begun.message);
+	assert.equal(begun.status, "begun");
+	assert.equal(begun.state.piActionProposals.length, 0);
+	const observation: EffectObservation = Object.freeze({
+		effectObservationId: "effect-observation-action-loop-write",
+		workCaseId: begun.effect.workCaseId,
+		effectId: begun.effect.effectId,
+		occurrenceId: begun.effect.occurrenceId,
+		evidence: Object.freeze({
+			kind: "tool-result",
+			locator: "pi:tool-result:write-config-json",
+			fingerprint: "d".repeat(64),
+		}),
+		statement: "The exact write tool returned without an error marker.",
+		limitations: Object.freeze([
+			"The return alone does not establish unrelated filesystem state.",
+		]),
+		provenance: Object.freeze({ kind: "tool", source: "pi:tool-result" }),
+	});
+	const effectCheckpoints: SdkActionLoopCheckpoint[] = [];
+	const settled = await progressActionLoopWithSdk({
+		request: "Settle the exact observed write Effect.",
+		state: {
+			...state,
+			workCase: begun.state.workCase,
+		},
+		capabilities: [],
+		effectObservations: [observation],
+		actions: [writeAction],
+		authorizeAction() {
+			throw new Error("Effect settlement must not propose another Action.");
+		},
+		runner: scriptedSdkRunner([
+			{
+				proposals: [
+					{
+						outcome: "observed-success",
+						observation_status_0: "relied-on",
+						observation_basis_0:
+							"The exact current host Observation supports the intended Effect.",
+						intended_status_0: "observed",
+						intended_basis_0:
+							"The exact write result explicitly supports the intended file Effect.",
+						intended_0_observation_0: true,
+						basis_json:
+							'["Every current Observation and intended Effect is explicitly accounted for."]',
+					},
+				],
+			},
+		]),
+		maxSteps: 1,
+		checkpoint(checkpoint) {
+			effectCheckpoints.push(checkpoint);
+		},
+	});
+	assert.equal(settled.status, "effect-settled");
+	if (settled.status !== "effect-settled") return;
+	assert.equal(settled.outcome, "observed-success");
+	assert.deepEqual(effectCheckpoints.map(({ kind }) => kind), [
+		"effect-settled",
+	]);
+	const effectCheckpoint = effectCheckpoints[0];
+	if (effectCheckpoint?.kind !== "effect-settled") return;
+	const effectEvent = sdkActionLoopCheckpointEvent(effectCheckpoint);
+	assert.equal(effectEvent.kind, "effect-settled");
+	if (effectEvent.kind !== "effect-settled") return;
+	const replayedSettlement = settleLiveEffect(
+		Object.freeze({
+			...begun.state,
+			effectObservations: Object.freeze([observation]),
+		}),
+		effectEvent.effectId,
+		effectEvent.proposal,
+	);
+	assert.notEqual(replayedSettlement.status, "invalid");
+	if (replayedSettlement.status === "invalid") return;
+	assert.equal(
+		"effectSettlementId" in replayedSettlement.assessment
+			? replayedSettlement.assessment.effectSettlementId
+			: replayedSettlement.assessment.effectAssessmentId,
+		effectEvent.expected.assessmentId,
+	);
+	const settledLive = applySdkActionLoopCheckpoint(
+		Object.freeze({
+			...begun.state,
+			effectObservations: Object.freeze([observation]),
+		}),
+		effectCheckpoint,
+	);
+	assert.equal(settledLive.workCase.currentEffectAssessments.length, 1);
+	const completionReady = await progressActionLoopWithSdk({
+		request: "Continue after exact Effect settlement.",
+		state: settled.state,
+		capabilities: [],
+		effectObservations: [observation],
+		actions: [writeAction],
+		runner: scriptedSdkRunner([]),
+		maxSteps: 1,
+		checkpoint() {
+			throw new Error("A current settled Effect must not be reassessed.");
+		},
+	});
+	assert.equal(completionReady.status, "ready-for-completion");
+	assert.equal(completionReady.steps, 0);
+	assert.equal(completionReady.checkpoints, 0);
+
+	const completionEvents: string[] = [];
+	const completed = await progressLiveActionLoopWithSdk({
+		request: "Complete the bounded write after exact settlement.",
+		state: settledLive,
+		inventory: { boundCapabilitiesBySkillName: new Map() },
+		runner: scriptedSdkRunner([
+			{
+				proposals: [
+					{
+						mode: "completed",
+						basis_json:
+							'["Every current closure obligation and evidence item is accounted for."]',
+						obligation_0_conclusion_indices_json: "[0]",
+						obligation_0_effect_indices_json: "[]",
+						obligation_0_remediation_indices_json: "[]",
+						obligation_0_basis:
+							"Claim Assurance supports the acceptance condition.",
+						obligation_1_conclusion_indices_json: "[]",
+						obligation_1_effect_indices_json: "[0]",
+						obligation_1_remediation_indices_json: "[]",
+						obligation_1_basis:
+							"The observed-success Effect supports the bounded constraint.",
+					},
+				],
+			},
+		]),
+		complete: true,
+		actions: [writeAction],
+		maxSteps: 1,
+		appendCheckpoint(event) {
+			completionEvents.push(event.kind);
+		},
+	});
+	assert.equal(completed.result.status, "completed");
+	assert.equal(completed.state, undefined);
+	assert.equal(completed.completedWorkCase?.status, "complete");
+	assert.deepEqual(completionEvents, ["work-case-completed"]);
 });
 
 test("SDK Action Loop progression does not depend on an unacknowledged opening", async () => {

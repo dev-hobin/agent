@@ -8,6 +8,8 @@ import {
 	type SdkActionLoopProgressionResult,
 } from "../src/action-loop/sdk/action-loop-progression-controller.ts";
 import type { PermissionDecision } from "../src/action-loop/action/action-clearance.ts";
+import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
+import { recordWorkCaseEffectAssessment } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
 import type { SdkNamedCapability } from "../src/action-loop/sdk/capability-inventory-controller.ts";
 import type { SdkDecisionRunner } from "../src/action-loop/sdk/decision-controller.ts";
 import {
@@ -22,8 +24,10 @@ import {
 import type { LiveCapabilityInventory } from "./action-loop-capability-inventory.ts";
 import {
 	sdkActionClearedEvent,
+	sdkEffectSettledEvent,
 	sdkJudgmentCheckpointEvent,
 	sdkJudgmentOpenedEvent,
+	sdkWorkCaseCompletedEvent,
 	sdkWorkCaseOpenedEvent,
 	type SdkJudgmentCheckpointSessionEvent,
 } from "./action-loop-sdk-session.ts";
@@ -38,6 +42,8 @@ export type SdkActionLoopCheckpointSessionEvent =
 	| ReturnType<typeof sdkWorkCaseOpenedEvent>
 	| ReturnType<typeof sdkJudgmentOpenedEvent>
 	| ReturnType<typeof sdkActionClearedEvent>
+	| ReturnType<typeof sdkEffectSettledEvent>
+	| ReturnType<typeof sdkWorkCaseCompletedEvent>
 	| SdkJudgmentCheckpointSessionEvent;
 
 export interface LiveSdkActionLoopProgressionInput {
@@ -48,6 +54,7 @@ export interface LiveSdkActionLoopProgressionInput {
 		"boundCapabilitiesBySkillName"
 	>;
 	readonly runner: SdkDecisionRunner;
+	readonly complete?: boolean;
 	readonly actions?: readonly SdkControlledActionAdapter[];
 	readonly authorizeAction?: (
 		action: Extract<
@@ -64,6 +71,7 @@ export interface LiveSdkActionLoopProgressionInput {
 export interface LiveSdkActionLoopProgressionResult {
 	readonly result: SdkActionLoopProgressionResult;
 	readonly state?: LiveWorkCaseState;
+	readonly completedWorkCase?: CompletedWorkCase;
 }
 
 export interface LiveSdkJudgmentProgressionInput {
@@ -107,7 +115,17 @@ export function sdkActionLoopProgressionSummary(
 		case "ready-for-host-action":
 			return "One exact controlled Action is cleared for the Pi host.";
 		case "effect-pending":
-			return "The current controlled Action has begun Effect accounting and must be observed and settled.";
+			return "The current controlled Action has begun Effect accounting and must be observed before settlement.";
+		case "effect-settled":
+			return `The current Effect was canonically settled as ${result.outcome}.`;
+		case "effect-unsettled":
+			return `The current Effect remains ${result.outcome}; additional evidence is required.`;
+		case "ready-for-completion":
+			return "Every current Effect has a settled assessment; the Work Case is ready for completion progression.";
+		case "completion-not-ready":
+			return "The complete current Closure Target remains blocked.";
+		case "completed":
+			return "The current Work Case was completed after revision-bound closure revalidation.";
 		case "action-not-cleared":
 			return "Host permission or current canonical warrants did not clear the proposed Action.";
 		case "judgment-concluded":
@@ -173,10 +191,23 @@ export function sdkActionLoopCheckpointEvent(
 	checkpoint: SdkActionLoopCheckpoint,
 ): SdkActionLoopCheckpointSessionEvent {
 	switch (checkpoint.kind) {
+		case "work-case-completed":
+			return sdkWorkCaseCompletedEvent(checkpoint.result);
 		case "work-case-opened":
 			return sdkWorkCaseOpenedEvent(checkpoint.result);
 		case "judgment-opened":
 			return sdkJudgmentOpenedEvent(checkpoint.result);
+		case "effect-settled":
+			return sdkEffectSettledEvent({
+				result: checkpoint.result,
+				revisionId: checkpoint.workCase.revisionId,
+				...(checkpoint.expectedCurrentAssessmentId
+					? {
+							expectedCurrentAssessmentId:
+								checkpoint.expectedCurrentAssessmentId,
+						}
+					: {}),
+			});
 		case "action-cleared":
 			return sdkActionClearedEvent({
 				action: checkpoint.action,
@@ -193,6 +224,10 @@ export function applySdkActionLoopCheckpoint(
 	checkpoint: SdkActionLoopCheckpoint,
 ): LiveWorkCaseState {
 	switch (checkpoint.kind) {
+		case "work-case-completed":
+			throw new Error(
+				"SDK Work Case completion must be applied as a terminal projection.",
+			);
 		case "work-case-opened":
 			if (state) throw new Error("SDK Work Case opening cannot replace active work.");
 			return Object.freeze({
@@ -211,6 +246,25 @@ export function applySdkActionLoopCheckpoint(
 		case "judgment-opened":
 			if (!state) throw new Error("SDK Judgment opening requires active work.");
 			return Object.freeze({ ...state, workCase: checkpoint.result.workCase });
+		case "effect-settled": {
+			if (!state) throw new Error("SDK Effect settlement requires active work.");
+			const assessment =
+				checkpoint.result.status === "settled"
+					? checkpoint.result.settlement
+					: checkpoint.result.assessment;
+			const recorded = recordWorkCaseEffectAssessment(
+				state.workCase,
+				assessment,
+				checkpoint.expectedCurrentAssessmentId ?? null,
+			);
+			if (recorded.status === "invalid") {
+				throw new Error(recorded.error.message);
+			}
+			if (recorded.value.revisionId !== checkpoint.workCase.revisionId) {
+				throw new Error("SDK Effect checkpoint identity drifted.");
+			}
+			return Object.freeze({ ...state, workCase: recorded.value });
+		}
 		case "action-cleared": {
 			if (!state) throw new Error("SDK Action clearance requires active work.");
 			if (
@@ -340,6 +394,7 @@ export async function progressLiveActionLoopWithSdk(
 	input: LiveSdkActionLoopProgressionInput,
 ): Promise<LiveSdkActionLoopProgressionResult> {
 	let current = input.state;
+	let completedWorkCase: CompletedWorkCase | undefined;
 	const capabilities: readonly SdkNamedCapability[] = Object.freeze(
 		[...input.inventory.boundCapabilitiesBySkillName.entries()]
 			.map(([name, entry]) => ({ name, entry }))
@@ -361,6 +416,8 @@ export async function progressLiveActionLoopWithSdk(
 				}
 			: {}),
 		capabilities,
+		effectObservations: current?.effectObservations ?? [],
+		complete: input.complete ?? false,
 		...(input.actions ? { actions: input.actions } : {}),
 		...(input.authorizeAction
 			? { authorizeAction: input.authorizeAction }
@@ -368,12 +425,22 @@ export async function progressLiveActionLoopWithSdk(
 		runner: input.runner,
 		maxSteps: input.maxSteps,
 		async checkpoint(checkpoint) {
+			if (checkpoint.kind === "work-case-completed") {
+				await input.appendCheckpoint(sdkActionLoopCheckpointEvent(checkpoint));
+				completedWorkCase = checkpoint.result.workCase;
+				current = undefined;
+				return;
+			}
 			const next = applySdkActionLoopCheckpoint(current, checkpoint);
 			await input.appendCheckpoint(sdkActionLoopCheckpointEvent(checkpoint));
 			current = next;
 		},
 	});
-	return { result, state: current };
+	return {
+		result,
+		...(current ? { state: current } : {}),
+		...(completedWorkCase ? { completedWorkCase } : {}),
+	};
 }
 
 /**
