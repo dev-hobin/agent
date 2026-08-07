@@ -15,6 +15,7 @@ import {
 } from "../extensions/action-loop-context.ts";
 import { acceptLiveSkillContribution } from "../extensions/action-loop-contribution.ts";
 import { assessLiveNeedCoverage } from "../extensions/action-loop-coverage.ts";
+import { beginLiveActionEffect } from "../extensions/action-loop-effect.ts";
 import { closeLiveJudgment } from "../extensions/action-loop-conclusion.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
@@ -263,6 +264,16 @@ test("ready structured selection seals Skill and selected References atomically"
 							}),
 							undefined,
 						);
+						const effect = beginLiveActionEffect(
+							hostClearance.state,
+							hostClearance.clearance,
+							"pi-tool-call:write:1",
+						);
+						assert.equal(effect.status, "begun");
+						if (effect.status === "begun") {
+							assert.deepEqual(effect.state.workCase.effects, [effect.effect]);
+							assert.equal(effect.effect.status, "pending");
+						}
 					}
 				}
 			}
