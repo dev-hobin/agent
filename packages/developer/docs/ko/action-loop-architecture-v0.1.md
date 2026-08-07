@@ -10,7 +10,7 @@
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 하나의 process-local Work Case를 current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, Action Candidate, Action Clearance까지 진행한다. Live adapter는 별도 approval feature를 추가하지 않고 Pi의 default permission policy를 상속한다. Effect와 completion transition은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
+> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 하나의 process-local Work Case를 current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, exact Pi Action Clearance와 occurrence, Effect Observation과 settlement, Closure Claim, completion까지 진행한다. Live adapter는 별도 approval feature를 추가하지 않고 Pi의 default permission policy를 상속한다. Remediation과 nonterminal Work Status transition은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
 >
 > 작성 시점: 2026-08-06
 
@@ -631,14 +631,21 @@ Capability Assignment
   → assess all current Contributions for Need Coverage
   → disposition every Closure Requirement against current Coverage
   → Judgment Conclusion or explicit refusal
+  → derive exact Pi built-in tool input identity
   → record exact Action Candidate
   → adapter-owned Pi default Permission Decision
   → record matching Action Clearance
+  → exact one-time tool occurrence begins pending Effect
+  → tool result becomes Observation, not implicit success
+  → complete Observation + intended Effect settlement accounting
+  → whole-inventory Closure Target
+  → complete Closure Claim accounting
+  → atomic Work Case completion revalidation
 ```
 
 새 Contribution은 그 Need의 current Coverage를 invalidate한다. Refusal은 Judgment를 open 상태로 남긴다. Conclusion은 open Judgment를 제거하고 canonical Work Case revision을 전진시킨다. Accepted Contribution은 matching preserved compatibility route도 memory에서 닫지만 이 projection은 canonical Work Case evidence가 아니다. Route event는 Need, Assignment, Capability revision, Reference Selection, sealed Context identity를 보존한다.
 
-이 live slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 process-local routing과 Judgment artifact를 제거한다. Model은 계속 Candidate만 제안하고 adapter가 Pi default policy에서 Permission Decision을 공급하며, 기존 Developer route 또는 question gate는 여전히 실행을 막을 수 있다. 별도 approval setting이나 prompt는 추가하지 않는다. 더 강한 approval policy는 implicit restriction이 아니라 나중의 optional feature로 남긴다. Effect observation과 settlement, remediation, Work Status, Closure Claim, completion은 pure-only로 남는다.
+이 live slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 process-local routing, Judgment, Action, Effect, completion artifact를 제거한다. Model은 계속 Candidate만 제안하고 adapter가 exact tool identity를 도출하며 Pi default policy에서 Permission Decision을 공급한다. Exact Clearance는 그 built-in tool을 일시적으로 expose하고 변경되거나 반복된 input을 거부한다. 별도 approval setting이나 prompt는 추가하지 않는다. 더 강한 approval policy는 implicit restriction이 아니라 나중의 optional feature로 남긴다. Tool result는 제한이 명시된 Observation으로 보존되며 explicit settlement accounting이 `pending`, `unknown`, 또는 settled outcome을 도출해야 한다. Closure preparation은 전체 Work Case inventory를 소유하고 completion은 revision-bound Target과 Claim을 재검증한다. Remediation과 nonterminal Work Status transition은 pure-only로 남는다.
 
 ## 12. Extension-level guarantee boundary
 

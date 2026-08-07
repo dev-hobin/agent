@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-architecture-v0.1.md)
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, and carries one process-local Work Case through current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, Action Candidate, and Action Clearance. The live adapter inherits Pi's default permission policy without adding a separate approval feature. Effect and completion transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
+> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, and carries one process-local Work Case through current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, exact Pi Action Clearance and occurrence, Effect Observation and settlement, Closure Claim, and completion. The live adapter inherits Pi's default permission policy without adding a separate approval feature. Remediation and nonterminal Work Status transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
 >
 > Date written: 2026-08-06
 
@@ -631,14 +631,21 @@ Capability Assignment
   → assess all current Contributions for Need Coverage
   → disposition every Closure Requirement against current Coverage
   → Judgment Conclusion or explicit refusal
+  → derive exact Pi built-in tool input identity
   → record exact Action Candidate
   → adapter-owned Pi default Permission Decision
   → record matching Action Clearance
+  → exact one-time tool occurrence begins pending Effect
+  → tool result becomes Observation, not implicit success
+  → complete Observation + intended Effect settlement accounting
+  → whole-inventory Closure Target
+  → complete Closure Claim accounting
+  → atomic Work Case completion revalidation
 ```
 
 A new Contribution invalidates current Coverage for its Need. A refusal leaves the Judgment open. A Conclusion removes the open Judgment and advances canonical Work Case revision. The accepted Contribution also closes the matching preserved compatibility route in memory, but that projection does not become canonical Work Case evidence. The route event preserves Need, Assignment, Capability revision, Reference Selection, and sealed Context identities.
 
-This live slice deliberately has no session replay yet; reconstruction or process restart clears its process-local routing and Judgment artifacts rather than guessing canonical history. The model still proposes only the Candidate; the adapter supplies the Permission Decision from Pi's default policy and existing Developer route or question gates may still block execution. No separate approval setting or prompt is added. A stronger approval policy remains a possible later feature rather than an implicit restriction. Effect observation and settlement, remediation, Work Status, Closure Claim, and completion remain pure-only.
+This live slice deliberately has no session replay yet; reconstruction or process restart clears its process-local routing, Judgment, Action, Effect, and completion artifacts rather than guessing canonical history. The model still proposes only the Candidate; the adapter derives the exact tool identity and supplies the Permission Decision from Pi's default policy. An exact Clearance temporarily exposes its built-in tool and rejects changed or repeated input. No separate approval setting or prompt is added. A stronger approval policy remains a possible later feature rather than an implicit restriction. Tool results are preserved as limited Observations, while explicit settlement accounting must derive `pending`, `unknown`, or a settled outcome. Closure preparation owns the complete Work Case inventory, and completion revalidates its revision-bound Target and Claim. Remediation and nonterminal Work Status transitions remain pure-only.
 
 ## 12. Extension-level guarantee boundary
 
