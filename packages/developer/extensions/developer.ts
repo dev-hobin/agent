@@ -22,8 +22,12 @@ import {
 	type LiveCapabilityInventoryResult,
 } from "./action-loop-capability-inventory.ts";
 import {
+	ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL,
 	ACTION_LOOP_PROGRESS_JUDGMENT_TOOL,
+	progressLiveActionLoopWithSdk,
 	progressLiveJudgmentWithSdk,
+	sdkActionLoopProgressionFailure,
+	sdkActionLoopProgressionSummary,
 	sdkJudgmentProgressionFailure,
 	sdkJudgmentProgressionSummary,
 } from "./action-loop-sdk-progression.ts";
@@ -172,6 +176,7 @@ import {
 
 const TOOL_POLICY_PROTOCOL = "developer-action-loop/tool-policy/v1";
 const PROTOCOL_TOOLS = [
+	ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL,
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
 	ACTION_LOOP_PROGRESS_JUDGMENT_TOOL,
@@ -262,13 +267,11 @@ function actionLoopProtocolPrompt(
 		"",
 		"Developer Action Loop is active. The canonical Work Case is the sole owner of Outcome continuity, Judgments, Contributions, Coverage, Conclusions, Actions, Effects, and completion.",
 		"Operate Observe → Judge → Act → Settle until Complete, Block, or Pause. These are semantic responsibilities, not a mandatory phase order; revisit Judgment whenever evidence changes.",
-		`Open one bounded Outcome with ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} when no Work Case exists. Never replace unavailable replay state or infer completion.`,
-		`Open consequential Warrant Gaps with ${ACTION_LOOP_OPEN_JUDGMENT_TOOL}. Route each current Contribution Need through the admitted Capability inventory; Categories describe gaps and never hard-code Skill names.`,
-		`After one Judgment is open, use ${ACTION_LOOP_PROGRESS_JUDGMENT_TOOL} as the primary bounded controller through Conclusion; its accepted checkpoints persist before dependent work continues. The lower-level routing tools are transitional fallback controls. Every applicable Assignment still requires sealed source-bound Context, and a local Contribution never grants upper Coverage.`,
-		`Use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} only when exact host-admitted evidence directly contributes to a current Need without Skill interpretation. Evidence is not automatically truth.`,
-		`Before any controlled bash, edit, or write, use ${ACTION_LOOP_PROPOSE_ACTION_TOOL} for the exact one-use input. A tool return records an Observation, not Effect success; settle every Effect with ${ACTION_LOOP_SETTLE_EFFECT_TOOL} and remediate adverse Effects explicitly.`,
-		`Use ${ACTION_LOOP_PAUSE_WORK_CASE_TOOL}, ${ACTION_LOOP_WAIT_WORK_CASE_TOOL}, ${ACTION_LOOP_BLOCK_WORK_CASE_TOOL}, and ${ACTION_LOOP_RESUME_WORK_CASE_TOOL} only with their required current evidence. Routine pause, wait, and resume are driven by normal user messages, not dialogs.`,
-		`Use ${ACTION_LOOP_PREPARE_CLOSURE_TOOL} and ${ACTION_LOOP_COMPLETE_WORK_CASE_TOOL} only after revalidating the complete current Work Case revision. Never select a convenient subset of Conclusions or Effects.`,
+		`Use ${ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL} as the primary bounded controller when canonical work or a Judgment is missing. It checkpoints Work Case opening, Judgment opening, complete admitted Capability routing, sealed Context, Contribution, Coverage, and Conclusion before dependent work. Lower-level opening and routing tools are transitional fallback controls.`,
+		`Evidence is not automatically truth. ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} is only for exact admitted host evidence that directly answers a current Need without Skill interpretation.`,
+		`Before controlled bash, edit, or write, use ${ACTION_LOOP_PROPOSE_ACTION_TOOL} for the exact one-use input. Tool return is an Observation, not Effect success; use ${ACTION_LOOP_SETTLE_EFFECT_TOOL} for complete settlement.`,
+		`Pause, wait, block, resume, and completion require their exact current evidence and complete current Work Case inventory; never infer terminal status or choose convenient Conclusion and Effect subsets.`,
+		`The current SDK cutover owns opening through Conclusion. Action, host execution, Effect, and Completion still use the transitional host bridge until their controller cutover completes.`,
 		"Internal IDs shown in model context are exact protocol arguments. Never repeat IDs, revisions, hashes, fingerprints, or transition identities to the user.",
 		`Pi-admitted Developer Skills: ${availableSkillNames.length > 0 ? availableSkillNames.join(", ") : "none"}. Never rediscover excluded Skills or bypass the admitted inventory.`,
 	].join("\n");
@@ -318,6 +321,8 @@ export default async function developer(pi: ExtensionAPI) {
 				return { title: "Define work", detail: text("statement") };
 			case ACTION_LOOP_OPEN_JUDGMENT_TOOL:
 				return { title: "Examine a decision", detail: text("question") };
+			case ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL:
+				return { title: "Progress canonical work" };
 			case ACTION_LOOP_PROGRESS_JUDGMENT_TOOL:
 				return { title: "Progress the current decision" };
 			case ACTION_LOOP_ASSESS_CAPABILITY_TOOL:
@@ -557,6 +562,94 @@ export default async function developer(pi: ExtensionAPI) {
 		refreshUI(ctx);
 		return true;
 	};
+
+	registerActionLoopTool({
+		name: ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL,
+		label: "Developer Progress Action Loop",
+		description:
+			"Run the bounded SDK controller from missing Work Case ownership through upper Judgment Conclusion. Every accepted transition is durably checkpointed before dependent work.",
+		promptSnippet: "Progress canonical work with the SDK controller",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL} as the primary Developer entry point when no Work Case exists or the current Work Case has one unfinished Judgment.`,
+			"A bounded stop preserves acknowledged branch checkpoints. Do not replace replay-unavailable or held ownership.",
+		],
+		parameters: Type.Object({}, { additionalProperties: false }),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
+			if (!developerEnabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!actionLoopSessionDurable) {
+				fail(
+					"SDK Action Loop progression requires a durable Pi session branch for accepted checkpoints.",
+				);
+			}
+			if (pendingActionLoopBranch || actionLoopReplayFailure) {
+				fail(
+					pendingActionLoopBranch
+						? "Developer must replay the current Pi session branch before SDK progression."
+						: `Developer Action Loop session replay is unavailable: ${actionLoopReplayFailure}`,
+				);
+			}
+			if (heldWorkCase) {
+				fail(
+					`Developer cannot progress while canonical work is ${heldWorkCase.workCase.status}.`,
+				);
+			}
+			if (completedWorkCase) {
+				fail("The current canonical Work Case is already completed.");
+			}
+			if (!currentActionLoopRequest) {
+				fail(
+					"The current delegated request is unavailable for SDK progression.",
+				);
+			}
+			if (liveCapabilityInventory?.status !== "ready") {
+				fail(
+					"The complete current Pi-admitted Capability inventory is unavailable.",
+				);
+			}
+			const prepared = createPiExtensionSdkRunner(ctx, {
+				...(signal ? { signal } : {}),
+				thinkingLevel: pi.getThinkingLevel(),
+			});
+			if (prepared.status !== "ready") {
+				fail("The current Pi session has no active model for SDK progression.");
+			}
+			const hadActiveWorkCase = activeWorkCase !== undefined;
+			const progressed = await progressLiveActionLoopWithSdk({
+				request: currentActionLoopRequest,
+				...(activeWorkCase ? { state: activeWorkCase } : {}),
+				inventory: liveCapabilityInventory.value,
+				runner: prepared.runner,
+				maxSteps: 34,
+				appendCheckpoint(event) {
+					pi.appendEntry(ACTION_LOOP_SESSION_ENTRY, event);
+				},
+			});
+			activeWorkCase = progressed.state;
+			if (!hadActiveWorkCase && activeWorkCase) {
+				bindPendingHostObservations(activeWorkCase.workCase.workCaseId);
+			}
+			pendingActionLoopBranch = undefined;
+			completedWorkCase = undefined;
+			syncProtocolTools();
+			refreshUI(ctx);
+			const result = progressed.result;
+			const failure = sdkActionLoopProgressionFailure(result);
+			if (failure) fail(failure);
+			return textResult(sdkActionLoopProgressionSummary(result), {
+				protocol: "developer-action-loop/sdk-action-loop-progression/v1",
+				kind: "sdk-action-loop-progression",
+				status: result.status,
+				steps: result.steps,
+				checkpoints: result.checkpoints,
+				...("stage" in result ? { stage: result.stage } : {}),
+				...("reason" in result ? { reason: result.reason } : {}),
+			});
+		},
+	});
 
 	registerActionLoopTool({
 		name: ACTION_LOOP_OPEN_WORK_CASE_TOOL,

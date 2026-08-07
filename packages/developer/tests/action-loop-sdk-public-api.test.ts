@@ -9,6 +9,7 @@ test("built SDK surface exposes canonical preparation, routing, and decision con
 	assert.equal(typeof sdk.createPiSdkDecisionRunner, "function");
 	assert.equal(typeof sdk.openWorkCaseWithSdk, "function");
 	assert.equal(typeof sdk.openJudgmentWithSdk, "function");
+	assert.equal(typeof sdk.progressActionLoopWithSdk, "function");
 	assert.equal(typeof sdk.progressJudgmentWithSdk, "function");
 	assert.equal(typeof sdk.assessCapabilityInventoryWithSdk, "function");
 	assert.equal(typeof sdk.routeStructuredCapabilityWithSdk, "function");

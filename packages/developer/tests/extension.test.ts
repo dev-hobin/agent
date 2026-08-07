@@ -98,6 +98,9 @@ function createHarness() {
 		getFlag(name: string) {
 			return flagValues.get(name);
 		},
+		getThinkingLevel() {
+			return "medium";
+		},
 		appendEntry(customType: string, data: unknown) {
 			entries.push({ customType, data });
 		},
@@ -862,6 +865,12 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 	await harness.commands.get("developer").handler("block", harness.ctx);
 	assert.equal(harness.entries.length, entriesBefore);
 	assert.match(harness.notifications.at(-1)?.message ?? "", /--no-session/);
+	await assert.rejects(
+		harness.tools
+			.get("developer_progress_action_loop_with_sdk")
+			.execute("progress-action-loop-no-session", {}),
+		/durable Pi session branch/,
+	);
 	await assert.rejects(
 		harness.tools
 			.get("developer_progress_judgment_with_sdk")
@@ -2067,10 +2076,36 @@ test("/developer completes actions and confirms before discarding active canonic
 	);
 });
 
+test("primary SDK progression refuses to create ownership without an active model", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "Open and progress canonical work.",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+
+	const entriesBefore = harness.entries.length;
+	await assert.rejects(
+		harness.tools
+			.get("developer_progress_action_loop_with_sdk")
+			.execute("progress-no-model", {}, undefined, undefined, harness.ctx),
+		/no active model/,
+	);
+	assert.equal(harness.entries.length, entriesBefore);
+});
+
 test("canonical tool rows never expose internal Action Loop identities", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
 	const canonicalTools = [
+		"developer_progress_action_loop_with_sdk",
 		"developer_open_work_case",
 		"developer_open_judgment",
 		"developer_progress_judgment_with_sdk",

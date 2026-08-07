@@ -1,3 +1,8 @@
+import {
+	progressActionLoopWithSdk,
+	type SdkActionLoopCheckpoint,
+	type SdkActionLoopProgressionResult,
+} from "../src/action-loop/sdk/action-loop-progression-controller.ts";
 import type { SdkNamedCapability } from "../src/action-loop/sdk/capability-inventory-controller.ts";
 import type { SdkDecisionRunner } from "../src/action-loop/sdk/decision-controller.ts";
 import {
@@ -8,12 +13,40 @@ import {
 import type { LiveCapabilityInventory } from "./action-loop-capability-inventory.ts";
 import {
 	sdkJudgmentCheckpointEvent,
+	sdkJudgmentOpenedEvent,
+	sdkWorkCaseOpenedEvent,
 	type SdkJudgmentCheckpointSessionEvent,
 } from "./action-loop-sdk-session.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
+export const ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL =
+	"developer_progress_action_loop_with_sdk";
 export const ACTION_LOOP_PROGRESS_JUDGMENT_TOOL =
 	"developer_progress_judgment_with_sdk";
+
+export type SdkActionLoopCheckpointSessionEvent =
+	| ReturnType<typeof sdkWorkCaseOpenedEvent>
+	| ReturnType<typeof sdkJudgmentOpenedEvent>
+	| SdkJudgmentCheckpointSessionEvent;
+
+export interface LiveSdkActionLoopProgressionInput {
+	readonly request: string;
+	readonly state?: LiveWorkCaseState;
+	readonly inventory: Pick<
+		LiveCapabilityInventory,
+		"boundCapabilitiesBySkillName"
+	>;
+	readonly runner: SdkDecisionRunner;
+	readonly maxSteps: number;
+	readonly appendCheckpoint: (
+		event: SdkActionLoopCheckpointSessionEvent,
+	) => Promise<void> | void;
+}
+
+export interface LiveSdkActionLoopProgressionResult {
+	readonly result: SdkActionLoopProgressionResult;
+	readonly state?: LiveWorkCaseState;
+}
 
 export interface LiveSdkJudgmentProgressionInput {
 	readonly request: string;
@@ -32,6 +65,38 @@ export interface LiveSdkJudgmentProgressionInput {
 export interface LiveSdkJudgmentProgressionResult {
 	readonly result: SdkJudgmentProgressionResult;
 	readonly state: LiveWorkCaseState;
+}
+
+export function sdkActionLoopProgressionFailure(
+	result: SdkActionLoopProgressionResult,
+): string | undefined {
+	switch (result.status) {
+		case "runtime-failure":
+		case "invariant-failure":
+		case "checkpoint-failure":
+			return `SDK Action Loop progression stopped at ${result.stage}: ${result.message}`;
+		default:
+			return undefined;
+	}
+}
+
+export function sdkActionLoopProgressionSummary(
+	result: SdkActionLoopProgressionResult,
+): string {
+	switch (result.status) {
+		case "ready-for-action":
+			return "The current Work Case has acknowledged Conclusions and is ready for Action progression.";
+		case "judgment-concluded":
+			return "The SDK controller opened and concluded the current Judgment from acknowledged checkpoints.";
+		case "needs-context":
+			return "The current Judgment needs additional Context before progression can continue.";
+		case "judgment-refused":
+			return "The current evidence canonically refused Judgment closure.";
+		case "bounded-stop":
+			return `SDK Action Loop progression reached a bounded stop at ${result.stage}; acknowledged checkpoints are preserved.`;
+		default:
+			return "SDK Action Loop progression did not advance.";
+	}
 }
 
 export function sdkJudgmentProgressionFailure(
@@ -78,6 +143,47 @@ function appendUniqueBy<T>(
 		return values;
 	}
 	return Object.freeze([...values, value]);
+}
+
+export function sdkActionLoopCheckpointEvent(
+	checkpoint: SdkActionLoopCheckpoint,
+): SdkActionLoopCheckpointSessionEvent {
+	switch (checkpoint.kind) {
+		case "work-case-opened":
+			return sdkWorkCaseOpenedEvent(checkpoint.result);
+		case "judgment-opened":
+			return sdkJudgmentOpenedEvent(checkpoint.result);
+		default:
+			return sdkJudgmentCheckpointEvent(checkpoint);
+	}
+}
+
+export function applySdkActionLoopCheckpoint(
+	state: LiveWorkCaseState | undefined,
+	checkpoint: SdkActionLoopCheckpoint,
+): LiveWorkCaseState {
+	switch (checkpoint.kind) {
+		case "work-case-opened":
+			if (state) throw new Error("SDK Work Case opening cannot replace active work.");
+			return Object.freeze({
+				workCase: checkpoint.result.workCase,
+				contextRevisionId: checkpoint.result.workCase.revisionId,
+				openingBasis: checkpoint.result.basis,
+				applicabilityAssessments: Object.freeze([]),
+				capabilityAssignments: Object.freeze([]),
+				referenceSelections: Object.freeze([]),
+				sealedSkillContexts: Object.freeze([]),
+				contributions: Object.freeze([]),
+				needCoverages: Object.freeze([]),
+				effectObservations: Object.freeze([]),
+			});
+		case "judgment-opened":
+			if (!state) throw new Error("SDK Judgment opening requires active work.");
+			return Object.freeze({ ...state, workCase: checkpoint.result.workCase });
+		default:
+			if (!state) throw new Error("SDK Judgment checkpoint requires active work.");
+			return applySdkJudgmentCheckpoint(state, checkpoint);
+	}
 }
 
 /** Applies only an already-admitted SDK checkpoint to the in-memory projection. */
@@ -156,6 +262,42 @@ export function applySdkJudgmentCheckpoint(
 		default:
 			return checkpoint satisfies never;
 	}
+}
+
+export async function progressLiveActionLoopWithSdk(
+	input: LiveSdkActionLoopProgressionInput,
+): Promise<LiveSdkActionLoopProgressionResult> {
+	let current = input.state;
+	const capabilities: readonly SdkNamedCapability[] = Object.freeze(
+		[...input.inventory.boundCapabilitiesBySkillName.entries()]
+			.map(([name, entry]) => ({ name, entry }))
+			.sort((left, right) => left.name.localeCompare(right.name)),
+	);
+	const result = await progressActionLoopWithSdk({
+		request: input.request,
+		...(current
+			? {
+					state: {
+						workCase: current.workCase,
+						applicabilityAssessments: current.applicabilityAssessments,
+						assignments: current.capabilityAssignments,
+						selections: current.referenceSelections,
+						contexts: current.sealedSkillContexts,
+						contributions: current.contributions,
+						coverages: current.needCoverages,
+					},
+				}
+			: {}),
+		capabilities,
+		runner: input.runner,
+		maxSteps: input.maxSteps,
+		async checkpoint(checkpoint) {
+			const next = applySdkActionLoopCheckpoint(current, checkpoint);
+			await input.appendCheckpoint(sdkActionLoopCheckpointEvent(checkpoint));
+			current = next;
+		},
+	});
+	return { result, state: current };
 }
 
 /**

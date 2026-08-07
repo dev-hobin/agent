@@ -4017,9 +4017,515 @@ function clearActionWithHostPermission(input) {
   return { status: "cleared", clearance: accepted.value };
 }
 
-// src/action-loop/sdk/capability-inventory-controller.ts
+// src/action-loop/sdk/judgment-controller.ts
 import { StringEnum as StringEnum2 } from "@earendil-works/pi-ai";
 import { Type as Type2 } from "typebox";
+
+// src/action-loop/judgment/open-judgment.ts
+var OPEN_JUDGMENT_VERSION = "developer-open-judgment/v1";
+var CATEGORIES = /* @__PURE__ */ new Set([
+  "Contextual Adequacy",
+  "Proportionate Intervention",
+  "Consequence Integrity",
+  "Claim Assurance"
+]);
+var PROVENANCE_KINDS6 = /* @__PURE__ */ new Set(["model", "human", "tool", "external"]);
+var MAX_TEXT_LENGTH2 = 4096;
+var MAX_REQUIREMENTS = 32;
+var MAX_NEEDS_PER_REQUIREMENT = 32;
+var MAX_BASIS_ITEMS2 = 16;
+function invalid13(code, path, message) {
+  return { status: "invalid", error: { code, path, message } };
+}
+function validId3(value) {
+  return typeof value === "string" && value.length > 0 && value === value.trim() && value.length <= MAX_TEXT_LENGTH2 && !value.includes("\0");
+}
+function canonicalText13(value, path) {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (text.length === 0 || text.length > MAX_TEXT_LENGTH2) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid-text",
+        path,
+        message: "Expected a bounded nonblank string"
+      }
+    };
+  }
+  return { ok: true, value: text };
+}
+function canonicalStrings(values, path, maximumItems, allowEmpty = false) {
+  if (!Array.isArray(values) || values.length > maximumItems || !allowEmpty && values.length === 0) {
+    const code = path === "proposal.basis" ? "invalid-basis" : "invalid-contribution-needs";
+    return {
+      ok: false,
+      error: {
+        code,
+        path,
+        message: "Expected a bounded list of nonblank unique values"
+      }
+    };
+  }
+  const normalized = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (let index = 0; index < values.length; index += 1) {
+    const text = canonicalText13(values[index], `${path}[${index}]`);
+    if (!text.ok) return text;
+    if (seen.has(text.value)) {
+      return {
+        ok: false,
+        error: {
+          code: "duplicate-value",
+          path: `${path}[${index}]`,
+          message: "Value duplicates an earlier normalized value"
+        }
+      };
+    }
+    seen.add(text.value);
+    normalized.push(text.value);
+  }
+  normalized.sort((left, right) => left.localeCompare(right));
+  return { ok: true, value: Object.freeze(normalized) };
+}
+function canonicalRequirements(proposals) {
+  if (!Array.isArray(proposals) || proposals.length === 0 || proposals.length > MAX_REQUIREMENTS) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid-requirements",
+        path: "proposal.requirements",
+        message: "Expected at least one bounded Closure Requirement"
+      }
+    };
+  }
+  const requirements = [];
+  const statements = /* @__PURE__ */ new Set();
+  for (let index = 0; index < proposals.length; index += 1) {
+    const proposal = proposals[index];
+    if (proposal === void 0 || typeof proposal !== "object") {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-requirements",
+          path: `proposal.requirements[${index}]`,
+          message: "Expected a Closure Requirement proposal"
+        }
+      };
+    }
+    const statement = canonicalText13(
+      proposal.statement,
+      `proposal.requirements[${index}].statement`
+    );
+    if (!statement.ok) return statement;
+    if (statements.has(statement.value)) {
+      return {
+        ok: false,
+        error: {
+          code: "duplicate-value",
+          path: `proposal.requirements[${index}].statement`,
+          message: "Closure Requirement duplicates an earlier statement"
+        }
+      };
+    }
+    const needs = canonicalStrings(
+      proposal.contributionNeeds,
+      `proposal.requirements[${index}].contributionNeeds`,
+      MAX_NEEDS_PER_REQUIREMENT
+    );
+    if (!needs.ok) return needs;
+    statements.add(statement.value);
+    requirements.push(
+      Object.freeze({
+        statement: statement.value,
+        contributionNeeds: needs.value
+      })
+    );
+  }
+  requirements.sort(
+    (left, right) => left.statement.localeCompare(right.statement)
+  );
+  return { ok: true, value: Object.freeze(requirements) };
+}
+function openJudgment(proposal) {
+  if (!validId3(proposal.workCaseId) || !validId3(proposal.contextRevisionId)) {
+    return invalid13(
+      "invalid-id",
+      "proposal",
+      "Expected canonical Work Case and Context revision IDs"
+    );
+  }
+  if (!CATEGORIES.has(proposal.category)) {
+    return invalid13(
+      "unsupported-category",
+      "proposal.category",
+      "Unsupported Judgment Category"
+    );
+  }
+  const subject = canonicalText13(proposal.subject, "proposal.subject");
+  if (!subject.ok) return { status: "invalid", error: subject.error };
+  const question = canonicalText13(proposal.question, "proposal.question");
+  if (!question.ok) return { status: "invalid", error: question.error };
+  const canonical = canonicalRequirements(proposal.requirements);
+  if (!canonical.ok) return { status: "invalid", error: canonical.error };
+  const basis = canonicalStrings(
+    proposal.basis,
+    "proposal.basis",
+    MAX_BASIS_ITEMS2
+  );
+  if (!basis.ok) return { status: "invalid", error: basis.error };
+  if (typeof proposal.provenance !== "object" || proposal.provenance === null || !PROVENANCE_KINDS6.has(proposal.provenance.kind) || !validId3(proposal.provenance.source)) {
+    return invalid13(
+      "invalid-provenance",
+      "proposal.provenance",
+      "Expected bounded supported proposal provenance"
+    );
+  }
+  const identityParts4 = [
+    proposal.workCaseId,
+    proposal.category,
+    subject.value,
+    question.value,
+    proposal.contextRevisionId,
+    "requirements",
+    ...canonical.value.flatMap(({ statement, contributionNeeds: contributionNeeds2 }) => [
+      statement,
+      "needs",
+      String(contributionNeeds2.length),
+      ...contributionNeeds2
+    ])
+  ];
+  const judgmentId = hashIdentity(
+    "open_judgment",
+    OPEN_JUDGMENT_VERSION,
+    identityParts4
+  );
+  const contributionNeeds = [];
+  const requirements = canonical.value.map(
+    ({ statement, contributionNeeds: needFunctions }) => {
+      const requirementId = hashIdentity(
+        "closure_requirement",
+        OPEN_JUDGMENT_VERSION,
+        [judgmentId, statement]
+      );
+      const contributionNeedIds = needFunctions.map((needFunction) => {
+        const contributionNeedId = hashIdentity(
+          "contribution_need",
+          OPEN_JUDGMENT_VERSION,
+          [requirementId, needFunction]
+        );
+        contributionNeeds.push(
+          Object.freeze({
+            contributionNeedId,
+            requirementId,
+            function: needFunction
+          })
+        );
+        return contributionNeedId;
+      });
+      contributionNeedIds.sort((left, right) => left.localeCompare(right));
+      return Object.freeze({
+        requirementId,
+        statement,
+        contributionNeedIds: Object.freeze(contributionNeedIds)
+      });
+    }
+  );
+  contributionNeeds.sort(
+    (left, right) => left.contributionNeedId.localeCompare(right.contributionNeedId)
+  );
+  return {
+    status: "opened",
+    value: Object.freeze({
+      workCaseId: proposal.workCaseId,
+      judgmentId,
+      category: proposal.category,
+      subject: subject.value,
+      question: question.value,
+      contextRevisionId: proposal.contextRevisionId,
+      requirements: Object.freeze(requirements),
+      contributionNeeds: Object.freeze(contributionNeeds),
+      basis: basis.value,
+      provenance: Object.freeze({
+        kind: proposal.provenance.kind,
+        source: proposal.provenance.source
+      }),
+      status: "open"
+    })
+  };
+}
+
+// src/action-loop/work/record-work-case-judgment.ts
+function invalid14(code, path, message) {
+  return { status: "invalid", error: { code, path, message } };
+}
+function recordWorkCaseJudgment(workCase, judgment) {
+  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
+    return invalid14(
+      "stale-work-case",
+      "workCase.revisionId",
+      "Work Case revision does not match its closure inventory"
+    );
+  }
+  if (workCaseInventoryIssue(workCase) !== void 0) {
+    return invalid14(
+      "invalid-work-case-inventory",
+      "workCase",
+      "Work Case closure inventory is relationally incoherent"
+    );
+  }
+  if (judgment.workCaseId !== workCase.workCaseId) {
+    return invalid14(
+      "identity-mismatch",
+      "judgment.workCaseId",
+      "Judgment belongs to another Work Case"
+    );
+  }
+  if (workCase.conclusions.some(
+    ({ judgmentId }) => judgmentId === judgment.judgmentId
+  )) {
+    return invalid14(
+      "judgment-already-concluded",
+      "judgment.judgmentId",
+      "A Conclusion already closes this Judgment"
+    );
+  }
+  if (workCase.openJudgments.some(
+    ({ judgmentId }) => judgmentId === judgment.judgmentId
+  )) {
+    return { status: "unchanged", value: workCase };
+  }
+  const openJudgments = Object.freeze(
+    [...workCase.openJudgments, judgment].sort(
+      (left, right) => left.judgmentId.localeCompare(right.judgmentId)
+    )
+  );
+  const nextState = { ...workCase, openJudgments };
+  return {
+    status: "recorded",
+    value: Object.freeze({
+      ...nextState,
+      revisionId: deriveWorkCaseRevisionId(nextState)
+    })
+  };
+}
+
+// src/action-loop/sdk/judgment-controller.ts
+var categories = [
+  "Contextual Adequacy",
+  "Proportionate Intervention",
+  "Consequence Integrity",
+  "Claim Assurance"
+];
+var MAX_REQUIREMENTS2 = 8;
+var MAX_NEEDS_PER_REQUIREMENT2 = 8;
+var MAX_BASIS_ITEMS3 = 16;
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function rejected2(code, message) {
+  return { status: "rejected", code, message };
+}
+function isCategory(value) {
+  return categories.some((category) => category === value);
+}
+function decodeRequirements(value) {
+  const decoded = decodeSdkProposalJson(value, "requirements_json");
+  if (!decoded.ok || !Array.isArray(decoded.value) || decoded.value.length === 0 || decoded.value.length > MAX_REQUIREMENTS2) {
+    return {
+      ok: false,
+      message: decoded.ok ? `requirements_json must encode 1-${MAX_REQUIREMENTS2} Requirement objects.` : decoded.message
+    };
+  }
+  const requirements = [];
+  for (const item of decoded.value) {
+    if (!isRecord2(item)) {
+      return {
+        ok: false,
+        message: "Every Requirement must be an object."
+      };
+    }
+    const keys = Object.keys(item).sort(
+      (left, right) => left.localeCompare(right)
+    );
+    if (keys.length !== 2 || keys[0] !== "contribution_needs" || keys[1] !== "statement" || typeof item.statement !== "string" || !Array.isArray(item.contribution_needs) || item.contribution_needs.length === 0 || item.contribution_needs.length > MAX_NEEDS_PER_REQUIREMENT2 || item.contribution_needs.some((need) => typeof need !== "string")) {
+      return {
+        ok: false,
+        message: "Every Requirement must contain only statement and 1-8 string contribution_needs."
+      };
+    }
+    requirements.push({
+      statement: item.statement,
+      contributionNeeds: item.contribution_needs
+    });
+  }
+  return { ok: true, value: requirements };
+}
+async function openJudgmentWithSdk(input) {
+  const existing = input.workCase.openJudgments[0];
+  if (existing !== void 0) {
+    return { status: "active-judgment-exists", judgment: existing };
+  }
+  const decision = await input.runner.run({
+    systemPrompt: [
+      "Propose one Category-scoped Judgment for the current unresolved Warrant Gap.",
+      "Call the supplied tool exactly once.",
+      "Requirements state closure obligations. Contribution Needs state missing input functions, never Skill names.",
+      "The SDK controller owns Work Case identity, Context revision, provenance, validation, retries, and recording.",
+      "requirements_json and basis_json must be JSON text without Markdown fences."
+    ].join("\n"),
+    prompt: [
+      `Delegated request: ${input.request}`,
+      `Current Outcome: ${input.workCase.outcome.statement}`,
+      "Open only one independently closable Judgment needed to advance this Outcome."
+    ].join("\n"),
+    tool: {
+      name: "submit_judgment",
+      label: "Submit Judgment",
+      description: "Submit one Judgment. requirements_json is an array of {statement, contribution_needs}; basis_json is a string array.",
+      parameters: Type2.Object(
+        {
+          category: StringEnum2(categories),
+          subject: Type2.String({ minLength: 1, maxLength: 4096 }),
+          question: Type2.String({ minLength: 1, maxLength: 4096 }),
+          requirements_json: Type2.String({
+            minLength: 2,
+            maxLength: 32768
+          }),
+          basis_json: Type2.String({ minLength: 2, maxLength: 32768 })
+        },
+        { additionalProperties: false }
+      ),
+      execute: async (raw) => {
+        if (!isRecord2(raw) || !isCategory(raw.category) || typeof raw.subject !== "string" || typeof raw.question !== "string") {
+          return rejected2(
+            "invalid-arguments",
+            "Judgment requires category, subject, question, requirements_json, and basis_json."
+          );
+        }
+        const requirements = decodeRequirements(raw.requirements_json);
+        if (!requirements.ok) {
+          return rejected2("invalid-requirements", requirements.message);
+        }
+        const basis = decodeSdkStringList({
+          value: raw.basis_json,
+          label: "basis_json",
+          allowEmpty: false,
+          maximumItems: MAX_BASIS_ITEMS3
+        });
+        if (!basis.ok) return rejected2("invalid-basis", basis.message);
+        const proposal = {
+          workCaseId: input.workCase.workCaseId,
+          contextRevisionId: input.contextRevisionId,
+          category: raw.category,
+          subject: raw.subject,
+          question: raw.question,
+          requirements: requirements.value,
+          basis: basis.value,
+          provenance: { kind: "model", source: "sdk:judgment-opening" }
+        };
+        const opened = openJudgment(proposal);
+        if (opened.status === "invalid") {
+          return rejected2(opened.error.code, opened.error.message);
+        }
+        const recorded = recordWorkCaseJudgment(input.workCase, opened.value);
+        if (recorded.status === "invalid") {
+          return rejected2(recorded.error.code, recorded.error.message);
+        }
+        return {
+          status: "accepted",
+          value: { workCase: recorded.value, judgment: opened.value },
+          message: `Judgment accepted as ${recorded.status}.`,
+          resultStatus: recorded.status
+        };
+      }
+    }
+  });
+  if (decision.status === "accepted") {
+    return {
+      status: decision.value.workCase.revisionId === input.workCase.revisionId ? "unchanged" : "opened",
+      workCase: decision.value.workCase,
+      judgment: decision.value.judgment,
+      decision: decision.metrics
+    };
+  }
+  if (decision.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      reason: decision.reason,
+      decision: decision.metrics
+    };
+  }
+  return {
+    status: "runtime-failure",
+    message: decision.message,
+    decision: decision.metrics
+  };
+}
+
+// src/action-loop/work/record-work-case-conclusion.ts
+function invalid15(code, path, message) {
+  return { status: "invalid", error: { code, path, message } };
+}
+function hasCurrentRevision(workCase) {
+  return workCase.revisionId === deriveWorkCaseRevisionId(workCase);
+}
+function recordWorkCaseConclusion(workCase, conclusion) {
+  if (!hasCurrentRevision(workCase)) {
+    return invalid15(
+      "stale-work-case",
+      "workCase.revisionId",
+      "Work Case revision does not match its closure inventory"
+    );
+  }
+  if (conclusion.workCaseId !== workCase.workCaseId) {
+    return invalid15(
+      "identity-mismatch",
+      "conclusion.workCaseId",
+      "Conclusion belongs to another Work Case"
+    );
+  }
+  if (workCase.conclusions.some(
+    ({ conclusionId }) => conclusionId === conclusion.conclusionId
+  )) {
+    return { status: "unchanged", value: workCase };
+  }
+  const openJudgment2 = workCase.openJudgments.find(
+    ({ judgmentId }) => judgmentId === conclusion.judgmentId
+  );
+  if (openJudgment2 !== void 0 && (openJudgment2.category !== conclusion.category || openJudgment2.subject !== conclusion.subject || openJudgment2.contextRevisionId !== conclusion.contextRevisionId)) {
+    return invalid15(
+      "identity-mismatch",
+      "conclusion",
+      "Conclusion changes the identity of its open Judgment"
+    );
+  }
+  const conclusions = Object.freeze(
+    [...workCase.conclusions, conclusion].sort(
+      (left, right) => left.conclusionId.localeCompare(right.conclusionId)
+    )
+  );
+  const openJudgments = Object.freeze(
+    workCase.openJudgments.filter(
+      ({ judgmentId }) => judgmentId !== conclusion.judgmentId
+    )
+  );
+  const nextState = {
+    ...workCase,
+    openJudgments,
+    conclusions
+  };
+  return {
+    status: "recorded",
+    value: Object.freeze({
+      ...nextState,
+      revisionId: deriveWorkCaseRevisionId(nextState)
+    })
+  };
+}
+
+// src/action-loop/sdk/capability-inventory-controller.ts
+import { StringEnum as StringEnum3 } from "@earendil-works/pi-ai";
+import { Type as Type3 } from "typebox";
 
 // src/action-loop/routing/accept-applicability.ts
 var CAPABILITY_ASSIGNMENT_VERSION = "developer-capability-assignment/v1";
@@ -4028,10 +4534,10 @@ var APPLICABILITY_STATUSES = /* @__PURE__ */ new Set([
   "not-applicable",
   "needs-context"
 ]);
-function invalid13(code, path, message) {
+function invalid16(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function validId3(id) {
+function validId4(id) {
   return id.length > 0 && id === id.trim() && !id.includes("\0");
 }
 function normalizeList(values, path, emptyCode) {
@@ -4098,8 +4604,8 @@ function checkTarget(target) {
     ["target.judgmentId", target.judgmentId],
     ["target.contributionNeedId", target.contributionNeedId]
   ]) {
-    if (!validId3(id)) {
-      return invalid13(
+    if (!validId4(id)) {
+      return invalid16(
         "invalid-target-id",
         path,
         "Expected a canonical target ID"
@@ -4124,7 +4630,7 @@ function checkIdentity(target, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid13(
+      return invalid16(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -4135,14 +4641,14 @@ function checkIdentity(target, proposal) {
 }
 function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requiresWhenMatch) {
   if (!APPLICABILITY_STATUSES.has(proposal.status)) {
-    return invalid13(
+    return invalid16(
       "unsupported-status",
       "proposal.status",
       `Unsupported applicability status ${proposal.status}`
     );
   }
   if (proposal.status !== "needs-context" && missingContext.length > 0) {
-    return invalid13(
+    return invalid16(
       "unexpected-missing-context",
       "proposal.missingContext",
       "Only needs-context may carry missing context"
@@ -4150,14 +4656,14 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
   }
   if (proposal.status === "applicable") {
     if (requiresWhenMatch && matchedWhen.length === 0) {
-      return invalid13(
+      return invalid16(
         "applicable-without-when",
         "proposal.matchedWhen",
         "Structured applicability requires at least one declared when match"
       );
     }
     if (matchedUnless.length > 0) {
-      return invalid13(
+      return invalid16(
         "excluded-by-unless",
         "proposal.matchedUnless",
         "A matched unless condition overrides applicability"
@@ -4167,7 +4673,7 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
   }
   if (proposal.status === "not-applicable") {
     if (matchedWhen.length > 0 && matchedUnless.length === 0) {
-      return invalid13(
+      return invalid16(
         "not-applicable-with-positive-match",
         "proposal.status",
         "A positive when match requires an excluding unless match"
@@ -4176,14 +4682,14 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
     return void 0;
   }
   if (matchedUnless.length > 0) {
-    return invalid13(
+    return invalid16(
       "decisive-unless-cannot-wait",
       "proposal.matchedUnless",
       "A matched unless condition is already not-applicable"
     );
   }
   if (missingContext.length === 0) {
-    return invalid13(
+    return invalid16(
       "missing-context-required",
       "proposal.missingContext",
       "Needs-context requires at least one missing context item"
@@ -4247,7 +4753,7 @@ function acceptCapabilityApplicability(target, proposal) {
   const basis = normalizeList(proposal.basis, "proposal.basis", "empty-basis");
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (basis.value.length === 0) {
-    return invalid13(
+    return invalid16(
       "empty-basis",
       "proposal.basis",
       "Applicability assessment requires explicit basis"
@@ -4291,13 +4797,13 @@ var applicabilityStatuses = [
   "not-applicable",
   "needs-context"
 ];
-function isRecord2(value) {
+function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isApplicabilityStatus(value) {
   return applicabilityStatuses.some((status) => status === value);
 }
-function rejected2(code, message) {
+function rejected3(code, message) {
   return { status: "rejected", code, message };
 }
 function canonicalInventory(capabilities) {
@@ -4330,23 +4836,23 @@ function inventoryParameters(capabilities) {
   const fields = {};
   for (const [index, { name, entry }] of capabilities.entries()) {
     const conditions = entry.routing === "structured" ? `when: ${entry.capability.toc.when.join(" | ")}; unless: ${entry.capability.toc.unless.join(" | ") || "none"}` : "unstructured Capability without declared conditions";
-    fields[`status_${index}`] = StringEnum2(applicabilityStatuses, {
+    fields[`status_${index}`] = StringEnum3(applicabilityStatuses, {
       description: `${name} \u2014 ${conditions}`
     });
-    fields[`basis_${index}`] = Type2.String({
+    fields[`basis_${index}`] = Type3.String({
       minLength: 1,
       maxLength: 2048,
       description: `Why ${name} has this status for the current Contribution Need.`
     });
-    fields[`missing_context_${index}`] = Type2.Optional(
-      Type2.String({ maxLength: 2048 })
+    fields[`missing_context_${index}`] = Type3.Optional(
+      Type3.String({ maxLength: 2048 })
     );
     if (entry.routing !== "structured") continue;
     for (const [
       conditionIndex,
       condition
     ] of entry.capability.toc.when.entries()) {
-      fields[`when_${index}_${conditionIndex}`] = Type2.Boolean({
+      fields[`when_${index}_${conditionIndex}`] = Type3.Boolean({
         description: `${name} when condition: ${condition}`
       });
     }
@@ -4354,12 +4860,12 @@ function inventoryParameters(capabilities) {
       conditionIndex,
       condition
     ] of entry.capability.toc.unless.entries()) {
-      fields[`unless_${index}_${conditionIndex}`] = Type2.Boolean({
+      fields[`unless_${index}_${conditionIndex}`] = Type3.Boolean({
         description: `${name} unless condition: ${condition}`
       });
     }
   }
-  return Type2.Object(fields, { additionalProperties: false });
+  return Type3.Object(fields, { additionalProperties: false });
 }
 function selectedConditions(input) {
   const selected = [];
@@ -4380,8 +4886,8 @@ function inventoryTool(input) {
     description: "Disposition every admitted Capability for one Contribution Need. The controller owns all names, conditions, identities, and complete accounting.",
     parameters: inventoryParameters(input.capabilities),
     execute: async (raw) => {
-      if (!isRecord2(raw)) {
-        return rejected2(
+      if (!isRecord3(raw)) {
+        return rejected3(
           "invalid-arguments",
           "Capability inventory arguments must be an object."
         );
@@ -4392,7 +4898,7 @@ function inventoryTool(input) {
         const basis = raw[`basis_${index}`];
         const missingContext = raw[`missing_context_${index}`];
         if (!isApplicabilityStatus(status) || typeof basis !== "string" || missingContext !== void 0 && typeof missingContext !== "string") {
-          return rejected2(
+          return rejected3(
             "invalid-capability-disposition",
             `Capability ${name} requires canonical status_${index}, basis_${index}, and optional missing_context_${index}.`
           );
@@ -4404,7 +4910,7 @@ function inventoryTool(input) {
           conditions: entry.capability.toc.when
         }) : { ok: true, value: [] };
         if (!matchedWhen.ok) {
-          return rejected2("invalid-when-accounting", matchedWhen.message);
+          return rejected3("invalid-when-accounting", matchedWhen.message);
         }
         const matchedUnless = entry.routing === "structured" ? selectedConditions({
           raw,
@@ -4413,7 +4919,7 @@ function inventoryTool(input) {
           conditions: entry.capability.toc.unless
         }) : { ok: true, value: [] };
         if (!matchedUnless.ok) {
-          return rejected2("invalid-unless-accounting", matchedUnless.message);
+          return rejected3("invalid-unless-accounting", matchedUnless.message);
         }
         const accepted = acceptCapabilityApplicability(
           {
@@ -4435,7 +4941,7 @@ function inventoryTool(input) {
           }
         );
         if (accepted.status === "invalid") {
-          return rejected2(
+          return rejected3(
             accepted.error.code,
             `${name}: ${accepted.error.message}`
           );
@@ -4523,8 +5029,8 @@ async function assessCapabilityInventoryWithSdk(input) {
 }
 
 // src/action-loop/sdk/capability-routing-controller.ts
-import { StringEnum as StringEnum3 } from "@earendil-works/pi-ai";
-import { Type as Type3 } from "typebox";
+import { StringEnum as StringEnum4 } from "@earendil-works/pi-ai";
+import { Type as Type4 } from "typebox";
 
 // src/action-loop/routing/bind-reference-selection.ts
 var REFERENCE_SELECTION_VERSION = "developer-reference-selection/v1";
@@ -4767,22 +5273,22 @@ function selectDeclaredReferences(declarations, proposals) {
 }
 
 // src/action-loop/sdk/capability-routing-controller.ts
-var applicabilityParameters = Type3.Object(
+var applicabilityParameters = Type4.Object(
   {
-    status: StringEnum3([
+    status: StringEnum4([
       "applicable",
       "not-applicable",
       "needs-context"
     ]),
-    matches_when: Type3.Boolean(),
-    matches_unless: Type3.Boolean(),
-    basis: Type3.String({ minLength: 1, maxLength: 2048 }),
-    missing_context: Type3.Optional(Type3.String({ maxLength: 2048 }))
+    matches_when: Type4.Boolean(),
+    matches_unless: Type4.Boolean(),
+    basis: Type4.String({ minLength: 1, maxLength: 2048 }),
+    missing_context: Type4.Optional(Type4.String({ maxLength: 2048 }))
   },
   { additionalProperties: false }
 );
 var referenceStatuses = ["selected", "not-needed", "needs-context"];
-function isRecord3(value) {
+function isRecord4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isApplicabilityStatus2(value) {
@@ -4791,7 +5297,7 @@ function isApplicabilityStatus2(value) {
 function isReferenceStatus(value) {
   return value === "selected" || value === "not-needed" || value === "needs-context";
 }
-function rejected3(code, message) {
+function rejected4(code, message) {
   return { status: "rejected", code, message };
 }
 function applicabilityTool(target, toc) {
@@ -4801,14 +5307,14 @@ function applicabilityTool(target, toc) {
     description: "Submit one semantic applicability decision; the SDK controller supplies exact canonical conditions and identities.",
     parameters: applicabilityParameters,
     execute: async (raw) => {
-      if (!isRecord3(raw)) {
-        return rejected3(
+      if (!isRecord4(raw)) {
+        return rejected4(
           "invalid-arguments",
           "Applicability arguments must be an object."
         );
       }
       if (!isApplicabilityStatus2(raw.status) || typeof raw.matches_when !== "boolean" || typeof raw.matches_unless !== "boolean" || typeof raw.basis !== "string" || raw.missing_context !== void 0 && typeof raw.missing_context !== "string") {
-        return rejected3(
+        return rejected4(
           "invalid-arguments",
           "Applicability requires status, matches_when, matches_unless, basis, and optional missing_context with their declared scalar types."
         );
@@ -4826,7 +5332,7 @@ function applicabilityTool(target, toc) {
         missingContext: raw.status === "needs-context" && missingContext ? [missingContext] : []
       });
       if (result.status === "invalid") {
-        return rejected3(result.error.code, result.error.message);
+        return rejected4(result.error.code, result.error.message);
       }
       return {
         status: "accepted",
@@ -4840,16 +5346,16 @@ function applicabilityTool(target, toc) {
 function referenceParameters(toc) {
   const fields = {};
   for (const [index, reference] of toc.references.entries()) {
-    fields[`status_${index}`] = StringEnum3(referenceStatuses, {
+    fields[`status_${index}`] = StringEnum4(referenceStatuses, {
       description: `${reference.path} \u2014 ${reference.when.join(" | ")}`
     });
-    fields[`basis_${index}`] = Type3.String({
+    fields[`basis_${index}`] = Type4.String({
       minLength: 1,
       maxLength: 2048,
       description: `Why ${reference.path} is selected, not needed, or needs context relative to every other declared Reference.`
     });
   }
-  return Type3.Object(fields, { additionalProperties: false });
+  return Type4.Object(fields, { additionalProperties: false });
 }
 function referenceTool(toc) {
   return {
@@ -4858,8 +5364,8 @@ function referenceTool(toc) {
     description: "Disposition every declared Reference in one comparative proposal; the SDK controller maps flat fields to canonical paths.",
     parameters: referenceParameters(toc),
     execute: async (raw) => {
-      if (!isRecord3(raw)) {
-        return rejected3(
+      if (!isRecord4(raw)) {
+        return rejected4(
           "invalid-arguments",
           "Reference arguments must be an object."
         );
@@ -4869,7 +5375,7 @@ function referenceTool(toc) {
         const status = raw[`status_${index}`];
         const basis = raw[`basis_${index}`];
         if (!isReferenceStatus(status) || typeof basis !== "string") {
-          return rejected3(
+          return rejected4(
             "invalid-reference-disposition",
             `Reference disposition ${index} requires canonical status_${index} and non-empty basis_${index}.`
           );
@@ -4878,7 +5384,7 @@ function referenceTool(toc) {
       }
       const selected = selectDeclaredReferences(toc.references, dispositions);
       if (selected.status === "invalid") {
-        return rejected3(
+        return rejected4(
           "invalid-reference-selection",
           `Reference dispositions are invalid: ${selected.issues.map((issue) => `${issue.code}:${issue.path}`).join(" | ")}`
         );
@@ -5042,790 +5548,6 @@ async function routeStructuredCapabilityWithSdk(input) {
   };
 }
 
-// src/action-loop/sdk/completion-controller.ts
-import { StringEnum as StringEnum4 } from "@earendil-works/pi-ai";
-import { Type as Type4 } from "typebox";
-
-// src/action-loop/work/accept-closure-claim.ts
-var CLOSURE_CLAIM_VERSION = "developer-closure-claim/v1";
-var PROVENANCE_KINDS6 = /* @__PURE__ */ new Set([
-  "model",
-  "human",
-  "tool",
-  "external"
-]);
-function canonicalStrings(values, path, allowed) {
-  if (!Array.isArray(values)) {
-    return {
-      ok: false,
-      error: {
-        code: allowed === void 0 ? "empty-basis" : "undeclared-evidence",
-        path,
-        message: "Expected a list"
-      }
-    };
-  }
-  const normalized = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (let index = 0; index < values.length; index += 1) {
-    const raw = values[index];
-    const value = typeof raw === "string" ? raw.trim() : "";
-    if (value.length === 0 || seen.has(value)) {
-      return {
-        ok: false,
-        error: {
-          code: allowed === void 0 ? "empty-basis" : "undeclared-evidence",
-          path: `${path}[${index}]`,
-          message: "Expected a unique nonblank value"
-        }
-      };
-    }
-    if (allowed !== void 0 && !allowed.has(value)) {
-      return {
-        ok: false,
-        error: {
-          code: "undeclared-evidence",
-          path: `${path}[${index}]`,
-          message: `Evidence is not present in the Closure Target: ${value}`
-        }
-      };
-    }
-    seen.add(value);
-    normalized.push(value);
-  }
-  normalized.sort((left, right) => left.localeCompare(right));
-  return { ok: true, value: Object.freeze(normalized) };
-}
-function canonicalBasis9(values, path) {
-  const result = canonicalStrings(values, path);
-  if (!result.ok) return result;
-  if (result.value.length === 0) {
-    return {
-      ok: false,
-      error: { code: "empty-basis", path, message: "Expected explicit basis" }
-    };
-  }
-  return result;
-}
-function canonicalDisposition(proposal, index, context) {
-  const path = `proposal.obligationDispositions[${index}]`;
-  if (proposal === void 0 || !context.obligationIds.has(proposal.closureObligationId) || context.accountedIds.has(proposal.closureObligationId)) {
-    return {
-      ok: false,
-      error: {
-        code: "obligation-accounting",
-        path: `${path}.closureObligationId`,
-        message: "Obligation must be declared and accounted exactly once"
-      }
-    };
-  }
-  const conclusionIds = canonicalStrings(
-    proposal.conclusionIds,
-    `${path}.conclusionIds`,
-    context.conclusionIds
-  );
-  if (!conclusionIds.ok) return conclusionIds;
-  const effectAssessmentIds = canonicalStrings(
-    proposal.effectAssessmentIds,
-    `${path}.effectAssessmentIds`,
-    context.effectAssessmentIds
-  );
-  if (!effectAssessmentIds.ok) return effectAssessmentIds;
-  const effectRemediationIds = canonicalStrings(
-    proposal.effectRemediationIds,
-    `${path}.effectRemediationIds`,
-    context.effectRemediationIds
-  );
-  if (!effectRemediationIds.ok) return effectRemediationIds;
-  if (conclusionIds.value.length + effectAssessmentIds.value.length + effectRemediationIds.value.length === 0) {
-    return {
-      ok: false,
-      error: {
-        code: "evidence-required",
-        path,
-        message: "Satisfied obligation requires current target evidence"
-      }
-    };
-  }
-  const basis = canonicalBasis9(proposal.basis, `${path}.basis`);
-  if (!basis.ok) return basis;
-  return {
-    ok: true,
-    value: Object.freeze({
-      closureObligationId: proposal.closureObligationId,
-      status: "satisfied",
-      conclusionIds: conclusionIds.value,
-      effectAssessmentIds: effectAssessmentIds.value,
-      effectRemediationIds: effectRemediationIds.value,
-      basis: basis.value
-    })
-  };
-}
-function canonicalDispositionAccounting(target, proposals) {
-  if (!Array.isArray(proposals)) {
-    return {
-      ok: false,
-      error: {
-        code: "obligation-accounting",
-        path: "proposal.obligationDispositions",
-        message: "Expected complete Closure obligation accounting"
-      }
-    };
-  }
-  const byId = /* @__PURE__ */ new Map();
-  const citedConclusionIds = /* @__PURE__ */ new Set();
-  const citedEffectAssessmentIds = /* @__PURE__ */ new Set();
-  const citedEffectRemediationIds = /* @__PURE__ */ new Set();
-  for (let index = 0; index < proposals.length; index += 1) {
-    const disposition = canonicalDisposition(proposals[index], index, {
-      obligationIds: new Set(
-        target.obligations.map(
-          ({ closureObligationId }) => closureObligationId
-        )
-      ),
-      accountedIds: new Set(byId.keys()),
-      conclusionIds: new Set(target.conclusionIds),
-      effectAssessmentIds: new Set(target.effectAssessmentIds),
-      effectRemediationIds: new Set(target.effectRemediationIds)
-    });
-    if (!disposition.ok) return disposition;
-    byId.set(disposition.value.closureObligationId, disposition.value);
-    for (const id of disposition.value.conclusionIds)
-      citedConclusionIds.add(id);
-    for (const id of disposition.value.effectAssessmentIds) {
-      citedEffectAssessmentIds.add(id);
-    }
-    for (const id of disposition.value.effectRemediationIds) {
-      citedEffectRemediationIds.add(id);
-    }
-  }
-  if (byId.size !== target.obligations.length) {
-    return {
-      ok: false,
-      error: {
-        code: "obligation-accounting",
-        path: "proposal.obligationDispositions",
-        message: "Every Closure obligation requires one disposition"
-      }
-    };
-  }
-  const dispositions = [];
-  for (const obligation of target.obligations) {
-    const disposition = byId.get(obligation.closureObligationId);
-    if (disposition === void 0) {
-      return {
-        ok: false,
-        error: {
-          code: "obligation-accounting",
-          path: "proposal.obligationDispositions",
-          message: `Missing obligation: ${obligation.closureObligationId}`
-        }
-      };
-    }
-    dispositions.push(disposition);
-  }
-  return {
-    ok: true,
-    value: {
-      dispositions: Object.freeze(dispositions),
-      citedConclusionIds,
-      citedEffectAssessmentIds,
-      citedEffectRemediationIds
-    }
-  };
-}
-function allEvidenceApplied(target, accounting) {
-  return target.conclusionIds.every((id) => accounting.citedConclusionIds.has(id)) && target.effectAssessmentIds.every(
-    (id) => accounting.citedEffectAssessmentIds.has(id)
-  ) && target.effectRemediationIds.every(
-    (id) => accounting.citedEffectRemediationIds.has(id)
-  );
-}
-function canonicalProvenance6(provenance) {
-  if (typeof provenance !== "object" || provenance === null || !PROVENANCE_KINDS6.has(provenance.kind) || typeof provenance.source !== "string" || provenance.source.trim().length === 0) {
-    return {
-      ok: false,
-      error: {
-        code: "invalid-provenance",
-        path: "proposal.provenance",
-        message: "Expected explicit Closure Claim provenance"
-      }
-    };
-  }
-  return {
-    ok: true,
-    value: Object.freeze({
-      kind: provenance.kind,
-      source: provenance.source.trim()
-    })
-  };
-}
-function claimIdentityParts(target, mode, dispositions, basis) {
-  const parts = [target.closureTargetId, mode];
-  for (const disposition of dispositions) {
-    parts.push(
-      disposition.closureObligationId,
-      "conclusions",
-      ...disposition.conclusionIds,
-      "effect-assessments",
-      ...disposition.effectAssessmentIds,
-      "effect-remediations",
-      ...disposition.effectRemediationIds,
-      "basis",
-      ...disposition.basis
-    );
-  }
-  parts.push("claim-basis", ...basis);
-  return parts;
-}
-function acceptClosureClaim(target, proposal) {
-  if (proposal.workCaseId !== target.workCaseId || proposal.closureTargetId !== target.closureTargetId) {
-    return {
-      status: "invalid",
-      error: {
-        code: "identity-mismatch",
-        path: "proposal",
-        message: "Closure Claim does not bind the sealed Closure Target"
-      }
-    };
-  }
-  if (proposal.mode !== "completed" && proposal.mode !== "no-change") {
-    return {
-      status: "invalid",
-      error: {
-        code: "unsupported-mode",
-        path: "proposal.mode",
-        message: "Unsupported Closure Claim mode"
-      }
-    };
-  }
-  const accounting = canonicalDispositionAccounting(
-    target,
-    proposal.obligationDispositions
-  );
-  if (!accounting.ok) return { status: "invalid", error: accounting.error };
-  if (!allEvidenceApplied(target, accounting.value)) {
-    return {
-      status: "invalid",
-      error: {
-        code: "evidence-accounting",
-        path: "proposal.obligationDispositions",
-        message: "Every current Conclusion and Effect assessment must be applied"
-      }
-    };
-  }
-  const basis = canonicalBasis9(proposal.basis, "proposal.basis");
-  if (!basis.ok) return { status: "invalid", error: basis.error };
-  const provenance = canonicalProvenance6(proposal.provenance);
-  if (!provenance.ok) return { status: "invalid", error: provenance.error };
-  return {
-    status: "accepted",
-    value: Object.freeze({
-      closureClaimId: hashIdentity(
-        "closure_claim",
-        CLOSURE_CLAIM_VERSION,
-        claimIdentityParts(
-          target,
-          proposal.mode,
-          accounting.value.dispositions,
-          basis.value
-        )
-      ),
-      workCaseId: target.workCaseId,
-      workCaseRevisionId: target.workCaseRevisionId,
-      closureTargetId: target.closureTargetId,
-      mode: proposal.mode,
-      obligationDispositions: accounting.value.dispositions,
-      basis: basis.value,
-      provenance: provenance.value
-    })
-  };
-}
-
-// src/action-loop/work/complete-work-case.ts
-var WORK_CASE_COMPLETION_VERSION = "developer-work-case-completion/v1";
-function refused(code, message) {
-  return { status: "refused", refusal: { code, message } };
-}
-function completeWorkCase(workCase, target, claim) {
-  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-    return refused(
-      "stale-work-case",
-      "Work Case revision does not match its closure inventory"
-    );
-  }
-  const currentTarget = prepareClosureTarget(workCase);
-  if (currentTarget.status !== "ready") {
-    return refused(
-      "closure-not-ready",
-      "Current Work Case cannot produce a complete Closure Target"
-    );
-  }
-  if (target.workCaseId !== workCase.workCaseId || target.workCaseRevisionId !== workCase.revisionId || target.closureTargetId !== currentTarget.value.closureTargetId) {
-    return refused(
-      "stale-closure-target",
-      "Closure Target does not represent the complete current Work Case"
-    );
-  }
-  if (claim.workCaseId !== workCase.workCaseId || claim.workCaseRevisionId !== workCase.revisionId || claim.closureTargetId !== target.closureTargetId) {
-    return refused(
-      "identity-mismatch",
-      "Closure Claim does not bind the current Closure Target"
-    );
-  }
-  const priorRevisionId = workCase.revisionId;
-  const revisionId = hashIdentity(
-    "work_case_completion",
-    WORK_CASE_COMPLETION_VERSION,
-    [workCase.workCaseId, priorRevisionId, claim.closureClaimId]
-  );
-  return {
-    status: "completed",
-    value: Object.freeze({
-      ...workCase,
-      status: "complete",
-      revisionId,
-      priorRevisionId,
-      closureTarget: target,
-      closureClaim: claim
-    })
-  };
-}
-
-// src/action-loop/sdk/completion-controller.ts
-var completionModes = ["completed", "no-change"];
-function isRecord4(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function rejected4(code, message) {
-  return { status: "rejected", code, message };
-}
-function completionParameters(target) {
-  const fields = {
-    mode: StringEnum4(completionModes),
-    basis_json: Type4.String({
-      minLength: 2,
-      maxLength: 32768,
-      description: "JSON array of one or more whole-Work-Case closure basis strings."
-    })
-  };
-  for (const [index, obligation] of target.obligations.entries()) {
-    fields[`obligation_${index}_conclusion_indices_json`] = Type4.String({
-      minLength: 2,
-      maxLength: 32768,
-      description: "JSON array of current Conclusion indices applied here."
-    });
-    fields[`obligation_${index}_effect_indices_json`] = Type4.String({
-      minLength: 2,
-      maxLength: 32768,
-      description: "JSON array of current Effect assessment indices applied here."
-    });
-    fields[`obligation_${index}_remediation_indices_json`] = Type4.String({
-      minLength: 2,
-      maxLength: 32768,
-      description: "JSON array of current Effect remediation indices applied here."
-    });
-    fields[`obligation_${index}_basis`] = Type4.String({
-      minLength: 1,
-      maxLength: 2048,
-      description: `${obligation.kind}: ${obligation.statement}`
-    });
-  }
-  return Type4.Object(fields, { additionalProperties: false });
-}
-function decodeIndexList(input) {
-  const decoded = decodeSdkProposalJson(input.value, input.label);
-  if (!decoded.ok) return decoded;
-  if (!Array.isArray(decoded.value) || decoded.value.length > input.inventory.length || decoded.value.some(
-    (index) => typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= input.inventory.length
-  )) {
-    return {
-      ok: false,
-      message: `${input.label} must encode only current inventory indices.`
-    };
-  }
-  const indices = decoded.value;
-  if (new Set(indices).size !== indices.length) {
-    return {
-      ok: false,
-      message: `${input.label} cannot contain duplicate indices.`
-    };
-  }
-  return {
-    ok: true,
-    value: Object.freeze(indices.map((index) => input.inventory[index] ?? ""))
-  };
-}
-function decodeObligationDisposition(input) {
-  const obligation = input.target.obligations[input.index];
-  if (obligation === void 0) {
-    return {
-      ok: false,
-      message: `Closure Obligation ${input.index} is unavailable.`
-    };
-  }
-  const prefix = `obligation_${input.index}`;
-  const conclusionIds = decodeIndexList({
-    value: input.raw[`${prefix}_conclusion_indices_json`],
-    label: `${prefix}_conclusion_indices_json`,
-    inventory: input.target.conclusionIds
-  });
-  if (!conclusionIds.ok) return conclusionIds;
-  const effectAssessmentIds = decodeIndexList({
-    value: input.raw[`${prefix}_effect_indices_json`],
-    label: `${prefix}_effect_indices_json`,
-    inventory: input.target.effectAssessmentIds
-  });
-  if (!effectAssessmentIds.ok) return effectAssessmentIds;
-  const effectRemediationIds = decodeIndexList({
-    value: input.raw[`${prefix}_remediation_indices_json`],
-    label: `${prefix}_remediation_indices_json`,
-    inventory: input.target.effectRemediationIds
-  });
-  if (!effectRemediationIds.ok) return effectRemediationIds;
-  const basis = input.raw[`${prefix}_basis`];
-  if (typeof basis !== "string") {
-    return {
-      ok: false,
-      message: `${prefix}_basis must be non-empty text.`
-    };
-  }
-  return {
-    ok: true,
-    value: {
-      closureObligationId: obligation.closureObligationId,
-      conclusionIds: conclusionIds.value,
-      effectAssessmentIds: effectAssessmentIds.value,
-      effectRemediationIds: effectRemediationIds.value,
-      basis: [basis]
-    }
-  };
-}
-function decodeObligationDispositions(input) {
-  const dispositions = [];
-  for (const index of input.target.obligations.keys()) {
-    const disposition = decodeObligationDisposition({ ...input, index });
-    if (!disposition.ok) return disposition;
-    dispositions.push(disposition.value);
-  }
-  return { ok: true, value: Object.freeze(dispositions) };
-}
-function completionTool(input) {
-  return {
-    name: "submit_work_case_completion",
-    label: "Submit complete current Work Case closure accounting",
-    description: "Apply all current Conclusions, Effect assessments, and remediations to every closure obligation before atomic revalidation.",
-    parameters: completionParameters(input.target),
-    execute: async (raw) => {
-      if (!isRecord4(raw)) {
-        return rejected4(
-          "invalid-arguments",
-          "Completion arguments must be an object."
-        );
-      }
-      if (raw.mode !== "completed" && raw.mode !== "no-change") {
-        return rejected4(
-          "invalid-completion-mode",
-          "mode must be completed or no-change."
-        );
-      }
-      const dispositions = decodeObligationDispositions({
-        raw,
-        target: input.target
-      });
-      if (!dispositions.ok) {
-        return rejected4("invalid-obligation-accounting", dispositions.message);
-      }
-      const basis = decodeSdkStringList({
-        value: raw.basis_json,
-        label: "basis_json",
-        allowEmpty: false,
-        maximumItems: 32
-      });
-      if (!basis.ok) return rejected4("invalid-basis", basis.message);
-      const claim = acceptClosureClaim(input.target, {
-        workCaseId: input.workCase.workCaseId,
-        closureTargetId: input.target.closureTargetId,
-        mode: raw.mode,
-        obligationDispositions: dispositions.value,
-        basis: basis.value,
-        provenance: { kind: "model", source: "pi:sdk-action-loop" }
-      });
-      if (claim.status === "invalid") {
-        return rejected4(claim.error.code, claim.error.message);
-      }
-      const completed = completeWorkCase(
-        input.workCase,
-        input.target,
-        claim.value
-      );
-      if (completed.status === "refused") {
-        return rejected4(completed.refusal.code, completed.refusal.message);
-      }
-      return {
-        status: "accepted",
-        value: { claim: claim.value, completed: completed.value },
-        message: `Work Case completion accepted as ${claim.value.mode}.`,
-        resultStatus: claim.value.mode
-      };
-    }
-  };
-}
-function completionPrompt(input) {
-  const obligations = input.target.obligations.map(
-    (obligation, index) => `Obligation ${index} (${obligation.kind}): ${obligation.statement}`
-  ).join("\n");
-  const conclusions = input.workCase.conclusions.map(
-    (conclusion, index) => `Conclusion ${index} (${conclusion.category}): ${conclusion.answer}`
-  ).join("\n");
-  const effects = input.workCase.currentEffectAssessments.map(
-    (assessment, index) => `Effect assessment ${index}: ${assessment.outcome} \u2014 ${assessment.basis.join(" | ")}`
-  ).join("\n");
-  const remediations = input.workCase.effectRemediations.map(
-    (remediation, index) => `Effect remediation ${index}: ${remediation.basis.join(" | ")}`
-  ).join("\n");
-  return [
-    `Delegated request:
-${input.request}`,
-    `Outcome:
-${input.workCase.outcome.statement}`,
-    `Current closure obligations:
-${obligations}`,
-    `Current Conclusions:
-${conclusions || "none"}`,
-    `Current Effect assessments:
-${effects || "none"}`,
-    `Current Effect remediations:
-${remediations || "none"}`,
-    "Map every current evidence item to one or more obligations where it materially applies. The SDK will reject omitted, stale, duplicate, or caller-selected subsets and revalidate the complete current revision."
-  ].join("\n\n");
-}
-async function completeWorkCaseWithSdk(input) {
-  const prepared = prepareClosureTarget(input.workCase);
-  if (prepared.status === "invalid") {
-    return {
-      status: "invariant-failure",
-      code: prepared.error.code,
-      message: prepared.error.message
-    };
-  }
-  if (prepared.status === "not-ready") {
-    return { status: "not-ready", blockers: prepared.blockers };
-  }
-  const decision = await input.runner.run({
-    systemPrompt: [
-      "Account for one complete current Work Case closure target.",
-      "Call the supplied decision tool exactly once and disposition every closure obligation.",
-      "Apply every current Conclusion, Effect assessment, and remediation without inventing identities.",
-      "The SDK controller owns the complete inventory, canonical admission, current-revision revalidation, retries, and stop decisions."
-    ].join("\n"),
-    prompt: completionPrompt({ ...input, target: prepared.value }),
-    tool: completionTool({
-      workCase: input.workCase,
-      target: prepared.value
-    })
-  });
-  if (decision.status === "bounded-stop") {
-    return {
-      status: "bounded-stop",
-      reason: decision.reason,
-      decision: decision.metrics
-    };
-  }
-  if (decision.status === "runtime-failure") {
-    return {
-      status: "runtime-failure",
-      message: decision.message,
-      decision: decision.metrics
-    };
-  }
-  const revalidated = completeWorkCase(
-    input.workCase,
-    prepared.value,
-    decision.value.claim
-  );
-  if (revalidated.status === "refused" || revalidated.value.revisionId !== decision.value.completed.revisionId) {
-    return {
-      status: "invariant-failure",
-      code: revalidated.status === "refused" ? revalidated.refusal.code : "completion-identity-drift",
-      message: revalidated.status === "refused" ? revalidated.refusal.message : "Accepted Work Case completion did not reproduce its identity.",
-      decision: decision.metrics
-    };
-  }
-  return {
-    status: "completed",
-    target: prepared.value,
-    claim: decision.value.claim,
-    workCase: revalidated.value,
-    decision: decision.metrics
-  };
-}
-
-// src/action-loop/sdk/context-progress.ts
-function invalid14(code, message) {
-  return { status: "invalid", code, message };
-}
-function indexAssignments(input) {
-  const assignments = /* @__PURE__ */ new Map();
-  for (const assignment of input.assignments) {
-    if (assignment.workCaseId !== input.workCaseId || assignment.judgmentId !== input.judgmentId || assignment.contributionNeedId !== input.contributionNeedId) {
-      return {
-        ok: false,
-        error: invalid14(
-          "assignment-mismatch",
-          `Assignment ${assignment.assignmentId} does not belong to the requested Work Case, Judgment, and Contribution Need.`
-        )
-      };
-    }
-    if (assignments.has(assignment.assignmentId)) {
-      return {
-        ok: false,
-        error: invalid14(
-          "duplicate-assignment",
-          `Assignment ${assignment.assignmentId} occurs more than once.`
-        )
-      };
-    }
-    assignments.set(assignment.assignmentId, assignment);
-  }
-  return { ok: true, value: assignments };
-}
-function indexSelections(selections, assignments) {
-  const indexed = /* @__PURE__ */ new Map();
-  for (const selection of selections) {
-    const assignment = assignments.get(selection.assignmentId);
-    if (assignment === void 0 || selection.capabilityRevisionId !== assignment.capabilityRevisionId) {
-      return {
-        ok: false,
-        error: invalid14(
-          "selection-mismatch",
-          `Reference Selection ${selection.selectionId} has no exact current Assignment.`
-        )
-      };
-    }
-    if (indexed.has(selection.assignmentId)) {
-      return {
-        ok: false,
-        error: invalid14(
-          "duplicate-selection",
-          `Assignment ${selection.assignmentId} has more than one Reference Selection.`
-        )
-      };
-    }
-    indexed.set(selection.assignmentId, selection);
-  }
-  return { ok: true, value: indexed };
-}
-function matchingContext(input, context, assignment) {
-  return assignment !== void 0 && context.workCaseId === input.workCaseId && context.judgmentId === input.judgmentId && context.contributionNeedId === input.contributionNeedId && context.capabilityRevisionId === assignment.capabilityRevisionId;
-}
-function matchingContextMode(context, selection) {
-  if ("routing" in context) return selection === void 0;
-  return selection !== void 0 && selection.status === "ready" && selection.selectionId === context.selectionId;
-}
-function indexContexts(input, assignments, selections) {
-  const indexed = /* @__PURE__ */ new Map();
-  for (const context of input.contexts) {
-    if (!matchingContext(input, context, assignments.get(context.assignmentId))) {
-      return {
-        ok: false,
-        error: invalid14(
-          "context-mismatch",
-          `Sealed Context ${context.sealedContextId} has no exact current Assignment.`
-        )
-      };
-    }
-    if (indexed.has(context.assignmentId)) {
-      return {
-        ok: false,
-        error: invalid14(
-          "duplicate-context",
-          `Assignment ${context.assignmentId} has more than one sealed Context.`
-        )
-      };
-    }
-    if (!matchingContextMode(context, selections.get(context.assignmentId))) {
-      return {
-        ok: false,
-        error: invalid14(
-          "inconsistent-context",
-          `Sealed Context ${context.sealedContextId} does not match its routing mode and Reference Selection.`
-        )
-      };
-    }
-    indexed.set(context.assignmentId, context);
-  }
-  return { ok: true, value: indexed };
-}
-function validateSelections(selections, contexts) {
-  for (const selection of selections) {
-    const hasContext = contexts.has(selection.assignmentId);
-    if (selection.status === "ready" && !hasContext) {
-      return invalid14(
-        "inconsistent-context",
-        `Ready Reference Selection ${selection.selectionId} has no sealed Context.`
-      );
-    }
-    if (selection.status === "needs-context" && hasContext) {
-      return invalid14(
-        "inconsistent-context",
-        `Unresolved Reference Selection ${selection.selectionId} cannot have a sealed Context.`
-      );
-    }
-  }
-  return void 0;
-}
-function inspectCapabilityContextProgress(input) {
-  const assignments = indexAssignments(input);
-  if (!assignments.ok) return assignments.error;
-  const selections = indexSelections(input.selections, assignments.value);
-  if (!selections.ok) return selections.error;
-  const contexts = indexContexts(input, assignments.value, selections.value);
-  if (!contexts.ok) return contexts.error;
-  const inconsistency = validateSelections(input.selections, contexts.value);
-  if (inconsistency !== void 0) return inconsistency;
-  const completedAssignmentIds = Object.freeze(
-    [...contexts.value.keys()].sort((left, right) => left.localeCompare(right))
-  );
-  const unresolvedSelections = Object.freeze(
-    input.selections.filter((selection) => selection.status === "needs-context").sort(
-      (left, right) => left.assignmentId.localeCompare(right.assignmentId)
-    )
-  );
-  const unresolvedAssignmentIds = new Set(
-    unresolvedSelections.map((selection) => selection.assignmentId)
-  );
-  const pendingAssignments = Object.freeze(
-    input.assignments.filter(
-      (assignment) => !contexts.value.has(assignment.assignmentId) && !unresolvedAssignmentIds.has(assignment.assignmentId)
-    ).sort(
-      (left, right) => left.assignmentId.localeCompare(right.assignmentId)
-    )
-  );
-  if (pendingAssignments.length > 0) {
-    return {
-      status: "pending",
-      pendingAssignments,
-      unresolvedSelections,
-      completedAssignmentIds
-    };
-  }
-  if (unresolvedSelections.length > 0) {
-    return {
-      status: "needs-context",
-      pendingAssignments: Object.freeze([]),
-      unresolvedSelections,
-      completedAssignmentIds
-    };
-  }
-  return {
-    status: "complete",
-    pendingAssignments: Object.freeze([]),
-    unresolvedSelections: Object.freeze([]),
-    completedAssignmentIds
-  };
-}
-
 // src/action-loop/sdk/context-sealing-controller.ts
 function assignmentFailure(input) {
   if (input.assignment.capabilityId !== input.entry.capability.capabilityId || input.assignment.capabilityRevisionId !== input.entry.capability.capabilityRevisionId) {
@@ -5951,13 +5673,13 @@ var PROVENANCE_KINDS7 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid15(code, path, message) {
+function invalid17(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function validId4(id) {
+function validId5(id) {
   return id.length > 0 && id === id.trim() && !id.includes("\0");
 }
-function canonicalText13(value, code, path) {
+function canonicalText14(value, code, path) {
   const normalized = value.trim();
   if (normalized.length === 0 || normalized.includes("\0")) {
     return {
@@ -5971,7 +5693,7 @@ function canonicalList3(values, path, invalidCode) {
   const normalized = [];
   const seen = /* @__PURE__ */ new Set();
   for (let index = 0; index < values.length; index += 1) {
-    const item = canonicalText13(
+    const item = canonicalText14(
       values[index] ?? "",
       invalidCode,
       `${path}[${index}]`
@@ -5998,7 +5720,7 @@ function buildRequirementInventory(contract) {
     ["contract.judgmentId", contract.judgmentId],
     ["contract.contextRevisionId", contract.contextRevisionId]
   ]) {
-    if (!validId4(id)) {
+    if (!validId5(id)) {
       return {
         ok: false,
         error: {
@@ -6019,7 +5741,7 @@ function buildRequirementInventory(contract) {
       }
     };
   }
-  const subject = canonicalText13(
+  const subject = canonicalText14(
     contract.subject,
     "invalid-contract",
     "contract.subject"
@@ -6039,7 +5761,7 @@ function buildRequirementInventory(contract) {
   const byId = /* @__PURE__ */ new Map();
   const mappedNeedIds = /* @__PURE__ */ new Set();
   for (const [index, requirement] of contract.requirements.entries()) {
-    if (!validId4(requirement.requirementId) || byId.has(requirement.requirementId)) {
+    if (!validId5(requirement.requirementId) || byId.has(requirement.requirementId)) {
       return {
         ok: false,
         error: {
@@ -6049,7 +5771,7 @@ function buildRequirementInventory(contract) {
         }
       };
     }
-    const statement = canonicalText13(
+    const statement = canonicalText14(
       requirement.statement,
       "invalid-contract",
       `contract.requirements[${index}].statement`
@@ -6061,7 +5783,7 @@ function buildRequirementInventory(contract) {
       needIndex,
       needId
     ] of requirement.contributionNeedIds.entries()) {
-      if (!validId4(needId) || localNeeds.has(needId)) {
+      if (!validId5(needId) || localNeeds.has(needId)) {
         return {
           ok: false,
           error: {
@@ -6104,7 +5826,7 @@ function checkProposalIdentity(contract, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid15(
+      return invalid17(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -6293,7 +6015,7 @@ function canonicalRequirementDispositions(requirements, coverages, proposals) {
   }
   return { ok: true, value: Object.freeze(ordered) };
 }
-function canonicalProvenance7(proposal) {
+function canonicalProvenance6(proposal) {
   if (!PROVENANCE_KINDS7.has(proposal.kind)) {
     return {
       ok: false,
@@ -6304,7 +6026,7 @@ function canonicalProvenance7(proposal) {
       }
     };
   }
-  const source = canonicalText13(
+  const source = canonicalText14(
     proposal.source,
     "invalid-provenance",
     "proposal.provenance.source"
@@ -6443,7 +6165,7 @@ function validateClosureOutcome(proposal) {
   );
   if (!refusalReasons.ok) return refusalReasons;
   if (proposal.outcome === "conclude") {
-    const answer = canonicalText13(
+    const answer = canonicalText14(
       proposal.answer ?? "",
       "invalid-conclusion-answer",
       "proposal.answer"
@@ -6506,7 +6228,7 @@ function validateClosureInput(contract, coverages, proposal) {
       }
     };
   }
-  const provenance = canonicalProvenance7(proposal.provenance);
+  const provenance = canonicalProvenance6(proposal.provenance);
   if (!provenance.ok) return provenance;
   return {
     ok: true,
@@ -6883,10 +6605,10 @@ var PROVENANCE_KINDS8 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid16(code, path, message) {
+function invalid18(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function canonicalText14(value, code, path) {
+function canonicalText15(value, code, path) {
   const normalized = value.trim();
   if (normalized.length === 0) {
     return {
@@ -6900,7 +6622,7 @@ function canonicalList4(values, path, invalidCode) {
   const normalized = [];
   const seen = /* @__PURE__ */ new Set();
   for (let index = 0; index < values.length; index += 1) {
-    const item = canonicalText14(
+    const item = canonicalText15(
       values[index] ?? "",
       invalidCode,
       `${path}[${index}]`
@@ -6958,7 +6680,7 @@ function checkIdentity2(assignment, context, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid16(
+      return invalid18(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -6991,7 +6713,7 @@ function canonicalApplications(selectedPaths, proposals) {
         }
       };
     }
-    const application = canonicalText14(
+    const application = canonicalText15(
       proposal.application,
       "empty-application",
       `proposal.referenceApplications[${index}].application`
@@ -7047,7 +6769,7 @@ function canonicalResidualNeeds(proposals) {
         }
       };
     }
-    const description = canonicalText14(
+    const description = canonicalText15(
       proposal.description,
       "invalid-residual-need",
       `proposal.residualNeeds[${index}].description`
@@ -7090,7 +6812,7 @@ function canonicalResidualNeeds(proposals) {
   }
   return { ok: true, value: Object.freeze(needs) };
 }
-function canonicalProvenance8(proposal) {
+function canonicalProvenance7(proposal) {
   if (!PROVENANCE_KINDS8.has(proposal.kind)) {
     return {
       ok: false,
@@ -7101,7 +6823,7 @@ function canonicalProvenance8(proposal) {
       }
     };
   }
-  const source = canonicalText14(
+  const source = canonicalText15(
     proposal.source,
     "invalid-provenance",
     "proposal.provenance.source"
@@ -7144,13 +6866,13 @@ function acceptSkillContribution(assignment, context, proposal) {
   const identityFailure = checkIdentity2(assignment, context, proposal);
   if (identityFailure !== void 0) return identityFailure;
   if (!LOCAL_STATUSES.has(proposal.localStatus)) {
-    return invalid16(
+    return invalid18(
       "unsupported-local-status",
       "proposal.localStatus",
       `Unsupported local status ${proposal.localStatus}`
     );
   }
-  const result = canonicalText14(
+  const result = canonicalText15(
     proposal.result,
     "empty-result",
     "proposal.result"
@@ -7171,21 +6893,21 @@ function acceptSkillContribution(assignment, context, proposal) {
   if (!residualNeeds.ok) {
     return { status: "invalid", error: residualNeeds.error };
   }
-  const provenance = canonicalProvenance8(proposal.provenance);
+  const provenance = canonicalProvenance7(proposal.provenance);
   if (!provenance.ok) return { status: "invalid", error: provenance.error };
   const residual = residualNeeds.value.some((need) => need.kind === "residual");
   const limitedApplication = applications.value.some(
     (application) => application.status === "limited"
   );
   if (proposal.localStatus === "partial" && limitations.value.length === 0 && !residual && !limitedApplication) {
-    return invalid16(
+    return invalid18(
       "partial-without-limitation",
       "proposal.localStatus",
       "Partial Contribution requires a limitation or residual Need"
     );
   }
   if (proposal.localStatus === "resolved" && residual) {
-    return invalid16(
+    return invalid18(
       "resolved-with-residual",
       "proposal.localStatus",
       "Resolved local status cannot retain a residual local Need"
@@ -7461,20 +7183,20 @@ async function contributeSkillWithSdk(input) {
 }
 
 // src/action-loop/sdk/contribution-progress.ts
-function invalid17(code, message) {
+function invalid19(code, message) {
   return { status: "invalid", code, message };
 }
 function inspectContributionProgress(input) {
   const contextsByAssignment = /* @__PURE__ */ new Map();
   for (const context of input.contexts) {
     if (context.workCaseId !== input.workCaseId || context.judgmentId !== input.judgmentId) {
-      return invalid17(
+      return invalid19(
         "context-mismatch",
         `Sealed Context ${context.sealedContextId} does not belong to the current Work Case and Judgment.`
       );
     }
     if (contextsByAssignment.has(context.assignmentId)) {
-      return invalid17(
+      return invalid19(
         "duplicate-context",
         `Assignment ${context.assignmentId} has more than one sealed Context.`
       );
@@ -7485,13 +7207,13 @@ function inspectContributionProgress(input) {
   for (const contribution of input.contributions) {
     const context = contextsByAssignment.get(contribution.assignmentId);
     if (context === void 0 || contribution.workCaseId !== input.workCaseId || contribution.judgmentId !== input.judgmentId || contribution.contributionNeedId !== context.contributionNeedId || contribution.capabilityRevisionId !== context.capabilityRevisionId || contribution.sealedContextId !== context.sealedContextId) {
-      return invalid17(
+      return invalid19(
         "contribution-mismatch",
         `Contribution ${contribution.contributionId} has no exact current sealed Context.`
       );
     }
     if (contributionsByAssignment.has(contribution.assignmentId)) {
-      return invalid17(
+      return invalid19(
         "duplicate-contribution",
         `Assignment ${contribution.assignmentId} has more than one Contribution.`
       );
@@ -7539,10 +7261,10 @@ var PROVENANCE_KINDS9 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid18(code, path, message) {
+function invalid20(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function validId5(id) {
+function validId6(id) {
   return id.length > 0 && id === id.trim() && !id.includes("\0");
 }
 function canonicalList5(values, path) {
@@ -7581,8 +7303,8 @@ function checkTarget2(target, proposal) {
     ["target.judgmentId", target.judgmentId],
     ["target.contributionNeedId", target.contributionNeedId]
   ]) {
-    if (!validId5(id)) {
-      return invalid18(
+    if (!validId6(id)) {
+      return invalid20(
         "invalid-target-id",
         path,
         "Expected a canonical target ID"
@@ -7599,7 +7321,7 @@ function checkTarget2(target, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid18(
+      return invalid20(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -7843,7 +7565,7 @@ function canonicalConflicts(inventory, dispositions, proposals) {
     )
   };
 }
-function canonicalProvenance9(proposal) {
+function canonicalProvenance8(proposal) {
   if (!PROVENANCE_KINDS9.has(proposal.kind)) {
     return {
       ok: false,
@@ -7913,7 +7635,7 @@ function assessNeedCoverage(target, contributions, proposal) {
   const targetFailure = checkTarget2(target, proposal);
   if (targetFailure !== void 0) return targetFailure;
   if (!COVERAGE_STATUSES.has(proposal.status)) {
-    return invalid18(
+    return invalid20(
       "unsupported-coverage-status",
       "proposal.status",
       `Unsupported Coverage status ${proposal.status}`
@@ -7937,17 +7659,17 @@ function assessNeedCoverage(target, contributions, proposal) {
   const basis = canonicalList5(proposal.basis, "proposal.basis");
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (basis.value.length === 0) {
-    return invalid18(
+    return invalid20(
       "empty-basis",
       "proposal.basis",
       "Need Coverage requires explicit basis"
     );
   }
-  const provenance = canonicalProvenance9(proposal.provenance);
+  const provenance = canonicalProvenance8(proposal.provenance);
   if (!provenance.ok) return { status: "invalid", error: provenance.error };
   const derivedStatus = deriveStatus(dispositions.value, conflicts.value);
   if (proposal.status !== derivedStatus) {
-    return invalid18(
+    return invalid20(
       "status-mismatch",
       "proposal.status",
       `Coverage evidence derives ${derivedStatus}, not ${proposal.status}`
@@ -8240,15 +7962,1637 @@ async function assessNeedCoverageWithSdk(input) {
   };
 }
 
+// src/action-loop/sdk/judgment-progression-controller.ts
+function positiveInteger(value, label) {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new RangeError(`${label} must be a positive safe integer`);
+  }
+  return value;
+}
+function compactError(error) {
+  return (error instanceof Error ? error.message : String(error)).slice(
+    0,
+    2048
+  );
+}
+function snapshot(progress) {
+  return Object.freeze({
+    workCase: progress.workCase,
+    applicabilityAssessments: Object.freeze([
+      ...progress.applicabilityAssessments
+    ]),
+    assignments: Object.freeze([...progress.assignments]),
+    selections: Object.freeze([...progress.selections]),
+    contexts: Object.freeze([...progress.contexts]),
+    contributions: Object.freeze([...progress.contributions]),
+    coverages: Object.freeze([...progress.coverages])
+  });
+}
+function base(progress) {
+  return {
+    state: snapshot(progress),
+    steps: progress.steps,
+    checkpoints: progress.checkpoints
+  };
+}
+function invariantFailure(progress, stage, code, message) {
+  return {
+    status: "invariant-failure",
+    stage,
+    code,
+    message,
+    ...base(progress)
+  };
+}
+function capabilityByRevision(capabilities, capabilityRevisionId) {
+  return capabilities.find(
+    (candidate) => candidate.entry.capability.capabilityRevisionId === capabilityRevisionId
+  );
+}
+function currentNeedAssessments(progress, judgmentId, contributionNeedId) {
+  return progress.applicabilityAssessments.filter(
+    (assessment) => assessment.workCaseId === progress.workCase.workCaseId && assessment.judgmentId === judgmentId && assessment.contributionNeedId === contributionNeedId
+  );
+}
+function completeInventory(input) {
+  if (input.assessments.length === 0) return { status: "missing" };
+  const currentRevisions = new Set(
+    input.capabilities.map(
+      (capability) => capability.entry.capability.capabilityRevisionId
+    )
+  );
+  const assessedRevisions = new Set(
+    input.assessments.map((assessment) => assessment.capabilityRevisionId)
+  );
+  if (assessedRevisions.size !== input.assessments.length || input.assessments.some(
+    (assessment) => !currentRevisions.has(assessment.capabilityRevisionId)
+  )) {
+    return {
+      status: "invalid",
+      code: "capability-inventory-mismatch",
+      message: "Current applicability assessments contain duplicate or unavailable Capability revisions."
+    };
+  }
+  if (assessedRevisions.size !== currentRevisions.size) {
+    return {
+      status: "invalid",
+      code: "partial-capability-inventory",
+      message: "A current Contribution Need has a partial Capability inventory; progression requires one complete atomic inventory assessment."
+    };
+  }
+  return { status: "complete" };
+}
+async function commitCheckpoint(runtime, stage, checkpoint) {
+  try {
+    await runtime.input.checkpoint(checkpoint);
+    runtime.progress.checkpoints += 1;
+    return void 0;
+  } catch (error) {
+    return {
+      status: "checkpoint-failure",
+      stage,
+      message: compactError(error),
+      pendingCheckpoint: checkpoint,
+      ...base(runtime.progress)
+    };
+  }
+}
+function consumeStep(runtime, stage) {
+  if (runtime.progress.steps >= runtime.maximumSteps) {
+    return {
+      status: "bounded-stop",
+      stage,
+      reason: "progression-step-budget",
+      ...base(runtime.progress)
+    };
+  }
+  runtime.progress.steps += 1;
+  return void 0;
+}
+function decisionFailure(progress, stage, result) {
+  if (result.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      stage,
+      reason: result.reason,
+      ...base(progress)
+    };
+  }
+  if (result.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      stage,
+      message: result.message,
+      ...base(progress)
+    };
+  }
+  return invariantFailure(
+    progress,
+    stage,
+    "code" in result ? result.code : result.status,
+    result.message
+  );
+}
+function skillContribution(contribution) {
+  return "assignmentId" in contribution && "sealedContextId" in contribution;
+}
+async function progressNeedInventory(runtime, need) {
+  const assessments = currentNeedAssessments(
+    runtime.progress,
+    runtime.judgment.judgmentId,
+    need.contributionNeedId
+  );
+  const inventory = completeInventory({
+    assessments,
+    capabilities: runtime.input.capabilities
+  });
+  if (inventory.status === "invalid") {
+    return invariantFailure(
+      runtime.progress,
+      "inventory",
+      inventory.code,
+      inventory.message
+    );
+  }
+  if (inventory.status === "complete") return void 0;
+  const stopped = consumeStep(runtime, "inventory");
+  if (stopped) return stopped;
+  const result = await assessCapabilityInventoryWithSdk({
+    request: runtime.input.request,
+    workCaseId: runtime.progress.workCase.workCaseId,
+    judgmentId: runtime.judgment.judgmentId,
+    contributionNeedId: need.contributionNeedId,
+    contributionNeed: need.function,
+    capabilities: runtime.input.capabilities,
+    runner: runtime.input.runner
+  });
+  if (result.status !== "assessed") {
+    return decisionFailure(runtime.progress, "inventory", result);
+  }
+  const failed = await commitCheckpoint(runtime, "inventory", {
+    kind: "capability-inventory-assessed",
+    contributionNeedId: need.contributionNeedId,
+    result
+  });
+  if (failed) return failed;
+  runtime.progress.applicabilityAssessments.push(
+    ...result.dispositions.map(({ assessment }) => assessment)
+  );
+  runtime.progress.assignments.push(...result.assignments);
+  return void 0;
+}
+function needAssignments(runtime, need) {
+  return runtime.progress.assignments.filter(
+    (assignment) => assignment.workCaseId === runtime.progress.workCase.workCaseId && assignment.judgmentId === runtime.judgment.judgmentId && assignment.contributionNeedId === need.contributionNeedId
+  ).sort((left, right) => left.assignmentId.localeCompare(right.assignmentId));
+}
+async function prepareAssignmentContext(runtime, assignment) {
+  const existingContext = runtime.progress.contexts.find(
+    (context) => context.assignmentId === assignment.assignmentId
+  );
+  if (existingContext) return void 0;
+  const unresolved = runtime.progress.selections.find(
+    (selection) => selection.assignmentId === assignment.assignmentId && selection.status === "needs-context"
+  );
+  if (unresolved) {
+    return {
+      status: "needs-context",
+      assignmentId: assignment.assignmentId,
+      ...base(runtime.progress)
+    };
+  }
+  const capability = capabilityByRevision(
+    runtime.input.capabilities,
+    assignment.capabilityRevisionId
+  );
+  if (!capability) {
+    return invariantFailure(
+      runtime.progress,
+      "context",
+      "assigned-capability-unavailable",
+      "A current Assignment has no exact Pi-admitted Capability revision."
+    );
+  }
+  const stopped = consumeStep(runtime, "context");
+  if (stopped) return stopped;
+  const result = await sealCapabilityContextWithSdk({
+    request: runtime.input.request,
+    entry: capability.entry,
+    assignment,
+    runner: runtime.input.runner
+  });
+  if (result.status !== "sealed" && result.status !== "needs-context") {
+    return decisionFailure(runtime.progress, "context", result);
+  }
+  const failed = await commitCheckpoint(runtime, "context", {
+    kind: "capability-context-prepared",
+    skillName: capability.name,
+    assignment,
+    result
+  });
+  if (failed) return failed;
+  if (result.selection) runtime.progress.selections.push(result.selection);
+  if (result.status === "needs-context") {
+    return {
+      status: "needs-context",
+      assignmentId: assignment.assignmentId,
+      ...base(runtime.progress)
+    };
+  }
+  runtime.progress.contexts.push(result.context);
+  return void 0;
+}
+async function progressNeedContexts(runtime, need) {
+  for (const assignment of needAssignments(runtime, need)) {
+    const stopped = await prepareAssignmentContext(runtime, assignment);
+    if (stopped) return stopped;
+  }
+  return void 0;
+}
+function needContexts(runtime, need) {
+  return runtime.progress.contexts.filter(
+    (context) => context.workCaseId === runtime.progress.workCase.workCaseId && context.judgmentId === runtime.judgment.judgmentId && context.contributionNeedId === need.contributionNeedId
+  ).sort((left, right) => left.assignmentId.localeCompare(right.assignmentId));
+}
+async function acceptContextContribution(runtime, need, context) {
+  const assignment = runtime.progress.assignments.find(
+    (candidate) => candidate.assignmentId === context.assignmentId
+  );
+  const capability = assignment ? capabilityByRevision(
+    runtime.input.capabilities,
+    assignment.capabilityRevisionId
+  ) : void 0;
+  if (!assignment || !capability) {
+    return invariantFailure(
+      runtime.progress,
+      "contribution",
+      "context-assignment-unavailable",
+      "A sealed Context has no exact current Assignment and Capability."
+    );
+  }
+  const stopped = consumeStep(runtime, "contribution");
+  if (stopped) return stopped;
+  const result = await contributeSkillWithSdk({
+    request: runtime.input.request,
+    contributionNeed: need.function,
+    assignment,
+    context,
+    runner: runtime.input.runner
+  });
+  if (result.status !== "accepted") {
+    return decisionFailure(runtime.progress, "contribution", result);
+  }
+  const failed = await commitCheckpoint(runtime, "contribution", {
+    kind: "contribution-accepted",
+    skillName: capability.name,
+    result
+  });
+  if (failed) return failed;
+  runtime.progress.contributions.push(result.contribution);
+  return void 0;
+}
+async function progressNeedContributions(runtime, need) {
+  const contributionProgress = inspectContributionProgress({
+    workCaseId: runtime.progress.workCase.workCaseId,
+    judgmentId: runtime.judgment.judgmentId,
+    contexts: needContexts(runtime, need),
+    contributions: runtime.progress.contributions.filter(skillContribution).filter(
+      (contribution) => contribution.contributionNeedId === need.contributionNeedId
+    )
+  });
+  if (contributionProgress.status === "invalid") {
+    return invariantFailure(
+      runtime.progress,
+      "contribution",
+      contributionProgress.code,
+      contributionProgress.message
+    );
+  }
+  for (const context of contributionProgress.pendingContexts) {
+    const stopped = await acceptContextContribution(runtime, need, context);
+    if (stopped) return stopped;
+  }
+  return void 0;
+}
+function currentNeedCoverage(runtime, need) {
+  return runtime.progress.coverages.find(
+    (coverage) => coverage.workCaseId === runtime.progress.workCase.workCaseId && coverage.judgmentId === runtime.judgment.judgmentId && coverage.contributionNeedId === need.contributionNeedId
+  );
+}
+async function progressNeedCoverage(runtime, need) {
+  if (currentNeedCoverage(runtime, need)) return void 0;
+  const stopped = consumeStep(runtime, "coverage");
+  if (stopped) return stopped;
+  const result = await assessNeedCoverageWithSdk({
+    request: runtime.input.request,
+    contributionNeed: need.function,
+    target: {
+      workCaseId: runtime.progress.workCase.workCaseId,
+      judgmentId: runtime.judgment.judgmentId,
+      contributionNeedId: need.contributionNeedId
+    },
+    contributions: runtime.progress.contributions.filter(
+      (contribution) => contribution.workCaseId === runtime.progress.workCase.workCaseId && contribution.judgmentId === runtime.judgment.judgmentId && contribution.contributionNeedId === need.contributionNeedId
+    ),
+    runner: runtime.input.runner
+  });
+  if (result.status !== "assessed") {
+    return decisionFailure(runtime.progress, "coverage", result);
+  }
+  const failed = await commitCheckpoint(runtime, "coverage", {
+    kind: "coverage-assessed",
+    result
+  });
+  if (failed) return failed;
+  runtime.progress.coverages.push(result.coverage);
+  return void 0;
+}
+async function progressNeed(runtime, need) {
+  const inventory = await progressNeedInventory(runtime, need);
+  if (inventory) return inventory;
+  const contexts = await progressNeedContexts(runtime, need);
+  if (contexts) return contexts;
+  const contributions = await progressNeedContributions(runtime, need);
+  if (contributions) return contributions;
+  return progressNeedCoverage(runtime, need);
+}
+function conclusionFailure(progress, conclusion) {
+  if (conclusion.status === "refused") {
+    return {
+      status: "refused",
+      refusal: conclusion.refusal,
+      ...base(progress)
+    };
+  }
+  if (conclusion.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      stage: "conclusion",
+      reason: conclusion.reason,
+      ...base(progress)
+    };
+  }
+  if (conclusion.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      stage: "conclusion",
+      message: conclusion.message,
+      ...base(progress)
+    };
+  }
+  return invariantFailure(
+    progress,
+    "conclusion",
+    conclusion.code,
+    conclusion.message
+  );
+}
+async function progressConclusion(runtime) {
+  const stopped = consumeStep(runtime, "conclusion");
+  if (stopped) return stopped;
+  const conclusion = await concludeJudgmentWithSdk({
+    request: runtime.input.request,
+    contract: runtime.judgment,
+    coverages: runtime.progress.coverages.filter(
+      (coverage) => coverage.judgmentId === runtime.judgment.judgmentId
+    ),
+    runner: runtime.input.runner
+  });
+  if (conclusion.status !== "concluded") {
+    return conclusionFailure(runtime.progress, conclusion);
+  }
+  const recorded = recordWorkCaseConclusion(
+    runtime.progress.workCase,
+    conclusion.conclusion
+  );
+  if (recorded.status === "invalid") {
+    return invariantFailure(
+      runtime.progress,
+      "conclusion",
+      recorded.error.code,
+      recorded.error.message
+    );
+  }
+  const checkpoint = {
+    kind: "judgment-concluded",
+    result: conclusion,
+    workCase: recorded.value
+  };
+  const failed = await commitCheckpoint(runtime, "conclusion", checkpoint);
+  if (failed) return failed;
+  runtime.progress.workCase = recorded.value;
+  return {
+    status: "concluded",
+    conclusionId: conclusion.conclusion.conclusionId,
+    ...base(runtime.progress)
+  };
+}
+function initializeRuntime(input) {
+  const maximumSteps = positiveInteger(input.maxSteps, "maxSteps");
+  const progress = {
+    workCase: input.state.workCase,
+    applicabilityAssessments: [...input.state.applicabilityAssessments],
+    assignments: [...input.state.assignments],
+    selections: [...input.state.selections],
+    contexts: [...input.state.contexts],
+    contributions: [...input.state.contributions],
+    coverages: [...input.state.coverages],
+    steps: 0,
+    checkpoints: 0
+  };
+  if (input.capabilities.length === 0) {
+    return invariantFailure(
+      progress,
+      "inventory",
+      "empty-capability-inventory",
+      "Judgment progression requires the complete Pi-admitted Capability inventory."
+    );
+  }
+  const capabilityNames = new Set(input.capabilities.map(({ name }) => name));
+  const capabilityRevisions = new Set(
+    input.capabilities.map(
+      ({ entry }) => entry.capability.capabilityRevisionId
+    )
+  );
+  if (capabilityNames.size !== input.capabilities.length || capabilityRevisions.size !== input.capabilities.length) {
+    return invariantFailure(
+      progress,
+      "inventory",
+      "duplicate-capability-inventory",
+      "Pi-admitted Capability names and revisions must be unique."
+    );
+  }
+  if (progress.workCase.openJudgments.length !== 1) {
+    return invariantFailure(
+      progress,
+      "inventory",
+      "single-open-judgment-required",
+      "Judgment progression requires exactly one current open Judgment."
+    );
+  }
+  const judgment = progress.workCase.openJudgments[0];
+  if (judgment === void 0) {
+    throw new Error("unreachable open Judgment state");
+  }
+  return { input, progress, maximumSteps, judgment };
+}
+async function progressJudgmentWithSdk(input) {
+  const initialized = initializeRuntime(input);
+  if (!("judgment" in initialized)) return initialized;
+  for (const need of initialized.judgment.contributionNeeds) {
+    const stopped = await progressNeed(initialized, need);
+    if (stopped) return stopped;
+  }
+  return progressConclusion(initialized);
+}
+
+// src/action-loop/sdk/work-case-controller.ts
+import { Type as Type8 } from "typebox";
+var MAX_OUTCOME_ITEMS = 32;
+var MAX_BASIS_ITEMS4 = 16;
+function isRecord8(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function rejected8(code, message) {
+  return { status: "rejected", code, message };
+}
+async function openWorkCaseWithSdk(input) {
+  const decision = await input.runner.run({
+    systemPrompt: [
+      "Propose one bounded Outcome for the delegated request.",
+      "Call the supplied tool exactly once.",
+      "The SDK controller owns provenance, validation, identity, retries, and canonical opening.",
+      "JSON text fields must contain JSON arrays of strings without Markdown fences."
+    ].join("\n"),
+    prompt: [
+      `Delegated request: ${input.request}`,
+      "State the desired observable Outcome, acceptance conditions, current constraints, and explicit opening basis."
+    ].join("\n"),
+    tool: {
+      name: "submit_work_case_outcome",
+      label: "Submit Work Case Outcome",
+      description: "Submit one proposal. acceptance_conditions_json, constraints_json, and basis_json are JSON-encoded string arrays.",
+      parameters: Type8.Object(
+        {
+          statement: Type8.String({ minLength: 1, maxLength: 4096 }),
+          acceptance_conditions_json: Type8.String({
+            minLength: 2,
+            maxLength: 32768
+          }),
+          constraints_json: Type8.String({
+            minLength: 2,
+            maxLength: 32768
+          }),
+          basis_json: Type8.String({ minLength: 2, maxLength: 32768 })
+        },
+        { additionalProperties: false }
+      ),
+      execute: async (raw) => {
+        if (!isRecord8(raw) || typeof raw.statement !== "string") {
+          return rejected8(
+            "invalid-arguments",
+            "Work Case proposal requires a statement and three JSON text fields."
+          );
+        }
+        const acceptanceConditions = decodeSdkStringList({
+          value: raw.acceptance_conditions_json,
+          label: "acceptance_conditions_json",
+          allowEmpty: false,
+          maximumItems: MAX_OUTCOME_ITEMS
+        });
+        if (!acceptanceConditions.ok) {
+          return rejected8(
+            "invalid-acceptance-conditions",
+            acceptanceConditions.message
+          );
+        }
+        const constraints = decodeSdkStringList({
+          value: raw.constraints_json,
+          label: "constraints_json",
+          allowEmpty: true,
+          maximumItems: MAX_OUTCOME_ITEMS
+        });
+        if (!constraints.ok) {
+          return rejected8("invalid-constraints", constraints.message);
+        }
+        const basis = decodeSdkStringList({
+          value: raw.basis_json,
+          label: "basis_json",
+          allowEmpty: false,
+          maximumItems: MAX_BASIS_ITEMS4
+        });
+        if (!basis.ok) return rejected8("invalid-basis", basis.message);
+        const opened = openWorkCase({
+          outcome: {
+            statement: raw.statement,
+            acceptanceConditions: acceptanceConditions.value,
+            constraints: constraints.value
+          },
+          provenance: { kind: "model", source: "sdk:work-case-opening" }
+        });
+        if (opened.status === "invalid") {
+          return rejected8(opened.error.code, opened.error.message);
+        }
+        return {
+          status: "accepted",
+          value: { workCase: opened.value, basis: basis.value },
+          message: "Canonical Work Case Outcome accepted.",
+          resultStatus: "opened"
+        };
+      }
+    }
+  });
+  if (decision.status === "accepted") {
+    return {
+      status: "opened",
+      workCase: decision.value.workCase,
+      basis: decision.value.basis,
+      decision: decision.metrics
+    };
+  }
+  if (decision.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      reason: decision.reason,
+      decision: decision.metrics
+    };
+  }
+  return {
+    status: "runtime-failure",
+    message: decision.message,
+    decision: decision.metrics
+  };
+}
+
+// src/action-loop/sdk/action-loop-progression-controller.ts
+function positiveInteger2(value, label) {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${label} must be a positive safe integer.`);
+  }
+  return value;
+}
+function compactError2(error) {
+  return (error instanceof Error ? error.message : String(error)).slice(
+    0,
+    2048
+  );
+}
+function emptyProgressState(result) {
+  return Object.freeze({
+    workCase: result.workCase,
+    applicabilityAssessments: Object.freeze([]),
+    assignments: Object.freeze([]),
+    selections: Object.freeze([]),
+    contexts: Object.freeze([]),
+    contributions: Object.freeze([]),
+    coverages: Object.freeze([])
+  });
+}
+function withJudgment(state, result) {
+  return Object.freeze({ ...state, workCase: result.workCase });
+}
+function mapJudgmentResult(result, baseSteps, baseCheckpoints) {
+  const common = {
+    state: result.state,
+    steps: baseSteps + result.steps,
+    checkpoints: baseCheckpoints + result.checkpoints
+  };
+  switch (result.status) {
+    case "concluded":
+      return {
+        ...common,
+        status: "judgment-concluded",
+        conclusionId: result.conclusionId
+      };
+    case "needs-context":
+      return {
+        ...common,
+        status: "needs-context",
+        assignmentId: result.assignmentId
+      };
+    case "refused":
+      return {
+        ...common,
+        status: "judgment-refused",
+        refusal: result.refusal
+      };
+    case "bounded-stop":
+      return { ...common, status: result.status, stage: result.stage, reason: result.reason };
+    case "runtime-failure":
+      return { ...common, status: result.status, stage: result.stage, message: result.message };
+    case "invariant-failure":
+      return {
+        ...common,
+        status: result.status,
+        stage: result.stage,
+        code: result.code,
+        message: result.message
+      };
+    case "checkpoint-failure":
+      return {
+        ...common,
+        status: result.status,
+        stage: result.stage,
+        message: result.message,
+        pendingCheckpoint: result.pendingCheckpoint
+      };
+    default:
+      return result;
+  }
+}
+async function progressActionLoopWithSdk(input) {
+  const maxSteps = positiveInteger2(input.maxSteps, "maxSteps");
+  let state = input.state;
+  let steps = 0;
+  let checkpoints = 0;
+  if (!state) {
+    const opened = await openWorkCaseWithSdk({
+      request: input.request,
+      runner: input.runner
+    });
+    steps += 1;
+    if (opened.status === "bounded-stop") {
+      return {
+        status: "bounded-stop",
+        stage: "work-case",
+        reason: opened.reason,
+        steps,
+        checkpoints
+      };
+    }
+    if (opened.status === "runtime-failure") {
+      return {
+        status: "runtime-failure",
+        stage: "work-case",
+        message: opened.message,
+        steps,
+        checkpoints
+      };
+    }
+    const checkpoint = {
+      kind: "work-case-opened",
+      result: opened
+    };
+    try {
+      await input.checkpoint(checkpoint);
+    } catch (error) {
+      return {
+        status: "checkpoint-failure",
+        stage: "work-case",
+        message: compactError2(error),
+        pendingCheckpoint: checkpoint,
+        steps,
+        checkpoints
+      };
+    }
+    state = emptyProgressState(opened);
+    checkpoints += 1;
+  }
+  if (state.workCase.openJudgments.length === 0 && state.workCase.conclusions.length > 0) {
+    return {
+      status: "ready-for-action",
+      conclusionIds: state.workCase.conclusions.map(
+        (conclusion) => conclusion.conclusionId
+      ),
+      state,
+      steps,
+      checkpoints
+    };
+  }
+  if (state.workCase.openJudgments.length > 1) {
+    return {
+      status: "invariant-failure",
+      stage: "judgment",
+      code: "multiple-open-judgments",
+      message: "SDK progression requires at most one open Judgment.",
+      state,
+      steps,
+      checkpoints
+    };
+  }
+  if (state.workCase.openJudgments.length === 0) {
+    if (steps >= maxSteps) {
+      return {
+        status: "bounded-stop",
+        stage: "judgment",
+        reason: "progression-step-budget",
+        state,
+        steps,
+        checkpoints
+      };
+    }
+    const opened = await openJudgmentWithSdk({
+      request: input.request,
+      workCase: state.workCase,
+      contextRevisionId: state.workCase.revisionId,
+      runner: input.runner
+    });
+    steps += 1;
+    if (opened.status === "active-judgment-exists") {
+      return {
+        status: "invariant-failure",
+        stage: "judgment",
+        code: "active-judgment-exists",
+        message: "Judgment opening raced with another current Judgment.",
+        state,
+        steps,
+        checkpoints
+      };
+    }
+    if (opened.status === "bounded-stop") {
+      return {
+        status: "bounded-stop",
+        stage: "judgment",
+        reason: opened.reason,
+        state,
+        steps,
+        checkpoints
+      };
+    }
+    if (opened.status === "runtime-failure") {
+      return {
+        status: "runtime-failure",
+        stage: "judgment",
+        message: opened.message,
+        state,
+        steps,
+        checkpoints
+      };
+    }
+    const checkpoint = {
+      kind: "judgment-opened",
+      result: opened
+    };
+    try {
+      await input.checkpoint(checkpoint);
+    } catch (error) {
+      return {
+        status: "checkpoint-failure",
+        stage: "judgment",
+        message: compactError2(error),
+        pendingCheckpoint: checkpoint,
+        state,
+        steps,
+        checkpoints
+      };
+    }
+    state = withJudgment(state, opened);
+    checkpoints += 1;
+  }
+  if (steps >= maxSteps) {
+    return {
+      status: "bounded-stop",
+      stage: "inventory",
+      reason: "progression-step-budget",
+      state,
+      steps,
+      checkpoints
+    };
+  }
+  const progressed = await progressJudgmentWithSdk({
+    request: input.request,
+    state,
+    capabilities: input.capabilities,
+    runner: input.runner,
+    maxSteps: maxSteps - steps,
+    checkpoint: input.checkpoint
+  });
+  return mapJudgmentResult(progressed, steps, checkpoints);
+}
+
+// src/action-loop/sdk/completion-controller.ts
+import { StringEnum as StringEnum8 } from "@earendil-works/pi-ai";
+import { Type as Type9 } from "typebox";
+
+// src/action-loop/work/accept-closure-claim.ts
+var CLOSURE_CLAIM_VERSION = "developer-closure-claim/v1";
+var PROVENANCE_KINDS10 = /* @__PURE__ */ new Set([
+  "model",
+  "human",
+  "tool",
+  "external"
+]);
+function canonicalStrings2(values, path, allowed) {
+  if (!Array.isArray(values)) {
+    return {
+      ok: false,
+      error: {
+        code: allowed === void 0 ? "empty-basis" : "undeclared-evidence",
+        path,
+        message: "Expected a list"
+      }
+    };
+  }
+  const normalized = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (let index = 0; index < values.length; index += 1) {
+    const raw = values[index];
+    const value = typeof raw === "string" ? raw.trim() : "";
+    if (value.length === 0 || seen.has(value)) {
+      return {
+        ok: false,
+        error: {
+          code: allowed === void 0 ? "empty-basis" : "undeclared-evidence",
+          path: `${path}[${index}]`,
+          message: "Expected a unique nonblank value"
+        }
+      };
+    }
+    if (allowed !== void 0 && !allowed.has(value)) {
+      return {
+        ok: false,
+        error: {
+          code: "undeclared-evidence",
+          path: `${path}[${index}]`,
+          message: `Evidence is not present in the Closure Target: ${value}`
+        }
+      };
+    }
+    seen.add(value);
+    normalized.push(value);
+  }
+  normalized.sort((left, right) => left.localeCompare(right));
+  return { ok: true, value: Object.freeze(normalized) };
+}
+function canonicalBasis9(values, path) {
+  const result = canonicalStrings2(values, path);
+  if (!result.ok) return result;
+  if (result.value.length === 0) {
+    return {
+      ok: false,
+      error: { code: "empty-basis", path, message: "Expected explicit basis" }
+    };
+  }
+  return result;
+}
+function canonicalDisposition(proposal, index, context) {
+  const path = `proposal.obligationDispositions[${index}]`;
+  if (proposal === void 0 || !context.obligationIds.has(proposal.closureObligationId) || context.accountedIds.has(proposal.closureObligationId)) {
+    return {
+      ok: false,
+      error: {
+        code: "obligation-accounting",
+        path: `${path}.closureObligationId`,
+        message: "Obligation must be declared and accounted exactly once"
+      }
+    };
+  }
+  const conclusionIds = canonicalStrings2(
+    proposal.conclusionIds,
+    `${path}.conclusionIds`,
+    context.conclusionIds
+  );
+  if (!conclusionIds.ok) return conclusionIds;
+  const effectAssessmentIds = canonicalStrings2(
+    proposal.effectAssessmentIds,
+    `${path}.effectAssessmentIds`,
+    context.effectAssessmentIds
+  );
+  if (!effectAssessmentIds.ok) return effectAssessmentIds;
+  const effectRemediationIds = canonicalStrings2(
+    proposal.effectRemediationIds,
+    `${path}.effectRemediationIds`,
+    context.effectRemediationIds
+  );
+  if (!effectRemediationIds.ok) return effectRemediationIds;
+  if (conclusionIds.value.length + effectAssessmentIds.value.length + effectRemediationIds.value.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "evidence-required",
+        path,
+        message: "Satisfied obligation requires current target evidence"
+      }
+    };
+  }
+  const basis = canonicalBasis9(proposal.basis, `${path}.basis`);
+  if (!basis.ok) return basis;
+  return {
+    ok: true,
+    value: Object.freeze({
+      closureObligationId: proposal.closureObligationId,
+      status: "satisfied",
+      conclusionIds: conclusionIds.value,
+      effectAssessmentIds: effectAssessmentIds.value,
+      effectRemediationIds: effectRemediationIds.value,
+      basis: basis.value
+    })
+  };
+}
+function canonicalDispositionAccounting(target, proposals) {
+  if (!Array.isArray(proposals)) {
+    return {
+      ok: false,
+      error: {
+        code: "obligation-accounting",
+        path: "proposal.obligationDispositions",
+        message: "Expected complete Closure obligation accounting"
+      }
+    };
+  }
+  const byId = /* @__PURE__ */ new Map();
+  const citedConclusionIds = /* @__PURE__ */ new Set();
+  const citedEffectAssessmentIds = /* @__PURE__ */ new Set();
+  const citedEffectRemediationIds = /* @__PURE__ */ new Set();
+  for (let index = 0; index < proposals.length; index += 1) {
+    const disposition = canonicalDisposition(proposals[index], index, {
+      obligationIds: new Set(
+        target.obligations.map(
+          ({ closureObligationId }) => closureObligationId
+        )
+      ),
+      accountedIds: new Set(byId.keys()),
+      conclusionIds: new Set(target.conclusionIds),
+      effectAssessmentIds: new Set(target.effectAssessmentIds),
+      effectRemediationIds: new Set(target.effectRemediationIds)
+    });
+    if (!disposition.ok) return disposition;
+    byId.set(disposition.value.closureObligationId, disposition.value);
+    for (const id of disposition.value.conclusionIds)
+      citedConclusionIds.add(id);
+    for (const id of disposition.value.effectAssessmentIds) {
+      citedEffectAssessmentIds.add(id);
+    }
+    for (const id of disposition.value.effectRemediationIds) {
+      citedEffectRemediationIds.add(id);
+    }
+  }
+  if (byId.size !== target.obligations.length) {
+    return {
+      ok: false,
+      error: {
+        code: "obligation-accounting",
+        path: "proposal.obligationDispositions",
+        message: "Every Closure obligation requires one disposition"
+      }
+    };
+  }
+  const dispositions = [];
+  for (const obligation of target.obligations) {
+    const disposition = byId.get(obligation.closureObligationId);
+    if (disposition === void 0) {
+      return {
+        ok: false,
+        error: {
+          code: "obligation-accounting",
+          path: "proposal.obligationDispositions",
+          message: `Missing obligation: ${obligation.closureObligationId}`
+        }
+      };
+    }
+    dispositions.push(disposition);
+  }
+  return {
+    ok: true,
+    value: {
+      dispositions: Object.freeze(dispositions),
+      citedConclusionIds,
+      citedEffectAssessmentIds,
+      citedEffectRemediationIds
+    }
+  };
+}
+function allEvidenceApplied(target, accounting) {
+  return target.conclusionIds.every((id) => accounting.citedConclusionIds.has(id)) && target.effectAssessmentIds.every(
+    (id) => accounting.citedEffectAssessmentIds.has(id)
+  ) && target.effectRemediationIds.every(
+    (id) => accounting.citedEffectRemediationIds.has(id)
+  );
+}
+function canonicalProvenance9(provenance) {
+  if (typeof provenance !== "object" || provenance === null || !PROVENANCE_KINDS10.has(provenance.kind) || typeof provenance.source !== "string" || provenance.source.trim().length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid-provenance",
+        path: "proposal.provenance",
+        message: "Expected explicit Closure Claim provenance"
+      }
+    };
+  }
+  return {
+    ok: true,
+    value: Object.freeze({
+      kind: provenance.kind,
+      source: provenance.source.trim()
+    })
+  };
+}
+function claimIdentityParts(target, mode, dispositions, basis) {
+  const parts = [target.closureTargetId, mode];
+  for (const disposition of dispositions) {
+    parts.push(
+      disposition.closureObligationId,
+      "conclusions",
+      ...disposition.conclusionIds,
+      "effect-assessments",
+      ...disposition.effectAssessmentIds,
+      "effect-remediations",
+      ...disposition.effectRemediationIds,
+      "basis",
+      ...disposition.basis
+    );
+  }
+  parts.push("claim-basis", ...basis);
+  return parts;
+}
+function acceptClosureClaim(target, proposal) {
+  if (proposal.workCaseId !== target.workCaseId || proposal.closureTargetId !== target.closureTargetId) {
+    return {
+      status: "invalid",
+      error: {
+        code: "identity-mismatch",
+        path: "proposal",
+        message: "Closure Claim does not bind the sealed Closure Target"
+      }
+    };
+  }
+  if (proposal.mode !== "completed" && proposal.mode !== "no-change") {
+    return {
+      status: "invalid",
+      error: {
+        code: "unsupported-mode",
+        path: "proposal.mode",
+        message: "Unsupported Closure Claim mode"
+      }
+    };
+  }
+  const accounting = canonicalDispositionAccounting(
+    target,
+    proposal.obligationDispositions
+  );
+  if (!accounting.ok) return { status: "invalid", error: accounting.error };
+  if (!allEvidenceApplied(target, accounting.value)) {
+    return {
+      status: "invalid",
+      error: {
+        code: "evidence-accounting",
+        path: "proposal.obligationDispositions",
+        message: "Every current Conclusion and Effect assessment must be applied"
+      }
+    };
+  }
+  const basis = canonicalBasis9(proposal.basis, "proposal.basis");
+  if (!basis.ok) return { status: "invalid", error: basis.error };
+  const provenance = canonicalProvenance9(proposal.provenance);
+  if (!provenance.ok) return { status: "invalid", error: provenance.error };
+  return {
+    status: "accepted",
+    value: Object.freeze({
+      closureClaimId: hashIdentity(
+        "closure_claim",
+        CLOSURE_CLAIM_VERSION,
+        claimIdentityParts(
+          target,
+          proposal.mode,
+          accounting.value.dispositions,
+          basis.value
+        )
+      ),
+      workCaseId: target.workCaseId,
+      workCaseRevisionId: target.workCaseRevisionId,
+      closureTargetId: target.closureTargetId,
+      mode: proposal.mode,
+      obligationDispositions: accounting.value.dispositions,
+      basis: basis.value,
+      provenance: provenance.value
+    })
+  };
+}
+
+// src/action-loop/work/complete-work-case.ts
+var WORK_CASE_COMPLETION_VERSION = "developer-work-case-completion/v1";
+function refused(code, message) {
+  return { status: "refused", refusal: { code, message } };
+}
+function completeWorkCase(workCase, target, claim) {
+  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
+    return refused(
+      "stale-work-case",
+      "Work Case revision does not match its closure inventory"
+    );
+  }
+  const currentTarget = prepareClosureTarget(workCase);
+  if (currentTarget.status !== "ready") {
+    return refused(
+      "closure-not-ready",
+      "Current Work Case cannot produce a complete Closure Target"
+    );
+  }
+  if (target.workCaseId !== workCase.workCaseId || target.workCaseRevisionId !== workCase.revisionId || target.closureTargetId !== currentTarget.value.closureTargetId) {
+    return refused(
+      "stale-closure-target",
+      "Closure Target does not represent the complete current Work Case"
+    );
+  }
+  if (claim.workCaseId !== workCase.workCaseId || claim.workCaseRevisionId !== workCase.revisionId || claim.closureTargetId !== target.closureTargetId) {
+    return refused(
+      "identity-mismatch",
+      "Closure Claim does not bind the current Closure Target"
+    );
+  }
+  const priorRevisionId = workCase.revisionId;
+  const revisionId = hashIdentity(
+    "work_case_completion",
+    WORK_CASE_COMPLETION_VERSION,
+    [workCase.workCaseId, priorRevisionId, claim.closureClaimId]
+  );
+  return {
+    status: "completed",
+    value: Object.freeze({
+      ...workCase,
+      status: "complete",
+      revisionId,
+      priorRevisionId,
+      closureTarget: target,
+      closureClaim: claim
+    })
+  };
+}
+
+// src/action-loop/sdk/completion-controller.ts
+var completionModes = ["completed", "no-change"];
+function isRecord9(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function rejected9(code, message) {
+  return { status: "rejected", code, message };
+}
+function completionParameters(target) {
+  const fields = {
+    mode: StringEnum8(completionModes),
+    basis_json: Type9.String({
+      minLength: 2,
+      maxLength: 32768,
+      description: "JSON array of one or more whole-Work-Case closure basis strings."
+    })
+  };
+  for (const [index, obligation] of target.obligations.entries()) {
+    fields[`obligation_${index}_conclusion_indices_json`] = Type9.String({
+      minLength: 2,
+      maxLength: 32768,
+      description: "JSON array of current Conclusion indices applied here."
+    });
+    fields[`obligation_${index}_effect_indices_json`] = Type9.String({
+      minLength: 2,
+      maxLength: 32768,
+      description: "JSON array of current Effect assessment indices applied here."
+    });
+    fields[`obligation_${index}_remediation_indices_json`] = Type9.String({
+      minLength: 2,
+      maxLength: 32768,
+      description: "JSON array of current Effect remediation indices applied here."
+    });
+    fields[`obligation_${index}_basis`] = Type9.String({
+      minLength: 1,
+      maxLength: 2048,
+      description: `${obligation.kind}: ${obligation.statement}`
+    });
+  }
+  return Type9.Object(fields, { additionalProperties: false });
+}
+function decodeIndexList(input) {
+  const decoded = decodeSdkProposalJson(input.value, input.label);
+  if (!decoded.ok) return decoded;
+  if (!Array.isArray(decoded.value) || decoded.value.length > input.inventory.length || decoded.value.some(
+    (index) => typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= input.inventory.length
+  )) {
+    return {
+      ok: false,
+      message: `${input.label} must encode only current inventory indices.`
+    };
+  }
+  const indices = decoded.value;
+  if (new Set(indices).size !== indices.length) {
+    return {
+      ok: false,
+      message: `${input.label} cannot contain duplicate indices.`
+    };
+  }
+  return {
+    ok: true,
+    value: Object.freeze(indices.map((index) => input.inventory[index] ?? ""))
+  };
+}
+function decodeObligationDisposition(input) {
+  const obligation = input.target.obligations[input.index];
+  if (obligation === void 0) {
+    return {
+      ok: false,
+      message: `Closure Obligation ${input.index} is unavailable.`
+    };
+  }
+  const prefix = `obligation_${input.index}`;
+  const conclusionIds = decodeIndexList({
+    value: input.raw[`${prefix}_conclusion_indices_json`],
+    label: `${prefix}_conclusion_indices_json`,
+    inventory: input.target.conclusionIds
+  });
+  if (!conclusionIds.ok) return conclusionIds;
+  const effectAssessmentIds = decodeIndexList({
+    value: input.raw[`${prefix}_effect_indices_json`],
+    label: `${prefix}_effect_indices_json`,
+    inventory: input.target.effectAssessmentIds
+  });
+  if (!effectAssessmentIds.ok) return effectAssessmentIds;
+  const effectRemediationIds = decodeIndexList({
+    value: input.raw[`${prefix}_remediation_indices_json`],
+    label: `${prefix}_remediation_indices_json`,
+    inventory: input.target.effectRemediationIds
+  });
+  if (!effectRemediationIds.ok) return effectRemediationIds;
+  const basis = input.raw[`${prefix}_basis`];
+  if (typeof basis !== "string") {
+    return {
+      ok: false,
+      message: `${prefix}_basis must be non-empty text.`
+    };
+  }
+  return {
+    ok: true,
+    value: {
+      closureObligationId: obligation.closureObligationId,
+      conclusionIds: conclusionIds.value,
+      effectAssessmentIds: effectAssessmentIds.value,
+      effectRemediationIds: effectRemediationIds.value,
+      basis: [basis]
+    }
+  };
+}
+function decodeObligationDispositions(input) {
+  const dispositions = [];
+  for (const index of input.target.obligations.keys()) {
+    const disposition = decodeObligationDisposition({ ...input, index });
+    if (!disposition.ok) return disposition;
+    dispositions.push(disposition.value);
+  }
+  return { ok: true, value: Object.freeze(dispositions) };
+}
+function completionTool(input) {
+  return {
+    name: "submit_work_case_completion",
+    label: "Submit complete current Work Case closure accounting",
+    description: "Apply all current Conclusions, Effect assessments, and remediations to every closure obligation before atomic revalidation.",
+    parameters: completionParameters(input.target),
+    execute: async (raw) => {
+      if (!isRecord9(raw)) {
+        return rejected9(
+          "invalid-arguments",
+          "Completion arguments must be an object."
+        );
+      }
+      if (raw.mode !== "completed" && raw.mode !== "no-change") {
+        return rejected9(
+          "invalid-completion-mode",
+          "mode must be completed or no-change."
+        );
+      }
+      const dispositions = decodeObligationDispositions({
+        raw,
+        target: input.target
+      });
+      if (!dispositions.ok) {
+        return rejected9("invalid-obligation-accounting", dispositions.message);
+      }
+      const basis = decodeSdkStringList({
+        value: raw.basis_json,
+        label: "basis_json",
+        allowEmpty: false,
+        maximumItems: 32
+      });
+      if (!basis.ok) return rejected9("invalid-basis", basis.message);
+      const claim = acceptClosureClaim(input.target, {
+        workCaseId: input.workCase.workCaseId,
+        closureTargetId: input.target.closureTargetId,
+        mode: raw.mode,
+        obligationDispositions: dispositions.value,
+        basis: basis.value,
+        provenance: { kind: "model", source: "pi:sdk-action-loop" }
+      });
+      if (claim.status === "invalid") {
+        return rejected9(claim.error.code, claim.error.message);
+      }
+      const completed = completeWorkCase(
+        input.workCase,
+        input.target,
+        claim.value
+      );
+      if (completed.status === "refused") {
+        return rejected9(completed.refusal.code, completed.refusal.message);
+      }
+      return {
+        status: "accepted",
+        value: { claim: claim.value, completed: completed.value },
+        message: `Work Case completion accepted as ${claim.value.mode}.`,
+        resultStatus: claim.value.mode
+      };
+    }
+  };
+}
+function completionPrompt(input) {
+  const obligations = input.target.obligations.map(
+    (obligation, index) => `Obligation ${index} (${obligation.kind}): ${obligation.statement}`
+  ).join("\n");
+  const conclusions = input.workCase.conclusions.map(
+    (conclusion, index) => `Conclusion ${index} (${conclusion.category}): ${conclusion.answer}`
+  ).join("\n");
+  const effects = input.workCase.currentEffectAssessments.map(
+    (assessment, index) => `Effect assessment ${index}: ${assessment.outcome} \u2014 ${assessment.basis.join(" | ")}`
+  ).join("\n");
+  const remediations = input.workCase.effectRemediations.map(
+    (remediation, index) => `Effect remediation ${index}: ${remediation.basis.join(" | ")}`
+  ).join("\n");
+  return [
+    `Delegated request:
+${input.request}`,
+    `Outcome:
+${input.workCase.outcome.statement}`,
+    `Current closure obligations:
+${obligations}`,
+    `Current Conclusions:
+${conclusions || "none"}`,
+    `Current Effect assessments:
+${effects || "none"}`,
+    `Current Effect remediations:
+${remediations || "none"}`,
+    "Map every current evidence item to one or more obligations where it materially applies. The SDK will reject omitted, stale, duplicate, or caller-selected subsets and revalidate the complete current revision."
+  ].join("\n\n");
+}
+async function completeWorkCaseWithSdk(input) {
+  const prepared = prepareClosureTarget(input.workCase);
+  if (prepared.status === "invalid") {
+    return {
+      status: "invariant-failure",
+      code: prepared.error.code,
+      message: prepared.error.message
+    };
+  }
+  if (prepared.status === "not-ready") {
+    return { status: "not-ready", blockers: prepared.blockers };
+  }
+  const decision = await input.runner.run({
+    systemPrompt: [
+      "Account for one complete current Work Case closure target.",
+      "Call the supplied decision tool exactly once and disposition every closure obligation.",
+      "Apply every current Conclusion, Effect assessment, and remediation without inventing identities.",
+      "The SDK controller owns the complete inventory, canonical admission, current-revision revalidation, retries, and stop decisions."
+    ].join("\n"),
+    prompt: completionPrompt({ ...input, target: prepared.value }),
+    tool: completionTool({
+      workCase: input.workCase,
+      target: prepared.value
+    })
+  });
+  if (decision.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      reason: decision.reason,
+      decision: decision.metrics
+    };
+  }
+  if (decision.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      message: decision.message,
+      decision: decision.metrics
+    };
+  }
+  const revalidated = completeWorkCase(
+    input.workCase,
+    prepared.value,
+    decision.value.claim
+  );
+  if (revalidated.status === "refused" || revalidated.value.revisionId !== decision.value.completed.revisionId) {
+    return {
+      status: "invariant-failure",
+      code: revalidated.status === "refused" ? revalidated.refusal.code : "completion-identity-drift",
+      message: revalidated.status === "refused" ? revalidated.refusal.message : "Accepted Work Case completion did not reproduce its identity.",
+      decision: decision.metrics
+    };
+  }
+  return {
+    status: "completed",
+    target: prepared.value,
+    claim: decision.value.claim,
+    workCase: revalidated.value,
+    decision: decision.metrics
+  };
+}
+
+// src/action-loop/sdk/context-progress.ts
+function invalid21(code, message) {
+  return { status: "invalid", code, message };
+}
+function indexAssignments(input) {
+  const assignments = /* @__PURE__ */ new Map();
+  for (const assignment of input.assignments) {
+    if (assignment.workCaseId !== input.workCaseId || assignment.judgmentId !== input.judgmentId || assignment.contributionNeedId !== input.contributionNeedId) {
+      return {
+        ok: false,
+        error: invalid21(
+          "assignment-mismatch",
+          `Assignment ${assignment.assignmentId} does not belong to the requested Work Case, Judgment, and Contribution Need.`
+        )
+      };
+    }
+    if (assignments.has(assignment.assignmentId)) {
+      return {
+        ok: false,
+        error: invalid21(
+          "duplicate-assignment",
+          `Assignment ${assignment.assignmentId} occurs more than once.`
+        )
+      };
+    }
+    assignments.set(assignment.assignmentId, assignment);
+  }
+  return { ok: true, value: assignments };
+}
+function indexSelections(selections, assignments) {
+  const indexed = /* @__PURE__ */ new Map();
+  for (const selection of selections) {
+    const assignment = assignments.get(selection.assignmentId);
+    if (assignment === void 0 || selection.capabilityRevisionId !== assignment.capabilityRevisionId) {
+      return {
+        ok: false,
+        error: invalid21(
+          "selection-mismatch",
+          `Reference Selection ${selection.selectionId} has no exact current Assignment.`
+        )
+      };
+    }
+    if (indexed.has(selection.assignmentId)) {
+      return {
+        ok: false,
+        error: invalid21(
+          "duplicate-selection",
+          `Assignment ${selection.assignmentId} has more than one Reference Selection.`
+        )
+      };
+    }
+    indexed.set(selection.assignmentId, selection);
+  }
+  return { ok: true, value: indexed };
+}
+function matchingContext(input, context, assignment) {
+  return assignment !== void 0 && context.workCaseId === input.workCaseId && context.judgmentId === input.judgmentId && context.contributionNeedId === input.contributionNeedId && context.capabilityRevisionId === assignment.capabilityRevisionId;
+}
+function matchingContextMode(context, selection) {
+  if ("routing" in context) return selection === void 0;
+  return selection !== void 0 && selection.status === "ready" && selection.selectionId === context.selectionId;
+}
+function indexContexts(input, assignments, selections) {
+  const indexed = /* @__PURE__ */ new Map();
+  for (const context of input.contexts) {
+    if (!matchingContext(input, context, assignments.get(context.assignmentId))) {
+      return {
+        ok: false,
+        error: invalid21(
+          "context-mismatch",
+          `Sealed Context ${context.sealedContextId} has no exact current Assignment.`
+        )
+      };
+    }
+    if (indexed.has(context.assignmentId)) {
+      return {
+        ok: false,
+        error: invalid21(
+          "duplicate-context",
+          `Assignment ${context.assignmentId} has more than one sealed Context.`
+        )
+      };
+    }
+    if (!matchingContextMode(context, selections.get(context.assignmentId))) {
+      return {
+        ok: false,
+        error: invalid21(
+          "inconsistent-context",
+          `Sealed Context ${context.sealedContextId} does not match its routing mode and Reference Selection.`
+        )
+      };
+    }
+    indexed.set(context.assignmentId, context);
+  }
+  return { ok: true, value: indexed };
+}
+function validateSelections(selections, contexts) {
+  for (const selection of selections) {
+    const hasContext = contexts.has(selection.assignmentId);
+    if (selection.status === "ready" && !hasContext) {
+      return invalid21(
+        "inconsistent-context",
+        `Ready Reference Selection ${selection.selectionId} has no sealed Context.`
+      );
+    }
+    if (selection.status === "needs-context" && hasContext) {
+      return invalid21(
+        "inconsistent-context",
+        `Unresolved Reference Selection ${selection.selectionId} cannot have a sealed Context.`
+      );
+    }
+  }
+  return void 0;
+}
+function inspectCapabilityContextProgress(input) {
+  const assignments = indexAssignments(input);
+  if (!assignments.ok) return assignments.error;
+  const selections = indexSelections(input.selections, assignments.value);
+  if (!selections.ok) return selections.error;
+  const contexts = indexContexts(input, assignments.value, selections.value);
+  if (!contexts.ok) return contexts.error;
+  const inconsistency = validateSelections(input.selections, contexts.value);
+  if (inconsistency !== void 0) return inconsistency;
+  const completedAssignmentIds = Object.freeze(
+    [...contexts.value.keys()].sort((left, right) => left.localeCompare(right))
+  );
+  const unresolvedSelections = Object.freeze(
+    input.selections.filter((selection) => selection.status === "needs-context").sort(
+      (left, right) => left.assignmentId.localeCompare(right.assignmentId)
+    )
+  );
+  const unresolvedAssignmentIds = new Set(
+    unresolvedSelections.map((selection) => selection.assignmentId)
+  );
+  const pendingAssignments = Object.freeze(
+    input.assignments.filter(
+      (assignment) => !contexts.value.has(assignment.assignmentId) && !unresolvedAssignmentIds.has(assignment.assignmentId)
+    ).sort(
+      (left, right) => left.assignmentId.localeCompare(right.assignmentId)
+    )
+  );
+  if (pendingAssignments.length > 0) {
+    return {
+      status: "pending",
+      pendingAssignments,
+      unresolvedSelections,
+      completedAssignmentIds
+    };
+  }
+  if (unresolvedSelections.length > 0) {
+    return {
+      status: "needs-context",
+      pendingAssignments: Object.freeze([]),
+      unresolvedSelections,
+      completedAssignmentIds
+    };
+  }
+  return {
+    status: "complete",
+    pendingAssignments: Object.freeze([]),
+    unresolvedSelections: Object.freeze([]),
+    completedAssignmentIds
+  };
+}
+
 // src/action-loop/sdk/coverage-progress.ts
-function invalid19(code, message) {
+function invalid22(code, message) {
   return { status: "invalid", code, message };
 }
 function inspectCoverageProgress(input) {
   const needsById = /* @__PURE__ */ new Map();
   for (const need of input.contributionNeeds) {
     if (needsById.has(need.contributionNeedId)) {
-      return invalid19(
+      return invalid22(
         "duplicate-need",
         `Contribution Need ${need.contributionNeedId} occurs more than once.`
       );
@@ -8258,13 +9602,13 @@ function inspectCoverageProgress(input) {
   const coveragesByNeed = /* @__PURE__ */ new Map();
   for (const coverage of input.coverages) {
     if (coverage.workCaseId !== input.workCaseId || coverage.judgmentId !== input.judgmentId || !needsById.has(coverage.contributionNeedId)) {
-      return invalid19(
+      return invalid22(
         "coverage-mismatch",
         `Need Coverage ${coverage.coverageId} has no exact current Contribution Need.`
       );
     }
     if (coveragesByNeed.has(coverage.contributionNeedId)) {
-      return invalid19(
+      return invalid22(
         "duplicate-coverage",
         `Contribution Need ${coverage.contributionNeedId} has more than one current Coverage assessment.`
       );
@@ -8290,13 +9634,13 @@ function inspectCoverageProgress(input) {
 }
 
 // src/action-loop/sdk/decision-controller.ts
-function positiveInteger(value, label) {
+function positiveInteger3(value, label) {
   if (!Number.isSafeInteger(value) || value < 1) {
     throw new RangeError(`${label} must be a positive safe integer`);
   }
   return value;
 }
-function compactError(error) {
+function compactError3(error) {
   const message = error instanceof Error ? error.message : String(error);
   return message.replace(/\s+/g, " ").trim().slice(0, 320) || "Unknown SDK error";
 }
@@ -8366,7 +9710,7 @@ function subscribeToAttempt(input) {
     input.observation.toolErrors += 1;
     input.counters.toolErrors += 1;
     input.counters.errorMessages.push(
-      `${event.toolName}: ${compactError(resultText(event.result))}`
+      `${event.toolName}: ${compactError3(resultText(event.result))}`
     );
     if (input.observation.toolErrors >= input.maximumErrors) {
       void input.session.abort();
@@ -8468,7 +9812,7 @@ async function runDecisionAttempt(input) {
       input.counters.nonRuntimeRuns += 1;
     } else {
       input.counters.runtimeFailures += 1;
-      runtimeError = compactError(error);
+      runtimeError = compactError3(error);
       input.counters.errorMessages.push(`runtime: ${runtimeError}`);
     }
   } finally {
@@ -8539,12 +9883,12 @@ async function runBoundedDecision(options, request, maximumRuns, maximumErrors, 
   };
 }
 function createPiSdkDecisionRunner(options) {
-  const maximumRuns = positiveInteger(options.maxRuns, "maxRuns");
-  const maximumErrors = positiveInteger(
+  const maximumRuns = positiveInteger3(options.maxRuns, "maxRuns");
+  const maximumErrors = positiveInteger3(
     options.maxToolErrorsPerRun,
     "maxToolErrorsPerRun"
   );
-  const maximumRunMs = positiveInteger(options.maxRunMs ?? 12e4, "maxRunMs");
+  const maximumRunMs = positiveInteger3(options.maxRunMs ?? 12e4, "maxRunMs");
   return Object.freeze({
     run: (request) => runBoundedDecision(
       options,
@@ -8557,8 +9901,8 @@ function createPiSdkDecisionRunner(options) {
 }
 
 // src/action-loop/sdk/effect-controller.ts
-import { StringEnum as StringEnum8 } from "@earendil-works/pi-ai";
-import { Type as Type8 } from "typebox";
+import { StringEnum as StringEnum9 } from "@earendil-works/pi-ai";
+import { Type as Type10 } from "typebox";
 
 // src/action-loop/effect/effect-settlement.ts
 var EFFECT_SETTLEMENT_VERSION = "developer-effect-settlement/v1";
@@ -8582,13 +9926,13 @@ var INTENDED_EFFECT_STATUSES = /* @__PURE__ */ new Set([
   "partially-observed",
   "unknown"
 ]);
-var PROVENANCE_KINDS10 = /* @__PURE__ */ new Set([
+var PROVENANCE_KINDS11 = /* @__PURE__ */ new Set([
   "model",
   "human",
   "tool",
   "external"
 ]);
-function invalid20(code, path, message) {
+function invalid23(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function canonicalBasis10(values, path) {
@@ -8630,7 +9974,7 @@ function canonicalBasis10(values, path) {
   return { ok: true, value: Object.freeze(normalized) };
 }
 function canonicalProvenance10(provenance) {
-  if (typeof provenance !== "object" || provenance === null || !PROVENANCE_KINDS10.has(provenance.kind)) {
+  if (typeof provenance !== "object" || provenance === null || !PROVENANCE_KINDS11.has(provenance.kind)) {
     return {
       ok: false,
       error: {
@@ -8980,14 +10324,14 @@ function accountingIdentityParts(input) {
 }
 function settleEffect(effect, observations, proposal) {
   if (proposal.workCaseId !== effect.workCaseId || proposal.effectId !== effect.effectId) {
-    return invalid20(
+    return invalid23(
       "identity-mismatch",
       "proposal",
       "Settlement proposal targets another Work Case or Effect"
     );
   }
   if (!OUTCOMES.has(proposal.outcome)) {
-    return invalid20(
+    return invalid23(
       "unsupported-outcome",
       "proposal.outcome",
       `Unsupported Effect outcome ${proposal.outcome}`
@@ -9020,7 +10364,7 @@ function settleEffect(effect, observations, proposal) {
     intendedDispositions.value
   );
   if (proposal.outcome !== derived) {
-    return invalid20(
+    return invalid23(
       "outcome-mismatch",
       "proposal.outcome",
       `Current accounting derives ${derived}, not ${proposal.outcome}`
@@ -9088,29 +10432,29 @@ var intendedStatuses = [
   "partially-observed",
   "unknown"
 ];
-function isRecord8(value) {
+function isRecord10(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isEffectSettlementOutcome(value) {
   return effectOutcomes.some((candidate) => candidate === value);
 }
-function rejected8(code, message) {
+function rejected10(code, message) {
   return { status: "rejected", code, message };
 }
 function effectParameters(input) {
   const fields = {
-    outcome: StringEnum8(effectOutcomes),
-    basis_json: Type8.String({
+    outcome: StringEnum9(effectOutcomes),
+    basis_json: Type10.String({
       minLength: 2,
       maxLength: 32768,
       description: "JSON array of one or more Effect accounting basis strings."
     })
   };
   for (const [index, observation] of input.observations.entries()) {
-    fields[`observation_status_${index}`] = StringEnum8(observationStatuses, {
+    fields[`observation_status_${index}`] = StringEnum9(observationStatuses, {
       description: observation.statement
     });
-    fields[`observation_basis_${index}`] = Type8.String({
+    fields[`observation_basis_${index}`] = Type10.String({
       minLength: 1,
       maxLength: 2048
     });
@@ -9119,20 +10463,20 @@ function effectParameters(input) {
     effectIndex,
     intendedEffect
   ] of input.effect.intendedEffects.entries()) {
-    fields[`intended_status_${effectIndex}`] = StringEnum8(intendedStatuses, {
+    fields[`intended_status_${effectIndex}`] = StringEnum9(intendedStatuses, {
       description: intendedEffect
     });
-    fields[`intended_basis_${effectIndex}`] = Type8.String({
+    fields[`intended_basis_${effectIndex}`] = Type10.String({
       minLength: 1,
       maxLength: 2048
     });
     for (const observationIndex of input.observations.keys()) {
-      fields[`intended_${effectIndex}_observation_${observationIndex}`] = Type8.Boolean({
+      fields[`intended_${effectIndex}_observation_${observationIndex}`] = Type10.Boolean({
         description: "Whether this exact current Observation supports the intended Effect disposition."
       });
     }
   }
-  return Type8.Object(fields, { additionalProperties: false });
+  return Type10.Object(fields, { additionalProperties: false });
 }
 function decodeObservationDispositions(input) {
   const dispositions = [];
@@ -9241,21 +10585,21 @@ function effectTool(input) {
     description: "Disposition every current Observation and intended Effect without treating tool return as implicit success.",
     parameters: effectParameters(input),
     execute: async (raw) => {
-      if (!isRecord8(raw)) {
-        return rejected8(
+      if (!isRecord10(raw)) {
+        return rejected10(
           "invalid-arguments",
           "Effect settlement arguments must be an object."
         );
       }
       const proposal = canonicalProposal4({ ...input, raw });
-      if (!proposal.ok) return rejected8(proposal.code, proposal.message);
+      if (!proposal.ok) return rejected10(proposal.code, proposal.message);
       const settled = settleEffect(
         input.effect,
         input.observations,
         proposal.value
       );
       if (settled.status === "invalid") {
-        return rejected8(settled.error.code, settled.error.message);
+        return rejected10(settled.error.code, settled.error.message);
       }
       return {
         status: "accepted",
@@ -9357,1111 +10701,6 @@ async function settleEffectWithSdk(input) {
     decision: decision.metrics
   };
 }
-
-// src/action-loop/sdk/judgment-controller.ts
-import { StringEnum as StringEnum9 } from "@earendil-works/pi-ai";
-import { Type as Type9 } from "typebox";
-
-// src/action-loop/judgment/open-judgment.ts
-var OPEN_JUDGMENT_VERSION = "developer-open-judgment/v1";
-var CATEGORIES = /* @__PURE__ */ new Set([
-  "Contextual Adequacy",
-  "Proportionate Intervention",
-  "Consequence Integrity",
-  "Claim Assurance"
-]);
-var PROVENANCE_KINDS11 = /* @__PURE__ */ new Set(["model", "human", "tool", "external"]);
-var MAX_TEXT_LENGTH2 = 4096;
-var MAX_REQUIREMENTS = 32;
-var MAX_NEEDS_PER_REQUIREMENT = 32;
-var MAX_BASIS_ITEMS2 = 16;
-function invalid21(code, path, message) {
-  return { status: "invalid", error: { code, path, message } };
-}
-function validId6(value) {
-  return typeof value === "string" && value.length > 0 && value === value.trim() && value.length <= MAX_TEXT_LENGTH2 && !value.includes("\0");
-}
-function canonicalText15(value, path) {
-  const text = typeof value === "string" ? value.trim() : "";
-  if (text.length === 0 || text.length > MAX_TEXT_LENGTH2) {
-    return {
-      ok: false,
-      error: {
-        code: "invalid-text",
-        path,
-        message: "Expected a bounded nonblank string"
-      }
-    };
-  }
-  return { ok: true, value: text };
-}
-function canonicalStrings2(values, path, maximumItems, allowEmpty = false) {
-  if (!Array.isArray(values) || values.length > maximumItems || !allowEmpty && values.length === 0) {
-    const code = path === "proposal.basis" ? "invalid-basis" : "invalid-contribution-needs";
-    return {
-      ok: false,
-      error: {
-        code,
-        path,
-        message: "Expected a bounded list of nonblank unique values"
-      }
-    };
-  }
-  const normalized = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (let index = 0; index < values.length; index += 1) {
-    const text = canonicalText15(values[index], `${path}[${index}]`);
-    if (!text.ok) return text;
-    if (seen.has(text.value)) {
-      return {
-        ok: false,
-        error: {
-          code: "duplicate-value",
-          path: `${path}[${index}]`,
-          message: "Value duplicates an earlier normalized value"
-        }
-      };
-    }
-    seen.add(text.value);
-    normalized.push(text.value);
-  }
-  normalized.sort((left, right) => left.localeCompare(right));
-  return { ok: true, value: Object.freeze(normalized) };
-}
-function canonicalRequirements(proposals) {
-  if (!Array.isArray(proposals) || proposals.length === 0 || proposals.length > MAX_REQUIREMENTS) {
-    return {
-      ok: false,
-      error: {
-        code: "invalid-requirements",
-        path: "proposal.requirements",
-        message: "Expected at least one bounded Closure Requirement"
-      }
-    };
-  }
-  const requirements = [];
-  const statements = /* @__PURE__ */ new Set();
-  for (let index = 0; index < proposals.length; index += 1) {
-    const proposal = proposals[index];
-    if (proposal === void 0 || typeof proposal !== "object") {
-      return {
-        ok: false,
-        error: {
-          code: "invalid-requirements",
-          path: `proposal.requirements[${index}]`,
-          message: "Expected a Closure Requirement proposal"
-        }
-      };
-    }
-    const statement = canonicalText15(
-      proposal.statement,
-      `proposal.requirements[${index}].statement`
-    );
-    if (!statement.ok) return statement;
-    if (statements.has(statement.value)) {
-      return {
-        ok: false,
-        error: {
-          code: "duplicate-value",
-          path: `proposal.requirements[${index}].statement`,
-          message: "Closure Requirement duplicates an earlier statement"
-        }
-      };
-    }
-    const needs = canonicalStrings2(
-      proposal.contributionNeeds,
-      `proposal.requirements[${index}].contributionNeeds`,
-      MAX_NEEDS_PER_REQUIREMENT
-    );
-    if (!needs.ok) return needs;
-    statements.add(statement.value);
-    requirements.push(
-      Object.freeze({
-        statement: statement.value,
-        contributionNeeds: needs.value
-      })
-    );
-  }
-  requirements.sort(
-    (left, right) => left.statement.localeCompare(right.statement)
-  );
-  return { ok: true, value: Object.freeze(requirements) };
-}
-function openJudgment(proposal) {
-  if (!validId6(proposal.workCaseId) || !validId6(proposal.contextRevisionId)) {
-    return invalid21(
-      "invalid-id",
-      "proposal",
-      "Expected canonical Work Case and Context revision IDs"
-    );
-  }
-  if (!CATEGORIES.has(proposal.category)) {
-    return invalid21(
-      "unsupported-category",
-      "proposal.category",
-      "Unsupported Judgment Category"
-    );
-  }
-  const subject = canonicalText15(proposal.subject, "proposal.subject");
-  if (!subject.ok) return { status: "invalid", error: subject.error };
-  const question = canonicalText15(proposal.question, "proposal.question");
-  if (!question.ok) return { status: "invalid", error: question.error };
-  const canonical = canonicalRequirements(proposal.requirements);
-  if (!canonical.ok) return { status: "invalid", error: canonical.error };
-  const basis = canonicalStrings2(
-    proposal.basis,
-    "proposal.basis",
-    MAX_BASIS_ITEMS2
-  );
-  if (!basis.ok) return { status: "invalid", error: basis.error };
-  if (typeof proposal.provenance !== "object" || proposal.provenance === null || !PROVENANCE_KINDS11.has(proposal.provenance.kind) || !validId6(proposal.provenance.source)) {
-    return invalid21(
-      "invalid-provenance",
-      "proposal.provenance",
-      "Expected bounded supported proposal provenance"
-    );
-  }
-  const identityParts4 = [
-    proposal.workCaseId,
-    proposal.category,
-    subject.value,
-    question.value,
-    proposal.contextRevisionId,
-    "requirements",
-    ...canonical.value.flatMap(({ statement, contributionNeeds: contributionNeeds2 }) => [
-      statement,
-      "needs",
-      String(contributionNeeds2.length),
-      ...contributionNeeds2
-    ])
-  ];
-  const judgmentId = hashIdentity(
-    "open_judgment",
-    OPEN_JUDGMENT_VERSION,
-    identityParts4
-  );
-  const contributionNeeds = [];
-  const requirements = canonical.value.map(
-    ({ statement, contributionNeeds: needFunctions }) => {
-      const requirementId = hashIdentity(
-        "closure_requirement",
-        OPEN_JUDGMENT_VERSION,
-        [judgmentId, statement]
-      );
-      const contributionNeedIds = needFunctions.map((needFunction) => {
-        const contributionNeedId = hashIdentity(
-          "contribution_need",
-          OPEN_JUDGMENT_VERSION,
-          [requirementId, needFunction]
-        );
-        contributionNeeds.push(
-          Object.freeze({
-            contributionNeedId,
-            requirementId,
-            function: needFunction
-          })
-        );
-        return contributionNeedId;
-      });
-      contributionNeedIds.sort((left, right) => left.localeCompare(right));
-      return Object.freeze({
-        requirementId,
-        statement,
-        contributionNeedIds: Object.freeze(contributionNeedIds)
-      });
-    }
-  );
-  contributionNeeds.sort(
-    (left, right) => left.contributionNeedId.localeCompare(right.contributionNeedId)
-  );
-  return {
-    status: "opened",
-    value: Object.freeze({
-      workCaseId: proposal.workCaseId,
-      judgmentId,
-      category: proposal.category,
-      subject: subject.value,
-      question: question.value,
-      contextRevisionId: proposal.contextRevisionId,
-      requirements: Object.freeze(requirements),
-      contributionNeeds: Object.freeze(contributionNeeds),
-      basis: basis.value,
-      provenance: Object.freeze({
-        kind: proposal.provenance.kind,
-        source: proposal.provenance.source
-      }),
-      status: "open"
-    })
-  };
-}
-
-// src/action-loop/work/record-work-case-judgment.ts
-function invalid22(code, path, message) {
-  return { status: "invalid", error: { code, path, message } };
-}
-function recordWorkCaseJudgment(workCase, judgment) {
-  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-    return invalid22(
-      "stale-work-case",
-      "workCase.revisionId",
-      "Work Case revision does not match its closure inventory"
-    );
-  }
-  if (workCaseInventoryIssue(workCase) !== void 0) {
-    return invalid22(
-      "invalid-work-case-inventory",
-      "workCase",
-      "Work Case closure inventory is relationally incoherent"
-    );
-  }
-  if (judgment.workCaseId !== workCase.workCaseId) {
-    return invalid22(
-      "identity-mismatch",
-      "judgment.workCaseId",
-      "Judgment belongs to another Work Case"
-    );
-  }
-  if (workCase.conclusions.some(
-    ({ judgmentId }) => judgmentId === judgment.judgmentId
-  )) {
-    return invalid22(
-      "judgment-already-concluded",
-      "judgment.judgmentId",
-      "A Conclusion already closes this Judgment"
-    );
-  }
-  if (workCase.openJudgments.some(
-    ({ judgmentId }) => judgmentId === judgment.judgmentId
-  )) {
-    return { status: "unchanged", value: workCase };
-  }
-  const openJudgments = Object.freeze(
-    [...workCase.openJudgments, judgment].sort(
-      (left, right) => left.judgmentId.localeCompare(right.judgmentId)
-    )
-  );
-  const nextState = { ...workCase, openJudgments };
-  return {
-    status: "recorded",
-    value: Object.freeze({
-      ...nextState,
-      revisionId: deriveWorkCaseRevisionId(nextState)
-    })
-  };
-}
-
-// src/action-loop/sdk/judgment-controller.ts
-var categories = [
-  "Contextual Adequacy",
-  "Proportionate Intervention",
-  "Consequence Integrity",
-  "Claim Assurance"
-];
-var MAX_REQUIREMENTS2 = 8;
-var MAX_NEEDS_PER_REQUIREMENT2 = 8;
-var MAX_BASIS_ITEMS3 = 16;
-function isRecord9(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function rejected9(code, message) {
-  return { status: "rejected", code, message };
-}
-function isCategory(value) {
-  return categories.some((category) => category === value);
-}
-function decodeRequirements(value) {
-  const decoded = decodeSdkProposalJson(value, "requirements_json");
-  if (!decoded.ok || !Array.isArray(decoded.value) || decoded.value.length === 0 || decoded.value.length > MAX_REQUIREMENTS2) {
-    return {
-      ok: false,
-      message: decoded.ok ? `requirements_json must encode 1-${MAX_REQUIREMENTS2} Requirement objects.` : decoded.message
-    };
-  }
-  const requirements = [];
-  for (const item of decoded.value) {
-    if (!isRecord9(item)) {
-      return {
-        ok: false,
-        message: "Every Requirement must be an object."
-      };
-    }
-    const keys = Object.keys(item).sort(
-      (left, right) => left.localeCompare(right)
-    );
-    if (keys.length !== 2 || keys[0] !== "contribution_needs" || keys[1] !== "statement" || typeof item.statement !== "string" || !Array.isArray(item.contribution_needs) || item.contribution_needs.length === 0 || item.contribution_needs.length > MAX_NEEDS_PER_REQUIREMENT2 || item.contribution_needs.some((need) => typeof need !== "string")) {
-      return {
-        ok: false,
-        message: "Every Requirement must contain only statement and 1-8 string contribution_needs."
-      };
-    }
-    requirements.push({
-      statement: item.statement,
-      contributionNeeds: item.contribution_needs
-    });
-  }
-  return { ok: true, value: requirements };
-}
-async function openJudgmentWithSdk(input) {
-  const existing = input.workCase.openJudgments[0];
-  if (existing !== void 0) {
-    return { status: "active-judgment-exists", judgment: existing };
-  }
-  const decision = await input.runner.run({
-    systemPrompt: [
-      "Propose one Category-scoped Judgment for the current unresolved Warrant Gap.",
-      "Call the supplied tool exactly once.",
-      "Requirements state closure obligations. Contribution Needs state missing input functions, never Skill names.",
-      "The SDK controller owns Work Case identity, Context revision, provenance, validation, retries, and recording.",
-      "requirements_json and basis_json must be JSON text without Markdown fences."
-    ].join("\n"),
-    prompt: [
-      `Delegated request: ${input.request}`,
-      `Current Outcome: ${input.workCase.outcome.statement}`,
-      "Open only one independently closable Judgment needed to advance this Outcome."
-    ].join("\n"),
-    tool: {
-      name: "submit_judgment",
-      label: "Submit Judgment",
-      description: "Submit one Judgment. requirements_json is an array of {statement, contribution_needs}; basis_json is a string array.",
-      parameters: Type9.Object(
-        {
-          category: StringEnum9(categories),
-          subject: Type9.String({ minLength: 1, maxLength: 4096 }),
-          question: Type9.String({ minLength: 1, maxLength: 4096 }),
-          requirements_json: Type9.String({
-            minLength: 2,
-            maxLength: 32768
-          }),
-          basis_json: Type9.String({ minLength: 2, maxLength: 32768 })
-        },
-        { additionalProperties: false }
-      ),
-      execute: async (raw) => {
-        if (!isRecord9(raw) || !isCategory(raw.category) || typeof raw.subject !== "string" || typeof raw.question !== "string") {
-          return rejected9(
-            "invalid-arguments",
-            "Judgment requires category, subject, question, requirements_json, and basis_json."
-          );
-        }
-        const requirements = decodeRequirements(raw.requirements_json);
-        if (!requirements.ok) {
-          return rejected9("invalid-requirements", requirements.message);
-        }
-        const basis = decodeSdkStringList({
-          value: raw.basis_json,
-          label: "basis_json",
-          allowEmpty: false,
-          maximumItems: MAX_BASIS_ITEMS3
-        });
-        if (!basis.ok) return rejected9("invalid-basis", basis.message);
-        const proposal = {
-          workCaseId: input.workCase.workCaseId,
-          contextRevisionId: input.contextRevisionId,
-          category: raw.category,
-          subject: raw.subject,
-          question: raw.question,
-          requirements: requirements.value,
-          basis: basis.value,
-          provenance: { kind: "model", source: "sdk:judgment-opening" }
-        };
-        const opened = openJudgment(proposal);
-        if (opened.status === "invalid") {
-          return rejected9(opened.error.code, opened.error.message);
-        }
-        const recorded = recordWorkCaseJudgment(input.workCase, opened.value);
-        if (recorded.status === "invalid") {
-          return rejected9(recorded.error.code, recorded.error.message);
-        }
-        return {
-          status: "accepted",
-          value: { workCase: recorded.value, judgment: opened.value },
-          message: `Judgment accepted as ${recorded.status}.`,
-          resultStatus: recorded.status
-        };
-      }
-    }
-  });
-  if (decision.status === "accepted") {
-    return {
-      status: decision.value.workCase.revisionId === input.workCase.revisionId ? "unchanged" : "opened",
-      workCase: decision.value.workCase,
-      judgment: decision.value.judgment,
-      decision: decision.metrics
-    };
-  }
-  if (decision.status === "bounded-stop") {
-    return {
-      status: "bounded-stop",
-      reason: decision.reason,
-      decision: decision.metrics
-    };
-  }
-  return {
-    status: "runtime-failure",
-    message: decision.message,
-    decision: decision.metrics
-  };
-}
-
-// src/action-loop/work/record-work-case-conclusion.ts
-function invalid23(code, path, message) {
-  return { status: "invalid", error: { code, path, message } };
-}
-function hasCurrentRevision(workCase) {
-  return workCase.revisionId === deriveWorkCaseRevisionId(workCase);
-}
-function recordWorkCaseConclusion(workCase, conclusion) {
-  if (!hasCurrentRevision(workCase)) {
-    return invalid23(
-      "stale-work-case",
-      "workCase.revisionId",
-      "Work Case revision does not match its closure inventory"
-    );
-  }
-  if (conclusion.workCaseId !== workCase.workCaseId) {
-    return invalid23(
-      "identity-mismatch",
-      "conclusion.workCaseId",
-      "Conclusion belongs to another Work Case"
-    );
-  }
-  if (workCase.conclusions.some(
-    ({ conclusionId }) => conclusionId === conclusion.conclusionId
-  )) {
-    return { status: "unchanged", value: workCase };
-  }
-  const openJudgment2 = workCase.openJudgments.find(
-    ({ judgmentId }) => judgmentId === conclusion.judgmentId
-  );
-  if (openJudgment2 !== void 0 && (openJudgment2.category !== conclusion.category || openJudgment2.subject !== conclusion.subject || openJudgment2.contextRevisionId !== conclusion.contextRevisionId)) {
-    return invalid23(
-      "identity-mismatch",
-      "conclusion",
-      "Conclusion changes the identity of its open Judgment"
-    );
-  }
-  const conclusions = Object.freeze(
-    [...workCase.conclusions, conclusion].sort(
-      (left, right) => left.conclusionId.localeCompare(right.conclusionId)
-    )
-  );
-  const openJudgments = Object.freeze(
-    workCase.openJudgments.filter(
-      ({ judgmentId }) => judgmentId !== conclusion.judgmentId
-    )
-  );
-  const nextState = {
-    ...workCase,
-    openJudgments,
-    conclusions
-  };
-  return {
-    status: "recorded",
-    value: Object.freeze({
-      ...nextState,
-      revisionId: deriveWorkCaseRevisionId(nextState)
-    })
-  };
-}
-
-// src/action-loop/sdk/judgment-progression-controller.ts
-function positiveInteger2(value, label) {
-  if (!Number.isSafeInteger(value) || value < 1) {
-    throw new RangeError(`${label} must be a positive safe integer`);
-  }
-  return value;
-}
-function compactError2(error) {
-  return (error instanceof Error ? error.message : String(error)).slice(0, 2048);
-}
-function snapshot(progress) {
-  return Object.freeze({
-    workCase: progress.workCase,
-    applicabilityAssessments: Object.freeze([
-      ...progress.applicabilityAssessments
-    ]),
-    assignments: Object.freeze([...progress.assignments]),
-    selections: Object.freeze([...progress.selections]),
-    contexts: Object.freeze([...progress.contexts]),
-    contributions: Object.freeze([...progress.contributions]),
-    coverages: Object.freeze([...progress.coverages])
-  });
-}
-function base(progress) {
-  return {
-    state: snapshot(progress),
-    steps: progress.steps,
-    checkpoints: progress.checkpoints
-  };
-}
-function invariantFailure(progress, stage, code, message) {
-  return {
-    status: "invariant-failure",
-    stage,
-    code,
-    message,
-    ...base(progress)
-  };
-}
-function capabilityByRevision(capabilities, capabilityRevisionId) {
-  return capabilities.find(
-    (candidate) => candidate.entry.capability.capabilityRevisionId === capabilityRevisionId
-  );
-}
-function currentNeedAssessments(progress, judgmentId, contributionNeedId) {
-  return progress.applicabilityAssessments.filter(
-    (assessment) => assessment.workCaseId === progress.workCase.workCaseId && assessment.judgmentId === judgmentId && assessment.contributionNeedId === contributionNeedId
-  );
-}
-function completeInventory(input) {
-  if (input.assessments.length === 0) return { status: "missing" };
-  const currentRevisions = new Set(
-    input.capabilities.map(
-      (capability) => capability.entry.capability.capabilityRevisionId
-    )
-  );
-  const assessedRevisions = new Set(
-    input.assessments.map((assessment) => assessment.capabilityRevisionId)
-  );
-  if (assessedRevisions.size !== input.assessments.length || input.assessments.some(
-    (assessment) => !currentRevisions.has(assessment.capabilityRevisionId)
-  )) {
-    return {
-      status: "invalid",
-      code: "capability-inventory-mismatch",
-      message: "Current applicability assessments contain duplicate or unavailable Capability revisions."
-    };
-  }
-  if (assessedRevisions.size !== currentRevisions.size) {
-    return {
-      status: "invalid",
-      code: "partial-capability-inventory",
-      message: "A current Contribution Need has a partial Capability inventory; progression requires one complete atomic inventory assessment."
-    };
-  }
-  return { status: "complete" };
-}
-async function commitCheckpoint(runtime, stage, checkpoint) {
-  try {
-    await runtime.input.checkpoint(checkpoint);
-    runtime.progress.checkpoints += 1;
-    return void 0;
-  } catch (error) {
-    return {
-      status: "checkpoint-failure",
-      stage,
-      message: compactError2(error),
-      pendingCheckpoint: checkpoint,
-      ...base(runtime.progress)
-    };
-  }
-}
-function consumeStep(runtime, stage) {
-  if (runtime.progress.steps >= runtime.maximumSteps) {
-    return {
-      status: "bounded-stop",
-      stage,
-      reason: "progression-step-budget",
-      ...base(runtime.progress)
-    };
-  }
-  runtime.progress.steps += 1;
-  return void 0;
-}
-function decisionFailure(progress, stage, result) {
-  if (result.status === "bounded-stop") {
-    return {
-      status: "bounded-stop",
-      stage,
-      reason: result.reason,
-      ...base(progress)
-    };
-  }
-  if (result.status === "runtime-failure") {
-    return {
-      status: "runtime-failure",
-      stage,
-      message: result.message,
-      ...base(progress)
-    };
-  }
-  return invariantFailure(
-    progress,
-    stage,
-    "code" in result ? result.code : result.status,
-    result.message
-  );
-}
-function skillContribution(contribution) {
-  return "assignmentId" in contribution && "sealedContextId" in contribution;
-}
-async function progressNeedInventory(runtime, need) {
-  const assessments = currentNeedAssessments(
-    runtime.progress,
-    runtime.judgment.judgmentId,
-    need.contributionNeedId
-  );
-  const inventory = completeInventory({
-    assessments,
-    capabilities: runtime.input.capabilities
-  });
-  if (inventory.status === "invalid") {
-    return invariantFailure(
-      runtime.progress,
-      "inventory",
-      inventory.code,
-      inventory.message
-    );
-  }
-  if (inventory.status === "complete") return void 0;
-  const stopped = consumeStep(runtime, "inventory");
-  if (stopped) return stopped;
-  const result = await assessCapabilityInventoryWithSdk({
-    request: runtime.input.request,
-    workCaseId: runtime.progress.workCase.workCaseId,
-    judgmentId: runtime.judgment.judgmentId,
-    contributionNeedId: need.contributionNeedId,
-    contributionNeed: need.function,
-    capabilities: runtime.input.capabilities,
-    runner: runtime.input.runner
-  });
-  if (result.status !== "assessed") {
-    return decisionFailure(runtime.progress, "inventory", result);
-  }
-  const failed = await commitCheckpoint(runtime, "inventory", {
-    kind: "capability-inventory-assessed",
-    contributionNeedId: need.contributionNeedId,
-    result
-  });
-  if (failed) return failed;
-  runtime.progress.applicabilityAssessments.push(
-    ...result.dispositions.map(({ assessment }) => assessment)
-  );
-  runtime.progress.assignments.push(...result.assignments);
-  return void 0;
-}
-function needAssignments(runtime, need) {
-  return runtime.progress.assignments.filter(
-    (assignment) => assignment.workCaseId === runtime.progress.workCase.workCaseId && assignment.judgmentId === runtime.judgment.judgmentId && assignment.contributionNeedId === need.contributionNeedId
-  ).sort((left, right) => left.assignmentId.localeCompare(right.assignmentId));
-}
-async function prepareAssignmentContext(runtime, assignment) {
-  const existingContext = runtime.progress.contexts.find(
-    (context) => context.assignmentId === assignment.assignmentId
-  );
-  if (existingContext) return void 0;
-  const unresolved = runtime.progress.selections.find(
-    (selection) => selection.assignmentId === assignment.assignmentId && selection.status === "needs-context"
-  );
-  if (unresolved) {
-    return {
-      status: "needs-context",
-      assignmentId: assignment.assignmentId,
-      ...base(runtime.progress)
-    };
-  }
-  const capability = capabilityByRevision(
-    runtime.input.capabilities,
-    assignment.capabilityRevisionId
-  );
-  if (!capability) {
-    return invariantFailure(
-      runtime.progress,
-      "context",
-      "assigned-capability-unavailable",
-      "A current Assignment has no exact Pi-admitted Capability revision."
-    );
-  }
-  const stopped = consumeStep(runtime, "context");
-  if (stopped) return stopped;
-  const result = await sealCapabilityContextWithSdk({
-    request: runtime.input.request,
-    entry: capability.entry,
-    assignment,
-    runner: runtime.input.runner
-  });
-  if (result.status !== "sealed" && result.status !== "needs-context") {
-    return decisionFailure(runtime.progress, "context", result);
-  }
-  const failed = await commitCheckpoint(runtime, "context", {
-    kind: "capability-context-prepared",
-    skillName: capability.name,
-    assignment,
-    result
-  });
-  if (failed) return failed;
-  if (result.selection) runtime.progress.selections.push(result.selection);
-  if (result.status === "needs-context") {
-    return {
-      status: "needs-context",
-      assignmentId: assignment.assignmentId,
-      ...base(runtime.progress)
-    };
-  }
-  runtime.progress.contexts.push(result.context);
-  return void 0;
-}
-async function progressNeedContexts(runtime, need) {
-  for (const assignment of needAssignments(runtime, need)) {
-    const stopped = await prepareAssignmentContext(runtime, assignment);
-    if (stopped) return stopped;
-  }
-  return void 0;
-}
-function needContexts(runtime, need) {
-  return runtime.progress.contexts.filter(
-    (context) => context.workCaseId === runtime.progress.workCase.workCaseId && context.judgmentId === runtime.judgment.judgmentId && context.contributionNeedId === need.contributionNeedId
-  ).sort((left, right) => left.assignmentId.localeCompare(right.assignmentId));
-}
-async function acceptContextContribution(runtime, need, context) {
-  const assignment = runtime.progress.assignments.find(
-    (candidate) => candidate.assignmentId === context.assignmentId
-  );
-  const capability = assignment ? capabilityByRevision(
-    runtime.input.capabilities,
-    assignment.capabilityRevisionId
-  ) : void 0;
-  if (!assignment || !capability) {
-    return invariantFailure(
-      runtime.progress,
-      "contribution",
-      "context-assignment-unavailable",
-      "A sealed Context has no exact current Assignment and Capability."
-    );
-  }
-  const stopped = consumeStep(runtime, "contribution");
-  if (stopped) return stopped;
-  const result = await contributeSkillWithSdk({
-    request: runtime.input.request,
-    contributionNeed: need.function,
-    assignment,
-    context,
-    runner: runtime.input.runner
-  });
-  if (result.status !== "accepted") {
-    return decisionFailure(runtime.progress, "contribution", result);
-  }
-  const failed = await commitCheckpoint(runtime, "contribution", {
-    kind: "contribution-accepted",
-    skillName: capability.name,
-    result
-  });
-  if (failed) return failed;
-  runtime.progress.contributions.push(result.contribution);
-  return void 0;
-}
-async function progressNeedContributions(runtime, need) {
-  const contributionProgress = inspectContributionProgress({
-    workCaseId: runtime.progress.workCase.workCaseId,
-    judgmentId: runtime.judgment.judgmentId,
-    contexts: needContexts(runtime, need),
-    contributions: runtime.progress.contributions.filter(skillContribution).filter(
-      (contribution) => contribution.contributionNeedId === need.contributionNeedId
-    )
-  });
-  if (contributionProgress.status === "invalid") {
-    return invariantFailure(
-      runtime.progress,
-      "contribution",
-      contributionProgress.code,
-      contributionProgress.message
-    );
-  }
-  for (const context of contributionProgress.pendingContexts) {
-    const stopped = await acceptContextContribution(runtime, need, context);
-    if (stopped) return stopped;
-  }
-  return void 0;
-}
-function currentNeedCoverage(runtime, need) {
-  return runtime.progress.coverages.find(
-    (coverage) => coverage.workCaseId === runtime.progress.workCase.workCaseId && coverage.judgmentId === runtime.judgment.judgmentId && coverage.contributionNeedId === need.contributionNeedId
-  );
-}
-async function progressNeedCoverage(runtime, need) {
-  if (currentNeedCoverage(runtime, need)) return void 0;
-  const stopped = consumeStep(runtime, "coverage");
-  if (stopped) return stopped;
-  const result = await assessNeedCoverageWithSdk({
-    request: runtime.input.request,
-    contributionNeed: need.function,
-    target: {
-      workCaseId: runtime.progress.workCase.workCaseId,
-      judgmentId: runtime.judgment.judgmentId,
-      contributionNeedId: need.contributionNeedId
-    },
-    contributions: runtime.progress.contributions.filter(
-      (contribution) => contribution.workCaseId === runtime.progress.workCase.workCaseId && contribution.judgmentId === runtime.judgment.judgmentId && contribution.contributionNeedId === need.contributionNeedId
-    ),
-    runner: runtime.input.runner
-  });
-  if (result.status !== "assessed") {
-    return decisionFailure(runtime.progress, "coverage", result);
-  }
-  const failed = await commitCheckpoint(runtime, "coverage", {
-    kind: "coverage-assessed",
-    result
-  });
-  if (failed) return failed;
-  runtime.progress.coverages.push(result.coverage);
-  return void 0;
-}
-async function progressNeed(runtime, need) {
-  const inventory = await progressNeedInventory(runtime, need);
-  if (inventory) return inventory;
-  const contexts = await progressNeedContexts(runtime, need);
-  if (contexts) return contexts;
-  const contributions = await progressNeedContributions(runtime, need);
-  if (contributions) return contributions;
-  return progressNeedCoverage(runtime, need);
-}
-function conclusionFailure(progress, conclusion) {
-  if (conclusion.status === "refused") {
-    return {
-      status: "refused",
-      refusal: conclusion.refusal,
-      ...base(progress)
-    };
-  }
-  if (conclusion.status === "bounded-stop") {
-    return {
-      status: "bounded-stop",
-      stage: "conclusion",
-      reason: conclusion.reason,
-      ...base(progress)
-    };
-  }
-  if (conclusion.status === "runtime-failure") {
-    return {
-      status: "runtime-failure",
-      stage: "conclusion",
-      message: conclusion.message,
-      ...base(progress)
-    };
-  }
-  return invariantFailure(
-    progress,
-    "conclusion",
-    conclusion.code,
-    conclusion.message
-  );
-}
-async function progressConclusion(runtime) {
-  const stopped = consumeStep(runtime, "conclusion");
-  if (stopped) return stopped;
-  const conclusion = await concludeJudgmentWithSdk({
-    request: runtime.input.request,
-    contract: runtime.judgment,
-    coverages: runtime.progress.coverages.filter(
-      (coverage) => coverage.judgmentId === runtime.judgment.judgmentId
-    ),
-    runner: runtime.input.runner
-  });
-  if (conclusion.status !== "concluded") {
-    return conclusionFailure(runtime.progress, conclusion);
-  }
-  const recorded = recordWorkCaseConclusion(
-    runtime.progress.workCase,
-    conclusion.conclusion
-  );
-  if (recorded.status === "invalid") {
-    return invariantFailure(
-      runtime.progress,
-      "conclusion",
-      recorded.error.code,
-      recorded.error.message
-    );
-  }
-  const checkpoint = {
-    kind: "judgment-concluded",
-    result: conclusion,
-    workCase: recorded.value
-  };
-  const failed = await commitCheckpoint(runtime, "conclusion", checkpoint);
-  if (failed) return failed;
-  runtime.progress.workCase = recorded.value;
-  return {
-    status: "concluded",
-    conclusionId: conclusion.conclusion.conclusionId,
-    ...base(runtime.progress)
-  };
-}
-function initializeRuntime(input) {
-  const maximumSteps = positiveInteger2(input.maxSteps, "maxSteps");
-  const progress = {
-    workCase: input.state.workCase,
-    applicabilityAssessments: [...input.state.applicabilityAssessments],
-    assignments: [...input.state.assignments],
-    selections: [...input.state.selections],
-    contexts: [...input.state.contexts],
-    contributions: [...input.state.contributions],
-    coverages: [...input.state.coverages],
-    steps: 0,
-    checkpoints: 0
-  };
-  if (input.capabilities.length === 0) {
-    return invariantFailure(
-      progress,
-      "inventory",
-      "empty-capability-inventory",
-      "Judgment progression requires the complete Pi-admitted Capability inventory."
-    );
-  }
-  const capabilityNames = new Set(input.capabilities.map(({ name }) => name));
-  const capabilityRevisions = new Set(
-    input.capabilities.map(
-      ({ entry }) => entry.capability.capabilityRevisionId
-    )
-  );
-  if (capabilityNames.size !== input.capabilities.length || capabilityRevisions.size !== input.capabilities.length) {
-    return invariantFailure(
-      progress,
-      "inventory",
-      "duplicate-capability-inventory",
-      "Pi-admitted Capability names and revisions must be unique."
-    );
-  }
-  if (progress.workCase.openJudgments.length !== 1) {
-    return invariantFailure(
-      progress,
-      "inventory",
-      "single-open-judgment-required",
-      "Judgment progression requires exactly one current open Judgment."
-    );
-  }
-  const judgment = progress.workCase.openJudgments[0];
-  if (judgment === void 0) {
-    throw new Error("unreachable open Judgment state");
-  }
-  return { input, progress, maximumSteps, judgment };
-}
-async function progressJudgmentWithSdk(input) {
-  const initialized = initializeRuntime(input);
-  if (!("judgment" in initialized)) return initialized;
-  for (const need of initialized.judgment.contributionNeeds) {
-    const stopped = await progressNeed(initialized, need);
-    if (stopped) return stopped;
-  }
-  return progressConclusion(initialized);
-}
-
-// src/action-loop/sdk/work-case-controller.ts
-import { Type as Type10 } from "typebox";
-var MAX_OUTCOME_ITEMS = 32;
-var MAX_BASIS_ITEMS4 = 16;
-function isRecord10(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function rejected10(code, message) {
-  return { status: "rejected", code, message };
-}
-async function openWorkCaseWithSdk(input) {
-  const decision = await input.runner.run({
-    systemPrompt: [
-      "Propose one bounded Outcome for the delegated request.",
-      "Call the supplied tool exactly once.",
-      "The SDK controller owns provenance, validation, identity, retries, and canonical opening.",
-      "JSON text fields must contain JSON arrays of strings without Markdown fences."
-    ].join("\n"),
-    prompt: [
-      `Delegated request: ${input.request}`,
-      "State the desired observable Outcome, acceptance conditions, current constraints, and explicit opening basis."
-    ].join("\n"),
-    tool: {
-      name: "submit_work_case_outcome",
-      label: "Submit Work Case Outcome",
-      description: "Submit one proposal. acceptance_conditions_json, constraints_json, and basis_json are JSON-encoded string arrays.",
-      parameters: Type10.Object(
-        {
-          statement: Type10.String({ minLength: 1, maxLength: 4096 }),
-          acceptance_conditions_json: Type10.String({
-            minLength: 2,
-            maxLength: 32768
-          }),
-          constraints_json: Type10.String({
-            minLength: 2,
-            maxLength: 32768
-          }),
-          basis_json: Type10.String({ minLength: 2, maxLength: 32768 })
-        },
-        { additionalProperties: false }
-      ),
-      execute: async (raw) => {
-        if (!isRecord10(raw) || typeof raw.statement !== "string") {
-          return rejected10(
-            "invalid-arguments",
-            "Work Case proposal requires a statement and three JSON text fields."
-          );
-        }
-        const acceptanceConditions = decodeSdkStringList({
-          value: raw.acceptance_conditions_json,
-          label: "acceptance_conditions_json",
-          allowEmpty: false,
-          maximumItems: MAX_OUTCOME_ITEMS
-        });
-        if (!acceptanceConditions.ok) {
-          return rejected10(
-            "invalid-acceptance-conditions",
-            acceptanceConditions.message
-          );
-        }
-        const constraints = decodeSdkStringList({
-          value: raw.constraints_json,
-          label: "constraints_json",
-          allowEmpty: true,
-          maximumItems: MAX_OUTCOME_ITEMS
-        });
-        if (!constraints.ok) {
-          return rejected10("invalid-constraints", constraints.message);
-        }
-        const basis = decodeSdkStringList({
-          value: raw.basis_json,
-          label: "basis_json",
-          allowEmpty: false,
-          maximumItems: MAX_BASIS_ITEMS4
-        });
-        if (!basis.ok) return rejected10("invalid-basis", basis.message);
-        const opened = openWorkCase({
-          outcome: {
-            statement: raw.statement,
-            acceptanceConditions: acceptanceConditions.value,
-            constraints: constraints.value
-          },
-          provenance: { kind: "model", source: "sdk:work-case-opening" }
-        });
-        if (opened.status === "invalid") {
-          return rejected10(opened.error.code, opened.error.message);
-        }
-        return {
-          status: "accepted",
-          value: { workCase: opened.value, basis: basis.value },
-          message: "Canonical Work Case Outcome accepted.",
-          resultStatus: "opened"
-        };
-      }
-    }
-  });
-  if (decision.status === "accepted") {
-    return {
-      status: "opened",
-      workCase: decision.value.workCase,
-      basis: decision.value.basis,
-      decision: decision.metrics
-    };
-  }
-  if (decision.status === "bounded-stop") {
-    return {
-      status: "bounded-stop",
-      reason: decision.reason,
-      decision: decision.metrics
-    };
-  }
-  return {
-    status: "runtime-failure",
-    message: decision.message,
-    decision: decision.metrics
-  };
-}
 export {
   EFFECT_OBSERVATION_VERSION,
   EFFECT_REMEDIATION_VERSION,
@@ -10497,6 +10736,7 @@ export {
   openWorkCaseWithSdk,
   parseTocBytes,
   pauseWorkCase,
+  progressActionLoopWithSdk,
   progressJudgmentWithSdk,
   proposeActionWithSdk,
   resumeBlockedWorkCase,
