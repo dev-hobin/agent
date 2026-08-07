@@ -2035,13 +2035,13 @@ export default async function developer(pi: ExtensionAPI) {
 						adverseEffectId: params.adverse_effect_id,
 						remediationEffectId: params.remediation_effect_id,
 					},
-					actionLoopEffectRemediatedEvent(
-						params.adverse_effect_id,
-						params.remediation_effect_id,
-						params.basis,
-						remediation.remediationId,
-						remediation.state.workCase.revisionId,
-					),
+					actionLoopEffectRemediatedEvent({
+						adverseEffectId: params.adverse_effect_id,
+						remediationEffectId: params.remediation_effect_id,
+						basis: params.basis,
+						remediationId: remediation.remediationId,
+						revisionId: remediation.state.workCase.revisionId,
+					}),
 				),
 			);
 		},
