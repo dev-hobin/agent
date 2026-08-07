@@ -1214,6 +1214,11 @@ export default async function developer(pi: ExtensionAPI) {
 		async execute(toolCallId, params, _signal, _onUpdate, ctx) {
 			if (!state.enabled)
 				fail("Developer protocol is off. Run /developer on first.");
+			if (!activeWorkCase) {
+				fail(
+					`No active Action Loop Work Case. Open one with ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} before routing consequential work.`,
+				);
+			}
 			if (state.activeRoute || routeOpening) {
 				if (!state.activeRoute)
 					fail(

@@ -307,6 +307,22 @@ function entryEnabled(entry: { data: unknown }): boolean | undefined {
 		: undefined;
 }
 
+async function openTestWorkCase(
+	harness: ReturnType<typeof createHarness>,
+	label = "default",
+): Promise<void> {
+	await harness.tools
+		.get("developer_open_work_case")
+		.execute("work-case-fixture", {
+			statement: `The ${label} test Work Case reaches its bounded Outcome.`,
+			acceptance_conditions: [
+				`The ${label} test observes the accepted protocol behavior.`,
+			],
+			constraints: ["No unrelated test behavior changes."],
+			basis: ["The current test delegates this bounded Outcome."],
+		});
+}
+
 async function startHarness(loadedSkills: Skill[] = loadedLeaves) {
 	const harness = createHarness();
 	await developer(harness.api);
@@ -315,6 +331,7 @@ async function startHarness(loadedSkills: Skill[] = loadedLeaves) {
 		reason: "startup",
 	});
 	await harness.commands.get("developer").handler("on", harness.ctx);
+	await openTestWorkCase(harness);
 	await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "test",
@@ -351,6 +368,21 @@ test("tool contract failures throw so Pi records them as errors", async () => {
 		systemPrompt: "base",
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
+	await assert.rejects(
+		route.execute(
+			"without-work-case",
+			{
+				question: "Can routing bypass Outcome continuity?",
+				target: "specify",
+				reason: "No Work Case has been opened.",
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		),
+		/active Action Loop Work Case/i,
+	);
+	await openTestWorkCase(harness, "tool-contract");
 	const opened = await route.execute(
 		"valid",
 		{
@@ -2630,6 +2662,7 @@ test("implementation routing uses additive built-in activation and preserves unr
 		reason: "startup",
 	});
 	await harness.commands.get("developer").handler("on", harness.ctx);
+	await openTestWorkCase(harness, "implementation-tools");
 	assert.equal(harness.activeTools().includes("edit"), false);
 
 	const beforeImplementation = [
@@ -2861,7 +2894,7 @@ test("/developer completes actions and confirms before discarding active TUI sta
 	assert.deepEqual(harness.confirmations.at(-1), {
 		title: "Turn off Developer?",
 		message:
-			"This clears the active route from the current protocol state. Existing session history remains.",
+			"This clears the active Action Loop Work Case and the active route from the current protocol state. Existing session history remains.",
 	});
 
 	harness.setConfirmResult(true);
