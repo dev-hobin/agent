@@ -102,6 +102,37 @@ test("probabilistic live evaluation aggregates isolated trials instead of treati
 		assert.equal(boundedReport.fixtures[0].boundedStops, 1);
 		assert.equal(boundedReport.fixtures[0].medianToolCallAttempts, 6);
 		assert.match(boundedRun.stdout, /bounded 1/);
+
+		const sdkReportPath = join(directory, "sdk-report.json");
+		const sdkRun = spawnSync(
+			process.execPath,
+			[join(packageRoot, "scripts", "eval-live.mjs"), "--transport", "sdk"],
+			{
+				cwd: packageRoot,
+				encoding: "utf8",
+				env: {
+					...process.env,
+					DEVELOPER_SDK_PI_ROOT: directory,
+					DEVELOPER_SDK_MODEL: "test/model",
+					DEVELOPER_EVAL_FIXTURE: "specialized-temporal-model",
+					DEVELOPER_EVAL_TRIALS: "1",
+					DEVELOPER_EVAL_RUNNER: join(
+						packageRoot,
+						"tests",
+						"fixtures",
+						"fake-eval-runner.mjs",
+					),
+					DEVELOPER_EVAL_REPORT: sdkReportPath,
+				},
+			},
+		);
+		assert.equal(sdkRun.status, 0, sdkRun.stderr);
+		const sdkReport = JSON.parse(await readFile(sdkReportPath, "utf8"));
+		assert.equal(sdkReport.transport, "sdk");
+		assert.equal(sdkReport.fixtures[0].accepted, 1);
+		assert.equal(sdkReport.fixtures[0].medianControllerDecisions, 2);
+		assert.equal(sdkReport.fixtures[0].medianRouteAttempts, null);
+		assert.match(sdkRun.stdout, /decisions\/retries\/recoveries/);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
 	}

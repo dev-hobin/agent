@@ -13,10 +13,14 @@ import {
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const transportArg = process.argv.indexOf("--transport");
 const transport = transportArg >= 0 ? process.argv[transportArg + 1] : "rpc";
-if (transport !== "rpc" && transport !== "json") {
-	throw new Error("Live eval transport must be rpc or json");
+if (transport !== "rpc" && transport !== "json" && transport !== "sdk") {
+	throw new Error("Live eval transport must be rpc, json, or sdk");
 }
-if (!process.env.PI_CODING_AGENT_DIR) {
+if (transport === "sdk") {
+	if (!process.env.DEVELOPER_SDK_PI_ROOT) {
+		throw new Error("Probabilistic SDK eval requires DEVELOPER_SDK_PI_ROOT");
+	}
+} else if (!process.env.PI_CODING_AGENT_DIR) {
 	throw new Error("Probabilistic live eval requires PI_CODING_AGENT_DIR");
 }
 
@@ -38,6 +42,19 @@ function positiveInteger(value, label) {
 	return number;
 }
 
+function defaultRunnerForTransport(value) {
+	switch (value) {
+		case "rpc":
+			return "eval-rpc.mjs";
+		case "json":
+			return "eval-json.mjs";
+		case "sdk":
+			return "eval-sdk-routing.ts";
+		default:
+			throw new Error(`Unsupported live eval transport: ${value}`);
+	}
+}
+
 const allFixtures = parseJson(
 	await readFile(join(root, "evals", "fixtures.json"), "utf8"),
 	"Invalid eval fixtures",
@@ -56,14 +73,17 @@ const trials = positiveInteger(
 );
 const runner =
 	process.env.DEVELOPER_EVAL_RUNNER ||
-	join(root, "scripts", transport === "rpc" ? "eval-rpc.mjs" : "eval-json.mjs");
+	join(root, "scripts", defaultRunnerForTransport(transport));
 const trialTimeoutMs = Number(
 	process.env.DEVELOPER_EVAL_TRIAL_TIMEOUT_MS || 300000,
 );
 const report = {
-	protocol: "developer/probabilistic-eval-v1",
+	protocol: "developer/probabilistic-eval-v2",
 	transport,
-	modelProfile: process.env.PI_CODING_AGENT_DIR,
+	modelProfile:
+		transport === "sdk"
+			? process.env.DEVELOPER_SDK_MODEL
+			: process.env.PI_CODING_AGENT_DIR,
 	trialsPerFixture: trials,
 	createdAt: new Date().toISOString(),
 	fixtures: [],
@@ -82,13 +102,25 @@ for (const fixture of fixtures) {
 				DEVELOPER_EVAL_FIXTURE: fixture.id,
 				DEVELOPER_EVAL_TRIAL_INDEX: String(trial),
 				...(transport === "rpc" ? { DEVELOPER_EVAL_LIVE: "1" } : {}),
+				...(transport === "sdk"
+					? {
+							DEVELOPER_EVAL_MODE: "sdk",
+							DEVELOPER_SDK_REQUEST: fixture.request,
+						}
+					: {}),
 			},
 		});
 		const output = `${child.stdout || ""}\n${child.stderr || ""}`;
 		const result = child.status === 0 ? parseEvalResult(output) : undefined;
 		if (result?.structuralValid) {
 			const trialOutcome = result.trialOutcome ?? "completed";
-			if (
+			if (trialOutcome === "provider-blocked") {
+				observations.push({
+					trial,
+					...result,
+					classification: "blocked-environment",
+				});
+			} else if (
 				["bounded-stop", "active-incomplete", "idle-incomplete"].includes(
 					trialOutcome,
 				)
@@ -141,18 +173,27 @@ const reportPath =
 await writeFile(reportPath, JSON.stringify(report, null, 2));
 for (const fixture of report.fixtures) {
 	const percent = (value) => `${(value * 100).toFixed(1)}%`;
-	console.log(
+	process.stdout.write(
 		`${fixture.fixtureId}: accepted ${fixture.accepted}/${fixture.trials} (${percent(fixture.acceptanceRate)}), ` +
 			`preferred ${fixture.preferred}/${fixture.accepted || 0} (${percent(fixture.preferredRateAmongAccepted)}), ` +
 			`bounded ${fixture.boundedStops}, active ${fixture.activeIncomplete}, idle ${fixture.idleIncomplete}, ` +
-			`blocked ${fixture.blockedEnvironment}, inadmissible ${fixture.inadmissible}; ` +
-			`median calls/routes/errors ${fixture.medianToolCallAttempts ?? "n/a"}/${fixture.medianRouteAttempts ?? "n/a"}/${fixture.medianToolErrors ?? "n/a"}`,
+			`blocked ${fixture.blockedEnvironment}, inadmissible ${fixture.inadmissible}, invariant ${fixture.hardInvariantViolations}; ` +
+			`median calls/routes/decisions/retries/recoveries/errors ` +
+			`${fixture.medianToolCallAttempts ?? "n/a"}/${fixture.medianRouteAttempts ?? "n/a"}/` +
+			`${fixture.medianControllerDecisions ?? "n/a"}/${fixture.medianDecisionRetries ?? "n/a"}/` +
+			`${fixture.medianRecoveryCount ?? "n/a"}/${fixture.medianToolErrors ?? "n/a"}\n`,
 	);
 }
-console.log(`Probabilistic eval report: ${reportPath}`);
+process.stdout.write(`Probabilistic eval report: ${reportPath}\n`);
 
-if (report.fixtures.some((fixture) => fixture.inadmissible > 0))
+if (
+	report.fixtures.some(
+		(fixture) =>
+			fixture.inadmissible > 0 || fixture.hardInvariantViolations > 0,
+	)
+) {
 	process.exitCode = 1;
+}
 
 const minimum = process.env.DEVELOPER_EVAL_MIN_ACCEPTANCE_RATE;
 if (minimum !== undefined) {

@@ -16,16 +16,23 @@ test("probabilistic reports separate admissibility from preferred decisions", ()
 			classification: "preferred",
 			toolCallAttemptCount: 10,
 			routeAttemptCount: 2,
+			controllerDecisionCount: 2,
+			decisionRetryCount: 0,
+			recoveryCount: 0,
 			toolErrorCount: 0,
 		},
 		{
 			classification: "preferred",
 			toolCallAttemptCount: 14,
 			routeAttemptCount: 4,
+			controllerDecisionCount: 2,
+			decisionRetryCount: 1,
+			recoveryCount: 2,
 			toolErrorCount: 2,
 		},
 		{ classification: "admissible-non-preferred" },
 		{ classification: "inadmissible-result" },
+		{ classification: "hard-invariant-violation" },
 		{ classification: "bounded-stop" },
 		{ classification: "active-incomplete" },
 	];
@@ -34,11 +41,15 @@ test("probabilistic reports separate admissibility from preferred decisions", ()
 	assert.equal(summary.preferred, 2);
 	assert.equal(summary.admissibleNonPreferred, 1);
 	assert.equal(summary.inadmissible, 1);
+	assert.equal(summary.hardInvariantViolations, 1);
 	assert.equal(summary.boundedStops, 1);
 	assert.equal(summary.activeIncomplete, 1);
-	assert.equal(summary.acceptanceRate, 0.5);
+	assert.equal(summary.acceptanceRate, 3 / 7);
 	assert.equal(summary.medianToolCallAttempts, 12);
 	assert.equal(summary.medianRouteAttempts, 3);
+	assert.equal(summary.medianControllerDecisions, 2);
+	assert.equal(summary.medianDecisionRetries, 0.5);
+	assert.equal(summary.medianRecoveryCount, 1);
 	assert.equal(summary.medianToolErrors, 1);
 	assert.equal(summary.preferredRateAmongAccepted, 2 / 3);
 	assert.equal(summary.acceptanceWilson95.length, 2);
@@ -51,6 +62,14 @@ test("live failure classification keeps wrong answers distinct from ordinary var
 		"inadmissible-result",
 	);
 	assert.equal(classifyLiveFailure("wall-clock budget 10/1ms"), "bounded-stop");
+	assert.equal(
+		classifyLiveFailure("mutation started before canonical Action Clearance"),
+		"hard-invariant-violation",
+	);
+	assert.equal(
+		classifyLiveFailure("No API key found for github-copilot"),
+		"blocked-environment",
+	);
 	assert.equal(
 		classifyLiveFailure("no canonical Judgment followed Work Case opening"),
 		"protocol-attempt-rejected",
