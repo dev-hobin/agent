@@ -63,7 +63,8 @@ export interface SdkDecisionMetrics {
 
 export type SdkDecisionStopReason =
 	| "decision-run-budget"
-	| "decision-time-budget";
+	| "decision-time-budget"
+	| "host-abort";
 
 export type SdkDecisionResult<T> =
 	| {
@@ -88,12 +89,13 @@ export interface SdkDecisionRunner {
 
 export interface PiSdkDecisionControllerOptions {
 	readonly bindings: PiSdkControllerBindings;
-	readonly modelRuntime: PiSdkModelRuntime;
+	readonly modelRuntime?: PiSdkModelRuntime;
 	readonly model: PiSdkModel;
 	readonly cwd: string;
 	readonly maxRuns: number;
 	readonly maxToolErrorsPerRun: number;
 	readonly maxRunMs?: number;
+	readonly signal?: AbortSignal;
 	readonly thinkingLevel?:
 		| "off"
 		| "minimal"
@@ -121,6 +123,7 @@ type DecisionAttemptResult<T> =
 	| { readonly status: "accepted"; readonly value: T }
 	| { readonly status: "not-accepted" }
 	| { readonly status: "timed-out" }
+	| { readonly status: "host-aborted" }
 	| { readonly status: "runtime-failure"; readonly message: string };
 
 function positiveInteger(value: number, label: string): number {
@@ -251,7 +254,9 @@ async function createDecisionSession(
 		cwd: options.cwd,
 		model: options.model,
 		thinkingLevel: options.thinkingLevel ?? "medium",
-		modelRuntime: options.modelRuntime,
+		...(options.modelRuntime
+			? { modelRuntime: options.modelRuntime }
+			: {}),
 		resourceLoader: fullControlLoader(options.bindings, request.systemPrompt),
 		customTools: [tool],
 		tools: [tool.name],
@@ -272,6 +277,8 @@ async function runDecisionAttempt<T>(input: {
 	readonly retryFeedback: readonly string[];
 	readonly counters: DecisionCounters;
 }): Promise<DecisionAttemptResult<T>> {
+	if (input.options.signal?.aborted) return { status: "host-aborted" };
+
 	let acceptedProposal: { readonly value: T } | undefined;
 	const observation: AttemptObservation = { toolErrors: 0 };
 	const tool = input.options.bindings.defineTool({
@@ -306,40 +313,52 @@ async function runDecisionAttempt<T>(input: {
 	let unsubscribe: (() => void) | undefined;
 	let timeout: ReturnType<typeof setTimeout> | undefined;
 	let timedOut = false;
+	let hostAborted = false;
 	let runtimeError: string | undefined;
+	const abortForHost = () => {
+		hostAborted = true;
+		void session?.abort();
+	};
+	input.options.signal?.addEventListener("abort", abortForHost, { once: true });
 	try {
 		session = await createDecisionSession(input.options, input.request, tool);
-		unsubscribe = subscribeToAttempt({
-			session,
-			toolName: input.request.tool.name,
-			maximumErrors: input.maximumErrors,
-			counters: input.counters,
-			observation,
-			accepted: () => acceptedProposal !== undefined,
-		});
-		timeout = setTimeout(() => {
-			timedOut = true;
-			input.counters.timeBudgetStops += 1;
-			input.counters.errorMessages.push(
-				`runtime: decision time budget ${input.maximumRunMs}ms`,
-			);
-			void session?.abort();
-		}, input.maximumRunMs);
-		const prompt =
-			input.retryFeedback.length === 0
-				? input.request.prompt
-				: [
-						input.request.prompt,
-						"Previous proposal rejection(s) from canonical admission:",
-						...input.retryFeedback.map((feedback) => `- ${feedback}`),
-						"Submit a corrected proposal and do not repeat these rejected states.",
-					].join("\n");
-		await session.prompt(prompt);
-		input.counters.nonRuntimeRuns += 1;
+		if (hostAborted || input.options.signal?.aborted) {
+			hostAborted = true;
+			await session.abort();
+		} else {
+			unsubscribe = subscribeToAttempt({
+				session,
+				toolName: input.request.tool.name,
+				maximumErrors: input.maximumErrors,
+				counters: input.counters,
+				observation,
+				accepted: () => acceptedProposal !== undefined,
+			});
+			timeout = setTimeout(() => {
+				timedOut = true;
+				input.counters.timeBudgetStops += 1;
+				input.counters.errorMessages.push(
+					`runtime: decision time budget ${input.maximumRunMs}ms`,
+				);
+				void session?.abort();
+			}, input.maximumRunMs);
+			const prompt =
+				input.retryFeedback.length === 0
+					? input.request.prompt
+					: [
+							input.request.prompt,
+							"Previous proposal rejection(s) from canonical admission:",
+							...input.retryFeedback.map((feedback) => `- ${feedback}`),
+							"Submit a corrected proposal and do not repeat these rejected states.",
+						].join("\n");
+			await session.prompt(prompt);
+			input.counters.nonRuntimeRuns += 1;
+		}
 	} catch (error) {
 		if (
 			acceptedProposal !== undefined ||
 			timedOut ||
+			hostAborted ||
 			observation.toolErrors >= input.maximumErrors
 		) {
 			input.counters.nonRuntimeRuns += 1;
@@ -350,6 +369,7 @@ async function runDecisionAttempt<T>(input: {
 		}
 	} finally {
 		if (timeout !== undefined) clearTimeout(timeout);
+		input.options.signal?.removeEventListener("abort", abortForHost);
 		unsubscribe?.();
 		session?.dispose();
 	}
@@ -358,6 +378,7 @@ async function runDecisionAttempt<T>(input: {
 		return { status: "accepted", value: acceptedProposal.value };
 	}
 	if (timedOut) return { status: "timed-out" };
+	if (hostAborted) return { status: "host-aborted" };
 	return runtimeError === undefined
 		? { status: "not-accepted" }
 		: { status: "runtime-failure", message: runtimeError };
@@ -397,6 +418,13 @@ async function runBoundedDecision<T>(
 			return {
 				status: "accepted",
 				value: attempt.value,
+				metrics: currentMetrics(counters),
+			};
+		}
+		if (attempt.status === "host-aborted") {
+			return {
+				status: "bounded-stop",
+				reason: "host-abort",
 				metrics: currentMetrics(counters),
 			};
 		}

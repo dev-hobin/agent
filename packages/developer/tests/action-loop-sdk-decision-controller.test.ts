@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { getEventListeners } from "node:events";
 import test from "node:test";
 import { Type } from "typebox";
 
@@ -84,7 +85,7 @@ function fakeDecisionHost(
 	return { bindings, prompts, executionModes };
 }
 
-function runner(host: FakeDecisionHost) {
+function runner(host: FakeDecisionHost, signal?: AbortSignal) {
 	return createPiSdkDecisionRunner({
 		bindings: host.bindings,
 		modelRuntime: {} as PiSdkModelRuntime,
@@ -93,6 +94,7 @@ function runner(host: FakeDecisionHost) {
 		maxRuns: 2,
 		maxToolErrorsPerRun: 2,
 		maxRunMs: 5_000,
+		...(signal ? { signal } : {}),
 	});
 }
 
@@ -129,7 +131,8 @@ const request = {
 
 test("Pi SDK decision accepts a valid first proposal without a forced retry", async () => {
 	const host = fakeDecisionHost(() => ({ accepted: true }));
-	const result = await runner(host).run(request);
+	const controller = new AbortController();
+	const result = await runner(host, controller.signal).run(request);
 
 	assert.equal(result.status, "accepted");
 	if (result.status !== "accepted") return;
@@ -139,6 +142,7 @@ test("Pi SDK decision accepts a valid first proposal without a forced retry", as
 	assert.equal(host.prompts.length, 1);
 	assert.doesNotMatch(host.prompts[0] ?? "", /Previous proposal rejection/);
 	assert.deepEqual(host.executionModes, ["sequential"]);
+	assert.equal(getEventListeners(controller.signal, "abort").length, 0);
 });
 
 test("Pi SDK bounded retry carries canonical rejection feedback", async () => {
@@ -163,4 +167,143 @@ test("Pi SDK bounded retry carries canonical rejection feedback", async () => {
 		host.prompts[1] ?? "",
 		/Previous proposal rejection.*proposal-not-accepted/s,
 	);
+});
+
+test("Pi SDK decision stops before session creation when the host already aborted", async () => {
+	const host = fakeDecisionHost(() => ({ accepted: true }));
+	const controller = new AbortController();
+	controller.abort();
+
+	const result = await runner(host, controller.signal).run(request);
+
+	assert.equal(result.status, "bounded-stop");
+	if (result.status !== "bounded-stop") return;
+	assert.equal(result.reason, "host-abort");
+	assert.equal(result.metrics.runs, 1);
+	assert.equal(result.metrics.runtimeFailures, 0);
+	assert.deepEqual(host.prompts, []);
+	assert.deepEqual(host.executionModes, []);
+});
+
+test("Pi SDK decision aborts an in-flight nested session without retry", async () => {
+	let resolvePromptStarted: (() => void) | undefined;
+	const promptStarted = new Promise<void>((resolve) => {
+		resolvePromptStarted = resolve;
+	});
+	let resolvePrompt: (() => void) | undefined;
+	let abortCalls = 0;
+	let disposeCalls = 0;
+	const bindings = {
+		defineTool(definition: Record<string, unknown>) {
+			return definition;
+		},
+		async createAgentSession() {
+			return {
+				session: {
+					subscribe() {
+					return () => {};
+				},
+					async prompt() {
+						resolvePromptStarted?.();
+						await new Promise<void>((resolve) => {
+							resolvePrompt = resolve;
+						});
+					},
+					async abort() {
+						abortCalls += 1;
+						resolvePrompt?.();
+					},
+					dispose() {
+						disposeCalls += 1;
+					},
+				},
+			};
+		},
+		createExtensionRuntime() {
+			return {};
+		},
+		SessionManager: { inMemory: () => ({}) },
+		SettingsManager: { inMemory: () => ({}) },
+	} as unknown as PiSdkControllerBindings;
+	const host: FakeDecisionHost = {
+		bindings,
+		prompts: [],
+		executionModes: [],
+	};
+	const controller = new AbortController();
+	const pending = runner(host, controller.signal).run(request);
+	await promptStarted;
+	controller.abort();
+
+	const result = await pending;
+
+	assert.equal(result.status, "bounded-stop");
+	if (result.status !== "bounded-stop") return;
+	assert.equal(result.reason, "host-abort");
+	assert.equal(result.metrics.runs, 1);
+	assert.equal(result.metrics.runtimeFailures, 0);
+	assert.equal(abortCalls, 1);
+	assert.equal(disposeCalls, 1);
+	assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+});
+
+test("Pi SDK decision observes host abort during nested session creation", async () => {
+	let resolveCreationStarted: (() => void) | undefined;
+	const creationStarted = new Promise<void>((resolve) => {
+		resolveCreationStarted = resolve;
+	});
+	let releaseCreation: (() => void) | undefined;
+	const creationGate = new Promise<void>((resolve) => {
+		releaseCreation = resolve;
+	});
+	let abortCalls = 0;
+	let promptCalls = 0;
+	const bindings = {
+		defineTool(definition: Record<string, unknown>) {
+			return definition;
+		},
+		async createAgentSession() {
+			resolveCreationStarted?.();
+			await creationGate;
+			return {
+				session: {
+					subscribe() {
+					return () => {};
+				},
+					async prompt() {
+						promptCalls += 1;
+					},
+					async abort() {
+						abortCalls += 1;
+					},
+					dispose() {},
+				},
+			};
+		},
+		createExtensionRuntime() {
+			return {};
+		},
+		SessionManager: { inMemory: () => ({}) },
+		SettingsManager: { inMemory: () => ({}) },
+	} as unknown as PiSdkControllerBindings;
+	const host: FakeDecisionHost = {
+		bindings,
+		prompts: [],
+		executionModes: [],
+	};
+	const controller = new AbortController();
+	const pending = runner(host, controller.signal).run(request);
+	await creationStarted;
+	controller.abort();
+	releaseCreation?.();
+
+	const result = await pending;
+
+	assert.equal(result.status, "bounded-stop");
+	if (result.status !== "bounded-stop") return;
+	assert.equal(result.reason, "host-abort");
+	assert.equal(result.metrics.runtimeFailures, 0);
+	assert.equal(abortCalls, 1);
+	assert.equal(promptCalls, 0);
+	assert.equal(getEventListeners(controller.signal, "abort").length, 0);
 });

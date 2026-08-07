@@ -8378,7 +8378,7 @@ async function createDecisionSession(options, request, tool) {
     cwd: options.cwd,
     model: options.model,
     thinkingLevel: options.thinkingLevel ?? "medium",
-    modelRuntime: options.modelRuntime,
+    ...options.modelRuntime ? { modelRuntime: options.modelRuntime } : {},
     resourceLoader: fullControlLoader(options.bindings, request.systemPrompt),
     customTools: [tool],
     tools: [tool.name],
@@ -8391,6 +8391,7 @@ async function createDecisionSession(options, request, tool) {
   return created.session;
 }
 async function runDecisionAttempt(input) {
+  if (input.options.signal?.aborted) return { status: "host-aborted" };
   let acceptedProposal;
   const observation = { toolErrors: 0 };
   const tool = input.options.bindings.defineTool({
@@ -8424,35 +8425,46 @@ async function runDecisionAttempt(input) {
   let unsubscribe;
   let timeout;
   let timedOut = false;
+  let hostAborted = false;
   let runtimeError;
+  const abortForHost = () => {
+    hostAborted = true;
+    void session?.abort();
+  };
+  input.options.signal?.addEventListener("abort", abortForHost, { once: true });
   try {
     session = await createDecisionSession(input.options, input.request, tool);
-    unsubscribe = subscribeToAttempt({
-      session,
-      toolName: input.request.tool.name,
-      maximumErrors: input.maximumErrors,
-      counters: input.counters,
-      observation,
-      accepted: () => acceptedProposal !== void 0
-    });
-    timeout = setTimeout(() => {
-      timedOut = true;
-      input.counters.timeBudgetStops += 1;
-      input.counters.errorMessages.push(
-        `runtime: decision time budget ${input.maximumRunMs}ms`
-      );
-      void session?.abort();
-    }, input.maximumRunMs);
-    const prompt = input.retryFeedback.length === 0 ? input.request.prompt : [
-      input.request.prompt,
-      "Previous proposal rejection(s) from canonical admission:",
-      ...input.retryFeedback.map((feedback) => `- ${feedback}`),
-      "Submit a corrected proposal and do not repeat these rejected states."
-    ].join("\n");
-    await session.prompt(prompt);
-    input.counters.nonRuntimeRuns += 1;
+    if (hostAborted || input.options.signal?.aborted) {
+      hostAborted = true;
+      await session.abort();
+    } else {
+      unsubscribe = subscribeToAttempt({
+        session,
+        toolName: input.request.tool.name,
+        maximumErrors: input.maximumErrors,
+        counters: input.counters,
+        observation,
+        accepted: () => acceptedProposal !== void 0
+      });
+      timeout = setTimeout(() => {
+        timedOut = true;
+        input.counters.timeBudgetStops += 1;
+        input.counters.errorMessages.push(
+          `runtime: decision time budget ${input.maximumRunMs}ms`
+        );
+        void session?.abort();
+      }, input.maximumRunMs);
+      const prompt = input.retryFeedback.length === 0 ? input.request.prompt : [
+        input.request.prompt,
+        "Previous proposal rejection(s) from canonical admission:",
+        ...input.retryFeedback.map((feedback) => `- ${feedback}`),
+        "Submit a corrected proposal and do not repeat these rejected states."
+      ].join("\n");
+      await session.prompt(prompt);
+      input.counters.nonRuntimeRuns += 1;
+    }
   } catch (error) {
-    if (acceptedProposal !== void 0 || timedOut || observation.toolErrors >= input.maximumErrors) {
+    if (acceptedProposal !== void 0 || timedOut || hostAborted || observation.toolErrors >= input.maximumErrors) {
       input.counters.nonRuntimeRuns += 1;
     } else {
       input.counters.runtimeFailures += 1;
@@ -8461,6 +8473,7 @@ async function runDecisionAttempt(input) {
     }
   } finally {
     if (timeout !== void 0) clearTimeout(timeout);
+    input.options.signal?.removeEventListener("abort", abortForHost);
     unsubscribe?.();
     session?.dispose();
   }
@@ -8468,6 +8481,7 @@ async function runDecisionAttempt(input) {
     return { status: "accepted", value: acceptedProposal.value };
   }
   if (timedOut) return { status: "timed-out" };
+  if (hostAborted) return { status: "host-aborted" };
   return runtimeError === void 0 ? { status: "not-accepted" } : { status: "runtime-failure", message: runtimeError };
 }
 async function runBoundedDecision(options, request, maximumRuns, maximumErrors, maximumRunMs) {
@@ -8496,6 +8510,13 @@ async function runBoundedDecision(options, request, maximumRuns, maximumErrors, 
       return {
         status: "accepted",
         value: attempt.value,
+        metrics: currentMetrics(counters)
+      };
+    }
+    if (attempt.status === "host-aborted") {
+      return {
+        status: "bounded-stop",
+        reason: "host-abort",
         metrics: currentMetrics(counters)
       };
     }
