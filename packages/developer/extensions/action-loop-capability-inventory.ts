@@ -122,11 +122,11 @@ export function liveCapabilityInventoryPrompt(
 			return "toc" in capability
 				? [
 						`Capability ${name} · ${capability.capabilityRevisionId} · structured`,
-						`  when: ${capability.toc.when.join(" | ")}`,
-						`  unless: ${capability.toc.unless.join(" | ") || "none"}`,
+						`  Capability applicability conditions for matched_when: ${capability.toc.when.join(" | ")}`,
+						`  Capability exclusion conditions for matched_unless: ${capability.toc.unless.join(" | ") || "none"}`,
 						...capability.toc.references.map(
 							(reference) =>
-								`  reference ${reference.path} when: ${reference.when.join(" | ")}`,
+								`  Reference-only selection condition for ${reference.path}; never use in matched_when or matched_unless: ${reference.when.join(" | ")}`,
 						),
 					]
 				: [

@@ -124,6 +124,7 @@ import {
 	admitLiveToolResultObservation,
 	admitLiveUserPromptObservation,
 	bindLiveHostObservation,
+	isDirectSkillMaterialRead,
 	liveHostObservationPrompt,
 	matchingLiveHostObservation,
 	type LiveHostObservation,
@@ -3084,9 +3085,18 @@ export default async function developer(pi: ExtensionAPI) {
 		syncProtocolTools();
 	});
 
-	pi.on("tool_result", (event) => {
+	pi.on("tool_result", async (event) => {
 		if (!developerEnabled) return;
 		if ((PROTOCOL_TOOLS as readonly string[]).includes(event.toolName)) return;
+		if (
+			await isDirectSkillMaterialRead(
+				event.toolName,
+				event.input as Readonly<Record<string, unknown>>,
+				skillsRoot,
+			)
+		) {
+			return;
+		}
 		if (activeWorkCase) {
 			const effect = activeWorkCase.workCase.effects.find(
 				(current) => current.occurrenceId === event.toolCallId,

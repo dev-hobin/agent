@@ -370,6 +370,32 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 	);
 });
 
+test("structured Capability inventory separates applicability from Reference selection conditions", async () => {
+	const model = loadedLeaves.find((skill) => skill.name === "model")!;
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	const result = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "test",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: [model] },
+	});
+
+	assert.match(
+		result.systemPrompt,
+		/Capability applicability conditions for matched_when:/,
+	);
+	assert.match(
+		result.systemPrompt,
+		/Reference-only selection condition[\s\S]*never use in matched_when or matched_unless/,
+	);
+});
+
 test("a live Work Case opens once and projects across agent turns", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
@@ -778,6 +804,37 @@ test("finalized tool evidence reaches the model without exposing internal IDs in
 		});
 	assert.equal(waited.details.kind, "waiting");
 	assert.doesNotMatch(resultText(waited), /observation_[a-f0-9]+/);
+});
+
+test("direct Skill material reads cannot bypass canonical Context sealing as host evidence", async () => {
+	const harness = await startHarness();
+	const before = await harness.emit("context", {
+		type: "context",
+		messages: [],
+	});
+	const beforeContent = String(before.messages.at(-1)?.content);
+	const resultPatch = await harness.emit("tool_result", {
+		type: "tool_result",
+		toolName: "read",
+		toolCallId: "direct-skill-reference-read",
+		input: {
+			path: join(
+				packageRoot,
+				"skills/model/references/temporal-behavior-models.md",
+			),
+		},
+		isError: false,
+		content: [{ type: "text", text: "direct Skill material" }],
+		details: {},
+	});
+	assert.equal(resultPatch, undefined);
+	const after = await harness.emit("context", {
+		type: "context",
+		messages: [],
+	});
+	const afterContent = String(after.messages.at(-1)?.content);
+	assert.equal(afterContent, beforeContent);
+	assert.doesNotMatch(afterContent, /direct-skill-reference-read/);
 });
 
 test("Pi --no-session mode refuses live nonterminal ownership", async () => {

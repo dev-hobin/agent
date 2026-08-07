@@ -18,6 +18,7 @@ import {
 const encoder = new TextEncoder();
 const claimWhen = "A concrete claim must be assessed.";
 const compatibilityWhen = "Compatibility scope is consequential.";
+const referenceWhen = "A verifier-selection Reference materially applies.";
 const noClaimUnless = "There is no concrete claim to assess.";
 
 function capability(): BoundCapability {
@@ -27,7 +28,12 @@ function capability(): BoundCapability {
 				$schema: SKILL_TOC_SCHEMA_URI,
 				when: [claimWhen, compatibilityWhen],
 				unless: [noClaimUnless],
-				references: [],
+				references: [
+					{
+						path: "references/verifier-selection.md",
+						when: [referenceWhen],
+					},
+				],
 			}),
 		),
 	);
@@ -236,6 +242,20 @@ test("needs-context remains unresolved and creates no assignment", () => {
 	assert.deepEqual(result.assessment.missingContext, [
 		"The proposed completion claim is not yet stated.",
 	]);
+});
+
+test("Reference-only conditions receive an exact corrective applicability contract", () => {
+	const currentTarget = target();
+	const result = acceptCapabilityApplicability(
+		currentTarget,
+		proposal(currentTarget, { matchedWhen: [referenceWhen] }),
+	);
+	assert.equal(result.status, "invalid");
+	if (result.status !== "invalid") return;
+	assert.equal(result.error.code, "undeclared-condition");
+	assert.match(result.error.message, /Reference selection/);
+	assert.match(result.error.message, new RegExp(claimWhen));
+	assert.match(result.error.message, new RegExp(compatibilityWhen));
 });
 
 test("status semantics reject contradictory evidence shapes", () => {

@@ -1,4 +1,7 @@
 import { hashIdentity } from "../src/action-loop/identity/hash-identity.ts";
+import { realpath } from "node:fs/promises";
+import { resolve, sep } from "node:path";
+
 import { fingerprintPiToolResult } from "./action-loop-pi-action.ts";
 
 export const MAX_LIVE_HOST_OBSERVATION_STATEMENT_CHARS = 2_048;
@@ -80,6 +83,37 @@ export function admitLiveUserPromptObservation(
 }
 
 /** Admits an exact finalized Pi tool result without interpreting its meaning or success. */
+function isWithinRoot(root: string, path: string): boolean {
+	const canonicalRoot = resolve(root);
+	const canonicalPath = resolve(path);
+	return (
+		canonicalPath === canonicalRoot ||
+		canonicalPath.startsWith(`${canonicalRoot}${sep}`)
+	);
+}
+
+async function canonicalFilePath(path: string): Promise<string> {
+	try {
+		return await realpath(path);
+	} catch {
+		return resolve(path);
+	}
+}
+
+/** Prevents generic read evidence from bypassing canonical Skill Context sealing. */
+export async function isDirectSkillMaterialRead(
+	toolName: string,
+	input: Readonly<Record<string, unknown>>,
+	skillsRoot: string,
+): Promise<boolean> {
+	if (toolName !== "read" || typeof input.path !== "string") return false;
+	const [canonicalRoot, canonicalPath] = await Promise.all([
+		canonicalFilePath(skillsRoot),
+		canonicalFilePath(input.path),
+	]);
+	return isWithinRoot(canonicalRoot, canonicalPath);
+}
+
 export function admitLiveToolResultObservation(
 	toolName: string,
 	toolCallId: string,

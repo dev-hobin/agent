@@ -155,18 +155,24 @@ function canonicalMatches(
 	proposed: readonly string[],
 	declared: readonly string[],
 	path: string,
+	referenceOnly: readonly string[] = [],
 ): CanonicalListResult {
 	const normalized = normalizeList(proposed, path, "empty-context-item");
 	if (!normalized.ok) return normalized;
 	const proposedSet = new Set(normalized.value);
 	for (const condition of proposedSet) {
 		if (!declared.includes(condition)) {
+			const exactConditions =
+				declared.length > 0 ? declared.join(" | ") : "none";
+			const message = referenceOnly.includes(condition)
+				? `Condition belongs to Reference selection, not Capability applicability: ${condition}. Use it only when selecting References. Exact Capability conditions for ${path}: ${exactConditions}`
+				: `Condition is not declared by the Capability: ${condition}. Exact Capability conditions for ${path}: ${exactConditions}`;
 			return {
 				ok: false,
 				error: {
 					code: "undeclared-condition",
 					path,
-					message: `Condition is not declared by the Capability: ${condition}`,
+					message,
 				},
 			};
 		}
@@ -355,16 +361,21 @@ export function acceptCapabilityApplicability(
 	if (identityFailure !== undefined) return identityFailure;
 
 	const structured = isStructuredCapability(target.capability);
+	const referenceOnlyConditions = structured
+		? target.capability.toc.references.flatMap((reference) => reference.when)
+		: [];
 	const matchedWhen = canonicalMatches(
 		proposal.matchedWhen,
 		structured ? target.capability.toc.when : [],
 		"proposal.matchedWhen",
+		referenceOnlyConditions,
 	);
 	if (!matchedWhen.ok) return { status: "invalid", error: matchedWhen.error };
 	const matchedUnless = canonicalMatches(
 		proposal.matchedUnless,
 		structured ? target.capability.toc.unless : [],
 		"proposal.matchedUnless",
+		referenceOnlyConditions,
 	);
 	if (!matchedUnless.ok)
 		return { status: "invalid", error: matchedUnless.error };

@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
 	admitLiveToolResultObservation,
 	admitLiveUserPromptObservation,
 	bindLiveHostObservation,
+	isDirectSkillMaterialRead,
 	liveHostObservationPrompt,
 	matchingLiveHostObservation,
 	MAX_LIVE_HOST_OBSERVATION_STATEMENT_CHARS,
@@ -28,6 +32,38 @@ test("the exact current user prompt becomes bounded human evidence without inter
 			MAX_LIVE_HOST_OBSERVATION_STATEMENT_CHARS,
 	);
 	assert.match(first.observation.basis[0] ?? "", /exact current user prompt/);
+});
+
+test("direct and symlinked Skill material reads require canonical Context sealing", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "developer-skill-material-"));
+	t.after(async () => {
+		await rm(root, { recursive: true, force: true });
+	});
+	const skillsRoot = join(root, "skills");
+	const reference = join(skillsRoot, "model", "references", "model.md");
+	await mkdir(join(skillsRoot, "model", "references"), { recursive: true });
+	await writeFile(reference, "sealed material");
+	const outside = join(root, "workspace.ts");
+	await writeFile(outside, "workspace evidence");
+	const alias = join(root, "reference-alias.md");
+	await symlink(reference, alias);
+
+	assert.equal(
+		await isDirectSkillMaterialRead("read", { path: reference }, skillsRoot),
+		true,
+	);
+	assert.equal(
+		await isDirectSkillMaterialRead("read", { path: alias }, skillsRoot),
+		true,
+	);
+	assert.equal(
+		await isDirectSkillMaterialRead("read", { path: outside }, skillsRoot),
+		false,
+	);
+	assert.equal(
+		await isDirectSkillMaterialRead("other", { path: reference }, skillsRoot),
+		false,
+	);
 });
 
 test("one exact finalized tool result becomes provenance-bound evidence", () => {
