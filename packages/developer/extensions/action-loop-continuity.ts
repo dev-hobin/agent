@@ -1,7 +1,15 @@
 import {
+	blockWorkCase,
+	type BlockWorkCaseProposal,
+} from "../src/action-loop/work/block-work-case.ts";
+import {
 	pauseWorkCase,
 	type PauseWorkCaseProposal,
 } from "../src/action-loop/work/pause-work-case.ts";
+import {
+	resumeBlockedWorkCase,
+	type ResumeBlockedWorkCaseProposal,
+} from "../src/action-loop/work/resume-blocked-work-case.ts";
 import {
 	resumePausedWorkCase,
 	type ResumePausedWorkCaseProposal,
@@ -15,6 +23,7 @@ import {
 	type WaitWorkCaseProposal,
 } from "../src/action-loop/work/wait-work-case.ts";
 import type {
+	LiveBlockedWorkCaseState,
 	LivePausedWorkCaseState,
 	LiveWaitingWorkCaseState,
 	LiveWorkCaseState,
@@ -37,6 +46,14 @@ export type LiveWaitResult =
 export type LiveResumeWaitingResult =
 	| { readonly status: "active"; readonly state: LiveWorkCaseState }
 	| { readonly status: "waiting"; readonly state: LiveWaitingWorkCaseState }
+	| { readonly status: "invalid"; readonly message: string };
+
+export type LiveBlockResult =
+	| { readonly status: "blocked"; readonly state: LiveBlockedWorkCaseState }
+	| { readonly status: "invalid"; readonly message: string };
+
+export type LiveResumeBlockedResult =
+	| { readonly status: "active"; readonly state: LiveWorkCaseState }
 	| { readonly status: "invalid"; readonly message: string };
 
 /** Preserves the live projection while canonical ownership moves to paused. */
@@ -98,6 +115,36 @@ export function resumeLiveWaitingWorkCase(
 			status: "waiting",
 			state: Object.freeze({ ...state, workCase: result.value }),
 		};
+	}
+	return {
+		status: "active",
+		state: Object.freeze({ ...state, workCase: result.value }),
+	};
+}
+
+/** Preserves the live projection after Claim Assurance accounts every blocker. */
+export function blockLiveWorkCase(
+	state: LiveWorkCaseState,
+	proposal: BlockWorkCaseProposal,
+): LiveBlockResult {
+	const result = blockWorkCase(state.workCase, proposal);
+	if (result.status === "invalid") {
+		return { status: "invalid", message: result.error.message };
+	}
+	return {
+		status: "blocked",
+		state: Object.freeze({ ...state, workCase: result.value }),
+	};
+}
+
+/** Resumes blocked ownership only after an observed change creates continuation. */
+export function resumeLiveBlockedWorkCase(
+	state: LiveBlockedWorkCaseState,
+	proposal: ResumeBlockedWorkCaseProposal,
+): LiveResumeBlockedResult {
+	const result = resumeBlockedWorkCase(state.workCase, proposal);
+	if (result.status === "invalid") {
+		return { status: "invalid", message: result.error.message };
 	}
 	return {
 		status: "active",

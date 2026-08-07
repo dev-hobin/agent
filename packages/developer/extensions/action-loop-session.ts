@@ -24,7 +24,9 @@ import {
 	settleLiveEffect,
 } from "./action-loop-effect.ts";
 import {
+	blockLiveWorkCase,
 	pauseLiveWorkCase,
+	resumeLiveBlockedWorkCase,
 	resumeLivePausedWorkCase,
 	resumeLiveWaitingWorkCase,
 	waitLiveWorkCase,
@@ -33,6 +35,7 @@ import { openLiveJudgment } from "./action-loop-judgment.ts";
 import {
 	extractReplayEvent,
 	type ActionLoopActionClearedEvent,
+	type ActionLoopBlockedWorkCaseResumedEvent,
 	type ActionLoopCapabilityAssessedEvent,
 	type ActionLoopContributionAcceptedEvent,
 	type ActionLoopCoverageAssessedEvent,
@@ -47,6 +50,7 @@ import {
 	type ActionLoopSessionBranchEntry,
 	type ActionLoopSessionEvent,
 	type ActionLoopUnstructuredContextSealedEvent,
+	type ActionLoopWorkCaseBlockedEvent,
 	type ActionLoopWorkCaseCompletedEvent,
 	type ActionLoopWaitingWorkCaseResumedEvent,
 	type ActionLoopWorkCaseOpenedEvent,
@@ -54,9 +58,11 @@ import {
 	type ActionLoopWorkCaseWaitingEvent,
 } from "./action-loop-session-event.ts";
 import {
+	isLiveBlockedWorkCaseState,
 	isLivePausedWorkCaseState,
 	isLiveWaitingWorkCaseState,
 	openLiveWorkCase,
+	type LiveBlockedWorkCaseState,
 	type LiveHeldWorkCaseState,
 	type LivePausedWorkCaseState,
 	type LiveWaitingWorkCaseState,
@@ -596,6 +602,46 @@ function replayWaitingWorkCaseResume(
 	return applied(result.state);
 }
 
+function replayWorkCaseBlocked(
+	state: LiveWorkCaseState,
+	event: ActionLoopWorkCaseBlockedEvent,
+): AppliedEventResult {
+	const result = blockLiveWorkCase(state, event.proposal);
+	if (
+		result.status !== "blocked" ||
+		result.state.workCase.block.workCaseBlockId !== event.expected.workCaseBlockId ||
+		result.state.workCase.revisionId !== event.expected.revisionId ||
+		event.transitionId !== event.expected.workCaseBlockId
+	) {
+		return eventUnavailable(
+			"Persisted Work Case block does not reproduce its exact Claim Assurance revision.",
+		);
+	}
+	return appliedHeld(result.state);
+}
+
+function replayBlockedWorkCaseResume(
+	state: LiveBlockedWorkCaseState,
+	event: ActionLoopBlockedWorkCaseResumedEvent,
+): AppliedEventResult {
+	const result = resumeLiveBlockedWorkCase(state, event.proposal);
+	const workCaseUnblockId =
+		result.status === "active"
+			? result.state.workCase.continuityIds.at(-1)
+			: undefined;
+	if (
+		result.status !== "active" ||
+		workCaseUnblockId !== event.expected.workCaseUnblockId ||
+		result.state.workCase.revisionId !== event.expected.revisionId ||
+		event.transitionId !== event.expected.workCaseUnblockId
+	) {
+		return eventUnavailable(
+			"Persisted blocked Work Case resume does not reproduce its exact observed-continuation revision.",
+		);
+	}
+	return applied(result.state);
+}
+
 async function replayOwnedEvent(
 	state: LiveWorkCaseState,
 	event: Exclude<
@@ -603,6 +649,7 @@ async function replayOwnedEvent(
 		| ActionLoopWorkCaseOpenedEvent
 		| ActionLoopPausedWorkCaseResumedEvent
 		| ActionLoopWaitingWorkCaseResumedEvent
+		| ActionLoopBlockedWorkCaseResumedEvent
 	>,
 	inventory: LiveCapabilityInventoryResult | undefined,
 ): Promise<AppliedEventResult> {
@@ -611,6 +658,8 @@ async function replayOwnedEvent(
 			return replayWorkCasePause(state, event);
 		case "work-case-waiting":
 			return replayWorkCaseWaiting(state, event);
+		case "work-case-blocked":
+			return replayWorkCaseBlocked(state, event);
 		case "judgment-opened":
 			return replayJudgmentOpening(state, event);
 		case "capability-assessed":
@@ -671,6 +720,17 @@ async function replaySessionEvent(
 			);
 		}
 		return replayWaitingWorkCaseResume(projection.heldWorkCase, event);
+	}
+	if (event.kind === "blocked-work-case-resumed") {
+		if (
+			!projection.heldWorkCase ||
+			!isLiveBlockedWorkCaseState(projection.heldWorkCase)
+		) {
+			return eventUnavailable(
+				"Persisted blocked Work Case resume has no blocked branch owner.",
+			);
+		}
+		return replayBlockedWorkCaseResume(projection.heldWorkCase, event);
 	}
 	if (projection.heldWorkCase) {
 		return eventUnavailable(

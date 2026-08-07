@@ -10,6 +10,7 @@ import type {
 } from "../src/action-loop/routing/accept-applicability.ts";
 import type { NeedCoverage } from "../src/action-loop/need-coverage/assess-need-coverage.ts";
 import type { BoundReferenceSelection } from "../src/action-loop/routing/bind-reference-selection.ts";
+import type { BlockedWorkCase } from "../src/action-loop/work/block-work-case.ts";
 import type { PausedWorkCase } from "../src/action-loop/work/pause-work-case.ts";
 import type { WaitingWorkCase } from "../src/action-loop/work/wait-work-case.ts";
 import {
@@ -50,9 +51,14 @@ export type LiveWaitingWorkCaseState = Omit<LiveWorkCaseState, "workCase"> & {
 	readonly workCase: WaitingWorkCase;
 };
 
+export type LiveBlockedWorkCaseState = Omit<LiveWorkCaseState, "workCase"> & {
+	readonly workCase: BlockedWorkCase;
+};
+
 export type LiveHeldWorkCaseState =
 	| LivePausedWorkCaseState
-	| LiveWaitingWorkCaseState;
+	| LiveWaitingWorkCaseState
+	| LiveBlockedWorkCaseState;
 
 export type LiveWorkCaseOwnership =
 	| LiveWorkCaseState
@@ -68,6 +74,12 @@ export function isLiveWaitingWorkCaseState(
 	state: LiveHeldWorkCaseState,
 ): state is LiveWaitingWorkCaseState {
 	return state.workCase.status === "waiting";
+}
+
+export function isLiveBlockedWorkCaseState(
+	state: LiveHeldWorkCaseState,
+): state is LiveBlockedWorkCaseState {
+	return state.workCase.status === "blocked";
 }
 
 export type LiveWorkCaseOpeningResult =
@@ -294,13 +306,22 @@ export function liveWorkCasePrompt(
 						`Resume predicate: ${workCase.wait.resumePredicate}`,
 						"Resume requires a current Observation that satisfies this exact predicate.",
 					]
-				: [];
+				: workCase.status === "blocked"
+					? [
+							`Block: ${workCase.block.workCaseBlockId} · ${workCase.block.reason}`,
+							`Claim Assurance: ${workCase.block.claimAssuranceConclusionId}`,
+							`Accounted blockers: ${workCase.block.blockerDispositions.map(({ code, subjectId }) => `${code}@${subjectId}`).join(" | ")}`,
+							"Resume requires an observed change and concrete continuation.",
+						]
+					: [];
 	const statusLabel =
 		workCase.status === "active"
 			? "Active"
 			: workCase.status === "paused"
 				? "Paused"
-				: "Waiting";
+				: workCase.status === "waiting"
+					? "Waiting"
+					: "Blocked";
 	return [
 		`${statusLabel} Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
 		`Outcome: ${workCase.outcome.statement}`,

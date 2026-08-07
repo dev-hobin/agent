@@ -2,12 +2,15 @@ import { Type, type Static } from "typebox";
 import { Check } from "typebox/value";
 
 import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
+import type { BlockWorkCaseProposal } from "../src/action-loop/work/block-work-case.ts";
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
 import type { PauseWorkCaseProposal } from "../src/action-loop/work/pause-work-case.ts";
+import type { ResumeBlockedWorkCaseProposal } from "../src/action-loop/work/resume-blocked-work-case.ts";
 import type { ResumePausedWorkCaseProposal } from "../src/action-loop/work/resume-paused-work-case.ts";
 import type { ResumeWaitingWorkCaseProposal } from "../src/action-loop/work/resume-waiting-work-case.ts";
 import type { WaitWorkCaseProposal } from "../src/action-loop/work/wait-work-case.ts";
 import type {
+	LiveBlockedWorkCaseState,
 	LivePausedWorkCaseState,
 	LiveWaitingWorkCaseState,
 	LiveWorkCaseProposal,
@@ -18,6 +21,7 @@ export const ACTION_LOOP_SESSION_PROTOCOL =
 	"developer-action-loop/session-event/v1";
 export const ACTION_LOOP_SESSION_ENTRY = "developer.action-loop.session-event";
 export const MAX_ACTION_LOOP_SESSION_EVENT_BYTES = 2_097_152;
+export const MAX_ACTION_LOOP_BLOCKER_DISPOSITIONS = 4_096;
 
 const IdSchema = Type.String({ minLength: 1, maxLength: 512 });
 const ShortTextSchema = Type.String({ minLength: 1, maxLength: 2_000 });
@@ -189,6 +193,69 @@ const WaitingWorkCaseResumedEventSchema = Type.Object(
 		proposal: ResumeWaitingWorkCaseProposalSchema,
 		expected: Type.Object(
 			{ workCaseWaitResumeId: IdSchema, revisionId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const BlockerDispositionSchema = Type.Object(
+	{
+		code: Type.String({ minLength: 1, maxLength: 128 }),
+		subjectId: IdSchema,
+		basis: BasisSchema,
+	},
+	{ additionalProperties: false },
+);
+const BlockWorkCaseProposalSchema = Type.Object(
+	{
+		workCaseId: IdSchema,
+		expectedRevisionId: IdSchema,
+		claimAssuranceConclusionId: IdSchema,
+		reason: ShortTextSchema,
+		blockerDispositions: Type.Array(BlockerDispositionSchema, {
+			minItems: 1,
+			maxItems: MAX_ACTION_LOOP_BLOCKER_DISPOSITIONS,
+		}),
+	},
+	{ additionalProperties: false },
+);
+const WorkCaseBlockedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("work-case-blocked"),
+		proposal: BlockWorkCaseProposalSchema,
+		expected: Type.Object(
+			{ workCaseBlockId: IdSchema, revisionId: IdSchema },
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const ResumeBlockedWorkCaseProposalSchema = Type.Object(
+	{
+		workCaseId: IdSchema,
+		expectedRevisionId: IdSchema,
+		continuation: ShortTextSchema,
+		observation: Type.Object(
+			{
+				kind: ObservationKindSchema,
+				observationId: IdSchema,
+				source: ShortTextSchema,
+				statement: ShortTextSchema,
+				basis: BasisSchema,
+			},
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const BlockedWorkCaseResumedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("blocked-work-case-resumed"),
+		proposal: ResumeBlockedWorkCaseProposalSchema,
+		expected: Type.Object(
+			{ workCaseUnblockId: IdSchema, revisionId: IdSchema },
 			{ additionalProperties: false },
 		),
 	},
@@ -665,6 +732,8 @@ const SessionEventSchema = Type.Union([
 	PausedWorkCaseResumedEventSchema,
 	WorkCaseWaitingEventSchema,
 	WaitingWorkCaseResumedEventSchema,
+	WorkCaseBlockedEventSchema,
+	BlockedWorkCaseResumedEventSchema,
 	JudgmentOpenedEventSchema,
 	CapabilityAssessedEventSchema,
 	ReferencesSelectedEventSchema,
@@ -694,6 +763,12 @@ export type ActionLoopWorkCaseWaitingEvent = Static<
 >;
 export type ActionLoopWaitingWorkCaseResumedEvent = Static<
 	typeof WaitingWorkCaseResumedEventSchema
+>;
+export type ActionLoopWorkCaseBlockedEvent = Static<
+	typeof WorkCaseBlockedEventSchema
+>;
+export type ActionLoopBlockedWorkCaseResumedEvent = Static<
+	typeof BlockedWorkCaseResumedEventSchema
 >;
 export type ActionLoopJudgmentOpenedEvent = Static<
 	typeof JudgmentOpenedEventSchema
@@ -906,6 +981,67 @@ export function actionLoopWaitingWorkCaseResumedEvent(
 		},
 		expected: {
 			workCaseWaitResumeId,
+			revisionId: state.workCase.revisionId,
+		},
+	});
+}
+
+export function actionLoopWorkCaseBlockedEvent(
+	proposal: BlockWorkCaseProposal,
+	state: LiveBlockedWorkCaseState,
+): ActionLoopWorkCaseBlockedEvent {
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "work-case-blocked",
+		transitionId: state.workCase.block.workCaseBlockId,
+		proposal: {
+			workCaseId: proposal.workCaseId,
+			expectedRevisionId: proposal.expectedRevisionId,
+			claimAssuranceConclusionId: proposal.claimAssuranceConclusionId,
+			reason: proposal.reason,
+			blockerDispositions: proposal.blockerDispositions.map((disposition) => ({
+				code: disposition.code,
+				subjectId: disposition.subjectId,
+				basis: [...disposition.basis],
+			})),
+		},
+		expected: {
+			workCaseBlockId: state.workCase.block.workCaseBlockId,
+			revisionId: state.workCase.revisionId,
+		},
+	});
+}
+
+export function actionLoopBlockedWorkCaseResumedEvent(
+	proposal: ResumeBlockedWorkCaseProposal & {
+		readonly observation: ResumeBlockedWorkCaseProposal["observation"] & {
+			readonly kind: "human" | "tool" | "external";
+		};
+	},
+	state: LiveWorkCaseState,
+): ActionLoopBlockedWorkCaseResumedEvent {
+	const workCaseUnblockId = state.workCase.continuityIds.at(-1);
+	if (workCaseUnblockId === undefined) {
+		throw new Error("Resumed blocked Work Case has no continuity transition ID");
+	}
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "blocked-work-case-resumed",
+		transitionId: workCaseUnblockId,
+		proposal: {
+			workCaseId: proposal.workCaseId,
+			expectedRevisionId: proposal.expectedRevisionId,
+			continuation: proposal.continuation,
+			observation: {
+				kind: proposal.observation.kind,
+				observationId: proposal.observation.observationId,
+				source: proposal.observation.source,
+				statement: proposal.observation.statement,
+				basis: [...proposal.observation.basis],
+			},
+		},
+		expected: {
+			workCaseUnblockId,
 			revisionId: state.workCase.revisionId,
 		},
 	});

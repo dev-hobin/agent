@@ -301,6 +301,9 @@ function createHarness() {
 		async input() {
 			return inputResults.length > 0 ? inputResults.shift() : inputResult;
 		},
+		async select(_title: string, options: string[]) {
+			return options[0];
+		},
 		getEditorText() {
 			return editorText;
 		},
@@ -1850,6 +1853,9 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 	await harness.commands.get("developer").handler("wait", harness.ctx);
 	assert.equal(harness.entries.length, entriesBefore);
 	assert.match(harness.notifications.at(-1)?.message ?? "", /--no-session/);
+	await harness.commands.get("developer").handler("block", harness.ctx);
+	assert.equal(harness.entries.length, entriesBefore);
+	assert.match(harness.notifications.at(-1)?.message ?? "", /--no-session/);
 });
 
 test("a live Judgment exposes Closure Requirements and Contribution Needs", async () => {
@@ -2545,6 +2551,34 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 	)?.data as any;
 	assert.ok(begunEvent);
 	assert.ok(observedEvent);
+	first.setInputResult(
+		"The current Effect cannot yet be settled from the available evidence.",
+	);
+	await first.commands.get("developer").handler("block", first.ctx);
+	const blockedEntry = first.entries.find(
+		(entry) => entryKind(entry) === "work-case-blocked",
+	);
+	assert.ok(blockedEntry);
+	const blockedTurn = await first.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "inspect blocked",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(blockedTurn.systemPrompt, /Blocked Action Loop Work Case:/);
+	assert.match(blockedTurn.systemPrompt, /Claim Assurance:/);
+	first.setInputResults([
+		"The exact Effect Observation is now available for settlement.",
+		"Settle the pending Effect from the current Observation.",
+	]);
+	await first.commands.get("developer").handler("resume", first.ctx);
+	const resumedBlockedEntry = first.entries.find(
+		(entry) => entryKind(entry) === "blocked-work-case-resumed",
+	);
+	assert.ok(resumedBlockedEntry);
+	const blockContinuityEntries = [blockedEntry, resumedBlockedEntry].map(
+		(entry) => ({ type: "custom", ...entry }),
+	);
 	const settlement = await first.tools
 		.get("developer_settle_effect")
 		.execute("replay-effect-settlement", {
@@ -2609,6 +2643,7 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 			},
 		},
 		...actionLoopEntries.map((entry) => ({ type: "custom", ...entry })),
+		...blockContinuityEntries,
 		{
 			type: "message",
 			message: {

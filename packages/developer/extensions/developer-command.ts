@@ -4,6 +4,7 @@ export const DEVELOPER_COMMAND_ACTIONS = [
 	"settings",
 	"pause",
 	"wait",
+	"block",
 	"resume",
 	"on",
 	"off",
