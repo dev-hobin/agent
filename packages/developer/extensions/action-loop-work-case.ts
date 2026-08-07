@@ -7,6 +7,7 @@ import type {
 	AcceptedApplicabilityAssessment,
 	CapabilityAssignment,
 } from "../src/action-loop/routing/accept-applicability.ts";
+import type { NeedCoverage } from "../src/action-loop/need-coverage/assess-need-coverage.ts";
 import type { BoundReferenceSelection } from "../src/action-loop/routing/bind-reference-selection.ts";
 import {
 	openWorkCase,
@@ -34,6 +35,7 @@ export interface LiveWorkCaseState {
 	readonly referenceSelections: readonly BoundReferenceSelection[];
 	readonly sealedSkillContexts: readonly SkillContributionContext[];
 	readonly contributions: readonly SkillContribution[];
+	readonly needCoverages: readonly NeedCoverage[];
 }
 
 export type LiveWorkCaseOpeningResult =
@@ -149,6 +151,7 @@ export function openLiveWorkCase(
 			referenceSelections: Object.freeze([]),
 			sealedSkillContexts: Object.freeze([]),
 			contributions: Object.freeze([]),
+			needCoverages: Object.freeze([]),
 		}),
 	};
 }
@@ -205,6 +208,13 @@ export function liveWorkCasePrompt(
 					(contribution) =>
 						`Skill Contribution: ${contribution.contributionId} · ${contribution.localStatus} → ${contribution.contributionNeedId}`,
 				);
+	const coverageLines =
+		state.needCoverages.length === 0
+			? ["Need Coverage: none"]
+			: state.needCoverages.map(
+					(coverage) =>
+						`Need Coverage: ${coverage.coverageId} · ${coverage.status} → ${coverage.contributionNeedId}`,
+				);
 	return [
 		`Active Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
 		`Outcome: ${workCase.outcome.statement}`,
@@ -218,6 +228,7 @@ export function liveWorkCasePrompt(
 		...selectionLines,
 		...contextLines,
 		...contributionLines,
+		...coverageLines,
 		"This process-local projection preserves active Outcome continuity but does not imply Action Clearance or completion.",
 	].join("\n");
 }

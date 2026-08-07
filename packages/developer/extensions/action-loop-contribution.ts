@@ -99,9 +99,15 @@ export function acceptLiveSkillContribution(
 			left.contributionId.localeCompare(right.contributionId),
 		),
 	);
+	const needCoverages = Object.freeze(
+		state.needCoverages.filter(
+			(coverage) =>
+				coverage.contributionNeedId !== need.value.contributionNeedId,
+		),
+	);
 	return {
 		status: "accepted",
-		state: Object.freeze({ ...state, contributions }),
+		state: Object.freeze({ ...state, contributions, needCoverages }),
 		contribution: accepted.value,
 	};
 }

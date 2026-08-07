@@ -9,6 +9,7 @@ import {
 	selectAndSealLiveStructuredCapability,
 } from "../extensions/action-loop-context.ts";
 import { acceptLiveSkillContribution } from "../extensions/action-loop-contribution.ts";
+import { assessLiveNeedCoverage } from "../extensions/action-loop-coverage.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
 import { bindCapability } from "../src/action-loop/routing/bind-capability.ts";
@@ -165,6 +166,34 @@ test("ready structured selection seals Skill and selected References atomically"
 		assert.deepEqual(
 			contributed.contribution.referenceApplications.map(({ path }) => path),
 			[relevantPath],
+		);
+		const coverage = assessLiveNeedCoverage(contributed.state, {
+			status: "covered",
+			dispositions: [
+				{
+					contributionId: contributed.contribution.contributionId,
+					status: "supports",
+					basis: ["The selected verifier result fully serves the Need."],
+				},
+			],
+			conflicts: [],
+			basis: ["Every current Contribution has complete disposition."],
+			provenance: { kind: "model", source: "test-evaluator" },
+		});
+		assert.equal(coverage.status, "assessed");
+		if (coverage.status === "assessed") {
+			assert.equal(coverage.coverage.status, "covered");
+			assert.deepEqual(coverage.state.needCoverages, [coverage.coverage]);
+		}
+		assert.equal(
+			assessLiveNeedCoverage(contributed.state, {
+				status: "covered",
+				dispositions: [],
+				conflicts: [],
+				basis: ["A Contribution was omitted."],
+				provenance: { kind: "model", source: "test-evaluator" },
+			}).status,
+			"invalid",
 		);
 	}
 	const repeated = await selectAndSealLiveStructuredCapability(
