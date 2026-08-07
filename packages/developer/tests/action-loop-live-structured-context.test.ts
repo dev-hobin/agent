@@ -10,6 +10,7 @@ import {
 } from "../extensions/action-loop-context.ts";
 import { acceptLiveSkillContribution } from "../extensions/action-loop-contribution.ts";
 import { assessLiveNeedCoverage } from "../extensions/action-loop-coverage.ts";
+import { closeLiveJudgment } from "../extensions/action-loop-conclusion.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
 import { bindCapability } from "../src/action-loop/routing/bind-capability.ts";
@@ -184,6 +185,28 @@ test("ready structured selection seals Skill and selected References atomically"
 		if (coverage.status === "assessed") {
 			assert.equal(coverage.coverage.status, "covered");
 			assert.deepEqual(coverage.state.needCoverages, [coverage.coverage]);
+			const requirement =
+				coverage.state.workCase.openJudgments[0].requirements[0];
+			const closed = closeLiveJudgment(coverage.state, {
+				outcome: "conclude",
+				answer: "The selected verifier Contribution supports the Claim.",
+				refusalReasons: [],
+				requirementDispositions: [
+					{
+						requirementId: requirement.requirementId,
+						status: "satisfied",
+						coverageIds: [coverage.coverage.coverageId],
+						basis: ["The only Requirement has complete covered evidence."],
+					},
+				],
+				basis: ["All current Coverage and Requirement accounting is complete."],
+				provenance: { kind: "model", source: "test-evaluator" },
+			});
+			assert.equal(closed.status, "concluded");
+			if (closed.status === "concluded") {
+				assert.deepEqual(closed.state.workCase.openJudgments, []);
+				assert.deepEqual(closed.state.workCase.conclusions, [closed.conclusion]);
+			}
 		}
 		assert.equal(
 			assessLiveNeedCoverage(contributed.state, {
