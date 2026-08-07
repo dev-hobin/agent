@@ -13,6 +13,7 @@ import {
 
 import developer from "../extensions/developer.ts";
 import {
+	ACTIVATION_ENTRY,
 	JUDGMENT_TOOL,
 	REFERENCE_TOOL,
 	ROUTE_TOOL,
@@ -1721,7 +1722,7 @@ test("human commands durably pause and resume one live Work Case", async () => {
 	});
 	await harness.commands.get("developer").handler("on", harness.ctx);
 	const opening = harness.tools.get("developer_open_work_case");
-	await opening.execute("open-before-pause", {
+	const opened = await opening.execute("open-before-pause", {
 		statement: "The current Work Case can retain human-owned pause continuity.",
 		acceptance_conditions: [
 			"The exact paused revision survives until explicit human resume.",
@@ -1735,6 +1736,7 @@ test("human commands durably pause and resume one live Work Case", async () => {
 		(harness.entries.at(-1)?.data as { kind?: string }).kind,
 		"work-case-paused",
 	);
+	const pausedEntry = harness.entries.at(-1)!;
 	const pausedTurn = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",
@@ -1775,6 +1777,49 @@ test("human commands durably pause and resume one live Work Case", async () => {
 	});
 	assert.match(resumedTurn.systemPrompt, /Active Action Loop Work Case:/);
 	assert.doesNotMatch(resumedTurn.systemPrompt, /Pause:/);
+
+	const activationEntry = harness.entries.find(
+		(entry) => entry.customType === ACTIVATION_ENTRY,
+	)!;
+	const activeBranch = [
+		{ type: "custom", ...activationEntry },
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_open_work_case",
+				details: opened.details,
+			},
+		},
+	];
+	const restored = createHarness();
+	restored.setBranch([
+		...activeBranch,
+		{ type: "custom", ...pausedEntry },
+	]);
+	await developer(restored.api);
+	await restored.emit("session_start", {
+		type: "session_start",
+		reason: "resume",
+	});
+	const restoredPause = await restored.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "resume paused fork",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(restoredPause.systemPrompt, /Paused Action Loop Work Case:/);
+
+	restored.setBranch(activeBranch);
+	await restored.emit("session_tree", { type: "session_tree" });
+	const restoredActive = await restored.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "switch to active ancestor",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(restoredActive.systemPrompt, /Active Action Loop Work Case:/);
+	assert.doesNotMatch(restoredActive.systemPrompt, /Pause:/);
 });
 
 test("human Observation durably waits and resumes on an exact predicate", async () => {

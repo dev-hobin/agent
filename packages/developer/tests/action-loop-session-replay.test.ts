@@ -233,6 +233,91 @@ test("observed wait and predicate-bound resume replay branch-locally", async () 
 	assert.equal(resumedReplay.appliedTransitions, 3);
 });
 
+test("duplicate and stale nonterminal transitions fail closed", async () => {
+	const opened = openLiveWorkCase(undefined, proposal);
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const pauseProposal = {
+		workCaseId: opened.value.workCase.workCaseId,
+		expectedRevisionId: opened.value.workCase.revisionId,
+		reason: "Pause for adversarial replay checks.",
+		decision: {
+			kind: "human",
+			decisionId: "pi-command-pause-adversarial",
+			source: "pi:/developer pause",
+			basis: ["The human explicitly invoked the pause command."],
+		},
+	};
+	const paused = pauseLiveWorkCase(opened.value, pauseProposal);
+	assert.equal(paused.status, "paused");
+	if (paused.status !== "paused") return;
+	const openingEntry = {
+		type: "message",
+		message: {
+			role: "toolResult",
+			toolName: "developer_open_work_case",
+			details: withActionLoopReplayEvent(
+				{ protocol: "developer-action-loop/v1", kind: "opened" },
+				actionLoopWorkCaseOpenedEvent(proposal, opened.value),
+			),
+		},
+	};
+	const pauseEvent = actionLoopWorkCasePausedEvent(pauseProposal, paused.state);
+	const pauseEntry = {
+		type: "custom",
+		customType: ACTION_LOOP_SESSION_ENTRY,
+		data: pauseEvent,
+	};
+	const duplicate = await replayActionLoopSession([
+		openingEntry,
+		pauseEntry,
+		pauseEntry,
+	]);
+	assert.equal(duplicate.status, "unavailable");
+	if (duplicate.status === "unavailable") {
+		assert.equal(duplicate.entryIndex, 2);
+		assert.match(duplicate.message, /cannot mutate paused branch ownership/);
+	}
+
+	const resumeProposal = {
+		workCaseId: paused.state.workCase.workCaseId,
+		expectedRevisionId: paused.state.workCase.revisionId,
+		decision: {
+			kind: "human",
+			decisionId: "pi-command-resume-adversarial",
+			source: "pi:/developer resume",
+			basis: ["The human explicitly confirmed the resume command."],
+		},
+	};
+	const resumed = resumeLivePausedWorkCase(paused.state, resumeProposal);
+	assert.equal(resumed.status, "active");
+	if (resumed.status !== "active") return;
+	const resumeEvent = actionLoopPausedWorkCaseResumedEvent(
+		resumeProposal,
+		resumed.state,
+	);
+	const stale = await replayActionLoopSession([
+		openingEntry,
+		pauseEntry,
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: {
+				...resumeEvent,
+				proposal: {
+					...resumeEvent.proposal,
+					expectedRevisionId: "work_case_revision_stale",
+				},
+			},
+		},
+	]);
+	assert.equal(stale.status, "unavailable");
+	if (stale.status === "unavailable") {
+		assert.equal(stale.entryIndex, 2);
+		assert.match(stale.message, /does not reproduce/);
+	}
+});
+
 test("a later Developer-off entry clears replayed Action Loop ownership", async () => {
 	const opened = openLiveWorkCase(undefined, proposal);
 	assert.equal(opened.status, "opened");
