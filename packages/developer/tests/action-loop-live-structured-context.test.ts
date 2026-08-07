@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import { acceptLiveActionCandidate } from "../extensions/action-loop-action.ts";
 import { assessLiveCapabilityApplicability } from "../extensions/action-loop-applicability.ts";
 import {
 	loadLiveSelectedReference,
@@ -206,6 +207,22 @@ test("ready structured selection seals Skill and selected References atomically"
 			if (closed.status === "concluded") {
 				assert.deepEqual(closed.state.workCase.openJudgments, []);
 				assert.deepEqual(closed.state.workCase.conclusions, [closed.conclusion]);
+				const action = acceptLiveActionCandidate(closed.state, {
+					controlledAction: {
+						kind: "pi:write",
+						fingerprint: "a".repeat(64),
+					},
+					summary: "Write one bounded verified artifact.",
+					intendedEffects: ["The bounded artifact is updated."],
+					requiredConclusionIds: [closed.conclusion.conclusionId],
+				});
+				assert.equal(action.status, "accepted");
+				if (action.status === "accepted") {
+					assert.deepEqual(action.state.workCase.actionCandidates, [
+						action.candidate,
+					]);
+					assert.deepEqual(action.state.workCase.actionClearances, []);
+				}
 			}
 		}
 		assert.equal(
