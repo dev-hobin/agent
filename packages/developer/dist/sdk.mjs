@@ -8000,10 +8000,9 @@ function conclusionParameters(contract) {
     outcome: StringEnum7(closureOutcomes),
     answer: Type7.Optional(Type7.String({ minLength: 1, maxLength: 12e3 })),
     ...contract.category === "Proportionate Intervention" ? {
-      intervention_disposition: StringEnum7([
-        "action-required",
-        "no-action"
-      ])
+      intervention_disposition: Type7.Optional(
+        StringEnum7(["action-required", "no-action"])
+      )
     } : {},
     refusal_reasons_json: Type7.String({
       minLength: 2,

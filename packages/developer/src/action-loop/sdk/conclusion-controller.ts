@@ -85,10 +85,9 @@ function conclusionParameters(
 		answer: Type.Optional(Type.String({ minLength: 1, maxLength: 12_000 })),
 		...(contract.category === "Proportionate Intervention"
 			? {
-					intervention_disposition: StringEnum([
-						"action-required",
-						"no-action",
-					] as const),
+					intervention_disposition: Type.Optional(
+						StringEnum(["action-required", "no-action"] as const),
+					),
 				}
 			: {}),
 		refusal_reasons_json: Type.String({

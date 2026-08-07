@@ -309,13 +309,13 @@ test("SDK Coverage can canonically report a missing Need with no Contributions",
 		contract: {
 			workCaseId: assignment.workCaseId,
 			judgmentId: assignment.judgmentId,
-			category: "Consequence Integrity",
-			subject: "Terminal approval retry behavior",
+			category: "Proportionate Intervention",
+			subject: "Whether retry behavior warrants an intervention",
 			contextRevisionId: "context-sdk-contribution",
 			requirements: [
 				{
 					requirementId: "requirement-sdk-contribution",
-					statement: "Retry behavior preserves one terminal approval.",
+					statement: "Retry behavior warrants a proportionate intervention.",
 					contributionNeedIds: [assignment.contributionNeedId],
 				},
 			],
