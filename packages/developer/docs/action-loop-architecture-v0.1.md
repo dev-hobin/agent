@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-architecture-v0.1.md)
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, opens one bounded process-local Work Case and one current Category-scoped Judgment, and accepts Capability Applicability and Assignment through explicit proposal tools. Reference selection, Contribution, Judgment closure, Action, Effect, and completion transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
+> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, and carries one process-local Work Case through current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, and Action Candidate proposal. Human-owned Permission Decision, Action Clearance, Effect, and completion transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
 >
 > Date written: 2026-08-06
 
@@ -618,7 +618,25 @@ developer_assess_capability proposal
 
 Unstructured Capabilities require empty condition matches rather than synthetic predicates. A second different assessment for the same Need, Capability revision, and live Context is refused instead of silently replacing accepted state. A Skill route requires the exact current Assignment; `not-applicable` and `needs-context` cannot authorize routing. The route event preserves Contribution Need, Assignment, and Capability revision identities. The preserved implementation compatibility route is not a Capability Assignment and remains outside this gate.
 
-This live slice deliberately has no session replay yet; reconstruction or process restart clears its Work Case, assessments, and Assignments rather than guessing canonical history. Reference routing, selected-material sealing, Contribution, Need Coverage, Judgment closure, Action, Effect, and later Work Case transitions remain pure-only.
+The selected-material and Judgment synthesis path is now live:
+
+```text
+Capability Assignment
+  → unstructured: seal exactly one Skill file and no References
+  → structured: disposition every declared Reference exactly once
+      → needs-context: remain unsealed
+      → ready: atomically seal Skill + selected References
+  → load selected Reference from sealed bytes
+  → accept Skill Contribution with exact Reference applications
+  → assess all current Contributions for Need Coverage
+  → disposition every Closure Requirement against current Coverage
+  → Judgment Conclusion or explicit refusal
+  → record exact Action Candidate without permission
+```
+
+A new Contribution invalidates current Coverage for its Need. A refusal leaves the Judgment open. A Conclusion removes the open Judgment and advances canonical Work Case revision. The accepted Contribution also closes the matching preserved compatibility route in memory, but that projection does not become canonical Work Case evidence. The route event preserves Need, Assignment, Capability revision, Reference Selection, and sealed Context identities.
+
+This live slice deliberately has no session replay yet; reconstruction or process restart clears its process-local routing and Judgment artifacts rather than guessing canonical history. The next critical live boundary is a human-owned Permission Decision bound to the exact Action Candidate. A model proposal cannot grant permission or Action Clearance. Effect observation and settlement, remediation, Work Status, Closure Claim, and completion remain pure-only.
 
 ## 12. Extension-level guarantee boundary
 

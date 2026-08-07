@@ -10,7 +10,7 @@
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 explicit proposal tool로 하나의 bounded process-local Work Case와 current Category-scoped Judgment를 열고 Capability Applicability와 Assignment를 accept한다. Reference selection, Contribution, Judgment closure, Action, Effect, completion transition은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
+> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 하나의 process-local Work Case를 current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, Action Candidate proposal까지 진행한다. Human-owned Permission Decision, Action Clearance, Effect, completion transition은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
 >
 > 작성 시점: 2026-08-06
 
@@ -618,7 +618,25 @@ developer_assess_capability proposal
 
 Unstructured Capability은 synthetic predicate 대신 empty condition match를 요구한다. 같은 Need, Capability revision, live Context에 대한 서로 다른 두 번째 assessment는 accepted state를 조용히 교체하지 않고 거부된다. Skill route는 exact current Assignment를 요구하며 `not-applicable`과 `needs-context`는 routing을 authorize할 수 없다. Route event는 Contribution Need, Assignment, Capability revision identity를 보존한다. Preserved implementation compatibility route는 Capability Assignment가 아니며 이 gate 밖에 남아 있다.
 
-이 live slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 Work Case, assessment, Assignment를 제거한다. Reference routing, selected-material sealing, Contribution, Need Coverage, Judgment closure, Action, Effect, 이후 Work Case transition은 pure-only로 남는다.
+Selected-material과 Judgment synthesis path도 이제 live다.
+
+```text
+Capability Assignment
+  → unstructured: seal exactly one Skill file and no References
+  → structured: disposition every declared Reference exactly once
+      → needs-context: remain unsealed
+      → ready: atomically seal Skill + selected References
+  → load selected Reference from sealed bytes
+  → accept Skill Contribution with exact Reference applications
+  → assess all current Contributions for Need Coverage
+  → disposition every Closure Requirement against current Coverage
+  → Judgment Conclusion or explicit refusal
+  → record exact Action Candidate without permission
+```
+
+새 Contribution은 그 Need의 current Coverage를 invalidate한다. Refusal은 Judgment를 open 상태로 남긴다. Conclusion은 open Judgment를 제거하고 canonical Work Case revision을 전진시킨다. Accepted Contribution은 matching preserved compatibility route도 memory에서 닫지만 이 projection은 canonical Work Case evidence가 아니다. Route event는 Need, Assignment, Capability revision, Reference Selection, sealed Context identity를 보존한다.
+
+이 live slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 process-local routing과 Judgment artifact를 제거한다. 다음 critical live boundary는 exact Action Candidate에 bind된 human-owned Permission Decision이다. Model proposal은 permission이나 Action Clearance를 부여할 수 없다. Effect observation과 settlement, remediation, Work Status, Closure Claim, completion은 pure-only로 남는다.
 
 ## 12. Extension-level guarantee boundary
 
