@@ -111,11 +111,16 @@ openWorkCaseWithSdk
 → contributeSkillWithSdk
 → assessNeedCoverageWithSdk
 → concludeJudgmentWithSdk
+→ proposeActionWithSdk
+→ clearActionWithHostPermission
+→ [host execution and exact Observation]
+→ settleEffectWithSdk
+→ completeWorkCaseWithSdk
 ```
 
 Each command does one job, accepts and returns explicit values, and admits model output only through a bounded in-memory proposal session. Pure progress inspectors derive the next Context, Contribution, or Coverage task from canonical records rather than creating a parallel checkpoint. The controller owns retries, per-run time limits, complete inventory accounting, canonical identity binding, and non-mutating `bounded-stop` results. Provider errors remain distinct from domain invariant failures.
 
-This RC provides SDK commands through upper Judgment Conclusion. Capability inventory admission is journaled as one atomic semantic batch, while each sealed Context, Contribution, and Coverage remains independently replayable from the Pi branch. The production Extension path remains active until live-evaluation parity and host integration are complete. Action, Effect, continuity, and completion still require SDK commands. The Pi session branch remains the only durability boundary.
+This RC provides SDK commands through upper Judgment Conclusion, exact Action Candidate proposal, separate host Permission clearance, and explicit Effect settlement. Capability inventory admission is journaled as one atomic semantic batch, while each sealed Context, Contribution, Coverage, cleared Action, and Effect assessment remains independently replayable from the Pi branch. Exact host execution and Effect Observation stay in the Extension bridge; model output cannot grant permission or turn a tool return into success. The production Extension path remains active until live-evaluation parity and host integration are complete. Canonical pause, wait, block, resume, Effect beginning, Observation admission, and remediation commands are exported directly instead of being wrapped by another manager. Completion is admitted only after trusted code prepares the complete current Closure Target and revalidates the same Work Case revision. The Pi session branch remains the only durability boundary.
 
 ## Canonical tools
 

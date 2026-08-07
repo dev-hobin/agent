@@ -19,4 +19,17 @@ test("built SDK surface exposes canonical preparation, routing, and decision con
 	assert.equal(typeof sdk.concludeJudgmentWithSdk, "function");
 	assert.equal(typeof sdk.inspectContributionProgress, "function");
 	assert.equal(typeof sdk.inspectCoverageProgress, "function");
+	assert.equal(typeof sdk.proposeActionWithSdk, "function");
+	assert.equal(typeof sdk.clearActionWithHostPermission, "function");
+	assert.equal(typeof sdk.settleEffectWithSdk, "function");
+	assert.equal(typeof sdk.completeWorkCaseWithSdk, "function");
+	assert.equal(typeof sdk.pauseWorkCase, "function");
+	assert.equal(typeof sdk.waitWorkCase, "function");
+	assert.equal(typeof sdk.blockWorkCase, "function");
+	assert.equal(typeof sdk.resumePausedWorkCase, "function");
+	assert.equal(typeof sdk.resumeWaitingWorkCase, "function");
+	assert.equal(typeof sdk.resumeBlockedWorkCase, "function");
+	assert.equal(typeof sdk.beginEffect, "function");
+	assert.equal(typeof sdk.acceptEffectObservation, "function");
+	assert.equal(typeof sdk.acceptEffectRemediation, "function");
 });

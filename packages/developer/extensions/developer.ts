@@ -192,6 +192,13 @@ const MAX_RESULT_CHARS = 12_000;
 const TOOL_POLICY_RESTART_MESSAGE =
 	"Developer detected an in-process package reload from a version without reload-safe tool handoff. Restart the Pi process before enabling Developer; /reload and /developer off/on cannot safely reconstruct the prior built-in tool selection.";
 
+function isStringEnumValue<T extends string>(
+	value: unknown,
+	values: readonly T[],
+): value is T {
+	return typeof value === "string" && values.some((item) => item === value);
+}
+
 function textResult<T>(text: string, details: T) {
 	return {
 		content: [{ type: "text" as const, text }],
@@ -804,6 +811,15 @@ export default async function developer(pi: ExtensionAPI) {
 					`Capability ${params.capability} is unavailable, excluded, ambiguous, or unbound.`,
 				);
 			}
+			if (
+				!isStringEnumValue(params.status, [
+					"applicable",
+					"not-applicable",
+					"needs-context",
+				] as const)
+			) {
+				fail("Capability status is outside the closed applicability domain.");
+			}
 			const proposal = {
 				contributionNeedId: params.contribution_need_id,
 				status: params.status,
@@ -954,11 +970,27 @@ export default async function developer(pi: ExtensionAPI) {
 					),
 				);
 			}
+			const dispositions = params.dispositions.map((disposition) => {
+				if (
+					!isStringEnumValue(disposition.status, [
+						"selected",
+						"not-needed",
+						"needs-context",
+					] as const)
+				) {
+					fail("Reference status is outside the closed disposition domain.");
+				}
+				return {
+					path: disposition.path,
+					status: disposition.status,
+					basis: [...disposition.basis],
+				};
+			});
 			const result = await selectAndSealLiveStructuredCapability(
 				activeWorkCase,
 				entry,
 				assignment,
-				params.dispositions,
+				dispositions,
 			);
 			if (result.status === "invalid") fail(result.message);
 			activeWorkCase = result.state;
@@ -979,7 +1011,7 @@ export default async function developer(pi: ExtensionAPI) {
 						skillName: params.capability,
 						capabilityRevisionId: entry.capability.capabilityRevisionId,
 						contributionNeedId: need.value.contributionNeedId,
-						dispositions: params.dispositions,
+						dispositions,
 						selectionId: result.selectionId,
 						sealedContextId: result.context?.sealedContextId,
 					}),
@@ -1340,14 +1372,36 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			if (
+				!isStringEnumValue(params.status, [
+					"covered",
+					"partially-covered",
+					"conflicted",
+					"missing",
+				] as const)
+			) {
+				fail("Coverage status is outside the closed Coverage domain.");
+			}
+			const dispositions = params.dispositions.map((disposition) => {
+				if (
+					!isStringEnumValue(disposition.status, [
+						"supports",
+						"limited-support",
+						"not-relied-on",
+					] as const)
+				) {
+					fail("Contribution status is outside the closed Coverage domain.");
+				}
+				return {
+					contributionId: disposition.contribution_id,
+					status: disposition.status,
+					basis: [...disposition.basis],
+				};
+			});
 			const proposal = {
 				contributionNeedId: params.contribution_need_id,
 				status: params.status,
-				dispositions: params.dispositions.map((disposition) => ({
-					contributionId: disposition.contribution_id,
-					status: disposition.status,
-					basis: disposition.basis,
-				})),
+				dispositions,
 				conflicts: params.conflicts.map((conflict) => ({
 					leftContributionId: conflict.left_contribution_id,
 					rightContributionId: conflict.right_contribution_id,
@@ -1435,18 +1489,33 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			if (!isStringEnumValue(params.outcome, ["conclude", "refuse"] as const)) {
+				fail("Judgment outcome is outside the closed closure domain.");
+			}
+			const requirementDispositions = params.requirement_dispositions.map(
+				(disposition) => {
+					if (
+						!isStringEnumValue(disposition.status, [
+							"satisfied",
+							"not-satisfied",
+							"needs-context",
+						] as const)
+					) {
+						fail("Requirement status is outside the closed closure domain.");
+					}
+					return {
+						requirementId: disposition.requirement_id,
+						status: disposition.status,
+						coverageIds: [...disposition.coverage_ids],
+						basis: [...disposition.basis],
+					};
+				},
+			);
 			const proposal = {
 				outcome: params.outcome,
 				answer: params.answer,
 				refusalReasons: params.refusal_reasons,
-				requirementDispositions: params.requirement_dispositions.map(
-					(disposition) => ({
-						requirementId: disposition.requirement_id,
-						status: disposition.status,
-						coverageIds: disposition.coverage_ids,
-						basis: disposition.basis,
-					}),
-				),
+				requirementDispositions,
 				basis: params.basis,
 				provenance: { kind: "model" as const, source: "pi:tool-call" },
 			};
@@ -1650,23 +1719,59 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const proposal = {
-				outcome: params.outcome,
-				observationDispositions: params.observation_dispositions.map(
-					(disposition) => ({
+			if (
+				!isStringEnumValue(params.outcome, [
+					"observed-success",
+					"observed-no-effect",
+					"failed",
+					"partially-applied",
+					"pending",
+					"unknown",
+				] as const)
+			) {
+				fail("Effect outcome is outside the closed settlement domain.");
+			}
+			const observationDispositions = params.observation_dispositions.map(
+				(disposition) => {
+					if (
+						!isStringEnumValue(disposition.status, [
+							"relied-on",
+							"not-relied-on",
+						] as const)
+					) {
+						fail("Observation status is outside the closed settlement domain.");
+					}
+					return {
 						effectObservationId: disposition.effect_observation_id,
 						status: disposition.status,
-						basis: disposition.basis,
-					}),
-				),
-				intendedEffectDispositions: params.intended_effect_dispositions.map(
-					(disposition) => ({
+						basis: [...disposition.basis],
+					};
+				},
+			);
+			const intendedEffectDispositions =
+				params.intended_effect_dispositions.map((disposition) => {
+					if (
+						!isStringEnumValue(disposition.status, [
+							"observed",
+							"not-observed",
+							"failed",
+							"partially-observed",
+							"unknown",
+						] as const)
+					) {
+						fail("Intended Effect status is outside the closed settlement domain.");
+					}
+					return {
 						intendedEffect: disposition.intended_effect,
 						status: disposition.status,
-						observationIds: disposition.observation_ids,
-						basis: disposition.basis,
-					}),
-				),
+						observationIds: [...disposition.observation_ids],
+						basis: [...disposition.basis],
+					};
+				});
+			const proposal = {
+				outcome: params.outcome,
+				observationDispositions,
+				intendedEffectDispositions,
 				basis: params.basis,
 				expectedCurrentAssessmentId: params.expected_current_assessment_id,
 			};

@@ -1,29 +1,158 @@
 import type { CapabilityAssignment } from "../src/action-loop/routing/accept-applicability.ts";
+import type {
+	SdkActionCandidateResult,
+	SdkActionClearanceResult,
+} from "../src/action-loop/sdk/action-controller.ts";
 import type { SdkCapabilityInventoryResult } from "../src/action-loop/sdk/capability-inventory-controller.ts";
 import type { SdkCapabilityContextResult } from "../src/action-loop/sdk/context-sealing-controller.ts";
+import type { SdkWorkCaseCompletionResult } from "../src/action-loop/sdk/completion-controller.ts";
 import type { SdkJudgmentConclusionResult } from "../src/action-loop/sdk/conclusion-controller.ts";
 import type { SdkSkillContributionResult } from "../src/action-loop/sdk/contribution-controller.ts";
 import type { SdkNeedCoverageResult } from "../src/action-loop/sdk/coverage-controller.ts";
+import type { SdkEffectSettlementResult } from "../src/action-loop/sdk/effect-controller.ts";
 import type { SdkJudgmentOpeningResult } from "../src/action-loop/sdk/judgment-controller.ts";
 import type { SdkWorkCaseOpeningResult } from "../src/action-loop/sdk/work-case-controller.ts";
 import {
+	actionLoopActionClearedEvent,
 	actionLoopCapabilityInventoryAssessedEvent,
 	actionLoopContributionAcceptedEvent,
 	actionLoopCoverageAssessedEvent,
+	actionLoopEffectSettledEvent,
 	actionLoopJudgmentConcludedEvent,
 	actionLoopJudgmentOpenedEvent,
 	actionLoopReferencesSelectedEvent,
 	actionLoopUnstructuredContextSealedEvent,
+	actionLoopWorkCaseCompletedEvent,
 	actionLoopWorkCaseOpenedEvent,
+	type ActionLoopActionClearedEvent,
 	type ActionLoopCapabilityInventoryAssessedEvent,
 	type ActionLoopContributionAcceptedEvent,
 	type ActionLoopCoverageAssessedEvent,
+	type ActionLoopEffectSettledEvent,
 	type ActionLoopJudgmentConcludedEvent,
 	type ActionLoopJudgmentOpenedEvent,
 	type ActionLoopReferencesSelectedEvent,
 	type ActionLoopUnstructuredContextSealedEvent,
+	type ActionLoopWorkCaseCompletedEvent,
 	type ActionLoopWorkCaseOpenedEvent,
 } from "./action-loop-session-event.ts";
+
+export function sdkActionClearedEvent(input: {
+	readonly action: Extract<
+		SdkActionCandidateResult,
+		{ readonly status: "accepted" }
+	>;
+	readonly clearance: Extract<
+		SdkActionClearanceResult,
+		{ readonly status: "cleared" }
+	>;
+	readonly revisionId: string;
+}): ActionLoopActionClearedEvent {
+	if (
+		input.action.candidate.actionCandidateId !==
+		input.clearance.clearance.actionCandidateId
+	) {
+		throw new Error("SDK Action Candidate and Clearance do not match.");
+	}
+	if (
+		input.action.toolName !== "bash" &&
+		input.action.toolName !== "edit" &&
+		input.action.toolName !== "write"
+	) {
+		throw new Error(
+			`SDK Action ${input.action.toolName} is not a controlled Pi built-in.`,
+		);
+	}
+	return actionLoopActionClearedEvent(
+		{
+			toolName: input.action.toolName,
+			toolInput: { ...input.action.toolInput },
+			summary: input.action.candidate.summary,
+			intendedEffects: [...input.action.candidate.intendedEffects],
+			requiredConclusionIds: [
+				...input.action.candidate.requiredConclusionIds,
+			],
+		},
+		input.action.candidate.actionCandidateId,
+		input.clearance.clearance.actionClearanceId,
+		input.revisionId,
+		{
+			...input.clearance.clearance.permission,
+			basis: [...input.clearance.clearance.permission.basis],
+		},
+	);
+}
+
+export function sdkEffectSettledEvent(input: {
+	readonly result: Extract<
+		SdkEffectSettlementResult,
+		{ readonly status: "settled" | "unsettled" }
+	>;
+	readonly revisionId: string;
+	readonly expectedCurrentAssessmentId?: string;
+}): ActionLoopEffectSettledEvent {
+	const assessment =
+		input.result.status === "settled"
+			? input.result.settlement
+			: input.result.assessment;
+	const assessmentId =
+		"effectSettlementId" in assessment
+			? assessment.effectSettlementId
+			: assessment.effectAssessmentId;
+	return actionLoopEffectSettledEvent(
+		assessment.effectId,
+		{
+			outcome: assessment.outcome,
+			observationDispositions: assessment.observationDispositions.map(
+				(disposition) => ({
+					...disposition,
+					basis: [...disposition.basis],
+				}),
+			),
+			intendedEffectDispositions: assessment.intendedEffectDispositions.map(
+				(disposition) => ({
+					...disposition,
+					observationIds: [...disposition.observationIds],
+					basis: [...disposition.basis],
+				}),
+			),
+			basis: [...assessment.basis],
+			...(input.expectedCurrentAssessmentId
+				? {
+						expectedCurrentAssessmentId:
+							input.expectedCurrentAssessmentId,
+					}
+				: {}),
+		},
+		assessmentId,
+		input.revisionId,
+	);
+}
+
+export function sdkWorkCaseCompletedEvent(
+	result: Extract<
+		SdkWorkCaseCompletionResult,
+		{ readonly status: "completed" }
+	>,
+): ActionLoopWorkCaseCompletedEvent {
+	return actionLoopWorkCaseCompletedEvent(
+		{
+			closureTargetId: result.target.closureTargetId,
+			mode: result.claim.mode,
+			obligationDispositions: result.claim.obligationDispositions.map(
+				(disposition) => ({
+					...disposition,
+					conclusionIds: [...disposition.conclusionIds],
+					effectAssessmentIds: [...disposition.effectAssessmentIds],
+					effectRemediationIds: [...disposition.effectRemediationIds],
+					basis: [...disposition.basis],
+				}),
+			),
+			basis: [...result.claim.basis],
+		},
+		result.workCase,
+	);
+}
 
 export function sdkWorkCaseOpenedEvent(
 	result: Extract<SdkWorkCaseOpeningResult, { readonly status: "opened" }>,

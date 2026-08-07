@@ -633,6 +633,17 @@ const ActionClearedEventSchema = Type.Object(
 		...EventHeaderSchema,
 		kind: Type.Literal("action-cleared"),
 		proposal: PiActionProposalSchema,
+		permission: Type.Optional(
+			Type.Object(
+				{
+					actionCandidateId: IdSchema,
+					status: Type.Literal("granted"),
+					source: ShortTextSchema,
+					basis: BasisSchema,
+				},
+				{ additionalProperties: false },
+			),
+		),
 		expected: Type.Object(
 			{
 				actionCandidateId: IdSchema,
@@ -1325,12 +1336,26 @@ export function actionLoopActionClearedEvent(
 	actionCandidateId: string,
 	actionClearanceId: string,
 	revisionId: string,
+	permission?: {
+		readonly actionCandidateId: string;
+		readonly status: "granted";
+		readonly source: string;
+		readonly basis: readonly string[];
+	},
 ): ActionLoopActionClearedEvent {
 	return Object.freeze({
 		protocol: ACTION_LOOP_SESSION_PROTOCOL,
 		kind: "action-cleared",
 		transitionId: actionClearanceId,
 		proposal,
+		...(permission
+			? {
+					permission: {
+						...permission,
+						basis: [...permission.basis],
+					},
+				}
+			: {}),
 		expected: { actionCandidateId, actionClearanceId, revisionId },
 	});
 }

@@ -477,7 +477,7 @@ function replayActionClearance(
 	const clearance = assessLiveActionClearance(
 		accepted.state,
 		accepted.candidate.actionCandidateId,
-		{
+		event.permission ?? {
 			actionCandidateId: accepted.candidate.actionCandidateId,
 			status: "granted",
 			source: "pi:default-permission-policy",
