@@ -1,4 +1,5 @@
 import type { ActionCandidateProvenance } from "../src/action-loop/action/accept-action-candidate.ts";
+import type { SkillContributionContext } from "../src/action-loop/contribution/accept-skill-contribution.ts";
 import type {
 	AcceptedApplicabilityAssessment,
 	CapabilityAssignment,
@@ -26,6 +27,7 @@ export interface LiveWorkCaseState {
 	readonly openingBasis: readonly string[];
 	readonly applicabilityAssessments: readonly AcceptedApplicabilityAssessment[];
 	readonly capabilityAssignments: readonly CapabilityAssignment[];
+	readonly sealedSkillContexts: readonly SkillContributionContext[];
 }
 
 export type LiveWorkCaseOpeningResult =
@@ -138,6 +140,7 @@ export function openLiveWorkCase(
 			openingBasis: basis,
 			applicabilityAssessments: Object.freeze([]),
 			capabilityAssignments: Object.freeze([]),
+			sealedSkillContexts: Object.freeze([]),
 		}),
 	};
 }
@@ -172,6 +175,14 @@ export function liveWorkCasePrompt(
 					(assignment) =>
 						`Capability assignment: ${assignment.assignmentId} · ${assignment.capabilityRevisionId} → ${assignment.contributionNeedId}`,
 				);
+	const contextLines =
+		state.sealedSkillContexts.length === 0
+			? ["Sealed Skill contexts: none"]
+			: state.sealedSkillContexts.map((context) => {
+					let routing = "structured";
+					if ("routing" in context) routing = context.routing;
+					return `Sealed Skill context: ${context.sealedContextId} · ${routing} · ${context.assignmentId}`;
+				});
 	return [
 		`Active Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
 		`Outcome: ${workCase.outcome.statement}`,
@@ -182,6 +193,7 @@ export function liveWorkCasePrompt(
 		...judgmentLines,
 		...applicabilityLines,
 		...assignmentLines,
+		...contextLines,
 		"This process-local projection preserves active Outcome continuity but does not imply Action Clearance or completion.",
 	].join("\n");
 }
