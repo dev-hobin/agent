@@ -182,6 +182,28 @@ function resultText(result: {
 		.join(" ");
 }
 
+type PiSdkAgentEvent = Parameters<
+	Parameters<PiSdkAgentSession["subscribe"]>[0]
+>[0];
+
+function traceDecisionEvent(
+	event: PiSdkAgentEvent,
+	accepted: () => boolean,
+): void {
+	if (process.env.DEVELOPER_SDK_DECISION_TRACE !== "1") return;
+	let message: string | undefined;
+	if (event.type === "agent_start" || event.type === "agent_end") {
+		message = event.type;
+	} else if (event.type === "tool_execution_start") {
+		message = `${event.type} tool=${event.toolName}`;
+	} else if (event.type === "tool_execution_end") {
+		message = `${event.type} tool=${event.toolName} error=${event.isError} accepted=${accepted()}`;
+	}
+	if (message !== undefined) {
+		process.stderr.write(`[developer-sdk-decision] ${message}\n`);
+	}
+}
+
 function subscribeToAttempt(input: {
 	readonly session: PiSdkAgentSession;
 	readonly toolName: string;
@@ -191,6 +213,7 @@ function subscribeToAttempt(input: {
 	readonly accepted: () => boolean;
 }): () => void {
 	return input.session.subscribe((event) => {
+		traceDecisionEvent(event, input.accepted);
 		if (
 			event.type === "tool_execution_start" &&
 			event.toolName === input.toolName
@@ -246,6 +269,7 @@ async function runDecisionAttempt<T>(input: {
 	readonly request: SdkDecisionRequest<T>;
 	readonly maximumErrors: number;
 	readonly maximumRunMs: number;
+	readonly retryFeedback: readonly string[];
 	readonly counters: DecisionCounters;
 }): Promise<DecisionAttemptResult<T>> {
 	let acceptedProposal: { readonly value: T } | undefined;
@@ -253,20 +277,16 @@ async function runDecisionAttempt<T>(input: {
 	const tool = input.options.bindings.defineTool({
 		name: input.request.tool.name,
 		label: input.request.tool.label,
+		// One stage exposes one one-use proposal tool. Competing calls must not
+		// race to become the accepted proposal; orchestration-level parallelism
+		// belongs across independent commands, not inside this admission point.
+		executionMode: "sequential",
 		description: input.request.tool.description,
 		parameters: input.request.tool.parameters,
 		execute: async (_toolCallId, raw) => {
 			const admission = await input.request.tool.execute(raw);
 			if (admission.status === "rejected") {
-				return {
-					content: [{ type: "text", text: admission.message }],
-					details: {
-						accepted: false,
-						status: "rejected",
-						reason: admission.code,
-					},
-					isError: true,
-				};
+				throw new Error(`${admission.code}: ${admission.message}`);
 			}
 			if (acceptedProposal === undefined) {
 				acceptedProposal = { value: admission.value };
@@ -305,7 +325,16 @@ async function runDecisionAttempt<T>(input: {
 			);
 			void session?.abort();
 		}, input.maximumRunMs);
-		await session.prompt(input.request.prompt);
+		const prompt =
+			input.retryFeedback.length === 0
+				? input.request.prompt
+				: [
+						input.request.prompt,
+						"Previous proposal rejection(s) from canonical admission:",
+						...input.retryFeedback.map((feedback) => `- ${feedback}`),
+						"Submit a corrected proposal and do not repeat these rejected states.",
+					].join("\n");
+		await session.prompt(prompt);
 		input.counters.nonRuntimeRuns += 1;
 	} catch (error) {
 		if (
@@ -359,6 +388,9 @@ async function runBoundedDecision<T>(
 			request,
 			maximumErrors,
 			maximumRunMs,
+			retryFeedback: counters.errorMessages
+				.filter((message) => !message.startsWith("runtime:"))
+				.slice(-maximumErrors),
 			counters,
 		});
 		if (attempt.status === "accepted") {

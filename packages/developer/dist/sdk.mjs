@@ -5726,11 +5726,7 @@ function matchingContextMode(context, selection) {
 function indexContexts(input, assignments, selections) {
   const indexed = /* @__PURE__ */ new Map();
   for (const context of input.contexts) {
-    if (!matchingContext(
-      input,
-      context,
-      assignments.get(context.assignmentId)
-    )) {
+    if (!matchingContext(input, context, assignments.get(context.assignmentId))) {
       return {
         ok: false,
         error: invalid14(
@@ -5792,7 +5788,9 @@ function inspectCapabilityContextProgress(input) {
     [...contexts.value.keys()].sort((left, right) => left.localeCompare(right))
   );
   const unresolvedSelections = Object.freeze(
-    input.selections.filter((selection) => selection.status === "needs-context").sort((left, right) => left.assignmentId.localeCompare(right.assignmentId))
+    input.selections.filter((selection) => selection.status === "needs-context").sort(
+      (left, right) => left.assignmentId.localeCompare(right.assignmentId)
+    )
   );
   const unresolvedAssignmentIds = new Set(
     unresolvedSelections.map((selection) => selection.assignmentId)
@@ -5800,7 +5798,9 @@ function inspectCapabilityContextProgress(input) {
   const pendingAssignments = Object.freeze(
     input.assignments.filter(
       (assignment) => !contexts.value.has(assignment.assignmentId) && !unresolvedAssignmentIds.has(assignment.assignmentId)
-    ).sort((left, right) => left.assignmentId.localeCompare(right.assignmentId))
+    ).sort(
+      (left, right) => left.assignmentId.localeCompare(right.assignmentId)
+    )
   );
   if (pendingAssignments.length > 0) {
     return {
@@ -6625,10 +6625,9 @@ function conclusionParameters(requirements) {
     })
   };
   for (const [index, requirement] of requirements.entries()) {
-    fields[`requirement_status_${index}`] = StringEnum5(
-      requirementStatuses,
-      { description: requirement.statement }
-    );
+    fields[`requirement_status_${index}`] = StringEnum5(requirementStatuses, {
+      description: requirement.statement
+    });
     fields[`requirement_basis_${index}`] = Type5.String({
       minLength: 1,
       maxLength: 2048
@@ -7503,9 +7502,9 @@ function inspectContributionProgress(input) {
     [...contributionsByAssignment.values()].map((contribution) => contribution.contributionId).sort((left, right) => left.localeCompare(right))
   );
   const pendingContexts = Object.freeze(
-    input.contexts.filter(
-      (context) => !contributionsByAssignment.has(context.assignmentId)
-    ).sort((left, right) => left.assignmentId.localeCompare(right.assignmentId))
+    input.contexts.filter((context) => !contributionsByAssignment.has(context.assignmentId)).sort(
+      (left, right) => left.assignmentId.localeCompare(right.assignmentId)
+    )
   );
   if (pendingContexts.length > 0) {
     return { status: "pending", pendingContexts, completedContributionIds };
@@ -8014,12 +8013,9 @@ function coverageParameters(contributions) {
     })
   };
   for (const [index, contribution] of contributions.entries()) {
-    fields[`disposition_status_${index}`] = StringEnum7(
-      dispositionStatuses,
-      {
-        description: `Disposition for Contribution ${index} (${contribution.localStatus}).`
-      }
-    );
+    fields[`disposition_status_${index}`] = StringEnum7(dispositionStatuses, {
+      description: `Disposition for Contribution ${index} (${contribution.localStatus}).`
+    });
     fields[`disposition_basis_${index}`] = Type7.String({
       minLength: 1,
       maxLength: 2048
@@ -8338,8 +8334,24 @@ function resultText(result) {
     (item) => item.type === "text" && typeof item.text === "string" ? [item.text] : []
   ).join(" ");
 }
+function traceDecisionEvent(event, accepted) {
+  if (process.env.DEVELOPER_SDK_DECISION_TRACE !== "1") return;
+  let message;
+  if (event.type === "agent_start" || event.type === "agent_end") {
+    message = event.type;
+  } else if (event.type === "tool_execution_start") {
+    message = `${event.type} tool=${event.toolName}`;
+  } else if (event.type === "tool_execution_end") {
+    message = `${event.type} tool=${event.toolName} error=${event.isError} accepted=${accepted()}`;
+  }
+  if (message !== void 0) {
+    process.stderr.write(`[developer-sdk-decision] ${message}
+`);
+  }
+}
 function subscribeToAttempt(input) {
   return input.session.subscribe((event) => {
+    traceDecisionEvent(event, input.accepted);
     if (event.type === "tool_execution_start" && event.toolName === input.toolName) {
       input.counters.toolCalls += 1;
       return;
@@ -8384,20 +8396,16 @@ async function runDecisionAttempt(input) {
   const tool = input.options.bindings.defineTool({
     name: input.request.tool.name,
     label: input.request.tool.label,
+    // One stage exposes one one-use proposal tool. Competing calls must not
+    // race to become the accepted proposal; orchestration-level parallelism
+    // belongs across independent commands, not inside this admission point.
+    executionMode: "sequential",
     description: input.request.tool.description,
     parameters: input.request.tool.parameters,
     execute: async (_toolCallId, raw) => {
       const admission = await input.request.tool.execute(raw);
       if (admission.status === "rejected") {
-        return {
-          content: [{ type: "text", text: admission.message }],
-          details: {
-            accepted: false,
-            status: "rejected",
-            reason: admission.code
-          },
-          isError: true
-        };
+        throw new Error(`${admission.code}: ${admission.message}`);
       }
       if (acceptedProposal === void 0) {
         acceptedProposal = { value: admission.value };
@@ -8435,7 +8443,13 @@ async function runDecisionAttempt(input) {
       );
       void session?.abort();
     }, input.maximumRunMs);
-    await session.prompt(input.request.prompt);
+    const prompt = input.retryFeedback.length === 0 ? input.request.prompt : [
+      input.request.prompt,
+      "Previous proposal rejection(s) from canonical admission:",
+      ...input.retryFeedback.map((feedback) => `- ${feedback}`),
+      "Submit a corrected proposal and do not repeat these rejected states."
+    ].join("\n");
+    await session.prompt(prompt);
     input.counters.nonRuntimeRuns += 1;
   } catch (error) {
     if (acceptedProposal !== void 0 || timedOut || observation.toolErrors >= input.maximumErrors) {
@@ -8475,6 +8489,7 @@ async function runBoundedDecision(options, request, maximumRuns, maximumErrors, 
       request,
       maximumErrors,
       maximumRunMs,
+      retryFeedback: counters.errorMessages.filter((message) => !message.startsWith("runtime:")).slice(-maximumErrors),
       counters
     });
     if (attempt.status === "accepted") {
@@ -9079,7 +9094,10 @@ function effectParameters(input) {
       maxLength: 2048
     });
   }
-  for (const [effectIndex, intendedEffect] of input.effect.intendedEffects.entries()) {
+  for (const [
+    effectIndex,
+    intendedEffect
+  ] of input.effect.intendedEffects.entries()) {
     fields[`intended_status_${effectIndex}`] = StringEnum8(intendedStatuses, {
       description: intendedEffect
     });
@@ -9123,7 +9141,10 @@ function selectedObservationIds(input) {
 }
 function decodeIntendedDispositions(input) {
   const dispositions = [];
-  for (const [index, intendedEffect] of input.effect.intendedEffects.entries()) {
+  for (const [
+    index,
+    intendedEffect
+  ] of input.effect.intendedEffects.entries()) {
     const status = input.raw[`intended_status_${index}`];
     const basis = input.raw[`intended_basis_${index}`];
     if (status !== "observed" && status !== "not-observed" && status !== "failed" && status !== "partially-observed" && status !== "unknown" || typeof basis !== "string") {
