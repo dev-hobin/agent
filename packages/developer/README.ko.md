@@ -179,7 +179,11 @@ Pi-admitted Skills
 → first-party compatibility projection
 ```
 
-Rejected catalog는 어떤 Developer Skill도 admit하지 않습니다. Invalid descriptor나 failed entry는 조용히 unstructured로 바뀌지 않습니다. Extension은 하나의 bounded `developer_open_work_case` proposal을 accept하고 그 active Outcome을 이후 turn에 projection할 수도 있습니다. Exact duplicate는 stutter하고 다른 Outcome은 active work를 교체할 수 없으며 opening은 Action Clearance나 completion을 부여하지 않습니다. `developer_route_question`은 이 Work Case가 생기기 전 consequential routing을 거부합니다. 이 Work Case는 의도적으로 process-local이며 restart, reconstruction, confirmed Developer shutdown에서 제거됩니다. Session replay는 아직 구현하지 않았습니다. Applicability와 Reference proposal, Action Clearance, Effect settlement, revision-bound completion은 아직 live extension state가 아니라 검증된 pure module입니다. npm registry의 0.1.19 artifact는 recovery baseline이며 이 reconstruction surface는 publish되지 않았습니다.
+Rejected catalog는 어떤 Developer Skill도 admit하지 않습니다. Invalid descriptor나 failed entry는 조용히 unstructured로 바뀌지 않습니다. Extension은 하나의 bounded `developer_open_work_case` proposal을 accept하고 그 active Outcome을 이후 turn에 projection할 수 있습니다. Exact duplicate는 stutter하고 다른 Outcome은 active work를 교체할 수 없으며 opening은 Action Clearance나 completion을 부여하지 않습니다. `developer_route_question`은 이 Work Case가 생기기 전 consequential routing을 거부합니다.
+
+그 Work Case 안에서 `developer_open_judgment`는 하나의 Category, Subject, Question, 명시적인 Closure Requirements, 기능적인 Contribution Needs, basis를 accept합니다. Adapter는 Work Case identity와 분리된 current Context revision을 공급하고 open Judgment를 canonical Work Case inventory에 기록하며 그 requirements와 Needs를 이후 turn에 projection합니다. Exact duplicate는 stutter하고, 이 좁은 live slice에서는 다른 Judgment가 current open Judgment를 교체할 수 없습니다. Open Judgment는 pure closure transition을 막지만 live Judgment closure는 아직 연결되지 않았습니다.
+
+이 Work Case는 의도적으로 process-local이며 restart, reconstruction, confirmed Developer shutdown에서 제거됩니다. Session replay는 아직 구현하지 않았습니다. Capability Applicability와 Reference proposal, Contribution, Need Coverage, Action Clearance, Effect settlement, revision-bound completion은 아직 live extension state가 아니라 검증된 pure module입니다. npm registry의 0.1.19 artifact는 recovery baseline이며 이 reconstruction surface는 publish되지 않았습니다.
 
 ## Branch, compaction, reload
 

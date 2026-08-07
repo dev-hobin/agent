@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-architecture-v0.1.md)
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, and opens one bounded process-local Work Case through an explicit proposal tool. Downstream Judgment, Action, Effect, and completion transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
+> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, opens one bounded process-local Work Case, and records one current Category-scoped Judgment through explicit proposal tools. Judgment closure, Action, Effect, and completion transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
 >
 > Date written: 2026-08-06
 
@@ -586,7 +586,23 @@ developer_open_work_case proposal
   → next-turn before_agent_start projection
 ```
 
-An exact duplicate stutters, a different Outcome cannot replace active work, and turning Developer off clears this process-local state after the existing confirmation boundary. Opening grants no Action Clearance and implies no completion. The live `developer_route_question` boundary now rejects consequential routing until this Work Case exists, so the preserved protocol cannot bypass Outcome continuity. Route results are not yet recorded into the Work Case inventory. This slice deliberately has no session replay yet; reconstruction or process restart clears it rather than guessing canonical history. Applicability, Reference routing, Contribution, and later Work Case transitions remain pure-only.
+An exact duplicate stutters, a different Outcome cannot replace active work, and turning Developer off clears this process-local state after the existing confirmation boundary. Opening grants no Action Clearance and implies no completion. The live `developer_route_question` boundary now rejects consequential routing until this Work Case exists, so the preserved protocol cannot bypass Outcome continuity.
+
+The following slice opens one current upper Judgment inside that Work Case:
+
+```text
+developer_open_judgment proposal
+  → Judgment Category + Subject + Question
+  → explicit Closure Requirements + functional Contribution Needs + basis
+  → adapter-supplied Work Case identity + separate current Context revision
+  → openJudgment transition
+  → recordWorkCaseJudgment transition
+  → next-turn before_agent_start projection
+```
+
+The pure Work Case revision now includes open Judgment identities, and an open Judgment blocks Closure Target preparation. A matching Conclusion removes it from open inventory; a Conclusion that changes Category, Subject, or Context identity is refused. The narrow live adapter admits only one current open Judgment: an exact duplicate stutters and a different proposal cannot replace it. Live Judgment closure and preserved route results are not yet connected to canonical Work Case inventory.
+
+This live slice deliberately has no session replay yet; reconstruction or process restart clears it rather than guessing canonical history. Capability Applicability, Reference routing, Contribution, Need Coverage, Action, Effect, and later Work Case transitions remain pure-only.
 
 ## 12. Extension-level guarantee boundary
 

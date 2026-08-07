@@ -314,7 +314,11 @@ Pi-admitted Skills
 → first-party compatibility projection
 ```
 
-A rejected catalog admits no Developer Skill. An invalid descriptor or failed entry does not silently become unstructured. The extension can also accept one bounded `developer_open_work_case` proposal and project that active Outcome into later turns. Exact duplicates stutter, another Outcome cannot replace active work, and opening grants neither Action Clearance nor completion. `developer_route_question` rejects consequential routing until this Work Case exists. This Work Case is intentionally process-local and is cleared by restart, reconstruction, or confirmed Developer shutdown; session replay is not implemented yet. Applicability and Reference proposals, Action Clearance, Effect settlement, and revision-bound completion remain proven pure modules rather than live extension state. The npm 0.1.19 registry artifact remains the recovery baseline; this reconstruction surface is not published.
+A rejected catalog admits no Developer Skill. An invalid descriptor or failed entry does not silently become unstructured. The extension can accept one bounded `developer_open_work_case` proposal and project that active Outcome into later turns. Exact duplicates stutter, another Outcome cannot replace active work, and opening grants neither Action Clearance nor completion. `developer_route_question` rejects consequential routing until this Work Case exists.
+
+Within that Work Case, `developer_open_judgment` accepts one Category, Subject, Question, explicit Closure Requirements, functional Contribution Needs, and basis. The adapter supplies the Work Case identity and separate current Context revision, records the open Judgment in canonical Work Case inventory, and projects its requirements and Needs into later turns. An exact duplicate stutters; a different Judgment cannot replace the current open Judgment in this narrow live slice. Open Judgments block the pure closure transition, but live Judgment closure is not connected yet.
+
+This Work Case is intentionally process-local and is cleared by restart, reconstruction, or confirmed Developer shutdown; session replay is not implemented yet. Capability Applicability and Reference proposals, Contributions, Need Coverage, Action Clearance, Effect settlement, and revision-bound completion remain proven pure modules rather than live extension state. The npm 0.1.19 registry artifact remains the recovery baseline; this reconstruction surface is not published.
 
 ## Branches, compaction, and reloads
 
