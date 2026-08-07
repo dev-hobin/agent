@@ -184,6 +184,10 @@ export function liveWorkCasePrompt(
 			(observation) =>
 				`Effect Observation: ${observation.effectObservationId} · ${observation.evidence.kind} · settlement not implied`,
 		),
+		...workCase.currentEffectAssessments.map(
+			(assessment) =>
+				`Effect Assessment: ${"effectSettlementId" in assessment ? assessment.effectSettlementId : assessment.effectAssessmentId} · ${assessment.outcome}`,
+		),
 	];
 	if (actionLines.length === 0) actionLines.push("Actions: none");
 	const judgmentLines =

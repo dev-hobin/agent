@@ -327,6 +327,7 @@ try {
 		"developer_assess_coverage",
 		"developer_close_judgment",
 		"developer_propose_action",
+		"developer_settle_effect",
 		"developer_route_question",
 		"developer_load_reference",
 		"developer_record_judgment",

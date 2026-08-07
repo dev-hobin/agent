@@ -1917,6 +1917,45 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		}),
 		undefined,
 	);
+	const effectProjection = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "account for effect",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	const effectId = /Effect: (effect_[a-f0-9]+)/.exec(
+		effectProjection.systemPrompt,
+	)?.[1];
+	const effectObservationId =
+		/Effect Observation: (effect_observation_[a-f0-9]+)/.exec(
+			effectProjection.systemPrompt,
+		)?.[1];
+	assert.ok(effectId);
+	assert.ok(effectObservationId);
+	const effectSettlement = await harness.tools
+		.get("developer_settle_effect")
+		.execute("settle-live-effect", {
+			effect_id: effectId,
+			outcome: "unknown",
+			observation_dispositions: [
+				{
+					effect_observation_id: effectObservationId,
+					status: "relied-on",
+					basis: ["The Pi result establishes occurrence only."],
+				},
+			],
+			intended_effect_dispositions: [
+				{
+					intended_effect: "The bounded artifact is updated.",
+					status: "unknown",
+					observation_ids: [effectObservationId],
+					basis: ["Artifact state has not been independently observed."],
+				},
+			],
+			basis: ["Keep the Effect unsettled until artifact state is verified."],
+		});
+	assert.match(resultText(effectSettlement), /Effect unsettled: effect_assessment_/);
+	assert.match(resultText(effectSettlement), /· unknown/);
 	const repeatedAction = await harness.emit("tool_call", {
 		toolName: "write",
 		input: actionToolInput,
@@ -1955,6 +1994,10 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 	assert.match(
 		afterContribution.systemPrompt,
 		/Effect Observation: effect_observation_.* · tool-result · settlement not implied/,
+	);
+	assert.match(
+		afterContribution.systemPrompt,
+		/Effect Assessment: effect_assessment_.* · unknown/,
 	);
 });
 

@@ -31,8 +31,11 @@ import {
 	matchingLiveActionClearance,
 } from "./action-loop-action.ts";
 import {
+	ACTION_LOOP_SETTLE_EFFECT_TOOL,
 	beginLiveActionEffect,
+	currentLiveEffectAssessmentId,
 	observeLivePiToolResult,
+	settleLiveEffect,
 } from "./action-loop-effect.ts";
 import {
 	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
@@ -161,6 +164,7 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_ASSESS_COVERAGE_TOOL,
 	ACTION_LOOP_CLOSE_JUDGMENT_TOOL,
 	ACTION_LOOP_PROPOSE_ACTION_TOOL,
+	ACTION_LOOP_SETTLE_EFFECT_TOOL,
 	ROUTE_TOOL,
 	REFERENCE_TOOL,
 	JUDGMENT_TOOL,
@@ -1715,6 +1719,126 @@ export default async function developer(pi: ExtensionAPI) {
 					candidate: accepted.candidate,
 					permission: clearance.clearance.permission,
 					clearance: clearance.clearance,
+				},
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_SETTLE_EFFECT_TOOL,
+		label: "Developer Settle Effect",
+		description:
+			"Propose complete accounting for one current Effect. Tool occurrence and tool-result evidence do not imply success.",
+		promptSnippet: "Account for one current Action Effect",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_SETTLE_EFFECT_TOOL} only after accounting for every current Effect Observation and every intended Effect exactly once.`,
+			"Derive the outcome from evidence. Use pending or unknown when the current observations do not establish intended Effect success.",
+		],
+		parameters: Type.Object(
+			{
+				effect_id: Type.String({ minLength: 1, maxLength: 512 }),
+				outcome: StringEnum([
+					"observed-success",
+					"observed-no-effect",
+					"failed",
+					"partially-applied",
+					"pending",
+					"unknown",
+				] as const),
+				observation_dispositions: Type.Array(
+					Type.Object(
+						{
+							effect_observation_id: Type.String({
+								minLength: 1,
+								maxLength: 512,
+							}),
+							status: StringEnum(["relied-on", "not-relied-on"] as const),
+							basis: Type.Array(
+								Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+								{ minItems: 1, maxItems: 16 },
+							),
+						},
+						{ additionalProperties: false },
+					),
+					{ maxItems: 32 },
+				),
+				intended_effect_dispositions: Type.Array(
+					Type.Object(
+						{
+							intended_effect: Type.String({
+								minLength: 1,
+								maxLength: MAX_EVIDENCE_CHARS,
+							}),
+							status: StringEnum([
+								"observed",
+								"not-observed",
+								"failed",
+								"partially-observed",
+								"unknown",
+							] as const),
+							observation_ids: Type.Array(
+								Type.String({ minLength: 1, maxLength: 512 }),
+								{ maxItems: 32 },
+							),
+							basis: Type.Array(
+								Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+								{ minItems: 1, maxItems: 16 },
+							),
+						},
+						{ additionalProperties: false },
+					),
+					{ minItems: 1, maxItems: 32 },
+				),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: 16 },
+				),
+				expected_current_assessment_id: Type.Optional(
+					Type.String({ minLength: 1, maxLength: 512 }),
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			const settled = settleLiveEffect(activeWorkCase, params.effect_id, {
+				outcome: params.outcome,
+				observationDispositions: params.observation_dispositions.map(
+					(disposition) => ({
+						effectObservationId: disposition.effect_observation_id,
+						status: disposition.status,
+						basis: disposition.basis,
+					}),
+				),
+				intendedEffectDispositions: params.intended_effect_dispositions.map(
+					(disposition) => ({
+						intendedEffect: disposition.intended_effect,
+						status: disposition.status,
+						observationIds: disposition.observation_ids,
+						basis: disposition.basis,
+					}),
+				),
+				basis: params.basis,
+				expectedCurrentAssessmentId: params.expected_current_assessment_id,
+			});
+			if (settled.status === "invalid") fail(settled.message);
+			activeWorkCase = settled.state;
+			const assessmentId = currentLiveEffectAssessmentId(
+				settled.state,
+				params.effect_id,
+			);
+			return textResult(
+				`Effect ${settled.status}: ${assessmentId} · ${settled.assessment.outcome}`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: settled.status,
+					assessment: settled.assessment as unknown,
+					assessmentId,
 				},
 			);
 		},
