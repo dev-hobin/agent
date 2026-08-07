@@ -20,7 +20,10 @@ import {
 	withActionLoopReplayEvent,
 } from "../extensions/action-loop-session.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
-import { ACTIVATION_ENTRY, PROTOCOL } from "../extensions/state.ts";
+import {
+	DEVELOPER_MODE_ENTRY,
+	developerModeEvent,
+} from "../extensions/developer-mode.ts";
 
 const proposal = {
 	outcome: {
@@ -335,8 +338,8 @@ test("a later Developer-off entry clears replayed Action Loop ownership", async 
 		},
 		{
 			type: "custom",
-			customType: ACTIVATION_ENTRY,
-			data: { protocol: PROTOCOL, kind: "activation", enabled: false },
+			customType: DEVELOPER_MODE_ENTRY,
+			data: developerModeEvent(false),
 		},
 	]);
 

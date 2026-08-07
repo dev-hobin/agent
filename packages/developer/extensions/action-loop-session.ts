@@ -68,7 +68,10 @@ import {
 	type LiveWaitingWorkCaseState,
 	type LiveWorkCaseState,
 } from "./action-loop-work-case.ts";
-import { ACTIVATION_ENTRY, normalizeDeveloperEvent } from "./state.ts";
+import {
+	DEVELOPER_MODE_ENTRY,
+	decodeDeveloperModeEvent,
+} from "./developer-mode.ts";
 
 export * from "./action-loop-session-event.ts";
 
@@ -755,9 +758,9 @@ export async function replayActionLoopSession(
 	let appliedTransitions = 0;
 
 	for (const [entryIndex, entry] of entries.entries()) {
-		if (entry.customType === ACTIVATION_ENTRY) {
-			const event = normalizeDeveloperEvent(entry.data);
-			if (event?.kind === "activation" && !event.enabled) projection = {};
+		if (entry.customType === DEVELOPER_MODE_ENTRY) {
+			const event = decodeDeveloperModeEvent(entry.data);
+			if (event && !event.enabled) projection = {};
 		}
 		const extracted = extractReplayEvent(entry);
 		if (extracted.status === "absent") continue;
