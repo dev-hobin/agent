@@ -52,6 +52,21 @@ const fixtureTimeoutMs = Number(
 const noProgressTimeoutMs = Number(
 	process.env.DEVELOPER_EVAL_NO_PROGRESS_MS || 60000,
 );
+const transitionalProtocolTools = new Set([
+	"developer_open_work_case",
+	"developer_open_judgment",
+	"developer_progress_judgment_with_sdk",
+	"developer_assess_capability",
+	"developer_select_references",
+	"developer_load_selected_reference",
+	"developer_accept_contribution",
+	"developer_assess_coverage",
+	"developer_close_judgment",
+	"developer_propose_action",
+	"developer_settle_effect",
+	"developer_prepare_closure",
+	"developer_complete_work_case",
+]);
 
 function parseJson(value, label) {
 	try {
@@ -385,6 +400,18 @@ try {
 				}
 
 				const executionTrace = events.slice(start);
+				const transitionalCalls = executionTrace
+					.filter(
+						(event) =>
+							event.type === "tool_execution_start" &&
+							transitionalProtocolTools.has(event.toolName),
+					)
+					.map((event) => event.toolName);
+				assert.deepEqual(
+					transitionalCalls,
+					[],
+					`${fixture.id}: primary SDK surface exposed transitional protocol tools`,
+				);
 				const changes = diffWorkspaceSnapshots(
 					workspaceBefore,
 					await snapshotWorkspace(casePath),
