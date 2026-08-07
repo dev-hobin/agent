@@ -1863,8 +1863,11 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 	const action = await harness.tools
 		.get("developer_propose_action")
 		.execute("propose-live-action", {
-			controlled_action_kind: "pi:write",
-			controlled_action_fingerprint: "a".repeat(64),
+			tool_name: "write",
+			tool_input: {
+				path: "/tmp/developer-live-action.txt",
+				content: "bounded verified artifact",
+			},
 			summary: "Write one bounded verified artifact.",
 			intended_effects: ["The bounded artifact is updated."],
 			required_conclusion_ids: [closed.details.artifact.conclusionId],

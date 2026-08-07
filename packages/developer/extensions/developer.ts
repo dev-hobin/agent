@@ -25,7 +25,7 @@ import {
 } from "./action-loop-capability-inventory.ts";
 import {
 	ACTION_LOOP_PROPOSE_ACTION_TOOL,
-	acceptLiveActionCandidate,
+	acceptLivePiActionCandidate,
 	assessLiveActionClearance,
 } from "./action-loop-action.ts";
 import {
@@ -1640,18 +1640,13 @@ export default async function developer(pi: ExtensionAPI) {
 			"Record one exact controlled Action Candidate warranted by current Conclusions. This grants neither permission nor Action Clearance.",
 		promptSnippet: "Propose one exact controlled Action",
 		promptGuidelines: [
-			`Use ${ACTION_LOOP_PROPOSE_ACTION_TOOL} only after the required Judgment Conclusions are canonical. Compute the exact host Action fingerprint outside this tool.`,
-			"The live adapter inherits Pi's default permission policy and records matching Action Clearance automatically. Existing Developer route and question gates still apply.",
+			`Use ${ACTION_LOOP_PROPOSE_ACTION_TOOL} only after the required Judgment Conclusions are canonical. Supply the exact next Pi built-in tool name and input; the adapter derives the controlled Action fingerprint.`,
+			"The live adapter inherits Pi's default permission policy and records matching Action Clearance automatically. Existing Developer question gates still apply.",
 		],
 		parameters: Type.Object(
 			{
-				controlled_action_kind: Type.String({
-					minLength: 1,
-					maxLength: 256,
-				}),
-				controlled_action_fingerprint: Type.String({
-					pattern: "^[a-f0-9]{64}$",
-				}),
+				tool_name: StringEnum(["bash", "edit", "write"] as const),
+				tool_input: Type.Record(Type.String(), Type.Unknown()),
 				summary: Type.String({ minLength: 1, maxLength: MAX_QUESTION_CHARS }),
 				intended_effects: Type.Array(
 					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
@@ -1671,11 +1666,9 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const accepted = acceptLiveActionCandidate(activeWorkCase, {
-				controlledAction: {
-					kind: params.controlled_action_kind,
-					fingerprint: params.controlled_action_fingerprint,
-				},
+			const accepted = acceptLivePiActionCandidate(activeWorkCase, {
+				toolName: params.tool_name,
+				toolInput: params.tool_input,
 				summary: params.summary,
 				intendedEffects: params.intended_effects,
 				requiredConclusionIds: params.required_conclusion_ids,
