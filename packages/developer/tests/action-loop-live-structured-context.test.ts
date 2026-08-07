@@ -242,10 +242,9 @@ test("ready structured selection seals Skill and selected References atomically"
 					);
 					assert.equal(hostClearance.status, "cleared");
 					if (hostClearance.status === "cleared") {
-						assert.deepEqual(
-							hostClearance.state.workCase.actionClearances,
-							[hostClearance.clearance],
-						);
+						assert.deepEqual(hostClearance.state.workCase.actionClearances, [
+							hostClearance.clearance,
+						]);
 					}
 				}
 			}
