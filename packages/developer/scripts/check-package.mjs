@@ -521,6 +521,7 @@ const extension = await readFile(
 assert.match(extension, /name: ACTION_LOOP_OPEN_WORK_CASE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_OPEN_JUDGMENT_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_ASSESS_CAPABILITY_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_SELECT_REFERENCES_TOOL/);
 assert.match(extension, /name: ROUTE_TOOL/);
 assert.match(extension, /name: JUDGMENT_TOOL/);
 assert.match(extension, /registerCommand\("developer"/);
@@ -583,6 +584,8 @@ const liveContextIntegration = await readFile(
 	"utf8",
 );
 assert.match(liveContextIntegration, /sealUnstructuredSkillContext\(/);
+assert.match(liveContextIntegration, /selectDeclaredReferences\(/);
+assert.match(liveContextIntegration, /sealSkillContext\(/);
 assert.match(liveContextIntegration, /exact current Capability Assignment/);
 
 const skillIntegration = await readFile(

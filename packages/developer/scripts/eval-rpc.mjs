@@ -321,6 +321,7 @@ try {
 		"developer_open_work_case",
 		"developer_open_judgment",
 		"developer_assess_capability",
+		"developer_select_references",
 		"developer_route_question",
 		"developer_load_reference",
 		"developer_record_judgment",

@@ -43,6 +43,20 @@ const TEST_CAPABILITY_WHEN: Readonly<Record<string, string>> = {
 		"A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged.",
 };
 
+const TEST_CAPABILITY_REFERENCES: Readonly<Record<string, readonly string[]>> = {
+	model: [
+		"references/problem-modeling.md",
+		"references/contract-and-replacement-models.md",
+		"references/relational-constraint-models.md",
+		"references/temporal-behavior-models.md",
+		"references/proof-obligations.md",
+		"references/solver-result-boundaries.md",
+		"references/logic-query-semantics.md",
+		"references/planning-models.md",
+	],
+	verify: ["references/verifier-selection-and-pass-but-wrong.md"],
+};
+
 const TEST_IMPLEMENTATION_CONTRACT = {
 	movement: "Apply one bounded test movement",
 	stop_condition: "The focused test is green and the route is reviewable",
@@ -89,6 +103,7 @@ function createHarness() {
 	let branchEntries: HarnessBranchEntry[] = [];
 	const capabilityAssessmentPromises = new Map<string, Promise<unknown>>();
 	const readyCapabilityAssessments = new Set<string>();
+	const readyReferenceSelections = new Set<string>();
 
 	const api = {
 		on(name: string, handler: (event: any, ctx: any) => any) {
@@ -163,9 +178,31 @@ function createHarness() {
 												capabilityAssessmentPromises.delete(params.target);
 												throw error;
 											}
+									}
+								}
+								if (typeof params?.target === "string") {
+									const references = TEST_CAPABILITY_REFERENCES[params.target];
+									if (
+										references &&
+										!readyReferenceSelections.has(params.target)
+									) {
+										const selection = tools.get("developer_select_references");
+										if (selection) {
+											await selection.execute("select-route-references", {
+												capability: params.target,
+												dispositions: references.map((path) => ({
+													path,
+													status: "not-needed",
+													basis: [
+														"The route fixture does not exercise this canonical Reference.",
+													],
+												})),
+											});
+											readyReferenceSelections.add(params.target);
 										}
 									}
-									return tool.execute(
+								}
+								return tool.execute(
 										toolCallId,
 										params?.target === "implementation"
 											? { ...TEST_IMPLEMENTATION_CONTRACT, ...params }
@@ -1694,6 +1731,22 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 			missing_context: [],
 		});
 	assert.match(resultText(assessed), /Capability verify: applicable · assign_/);
+	const selected = await harness.tools
+		.get("developer_select_references")
+		.execute("select-live-verify-reference", {
+			capability: "verify",
+			dispositions: [
+				{
+					path: "references/verifier-selection-and-pass-but-wrong.md",
+					status: "not-needed",
+					basis: [
+						"The route fixture does not exercise this canonical Reference.",
+					],
+				},
+			],
+		});
+	assert.match(resultText(selected), /Reference selection sealed: selection_/);
+	assert.match(resultText(selected), /sealed_/);
 	const afterAssessment = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",
@@ -1701,6 +1754,8 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
 	assert.match(afterAssessment.systemPrompt, /Capability assignment: assign_/);
+	assert.match(afterAssessment.systemPrompt, /Reference selection: selection_/);
+	assert.match(afterAssessment.systemPrompt, /Sealed Skill context: sealed_/);
 	await assert.rejects(
 		opening.execute("open-second-judgment", {
 			category: "Proportionate Intervention",

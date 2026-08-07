@@ -109,6 +109,10 @@ export function liveCapabilityInventoryPrompt(
 						`Capability ${name} · ${capability.capabilityRevisionId} · structured`,
 						`  when: ${capability.toc.when.join(" | ")}`,
 						`  unless: ${capability.toc.unless.join(" | ") || "none"}`,
+						...capability.toc.references.map(
+							(reference) =>
+								`  reference ${reference.path} when: ${reference.when.join(" | ")}`,
+						),
 					]
 				: [
 						`Capability ${name} · ${capability.capabilityRevisionId} · unstructured`,
