@@ -1873,9 +1873,13 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		resultText(action),
 		/Action Candidate accepted: action_candidate_/,
 	);
-	assert.match(resultText(action), /not cleared/);
-	assert.equal(action.details.permission, "not-granted");
-	assert.equal(action.details.actionClearanceId, undefined);
+	assert.match(resultText(action), /Action Clearance cleared: action_clearance_/);
+	assert.equal(action.details.permission.status, "granted");
+	assert.equal(
+		action.details.permission.source,
+		"pi:default-permission-policy",
+	);
+	assert.match(action.details.clearance.actionClearanceId, /^action_clearance_/);
 	const afterContribution = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",
@@ -1900,6 +1904,7 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		/Action Candidate: action_candidate_/,
 	);
 	assert.match(afterContribution.systemPrompt, /clearance not implied/);
+	assert.match(afterContribution.systemPrompt, /Action Clearance: action_clearance_/);
 });
 
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {

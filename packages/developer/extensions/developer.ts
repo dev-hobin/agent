@@ -26,6 +26,7 @@ import {
 import {
 	ACTION_LOOP_PROPOSE_ACTION_TOOL,
 	acceptLiveActionCandidate,
+	assessLiveActionClearance,
 } from "./action-loop-action.ts";
 import {
 	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
@@ -1640,7 +1641,7 @@ export default async function developer(pi: ExtensionAPI) {
 		promptSnippet: "Propose one exact controlled Action",
 		promptGuidelines: [
 			`Use ${ACTION_LOOP_PROPOSE_ACTION_TOOL} only after the required Judgment Conclusions are canonical. Compute the exact host Action fingerprint outside this tool.`,
-			"A Candidate is not permission. Do not execute it until a separate human-owned Permission Decision and matching Action Clearance exist.",
+			"The live adapter inherits Pi's default permission policy and records matching Action Clearance automatically. Existing Developer route and question gates still apply.",
 		],
 		parameters: Type.Object(
 			{
@@ -1680,15 +1681,33 @@ export default async function developer(pi: ExtensionAPI) {
 				requiredConclusionIds: params.required_conclusion_ids,
 			});
 			if (accepted.status === "invalid") fail(accepted.message);
-			activeWorkCase = accepted.state;
+			const clearance = assessLiveActionClearance(
+				accepted.state,
+				accepted.candidate.actionCandidateId,
+				{
+					actionCandidateId: accepted.candidate.actionCandidateId,
+					status: "granted",
+					source: "pi:default-permission-policy",
+					basis: [
+						"The live adapter inherits Pi's default permission policy without adding a separate approval step.",
+					],
+				},
+			);
+			if (clearance.status === "invalid") fail(clearance.message);
+			if (clearance.status === "not-cleared") {
+				fail(
+					`Pi host permission did not clear the Action: ${clearance.blockers.map((blocker) => blocker.code).join(", ")}`,
+				);
+			}
+			activeWorkCase = clearance.state;
 			return textResult(
-				`Action Candidate ${accepted.status}: ${accepted.candidate.actionCandidateId} · not cleared`,
+				`Action Candidate ${accepted.status}: ${accepted.candidate.actionCandidateId} · Action Clearance ${clearance.status}: ${clearance.clearance.actionClearanceId}`,
 				{
 					protocol: "developer-action-loop/v1",
-					kind: accepted.status,
+					kind: clearance.status,
 					candidate: accepted.candidate,
-					permission: "not-granted",
-					actionClearanceId: undefined,
+					permission: clearance.clearance.permission,
+					clearance: clearance.clearance,
 				},
 			);
 		},
