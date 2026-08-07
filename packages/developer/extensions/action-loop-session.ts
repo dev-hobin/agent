@@ -34,10 +34,12 @@ import {
 } from "./action-loop-continuity.ts";
 import { openLiveJudgment } from "./action-loop-judgment.ts";
 import {
+	actionLoopCapabilityInventoryAssessedEvent,
 	extractReplayEvent,
 	type ActionLoopActionClearedEvent,
 	type ActionLoopBlockedWorkCaseResumedEvent,
 	type ActionLoopCapabilityAssessedEvent,
+	type ActionLoopCapabilityInventoryAssessedEvent,
 	type ActionLoopContributionAcceptedEvent,
 	type ActionLoopHostContributionAcceptedEvent,
 	type ActionLoopCoverageAssessedEvent,
@@ -225,6 +227,68 @@ function replayCapabilityAssessment(
 		);
 	}
 	return applied(assessed.state);
+}
+
+function replayCapabilityInventoryAssessment(
+	state: LiveWorkCaseState,
+	event: ActionLoopCapabilityInventoryAssessedEvent,
+	inventory: LiveCapabilityInventoryResult | undefined,
+): AppliedEventResult {
+	if (
+		inventory?.status !== "ready" ||
+		event.assessments.length !== event.expected.assessmentCount ||
+		event.assessments.length !==
+			inventory.value.boundCapabilitiesBySkillName.size
+	) {
+		return eventUnavailable(
+			"Persisted Capability inventory assessment is not complete for the current Pi-admitted inventory.",
+		);
+	}
+	const canonicalEvent = actionLoopCapabilityInventoryAssessedEvent({
+		contributionNeedId: event.contributionNeedId,
+		assessments: event.assessments,
+	});
+	if (canonicalEvent.transitionId !== event.transitionId) {
+		return eventUnavailable(
+			"Persisted Capability inventory assessment identity does not reproduce.",
+		);
+	}
+
+	const observedCapabilities = new Set<string>();
+	let current = state;
+	for (const assessment of event.assessments) {
+		const capabilityKey = `${assessment.skillName}\u0000${assessment.capabilityRevisionId}`;
+		if (
+			observedCapabilities.has(capabilityKey) ||
+			assessment.expected.contributionNeedId !== event.contributionNeedId
+		) {
+			return eventUnavailable(
+				"Persisted Capability inventory assessment contains a duplicate or mismatched entry.",
+			);
+		}
+		observedCapabilities.add(capabilityKey);
+		const transitionId =
+			assessment.expected.assignmentId ??
+			`${assessment.capabilityRevisionId}:${assessment.expected.contributionNeedId}:${assessment.expected.status}`;
+		const replayed = replayCapabilityAssessment(
+			current,
+			{
+				protocol: event.protocol,
+				kind: "capability-assessed",
+				transitionId,
+				...assessment,
+			},
+			inventory,
+		);
+		if (replayed.status === "unavailable") return replayed;
+		if (!replayed.projection.activeWorkCase) {
+			return eventUnavailable(
+				"Persisted Capability inventory assessment lost active Work Case ownership.",
+			);
+		}
+		current = replayed.projection.activeWorkCase;
+	}
+	return applied(current);
 }
 
 async function replayReferenceSelection(
@@ -695,6 +759,8 @@ async function replayOwnedEvent(
 			return replayJudgmentOpening(state, event);
 		case "capability-assessed":
 			return replayCapabilityAssessment(state, event, inventory);
+		case "capability-inventory-assessed":
+			return replayCapabilityInventoryAssessment(state, event, inventory);
 		case "references-selected":
 			return replayReferenceSelection(state, event, inventory);
 		case "unstructured-context-sealed":

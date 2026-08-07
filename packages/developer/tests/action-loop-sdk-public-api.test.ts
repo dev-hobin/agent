@@ -13,4 +13,10 @@ test("built SDK surface exposes canonical preparation, routing, and decision con
 	assert.equal(typeof sdk.routeStructuredCapabilityWithSdk, "function");
 	assert.equal(typeof sdk.selectStructuredReferencesWithSdk, "function");
 	assert.equal(typeof sdk.sealCapabilityContextWithSdk, "function");
+	assert.equal(typeof sdk.inspectCapabilityContextProgress, "function");
+	assert.equal(typeof sdk.contributeSkillWithSdk, "function");
+	assert.equal(typeof sdk.assessNeedCoverageWithSdk, "function");
+	assert.equal(typeof sdk.concludeJudgmentWithSdk, "function");
+	assert.equal(typeof sdk.inspectContributionProgress, "function");
+	assert.equal(typeof sdk.inspectCoverageProgress, "function");
 });

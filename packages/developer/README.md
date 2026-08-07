@@ -108,11 +108,14 @@ openWorkCaseWithSdk
 → openJudgmentWithSdk
 → assessCapabilityInventoryWithSdk
 → sealCapabilityContextWithSdk
+→ contributeSkillWithSdk
+→ assessNeedCoverageWithSdk
+→ concludeJudgmentWithSdk
 ```
 
-Each command does one job, accepts and returns explicit values, and admits model output only through a bounded in-memory proposal session. The controller owns retries, per-run time limits, complete inventory accounting, canonical identity binding, and non-mutating `bounded-stop` results. Provider errors remain distinct from domain invariant failures.
+Each command does one job, accepts and returns explicit values, and admits model output only through a bounded in-memory proposal session. Pure progress inspectors derive the next Context, Contribution, or Coverage task from canonical records rather than creating a parallel checkpoint. The controller owns retries, per-run time limits, complete inventory accounting, canonical identity binding, and non-mutating `bounded-stop` results. Provider errors remain distinct from domain invariant failures.
 
-This RC covers Work Case and Judgment opening, complete Capability applicability accounting, local Reference selection, and structured or unstructured Context sealing. Contribution, Coverage, Conclusion, Action, Effect, continuity, and completion still run through the Extension until their SDK commands reach replay and live-evaluation parity. The Pi session branch remains the only durability boundary.
+This RC provides SDK commands through upper Judgment Conclusion. Capability inventory admission is journaled as one atomic semantic batch, while each sealed Context, Contribution, and Coverage remains independently replayable from the Pi branch. The production Extension path remains active until live-evaluation parity and host integration are complete. Action, Effect, continuity, and completion still require SDK commands. The Pi session branch remains the only durability boundary.
 
 ## Canonical tools
 

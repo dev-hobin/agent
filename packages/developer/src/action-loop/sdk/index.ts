@@ -19,7 +19,13 @@ export {
 } from "../routing/parse-toc.ts";
 export * from "./capability-inventory-controller.ts";
 export * from "./capability-routing-controller.ts";
+export * from "./context-progress.ts";
 export * from "./context-sealing-controller.ts";
+export * from "./conclusion-controller.ts";
+export * from "./contribution-controller.ts";
+export * from "./contribution-progress.ts";
+export * from "./coverage-controller.ts";
+export * from "./coverage-progress.ts";
 export * from "./decision-controller.ts";
 export * from "./judgment-controller.ts";
 export * from "./proposal-json.ts";

@@ -2568,6 +2568,171 @@ async function routeStructuredCapabilityWithSdk(input) {
   };
 }
 
+// src/action-loop/sdk/context-progress.ts
+function invalid2(code, message) {
+  return { status: "invalid", code, message };
+}
+function indexAssignments(input) {
+  const assignments = /* @__PURE__ */ new Map();
+  for (const assignment of input.assignments) {
+    if (assignment.workCaseId !== input.workCaseId || assignment.judgmentId !== input.judgmentId || assignment.contributionNeedId !== input.contributionNeedId) {
+      return {
+        ok: false,
+        error: invalid2(
+          "assignment-mismatch",
+          `Assignment ${assignment.assignmentId} does not belong to the requested Work Case, Judgment, and Contribution Need.`
+        )
+      };
+    }
+    if (assignments.has(assignment.assignmentId)) {
+      return {
+        ok: false,
+        error: invalid2(
+          "duplicate-assignment",
+          `Assignment ${assignment.assignmentId} occurs more than once.`
+        )
+      };
+    }
+    assignments.set(assignment.assignmentId, assignment);
+  }
+  return { ok: true, value: assignments };
+}
+function indexSelections(selections, assignments) {
+  const indexed = /* @__PURE__ */ new Map();
+  for (const selection of selections) {
+    const assignment = assignments.get(selection.assignmentId);
+    if (assignment === void 0 || selection.capabilityRevisionId !== assignment.capabilityRevisionId) {
+      return {
+        ok: false,
+        error: invalid2(
+          "selection-mismatch",
+          `Reference Selection ${selection.selectionId} has no exact current Assignment.`
+        )
+      };
+    }
+    if (indexed.has(selection.assignmentId)) {
+      return {
+        ok: false,
+        error: invalid2(
+          "duplicate-selection",
+          `Assignment ${selection.assignmentId} has more than one Reference Selection.`
+        )
+      };
+    }
+    indexed.set(selection.assignmentId, selection);
+  }
+  return { ok: true, value: indexed };
+}
+function matchingContext(input, context, assignment) {
+  return assignment !== void 0 && context.workCaseId === input.workCaseId && context.judgmentId === input.judgmentId && context.contributionNeedId === input.contributionNeedId && context.capabilityRevisionId === assignment.capabilityRevisionId;
+}
+function matchingContextMode(context, selection) {
+  if ("routing" in context) return selection === void 0;
+  return selection !== void 0 && selection.status === "ready" && selection.selectionId === context.selectionId;
+}
+function indexContexts(input, assignments, selections) {
+  const indexed = /* @__PURE__ */ new Map();
+  for (const context of input.contexts) {
+    if (!matchingContext(
+      input,
+      context,
+      assignments.get(context.assignmentId)
+    )) {
+      return {
+        ok: false,
+        error: invalid2(
+          "context-mismatch",
+          `Sealed Context ${context.sealedContextId} has no exact current Assignment.`
+        )
+      };
+    }
+    if (indexed.has(context.assignmentId)) {
+      return {
+        ok: false,
+        error: invalid2(
+          "duplicate-context",
+          `Assignment ${context.assignmentId} has more than one sealed Context.`
+        )
+      };
+    }
+    if (!matchingContextMode(context, selections.get(context.assignmentId))) {
+      return {
+        ok: false,
+        error: invalid2(
+          "inconsistent-context",
+          `Sealed Context ${context.sealedContextId} does not match its routing mode and Reference Selection.`
+        )
+      };
+    }
+    indexed.set(context.assignmentId, context);
+  }
+  return { ok: true, value: indexed };
+}
+function validateSelections(selections, contexts) {
+  for (const selection of selections) {
+    const hasContext = contexts.has(selection.assignmentId);
+    if (selection.status === "ready" && !hasContext) {
+      return invalid2(
+        "inconsistent-context",
+        `Ready Reference Selection ${selection.selectionId} has no sealed Context.`
+      );
+    }
+    if (selection.status === "needs-context" && hasContext) {
+      return invalid2(
+        "inconsistent-context",
+        `Unresolved Reference Selection ${selection.selectionId} cannot have a sealed Context.`
+      );
+    }
+  }
+  return void 0;
+}
+function inspectCapabilityContextProgress(input) {
+  const assignments = indexAssignments(input);
+  if (!assignments.ok) return assignments.error;
+  const selections = indexSelections(input.selections, assignments.value);
+  if (!selections.ok) return selections.error;
+  const contexts = indexContexts(input, assignments.value, selections.value);
+  if (!contexts.ok) return contexts.error;
+  const inconsistency = validateSelections(input.selections, contexts.value);
+  if (inconsistency !== void 0) return inconsistency;
+  const completedAssignmentIds = Object.freeze(
+    [...contexts.value.keys()].sort((left, right) => left.localeCompare(right))
+  );
+  const unresolvedSelections = Object.freeze(
+    input.selections.filter((selection) => selection.status === "needs-context").sort((left, right) => left.assignmentId.localeCompare(right.assignmentId))
+  );
+  const unresolvedAssignmentIds = new Set(
+    unresolvedSelections.map((selection) => selection.assignmentId)
+  );
+  const pendingAssignments = Object.freeze(
+    input.assignments.filter(
+      (assignment) => !contexts.value.has(assignment.assignmentId) && !unresolvedAssignmentIds.has(assignment.assignmentId)
+    ).sort((left, right) => left.assignmentId.localeCompare(right.assignmentId))
+  );
+  if (pendingAssignments.length > 0) {
+    return {
+      status: "pending",
+      pendingAssignments,
+      unresolvedSelections,
+      completedAssignmentIds
+    };
+  }
+  if (unresolvedSelections.length > 0) {
+    return {
+      status: "needs-context",
+      pendingAssignments: Object.freeze([]),
+      unresolvedSelections,
+      completedAssignmentIds
+    };
+  }
+  return {
+    status: "complete",
+    pendingAssignments: Object.freeze([]),
+    unresolvedSelections: Object.freeze([]),
+    completedAssignmentIds
+  };
+}
+
 // src/action-loop/sdk/context-sealing-controller.ts
 function assignmentFailure(input) {
   if (input.assignment.capabilityId !== input.entry.capability.capabilityId || input.assignment.capabilityRevisionId !== input.entry.capability.capabilityRevisionId) {
@@ -2665,6 +2830,2403 @@ async function sealCapabilityContextWithSdk(input) {
     context: sealed.value,
     selection: routed.selection,
     decisions
+  };
+}
+
+// src/action-loop/sdk/conclusion-controller.ts
+import { StringEnum as StringEnum3 } from "@earendil-works/pi-ai";
+import { Type as Type3 } from "typebox";
+
+// src/action-loop/judgment/close-judgment.ts
+var JUDGMENT_CONCLUSION_VERSION = "developer-judgment-conclusion/v1";
+var JUDGMENT_REFUSAL_VERSION = "developer-judgment-refusal/v1";
+var JUDGMENT_CATEGORIES = /* @__PURE__ */ new Set([
+  "Contextual Adequacy",
+  "Proportionate Intervention",
+  "Consequence Integrity",
+  "Claim Assurance"
+]);
+var REQUIREMENT_STATUSES = /* @__PURE__ */ new Set([
+  "satisfied",
+  "not-satisfied",
+  "needs-context"
+]);
+var CLOSURE_OUTCOMES = /* @__PURE__ */ new Set(["conclude", "refuse"]);
+var PROVENANCE_KINDS = /* @__PURE__ */ new Set([
+  "model",
+  "human",
+  "tool",
+  "external"
+]);
+function invalid3(code, path, message) {
+  return { status: "invalid", error: { code, path, message } };
+}
+function validId2(id) {
+  return id.length > 0 && id === id.trim() && !id.includes("\0");
+}
+function canonicalText2(value, code, path) {
+  const normalized = value.trim();
+  if (normalized.length === 0 || normalized.includes("\0")) {
+    return {
+      ok: false,
+      error: { code, path, message: "Expected a nonblank canonical value" }
+    };
+  }
+  return { ok: true, value: normalized };
+}
+function canonicalList(values, path, invalidCode) {
+  const normalized = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (let index = 0; index < values.length; index += 1) {
+    const item = canonicalText2(
+      values[index] ?? "",
+      invalidCode,
+      `${path}[${index}]`
+    );
+    if (!item.ok) return item;
+    if (seen.has(item.value)) {
+      return {
+        ok: false,
+        error: {
+          code: "duplicate-value",
+          path: `${path}[${index}]`,
+          message: "Value duplicates an earlier normalized value"
+        }
+      };
+    }
+    seen.add(item.value);
+    normalized.push(item.value);
+  }
+  return { ok: true, value: Object.freeze(normalized) };
+}
+function buildRequirementInventory(contract) {
+  for (const [path, id] of [
+    ["contract.workCaseId", contract.workCaseId],
+    ["contract.judgmentId", contract.judgmentId],
+    ["contract.contextRevisionId", contract.contextRevisionId]
+  ]) {
+    if (!validId2(id)) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-contract",
+          path,
+          message: "Expected a canonical contract ID"
+        }
+      };
+    }
+  }
+  if (!JUDGMENT_CATEGORIES.has(contract.category)) {
+    return {
+      ok: false,
+      error: {
+        code: "unsupported-category",
+        path: "contract.category",
+        message: `Unsupported Judgment Category ${contract.category}`
+      }
+    };
+  }
+  const subject = canonicalText2(
+    contract.subject,
+    "invalid-contract",
+    "contract.subject"
+  );
+  if (!subject.ok) return subject;
+  if (contract.requirements.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid-contract",
+        path: "contract.requirements",
+        message: "Judgment closure requires at least one Closure Requirement"
+      }
+    };
+  }
+  const ordered = [];
+  const byId = /* @__PURE__ */ new Map();
+  const mappedNeedIds = /* @__PURE__ */ new Set();
+  for (const [index, requirement] of contract.requirements.entries()) {
+    if (!validId2(requirement.requirementId) || byId.has(requirement.requirementId)) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-contract",
+          path: `contract.requirements[${index}].requirementId`,
+          message: "Closure Requirement ID must be canonical and unique"
+        }
+      };
+    }
+    const statement = canonicalText2(
+      requirement.statement,
+      "invalid-contract",
+      `contract.requirements[${index}].statement`
+    );
+    if (!statement.ok) return statement;
+    const needIds = [];
+    const localNeeds = /* @__PURE__ */ new Set();
+    for (const [
+      needIndex,
+      needId
+    ] of requirement.contributionNeedIds.entries()) {
+      if (!validId2(needId) || localNeeds.has(needId)) {
+        return {
+          ok: false,
+          error: {
+            code: "invalid-contract",
+            path: `contract.requirements[${index}].contributionNeedIds[${needIndex}]`,
+            message: "Contribution Need ID must be canonical and unique per Requirement"
+          }
+        };
+      }
+      localNeeds.add(needId);
+      mappedNeedIds.add(needId);
+      needIds.push(needId);
+    }
+    const canonical = Object.freeze({
+      requirementId: requirement.requirementId,
+      statement: statement.value,
+      contributionNeedIds: Object.freeze(needIds)
+    });
+    ordered.push(canonical);
+    byId.set(canonical.requirementId, canonical);
+  }
+  return {
+    ok: true,
+    value: {
+      ordered: Object.freeze(ordered),
+      byId,
+      mappedNeedIds
+    }
+  };
+}
+function checkProposalIdentity(contract, proposal) {
+  for (const [path, actual, expected] of [
+    ["proposal.workCaseId", proposal.workCaseId, contract.workCaseId],
+    ["proposal.judgmentId", proposal.judgmentId, contract.judgmentId],
+    ["proposal.category", proposal.category, contract.category],
+    [
+      "proposal.contextRevisionId",
+      proposal.contextRevisionId,
+      contract.contextRevisionId
+    ]
+  ]) {
+    if (actual !== expected) {
+      return invalid3(
+        "identity-mismatch",
+        path,
+        `Expected ${expected}, received ${actual}`
+      );
+    }
+  }
+  return void 0;
+}
+function buildCoverageInventory(contract, requirements, coverages) {
+  const byId = /* @__PURE__ */ new Map();
+  const byNeedId = /* @__PURE__ */ new Map();
+  for (const [index, coverage] of coverages.entries()) {
+    for (const [path, actual, expected] of [
+      [
+        `coverages[${index}].workCaseId`,
+        coverage.workCaseId,
+        contract.workCaseId
+      ],
+      [
+        `coverages[${index}].judgmentId`,
+        coverage.judgmentId,
+        contract.judgmentId
+      ]
+    ]) {
+      if (actual !== expected) {
+        return {
+          ok: false,
+          error: {
+            code: "identity-mismatch",
+            path,
+            message: `Expected ${expected}, received ${actual}`
+          }
+        };
+      }
+    }
+    if (byId.has(coverage.coverageId) || byNeedId.has(coverage.contributionNeedId)) {
+      return {
+        ok: false,
+        error: {
+          code: "duplicate-coverage",
+          path: `coverages[${index}]`,
+          message: "Current Coverage inventory contains a duplicate ID or Need"
+        }
+      };
+    }
+    if (!requirements.mappedNeedIds.has(coverage.contributionNeedId)) {
+      return {
+        ok: false,
+        error: {
+          code: "unmapped-coverage",
+          path: `coverages[${index}].contributionNeedId`,
+          message: "Coverage does not belong to a current Closure Requirement"
+        }
+      };
+    }
+    byId.set(coverage.coverageId, coverage);
+    byNeedId.set(coverage.contributionNeedId, coverage);
+  }
+  return { ok: true, value: { byId, byNeedId } };
+}
+function expectedCoverageIds(requirement, coverages) {
+  return Object.freeze(
+    requirement.contributionNeedIds.flatMap((needId) => {
+      const coverage = coverages.byNeedId.get(needId);
+      return coverage === void 0 ? [] : [coverage.coverageId];
+    })
+  );
+}
+function canonicalCoverageCitations(requirement, coverages, coverageIds, path) {
+  const expected = expectedCoverageIds(requirement, coverages);
+  const seen = /* @__PURE__ */ new Set();
+  for (const coverageId of coverageIds) {
+    const coverage = coverages.byId.get(coverageId);
+    if (coverage === void 0 || seen.has(coverageId) || !requirement.contributionNeedIds.includes(coverage.contributionNeedId)) {
+      return {
+        ok: false,
+        error: {
+          code: "coverage-citation",
+          path,
+          message: "Coverage citation must be current, unique, and Requirement-bounded"
+        }
+      };
+    }
+    seen.add(coverageId);
+  }
+  if (coverageIds.length !== expected.length || expected.some((coverageId) => !seen.has(coverageId))) {
+    return {
+      ok: false,
+      error: {
+        code: "coverage-citation",
+        path,
+        message: "Requirement must cite every current mapped Coverage exactly once"
+      }
+    };
+  }
+  return { ok: true, value: expected };
+}
+function canonicalRequirementDisposition(requirement, coverages, proposal, index) {
+  if (!REQUIREMENT_STATUSES.has(proposal.status)) {
+    return {
+      ok: false,
+      error: {
+        code: "unsupported-requirement-status",
+        path: `proposal.requirementDispositions[${index}].status`,
+        message: `Unsupported Requirement status ${proposal.status}`
+      }
+    };
+  }
+  const coverageIds = canonicalCoverageCitations(
+    requirement,
+    coverages,
+    proposal.coverageIds,
+    `proposal.requirementDispositions[${index}].coverageIds`
+  );
+  if (!coverageIds.ok) return coverageIds;
+  const basisPath = `proposal.requirementDispositions[${index}].basis`;
+  const basis = canonicalList(proposal.basis, basisPath, "empty-basis");
+  if (!basis.ok) return basis;
+  if (basis.value.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "empty-basis",
+        path: basisPath,
+        message: "Requirement disposition requires explicit basis"
+      }
+    };
+  }
+  return {
+    ok: true,
+    value: Object.freeze({
+      requirementId: proposal.requirementId,
+      status: proposal.status,
+      coverageIds: coverageIds.value,
+      basis: basis.value
+    })
+  };
+}
+function canonicalRequirementDispositions(requirements, coverages, proposals) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const [index, proposal] of proposals.entries()) {
+    const requirement = requirements.byId.get(proposal.requirementId);
+    if (requirement === void 0 || byId.has(proposal.requirementId)) {
+      return {
+        ok: false,
+        error: {
+          code: "requirement-accounting",
+          path: `proposal.requirementDispositions[${index}].requirementId`,
+          message: "Requirement must be current and dispositioned exactly once"
+        }
+      };
+    }
+    const disposition = canonicalRequirementDisposition(
+      requirement,
+      coverages,
+      proposal,
+      index
+    );
+    if (!disposition.ok) return disposition;
+    byId.set(proposal.requirementId, disposition.value);
+  }
+  if (byId.size !== requirements.ordered.length) {
+    return {
+      ok: false,
+      error: {
+        code: "requirement-accounting",
+        path: "proposal.requirementDispositions",
+        message: "Every current Closure Requirement requires one disposition"
+      }
+    };
+  }
+  const ordered = [];
+  for (const requirement of requirements.ordered) {
+    const disposition = byId.get(requirement.requirementId);
+    if (disposition === void 0) {
+      return {
+        ok: false,
+        error: {
+          code: "requirement-accounting",
+          path: "proposal.requirementDispositions",
+          message: `Requirement has no disposition: ${requirement.requirementId}`
+        }
+      };
+    }
+    ordered.push(disposition);
+  }
+  return { ok: true, value: Object.freeze(ordered) };
+}
+function canonicalProvenance(proposal) {
+  if (!PROVENANCE_KINDS.has(proposal.kind)) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid-provenance",
+        path: "proposal.provenance.kind",
+        message: `Unsupported provenance kind ${proposal.kind}`
+      }
+    };
+  }
+  const source = canonicalText2(
+    proposal.source,
+    "invalid-provenance",
+    "proposal.provenance.source"
+  );
+  if (!source.ok) return source;
+  return {
+    ok: true,
+    value: Object.freeze({ kind: proposal.kind, source: source.value })
+  };
+}
+function structuralBlockers(requirements, coverages, dispositions) {
+  const dispositionById = new Map(
+    dispositions.map((disposition) => [disposition.requirementId, disposition])
+  );
+  const blockers = [];
+  for (const requirement of requirements.ordered) {
+    const disposition = dispositionById.get(requirement.requirementId);
+    if (disposition === void 0) continue;
+    if (disposition.status !== "satisfied") {
+      blockers.push(
+        Object.freeze({
+          code: "requirement-unmet",
+          requirementId: requirement.requirementId,
+          requirementStatus: disposition.status
+        })
+      );
+    }
+    for (const contributionNeedId of requirement.contributionNeedIds) {
+      const coverage = coverages.byNeedId.get(contributionNeedId);
+      if (coverage === void 0) {
+        blockers.push(
+          Object.freeze({
+            code: "coverage-missing",
+            requirementId: requirement.requirementId,
+            contributionNeedId
+          })
+        );
+      } else if (coverage.status !== "covered") {
+        blockers.push(
+          Object.freeze({
+            code: "coverage-not-covered",
+            requirementId: requirement.requirementId,
+            contributionNeedId,
+            coverageId: coverage.coverageId,
+            coverageStatus: coverage.status
+          })
+        );
+      }
+    }
+  }
+  return Object.freeze(blockers);
+}
+function uniqueCoverageIds(dispositions) {
+  const ids = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const disposition of dispositions) {
+    for (const coverageId of disposition.coverageIds) {
+      if (!seen.has(coverageId)) {
+        seen.add(coverageId);
+        ids.push(coverageId);
+      }
+    }
+  }
+  return Object.freeze(ids);
+}
+function contractIdentityParts(contract, requirements) {
+  const parts = [
+    contract.workCaseId,
+    contract.judgmentId,
+    contract.category,
+    contract.subject.trim(),
+    contract.contextRevisionId,
+    "requirements",
+    String(requirements.length)
+  ];
+  for (const requirement of requirements) {
+    parts.push(
+      requirement.requirementId,
+      requirement.statement,
+      String(requirement.contributionNeedIds.length),
+      ...requirement.contributionNeedIds
+    );
+  }
+  return parts;
+}
+function dispositionIdentityParts(dispositions) {
+  const parts = [];
+  for (const disposition of dispositions) {
+    parts.push(
+      disposition.requirementId,
+      disposition.status,
+      String(disposition.coverageIds.length),
+      ...disposition.coverageIds,
+      String(disposition.basis.length),
+      ...disposition.basis
+    );
+  }
+  return parts;
+}
+function blockerIdentityParts(blockers) {
+  const parts = [];
+  for (const blocker of blockers) {
+    parts.push(blocker.code);
+    if (blocker.code === "requirement-unmet") {
+      parts.push(blocker.requirementId, blocker.requirementStatus);
+    } else if (blocker.code === "coverage-missing") {
+      parts.push(blocker.requirementId, blocker.contributionNeedId);
+    } else if (blocker.code === "coverage-not-covered") {
+      parts.push(
+        blocker.requirementId,
+        blocker.contributionNeedId,
+        blocker.coverageId,
+        blocker.coverageStatus
+      );
+    } else {
+      parts.push(blocker.reason);
+    }
+  }
+  return parts;
+}
+function validateClosureOutcome(proposal) {
+  if (!CLOSURE_OUTCOMES.has(proposal.outcome)) {
+    return {
+      ok: false,
+      error: {
+        code: "unsupported-outcome",
+        path: "proposal.outcome",
+        message: `Unsupported closure outcome ${proposal.outcome}`
+      }
+    };
+  }
+  const refusalReasons = canonicalList(
+    proposal.refusalReasons,
+    "proposal.refusalReasons",
+    "invalid-refusal"
+  );
+  if (!refusalReasons.ok) return refusalReasons;
+  if (proposal.outcome === "conclude") {
+    const answer = canonicalText2(
+      proposal.answer ?? "",
+      "invalid-conclusion-answer",
+      "proposal.answer"
+    );
+    if (!answer.ok) return answer;
+    if (refusalReasons.value.length > 0) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-refusal",
+          path: "proposal.refusalReasons",
+          message: "Conclude outcome cannot also carry refusal reasons"
+        }
+      };
+    }
+    return { ok: true, value: { answer: answer.value, refusalReasons: [] } };
+  }
+  if (proposal.answer !== void 0 || refusalReasons.value.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid-refusal",
+        path: "proposal",
+        message: "Refuse outcome requires reasons and cannot carry an answer"
+      }
+    };
+  }
+  return { ok: true, value: { refusalReasons: refusalReasons.value } };
+}
+function validateClosureInput(contract, coverages, proposal) {
+  const requirements = buildRequirementInventory(contract);
+  if (!requirements.ok) return requirements;
+  const identityFailure = checkProposalIdentity(contract, proposal);
+  if (identityFailure?.status === "invalid") {
+    return { ok: false, error: identityFailure.error };
+  }
+  const outcome = validateClosureOutcome(proposal);
+  if (!outcome.ok) return outcome;
+  const coverageInventory = buildCoverageInventory(
+    contract,
+    requirements.value,
+    coverages
+  );
+  if (!coverageInventory.ok) return coverageInventory;
+  const dispositions = canonicalRequirementDispositions(
+    requirements.value,
+    coverageInventory.value,
+    proposal.requirementDispositions
+  );
+  if (!dispositions.ok) return dispositions;
+  const basis = canonicalList(proposal.basis, "proposal.basis", "empty-basis");
+  if (!basis.ok) return basis;
+  if (basis.value.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "empty-basis",
+        path: "proposal.basis",
+        message: "Judgment closure requires explicit basis"
+      }
+    };
+  }
+  const provenance = canonicalProvenance(proposal.provenance);
+  if (!provenance.ok) return provenance;
+  return {
+    ok: true,
+    value: {
+      requirements: requirements.value,
+      coverages: coverageInventory.value,
+      dispositions: dispositions.value,
+      basis: basis.value,
+      provenance: provenance.value,
+      answer: outcome.value.answer,
+      refusalReasons: outcome.value.refusalReasons
+    }
+  };
+}
+function conclusionResult(contract, validated) {
+  const coverageIds = uniqueCoverageIds(validated.dispositions);
+  const conclusionId = hashIdentity("conclusion", JUDGMENT_CONCLUSION_VERSION, [
+    ...contractIdentityParts(contract, validated.requirements.ordered),
+    ...dispositionIdentityParts(validated.dispositions),
+    validated.answer,
+    String(validated.basis.length),
+    ...validated.basis
+  ]);
+  return {
+    status: "concluded",
+    value: Object.freeze({
+      conclusionId,
+      workCaseId: contract.workCaseId,
+      judgmentId: contract.judgmentId,
+      category: contract.category,
+      subject: contract.subject.trim(),
+      contextRevisionId: contract.contextRevisionId,
+      answer: validated.answer,
+      requirementDispositions: validated.dispositions,
+      coverageIds,
+      basis: validated.basis,
+      provenance: validated.provenance
+    })
+  };
+}
+function refusalResult(contract, proposal, validated, blockers) {
+  const coverageIds = uniqueCoverageIds(validated.dispositions);
+  const refusalId = hashIdentity("refusal", JUDGMENT_REFUSAL_VERSION, [
+    ...contractIdentityParts(contract, validated.requirements.ordered),
+    proposal.outcome,
+    ...dispositionIdentityParts(validated.dispositions),
+    ...blockerIdentityParts(blockers),
+    String(validated.basis.length),
+    ...validated.basis
+  ]);
+  return {
+    status: "refused",
+    value: Object.freeze({
+      refusalId,
+      workCaseId: contract.workCaseId,
+      judgmentId: contract.judgmentId,
+      category: contract.category,
+      subject: contract.subject.trim(),
+      contextRevisionId: contract.contextRevisionId,
+      proposedOutcome: proposal.outcome,
+      requirementDispositions: validated.dispositions,
+      coverageIds,
+      blockers,
+      basis: validated.basis,
+      provenance: validated.provenance
+    })
+  };
+}
+function closeJudgment(contract, coverages, proposal) {
+  const validated = validateClosureInput(contract, coverages, proposal);
+  if (!validated.ok) return { status: "invalid", error: validated.error };
+  const structural = structuralBlockers(
+    validated.value.requirements,
+    validated.value.coverages,
+    validated.value.dispositions
+  );
+  const evaluatorBlockers = validated.value.refusalReasons.map(
+    (reason) => Object.freeze({ code: "evaluator-refused", reason })
+  );
+  const blockers = Object.freeze([...structural, ...evaluatorBlockers]);
+  if (proposal.outcome === "conclude" && blockers.length === 0 && validated.value.answer !== void 0) {
+    return conclusionResult(contract, {
+      ...validated.value,
+      answer: validated.value.answer
+    });
+  }
+  return refusalResult(contract, proposal, validated.value, blockers);
+}
+
+// src/action-loop/sdk/proposal-json.ts
+var MAX_SDK_PROPOSAL_JSON_CHARS = 32768;
+function decodeSdkProposalJson(value, label) {
+  if (typeof value !== "string" || value.length === 0 || value.length > MAX_SDK_PROPOSAL_JSON_CHARS) {
+    return {
+      ok: false,
+      message: `${label} must be non-empty JSON text within ${MAX_SDK_PROPOSAL_JSON_CHARS} characters.`
+    };
+  }
+  try {
+    return { ok: true, value: JSON.parse(value) };
+  } catch (error) {
+    return {
+      ok: false,
+      message: `${label} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+}
+function decodeSdkStringList(input) {
+  const decoded = decodeSdkProposalJson(input.value, input.label);
+  if (!decoded.ok) return decoded;
+  if (!Array.isArray(decoded.value) || decoded.value.length > input.maximumItems || !input.allowEmpty && decoded.value.length === 0 || decoded.value.some((item) => typeof item !== "string")) {
+    return {
+      ok: false,
+      message: `${input.label} must encode ${input.allowEmpty ? "zero or more" : "one or more"} strings and at most ${input.maximumItems} items.`
+    };
+  }
+  return { ok: true, value: decoded.value };
+}
+
+// src/action-loop/sdk/conclusion-controller.ts
+var closureOutcomes = ["conclude", "refuse"];
+var requirementStatuses = [
+  "satisfied",
+  "not-satisfied",
+  "needs-context"
+];
+function isRecord3(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function rejected3(code, message) {
+  return { status: "rejected", code, message };
+}
+function conclusionParameters(requirements) {
+  const fields = {
+    outcome: StringEnum3(closureOutcomes),
+    answer: Type3.Optional(Type3.String({ minLength: 1, maxLength: 12e3 })),
+    refusal_reasons_json: Type3.String({
+      minLength: 2,
+      maxLength: 32768,
+      description: "JSON array of explicit evaluator refusal reasons. Use [] unless refusing or preserving an additional blocker."
+    }),
+    basis_json: Type3.String({
+      minLength: 2,
+      maxLength: 32768,
+      description: "JSON array of one or more synthesis basis strings."
+    })
+  };
+  for (const [index, requirement] of requirements.entries()) {
+    fields[`requirement_status_${index}`] = StringEnum3(
+      requirementStatuses,
+      { description: requirement.statement }
+    );
+    fields[`requirement_basis_${index}`] = Type3.String({
+      minLength: 1,
+      maxLength: 2048
+    });
+  }
+  return Type3.Object(fields, { additionalProperties: false });
+}
+function mappedCoverageIds(requirement, coverages) {
+  const needIds = new Set(requirement.contributionNeedIds);
+  return Object.freeze(
+    coverages.flatMap(
+      (coverage) => needIds.has(coverage.contributionNeedId) ? [coverage.coverageId] : []
+    ).sort((left, right) => left.localeCompare(right))
+  );
+}
+function decodeRequirementDispositions(input) {
+  const dispositions = [];
+  for (const [index, requirement] of input.requirements.entries()) {
+    const status = input.raw[`requirement_status_${index}`];
+    const basis = input.raw[`requirement_basis_${index}`];
+    if (status !== "satisfied" && status !== "not-satisfied" && status !== "needs-context" || typeof basis !== "string") {
+      return {
+        ok: false,
+        message: `Requirement ${index} requires a canonical status and basis.`
+      };
+    }
+    dispositions.push({
+      requirementId: requirement.requirementId,
+      status,
+      coverageIds: mappedCoverageIds(requirement, input.coverages),
+      basis: [basis]
+    });
+  }
+  return { ok: true, value: Object.freeze(dispositions) };
+}
+function canonicalProposal(input) {
+  const outcome = input.raw.outcome;
+  if (outcome !== "conclude" && outcome !== "refuse") {
+    return {
+      ok: false,
+      code: "invalid-outcome",
+      message: "outcome must be conclude or refuse."
+    };
+  }
+  if (input.raw.answer !== void 0 && typeof input.raw.answer !== "string") {
+    return {
+      ok: false,
+      code: "invalid-answer",
+      message: "answer must be text when supplied."
+    };
+  }
+  const refusalReasons = decodeSdkStringList({
+    value: input.raw.refusal_reasons_json,
+    label: "refusal_reasons_json",
+    allowEmpty: true,
+    maximumItems: 32
+  });
+  if (!refusalReasons.ok) {
+    return {
+      ok: false,
+      code: "invalid-refusal-reasons",
+      message: refusalReasons.message
+    };
+  }
+  const basis = decodeSdkStringList({
+    value: input.raw.basis_json,
+    label: "basis_json",
+    allowEmpty: false,
+    maximumItems: 32
+  });
+  if (!basis.ok) {
+    return { ok: false, code: "invalid-basis", message: basis.message };
+  }
+  const dispositions = decodeRequirementDispositions({
+    raw: input.raw,
+    requirements: input.contract.requirements,
+    coverages: input.coverages
+  });
+  if (!dispositions.ok) {
+    return {
+      ok: false,
+      code: "invalid-requirement-dispositions",
+      message: dispositions.message
+    };
+  }
+  return {
+    ok: true,
+    value: {
+      workCaseId: input.contract.workCaseId,
+      judgmentId: input.contract.judgmentId,
+      category: input.contract.category,
+      contextRevisionId: input.contract.contextRevisionId,
+      outcome,
+      ...typeof input.raw.answer === "string" ? { answer: input.raw.answer } : {},
+      refusalReasons: refusalReasons.value,
+      requirementDispositions: dispositions.value,
+      basis: basis.value,
+      provenance: { kind: "model", source: "pi:sdk-action-loop" }
+    }
+  };
+}
+function conclusionTool(input) {
+  return {
+    name: "submit_judgment_conclusion",
+    label: "Submit one upper Judgment synthesis",
+    description: "Synthesize complete current Need Coverage into a Conclusion or explicit bounded refusal.",
+    parameters: conclusionParameters(input.contract.requirements),
+    execute: async (raw) => {
+      if (!isRecord3(raw)) {
+        return rejected3(
+          "invalid-arguments",
+          "Conclusion arguments must be an object."
+        );
+      }
+      const proposal = canonicalProposal({ ...input, raw });
+      if (!proposal.ok) return rejected3(proposal.code, proposal.message);
+      const closed = closeJudgment(
+        input.contract,
+        input.coverages,
+        proposal.value
+      );
+      if (closed.status === "invalid") {
+        return rejected3(closed.error.code, closed.error.message);
+      }
+      return {
+        status: "accepted",
+        value: { proposal: proposal.value, result: closed },
+        message: closed.status === "concluded" ? "Judgment Conclusion accepted." : "Judgment closure refusal accepted.",
+        resultStatus: closed.status
+      };
+    }
+  };
+}
+function conclusionPrompt(input) {
+  const coverageByNeed = new Map(
+    input.coverages.map((coverage) => [coverage.contributionNeedId, coverage])
+  );
+  const requirements = input.contract.requirements.map((requirement, index) => {
+    const coverages = requirement.contributionNeedIds.map((needId) => {
+      const coverage = coverageByNeed.get(needId);
+      return coverage ? `${needId}: ${coverage.status} \u2014 ${coverage.basis.join(" | ")}` : `${needId}: no current Coverage`;
+    });
+    return [
+      `Requirement ${index}: ${requirement.statement}`,
+      ...coverages
+    ].join("\n");
+  }).join("\n\n");
+  return [
+    `Delegated request:
+${input.request}`,
+    `Judgment subject:
+${input.contract.subject}`,
+    `Category: ${input.contract.category}`,
+    `Current Requirements and Need Coverage:
+${requirements}`,
+    "Conclude only when every Requirement is supported by complete current Coverage. Otherwise return an explicit refusal and preserve blockers."
+  ].join("\n\n");
+}
+async function concludeJudgmentWithSdk(input) {
+  const decision = await input.runner.run({
+    systemPrompt: [
+      "Make one upper Judgment synthesis from complete current Need Coverage.",
+      "Call the supplied decision tool exactly once and disposition every Closure Requirement.",
+      "Do not manufacture Coverage identities, permission, Effect success, or Work Case completion.",
+      "The SDK controller owns exact Coverage citations, canonical admission, retries, and stop decisions."
+    ].join("\n"),
+    prompt: conclusionPrompt(input),
+    tool: conclusionTool(input)
+  });
+  if (decision.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      reason: decision.reason,
+      decision: decision.metrics
+    };
+  }
+  if (decision.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      message: decision.message,
+      decision: decision.metrics
+    };
+  }
+  const reproduced = closeJudgment(
+    input.contract,
+    input.coverages,
+    decision.value.proposal
+  );
+  if (reproduced.status === "invalid") {
+    return {
+      status: "invariant-failure",
+      code: reproduced.error.code,
+      message: reproduced.error.message,
+      decision: decision.metrics
+    };
+  }
+  if (reproduced.status !== decision.value.result.status) {
+    return {
+      status: "invariant-failure",
+      code: "closure-outcome-drift",
+      message: "Accepted Judgment closure did not reproduce its outcome.",
+      decision: decision.metrics
+    };
+  }
+  if (reproduced.status === "refused") {
+    if (decision.value.result.status !== "refused" || reproduced.value.refusalId !== decision.value.result.value.refusalId) {
+      return {
+        status: "invariant-failure",
+        code: "refusal-identity-drift",
+        message: "Accepted Judgment refusal did not reproduce its identity.",
+        decision: decision.metrics
+      };
+    }
+    return {
+      status: "refused",
+      refusal: reproduced.value,
+      decision: decision.metrics
+    };
+  }
+  if (decision.value.result.status !== "concluded" || reproduced.value.conclusionId !== decision.value.result.value.conclusionId) {
+    return {
+      status: "invariant-failure",
+      code: "conclusion-identity-drift",
+      message: "Accepted Judgment Conclusion did not reproduce its identity.",
+      decision: decision.metrics
+    };
+  }
+  return {
+    status: "concluded",
+    conclusion: reproduced.value,
+    decision: decision.metrics
+  };
+}
+
+// src/action-loop/sdk/contribution-controller.ts
+import { StringEnum as StringEnum4 } from "@earendil-works/pi-ai";
+import { Type as Type4 } from "typebox";
+
+// src/action-loop/contribution/accept-skill-contribution.ts
+var SKILL_CONTRIBUTION_VERSION = "developer-skill-contribution/v1";
+var LOCAL_STATUSES = /* @__PURE__ */ new Set(["resolved", "partial"]);
+var APPLICATION_STATUSES = /* @__PURE__ */ new Set([
+  "applied",
+  "limited"
+]);
+var RESIDUAL_NEED_KINDS = /* @__PURE__ */ new Set([
+  "residual",
+  "emergent"
+]);
+var PROVENANCE_KINDS2 = /* @__PURE__ */ new Set([
+  "model",
+  "human",
+  "tool",
+  "external"
+]);
+function invalid4(code, path, message) {
+  return { status: "invalid", error: { code, path, message } };
+}
+function canonicalText3(value, code, path) {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return {
+      ok: false,
+      error: { code, path, message: "Expected a nonblank value" }
+    };
+  }
+  return { ok: true, value: normalized };
+}
+function canonicalList2(values, path, invalidCode) {
+  const normalized = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (let index = 0; index < values.length; index += 1) {
+    const item = canonicalText3(
+      values[index] ?? "",
+      invalidCode,
+      `${path}[${index}]`
+    );
+    if (!item.ok) return item;
+    if (seen.has(item.value)) {
+      return {
+        ok: false,
+        error: {
+          code: "duplicate-value",
+          path: `${path}[${index}]`,
+          message: "Value duplicates an earlier normalized value"
+        }
+      };
+    }
+    seen.add(item.value);
+    normalized.push(item.value);
+  }
+  return { ok: true, value: Object.freeze(normalized) };
+}
+function checkIdentity2(assignment, context, proposal) {
+  for (const [path, actual, expected] of [
+    ["context.workCaseId", context.workCaseId, assignment.workCaseId],
+    ["context.judgmentId", context.judgmentId, assignment.judgmentId],
+    [
+      "context.contributionNeedId",
+      context.contributionNeedId,
+      assignment.contributionNeedId
+    ],
+    ["context.assignmentId", context.assignmentId, assignment.assignmentId],
+    ["context.capabilityId", context.capabilityId, assignment.capabilityId],
+    [
+      "context.capabilityRevisionId",
+      context.capabilityRevisionId,
+      assignment.capabilityRevisionId
+    ],
+    ["proposal.workCaseId", proposal.workCaseId, assignment.workCaseId],
+    ["proposal.judgmentId", proposal.judgmentId, assignment.judgmentId],
+    [
+      "proposal.contributionNeedId",
+      proposal.contributionNeedId,
+      assignment.contributionNeedId
+    ],
+    ["proposal.assignmentId", proposal.assignmentId, assignment.assignmentId],
+    ["proposal.capabilityId", proposal.capabilityId, assignment.capabilityId],
+    [
+      "proposal.capabilityRevisionId",
+      proposal.capabilityRevisionId,
+      assignment.capabilityRevisionId
+    ],
+    [
+      "proposal.sealedContextId",
+      proposal.sealedContextId,
+      context.sealedContextId
+    ]
+  ]) {
+    if (actual !== expected) {
+      return invalid4(
+        "identity-mismatch",
+        path,
+        `Expected ${expected}, received ${actual}`
+      );
+    }
+  }
+  return void 0;
+}
+function canonicalApplications(selectedPaths, proposals) {
+  const selected = new Set(selectedPaths);
+  const byPath = /* @__PURE__ */ new Map();
+  for (const [index, proposal] of proposals.entries()) {
+    if (!selected.has(proposal.path) || byPath.has(proposal.path)) {
+      return {
+        ok: false,
+        error: {
+          code: "reference-accounting",
+          path: `proposal.referenceApplications[${index}].path`,
+          message: "Reference must be selected and accounted exactly once"
+        }
+      };
+    }
+    if (!APPLICATION_STATUSES.has(proposal.status)) {
+      return {
+        ok: false,
+        error: {
+          code: "unsupported-application-status",
+          path: `proposal.referenceApplications[${index}].status`,
+          message: `Unsupported application status ${proposal.status}`
+        }
+      };
+    }
+    const application = canonicalText3(
+      proposal.application,
+      "empty-application",
+      `proposal.referenceApplications[${index}].application`
+    );
+    if (!application.ok) return application;
+    byPath.set(
+      proposal.path,
+      Object.freeze({
+        path: proposal.path,
+        status: proposal.status,
+        application: application.value
+      })
+    );
+  }
+  if (byPath.size !== selectedPaths.length) {
+    return {
+      ok: false,
+      error: {
+        code: "reference-accounting",
+        path: "proposal.referenceApplications",
+        message: "Every selected Reference requires one application"
+      }
+    };
+  }
+  const ordered = [];
+  for (const path of selectedPaths) {
+    const application = byPath.get(path);
+    if (application === void 0) {
+      return {
+        ok: false,
+        error: {
+          code: "reference-accounting",
+          path: "proposal.referenceApplications",
+          message: `Selected Reference has no application: ${path}`
+        }
+      };
+    }
+    ordered.push(application);
+  }
+  return { ok: true, value: Object.freeze(ordered) };
+}
+function canonicalResidualNeeds(proposals) {
+  const needs = [];
+  const descriptions = /* @__PURE__ */ new Set();
+  for (const [index, proposal] of proposals.entries()) {
+    if (!RESIDUAL_NEED_KINDS.has(proposal.kind)) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-residual-need",
+          path: `proposal.residualNeeds[${index}].kind`,
+          message: `Unsupported residual Need kind ${proposal.kind}`
+        }
+      };
+    }
+    const description = canonicalText3(
+      proposal.description,
+      "invalid-residual-need",
+      `proposal.residualNeeds[${index}].description`
+    );
+    if (!description.ok) return description;
+    if (descriptions.has(description.value)) {
+      return {
+        ok: false,
+        error: {
+          code: "duplicate-value",
+          path: `proposal.residualNeeds[${index}].description`,
+          message: "Residual Need duplicates an earlier description"
+        }
+      };
+    }
+    const basis = canonicalList2(
+      proposal.basis,
+      `proposal.residualNeeds[${index}].basis`,
+      "invalid-residual-need"
+    );
+    if (!basis.ok) return basis;
+    if (basis.value.length === 0) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-residual-need",
+          path: `proposal.residualNeeds[${index}].basis`,
+          message: "Residual Need requires explicit basis"
+        }
+      };
+    }
+    descriptions.add(description.value);
+    needs.push(
+      Object.freeze({
+        kind: proposal.kind,
+        description: description.value,
+        basis: basis.value
+      })
+    );
+  }
+  return { ok: true, value: Object.freeze(needs) };
+}
+function canonicalProvenance2(proposal) {
+  if (!PROVENANCE_KINDS2.has(proposal.kind)) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid-provenance",
+        path: "proposal.provenance.kind",
+        message: `Unsupported provenance kind ${proposal.kind}`
+      }
+    };
+  }
+  const source = canonicalText3(
+    proposal.source,
+    "invalid-provenance",
+    "proposal.provenance.source"
+  );
+  if (!source.ok) return source;
+  return {
+    ok: true,
+    value: Object.freeze({ kind: proposal.kind, source: source.value })
+  };
+}
+function identityParts2(input) {
+  const parts = [
+    input.assignmentId,
+    input.sealedContextId,
+    input.localStatus,
+    input.result,
+    "applications",
+    String(input.applications.length)
+  ];
+  for (const application of input.applications) {
+    parts.push(application.path, application.status, application.application);
+  }
+  parts.push(
+    "limitations",
+    String(input.limitations.length),
+    ...input.limitations
+  );
+  parts.push("residual-needs", String(input.residualNeeds.length));
+  for (const need of input.residualNeeds) {
+    parts.push(
+      need.kind,
+      need.description,
+      String(need.basis.length),
+      ...need.basis
+    );
+  }
+  return parts;
+}
+function acceptSkillContribution(assignment, context, proposal) {
+  const identityFailure = checkIdentity2(assignment, context, proposal);
+  if (identityFailure !== void 0) return identityFailure;
+  if (!LOCAL_STATUSES.has(proposal.localStatus)) {
+    return invalid4(
+      "unsupported-local-status",
+      "proposal.localStatus",
+      `Unsupported local status ${proposal.localStatus}`
+    );
+  }
+  const result = canonicalText3(
+    proposal.result,
+    "empty-result",
+    "proposal.result"
+  );
+  if (!result.ok) return { status: "invalid", error: result.error };
+  const applications = canonicalApplications(
+    context.selectedPaths,
+    proposal.referenceApplications
+  );
+  if (!applications.ok) return { status: "invalid", error: applications.error };
+  const limitations = canonicalList2(
+    proposal.limitations,
+    "proposal.limitations",
+    "invalid-limitation"
+  );
+  if (!limitations.ok) return { status: "invalid", error: limitations.error };
+  const residualNeeds = canonicalResidualNeeds(proposal.residualNeeds);
+  if (!residualNeeds.ok) {
+    return { status: "invalid", error: residualNeeds.error };
+  }
+  const provenance = canonicalProvenance2(proposal.provenance);
+  if (!provenance.ok) return { status: "invalid", error: provenance.error };
+  const residual = residualNeeds.value.some((need) => need.kind === "residual");
+  const limitedApplication = applications.value.some(
+    (application) => application.status === "limited"
+  );
+  if (proposal.localStatus === "partial" && limitations.value.length === 0 && !residual && !limitedApplication) {
+    return invalid4(
+      "partial-without-limitation",
+      "proposal.localStatus",
+      "Partial Contribution requires a limitation or residual Need"
+    );
+  }
+  if (proposal.localStatus === "resolved" && residual) {
+    return invalid4(
+      "resolved-with-residual",
+      "proposal.localStatus",
+      "Resolved local status cannot retain a residual local Need"
+    );
+  }
+  const contributionId = hashIdentity(
+    "contribution",
+    SKILL_CONTRIBUTION_VERSION,
+    identityParts2({
+      assignmentId: assignment.assignmentId,
+      sealedContextId: context.sealedContextId,
+      localStatus: proposal.localStatus,
+      result: result.value,
+      applications: applications.value,
+      limitations: limitations.value,
+      residualNeeds: residualNeeds.value
+    })
+  );
+  return {
+    status: "accepted",
+    value: Object.freeze({
+      contributionId,
+      workCaseId: assignment.workCaseId,
+      judgmentId: assignment.judgmentId,
+      contributionNeedId: assignment.contributionNeedId,
+      assignmentId: assignment.assignmentId,
+      capabilityId: assignment.capabilityId,
+      capabilityRevisionId: assignment.capabilityRevisionId,
+      sealedContextId: context.sealedContextId,
+      localStatus: proposal.localStatus,
+      result: result.value,
+      referenceApplications: applications.value,
+      limitations: limitations.value,
+      residualNeeds: residualNeeds.value,
+      provenance: provenance.value
+    })
+  };
+}
+
+// src/action-loop/sdk/contribution-controller.ts
+var localStatuses = ["resolved", "partial"];
+var applicationStatuses = ["applied", "limited"];
+function isRecord4(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function rejected4(code, message) {
+  return { status: "rejected", code, message };
+}
+function contributionParameters(context) {
+  const fields = {
+    local_status: StringEnum4(localStatuses),
+    result: Type4.String({ minLength: 1, maxLength: 12e3 }),
+    limitations_json: Type4.String({
+      minLength: 2,
+      maxLength: 32768,
+      description: "JSON array of zero or more explicit limitation strings."
+    }),
+    residual_needs_json: Type4.String({
+      minLength: 2,
+      maxLength: 32768,
+      description: 'JSON array of {"kind":"residual"|"emergent","description":string,"basis":string[]} objects.'
+    })
+  };
+  for (const [index, path] of context.selectedPaths.entries()) {
+    fields[`reference_status_${index}`] = StringEnum4(applicationStatuses, {
+      description: `Application status for selected Reference ${path}.`
+    });
+    fields[`reference_application_${index}`] = Type4.String({
+      minLength: 1,
+      maxLength: 2048,
+      description: `How selected Reference ${path} was applied or limited.`
+    });
+  }
+  return Type4.Object(fields, { additionalProperties: false });
+}
+function decodeResidualNeeds(value) {
+  const decoded = decodeSdkProposalJson(value, "residual_needs_json");
+  if (!decoded.ok) return decoded;
+  if (!Array.isArray(decoded.value) || decoded.value.length > 32) {
+    return {
+      ok: false,
+      message: "residual_needs_json must encode at most 32 objects."
+    };
+  }
+  const residualNeeds = [];
+  for (const [index, item] of decoded.value.entries()) {
+    if (!isRecord4(item) || item.kind !== "residual" && item.kind !== "emergent" || typeof item.description !== "string" || !Array.isArray(item.basis) || item.basis.length === 0 || item.basis.length > 32 || item.basis.some((basis) => typeof basis !== "string")) {
+      return {
+        ok: false,
+        message: `Residual Need ${index} requires kind, description, and one or more basis strings.`
+      };
+    }
+    residualNeeds.push({
+      kind: item.kind,
+      description: item.description,
+      basis: item.basis
+    });
+  }
+  return { ok: true, value: Object.freeze(residualNeeds) };
+}
+function decodeReferenceApplications(raw, context) {
+  const applications = [];
+  for (const [index, path] of context.selectedPaths.entries()) {
+    const status = raw[`reference_status_${index}`];
+    const application = raw[`reference_application_${index}`];
+    if (status !== "applied" && status !== "limited" || typeof application !== "string") {
+      return {
+        ok: false,
+        message: `Selected Reference ${path} requires canonical application status and explanation.`
+      };
+    }
+    applications.push({ path, status, application });
+  }
+  return { ok: true, value: Object.freeze(applications) };
+}
+function canonicalProposal2(input) {
+  const localStatus = input.raw.local_status;
+  if (localStatus !== "resolved" && localStatus !== "partial") {
+    return {
+      ok: false,
+      code: "invalid-local-status",
+      message: "local_status must be resolved or partial."
+    };
+  }
+  if (typeof input.raw.result !== "string") {
+    return {
+      ok: false,
+      code: "invalid-result",
+      message: "result must be non-empty text."
+    };
+  }
+  const applications = decodeReferenceApplications(input.raw, input.context);
+  if (!applications.ok) {
+    return {
+      ok: false,
+      code: "invalid-reference-applications",
+      message: applications.message
+    };
+  }
+  const limitations = decodeSdkStringList({
+    value: input.raw.limitations_json,
+    label: "limitations_json",
+    allowEmpty: true,
+    maximumItems: 32
+  });
+  if (!limitations.ok) {
+    return {
+      ok: false,
+      code: "invalid-limitations",
+      message: limitations.message
+    };
+  }
+  const residualNeeds = decodeResidualNeeds(input.raw.residual_needs_json);
+  if (!residualNeeds.ok) {
+    return {
+      ok: false,
+      code: "invalid-residual-needs",
+      message: residualNeeds.message
+    };
+  }
+  return {
+    ok: true,
+    value: {
+      workCaseId: input.assignment.workCaseId,
+      judgmentId: input.assignment.judgmentId,
+      contributionNeedId: input.assignment.contributionNeedId,
+      assignmentId: input.assignment.assignmentId,
+      capabilityId: input.assignment.capabilityId,
+      capabilityRevisionId: input.assignment.capabilityRevisionId,
+      sealedContextId: input.context.sealedContextId,
+      localStatus,
+      result: input.raw.result,
+      referenceApplications: applications.value,
+      limitations: limitations.value,
+      residualNeeds: residualNeeds.value,
+      provenance: { kind: "model", source: "pi:sdk-action-loop" }
+    }
+  };
+}
+function contributionTool(input) {
+  return {
+    name: "submit_skill_contribution",
+    label: "Submit one source-bound Skill Contribution",
+    description: "Propose one local result from the sealed Skill Context without claiming Need Coverage or a final Conclusion.",
+    parameters: contributionParameters(input.context),
+    execute: async (raw) => {
+      if (!isRecord4(raw)) {
+        return rejected4(
+          "invalid-arguments",
+          "Contribution arguments must be an object."
+        );
+      }
+      const proposal = canonicalProposal2({ ...input, raw });
+      if (!proposal.ok) return rejected4(proposal.code, proposal.message);
+      const accepted = acceptSkillContribution(
+        input.assignment,
+        input.context,
+        proposal.value
+      );
+      if (accepted.status === "invalid") {
+        return rejected4(accepted.error.code, accepted.error.message);
+      }
+      return {
+        status: "accepted",
+        value: {
+          proposal: proposal.value,
+          contribution: accepted.value
+        },
+        message: `Skill Contribution accepted as ${accepted.value.localStatus}.`,
+        resultStatus: accepted.value.localStatus
+      };
+    }
+  };
+}
+function contributionPrompt(input) {
+  const materials = input.context.materials.map(
+    (material) => `--- ${material.kind}: ${material.path} ---
+${material.content}`
+  ).join("\n\n");
+  return [
+    `Delegated request:
+${input.request}`,
+    `Contribution Need:
+${input.contributionNeed}`,
+    "Exact sealed Skill Context:",
+    materials,
+    "Produce only the local Contribution. Do not claim cross-Skill Coverage, permission, Effect success, or completion."
+  ].join("\n\n");
+}
+async function contributeSkillWithSdk(input) {
+  const decision = await input.runner.run({
+    systemPrompt: [
+      "Produce one source-bound local Skill Contribution.",
+      "Call the supplied decision tool exactly once.",
+      "Apply every selected Reference explicitly, preserve limitations, and expose residual or emergent Needs.",
+      "The SDK controller owns identity, sealed bytes, canonical admission, retries, and stop decisions."
+    ].join("\n"),
+    prompt: contributionPrompt(input),
+    tool: contributionTool(input)
+  });
+  if (decision.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      reason: decision.reason,
+      decision: decision.metrics
+    };
+  }
+  if (decision.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      message: decision.message,
+      decision: decision.metrics
+    };
+  }
+  const reproduced = acceptSkillContribution(
+    input.assignment,
+    input.context,
+    decision.value.proposal
+  );
+  if (reproduced.status === "invalid" || reproduced.value.contributionId !== decision.value.contribution.contributionId) {
+    return {
+      status: "invariant-failure",
+      code: reproduced.status === "invalid" ? reproduced.error.code : "contribution-identity-drift",
+      message: reproduced.status === "invalid" ? reproduced.error.message : "Accepted Contribution did not reproduce its canonical identity.",
+      decision: decision.metrics
+    };
+  }
+  return {
+    status: "accepted",
+    contribution: reproduced.value,
+    decision: decision.metrics
+  };
+}
+
+// src/action-loop/sdk/contribution-progress.ts
+function invalid5(code, message) {
+  return { status: "invalid", code, message };
+}
+function inspectContributionProgress(input) {
+  const contextsByAssignment = /* @__PURE__ */ new Map();
+  for (const context of input.contexts) {
+    if (context.workCaseId !== input.workCaseId || context.judgmentId !== input.judgmentId) {
+      return invalid5(
+        "context-mismatch",
+        `Sealed Context ${context.sealedContextId} does not belong to the current Work Case and Judgment.`
+      );
+    }
+    if (contextsByAssignment.has(context.assignmentId)) {
+      return invalid5(
+        "duplicate-context",
+        `Assignment ${context.assignmentId} has more than one sealed Context.`
+      );
+    }
+    contextsByAssignment.set(context.assignmentId, context);
+  }
+  const contributionsByAssignment = /* @__PURE__ */ new Map();
+  for (const contribution of input.contributions) {
+    const context = contextsByAssignment.get(contribution.assignmentId);
+    if (context === void 0 || contribution.workCaseId !== input.workCaseId || contribution.judgmentId !== input.judgmentId || contribution.contributionNeedId !== context.contributionNeedId || contribution.capabilityRevisionId !== context.capabilityRevisionId || contribution.sealedContextId !== context.sealedContextId) {
+      return invalid5(
+        "contribution-mismatch",
+        `Contribution ${contribution.contributionId} has no exact current sealed Context.`
+      );
+    }
+    if (contributionsByAssignment.has(contribution.assignmentId)) {
+      return invalid5(
+        "duplicate-contribution",
+        `Assignment ${contribution.assignmentId} has more than one Contribution.`
+      );
+    }
+    contributionsByAssignment.set(contribution.assignmentId, contribution);
+  }
+  const completedContributionIds = Object.freeze(
+    [...contributionsByAssignment.values()].map((contribution) => contribution.contributionId).sort((left, right) => left.localeCompare(right))
+  );
+  const pendingContexts = Object.freeze(
+    input.contexts.filter(
+      (context) => !contributionsByAssignment.has(context.assignmentId)
+    ).sort((left, right) => left.assignmentId.localeCompare(right.assignmentId))
+  );
+  if (pendingContexts.length > 0) {
+    return { status: "pending", pendingContexts, completedContributionIds };
+  }
+  return {
+    status: "complete",
+    pendingContexts: Object.freeze([]),
+    completedContributionIds
+  };
+}
+
+// src/action-loop/sdk/coverage-controller.ts
+import { StringEnum as StringEnum5 } from "@earendil-works/pi-ai";
+import { Type as Type5 } from "typebox";
+
+// src/action-loop/need-coverage/assess-need-coverage.ts
+var NEED_COVERAGE_VERSION = "developer-need-coverage/v1";
+var COVERAGE_STATUSES = /* @__PURE__ */ new Set([
+  "covered",
+  "partially-covered",
+  "conflicted",
+  "missing"
+]);
+var DISPOSITION_STATUSES = /* @__PURE__ */ new Set([
+  "supports",
+  "limited-support",
+  "not-relied-on"
+]);
+var PROVENANCE_KINDS3 = /* @__PURE__ */ new Set([
+  "model",
+  "human",
+  "tool",
+  "external"
+]);
+function invalid6(code, path, message) {
+  return { status: "invalid", error: { code, path, message } };
+}
+function validId3(id) {
+  return id.length > 0 && id === id.trim() && !id.includes("\0");
+}
+function canonicalList3(values, path) {
+  const normalized = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index]?.trim() ?? "";
+    if (value.length === 0) {
+      return {
+        ok: false,
+        error: {
+          code: "empty-basis",
+          path: `${path}[${index}]`,
+          message: "Expected a nonblank basis"
+        }
+      };
+    }
+    if (seen.has(value)) {
+      return {
+        ok: false,
+        error: {
+          code: "duplicate-value",
+          path: `${path}[${index}]`,
+          message: "Basis duplicates an earlier normalized value"
+        }
+      };
+    }
+    seen.add(value);
+    normalized.push(value);
+  }
+  return { ok: true, value: Object.freeze(normalized) };
+}
+function checkTarget2(target, proposal) {
+  for (const [path, id] of [
+    ["target.workCaseId", target.workCaseId],
+    ["target.judgmentId", target.judgmentId],
+    ["target.contributionNeedId", target.contributionNeedId]
+  ]) {
+    if (!validId3(id)) {
+      return invalid6(
+        "invalid-target-id",
+        path,
+        "Expected a canonical target ID"
+      );
+    }
+  }
+  for (const [path, actual, expected] of [
+    ["proposal.workCaseId", proposal.workCaseId, target.workCaseId],
+    ["proposal.judgmentId", proposal.judgmentId, target.judgmentId],
+    [
+      "proposal.contributionNeedId",
+      proposal.contributionNeedId,
+      target.contributionNeedId
+    ]
+  ]) {
+    if (actual !== expected) {
+      return invalid6(
+        "identity-mismatch",
+        path,
+        `Expected ${expected}, received ${actual}`
+      );
+    }
+  }
+  return void 0;
+}
+function buildInventory(target, contributions) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const [index, contribution] of contributions.entries()) {
+    for (const [path, actual, expected] of [
+      [
+        `contributions[${index}].workCaseId`,
+        contribution.workCaseId,
+        target.workCaseId
+      ],
+      [
+        `contributions[${index}].judgmentId`,
+        contribution.judgmentId,
+        target.judgmentId
+      ],
+      [
+        `contributions[${index}].contributionNeedId`,
+        contribution.contributionNeedId,
+        target.contributionNeedId
+      ]
+    ]) {
+      if (actual !== expected) {
+        return {
+          ok: false,
+          error: {
+            code: "identity-mismatch",
+            path,
+            message: `Expected ${expected}, received ${actual}`
+          }
+        };
+      }
+    }
+    if (byId.has(contribution.contributionId)) {
+      return {
+        ok: false,
+        error: {
+          code: "duplicate-contribution",
+          path: `contributions[${index}].contributionId`,
+          message: "Current Contribution inventory contains a duplicate ID"
+        }
+      };
+    }
+    byId.set(contribution.contributionId, contribution);
+  }
+  const ordered = Object.freeze(
+    [...contributions].sort((left, right) => {
+      if (left.contributionId < right.contributionId) return -1;
+      if (left.contributionId > right.contributionId) return 1;
+      return 0;
+    })
+  );
+  const positions = new Map(
+    ordered.map((contribution, index) => [contribution.contributionId, index])
+  );
+  return { ok: true, value: { ordered, byId, positions } };
+}
+function canonicalDispositions(inventory, proposals) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const [index, proposal] of proposals.entries()) {
+    const contribution = inventory.byId.get(proposal.contributionId);
+    if (contribution === void 0 || byId.has(proposal.contributionId)) {
+      return {
+        ok: false,
+        error: {
+          code: "contribution-accounting",
+          path: `proposal.dispositions[${index}].contributionId`,
+          message: "Contribution must be current and dispositioned exactly once"
+        }
+      };
+    }
+    if (!DISPOSITION_STATUSES.has(proposal.status)) {
+      return {
+        ok: false,
+        error: {
+          code: "unsupported-disposition-status",
+          path: `proposal.dispositions[${index}].status`,
+          message: `Unsupported disposition status ${proposal.status}`
+        }
+      };
+    }
+    if (contribution.localStatus === "partial" && proposal.status === "supports") {
+      return {
+        ok: false,
+        error: {
+          code: "partial-as-full-support",
+          path: `proposal.dispositions[${index}].status`,
+          message: "A partial Skill result cannot become full support"
+        }
+      };
+    }
+    const basis = canonicalList3(
+      proposal.basis,
+      `proposal.dispositions[${index}].basis`
+    );
+    if (!basis.ok) return basis;
+    if (basis.value.length === 0) {
+      return {
+        ok: false,
+        error: {
+          code: "empty-basis",
+          path: `proposal.dispositions[${index}].basis`,
+          message: "Contribution disposition requires explicit basis"
+        }
+      };
+    }
+    byId.set(
+      proposal.contributionId,
+      Object.freeze({
+        contributionId: proposal.contributionId,
+        status: proposal.status,
+        basis: basis.value
+      })
+    );
+  }
+  if (byId.size !== inventory.ordered.length) {
+    return {
+      ok: false,
+      error: {
+        code: "contribution-accounting",
+        path: "proposal.dispositions",
+        message: "Every current Contribution requires one disposition"
+      }
+    };
+  }
+  const ordered = [];
+  for (const contribution of inventory.ordered) {
+    const disposition = byId.get(contribution.contributionId);
+    if (disposition === void 0) {
+      return {
+        ok: false,
+        error: {
+          code: "contribution-accounting",
+          path: "proposal.dispositions",
+          message: `Contribution has no disposition: ${contribution.contributionId}`
+        }
+      };
+    }
+    ordered.push(disposition);
+  }
+  return { ok: true, value: Object.freeze(ordered) };
+}
+function canonicalConflicts(inventory, dispositions, proposals) {
+  const dispositionById = new Map(
+    dispositions.map((disposition) => [
+      disposition.contributionId,
+      disposition
+    ])
+  );
+  const conflicts = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, proposal] of proposals.entries()) {
+    const leftIndex = inventory.positions.get(proposal.leftContributionId);
+    const rightIndex = inventory.positions.get(proposal.rightContributionId);
+    if (leftIndex === void 0 || rightIndex === void 0 || leftIndex === rightIndex) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-conflict",
+          path: `proposal.conflicts[${index}]`,
+          message: "Conflict requires two distinct current Contributions"
+        }
+      };
+    }
+    const orderedLeft = Math.min(leftIndex, rightIndex);
+    const orderedRight = Math.max(leftIndex, rightIndex);
+    const leftContributionId = inventory.ordered[orderedLeft]?.contributionId;
+    const rightContributionId = inventory.ordered[orderedRight]?.contributionId;
+    if (leftContributionId === void 0 || rightContributionId === void 0) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-conflict",
+          path: `proposal.conflicts[${index}]`,
+          message: "Conflict cannot resolve its current Contributions"
+        }
+      };
+    }
+    const key = `${leftContributionId}\0${rightContributionId}`;
+    if (seen.has(key)) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-conflict",
+          path: `proposal.conflicts[${index}]`,
+          message: "Conflict duplicates an earlier relation"
+        }
+      };
+    }
+    if (dispositionById.get(leftContributionId)?.status === "not-relied-on" || dispositionById.get(rightContributionId)?.status === "not-relied-on") {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-conflict",
+          path: `proposal.conflicts[${index}]`,
+          message: "Conflict endpoints must both be relied on"
+        }
+      };
+    }
+    const basis = canonicalList3(
+      proposal.basis,
+      `proposal.conflicts[${index}].basis`
+    );
+    if (!basis.ok) return basis;
+    if (basis.value.length === 0) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-conflict",
+          path: `proposal.conflicts[${index}].basis`,
+          message: "Conflict requires explicit basis"
+        }
+      };
+    }
+    seen.add(key);
+    conflicts.push(
+      Object.freeze({
+        leftContributionId,
+        rightContributionId,
+        basis: basis.value,
+        leftIndex: orderedLeft,
+        rightIndex: orderedRight
+      })
+    );
+  }
+  conflicts.sort(
+    (left, right) => left.leftIndex - right.leftIndex || left.rightIndex - right.rightIndex
+  );
+  return {
+    ok: true,
+    value: Object.freeze(
+      conflicts.map(
+        ({ leftContributionId, rightContributionId, basis }) => Object.freeze({ leftContributionId, rightContributionId, basis })
+      )
+    )
+  };
+}
+function canonicalProvenance3(proposal) {
+  if (!PROVENANCE_KINDS3.has(proposal.kind)) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid-provenance",
+        path: "proposal.provenance.kind",
+        message: `Unsupported provenance kind ${proposal.kind}`
+      }
+    };
+  }
+  const source = proposal.source.trim();
+  if (source.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid-provenance",
+        path: "proposal.provenance.source",
+        message: "Coverage provenance requires a nonblank source"
+      }
+    };
+  }
+  return {
+    ok: true,
+    value: Object.freeze({ kind: proposal.kind, source })
+  };
+}
+function deriveStatus(dispositions, conflicts) {
+  if (conflicts.length > 0) return "conflicted";
+  if (dispositions.some(({ status }) => status === "limited-support")) {
+    return "partially-covered";
+  }
+  if (dispositions.some(({ status }) => status === "supports")) {
+    return "covered";
+  }
+  return "missing";
+}
+function identityParts3(input) {
+  const parts = [
+    input.target.workCaseId,
+    input.target.judgmentId,
+    input.target.contributionNeedId,
+    input.status,
+    "dispositions",
+    String(input.dispositions.length)
+  ];
+  for (const disposition of input.dispositions) {
+    parts.push(
+      disposition.contributionId,
+      disposition.status,
+      String(disposition.basis.length),
+      ...disposition.basis
+    );
+  }
+  parts.push("conflicts", String(input.conflicts.length));
+  for (const conflict of input.conflicts) {
+    parts.push(
+      conflict.leftContributionId,
+      conflict.rightContributionId,
+      String(conflict.basis.length),
+      ...conflict.basis
+    );
+  }
+  parts.push("basis", String(input.basis.length), ...input.basis);
+  return parts;
+}
+function assessNeedCoverage(target, contributions, proposal) {
+  const targetFailure = checkTarget2(target, proposal);
+  if (targetFailure !== void 0) return targetFailure;
+  if (!COVERAGE_STATUSES.has(proposal.status)) {
+    return invalid6(
+      "unsupported-coverage-status",
+      "proposal.status",
+      `Unsupported Coverage status ${proposal.status}`
+    );
+  }
+  const inventory = buildInventory(target, contributions);
+  if (!inventory.ok) return { status: "invalid", error: inventory.error };
+  const dispositions = canonicalDispositions(
+    inventory.value,
+    proposal.dispositions
+  );
+  if (!dispositions.ok) {
+    return { status: "invalid", error: dispositions.error };
+  }
+  const conflicts = canonicalConflicts(
+    inventory.value,
+    dispositions.value,
+    proposal.conflicts
+  );
+  if (!conflicts.ok) return { status: "invalid", error: conflicts.error };
+  const basis = canonicalList3(proposal.basis, "proposal.basis");
+  if (!basis.ok) return { status: "invalid", error: basis.error };
+  if (basis.value.length === 0) {
+    return invalid6(
+      "empty-basis",
+      "proposal.basis",
+      "Need Coverage requires explicit basis"
+    );
+  }
+  const provenance = canonicalProvenance3(proposal.provenance);
+  if (!provenance.ok) return { status: "invalid", error: provenance.error };
+  const derivedStatus = deriveStatus(dispositions.value, conflicts.value);
+  if (proposal.status !== derivedStatus) {
+    return invalid6(
+      "status-mismatch",
+      "proposal.status",
+      `Coverage evidence derives ${derivedStatus}, not ${proposal.status}`
+    );
+  }
+  const coverageId = hashIdentity(
+    "coverage",
+    NEED_COVERAGE_VERSION,
+    identityParts3({
+      target,
+      status: derivedStatus,
+      dispositions: dispositions.value,
+      conflicts: conflicts.value,
+      basis: basis.value
+    })
+  );
+  return {
+    status: "accepted",
+    value: Object.freeze({
+      coverageId,
+      workCaseId: target.workCaseId,
+      judgmentId: target.judgmentId,
+      contributionNeedId: target.contributionNeedId,
+      status: derivedStatus,
+      dispositions: dispositions.value,
+      conflicts: conflicts.value,
+      basis: basis.value,
+      provenance: provenance.value
+    })
+  };
+}
+
+// src/action-loop/sdk/coverage-controller.ts
+var coverageStatuses = [
+  "covered",
+  "partially-covered",
+  "conflicted",
+  "missing"
+];
+var dispositionStatuses = [
+  "supports",
+  "limited-support",
+  "not-relied-on"
+];
+function isRecord5(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function rejected5(code, message) {
+  return { status: "rejected", code, message };
+}
+function coverageParameters(contributions) {
+  const fields = {
+    status: StringEnum5(coverageStatuses),
+    conflicts_json: Type5.String({
+      minLength: 2,
+      maxLength: 32768,
+      description: 'JSON array of {"left_index":integer,"right_index":integer,"basis":string[]} conflicts. Use [] when none.'
+    }),
+    basis_json: Type5.String({
+      minLength: 2,
+      maxLength: 32768,
+      description: "JSON array of one or more synthesis basis strings."
+    })
+  };
+  for (const [index, contribution] of contributions.entries()) {
+    fields[`disposition_status_${index}`] = StringEnum5(
+      dispositionStatuses,
+      {
+        description: `Disposition for Contribution ${index} (${contribution.localStatus}).`
+      }
+    );
+    fields[`disposition_basis_${index}`] = Type5.String({
+      minLength: 1,
+      maxLength: 2048
+    });
+  }
+  return Type5.Object(fields, { additionalProperties: false });
+}
+function decodeDispositions(raw, contributions) {
+  const dispositions = [];
+  for (const [index, contribution] of contributions.entries()) {
+    const status = raw[`disposition_status_${index}`];
+    const basis = raw[`disposition_basis_${index}`];
+    if (status !== "supports" && status !== "limited-support" && status !== "not-relied-on" || typeof basis !== "string") {
+      return {
+        ok: false,
+        message: `Contribution ${index} requires a canonical disposition and basis.`
+      };
+    }
+    dispositions.push({
+      contributionId: contribution.contributionId,
+      status,
+      basis: [basis]
+    });
+  }
+  return { ok: true, value: Object.freeze(dispositions) };
+}
+function decodeConflictItem(input) {
+  const { item, index, contributionCount } = input;
+  if (!isRecord5(item)) {
+    return { ok: false, message: `Conflict ${index} must be an object.` };
+  }
+  const leftIndex = item.left_index;
+  const rightIndex = item.right_index;
+  if (typeof leftIndex !== "number" || typeof rightIndex !== "number" || !Number.isInteger(leftIndex) || !Number.isInteger(rightIndex) || leftIndex < 0 || rightIndex < 0 || leftIndex >= contributionCount || rightIndex >= contributionCount) {
+    return {
+      ok: false,
+      message: `Conflict ${index} requires two current Contribution indices.`
+    };
+  }
+  if (!Array.isArray(item.basis) || item.basis.length === 0 || item.basis.length > 32 || item.basis.some((basis) => typeof basis !== "string")) {
+    return {
+      ok: false,
+      message: `Conflict ${index} requires one or more basis strings.`
+    };
+  }
+  return { ok: true, leftIndex, rightIndex, basis: item.basis };
+}
+function decodeConflicts(value, contributions) {
+  const decoded = decodeSdkProposalJson(value, "conflicts_json");
+  if (!decoded.ok) return decoded;
+  if (!Array.isArray(decoded.value) || decoded.value.length > 32) {
+    return {
+      ok: false,
+      message: "conflicts_json must encode at most 32 conflicts."
+    };
+  }
+  const conflicts = [];
+  for (const [index, item] of decoded.value.entries()) {
+    const decodedItem = decodeConflictItem({
+      item,
+      index,
+      contributionCount: contributions.length
+    });
+    if (!decodedItem.ok) return decodedItem;
+    const left = contributions[decodedItem.leftIndex];
+    const right = contributions[decodedItem.rightIndex];
+    if (left === void 0 || right === void 0) {
+      return {
+        ok: false,
+        message: `Conflict ${index} references an unavailable Contribution.`
+      };
+    }
+    conflicts.push({
+      leftContributionId: left.contributionId,
+      rightContributionId: right.contributionId,
+      basis: decodedItem.basis
+    });
+  }
+  return { ok: true, value: Object.freeze(conflicts) };
+}
+function canonicalProposal3(input) {
+  const status = input.raw.status;
+  if (status !== "covered" && status !== "partially-covered" && status !== "conflicted" && status !== "missing") {
+    return {
+      ok: false,
+      code: "invalid-coverage-status",
+      message: "status must be a canonical Need Coverage status."
+    };
+  }
+  const dispositions = decodeDispositions(input.raw, input.contributions);
+  if (!dispositions.ok) {
+    return {
+      ok: false,
+      code: "invalid-dispositions",
+      message: dispositions.message
+    };
+  }
+  const conflicts = decodeConflicts(
+    input.raw.conflicts_json,
+    input.contributions
+  );
+  if (!conflicts.ok) {
+    return {
+      ok: false,
+      code: "invalid-conflicts",
+      message: conflicts.message
+    };
+  }
+  const basis = decodeSdkStringList({
+    value: input.raw.basis_json,
+    label: "basis_json",
+    allowEmpty: false,
+    maximumItems: 32
+  });
+  if (!basis.ok) {
+    return { ok: false, code: "invalid-basis", message: basis.message };
+  }
+  return {
+    ok: true,
+    value: {
+      ...input.target,
+      status,
+      dispositions: dispositions.value,
+      conflicts: conflicts.value,
+      basis: basis.value,
+      provenance: { kind: "model", source: "pi:sdk-action-loop" }
+    }
+  };
+}
+function coverageTool(input) {
+  return {
+    name: "submit_need_coverage",
+    label: "Submit one cross-Contribution Need Coverage assessment",
+    description: "Disposition every current Contribution and assess one Need without closing the Judgment.",
+    parameters: coverageParameters(input.contributions),
+    execute: async (raw) => {
+      if (!isRecord5(raw)) {
+        return rejected5(
+          "invalid-arguments",
+          "Coverage arguments must be an object."
+        );
+      }
+      const proposal = canonicalProposal3({ ...input, raw });
+      if (!proposal.ok) return rejected5(proposal.code, proposal.message);
+      const assessed = assessNeedCoverage(
+        input.target,
+        input.contributions,
+        proposal.value
+      );
+      if (assessed.status === "invalid") {
+        return rejected5(assessed.error.code, assessed.error.message);
+      }
+      return {
+        status: "accepted",
+        value: { proposal: proposal.value, coverage: assessed.value },
+        message: `Need Coverage accepted as ${assessed.value.status}.`,
+        resultStatus: assessed.value.status
+      };
+    }
+  };
+}
+function coveragePrompt(input) {
+  const contributions = input.contributions.map(
+    (contribution, index) => [
+      `Contribution ${index} (${contribution.localStatus})`,
+      `Result: ${contribution.result}`,
+      `Limitations: ${contribution.limitations.join(" | ") || "none declared"}`
+    ].join("\n")
+  ).join("\n\n");
+  return [
+    `Delegated request:
+${input.request}`,
+    `Contribution Need:
+${input.contributionNeed}`,
+    contributions.length > 0 ? `Current Contributions:
+${contributions}` : "Current Contributions: none",
+    "Disposition every current Contribution. Coverage is cross-Contribution synthesis, not a final Judgment Conclusion."
+  ].join("\n\n");
+}
+async function assessNeedCoverageWithSdk(input) {
+  const decision = await input.runner.run({
+    systemPrompt: [
+      "Assess one current Contribution Need comparatively.",
+      "Call the supplied decision tool exactly once and disposition every current Contribution.",
+      "Expose limitations and conflicts; do not create a final Judgment Conclusion.",
+      "The SDK controller owns Contribution identities, complete accounting, canonical admission, retries, and stop decisions."
+    ].join("\n"),
+    prompt: coveragePrompt(input),
+    tool: coverageTool(input)
+  });
+  if (decision.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      reason: decision.reason,
+      decision: decision.metrics
+    };
+  }
+  if (decision.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      message: decision.message,
+      decision: decision.metrics
+    };
+  }
+  const reproduced = assessNeedCoverage(
+    input.target,
+    input.contributions,
+    decision.value.proposal
+  );
+  if (reproduced.status === "invalid" || reproduced.value.coverageId !== decision.value.coverage.coverageId) {
+    return {
+      status: "invariant-failure",
+      code: reproduced.status === "invalid" ? reproduced.error.code : "coverage-identity-drift",
+      message: reproduced.status === "invalid" ? reproduced.error.message : "Accepted Coverage did not reproduce its canonical identity.",
+      decision: decision.metrics
+    };
+  }
+  return {
+    status: "assessed",
+    coverage: reproduced.value,
+    decision: decision.metrics
+  };
+}
+
+// src/action-loop/sdk/coverage-progress.ts
+function invalid7(code, message) {
+  return { status: "invalid", code, message };
+}
+function inspectCoverageProgress(input) {
+  const needsById = /* @__PURE__ */ new Map();
+  for (const need of input.contributionNeeds) {
+    if (needsById.has(need.contributionNeedId)) {
+      return invalid7(
+        "duplicate-need",
+        `Contribution Need ${need.contributionNeedId} occurs more than once.`
+      );
+    }
+    needsById.set(need.contributionNeedId, need);
+  }
+  const coveragesByNeed = /* @__PURE__ */ new Map();
+  for (const coverage of input.coverages) {
+    if (coverage.workCaseId !== input.workCaseId || coverage.judgmentId !== input.judgmentId || !needsById.has(coverage.contributionNeedId)) {
+      return invalid7(
+        "coverage-mismatch",
+        `Need Coverage ${coverage.coverageId} has no exact current Contribution Need.`
+      );
+    }
+    if (coveragesByNeed.has(coverage.contributionNeedId)) {
+      return invalid7(
+        "duplicate-coverage",
+        `Contribution Need ${coverage.contributionNeedId} has more than one current Coverage assessment.`
+      );
+    }
+    coveragesByNeed.set(coverage.contributionNeedId, coverage);
+  }
+  const completedCoverageIds = Object.freeze(
+    input.coverages.map((coverage) => coverage.coverageId).sort((left, right) => left.localeCompare(right))
+  );
+  const pendingNeeds = Object.freeze(
+    input.contributionNeeds.filter((need) => !coveragesByNeed.has(need.contributionNeedId)).sort(
+      (left, right) => left.contributionNeedId.localeCompare(right.contributionNeedId)
+    )
+  );
+  if (pendingNeeds.length > 0) {
+    return { status: "pending", pendingNeeds, completedCoverageIds };
+  }
+  return {
+    status: "complete",
+    pendingNeeds: Object.freeze([]),
+    completedCoverageIds
   };
 }
 
@@ -2883,10 +5445,7 @@ function createPiSdkDecisionRunner(options) {
     options.maxToolErrorsPerRun,
     "maxToolErrorsPerRun"
   );
-  const maximumRunMs = positiveInteger(
-    options.maxRunMs ?? 12e4,
-    "maxRunMs"
-  );
+  const maximumRunMs = positiveInteger(options.maxRunMs ?? 12e4, "maxRunMs");
   return Object.freeze({
     run: (request) => runBoundedDecision(
       options,
@@ -2899,8 +5458,8 @@ function createPiSdkDecisionRunner(options) {
 }
 
 // src/action-loop/sdk/judgment-controller.ts
-import { StringEnum as StringEnum3 } from "@earendil-works/pi-ai";
-import { Type as Type3 } from "typebox";
+import { StringEnum as StringEnum6 } from "@earendil-works/pi-ai";
+import { Type as Type6 } from "typebox";
 
 // src/action-loop/judgment/open-judgment.ts
 var OPEN_JUDGMENT_VERSION = "developer-open-judgment/v1";
@@ -2910,18 +5469,18 @@ var CATEGORIES = /* @__PURE__ */ new Set([
   "Consequence Integrity",
   "Claim Assurance"
 ]);
-var PROVENANCE_KINDS = /* @__PURE__ */ new Set(["model", "human", "tool", "external"]);
+var PROVENANCE_KINDS4 = /* @__PURE__ */ new Set(["model", "human", "tool", "external"]);
 var MAX_TEXT_LENGTH = 4096;
 var MAX_REQUIREMENTS = 32;
 var MAX_NEEDS_PER_REQUIREMENT = 32;
 var MAX_BASIS_ITEMS = 16;
-function invalid2(code, path, message) {
+function invalid8(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function validId2(value) {
+function validId4(value) {
   return typeof value === "string" && value.length > 0 && value === value.trim() && value.length <= MAX_TEXT_LENGTH && !value.includes("\0");
 }
-function canonicalText2(value, path) {
+function canonicalText4(value, path) {
   const text = typeof value === "string" ? value.trim() : "";
   if (text.length === 0 || text.length > MAX_TEXT_LENGTH) {
     return {
@@ -2950,7 +5509,7 @@ function canonicalStrings(values, path, maximumItems, allowEmpty = false) {
   const normalized = [];
   const seen = /* @__PURE__ */ new Set();
   for (let index = 0; index < values.length; index += 1) {
-    const text = canonicalText2(values[index], `${path}[${index}]`);
+    const text = canonicalText4(values[index], `${path}[${index}]`);
     if (!text.ok) return text;
     if (seen.has(text.value)) {
       return {
@@ -2993,7 +5552,7 @@ function canonicalRequirements(proposals) {
         }
       };
     }
-    const statement = canonicalText2(
+    const statement = canonicalText4(
       proposal.statement,
       `proposal.requirements[${index}].statement`
     );
@@ -3028,23 +5587,23 @@ function canonicalRequirements(proposals) {
   return { ok: true, value: Object.freeze(requirements) };
 }
 function openJudgment(proposal) {
-  if (!validId2(proposal.workCaseId) || !validId2(proposal.contextRevisionId)) {
-    return invalid2(
+  if (!validId4(proposal.workCaseId) || !validId4(proposal.contextRevisionId)) {
+    return invalid8(
       "invalid-id",
       "proposal",
       "Expected canonical Work Case and Context revision IDs"
     );
   }
   if (!CATEGORIES.has(proposal.category)) {
-    return invalid2(
+    return invalid8(
       "unsupported-category",
       "proposal.category",
       "Unsupported Judgment Category"
     );
   }
-  const subject = canonicalText2(proposal.subject, "proposal.subject");
+  const subject = canonicalText4(proposal.subject, "proposal.subject");
   if (!subject.ok) return { status: "invalid", error: subject.error };
-  const question = canonicalText2(proposal.question, "proposal.question");
+  const question = canonicalText4(proposal.question, "proposal.question");
   if (!question.ok) return { status: "invalid", error: question.error };
   const canonical = canonicalRequirements(proposal.requirements);
   if (!canonical.ok) return { status: "invalid", error: canonical.error };
@@ -3054,14 +5613,14 @@ function openJudgment(proposal) {
     MAX_BASIS_ITEMS
   );
   if (!basis.ok) return { status: "invalid", error: basis.error };
-  if (typeof proposal.provenance !== "object" || proposal.provenance === null || !PROVENANCE_KINDS.has(proposal.provenance.kind) || !validId2(proposal.provenance.source)) {
-    return invalid2(
+  if (typeof proposal.provenance !== "object" || proposal.provenance === null || !PROVENANCE_KINDS4.has(proposal.provenance.kind) || !validId4(proposal.provenance.source)) {
+    return invalid8(
       "invalid-provenance",
       "proposal.provenance",
       "Expected bounded supported proposal provenance"
     );
   }
-  const identityParts2 = [
+  const identityParts4 = [
     proposal.workCaseId,
     proposal.category,
     subject.value,
@@ -3078,7 +5637,7 @@ function openJudgment(proposal) {
   const judgmentId = hashIdentity(
     "open_judgment",
     OPEN_JUDGMENT_VERSION,
-    identityParts2
+    identityParts4
   );
   const contributionNeeds = [];
   const requirements = canonical.value.map(
@@ -3139,16 +5698,16 @@ function openJudgment(proposal) {
 var OUTCOME_VERSION = "developer-outcome/v1";
 var WORK_CASE_VERSION = "developer-work-case/v1";
 var WORK_CASE_REVISION_VERSION = "developer-work-case-revision/v1";
-var PROVENANCE_KINDS2 = /* @__PURE__ */ new Set([
+var PROVENANCE_KINDS5 = /* @__PURE__ */ new Set([
   "model",
   "human",
   "tool",
   "external"
 ]);
-function invalid3(code, path, message) {
+function invalid9(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function canonicalText3(value, code, path) {
+function canonicalText5(value, code, path) {
   if (typeof value !== "string" || value.trim().length === 0) {
     return {
       ok: false,
@@ -3157,7 +5716,7 @@ function canonicalText3(value, code, path) {
   }
   return { ok: true, value: value.trim() };
 }
-function canonicalList(values, contract) {
+function canonicalList4(values, contract) {
   if (!Array.isArray(values)) {
     return {
       ok: false,
@@ -3209,8 +5768,8 @@ function canonicalList(values, contract) {
   normalized.sort((left, right) => left.localeCompare(right));
   return { ok: true, value: Object.freeze(normalized) };
 }
-function canonicalProvenance(provenance) {
-  if (typeof provenance !== "object" || provenance === null || !PROVENANCE_KINDS2.has(provenance.kind)) {
+function canonicalProvenance4(provenance) {
+  if (typeof provenance !== "object" || provenance === null || !PROVENANCE_KINDS5.has(provenance.kind)) {
     return {
       ok: false,
       error: {
@@ -3220,7 +5779,7 @@ function canonicalProvenance(provenance) {
       }
     };
   }
-  const source = canonicalText3(
+  const source = canonicalText5(
     provenance.source,
     "invalid-provenance",
     "proposal.provenance.source"
@@ -3357,13 +5916,13 @@ function conclusionInventoryIssue(workCase) {
   };
 }
 function candidateInventoryIssue(workCase, conclusions) {
-  const invalid5 = workCase.actionCandidates.find(
+  const invalid11 = workCase.actionCandidates.find(
     (candidate) => candidate.workCaseId !== workCase.workCaseId || candidate.requiredConclusionIds.some((id) => !conclusions.has(id))
   );
-  return invalid5 === void 0 ? void 0 : {
+  return invalid11 === void 0 ? void 0 : {
     code: "missing-dependency",
     path: "workCase.actionCandidates",
-    message: `Action Candidate has a missing Work Case dependency: ${invalid5.actionCandidateId}`
+    message: `Action Candidate has a missing Work Case dependency: ${invalid11.actionCandidateId}`
   };
 }
 function clearanceInventoryIssue(workCase, conclusions, candidates) {
@@ -3466,15 +6025,15 @@ function workCaseInventoryIssue(workCase) {
 }
 function openWorkCase(proposal) {
   if (typeof proposal.outcome !== "object" || proposal.outcome === null) {
-    return invalid3("empty-outcome", "proposal.outcome", "Expected an Outcome");
+    return invalid9("empty-outcome", "proposal.outcome", "Expected an Outcome");
   }
-  const statement = canonicalText3(
+  const statement = canonicalText5(
     proposal.outcome.statement,
     "empty-outcome",
     "proposal.outcome.statement"
   );
   if (!statement.ok) return { status: "invalid", error: statement.error };
-  const acceptanceConditions = canonicalList(
+  const acceptanceConditions = canonicalList4(
     proposal.outcome.acceptanceConditions,
     {
       path: "proposal.outcome.acceptanceConditions",
@@ -3485,12 +6044,12 @@ function openWorkCase(proposal) {
   if (!acceptanceConditions.ok) {
     return { status: "invalid", error: acceptanceConditions.error };
   }
-  const constraints = canonicalList(proposal.outcome.constraints, {
+  const constraints = canonicalList4(proposal.outcome.constraints, {
     path: "proposal.outcome.constraints",
     invalidCode: "invalid-constraint"
   });
   if (!constraints.ok) return { status: "invalid", error: constraints.error };
-  const provenance = canonicalProvenance(proposal.provenance);
+  const provenance = canonicalProvenance4(proposal.provenance);
   if (!provenance.ok) return { status: "invalid", error: provenance.error };
   const outcomeId = hashIdentity("outcome", OUTCOME_VERSION, [
     statement.value,
@@ -3540,26 +6099,26 @@ function openWorkCase(proposal) {
 }
 
 // src/action-loop/work/record-work-case-judgment.ts
-function invalid4(code, path, message) {
+function invalid10(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function recordWorkCaseJudgment(workCase, judgment) {
   if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-    return invalid4(
+    return invalid10(
       "stale-work-case",
       "workCase.revisionId",
       "Work Case revision does not match its closure inventory"
     );
   }
   if (workCaseInventoryIssue(workCase) !== void 0) {
-    return invalid4(
+    return invalid10(
       "invalid-work-case-inventory",
       "workCase",
       "Work Case closure inventory is relationally incoherent"
     );
   }
   if (judgment.workCaseId !== workCase.workCaseId) {
-    return invalid4(
+    return invalid10(
       "identity-mismatch",
       "judgment.workCaseId",
       "Judgment belongs to another Work Case"
@@ -3568,7 +6127,7 @@ function recordWorkCaseJudgment(workCase, judgment) {
   if (workCase.conclusions.some(
     ({ judgmentId }) => judgmentId === judgment.judgmentId
   )) {
-    return invalid4(
+    return invalid10(
       "judgment-already-concluded",
       "judgment.judgmentId",
       "A Conclusion already closes this Judgment"
@@ -3594,36 +6153,6 @@ function recordWorkCaseJudgment(workCase, judgment) {
   };
 }
 
-// src/action-loop/sdk/proposal-json.ts
-var MAX_SDK_PROPOSAL_JSON_CHARS = 32768;
-function decodeSdkProposalJson(value, label) {
-  if (typeof value !== "string" || value.length === 0 || value.length > MAX_SDK_PROPOSAL_JSON_CHARS) {
-    return {
-      ok: false,
-      message: `${label} must be non-empty JSON text within ${MAX_SDK_PROPOSAL_JSON_CHARS} characters.`
-    };
-  }
-  try {
-    return { ok: true, value: JSON.parse(value) };
-  } catch (error) {
-    return {
-      ok: false,
-      message: `${label} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`
-    };
-  }
-}
-function decodeSdkStringList(input) {
-  const decoded = decodeSdkProposalJson(input.value, input.label);
-  if (!decoded.ok) return decoded;
-  if (!Array.isArray(decoded.value) || decoded.value.length > input.maximumItems || !input.allowEmpty && decoded.value.length === 0 || decoded.value.some((item) => typeof item !== "string")) {
-    return {
-      ok: false,
-      message: `${input.label} must encode ${input.allowEmpty ? "zero or more" : "one or more"} strings and at most ${input.maximumItems} items.`
-    };
-  }
-  return { ok: true, value: decoded.value };
-}
-
 // src/action-loop/sdk/judgment-controller.ts
 var categories = [
   "Contextual Adequacy",
@@ -3634,10 +6163,10 @@ var categories = [
 var MAX_REQUIREMENTS2 = 8;
 var MAX_NEEDS_PER_REQUIREMENT2 = 8;
 var MAX_BASIS_ITEMS2 = 16;
-function isRecord3(value) {
+function isRecord6(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function rejected3(code, message) {
+function rejected6(code, message) {
   return { status: "rejected", code, message };
 }
 function isCategory(value) {
@@ -3653,7 +6182,7 @@ function decodeRequirements(value) {
   }
   const requirements = [];
   for (const item of decoded.value) {
-    if (!isRecord3(item)) {
+    if (!isRecord6(item)) {
       return {
         ok: false,
         message: "Every Requirement must be an object."
@@ -3697,29 +6226,29 @@ async function openJudgmentWithSdk(input) {
       name: "submit_judgment",
       label: "Submit Judgment",
       description: "Submit one Judgment. requirements_json is an array of {statement, contribution_needs}; basis_json is a string array.",
-      parameters: Type3.Object(
+      parameters: Type6.Object(
         {
-          category: StringEnum3(categories),
-          subject: Type3.String({ minLength: 1, maxLength: 4096 }),
-          question: Type3.String({ minLength: 1, maxLength: 4096 }),
-          requirements_json: Type3.String({
+          category: StringEnum6(categories),
+          subject: Type6.String({ minLength: 1, maxLength: 4096 }),
+          question: Type6.String({ minLength: 1, maxLength: 4096 }),
+          requirements_json: Type6.String({
             minLength: 2,
             maxLength: 32768
           }),
-          basis_json: Type3.String({ minLength: 2, maxLength: 32768 })
+          basis_json: Type6.String({ minLength: 2, maxLength: 32768 })
         },
         { additionalProperties: false }
       ),
       execute: async (raw) => {
-        if (!isRecord3(raw) || !isCategory(raw.category) || typeof raw.subject !== "string" || typeof raw.question !== "string") {
-          return rejected3(
+        if (!isRecord6(raw) || !isCategory(raw.category) || typeof raw.subject !== "string" || typeof raw.question !== "string") {
+          return rejected6(
             "invalid-arguments",
             "Judgment requires category, subject, question, requirements_json, and basis_json."
           );
         }
         const requirements = decodeRequirements(raw.requirements_json);
         if (!requirements.ok) {
-          return rejected3("invalid-requirements", requirements.message);
+          return rejected6("invalid-requirements", requirements.message);
         }
         const basis = decodeSdkStringList({
           value: raw.basis_json,
@@ -3727,7 +6256,7 @@ async function openJudgmentWithSdk(input) {
           allowEmpty: false,
           maximumItems: MAX_BASIS_ITEMS2
         });
-        if (!basis.ok) return rejected3("invalid-basis", basis.message);
+        if (!basis.ok) return rejected6("invalid-basis", basis.message);
         const proposal = {
           workCaseId: input.workCase.workCaseId,
           contextRevisionId: input.contextRevisionId,
@@ -3740,11 +6269,11 @@ async function openJudgmentWithSdk(input) {
         };
         const opened = openJudgment(proposal);
         if (opened.status === "invalid") {
-          return rejected3(opened.error.code, opened.error.message);
+          return rejected6(opened.error.code, opened.error.message);
         }
         const recorded = recordWorkCaseJudgment(input.workCase, opened.value);
         if (recorded.status === "invalid") {
-          return rejected3(recorded.error.code, recorded.error.message);
+          return rejected6(recorded.error.code, recorded.error.message);
         }
         return {
           status: "accepted",
@@ -3778,13 +6307,13 @@ async function openJudgmentWithSdk(input) {
 }
 
 // src/action-loop/sdk/work-case-controller.ts
-import { Type as Type4 } from "typebox";
+import { Type as Type7 } from "typebox";
 var MAX_OUTCOME_ITEMS = 32;
 var MAX_BASIS_ITEMS3 = 16;
-function isRecord4(value) {
+function isRecord7(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function rejected4(code, message) {
+function rejected7(code, message) {
   return { status: "rejected", code, message };
 }
 async function openWorkCaseWithSdk(input) {
@@ -3803,24 +6332,24 @@ async function openWorkCaseWithSdk(input) {
       name: "submit_work_case_outcome",
       label: "Submit Work Case Outcome",
       description: "Submit one proposal. acceptance_conditions_json, constraints_json, and basis_json are JSON-encoded string arrays.",
-      parameters: Type4.Object(
+      parameters: Type7.Object(
         {
-          statement: Type4.String({ minLength: 1, maxLength: 4096 }),
-          acceptance_conditions_json: Type4.String({
+          statement: Type7.String({ minLength: 1, maxLength: 4096 }),
+          acceptance_conditions_json: Type7.String({
             minLength: 2,
             maxLength: 32768
           }),
-          constraints_json: Type4.String({
+          constraints_json: Type7.String({
             minLength: 2,
             maxLength: 32768
           }),
-          basis_json: Type4.String({ minLength: 2, maxLength: 32768 })
+          basis_json: Type7.String({ minLength: 2, maxLength: 32768 })
         },
         { additionalProperties: false }
       ),
       execute: async (raw) => {
-        if (!isRecord4(raw) || typeof raw.statement !== "string") {
-          return rejected4(
+        if (!isRecord7(raw) || typeof raw.statement !== "string") {
+          return rejected7(
             "invalid-arguments",
             "Work Case proposal requires a statement and three JSON text fields."
           );
@@ -3832,7 +6361,7 @@ async function openWorkCaseWithSdk(input) {
           maximumItems: MAX_OUTCOME_ITEMS
         });
         if (!acceptanceConditions.ok) {
-          return rejected4(
+          return rejected7(
             "invalid-acceptance-conditions",
             acceptanceConditions.message
           );
@@ -3844,7 +6373,7 @@ async function openWorkCaseWithSdk(input) {
           maximumItems: MAX_OUTCOME_ITEMS
         });
         if (!constraints.ok) {
-          return rejected4("invalid-constraints", constraints.message);
+          return rejected7("invalid-constraints", constraints.message);
         }
         const basis = decodeSdkStringList({
           value: raw.basis_json,
@@ -3852,7 +6381,7 @@ async function openWorkCaseWithSdk(input) {
           allowEmpty: false,
           maximumItems: MAX_BASIS_ITEMS3
         });
-        if (!basis.ok) return rejected4("invalid-basis", basis.message);
+        if (!basis.ok) return rejected7("invalid-basis", basis.message);
         const opened = openWorkCase({
           outcome: {
             statement: raw.statement,
@@ -3862,7 +6391,7 @@ async function openWorkCaseWithSdk(input) {
           provenance: { kind: "model", source: "sdk:work-case-opening" }
         });
         if (opened.status === "invalid") {
-          return rejected4(opened.error.code, opened.error.message);
+          return rejected7(opened.error.code, opened.error.message);
         }
         return {
           status: "accepted",
@@ -3898,12 +6427,18 @@ export {
   MAX_SDK_PROPOSAL_JSON_CHARS,
   SKILL_TOC_SCHEMA_URI,
   assessCapabilityInventoryWithSdk,
+  assessNeedCoverageWithSdk,
   bindCapability,
   bindPiCapabilityInventory,
   catalogBeforeAgentStartSkills,
+  concludeJudgmentWithSdk,
+  contributeSkillWithSdk,
   createPiSdkDecisionRunner,
   decodeSdkProposalJson,
   decodeSdkStringList,
+  inspectCapabilityContextProgress,
+  inspectContributionProgress,
+  inspectCoverageProgress,
   openJudgmentWithSdk,
   openWorkCaseWithSdk,
   parseTocBytes,

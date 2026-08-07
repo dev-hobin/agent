@@ -108,11 +108,14 @@ openWorkCaseWithSdk
 → openJudgmentWithSdk
 → assessCapabilityInventoryWithSdk
 → sealCapabilityContextWithSdk
+→ contributeSkillWithSdk
+→ assessNeedCoverageWithSdk
+→ concludeJudgmentWithSdk
 ```
 
-각 command는 한 가지 일만 하고 명시적인 값을 입력·출력하며, bounded in-memory proposal session을 통해서만 model output을 admit합니다. Controller는 retry, run별 time limit, complete inventory accounting, canonical identity binding, non-mutating `bounded-stop`을 소유합니다. Provider error는 domain invariant failure와 구분합니다.
+각 command는 한 가지 일만 하고 명시적인 값을 입력·출력하며, bounded in-memory proposal session을 통해서만 model output을 admit합니다. Pure progress inspector는 별도 checkpoint를 만들지 않고 canonical record에서 다음 Context, Contribution, Coverage 작업을 계산합니다. Controller는 retry, run별 time limit, complete inventory accounting, canonical identity binding, non-mutating `bounded-stop`을 소유합니다. Provider error는 domain invariant failure와 구분합니다.
 
-현재 RC는 Work Case/Judgment opening, complete Capability applicability accounting, local Reference selection, structured/unstructured Context sealing까지 SDK로 제공합니다. Contribution, Coverage, Conclusion, Action, Effect, continuity, completion은 SDK command가 replay와 live evaluation parity에 도달할 때까지 Extension 경로를 유지합니다. Pi session branch는 계속 유일한 durability boundary입니다.
+현재 RC는 upper Judgment Conclusion까지 SDK command로 제공합니다. Capability inventory admission은 하나의 atomic semantic batch로 journal하고, 각 sealed Context, Contribution, Coverage는 Pi branch에서 독립적으로 replay할 수 있습니다. Production Extension 경로는 live evaluation parity와 host integration이 끝날 때까지 유지합니다. Action, Effect, continuity, completion에는 아직 SDK command가 필요합니다. Pi session branch는 계속 유일한 durability boundary입니다.
 
 ## Canonical tools
 

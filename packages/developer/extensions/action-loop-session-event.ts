@@ -1,6 +1,7 @@
 import { Type, type Static } from "typebox";
 import { Check } from "typebox/value";
 
+import { hashIdentity } from "../src/action-loop/identity/hash-identity.ts";
 import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
 import type { BlockWorkCaseProposal } from "../src/action-loop/work/block-work-case.ts";
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
@@ -318,10 +319,8 @@ const CapabilityApplicabilityProposalSchema = Type.Object(
 	},
 	{ additionalProperties: false },
 );
-const CapabilityAssessedEventSchema = Type.Object(
+const CapabilityAssessmentSchema = Type.Object(
 	{
-		...EventHeaderSchema,
-		kind: Type.Literal("capability-assessed"),
 		skillName: Type.String({ minLength: 1, maxLength: 128 }),
 		capabilityRevisionId: IdSchema,
 		proposal: CapabilityApplicabilityProposalSchema,
@@ -335,6 +334,30 @@ const CapabilityAssessedEventSchema = Type.Object(
 				]),
 				assignmentId: OptionalIdSchema,
 			},
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+const CapabilityAssessedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("capability-assessed"),
+		...CapabilityAssessmentSchema.properties,
+	},
+	{ additionalProperties: false },
+);
+const CapabilityInventoryAssessedEventSchema = Type.Object(
+	{
+		...EventHeaderSchema,
+		kind: Type.Literal("capability-inventory-assessed"),
+		contributionNeedId: IdSchema,
+		assessments: Type.Array(CapabilityAssessmentSchema, {
+			minItems: 1,
+			maxItems: 1_024,
+		}),
+		expected: Type.Object(
+			{ assessmentCount: Type.Integer({ minimum: 1, maximum: 1_024 }) },
 			{ additionalProperties: false },
 		),
 	},
@@ -787,6 +810,7 @@ const SessionEventSchema = Type.Union([
 	BlockedWorkCaseResumedEventSchema,
 	JudgmentOpenedEventSchema,
 	CapabilityAssessedEventSchema,
+	CapabilityInventoryAssessedEventSchema,
 	ReferencesSelectedEventSchema,
 	UnstructuredContextSealedEventSchema,
 	ContributionAcceptedEventSchema,
@@ -825,8 +849,14 @@ export type ActionLoopBlockedWorkCaseResumedEvent = Static<
 export type ActionLoopJudgmentOpenedEvent = Static<
 	typeof JudgmentOpenedEventSchema
 >;
+export type ActionLoopCapabilityAssessment = Static<
+	typeof CapabilityAssessmentSchema
+>;
 export type ActionLoopCapabilityAssessedEvent = Static<
 	typeof CapabilityAssessedEventSchema
+>;
+export type ActionLoopCapabilityInventoryAssessedEvent = Static<
+	typeof CapabilityInventoryAssessedEventSchema
 >;
 export type ActionLoopReferencesSelectedEvent = Static<
 	typeof ReferencesSelectedEventSchema
@@ -898,7 +928,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 
 export function actionLoopWorkCaseOpenedEvent(
 	proposal: LiveWorkCaseProposal,
-	state: LiveWorkCaseState,
+	state: Pick<LiveWorkCaseState, "workCase">,
 ): ActionLoopWorkCaseOpenedEvent {
 	return Object.freeze({
 		protocol: ACTION_LOOP_SESSION_PROTOCOL,
@@ -1146,6 +1176,46 @@ export function actionLoopCapabilityAssessedEvent(
 			status: assessment.status,
 			...(assignmentId ? { assignmentId } : {}),
 		},
+	});
+}
+
+export function actionLoopCapabilityInventoryAssessedEvent(input: {
+	readonly contributionNeedId: string;
+	readonly assessments: readonly ActionLoopCapabilityAssessment[];
+}): ActionLoopCapabilityInventoryAssessedEvent {
+	const assessments = [...input.assessments]
+		.map((assessment) => ({
+			skillName: assessment.skillName,
+			capabilityRevisionId: assessment.capabilityRevisionId,
+			proposal: {
+				...assessment.proposal,
+				matchedWhen: [...assessment.proposal.matchedWhen],
+				matchedUnless: [...assessment.proposal.matchedUnless],
+				basis: [...assessment.proposal.basis],
+				missingContext: [...assessment.proposal.missingContext],
+			},
+			expected: { ...assessment.expected },
+		}))
+		.sort((left, right) =>
+			`${left.skillName}\u0000${left.capabilityRevisionId}`.localeCompare(
+				`${right.skillName}\u0000${right.capabilityRevisionId}`,
+			),
+		);
+	const transitionId = hashIdentity(
+		"capability_inventory",
+		"developer-action-loop/capability-inventory-assessed/v1",
+		[
+			input.contributionNeedId,
+			...assessments.map((assessment) => JSON.stringify(assessment)),
+		],
+	);
+	return Object.freeze({
+		protocol: ACTION_LOOP_SESSION_PROTOCOL,
+		kind: "capability-inventory-assessed",
+		transitionId,
+		contributionNeedId: input.contributionNeedId,
+		assessments,
+		expected: { assessmentCount: assessments.length },
 	});
 }
 
