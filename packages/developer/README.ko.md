@@ -99,6 +99,21 @@ Slash command는 fallback control로 남습니다.
 
 TUI mode의 `/developer`는 read-only canonical Workbench를 엽니다. Workbench는 internal identity를 노출하지 않고 `off`, `idle`, `active`, `paused`, `waiting`, `blocked`, `completed`, `unavailable`을 projection합니다.
 
+## SDK controller
+
+Prerelease SDK surface는 `@hobin/developer/sdk`에서 제공합니다. 하나의 숨은 workflow manager가 아니라 작고 조합 가능한 command 집합입니다.
+
+```text
+openWorkCaseWithSdk
+→ openJudgmentWithSdk
+→ assessCapabilityInventoryWithSdk
+→ sealCapabilityContextWithSdk
+```
+
+각 command는 한 가지 일만 하고 명시적인 값을 입력·출력하며, bounded in-memory proposal session을 통해서만 model output을 admit합니다. Controller는 retry, run별 time limit, complete inventory accounting, canonical identity binding, non-mutating `bounded-stop`을 소유합니다. Provider error는 domain invariant failure와 구분합니다.
+
+현재 RC는 Work Case/Judgment opening, complete Capability applicability accounting, local Reference selection, structured/unstructured Context sealing까지 SDK로 제공합니다. Contribution, Coverage, Conclusion, Action, Effect, continuity, completion은 SDK command가 replay와 live evaluation parity에 도달할 때까지 Extension 경로를 유지합니다. Pi session branch는 계속 유일한 durability boundary입니다.
+
 ## Canonical tools
 
 ```text

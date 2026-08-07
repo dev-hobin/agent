@@ -5,6 +5,7 @@ import {
 	acceptCapabilityApplicability,
 	type ApplicabilityAcceptanceResult,
 	type ApplicabilityTarget,
+	type CapabilityAssignment,
 } from "../routing/accept-applicability.ts";
 import type { BoundCapability } from "../routing/bind-capability.ts";
 import {
@@ -20,6 +21,7 @@ import type {
 	SdkDecisionMetrics,
 	SdkDecisionResult,
 	SdkDecisionRunner,
+	SdkDecisionStopReason,
 	SdkProposalAdmission,
 	SdkProposalTool,
 } from "./decision-controller.ts";
@@ -66,7 +68,7 @@ export type SdkCapabilityRoutingResult =
 	| {
 			readonly status: "bounded-stop";
 			readonly stage: "applicability" | "references";
-			readonly reason: "decision-run-budget";
+			readonly reason: SdkDecisionStopReason;
 			readonly decisions: readonly SdkRoutingDecisionMetric[];
 	  }
 	| {
@@ -91,6 +93,37 @@ export interface SdkCapabilityRoutingInput {
 	readonly toc: ParsedToc;
 	readonly runner: SdkDecisionRunner;
 }
+
+export interface SdkStructuredReferenceSelectionInput {
+	readonly request: string;
+	readonly assignment: CapabilityAssignment;
+	readonly capability: BoundCapability;
+	readonly toc: ParsedToc;
+	readonly runner: SdkDecisionRunner;
+}
+
+export type SdkStructuredReferenceSelectionResult =
+	| {
+			readonly status: "selected";
+			readonly selection: BoundReferenceSelection;
+			readonly decision: SdkDecisionMetrics;
+	  }
+	| {
+			readonly status: "bounded-stop";
+			readonly reason: SdkDecisionStopReason;
+			readonly decision: SdkDecisionMetrics;
+	  }
+	| {
+			readonly status: "runtime-failure";
+			readonly message: string;
+			readonly decision: SdkDecisionMetrics;
+	  }
+	| {
+			readonly status: "invariant-failure";
+			readonly code: string;
+			readonly message: string;
+			readonly decision: SdkDecisionMetrics;
+	  };
 
 const applicabilityParameters = Type.Object(
 	{
@@ -289,6 +322,67 @@ function stoppedResult(
 	};
 }
 
+/** Selects and binds every declared Reference for one existing Assignment. */
+export async function selectStructuredReferencesWithSdk(
+	input: SdkStructuredReferenceSelectionInput,
+): Promise<SdkStructuredReferenceSelectionResult> {
+	const decision = await input.runner.run({
+		systemPrompt: [
+			"Make one comparative local Reference routing proposal.",
+			"Call the supplied decision tool exactly once and disposition every declared Reference.",
+			"Choose the smallest set whose declared conditions materially apply; adjacent subject matter alone is not enough.",
+			"The SDK controller owns exact paths, complete inventory, validation, retry limits, and canonical binding.",
+		].join("\n"),
+		prompt: routingPrompt(input.request, input.toc),
+		tool: referenceTool(input.toc),
+	});
+	if (decision.status === "bounded-stop") {
+		return {
+			status: "bounded-stop",
+			reason: decision.reason,
+			decision: decision.metrics,
+		};
+	}
+	if (decision.status === "runtime-failure") {
+		return {
+			status: "runtime-failure",
+			message: decision.message,
+			decision: decision.metrics,
+		};
+	}
+	const selection = selectDeclaredReferences(
+		input.toc.references,
+		decision.value.dispositions,
+	);
+	if (selection.status === "invalid") {
+		return {
+			status: "invariant-failure",
+			code: "accepted-selection-became-invalid",
+			message:
+				"An accepted Reference proposal did not reproduce its canonical selection.",
+			decision: decision.metrics,
+		};
+	}
+	const bound = bindReferenceSelection(
+		input.assignment,
+		input.capability,
+		selection,
+	);
+	if (!bound.ok) {
+		return {
+			status: "invariant-failure",
+			code: bound.error.code,
+			message: bound.error.message,
+			decision: decision.metrics,
+		};
+	}
+	return {
+		status: "selected",
+		selection: bound.value,
+		decision: decision.metrics,
+	};
+}
+
 /**
  * Routes one structured Capability through proposal-only SDK decisions and
  * binds only canonically admitted results to the supplied target.
@@ -323,53 +417,43 @@ export async function routeStructuredCapabilityWithSdk(
 		};
 	}
 
-	const references = await input.runner.run({
-		systemPrompt: [
-			"Make one comparative local Reference routing proposal.",
-			"Call the supplied decision tool exactly once and disposition every declared Reference.",
-			"Choose the smallest set whose declared conditions materially apply; adjacent subject matter alone is not enough.",
-			"The SDK controller owns exact paths, complete inventory, validation, retry limits, and canonical binding.",
-		].join("\n"),
-		prompt: routingPrompt(input.request, input.toc),
-		tool: referenceTool(input.toc),
+	const references = await selectStructuredReferencesWithSdk({
+		request: input.request,
+		assignment: applicability.value.result.assignment,
+		capability: input.target.capability,
+		toc: input.toc,
+		runner: input.runner,
 	});
-	decisions.push({ stage: "references", metrics: references.metrics });
-	if (references.status !== "accepted") {
-		return stoppedResult("references", references, decisions);
-	}
-
-	const selection = selectDeclaredReferences(
-		input.toc.references,
-		references.value.dispositions,
-	);
-	if (selection.status === "invalid") {
+	decisions.push({ stage: "references", metrics: references.decision });
+	if (references.status === "bounded-stop") {
 		return {
-			status: "invariant-failure",
+			status: "bounded-stop",
 			stage: "references",
-			code: "accepted-selection-became-invalid",
-			message:
-				"An accepted Reference proposal did not reproduce its canonical selection.",
+			reason: references.reason,
 			decisions: Object.freeze(decisions),
 		};
 	}
-	const bound = bindReferenceSelection(
-		applicability.value.result.assignment,
-		input.target.capability,
-		selection,
-	);
-	if (!bound.ok) {
+	if (references.status === "runtime-failure") {
+		return {
+			status: "runtime-failure",
+			stage: "references",
+			message: references.message,
+			decisions: Object.freeze(decisions),
+		};
+	}
+	if (references.status === "invariant-failure") {
 		return {
 			status: "invariant-failure",
 			stage: "references",
-			code: bound.error.code,
-			message: bound.error.message,
+			code: references.code,
+			message: references.message,
 			decisions: Object.freeze(decisions),
 		};
 	}
 	return {
 		status: "routed",
 		applicability: applicability.value.result,
-		selection: bound.value,
+		selection: references.selection,
 		decisions: Object.freeze(decisions),
 	};
 }

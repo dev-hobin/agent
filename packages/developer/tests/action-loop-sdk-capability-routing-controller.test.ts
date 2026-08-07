@@ -5,12 +5,7 @@ import {
 	routeStructuredCapabilityWithSdk,
 	type SdkCapabilityRoutingInput,
 } from "../src/action-loop/sdk/capability-routing-controller.ts";
-import type {
-	SdkDecisionMetrics,
-	SdkDecisionRequest,
-	SdkDecisionResult,
-	SdkDecisionRunner,
-} from "../src/action-loop/sdk/decision-controller.ts";
+import type { SdkDecisionRunner } from "../src/action-loop/sdk/decision-controller.ts";
 import {
 	bindCapability,
 	type BoundCapability,
@@ -20,80 +15,14 @@ import {
 	SKILL_TOC_SCHEMA_URI,
 	type ParsedToc,
 } from "../src/action-loop/routing/parse-toc.ts";
+import {
+	scriptedDecisionMetrics,
+	scriptedSdkRunner,
+} from "./fixtures/scripted-sdk-runner.ts";
 
 const encoder = new TextEncoder();
 const capabilityWhen = "A temporal state contract must be modeled.";
 const capabilityUnless = "The request has no state or time behavior.";
-
-interface ScriptedDecision {
-	readonly proposals?: readonly unknown[];
-	readonly result?: "bounded-stop" | "runtime-failure";
-}
-
-function decisionMetrics(
-	input: {
-		readonly toolCalls?: number;
-		readonly toolErrors?: number;
-		readonly runtimeFailures?: number;
-	} = {},
-): SdkDecisionMetrics {
-	return {
-		runs: 1,
-		toolCalls: input.toolCalls ?? 0,
-		toolErrors: input.toolErrors ?? 0,
-		runtimeFailures: input.runtimeFailures ?? 0,
-		errorMessages: [],
-	};
-}
-
-function scriptedRunner(
-	scripts: readonly ScriptedDecision[],
-): SdkDecisionRunner {
-	let next = 0;
-	return {
-		async run<T>(
-			request: SdkDecisionRequest<T>,
-		): Promise<SdkDecisionResult<T>> {
-			const script = scripts[next];
-			next += 1;
-			if (script?.result === "runtime-failure") {
-				return {
-					status: "runtime-failure",
-					message: "provider unavailable",
-					metrics: decisionMetrics({ runtimeFailures: 1 }),
-				};
-			}
-			if (script?.result === "bounded-stop") {
-				return {
-					status: "bounded-stop",
-					reason: "decision-run-budget",
-					metrics: decisionMetrics(),
-				};
-			}
-
-			let toolCalls = 0;
-			let toolErrors = 0;
-			for (const proposal of script?.proposals ?? []) {
-				toolCalls += 1;
-				const admission = await request.tool.execute(proposal);
-				if (admission.status === "rejected") {
-					toolErrors += 1;
-					continue;
-				}
-				return {
-					status: "accepted",
-					value: admission.value,
-					metrics: decisionMetrics({ toolCalls, toolErrors }),
-				};
-			}
-			return {
-				status: "bounded-stop",
-				reason: "decision-run-budget",
-				metrics: decisionMetrics({ toolCalls, toolErrors }),
-			};
-		},
-	};
-}
 
 function structuredCapability(): {
 	readonly capability: BoundCapability;
@@ -151,7 +80,7 @@ function routingInput(runner: SdkDecisionRunner): SdkCapabilityRoutingInput {
 test("SDK routing retries rejected raw proposals before binding canonical identities", async () => {
 	const result = await routeStructuredCapabilityWithSdk(
 		routingInput(
-			scriptedRunner([
+			scriptedSdkRunner([
 				{
 					proposals: [
 						{ status: "applicable", acceptance_conditions: [capabilityWhen] },
@@ -202,7 +131,7 @@ test("SDK routing retries rejected raw proposals before binding canonical identi
 test("SDK routing reports a Reference decision budget stop without partial binding", async () => {
 	const result = await routeStructuredCapabilityWithSdk(
 		routingInput(
-			scriptedRunner([
+			scriptedSdkRunner([
 				{
 					proposals: [
 						{
@@ -223,8 +152,11 @@ test("SDK routing reports a Reference decision budget stop without partial bindi
 		stage: "references",
 		reason: "decision-run-budget",
 		decisions: [
-			{ stage: "applicability", metrics: decisionMetrics({ toolCalls: 1 }) },
-			{ stage: "references", metrics: decisionMetrics() },
+			{
+				stage: "applicability",
+				metrics: scriptedDecisionMetrics({ toolCalls: 1 }),
+			},
+			{ stage: "references", metrics: scriptedDecisionMetrics() },
 		],
 	});
 });
@@ -232,7 +164,7 @@ test("SDK routing reports a Reference decision budget stop without partial bindi
 test("SDK routing preserves non-applicability as an accepted semantic outcome", async () => {
 	const result = await routeStructuredCapabilityWithSdk(
 		routingInput(
-			scriptedRunner([
+			scriptedSdkRunner([
 				{
 					proposals: [
 						{

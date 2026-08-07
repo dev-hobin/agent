@@ -1,0 +1,139 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { openJudgmentWithSdk } from "../src/action-loop/sdk/judgment-controller.ts";
+import { openWorkCaseWithSdk } from "../src/action-loop/sdk/work-case-controller.ts";
+import { scriptedSdkRunner } from "./fixtures/scripted-sdk-runner.ts";
+
+const request =
+	"Determine whether a retryable payment authorization model is complete and evidence-backed.";
+
+function workCaseProposal(): Record<string, unknown> {
+	return {
+		statement:
+			"A complete retryable payment authorization model is available for review.",
+		acceptance_conditions_json: JSON.stringify([
+			"Lifecycle states and transitions are explicit.",
+			"Stale, duplicate, and reordered responses are distinguished.",
+		]),
+		constraints_json: JSON.stringify([
+			"Do not modify workspace files.",
+			"Do not invent unsettled product policy.",
+		]),
+		basis_json: JSON.stringify([
+			"The delegated request explicitly asks for this bounded model.",
+		]),
+	};
+}
+
+function judgmentProposal(): Record<string, unknown> {
+	return {
+		category: "Consequence Integrity",
+		subject: "Retryable payment authorization lifecycle",
+		question:
+			"Which state and time rules are required for safe and progressing authorization?",
+		requirements_json: JSON.stringify([
+			{
+				statement:
+					"The model distinguishes every consequential lifecycle and response-order case.",
+				contribution_needs: [
+					"A condition model of state, retry, identity, and temporal behavior",
+				],
+			},
+		]),
+		basis_json: JSON.stringify([
+			"The Outcome depends on explicit consequences and forbidden transitions.",
+		]),
+	};
+}
+
+test("SDK opening pipeline refines text proposals into one Work Case and Judgment", async () => {
+	const runner = scriptedSdkRunner([
+		{
+			proposals: [
+				{
+					...workCaseProposal(),
+					acceptance_conditions_json: "not-json",
+				},
+				workCaseProposal(),
+			],
+		},
+		{ proposals: [judgmentProposal()] },
+	]);
+	const opened = await openWorkCaseWithSdk({ request, runner });
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	assert.match(opened.workCase.workCaseId, /^work_case_[a-f0-9]{64}$/);
+	assert.equal(opened.decision.toolCalls, 2);
+	assert.equal(opened.decision.toolErrors, 1);
+	assert.deepEqual(opened.workCase.outcome.acceptanceConditions, [
+		"Lifecycle states and transitions are explicit.",
+		"Stale, duplicate, and reordered responses are distinguished.",
+	]);
+
+	const judgment = await openJudgmentWithSdk({
+		request,
+		workCase: opened.workCase,
+		contextRevisionId: opened.workCase.revisionId,
+		runner,
+	});
+	assert.equal(judgment.status, "opened");
+	if (judgment.status !== "opened") return;
+	assert.match(judgment.judgment.judgmentId, /^open_judgment_[a-f0-9]{64}$/);
+	assert.equal(judgment.workCase.openJudgments.length, 1);
+	assert.equal(judgment.judgment.contributionNeeds.length, 1);
+	assert.equal(
+		judgment.judgment.contributionNeeds[0]?.function,
+		"A condition model of state, retry, identity, and temporal behavior",
+	);
+	assert.equal(judgment.decision.toolCalls, 1);
+});
+
+test("SDK Judgment opening refuses to replace current canonical ownership", async () => {
+	const openingRunner = scriptedSdkRunner([
+		{ proposals: [workCaseProposal()] },
+		{ proposals: [judgmentProposal()] },
+	]);
+	const opened = await openWorkCaseWithSdk({
+		request,
+		runner: openingRunner,
+	});
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const first = await openJudgmentWithSdk({
+		request,
+		workCase: opened.workCase,
+		contextRevisionId: opened.workCase.revisionId,
+		runner: openingRunner,
+	});
+	assert.equal(first.status, "opened");
+	if (first.status !== "opened") return;
+
+	const replacement = await openJudgmentWithSdk({
+		request: "Open a different Judgment.",
+		workCase: first.workCase,
+		contextRevisionId: first.workCase.revisionId,
+		runner: scriptedSdkRunner([]),
+	});
+	assert.equal(replacement.status, "active-judgment-exists");
+	if (replacement.status !== "active-judgment-exists") return;
+	assert.equal(replacement.judgment.judgmentId, first.judgment.judgmentId);
+});
+
+test("SDK Work Case opening reports bounded stops without state", async () => {
+	const runBudget = await openWorkCaseWithSdk({
+		request,
+		runner: scriptedSdkRunner([{ result: "bounded-stop" }]),
+	});
+	assert.equal(runBudget.status, "bounded-stop");
+	assert.equal("workCase" in runBudget, false);
+
+	const timeBudget = await openWorkCaseWithSdk({
+		request,
+		runner: scriptedSdkRunner([{ result: "time-budget" }]),
+	});
+	assert.equal(timeBudget.status, "bounded-stop");
+	if (timeBudget.status !== "bounded-stop") return;
+	assert.equal(timeBudget.reason, "decision-time-budget");
+	assert.equal("workCase" in timeBudget, false);
+});

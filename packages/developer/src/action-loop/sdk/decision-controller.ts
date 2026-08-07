@@ -57,8 +57,13 @@ export interface SdkDecisionMetrics {
 	readonly toolCalls: number;
 	readonly toolErrors: number;
 	readonly runtimeFailures: number;
+	readonly timeBudgetStops: number;
 	readonly errorMessages: readonly string[];
 }
+
+export type SdkDecisionStopReason =
+	| "decision-run-budget"
+	| "decision-time-budget";
 
 export type SdkDecisionResult<T> =
 	| {
@@ -68,7 +73,7 @@ export type SdkDecisionResult<T> =
 	  }
 	| {
 			readonly status: "bounded-stop";
-			readonly reason: "decision-run-budget";
+			readonly reason: SdkDecisionStopReason;
 			readonly metrics: SdkDecisionMetrics;
 	  }
 	| {
@@ -88,6 +93,7 @@ export interface PiSdkDecisionControllerOptions {
 	readonly cwd: string;
 	readonly maxRuns: number;
 	readonly maxToolErrorsPerRun: number;
+	readonly maxRunMs?: number;
 	readonly thinkingLevel?:
 		| "off"
 		| "minimal"
@@ -102,6 +108,7 @@ interface DecisionCounters {
 	toolCalls: number;
 	toolErrors: number;
 	runtimeFailures: number;
+	timeBudgetStops: number;
 	nonRuntimeRuns: number;
 	readonly errorMessages: string[];
 }
@@ -113,6 +120,7 @@ interface AttemptObservation {
 type DecisionAttemptResult<T> =
 	| { readonly status: "accepted"; readonly value: T }
 	| { readonly status: "not-accepted" }
+	| { readonly status: "timed-out" }
 	| { readonly status: "runtime-failure"; readonly message: string };
 
 function positiveInteger(value: number, label: string): number {
@@ -156,6 +164,7 @@ function currentMetrics(counters: DecisionCounters): SdkDecisionMetrics {
 		toolCalls: counters.toolCalls,
 		toolErrors: counters.toolErrors,
 		runtimeFailures: counters.runtimeFailures,
+		timeBudgetStops: counters.timeBudgetStops,
 		errorMessages: Object.freeze([...counters.errorMessages]),
 	});
 }
@@ -179,6 +188,7 @@ function subscribeToAttempt(input: {
 	readonly maximumErrors: number;
 	readonly counters: DecisionCounters;
 	readonly observation: AttemptObservation;
+	readonly accepted: () => boolean;
 }): () => void {
 	return input.session.subscribe((event) => {
 		if (
@@ -190,9 +200,12 @@ function subscribeToAttempt(input: {
 		}
 		if (
 			event.type !== "tool_execution_end" ||
-			event.toolName !== input.toolName ||
-			!event.isError
+			event.toolName !== input.toolName
 		) {
+			return;
+		}
+		if (!event.isError) {
+			if (input.accepted()) void input.session.abort();
 			return;
 		}
 		input.observation.toolErrors += 1;
@@ -232,6 +245,7 @@ async function runDecisionAttempt<T>(input: {
 	readonly options: PiSdkDecisionControllerOptions;
 	readonly request: SdkDecisionRequest<T>;
 	readonly maximumErrors: number;
+	readonly maximumRunMs: number;
 	readonly counters: DecisionCounters;
 }): Promise<DecisionAttemptResult<T>> {
 	let acceptedProposal: { readonly value: T } | undefined;
@@ -270,6 +284,8 @@ async function runDecisionAttempt<T>(input: {
 
 	let session: PiSdkAgentSession | undefined;
 	let unsubscribe: (() => void) | undefined;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	let timedOut = false;
 	let runtimeError: string | undefined;
 	try {
 		session = await createDecisionSession(input.options, input.request, tool);
@@ -279,11 +295,24 @@ async function runDecisionAttempt<T>(input: {
 			maximumErrors: input.maximumErrors,
 			counters: input.counters,
 			observation,
+			accepted: () => acceptedProposal !== undefined,
 		});
+		timeout = setTimeout(() => {
+			timedOut = true;
+			input.counters.timeBudgetStops += 1;
+			input.counters.errorMessages.push(
+				`runtime: decision time budget ${input.maximumRunMs}ms`,
+			);
+			void session?.abort();
+		}, input.maximumRunMs);
 		await session.prompt(input.request.prompt);
 		input.counters.nonRuntimeRuns += 1;
 	} catch (error) {
-		if (observation.toolErrors >= input.maximumErrors) {
+		if (
+			acceptedProposal !== undefined ||
+			timedOut ||
+			observation.toolErrors >= input.maximumErrors
+		) {
 			input.counters.nonRuntimeRuns += 1;
 		} else {
 			input.counters.runtimeFailures += 1;
@@ -291,6 +320,7 @@ async function runDecisionAttempt<T>(input: {
 			input.counters.errorMessages.push(`runtime: ${runtimeError}`);
 		}
 	} finally {
+		if (timeout !== undefined) clearTimeout(timeout);
 		unsubscribe?.();
 		session?.dispose();
 	}
@@ -298,6 +328,7 @@ async function runDecisionAttempt<T>(input: {
 	if (acceptedProposal !== undefined) {
 		return { status: "accepted", value: acceptedProposal.value };
 	}
+	if (timedOut) return { status: "timed-out" };
 	return runtimeError === undefined
 		? { status: "not-accepted" }
 		: { status: "runtime-failure", message: runtimeError };
@@ -308,22 +339,26 @@ async function runBoundedDecision<T>(
 	request: SdkDecisionRequest<T>,
 	maximumRuns: number,
 	maximumErrors: number,
+	maximumRunMs: number,
 ): Promise<SdkDecisionResult<T>> {
 	const counters: DecisionCounters = {
 		runs: 0,
 		toolCalls: 0,
 		toolErrors: 0,
 		runtimeFailures: 0,
+		timeBudgetStops: 0,
 		nonRuntimeRuns: 0,
 		errorMessages: [],
 	};
 	let lastRuntimeError: string | undefined;
+	let lastAttemptTimedOut = false;
 	for (let run = 1; run <= maximumRuns; run += 1) {
 		counters.runs = run;
 		const attempt = await runDecisionAttempt({
 			options,
 			request,
 			maximumErrors,
+			maximumRunMs,
 			counters,
 		});
 		if (attempt.status === "accepted") {
@@ -333,6 +368,7 @@ async function runBoundedDecision<T>(
 				metrics: currentMetrics(counters),
 			};
 		}
+		lastAttemptTimedOut = attempt.status === "timed-out";
 		if (attempt.status === "runtime-failure") {
 			lastRuntimeError = attempt.message;
 		}
@@ -347,7 +383,9 @@ async function runBoundedDecision<T>(
 	}
 	return {
 		status: "bounded-stop",
-		reason: "decision-run-budget",
+		reason: lastAttemptTimedOut
+			? "decision-time-budget"
+			: "decision-run-budget",
 		metrics: currentMetrics(counters),
 	};
 }
@@ -364,8 +402,18 @@ export function createPiSdkDecisionRunner(
 		options.maxToolErrorsPerRun,
 		"maxToolErrorsPerRun",
 	);
+	const maximumRunMs = positiveInteger(
+		options.maxRunMs ?? 120_000,
+		"maxRunMs",
+	);
 	return Object.freeze({
 		run: <T>(request: SdkDecisionRequest<T>) =>
-			runBoundedDecision(options, request, maximumRuns, maximumErrors),
+			runBoundedDecision(
+				options,
+				request,
+				maximumRuns,
+				maximumErrors,
+				maximumRunMs,
+			),
 	});
 }

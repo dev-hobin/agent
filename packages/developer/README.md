@@ -99,6 +99,21 @@ Slash commands remain fallback controls:
 
 `/developer` opens the read-only canonical Workbench in TUI mode. The Workbench projects `off`, `idle`, `active`, `paused`, `waiting`, `blocked`, `completed`, and `unavailable` without exposing internal identities.
 
+## SDK controller
+
+The prerelease SDK surface is available from `@hobin/developer/sdk`. It is a set of small composable commands rather than one hidden workflow manager:
+
+```text
+openWorkCaseWithSdk
+→ openJudgmentWithSdk
+→ assessCapabilityInventoryWithSdk
+→ sealCapabilityContextWithSdk
+```
+
+Each command does one job, accepts and returns explicit values, and admits model output only through a bounded in-memory proposal session. The controller owns retries, per-run time limits, complete inventory accounting, canonical identity binding, and non-mutating `bounded-stop` results. Provider errors remain distinct from domain invariant failures.
+
+This RC covers Work Case and Judgment opening, complete Capability applicability accounting, local Reference selection, and structured or unstructured Context sealing. Contribution, Coverage, Conclusion, Action, Effect, continuity, and completion still run through the Extension until their SDK commands reach replay and live-evaluation parity. The Pi session branch remains the only durability boundary.
+
 ## Canonical tools
 
 ```text
