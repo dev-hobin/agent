@@ -22,6 +22,7 @@ import {
 import type { SdkDecisionRunner } from "./decision-controller.ts";
 import {
 	openJudgmentWithSdk,
+	type SdkJudgmentCategory,
 	type SdkJudgmentOpeningResult,
 } from "./judgment-controller.ts";
 import {
@@ -560,6 +561,38 @@ async function progressEffect(input: {
 	};
 }
 
+function nextRequiredJudgmentCategory(
+	state: SdkJudgmentProgressState,
+): SdkJudgmentCategory | undefined {
+	if (state.workCase.conclusions.length === 0) return undefined;
+	const categories = new Set(
+		state.workCase.conclusions.map((conclusion) => conclusion.category),
+	);
+	if (state.workCase.effects.length > 0) {
+		const settledEffectIds = new Set(
+			state.workCase.currentEffectAssessments.flatMap((assessment) =>
+				"effectSettlementId" in assessment ? [assessment.effectId] : [],
+			),
+		);
+		if (
+			state.workCase.effects.every((effect) =>
+				settledEffectIds.has(effect.effectId),
+			) &&
+			!categories.has("Claim Assurance")
+		) {
+			return "Claim Assurance";
+		}
+		return undefined;
+	}
+	if (
+		!categories.has("Proportionate Intervention") &&
+		!categories.has("Claim Assurance")
+	) {
+		return "Proportionate Intervention";
+	}
+	return undefined;
+}
+
 async function progressAction(input: {
 	readonly request: string;
 	readonly state: SdkJudgmentProgressState;
@@ -621,6 +654,24 @@ async function progressAction(input: {
 			maxSteps: input.maxSteps,
 			steps: progressed.steps,
 			checkpoints: progressed.checkpoints,
+		});
+	}
+	const categories = new Set(
+		workCase.conclusions.map((conclusion) => conclusion.category),
+	);
+	if (
+		input.complete &&
+		categories.has("Claim Assurance") &&
+		!categories.has("Proportionate Intervention")
+	) {
+		return progressCompletion({
+			request: input.request,
+			state: input.state,
+			runner: input.runner,
+			checkpoint: input.checkpoint,
+			maxSteps: input.maxSteps,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
 		});
 	}
 	if (!input.actions || !input.authorizeAction) {
@@ -844,9 +895,11 @@ export async function progressActionLoopWithSdk(
 		checkpoints += 1;
 	}
 
+	const requiredCategory = nextRequiredJudgmentCategory(state);
 	if (
 		state.workCase.openJudgments.length === 0 &&
-		state.workCase.conclusions.length > 0
+		state.workCase.conclusions.length > 0 &&
+		requiredCategory === undefined
 	) {
 		return progressAction({
 			request: input.request,
@@ -888,6 +941,7 @@ export async function progressActionLoopWithSdk(
 			request: input.request,
 			workCase: state.workCase,
 			contextRevisionId: state.workCase.revisionId,
+			...(requiredCategory ? { requiredCategory } : {}),
 			runner: input.runner,
 		});
 		steps += 1;

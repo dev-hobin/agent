@@ -89,6 +89,37 @@ test("SDK opening pipeline refines text proposals into one Work Case and Judgmen
 	assert.equal(judgment.decision.toolCalls, 1);
 });
 
+test("SDK Judgment opening enforces a controller-required Category", async () => {
+	const runner = scriptedSdkRunner([
+		{ proposals: [workCaseProposal()] },
+		{
+			proposals: [
+				judgmentProposal(),
+				{
+					...judgmentProposal(),
+					category: "Claim Assurance",
+					question: "Does current evidence support the complete Outcome claim?",
+				},
+			],
+		},
+	]);
+	const opened = await openWorkCaseWithSdk({ request, runner });
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const judgment = await openJudgmentWithSdk({
+		request,
+		workCase: opened.workCase,
+		contextRevisionId: opened.workCase.revisionId,
+		requiredCategory: "Claim Assurance",
+		runner,
+	});
+	assert.equal(judgment.status, "opened");
+	if (judgment.status !== "opened") return;
+	assert.equal(judgment.judgment.category, "Claim Assurance");
+	assert.equal(judgment.decision.toolCalls, 2);
+	assert.equal(judgment.decision.toolErrors, 1);
+});
+
 test("SDK Judgment opening refuses to replace current canonical ownership", async () => {
 	const openingRunner = scriptedSdkRunner([
 		{ proposals: [workCaseProposal()] },

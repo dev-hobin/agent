@@ -23,6 +23,7 @@ const categories = [
 	"Consequence Integrity",
 	"Claim Assurance",
 ] as const;
+export type SdkJudgmentCategory = (typeof categories)[number];
 const MAX_REQUIREMENTS = 8;
 const MAX_NEEDS_PER_REQUIREMENT = 8;
 const MAX_BASIS_ITEMS = 16;
@@ -58,6 +59,7 @@ export interface SdkJudgmentOpeningInput {
 	readonly request: string;
 	readonly workCase: ActiveWorkCase;
 	readonly contextRevisionId: string;
+	readonly requiredCategory?: SdkJudgmentCategory;
 	readonly runner: SdkDecisionRunner;
 }
 
@@ -147,6 +149,8 @@ export async function openJudgmentWithSdk(
 		prompt: [
 			`Delegated request: ${input.request}`,
 			`Current Outcome: ${input.workCase.outcome.statement}`,
+			`Required Category: ${input.requiredCategory ?? "choose the current unresolved Warrant Gap"}`,
+			`Current Conclusions: ${input.workCase.conclusions.map((conclusion) => `${conclusion.category}: ${conclusion.answer}`).join(" | ") || "none"}`,
 			"Open only one independently closable Judgment needed to advance this Outcome.",
 		].join("\n"),
 		tool: {
@@ -156,7 +160,9 @@ export async function openJudgmentWithSdk(
 				"Submit one Judgment. requirements_json is an array of {statement, contribution_needs}; basis_json is a string array.",
 			parameters: Type.Object(
 				{
-					category: StringEnum(categories),
+					category: StringEnum(
+						input.requiredCategory ? [input.requiredCategory] : categories,
+					),
 					subject: Type.String({ minLength: 1, maxLength: 4_096 }),
 					question: Type.String({ minLength: 1, maxLength: 4_096 }),
 					requirements_json: Type.String({
@@ -171,6 +177,8 @@ export async function openJudgmentWithSdk(
 				if (
 					!isRecord(raw) ||
 					!isCategory(raw.category) ||
+					(input.requiredCategory !== undefined &&
+						raw.category !== input.requiredCategory) ||
 					typeof raw.subject !== "string" ||
 					typeof raw.question !== "string"
 				) {

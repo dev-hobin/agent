@@ -5996,6 +5996,8 @@ async function openJudgmentWithSdk(input) {
     prompt: [
       `Delegated request: ${input.request}`,
       `Current Outcome: ${input.workCase.outcome.statement}`,
+      `Required Category: ${input.requiredCategory ?? "choose the current unresolved Warrant Gap"}`,
+      `Current Conclusions: ${input.workCase.conclusions.map((conclusion) => `${conclusion.category}: ${conclusion.answer}`).join(" | ") || "none"}`,
       "Open only one independently closable Judgment needed to advance this Outcome."
     ].join("\n"),
     tool: {
@@ -6004,7 +6006,9 @@ async function openJudgmentWithSdk(input) {
       description: "Submit one Judgment. requirements_json is an array of {statement, contribution_needs}; basis_json is a string array.",
       parameters: Type4.Object(
         {
-          category: StringEnum4(categories),
+          category: StringEnum4(
+            input.requiredCategory ? [input.requiredCategory] : categories
+          ),
           subject: Type4.String({ minLength: 1, maxLength: 4096 }),
           question: Type4.String({ minLength: 1, maxLength: 4096 }),
           requirements_json: Type4.String({
@@ -6016,7 +6020,7 @@ async function openJudgmentWithSdk(input) {
         { additionalProperties: false }
       ),
       execute: async (raw) => {
-        if (!isRecord4(raw) || !isCategory(raw.category) || typeof raw.subject !== "string" || typeof raw.question !== "string") {
+        if (!isRecord4(raw) || !isCategory(raw.category) || input.requiredCategory !== void 0 && raw.category !== input.requiredCategory || typeof raw.subject !== "string" || typeof raw.question !== "string") {
           return rejected4(
             "invalid-arguments",
             "Judgment requires category, subject, question, requirements_json, and basis_json."
@@ -10497,6 +10501,29 @@ async function progressEffect(input) {
     checkpoints: input.checkpoints + 1
   };
 }
+function nextRequiredJudgmentCategory(state) {
+  if (state.workCase.conclusions.length === 0) return void 0;
+  const categories2 = new Set(
+    state.workCase.conclusions.map((conclusion) => conclusion.category)
+  );
+  if (state.workCase.effects.length > 0) {
+    const settledEffectIds = new Set(
+      state.workCase.currentEffectAssessments.flatMap(
+        (assessment) => "effectSettlementId" in assessment ? [assessment.effectId] : []
+      )
+    );
+    if (state.workCase.effects.every(
+      (effect) => settledEffectIds.has(effect.effectId)
+    ) && !categories2.has("Claim Assurance")) {
+      return "Claim Assurance";
+    }
+    return void 0;
+  }
+  if (!categories2.has("Proportionate Intervention") && !categories2.has("Claim Assurance")) {
+    return "Proportionate Intervention";
+  }
+  return void 0;
+}
 async function progressAction(input) {
   const { workCase } = input.state;
   const pendingClearance = workCase.actionClearances.find(
@@ -10545,6 +10572,20 @@ async function progressAction(input) {
       maxSteps: input.maxSteps,
       steps: progressed.steps,
       checkpoints: progressed.checkpoints
+    });
+  }
+  const categories2 = new Set(
+    workCase.conclusions.map((conclusion) => conclusion.category)
+  );
+  if (input.complete && categories2.has("Claim Assurance") && !categories2.has("Proportionate Intervention")) {
+    return progressCompletion({
+      request: input.request,
+      state: input.state,
+      runner: input.runner,
+      checkpoint: input.checkpoint,
+      maxSteps: input.maxSteps,
+      steps: input.steps,
+      checkpoints: input.checkpoints
     });
   }
   if (!input.actions || !input.authorizeAction) {
@@ -10757,7 +10798,8 @@ async function progressActionLoopWithSdk(input) {
     state = emptyProgressState(opened);
     checkpoints += 1;
   }
-  if (state.workCase.openJudgments.length === 0 && state.workCase.conclusions.length > 0) {
+  const requiredCategory = nextRequiredJudgmentCategory(state);
+  if (state.workCase.openJudgments.length === 0 && state.workCase.conclusions.length > 0 && requiredCategory === void 0) {
     return progressAction({
       request: input.request,
       state,
@@ -10798,6 +10840,7 @@ async function progressActionLoopWithSdk(input) {
       request: input.request,
       workCase: state.workCase,
       contextRevisionId: state.workCase.revisionId,
+      ...requiredCategory ? { requiredCategory } : {},
       runner: input.runner
     });
     steps += 1;
