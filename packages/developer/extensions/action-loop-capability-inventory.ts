@@ -66,7 +66,8 @@ export async function prepareLiveCapabilityInventory(
 			resolve(skill.filePath),
 		);
 		const boundCapability = boundCapabilitiesByPath.get(canonicalPath);
-		if (boundCapability === undefined || ambiguousNames.has(skill.name)) continue;
+		if (boundCapability === undefined || ambiguousNames.has(skill.name))
+			continue;
 		if (admittedPackageSkills.has(skill.name)) {
 			admittedPackageSkills.delete(skill.name);
 			admittedCapabilities.delete(skill.name);

@@ -60,7 +60,9 @@ function liveState() {
 	const work = openLiveWorkCase(undefined, {
 		outcome: {
 			statement: "The current Claim is assessed with admitted evidence.",
-			acceptanceConditions: ["The selected Capability is explicitly applicable."],
+			acceptanceConditions: [
+				"The selected Capability is explicitly applicable.",
+			],
 			constraints: ["Skill names do not derive Contribution Needs."],
 		},
 		basis: ["The delegated Outcome requires one upper Judgment."],
@@ -107,11 +109,8 @@ test("applicable Capability creates one current live assignment", () => {
 	assert.deepEqual(result.state.applicabilityAssessments, [result.assessment]);
 	assert.deepEqual(result.state.capabilityAssignments, [result.assignment]);
 	assert.equal(
-		assignedLiveCapability(
-			result.state,
-			entry,
-			result.need.contributionNeedId,
-		)?.assignmentId,
+		assignedLiveCapability(result.state, entry, result.need.contributionNeedId)
+			?.assignmentId,
 		result.assignment?.assignmentId,
 	);
 

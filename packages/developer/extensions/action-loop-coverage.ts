@@ -56,16 +56,14 @@ export function assessLiveNeedCoverage(
 		return { status: "invalid", message: assessed.error.message };
 	}
 	const existing = state.needCoverages.find(
-		(coverage) =>
-			coverage.contributionNeedId === need.value.contributionNeedId,
+		(coverage) => coverage.contributionNeedId === need.value.contributionNeedId,
 	);
 	if (existing !== undefined) {
 		return existing.coverageId === assessed.value.coverageId
 			? { status: "unchanged", state, coverage: existing }
 			: {
 					status: "invalid",
-					message:
-						"Need already has a different current Coverage assessment",
+					message: "Need already has a different current Coverage assessment",
 				};
 	}
 	const needCoverages = Object.freeze(

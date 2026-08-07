@@ -1059,9 +1059,11 @@ export default async function developer(pi: ExtensionAPI) {
 				contribution_need_id: Type.Optional(
 					Type.String({ minLength: 1, maxLength: 512 }),
 				),
-				status: StringEnum(
-					["applicable", "not-applicable", "needs-context"] as const,
-				),
+				status: StringEnum([
+					"applicable",
+					"not-applicable",
+					"needs-context",
+				] as const),
 				matched_when: Type.Array(
 					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
 					{ maxItems: 32 },
@@ -1092,7 +1094,10 @@ export default async function developer(pi: ExtensionAPI) {
 					`No active Action Loop Work Case. Open one with ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} first.`,
 				);
 			}
-			if (!liveCapabilityInventory || liveCapabilityInventory.status !== "ready") {
+			if (
+				!liveCapabilityInventory ||
+				liveCapabilityInventory.status !== "ready"
+			) {
 				fail("No current accepted Pi Capability inventory is available.");
 			}
 			const entry =
@@ -1147,9 +1152,11 @@ export default async function developer(pi: ExtensionAPI) {
 					Type.Object(
 						{
 							path: Type.String({ minLength: 1, maxLength: 512 }),
-							status: StringEnum(
-								["selected", "not-needed", "needs-context"] as const,
-							),
+							status: StringEnum([
+								"selected",
+								"not-needed",
+								"needs-context",
+							] as const),
 							basis: Type.Array(
 								Type.String({
 									minLength: 1,
@@ -1176,7 +1183,10 @@ export default async function developer(pi: ExtensionAPI) {
 					`No active Action Loop Work Case. Open one with ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} first.`,
 				);
 			}
-			if (!liveCapabilityInventory || liveCapabilityInventory.status !== "ready") {
+			if (
+				!liveCapabilityInventory ||
+				liveCapabilityInventory.status !== "ready"
+			) {
 				fail("No current accepted Pi Capability inventory is available.");
 			}
 			const entry =
@@ -1347,7 +1357,10 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			if (!liveCapabilityInventory || liveCapabilityInventory.status !== "ready") {
+			if (
+				!liveCapabilityInventory ||
+				liveCapabilityInventory.status !== "ready"
+			) {
 				fail("No current accepted Pi Capability inventory is available.");
 			}
 			const entry =
@@ -1369,10 +1382,7 @@ export default async function developer(pi: ExtensionAPI) {
 			if (accepted.status === "invalid") fail(accepted.message);
 			activeWorkCase = accepted.state;
 			let compatibilityRouteClosed = false;
-			if (
-				state.activeRoute &&
-				state.activeRoute.target === params.capability
-			) {
+			if (state.activeRoute && state.activeRoute.target === params.capability) {
 				const compatibilityJudgment: JudgmentEvent = {
 					protocol: PROTOCOL,
 					kind: "judgment",
@@ -1428,16 +1438,21 @@ export default async function developer(pi: ExtensionAPI) {
 				contribution_need_id: Type.Optional(
 					Type.String({ minLength: 1, maxLength: 512 }),
 				),
-				status: StringEnum(
-					["covered", "partially-covered", "conflicted", "missing"] as const,
-				),
+				status: StringEnum([
+					"covered",
+					"partially-covered",
+					"conflicted",
+					"missing",
+				] as const),
 				dispositions: Type.Array(
 					Type.Object(
 						{
 							contribution_id: Type.String({ minLength: 1, maxLength: 512 }),
-							status: StringEnum(
-								["supports", "limited-support", "not-relied-on"] as const,
-							),
+							status: StringEnum([
+								"supports",
+								"limited-support",
+								"not-relied-on",
+							] as const),
 							basis: Type.Array(
 								Type.String({
 									minLength: 1,
@@ -1540,9 +1555,11 @@ export default async function developer(pi: ExtensionAPI) {
 					Type.Object(
 						{
 							requirement_id: Type.String({ minLength: 1, maxLength: 512 }),
-							status: StringEnum(
-								["satisfied", "not-satisfied", "needs-context"] as const,
-							),
+							status: StringEnum([
+								"satisfied",
+								"not-satisfied",
+								"needs-context",
+							] as const),
 							coverage_ids: Type.Array(
 								Type.String({ minLength: 1, maxLength: 512 }),
 								{ maxItems: 32 },
@@ -2259,7 +2276,9 @@ export default async function developer(pi: ExtensionAPI) {
 							? [
 									`Canonical selected Reference contract: use ${ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL} with sealed_context_id=${sealedSkillContext.sealedContextId} for each selected path: ${sealedSkillContext.selectedPaths.join(" | ")}.`,
 								]
-							: ["Canonical selected Reference contract: no References were selected."]
+							: [
+									"Canonical selected Reference contract: no References were selected.",
+								]
 						: []),
 					...(skill && event.availableReferences.length > 0
 						? [

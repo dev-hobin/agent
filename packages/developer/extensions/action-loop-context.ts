@@ -76,8 +76,7 @@ export async function sealLiveUnstructuredCapability(
 	if (
 		currentAssignment === undefined ||
 		assignment.workCaseId !== state.workCase.workCaseId ||
-		assignment.capabilityRevisionId !==
-			entry.capability.capabilityRevisionId
+		assignment.capabilityRevisionId !== entry.capability.capabilityRevisionId
 	) {
 		return {
 			status: "invalid",
@@ -133,7 +132,8 @@ export function loadLiveSelectedReference(
 	if (context === undefined || "routing" in context) {
 		return {
 			status: "invalid",
-			message: "Selected Reference requires a current structured sealed context",
+			message:
+				"Selected Reference requires a current structured sealed context",
 		};
 	}
 	if (!context.selectedPaths.includes(path)) {
@@ -174,8 +174,7 @@ export async function selectAndSealLiveStructuredCapability(
 	if (
 		currentAssignment === undefined ||
 		assignment.workCaseId !== state.workCase.workCaseId ||
-		assignment.capabilityRevisionId !==
-			entry.capability.capabilityRevisionId
+		assignment.capabilityRevisionId !== entry.capability.capabilityRevisionId
 	) {
 		return {
 			status: "invalid",

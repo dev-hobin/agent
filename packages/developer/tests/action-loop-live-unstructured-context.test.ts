@@ -111,23 +111,17 @@ test("live unstructured sealing acquires exactly one assigned Skill file", async
 			contributed.contribution,
 		]);
 		assert.equal(
-			acceptLiveSkillContribution(
-				contributed.state,
-				current.entry,
-				{
-					localStatus: "resolved",
-					result:
-						"The exact direct method supplies the bounded distinction.",
-					referenceApplications: [],
-					limitations: [],
-					residualNeeds: [],
-					provenance: { kind: "model", source: "test-evaluator" },
-				},
-			).status,
+			acceptLiveSkillContribution(contributed.state, current.entry, {
+				localStatus: "resolved",
+				result: "The exact direct method supplies the bounded distinction.",
+				referenceApplications: [],
+				limitations: [],
+				residualNeeds: [],
+				provenance: { kind: "model", source: "test-evaluator" },
+			}).status,
 			"unchanged",
 		);
 	}
-
 });
 
 test("live unstructured sealing rejects drift and non-current Assignment", async (t) => {

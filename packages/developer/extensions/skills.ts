@@ -358,5 +358,8 @@ export function renderAcquiredSkillMethod(
 }
 
 export async function renderSkillMethod(skill: Skill): Promise<string> {
-	return renderAcquiredSkillMethod(skill, await readFile(skill.filePath, "utf8"));
+	return renderAcquiredSkillMethod(
+		skill,
+		await readFile(skill.filePath, "utf8"),
+	);
 }

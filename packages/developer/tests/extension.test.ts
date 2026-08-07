@@ -43,19 +43,20 @@ const TEST_CAPABILITY_WHEN: Readonly<Record<string, string>> = {
 		"A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged.",
 };
 
-const TEST_CAPABILITY_REFERENCES: Readonly<Record<string, readonly string[]>> = {
-	model: [
-		"references/problem-modeling.md",
-		"references/contract-and-replacement-models.md",
-		"references/relational-constraint-models.md",
-		"references/temporal-behavior-models.md",
-		"references/proof-obligations.md",
-		"references/solver-result-boundaries.md",
-		"references/logic-query-semantics.md",
-		"references/planning-models.md",
-	],
-	verify: ["references/verifier-selection-and-pass-but-wrong.md"],
-};
+const TEST_CAPABILITY_REFERENCES: Readonly<Record<string, readonly string[]>> =
+	{
+		model: [
+			"references/problem-modeling.md",
+			"references/contract-and-replacement-models.md",
+			"references/relational-constraint-models.md",
+			"references/temporal-behavior-models.md",
+			"references/proof-obligations.md",
+			"references/solver-result-boundaries.md",
+			"references/logic-query-semantics.md",
+			"references/planning-models.md",
+		],
+		verify: ["references/verifier-selection-and-pass-but-wrong.md"],
+	};
 
 const TEST_IMPLEMENTATION_CONTRACT = {
 	movement: "Apply one bounded test movement",
@@ -126,13 +127,15 @@ function createHarness() {
 								const pending = Promise.resolve(
 									tool.execute(toolCallId, params, ...rest),
 								);
-								if (capability) capabilityAssessmentPromises.set(capability, pending);
+								if (capability)
+									capabilityAssessmentPromises.set(capability, pending);
 								try {
 									const result = await pending;
 									if (capability) readyCapabilityAssessments.add(capability);
 									return result;
 								} catch (error) {
-									if (capability) capabilityAssessmentPromises.delete(capability);
+									if (capability)
+										capabilityAssessmentPromises.delete(capability);
 									throw error;
 								}
 							},
@@ -150,12 +153,12 @@ function createHarness() {
 										params.target !== "implementation" &&
 										!readyCapabilityAssessments.has(params.target)
 									) {
-										const assessment = tools.get(
-											"developer_assess_capability",
-										);
+										const assessment = tools.get("developer_assess_capability");
 										const declaredWhen = TEST_CAPABILITY_WHEN[params.target];
 										if (assessment) {
-											let pending = capabilityAssessmentPromises.get(params.target);
+											let pending = capabilityAssessmentPromises.get(
+												params.target,
+											);
 											if (!pending) {
 												pending = Promise.resolve(
 													assessment.execute("assess-route-fixture", {
@@ -169,7 +172,10 @@ function createHarness() {
 														missing_context: [],
 													}),
 												);
-												capabilityAssessmentPromises.set(params.target, pending);
+												capabilityAssessmentPromises.set(
+													params.target,
+													pending,
+												);
 											}
 											try {
 												await pending;
@@ -178,31 +184,34 @@ function createHarness() {
 												capabilityAssessmentPromises.delete(params.target);
 												throw error;
 											}
-									}
-								}
-								if (typeof params?.target === "string") {
-									const references = TEST_CAPABILITY_REFERENCES[params.target];
-									if (
-										references &&
-										!readyReferenceSelections.has(params.target)
-									) {
-										const selection = tools.get("developer_select_references");
-										if (selection) {
-											await selection.execute("select-route-references", {
-												capability: params.target,
-												dispositions: references.map((path) => ({
-													path,
-													status: "selected",
-													basis: [
-														"The route fixture explicitly selects this canonical Reference.",
-													],
-												})),
-											});
-											readyReferenceSelections.add(params.target);
 										}
 									}
-								}
-								return tool.execute(
+									if (typeof params?.target === "string") {
+										const references =
+											TEST_CAPABILITY_REFERENCES[params.target];
+										if (
+											references &&
+											!readyReferenceSelections.has(params.target)
+										) {
+											const selection = tools.get(
+												"developer_select_references",
+											);
+											if (selection) {
+												await selection.execute("select-route-references", {
+													capability: params.target,
+													dispositions: references.map((path) => ({
+														path,
+														status: "selected",
+														basis: [
+															"The route fixture explicitly selects this canonical Reference.",
+														],
+													})),
+												});
+												readyReferenceSelections.add(params.target);
+											}
+										}
+									}
+									return tool.execute(
 										toolCallId,
 										params?.target === "implementation"
 											? { ...TEST_IMPLEMENTATION_CONTRACT, ...params }
@@ -1813,7 +1822,10 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 			limitations: ["No unknown external Effect was inferred as successful."],
 			residual_needs: [],
 		});
-	assert.match(resultText(contributed), /Skill Contribution accepted: contribution_/);
+	assert.match(
+		resultText(contributed),
+		/Skill Contribution accepted: contribution_/,
+	);
 	assert.equal(contributed.details.compatibilityRouteClosed, true);
 	const coverage = await harness.tools
 		.get("developer_assess_coverage")
@@ -1839,8 +1851,7 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 			refusal_reasons: [],
 			requirement_dispositions: [
 				{
-					requirement_id:
-						opened.details.judgment.requirements[0].requirementId,
+					requirement_id: opened.details.judgment.requirements[0].requirementId,
 					status: "satisfied",
 					coverage_ids: [coverage.details.coverage.coverageId],
 					basis: ["The only Requirement has complete covered evidence."],
@@ -1858,7 +1869,10 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 			intended_effects: ["The bounded artifact is updated."],
 			required_conclusion_ids: [closed.details.artifact.conclusionId],
 		});
-	assert.match(resultText(action), /Action Candidate accepted: action_candidate_/);
+	assert.match(
+		resultText(action),
+		/Action Candidate accepted: action_candidate_/,
+	);
 	assert.match(resultText(action), /not cleared/);
 	assert.equal(action.details.permission, "not-granted");
 	assert.equal(action.details.actionClearanceId, undefined);
@@ -1868,11 +1882,23 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		systemPrompt: "base",
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
-	assert.match(afterContribution.systemPrompt, /Skill Contribution: contribution_/);
-	assert.match(afterContribution.systemPrompt, /Need Coverage: coverage_.* · covered/);
+	assert.match(
+		afterContribution.systemPrompt,
+		/Skill Contribution: contribution_/,
+	);
+	assert.match(
+		afterContribution.systemPrompt,
+		/Need Coverage: coverage_.* · covered/,
+	);
 	assert.match(afterContribution.systemPrompt, /Open Judgment: none/);
-	assert.match(afterContribution.systemPrompt, /Judgment Conclusion: conclusion_/);
-	assert.match(afterContribution.systemPrompt, /Action Candidate: action_candidate_/);
+	assert.match(
+		afterContribution.systemPrompt,
+		/Judgment Conclusion: conclusion_/,
+	);
+	assert.match(
+		afterContribution.systemPrompt,
+		/Action Candidate: action_candidate_/,
+	);
 	assert.match(afterContribution.systemPrompt, /clearance not implied/);
 });
 

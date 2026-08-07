@@ -17,10 +17,7 @@ type LiveBoundCapability = Pick<BoundPiCapabilityEntry, "capability">;
 
 export type LiveCapabilityApplicabilityProposal = Omit<
 	CapabilityApplicabilityProposal,
-	| "workCaseId"
-	| "judgmentId"
-	| "contributionNeedId"
-	| "capabilityRevisionId"
+	"workCaseId" | "judgmentId" | "contributionNeedId" | "capabilityRevisionId"
 > & {
 	readonly contributionNeedId?: string;
 };
@@ -122,15 +119,16 @@ export function assessLiveCapabilityApplicability(
 		};
 	}
 	const applicabilityAssessments = Object.freeze(
-		[...state.applicabilityAssessments, accepted.assessment].sort((left, right) =>
-			assessmentKey(left).localeCompare(assessmentKey(right)),
+		[...state.applicabilityAssessments, accepted.assessment].sort(
+			(left, right) => assessmentKey(left).localeCompare(assessmentKey(right)),
 		),
 	);
 	const capabilityAssignments =
 		accepted.status === "assigned"
 			? Object.freeze(
 					[...state.capabilityAssignments, accepted.assignment].sort(
-						(left, right) => left.assignmentId.localeCompare(right.assignmentId),
+						(left, right) =>
+							left.assignmentId.localeCompare(right.assignmentId),
 					),
 				)
 			: state.capabilityAssignments;
@@ -158,7 +156,6 @@ export function assignedLiveCapability(
 	return state.capabilityAssignments.find(
 		(assignment) =>
 			assignment.contributionNeedId === contributionNeedId &&
-			assignment.capabilityRevisionId ===
-				entry.capability.capabilityRevisionId,
+			assignment.capabilityRevisionId === entry.capability.capabilityRevisionId,
 	);
 }

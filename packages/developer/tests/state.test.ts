@@ -121,7 +121,10 @@ test("replays the exact Need and Capability assignment bound to a live route", (
 		replayed.activeRoute?.capabilityAssignmentId,
 		capabilityAssignmentId,
 	);
-	assert.equal(replayed.activeRoute?.capabilityRevisionId, capabilityRevisionId);
+	assert.equal(
+		replayed.activeRoute?.capabilityRevisionId,
+		capabilityRevisionId,
+	);
 	assert.equal(
 		replayed.activeRoute?.referenceSelectionId,
 		referenceSelectionId,

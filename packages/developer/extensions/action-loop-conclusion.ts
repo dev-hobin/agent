@@ -37,7 +37,9 @@ export function closeLiveJudgment(
 		return { status: "invalid", message: "No current open Judgment" };
 	}
 	const needIds = new Set(
-		judgment.contributionNeeds.map(({ contributionNeedId }) => contributionNeedId),
+		judgment.contributionNeeds.map(
+			({ contributionNeedId }) => contributionNeedId,
+		),
 	);
 	const coverages = state.needCoverages.filter((coverage) =>
 		needIds.has(coverage.contributionNeedId),

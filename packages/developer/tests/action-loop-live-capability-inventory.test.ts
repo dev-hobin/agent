@@ -92,7 +92,10 @@ test("live inventory admits only bound Pi-loaded package Skills", async (t) => {
 		liveCapabilityInventoryPrompt(result),
 		/^Action Loop capability inventory: 1 bound \(1 unavailable, 0 excluded\)\./,
 	);
-	assert.match(liveCapabilityInventoryPrompt(result), /Capability ready · caprev_/);
+	assert.match(
+		liveCapabilityInventoryPrompt(result),
+		/Capability ready · caprev_/,
+	);
 	assert.match(
 		liveCapabilityInventoryPrompt(result),
 		/unstructured[\s\S]*matched_when and matched_unless must be empty/,
