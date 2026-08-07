@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -28,6 +28,12 @@ const packageUnderTest = process.env.DEVELOPER_EVAL_PACKAGE_PATH || root;
 const extension = join(packageUnderTest, "extensions", "developer.ts");
 const observerExtension = join(root, "scripts", "eval-observer.ts");
 const skills = join(packageUnderTest, "skills");
+const loadedSkillsPath = process.env.DEVELOPER_EVAL_SKILL_PATH
+	? resolve(process.env.DEVELOPER_EVAL_SKILL_PATH)
+	: skills;
+const expectedSkillCount = Number(
+	process.env.DEVELOPER_EVAL_EXPECTED_SKILL_COUNT || 11,
+);
 const piBin = process.env.PI_BIN || "pi";
 const piVersionResult = spawnSync(piBin, ["--version"], {
 	encoding: "utf8",
@@ -103,7 +109,7 @@ const resourceArgs = loadAsPackage
 			"--extension",
 			observerExtension,
 			"--skill",
-			skills,
+			loadedSkillsPath,
 		];
 const child = spawn(
 	piBin,
@@ -273,19 +279,21 @@ try {
 	const packageSkills = allLoadedSkills.filter((entry) =>
 		String(entry.sourceInfo?.path ?? "").startsWith(skills),
 	);
-	assert.equal(packageSkills.length, 11);
-	assert.equal(
-		packageSkills.some((entry) => entry.name === "skill:doctor"),
-		true,
-	);
+	assert.equal(packageSkills.length, expectedSkillCount);
+	if (loadedSkillsPath === skills) {
+		assert.equal(
+			packageSkills.some((entry) => entry.name === "skill:doctor"),
+			true,
+		);
+	}
 	assert.equal(
 		packageSkills.some((entry) => entry.name === "developer"),
 		false,
 	);
 	for (const entry of packageSkills) {
 		assert.ok(
-			String(entry.sourceInfo.path).startsWith(skills),
-			"Package skill provenance escaped @hobin/developer: " +
+			String(entry.sourceInfo.path).startsWith(loadedSkillsPath),
+			"Package skill provenance escaped the exact admitted Skill path: " +
 				entry.sourceInfo.path,
 		);
 	}

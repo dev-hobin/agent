@@ -78,7 +78,9 @@ if (piVersionResult.status !== 0) {
 }
 const piVersion = piVersionResult.stdout.trim();
 const extension = resolve(packageRoot, "extensions", "developer.ts");
-const skills = resolve(packageRoot, "skills");
+const skills = process.env.DEVELOPER_EVAL_SKILL_PATH
+	? resolve(process.env.DEVELOPER_EVAL_SKILL_PATH)
+	: resolve(packageRoot, "skills");
 const observer = resolve(
 	import.meta.dirname,
 	"eval-observer.ts",
@@ -399,6 +401,7 @@ try {
 		sourceSessionFile: sessionFile,
 		sessionFile: activeSessionFile,
 		workspace,
+		skills,
 		sessionOperation,
 		...(forkedFromEntryId ? { forkedFromEntryId } : {}),
 		...(compaction ? { compaction } : {}),
