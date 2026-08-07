@@ -17,6 +17,8 @@ import {
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
 export const ACTION_LOOP_SELECT_REFERENCES_TOOL = "developer_select_references";
+export const ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL =
+	"developer_load_selected_reference";
 
 interface LiveUnstructuredCapability {
 	readonly candidate: Pick<
@@ -33,6 +35,17 @@ interface LiveStructuredCapability {
 	>;
 	readonly capability: BoundStructuredPiCapabilityEntry["capability"];
 }
+
+export type LiveSelectedReferenceResult =
+	| {
+			readonly status: "loaded";
+			readonly sealedContextId: string;
+			readonly path: string;
+			readonly content: string;
+			readonly hash: string;
+			readonly byteLength: number;
+	  }
+	| { readonly status: "invalid"; readonly message: string };
 
 export type LiveStructuredContextResult =
 	| {
@@ -105,6 +118,46 @@ export async function sealLiveUnstructuredCapability(
 		status: "sealed",
 		state: Object.freeze({ ...state, sealedSkillContexts }),
 		context: sealed.value,
+	};
+}
+
+/** Returns one exact already-sealed selected Reference without filesystem reacquisition. */
+export function loadLiveSelectedReference(
+	state: LiveWorkCaseState,
+	sealedContextId: string,
+	path: string,
+): LiveSelectedReferenceResult {
+	const context = state.sealedSkillContexts.find(
+		(candidate) => candidate.sealedContextId === sealedContextId,
+	);
+	if (context === undefined || "routing" in context) {
+		return {
+			status: "invalid",
+			message: "Selected Reference requires a current structured sealed context",
+		};
+	}
+	if (!context.selectedPaths.includes(path)) {
+		return {
+			status: "invalid",
+			message: `Reference is not selected by this sealed context: ${path}`,
+		};
+	}
+	const material = context.materials.find(
+		(candidate) => candidate.kind === "reference" && candidate.path === path,
+	);
+	if (material === undefined) {
+		return {
+			status: "invalid",
+			message: `Selected Reference material is unavailable: ${path}`,
+		};
+	}
+	return {
+		status: "loaded",
+		sealedContextId: context.sealedContextId,
+		path: material.path,
+		content: material.content,
+		hash: material.hash,
+		byteLength: material.byteLength,
 	};
 }
 

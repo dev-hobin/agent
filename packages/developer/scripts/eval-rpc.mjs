@@ -322,6 +322,7 @@ try {
 		"developer_open_judgment",
 		"developer_assess_capability",
 		"developer_select_references",
+		"developer_load_selected_reference",
 		"developer_route_question",
 		"developer_load_reference",
 		"developer_record_judgment",

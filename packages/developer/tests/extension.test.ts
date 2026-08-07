@@ -192,9 +192,9 @@ function createHarness() {
 												capability: params.target,
 												dispositions: references.map((path) => ({
 													path,
-													status: "not-needed",
+													status: "selected",
 													basis: [
-														"The route fixture does not exercise this canonical Reference.",
+														"The route fixture explicitly selects this canonical Reference.",
 													],
 												})),
 											});
@@ -1738,15 +1738,24 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 			dispositions: [
 				{
 					path: "references/verifier-selection-and-pass-but-wrong.md",
-					status: "not-needed",
+					status: "selected",
 					basis: [
-						"The route fixture does not exercise this canonical Reference.",
+						"The route fixture explicitly selects this canonical Reference.",
 					],
 				},
 			],
 		});
 	assert.match(resultText(selected), /Reference selection sealed: selection_/);
 	assert.match(resultText(selected), /sealed_/);
+	const loadedReference = await harness.tools
+		.get("developer_load_selected_reference")
+		.execute("load-live-verify-reference", {
+			sealed_context_id: selected.details.sealedContextId,
+			path: "references/verifier-selection-and-pass-but-wrong.md",
+		});
+	assert.match(resultText(loadedReference), /Selected Reference:/);
+	assert.match(resultText(loadedReference), /SHA-256: sha256_[a-f0-9]{64}/);
+	assert.match(resultText(loadedReference), /Pass-But-Wrong/);
 	const afterAssessment = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",

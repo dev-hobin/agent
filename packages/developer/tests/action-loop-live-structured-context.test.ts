@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { assessLiveCapabilityApplicability } from "../extensions/action-loop-applicability.ts";
-import { selectAndSealLiveStructuredCapability } from "../extensions/action-loop-context.ts";
+import {
+	loadLiveSelectedReference,
+	selectAndSealLiveStructuredCapability,
+} from "../extensions/action-loop-context.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
 import { bindCapability } from "../src/action-loop/routing/bind-capability.ts";
@@ -124,6 +127,24 @@ test("ready structured selection seals Skill and selected References atomically"
 	assert.deepEqual(result.state.referenceSelections.map(({ status }) => status), [
 		"ready",
 	]);
+	const loaded = loadLiveSelectedReference(
+		result.state,
+		result.context.sealedContextId,
+		relevantPath,
+	);
+	assert.equal(loaded.status, "loaded");
+	if (loaded.status === "loaded") {
+		assert.equal(loaded.content, "Relevant verifier rule.\n");
+		assert.match(loaded.hash, /^sha256_[a-f0-9]{64}$/);
+	}
+	assert.equal(
+		loadLiveSelectedReference(
+			result.state,
+			result.context.sealedContextId,
+			unnecessaryPath,
+		).status,
+		"invalid",
+	);
 	const repeated = await selectAndSealLiveStructuredCapability(
 		result.state,
 		current.entry,

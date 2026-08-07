@@ -29,7 +29,9 @@ import {
 	assignedLiveCapability,
 } from "./action-loop-applicability.ts";
 import {
+	ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
 	ACTION_LOOP_SELECT_REFERENCES_TOOL,
+	loadLiveSelectedReference,
 	sealLiveUnstructuredCapability,
 	selectAndSealLiveStructuredCapability,
 } from "./action-loop-context.ts";
@@ -131,6 +133,7 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
 	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
 	ACTION_LOOP_SELECT_REFERENCES_TOOL,
+	ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
 	ROUTE_TOOL,
 	REFERENCE_TOOL,
 	JUDGMENT_TOOL,
@@ -1207,6 +1210,57 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
+	pi.registerTool({
+		name: ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
+		label: "Developer Load Selected Reference",
+		description:
+			"Load one exact Reference already selected and sealed for the current structured Skill context. No filesystem reacquisition occurs.",
+		promptSnippet: "Load one sealed selected Reference",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL} only with an exact sealed Context ID and selected path returned by ${ACTION_LOOP_SELECT_REFERENCES_TOOL}.`,
+			"Do not use ordinary reads or the preserved legacy Reference loader as evidence for a canonical structured Contribution.",
+		],
+		parameters: Type.Object(
+			{
+				sealed_context_id: Type.String({ minLength: 1, maxLength: 512 }),
+				path: Type.String({ minLength: 1, maxLength: 512 }),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) {
+				fail("No active Action Loop Work Case.");
+			}
+			const loaded = loadLiveSelectedReference(
+				activeWorkCase,
+				params.sealed_context_id,
+				params.path,
+			);
+			if (loaded.status === "invalid") fail(loaded.message);
+			const response = [
+				`Selected Reference: ${loaded.path}`,
+				`Sealed Context: ${loaded.sealedContextId}`,
+				`SHA-256: ${loaded.hash}`,
+				"",
+				loaded.content,
+			].join("\n");
+			ensureSafeToolText(response, "Developer selected Reference result");
+			return textResult(response, {
+				protocol: "developer-action-loop/v1",
+				kind: "selected-reference",
+				sealedContextId: loaded.sealedContextId,
+				path: loaded.path,
+				hash: loaded.hash,
+				byteLength: loaded.byteLength,
+			});
+		},
+	});
+
 	const SharedRouteParams = {
 		contribution_need_id: Type.Optional(
 			Type.String({
@@ -1784,6 +1838,13 @@ export default async function developer(pi: ExtensionAPI) {
 						event.referenceExemptionCriteria,
 					),
 					`Reference policy SHA-256: ${event.referencePolicySha256 ?? "none"}`,
+					...(sealedSkillContext && !("routing" in sealedSkillContext)
+						? sealedSkillContext.selectedPaths.length > 0
+							? [
+									`Canonical selected Reference contract: use ${ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL} with sealed_context_id=${sealedSkillContext.sealedContextId} for each selected path: ${sealedSkillContext.selectedPaths.join(" | ")}.`,
+								]
+							: ["Canonical selected Reference contract: no References were selected."]
+						: []),
 					...(skill && event.availableReferences.length > 0
 						? [
 								`Reference contract: choose policy routes by observable trigger, use ${REFERENCE_TOOL} for every reference in each selected route's co-required set, and provide reference_basis for every loaded path; use reference_exemption only when no policy route applies.`,
