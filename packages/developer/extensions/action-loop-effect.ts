@@ -7,6 +7,7 @@ import {
 	acceptEffectObservation,
 	type EffectObservation,
 } from "../src/action-loop/effect/effect-observation.ts";
+import { acceptEffectRemediation } from "../src/action-loop/effect/accept-effect-remediation.ts";
 import {
 	settleEffect,
 	type EffectSettlementProposal,
@@ -17,11 +18,14 @@ import {
 	effectAssessmentId,
 	recordWorkCaseEffectAssessment,
 } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
+import { recordWorkCaseEffectRemediation } from "../src/action-loop/work/record-work-case-effect-remediation.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
 import { fingerprintPiToolResult } from "./action-loop-pi-action.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
 export const ACTION_LOOP_SETTLE_EFFECT_TOOL = "developer_settle_effect";
+export const ACTION_LOOP_RECORD_REMEDIATION_TOOL =
+	"developer_record_effect_remediation";
 
 export type LiveEffectBeginningResult =
 	| {
@@ -55,6 +59,14 @@ export type LiveEffectSettlementResult =
 			readonly status: "settled" | "unsettled" | "unchanged";
 			readonly state: LiveWorkCaseState;
 			readonly assessment: EffectSettlement | UnsettledEffectAssessment;
+	  }
+	| { readonly status: "invalid"; readonly message: string };
+
+export type LiveEffectRemediationResult =
+	| {
+			readonly status: "recorded" | "unchanged";
+			readonly state: LiveWorkCaseState;
+			readonly remediationId: string;
 	  }
 	| { readonly status: "invalid"; readonly message: string };
 
@@ -223,6 +235,59 @@ export function settleLiveEffect(
 			recorded.status === "unchanged" && current !== undefined
 				? current
 				: settled.value,
+	};
+}
+
+/** Binds a current adverse settlement to a distinct current successful repair. */
+export function recordLiveEffectRemediation(
+	state: LiveWorkCaseState,
+	adverseEffectId: string,
+	remediationEffectId: string,
+	basis: readonly string[],
+): LiveEffectRemediationResult {
+	const adverse = state.workCase.currentEffectAssessments.find(
+		(assessment) => assessment.effectId === adverseEffectId,
+	);
+	const remediation = state.workCase.currentEffectAssessments.find(
+		(assessment) => assessment.effectId === remediationEffectId,
+	);
+	if (
+		adverse === undefined ||
+		remediation === undefined ||
+		!("effectSettlementId" in adverse) ||
+		!("effectSettlementId" in remediation)
+	) {
+		return {
+			status: "invalid",
+			message: "Effect remediation requires two current settled Effect assessments",
+		};
+	}
+	const accepted = acceptEffectRemediation(adverse, remediation, {
+		workCaseId: state.workCase.workCaseId,
+		adverseEffectId,
+		adverseEffectSettlementId: adverse.effectSettlementId,
+		remediationEffectId,
+		remediationEffectSettlementId: remediation.effectSettlementId,
+		basis,
+		provenance: { kind: "model", source: "pi:tool-call" },
+	});
+	if (accepted.status === "invalid") {
+		return { status: "invalid", message: accepted.error.message };
+	}
+	const recorded = recordWorkCaseEffectRemediation(
+		state.workCase,
+		accepted.value,
+	);
+	if (recorded.status === "invalid") {
+		return { status: "invalid", message: recorded.error.message };
+	}
+	return {
+		status: recorded.status,
+		state:
+			recorded.status === "recorded"
+				? Object.freeze({ ...state, workCase: recorded.value })
+				: state,
+		remediationId: accepted.value.effectRemediationId,
 	};
 }
 
