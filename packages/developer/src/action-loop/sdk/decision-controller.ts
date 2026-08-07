@@ -254,9 +254,7 @@ async function createDecisionSession(
 		cwd: options.cwd,
 		model: options.model,
 		thinkingLevel: options.thinkingLevel ?? "medium",
-		...(options.modelRuntime
-			? { modelRuntime: options.modelRuntime }
-			: {}),
+		...(options.modelRuntime ? { modelRuntime: options.modelRuntime } : {}),
 		resourceLoader: fullControlLoader(options.bindings, request.systemPrompt),
 		customTools: [tool],
 		tools: [tool.name],

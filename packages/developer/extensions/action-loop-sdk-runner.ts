@@ -58,9 +58,7 @@ export function createPiExtensionSdkRunner(
 				SessionManager,
 				SettingsManager,
 			},
-			...(options.modelRuntime
-				? { modelRuntime: options.modelRuntime }
-				: {}),
+			...(options.modelRuntime ? { modelRuntime: options.modelRuntime } : {}),
 			model: ctx.model,
 			cwd: ctx.cwd,
 			maxRuns: options.maxRuns ?? DEFAULT_MAX_RUNS,

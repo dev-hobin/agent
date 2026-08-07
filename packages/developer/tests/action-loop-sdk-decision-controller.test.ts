@@ -201,8 +201,8 @@ test("Pi SDK decision aborts an in-flight nested session without retry", async (
 			return {
 				session: {
 					subscribe() {
-					return () => {};
-				},
+						return () => {};
+					},
 					async prompt() {
 						resolvePromptStarted?.();
 						await new Promise<void>((resolve) => {
@@ -268,8 +268,8 @@ test("Pi SDK decision observes host abort during nested session creation", async
 			return {
 				session: {
 					subscribe() {
-					return () => {};
-				},
+						return () => {};
+					},
 					async prompt() {
 						promptCalls += 1;
 					},
