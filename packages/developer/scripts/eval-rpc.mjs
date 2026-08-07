@@ -339,8 +339,8 @@ try {
 			),
 		"Expected /developer on to publish branch-visible status",
 	);
-	console.log(
-		`RPC smoke: command, skills, and activation state are available on Pi ${piVersion} with ${selectedModel}`,
+	process.stdout.write(
+		`RPC smoke: command, skills, and activation state are available on Pi ${piVersion} with ${selectedModel}\n`,
 	);
 
 	const enabledStatusStart = events.length;
@@ -372,8 +372,8 @@ try {
 		);
 	assert.ok(disabledStatus, "Expected canonical disabled status output");
 	await command("/developer on");
-	console.log(
-		`RPC smoke: canonical Action-Clearance tool gating is available on Pi ${piVersion} with ${selectedModel}`,
+	process.stdout.write(
+		`RPC smoke: canonical Action-Clearance tool gating is available on Pi ${piVersion} with ${selectedModel}\n`,
 	);
 
 	if (live) {
@@ -451,7 +451,7 @@ try {
 					);
 					await writeFile(tracePath, JSON.stringify(executionTrace, null, 2));
 				}
-				console.log(
+				process.stdout.write(
 					"DEVELOPER_EVAL_RESULT " +
 						JSON.stringify({
 							fixtureId: fixture.id,
@@ -468,10 +468,11 @@ try {
 								: {}),
 							...(tracePath ? { tracePath } : {}),
 							...traceSummary,
-						}),
+						}) +
+						"\n",
 				);
-				console.log(
-					`Live eval observed: ${fixture.id} (${trialOutcome}; ${outcome})`,
+				process.stdout.write(
+					`Live eval observed: ${fixture.id} (${trialOutcome}; ${outcome})\n`,
 				);
 			} catch (error) {
 				try {
