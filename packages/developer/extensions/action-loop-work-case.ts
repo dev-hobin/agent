@@ -4,6 +4,7 @@ import type {
 	AcceptedApplicabilityAssessment,
 	CapabilityAssignment,
 } from "../src/action-loop/routing/accept-applicability.ts";
+import type { BoundReferenceSelection } from "../src/action-loop/routing/bind-reference-selection.ts";
 import {
 	openWorkCase,
 	type ActiveWorkCase,
@@ -27,6 +28,7 @@ export interface LiveWorkCaseState {
 	readonly openingBasis: readonly string[];
 	readonly applicabilityAssessments: readonly AcceptedApplicabilityAssessment[];
 	readonly capabilityAssignments: readonly CapabilityAssignment[];
+	readonly referenceSelections: readonly BoundReferenceSelection[];
 	readonly sealedSkillContexts: readonly SkillContributionContext[];
 }
 
@@ -140,6 +142,7 @@ export function openLiveWorkCase(
 			openingBasis: basis,
 			applicabilityAssessments: Object.freeze([]),
 			capabilityAssignments: Object.freeze([]),
+			referenceSelections: Object.freeze([]),
 			sealedSkillContexts: Object.freeze([]),
 		}),
 	};
@@ -175,6 +178,13 @@ export function liveWorkCasePrompt(
 					(assignment) =>
 						`Capability assignment: ${assignment.assignmentId} · ${assignment.capabilityRevisionId} → ${assignment.contributionNeedId}`,
 				);
+	const selectionLines =
+		state.referenceSelections.length === 0
+			? ["Reference selections: none"]
+			: state.referenceSelections.map(
+					(selection) =>
+						`Reference selection: ${selection.selectionId} · ${selection.status} · selected=${selection.selectedPaths.join(", ") || "none"}`,
+				);
 	const contextLines =
 		state.sealedSkillContexts.length === 0
 			? ["Sealed Skill contexts: none"]
@@ -193,6 +203,7 @@ export function liveWorkCasePrompt(
 		...judgmentLines,
 		...applicabilityLines,
 		...assignmentLines,
+		...selectionLines,
 		...contextLines,
 		"This process-local projection preserves active Outcome continuity but does not imply Action Clearance or completion.",
 	].join("\n");
