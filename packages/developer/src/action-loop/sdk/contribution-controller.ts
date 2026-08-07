@@ -66,9 +66,7 @@ function rejected(code: string, message: string): SdkProposalAdmission<never> {
 	return { status: "rejected", code, message };
 }
 
-function contributionParameters(
-	context: SkillContributionContext,
-): TSchema {
+function contributionParameters(context: SkillContributionContext): TSchema {
 	const fields: Record<string, TSchema> = {
 		local_status: StringEnum(localStatuses),
 		result: Type.String({ minLength: 1, maxLength: 12_000 }),
@@ -139,7 +137,10 @@ function decodeReferenceApplications(
 	raw: Record<string, unknown>,
 	context: SkillContributionContext,
 ):
-	| { readonly ok: true; readonly value: readonly ReferenceApplicationProposal[] }
+	| {
+			readonly ok: true;
+			readonly value: readonly ReferenceApplicationProposal[];
+	  }
 	| { readonly ok: false; readonly message: string } {
 	const applications: ReferenceApplicationProposal[] = [];
 	for (const [index, path] of context.selectedPaths.entries()) {

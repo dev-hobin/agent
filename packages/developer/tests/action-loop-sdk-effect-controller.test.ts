@@ -53,8 +53,7 @@ test("SDK Effect settlement rejects implicit success and accepts complete accoun
 					{
 						outcome: "observed-success",
 						observation_status_0: "relied-on",
-						observation_basis_0:
-							"The tool return is current exact evidence.",
+						observation_basis_0: "The tool return is current exact evidence.",
 						intended_status_0: "unknown",
 						intended_basis_0:
 							"Filesystem state has not yet been distinguished.",

@@ -289,11 +289,9 @@ test("SDK Coverage can canonically report a missing Need with no Contributions",
 						outcome: "refuse",
 						refusal_reasons_json:
 							'["No current Contribution supports the required retry behavior."]',
-						basis_json:
-							'["Current Need Coverage is explicitly missing."]',
+						basis_json: '["Current Need Coverage is explicitly missing."]',
 						requirement_status_0: "not-satisfied",
-						requirement_basis_0:
-							"The mapped Need has missing Coverage.",
+						requirement_basis_0: "The mapped Need has missing Coverage.",
 					},
 				],
 			},

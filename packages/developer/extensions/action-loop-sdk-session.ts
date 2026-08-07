@@ -69,9 +69,7 @@ export function sdkActionClearedEvent(input: {
 			toolInput: { ...input.action.toolInput },
 			summary: input.action.candidate.summary,
 			intendedEffects: [...input.action.candidate.intendedEffects],
-			requiredConclusionIds: [
-				...input.action.candidate.requiredConclusionIds,
-			],
+			requiredConclusionIds: [...input.action.candidate.requiredConclusionIds],
 		},
 		input.action.candidate.actionCandidateId,
 		input.clearance.clearance.actionClearanceId,
@@ -119,8 +117,7 @@ export function sdkEffectSettledEvent(input: {
 			basis: [...assessment.basis],
 			...(input.expectedCurrentAssessmentId
 				? {
-						expectedCurrentAssessmentId:
-							input.expectedCurrentAssessmentId,
+						expectedCurrentAssessmentId: input.expectedCurrentAssessmentId,
 					}
 				: {}),
 		},
@@ -211,7 +208,10 @@ export function sdkJudgmentOpenedEvent(
 }
 
 export function sdkCapabilityInventoryAssessedEvent(
-	result: Extract<SdkCapabilityInventoryResult, { readonly status: "assessed" }>,
+	result: Extract<
+		SdkCapabilityInventoryResult,
+		{ readonly status: "assessed" }
+	>,
 ): ActionLoopCapabilityInventoryAssessedEvent {
 	const contributionNeedIds = new Set(
 		result.dispositions.map(
@@ -231,8 +231,7 @@ export function sdkCapabilityInventoryAssessedEvent(
 		contributionNeedId,
 		assessments: result.dispositions.map((disposition) => ({
 			skillName: disposition.name,
-			capabilityRevisionId:
-				disposition.assessment.capabilityRevisionId,
+			capabilityRevisionId: disposition.assessment.capabilityRevisionId,
 			proposal: {
 				contributionNeedId,
 				status: disposition.assessment.status,

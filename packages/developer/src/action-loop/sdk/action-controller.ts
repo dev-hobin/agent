@@ -115,7 +115,8 @@ function actionParameters(input: SdkActionCandidateInput): TSchema {
 		tool_input_json: Type.String({
 			minLength: 2,
 			maxLength: 32_768,
-			description: "Exact JSON object to pass to the selected controlled host tool.",
+			description:
+				"Exact JSON object to pass to the selected controlled host tool.",
 		}),
 		summary: Type.String({ minLength: 1, maxLength: 2_048 }),
 		intended_effects_json: Type.String({
@@ -145,7 +146,9 @@ function selectedConclusionIds(
 	);
 }
 
-function actionTool(input: SdkActionCandidateInput): SdkProposalTool<ActionDecision> {
+function actionTool(
+	input: SdkActionCandidateInput,
+): SdkProposalTool<ActionDecision> {
 	const actionsByName = new Map(
 		input.actions.map((action) => [action.name, action]),
 	);
@@ -229,7 +232,8 @@ function actionTool(input: SdkActionCandidateInput): SdkProposalTool<ActionDecis
 					canonicalInput: bound.value.canonicalInput,
 					candidate: accepted.value,
 				},
-				message: "Exact controlled Action Candidate accepted without permission.",
+				message:
+					"Exact controlled Action Candidate accepted without permission.",
 				resultStatus: "candidate",
 			};
 		},

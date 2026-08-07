@@ -81,7 +81,8 @@ function completionParameters(target: SealedClosureTarget): TSchema {
 		basis_json: Type.String({
 			minLength: 2,
 			maxLength: 32_768,
-			description: "JSON array of one or more whole-Work-Case closure basis strings.",
+			description:
+				"JSON array of one or more whole-Work-Case closure basis strings.",
 		}),
 	};
 	for (const [index, obligation] of target.obligations.entries()) {
@@ -99,7 +100,8 @@ function completionParameters(target: SealedClosureTarget): TSchema {
 		fields[`obligation_${index}_remediation_indices_json`] = Type.String({
 			minLength: 2,
 			maxLength: 32_768,
-			description: "JSON array of current Effect remediation indices applied here.",
+			description:
+				"JSON array of current Effect remediation indices applied here.",
 		});
 		fields[`obligation_${index}_basis`] = Type.String({
 			minLength: 1,

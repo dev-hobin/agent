@@ -1759,7 +1759,9 @@ export default async function developer(pi: ExtensionAPI) {
 							"unknown",
 						] as const)
 					) {
-						fail("Intended Effect status is outside the closed settlement domain.");
+						fail(
+							"Intended Effect status is outside the closed settlement domain.",
+						);
 					}
 					return {
 						intendedEffect: disposition.intended_effect,

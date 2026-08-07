@@ -96,10 +96,9 @@ function conclusionParameters(
 		}),
 	};
 	for (const [index, requirement] of requirements.entries()) {
-		fields[`requirement_status_${index}`] = StringEnum(
-			requirementStatuses,
-			{ description: requirement.statement },
-		);
+		fields[`requirement_status_${index}`] = StringEnum(requirementStatuses, {
+			description: requirement.statement,
+		});
 		fields[`requirement_basis_${index}`] = Type.String({
 			minLength: 1,
 			maxLength: 2_048,
@@ -116,9 +115,7 @@ function mappedCoverageIds(
 	return Object.freeze(
 		coverages
 			.flatMap((coverage) =>
-				needIds.has(coverage.contributionNeedId)
-					? [coverage.coverageId]
-					: [],
+				needIds.has(coverage.contributionNeedId) ? [coverage.coverageId] : [],
 			)
 			.sort((left, right) => left.localeCompare(right)),
 	);

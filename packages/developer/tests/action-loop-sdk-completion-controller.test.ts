@@ -47,7 +47,8 @@ function activeWorkCaseWithClaimAssurance() {
 test("SDK Completion accounts for all current evidence and revalidates the revision", async () => {
 	const workCase = activeWorkCaseWithClaimAssurance();
 	const result = await completeWorkCaseWithSdk({
-		request: "Complete the bounded configuration work only when fully supported.",
+		request:
+			"Complete the bounded configuration work only when fully supported.",
 		workCase,
 		runner: scriptedSdkRunner([
 			{

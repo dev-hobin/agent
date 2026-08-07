@@ -98,12 +98,9 @@ function coverageParameters(
 		}),
 	};
 	for (const [index, contribution] of contributions.entries()) {
-		fields[`disposition_status_${index}`] = StringEnum(
-			dispositionStatuses,
-			{
-				description: `Disposition for Contribution ${index} (${contribution.localStatus}).`,
-			},
-		);
+		fields[`disposition_status_${index}`] = StringEnum(dispositionStatuses, {
+			description: `Disposition for Contribution ${index} (${contribution.localStatus}).`,
+		});
 		fields[`disposition_basis_${index}`] = Type.String({
 			minLength: 1,
 			maxLength: 2_048,

@@ -115,7 +115,10 @@ function effectParameters(input: SdkEffectSettlementInput): TSchema {
 			maxLength: 2_048,
 		});
 	}
-	for (const [effectIndex, intendedEffect] of input.effect.intendedEffects.entries()) {
+	for (const [
+		effectIndex,
+		intendedEffect,
+	] of input.effect.intendedEffects.entries()) {
 		fields[`intended_status_${effectIndex}`] = StringEnum(intendedStatuses, {
 			description: intendedEffect,
 		});
@@ -192,7 +195,10 @@ function decodeIntendedDispositions(input: {
 	  }
 	| { readonly ok: false; readonly message: string } {
 	const dispositions: IntendedEffectDispositionProposal[] = [];
-	for (const [index, intendedEffect] of input.effect.intendedEffects.entries()) {
+	for (const [
+		index,
+		intendedEffect,
+	] of input.effect.intendedEffects.entries()) {
 		const status = input.raw[`intended_status_${index}`];
 		const basis = input.raw[`intended_basis_${index}`];
 		if (
@@ -276,7 +282,9 @@ function canonicalProposal(input: {
 	};
 }
 
-function effectTool(input: SdkEffectSettlementInput): SdkProposalTool<EffectDecision> {
+function effectTool(
+	input: SdkEffectSettlementInput,
+): SdkProposalTool<EffectDecision> {
 	return {
 		name: "submit_effect_settlement",
 		label: "Submit complete current Effect accounting",
@@ -404,7 +412,8 @@ export async function settleEffectWithSdk(
 		return {
 			status: "invariant-failure",
 			code: "effect-assessment-identity-drift",
-			message: "Accepted unsettled Effect assessment did not reproduce its identity.",
+			message:
+				"Accepted unsettled Effect assessment did not reproduce its identity.",
 			decision: decision.metrics,
 		};
 	}

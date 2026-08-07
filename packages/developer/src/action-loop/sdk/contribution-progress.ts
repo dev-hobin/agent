@@ -94,10 +94,10 @@ export function inspectContributionProgress(
 	);
 	const pendingContexts = Object.freeze(
 		input.contexts
-			.filter(
-				(context) => !contributionsByAssignment.has(context.assignmentId),
-			)
-			.sort((left, right) => left.assignmentId.localeCompare(right.assignmentId)),
+			.filter((context) => !contributionsByAssignment.has(context.assignmentId))
+			.sort((left, right) =>
+				left.assignmentId.localeCompare(right.assignmentId),
+			),
 	);
 	if (pendingContexts.length > 0) {
 		return { status: "pending", pendingContexts, completedContributionIds };

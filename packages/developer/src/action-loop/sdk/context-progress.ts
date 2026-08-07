@@ -158,11 +158,7 @@ function indexContexts(
 	const indexed = new Map<string, SkillContributionContext>();
 	for (const context of input.contexts) {
 		if (
-			!matchingContext(
-				input,
-				context,
-				assignments.get(context.assignmentId),
-			)
+			!matchingContext(input, context, assignments.get(context.assignmentId))
 		) {
 			return {
 				ok: false,
@@ -239,7 +235,9 @@ export function inspectCapabilityContextProgress(
 	const unresolvedSelections = Object.freeze(
 		input.selections
 			.filter((selection) => selection.status === "needs-context")
-			.sort((left, right) => left.assignmentId.localeCompare(right.assignmentId)),
+			.sort((left, right) =>
+				left.assignmentId.localeCompare(right.assignmentId),
+			),
 	);
 	const unresolvedAssignmentIds = new Set(
 		unresolvedSelections.map((selection) => selection.assignmentId),
@@ -251,7 +249,9 @@ export function inspectCapabilityContextProgress(
 					!contexts.value.has(assignment.assignmentId) &&
 					!unresolvedAssignmentIds.has(assignment.assignmentId),
 			)
-			.sort((left, right) => left.assignmentId.localeCompare(right.assignmentId)),
+			.sort((left, right) =>
+				left.assignmentId.localeCompare(right.assignmentId),
+			),
 	);
 
 	if (pendingAssignments.length > 0) {
