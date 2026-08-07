@@ -1814,6 +1814,22 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 			residual_needs: [],
 		});
 	assert.match(resultText(contributed), /Skill Contribution accepted: contribution_/);
+	const coverage = await harness.tools
+		.get("developer_assess_coverage")
+		.execute("assess-live-verify-coverage", {
+			status: "covered",
+			dispositions: [
+				{
+					contribution_id: contributed.details.contribution.contributionId,
+					status: "supports",
+					basis: ["The accepted verifier Contribution fully serves the Need."],
+				},
+			],
+			conflicts: [],
+			basis: ["Every current Contribution has an explicit disposition."],
+		});
+	assert.match(resultText(coverage), /Need Coverage assessed: coverage_/);
+	assert.match(resultText(coverage), /· covered/);
 	const afterContribution = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",
@@ -1821,6 +1837,7 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
 	assert.match(afterContribution.systemPrompt, /Skill Contribution: contribution_/);
+	assert.match(afterContribution.systemPrompt, /Need Coverage: coverage_.* · covered/);
 });
 
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {

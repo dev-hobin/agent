@@ -524,6 +524,7 @@ assert.match(extension, /name: ACTION_LOOP_ASSESS_CAPABILITY_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_SELECT_REFERENCES_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_ASSESS_COVERAGE_TOOL/);
 assert.match(extension, /name: ROUTE_TOOL/);
 assert.match(extension, /name: JUDGMENT_TOOL/);
 assert.match(extension, /registerCommand\("developer"/);
@@ -597,6 +598,13 @@ const liveContributionIntegration = await readFile(
 );
 assert.match(liveContributionIntegration, /acceptSkillContribution\(/);
 assert.match(liveContributionIntegration, /without granting Need Coverage/);
+
+const liveCoverageIntegration = await readFile(
+	join(root, "extensions", "action-loop-coverage.ts"),
+	"utf8",
+);
+assert.match(liveCoverageIntegration, /assessNeedCoverage\(/);
+assert.match(liveCoverageIntegration, /without closing Judgment/);
 
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),

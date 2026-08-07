@@ -33,6 +33,10 @@ import {
 	acceptLiveSkillContribution,
 } from "./action-loop-contribution.ts";
 import {
+	ACTION_LOOP_ASSESS_COVERAGE_TOOL,
+	assessLiveNeedCoverage,
+} from "./action-loop-coverage.ts";
+import {
 	ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
 	ACTION_LOOP_SELECT_REFERENCES_TOOL,
 	loadLiveSelectedReference,
@@ -139,6 +143,7 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_SELECT_REFERENCES_TOOL,
 	ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
 	ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL,
+	ACTION_LOOP_ASSESS_COVERAGE_TOOL,
 	ROUTE_TOOL,
 	REFERENCE_TOOL,
 	JUDGMENT_TOOL,
@@ -1360,6 +1365,109 @@ export default async function developer(pi: ExtensionAPI) {
 					kind: accepted.status,
 					capability: params.capability,
 					contribution: accepted.contribution,
+				},
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_ASSESS_COVERAGE_TOOL,
+		label: "Developer Assess Coverage",
+		description:
+			"Assess every current Contribution for one upper Judgment Need. Coverage remains separate from Skill-local resolution and does not close Judgment.",
+		promptSnippet: "Assess current Contribution Need Coverage",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_ASSESS_COVERAGE_TOOL} only after current Contributions are accepted. Disposition every current Contribution exactly once.`,
+			"A partial Contribution cannot provide full support. Record material conflicts explicitly; do not infer Conclusion from Coverage.",
+		],
+		parameters: Type.Object(
+			{
+				contribution_need_id: Type.Optional(
+					Type.String({ minLength: 1, maxLength: 512 }),
+				),
+				status: StringEnum(
+					["covered", "partially-covered", "conflicted", "missing"] as const,
+				),
+				dispositions: Type.Array(
+					Type.Object(
+						{
+							contribution_id: Type.String({ minLength: 1, maxLength: 512 }),
+							status: StringEnum(
+								["supports", "limited-support", "not-relied-on"] as const,
+							),
+							basis: Type.Array(
+								Type.String({
+									minLength: 1,
+									maxLength: MAX_EVIDENCE_CHARS,
+								}),
+								{ minItems: 1, maxItems: MAX_LIVE_BASIS_ITEMS },
+							),
+						},
+						{ additionalProperties: false },
+					),
+					{ maxItems: 64 },
+				),
+				conflicts: Type.Array(
+					Type.Object(
+						{
+							left_contribution_id: Type.String({
+								minLength: 1,
+								maxLength: 512,
+							}),
+							right_contribution_id: Type.String({
+								minLength: 1,
+								maxLength: 512,
+							}),
+							basis: Type.Array(
+								Type.String({
+									minLength: 1,
+									maxLength: MAX_EVIDENCE_CHARS,
+								}),
+								{ minItems: 1, maxItems: MAX_LIVE_BASIS_ITEMS },
+							),
+						},
+						{ additionalProperties: false },
+					),
+					{ maxItems: 32 },
+				),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: MAX_LIVE_BASIS_ITEMS },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			const assessed = assessLiveNeedCoverage(activeWorkCase, {
+				contributionNeedId: params.contribution_need_id,
+				status: params.status,
+				dispositions: params.dispositions.map((disposition) => ({
+					contributionId: disposition.contribution_id,
+					status: disposition.status,
+					basis: disposition.basis,
+				})),
+				conflicts: params.conflicts.map((conflict) => ({
+					leftContributionId: conflict.left_contribution_id,
+					rightContributionId: conflict.right_contribution_id,
+					basis: conflict.basis,
+				})),
+				basis: params.basis,
+				provenance: { kind: "model", source: "pi:tool-call" },
+			});
+			if (assessed.status === "invalid") fail(assessed.message);
+			activeWorkCase = assessed.state;
+			return textResult(
+				`Need Coverage ${assessed.status}: ${assessed.coverage.coverageId} · ${assessed.coverage.status}`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: assessed.status,
+					coverage: assessed.coverage,
 				},
 			);
 		},
