@@ -325,6 +325,7 @@ try {
 		"developer_load_selected_reference",
 		"developer_accept_contribution",
 		"developer_assess_coverage",
+		"developer_close_judgment",
 		"developer_route_question",
 		"developer_load_reference",
 		"developer_record_judgment",

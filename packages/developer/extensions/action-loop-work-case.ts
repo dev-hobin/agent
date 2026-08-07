@@ -169,9 +169,16 @@ export function liveWorkCasePrompt(
 			? ["Open Judgment: none"]
 			: [
 					`Open Judgment: ${judgment.judgmentId} · ${judgment.category} · ${judgment.question}`,
-					`Closure Requirements: ${judgment.requirements.map(({ statement }) => statement).join(" | ")}`,
+					`Closure Requirements: ${judgment.requirements.map(({ requirementId, statement }) => `${requirementId}: ${statement}`).join(" | ")}`,
 					`Contribution Needs: ${judgment.contributionNeeds.map(({ contributionNeedId, function: needFunction }) => `${contributionNeedId}: ${needFunction}`).join(" | ")}`,
 				];
+	const conclusionLines =
+		workCase.conclusions.length === 0
+			? ["Judgment Conclusions: none"]
+			: workCase.conclusions.map(
+					(conclusion) =>
+						`Judgment Conclusion: ${conclusion.conclusionId} · ${conclusion.category} · ${conclusion.answer}`,
+				);
 	const applicabilityLines =
 		state.applicabilityAssessments.length === 0
 			? ["Capability applicability: none assessed"]
@@ -223,6 +230,7 @@ export function liveWorkCasePrompt(
 		`Constraints: ${workCase.outcome.constraints.join(" | ") || "none"}`,
 		`Opening basis: ${openingBasis.join(" | ")}`,
 		...judgmentLines,
+		...conclusionLines,
 		...applicabilityLines,
 		...assignmentLines,
 		...selectionLines,

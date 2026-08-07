@@ -29,6 +29,10 @@ import {
 	assignedLiveCapability,
 } from "./action-loop-applicability.ts";
 import {
+	ACTION_LOOP_CLOSE_JUDGMENT_TOOL,
+	closeLiveJudgment,
+} from "./action-loop-conclusion.ts";
+import {
 	ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL,
 	acceptLiveSkillContribution,
 } from "./action-loop-contribution.ts";
@@ -144,6 +148,7 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
 	ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL,
 	ACTION_LOOP_ASSESS_COVERAGE_TOOL,
+	ACTION_LOOP_CLOSE_JUDGMENT_TOOL,
 	ROUTE_TOOL,
 	REFERENCE_TOOL,
 	JUDGMENT_TOOL,
@@ -1358,6 +1363,38 @@ export default async function developer(pi: ExtensionAPI) {
 			});
 			if (accepted.status === "invalid") fail(accepted.message);
 			activeWorkCase = accepted.state;
+			let compatibilityRouteClosed = false;
+			if (
+				state.activeRoute &&
+				state.activeRoute.target === params.capability
+			) {
+				const compatibilityJudgment: JudgmentEvent = {
+					protocol: PROTOCOL,
+					kind: "judgment",
+					routeId: state.activeRoute.routeId,
+					question: state.activeRoute.question,
+					target: state.activeRoute.target,
+					status:
+						accepted.contribution.localStatus === "resolved"
+							? "resolved"
+							: "needs-evidence",
+					result: accepted.contribution.result,
+					basis:
+						accepted.contribution.limitations.length > 0
+							? [...accepted.contribution.limitations]
+							: ["Canonical Skill Contribution was accepted."],
+					referenceBasis: [],
+					openedQuestions: [],
+					questionUpdates: [],
+					artifacts: [],
+					changedArtifacts: false,
+				};
+				if (canApplyDeveloperEvent(state, compatibilityJudgment)) {
+					state = applyDeveloperEvent(state, compatibilityJudgment);
+					compatibilityRouteClosed = true;
+					syncProtocolTools();
+				}
+			}
 			return textResult(
 				`Skill Contribution ${accepted.status}: ${accepted.contribution.contributionId}`,
 				{
@@ -1365,6 +1402,7 @@ export default async function developer(pi: ExtensionAPI) {
 					kind: accepted.status,
 					capability: params.capability,
 					contribution: accepted.contribution,
+					compatibilityRouteClosed,
 				},
 			);
 		},
@@ -1468,6 +1506,105 @@ export default async function developer(pi: ExtensionAPI) {
 					protocol: "developer-action-loop/v1",
 					kind: assessed.status,
 					coverage: assessed.coverage,
+				},
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_CLOSE_JUDGMENT_TOOL,
+		label: "Developer Close Judgment",
+		description:
+			"Synthesize current Need Coverage against every Closure Requirement. A Conclusion is recorded in the canonical Work Case only when all structural obligations close.",
+		promptSnippet: "Conclude or explicitly refuse the current Judgment",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_CLOSE_JUDGMENT_TOOL} only after current Need Coverage is assessed. Cite exactly the Coverage IDs that serve each Requirement.`,
+			"Use refuse when evidence, Coverage, Context, or evaluator confidence is insufficient. A refusal leaves the Judgment open.",
+		],
+		parameters: Type.Object(
+			{
+				outcome: StringEnum(["conclude", "refuse"] as const),
+				answer: Type.Optional(
+					Type.String({ minLength: 1, maxLength: MAX_RESULT_CHARS }),
+				),
+				refusal_reasons: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ maxItems: 32 },
+				),
+				requirement_dispositions: Type.Array(
+					Type.Object(
+						{
+							requirement_id: Type.String({ minLength: 1, maxLength: 512 }),
+							status: StringEnum(
+								["satisfied", "not-satisfied", "needs-context"] as const,
+							),
+							coverage_ids: Type.Array(
+								Type.String({ minLength: 1, maxLength: 512 }),
+								{ maxItems: 32 },
+							),
+							basis: Type.Array(
+								Type.String({
+									minLength: 1,
+									maxLength: MAX_EVIDENCE_CHARS,
+								}),
+								{ minItems: 1, maxItems: MAX_LIVE_BASIS_ITEMS },
+							),
+						},
+						{ additionalProperties: false },
+					),
+					{ minItems: 1, maxItems: 32 },
+				),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: MAX_LIVE_BASIS_ITEMS },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			const closed = closeLiveJudgment(activeWorkCase, {
+				outcome: params.outcome,
+				answer: params.answer,
+				refusalReasons: params.refusal_reasons,
+				requirementDispositions: params.requirement_dispositions.map(
+					(disposition) => ({
+						requirementId: disposition.requirement_id,
+						status: disposition.status,
+						coverageIds: disposition.coverage_ids,
+						basis: disposition.basis,
+					}),
+				),
+				basis: params.basis,
+				provenance: { kind: "model", source: "pi:tool-call" },
+			});
+			if (closed.status === "invalid") fail(closed.message);
+			if (closed.status === "refused") {
+				return textResult(
+					`Judgment closure refused: ${closed.refusal.refusalId}`,
+					{
+						protocol: "developer-action-loop/v1",
+						kind: "closure",
+						artifactKind: "refusal",
+						artifact: closed.refusal as unknown,
+						workCaseRevisionId: activeWorkCase.workCase.revisionId,
+					},
+				);
+			}
+			activeWorkCase = closed.state;
+			return textResult(
+				`Judgment concluded: ${closed.conclusion.conclusionId}`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: "closure",
+					artifactKind: "conclusion",
+					artifact: closed.conclusion as unknown,
+					workCaseRevisionId: closed.state.workCase.revisionId,
 				},
 			);
 		},
