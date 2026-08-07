@@ -891,13 +891,17 @@ export function eventFromBranchEntry(
 	) {
 		return normalizeDeveloperEvent(entry.data);
 	}
-	if (
-		entry.type === "message" &&
-		entry.message?.role === "toolResult" &&
-		entry.message.toolName &&
-		DEVELOPER_TOOL_NAMES.has(entry.message.toolName)
-	) {
-		return normalizeDeveloperEvent(entry.message.details);
+	if (entry.type === "message" && entry.message?.role === "toolResult") {
+		if (
+			entry.message.toolName &&
+			DEVELOPER_TOOL_NAMES.has(entry.message.toolName)
+		) {
+			return normalizeDeveloperEvent(entry.message.details);
+		}
+		const details = entry.message.details;
+		if (isObject(details) && "developerEvent" in details) {
+			return normalizeDeveloperEvent(details.developerEvent);
+		}
 	}
 	return undefined;
 }

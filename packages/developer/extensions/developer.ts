@@ -1493,8 +1493,9 @@ export default async function developer(pi: ExtensionAPI) {
 			if (accepted.status === "invalid") fail(accepted.message);
 			activeWorkCase = accepted.state;
 			let compatibilityRouteClosed = false;
+			let compatibilityJudgment: JudgmentEvent | undefined;
 			if (state.activeRoute && state.activeRoute.target === params.capability) {
-				const compatibilityJudgment: JudgmentEvent = {
+				compatibilityJudgment = {
 					protocol: PROTOCOL,
 					kind: "judgment",
 					routeId: state.activeRoute.routeId,
@@ -1530,6 +1531,9 @@ export default async function developer(pi: ExtensionAPI) {
 						capability: params.capability,
 						contribution: accepted.contribution,
 						compatibilityRouteClosed,
+						...(compatibilityJudgment && compatibilityRouteClosed
+							? { developerEvent: compatibilityJudgment }
+							: {}),
 					},
 					actionLoopContributionAcceptedEvent(
 						params.capability,

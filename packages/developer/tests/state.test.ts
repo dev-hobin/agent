@@ -89,6 +89,21 @@ const reconstructEnabledState = (
 	entries: Parameters<typeof reconstructState>[0],
 ) => reconstructState([activationEntry, ...entries]);
 
+test("a canonical Contribution replays its compatibility route closure", () => {
+	const judgment = resolved(route, "The canonical Contribution closes the route.");
+	const replayed = reconstructEnabledState([
+		toolEntry(ROUTE_TOOL, route),
+		toolEntry("developer_accept_contribution", {
+			protocol: "developer-action-loop/v1",
+			kind: "accepted",
+			developerEvent: judgment,
+		}),
+	]);
+
+	assert.equal(replayed.activeRoute, undefined);
+	assert.equal(replayed.lastJudgment?.result, judgment.result);
+});
+
 test("idle means no routed or pending question, not task completion", () => {
 	const state = applyDeveloperEvent(initialState(), {
 		protocol: PROTOCOL,
