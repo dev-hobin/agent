@@ -1956,12 +1956,79 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		});
 	assert.match(resultText(effectSettlement), /Effect unsettled: effect_assessment_/);
 	assert.match(resultText(effectSettlement), /· unknown/);
+	const notReadyClosure = await harness.tools
+		.get("developer_prepare_closure")
+		.execute("prepare-unsettled-closure", {});
+	assert.match(resultText(notReadyClosure), /unsettled-effect/);
+	const successfulSettlement = await harness.tools
+		.get("developer_settle_effect")
+		.execute("settle-live-effect-success", {
+			effect_id: effectId,
+			outcome: "observed-success",
+			observation_dispositions: [
+				{
+					effect_observation_id: effectObservationId,
+					status: "relied-on",
+					basis: ["The exact Pi write result is current occurrence evidence."],
+				},
+			],
+			intended_effect_dispositions: [
+				{
+					intended_effect: "The bounded artifact is updated.",
+					status: "observed",
+					observation_ids: [effectObservationId],
+					basis: [
+						"The exact bounded Pi write reports that the requested artifact was written.",
+					],
+				},
+			],
+			basis: ["Explicit accounting now supports the bounded intended Effect."],
+			expected_current_assessment_id: effectSettlement.details.assessmentId,
+		});
+	assert.match(
+		resultText(successfulSettlement),
+		/Effect settled: effect_settlement_.* · observed-success/,
+	);
 	const repeatedAction = await harness.emit("tool_call", {
 		toolName: "write",
 		input: actionToolInput,
 		toolCallId: "write:repeated-live-action",
 	});
 	assert.match(repeatedAction.reason, /exact current unconsumed Action Clearance/);
+	const readyClosure = await harness.tools
+		.get("developer_prepare_closure")
+		.execute("prepare-ready-closure", {});
+	assert.match(resultText(readyClosure), /Closure Target ready: closure_target_/);
+	const closureTarget = readyClosure.details.artifact;
+	assert.equal(closureTarget.obligations.length, 2);
+	assert.equal(closureTarget.conclusionIds.length, 1);
+	assert.equal(closureTarget.effectAssessmentIds.length, 1);
+	const completed = await harness.tools
+		.get("developer_complete_work_case")
+		.execute("complete-live-work-case", {
+			closure_target_id: closureTarget.closureTargetId,
+			mode: "completed",
+			obligation_dispositions: [
+				{
+					closure_obligation_id:
+						closureTarget.obligations[0].closureObligationId,
+					conclusion_ids: closureTarget.conclusionIds,
+					effect_assessment_ids: [],
+					effect_remediation_ids: [],
+					basis: ["The Claim Assurance Conclusion supports this obligation."],
+				},
+				{
+					closure_obligation_id:
+						closureTarget.obligations[1].closureObligationId,
+					conclusion_ids: [],
+					effect_assessment_ids: closureTarget.effectAssessmentIds,
+					effect_remediation_ids: [],
+					basis: ["The observed-success Effect supports this obligation."],
+				},
+			],
+			basis: ["Every current closure obligation and evidence item is accounted."],
+		});
+	assert.match(resultText(completed), /Work Case completed: work_case_/);
 	const afterContribution = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",
@@ -1970,35 +2037,14 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 	});
 	assert.match(
 		afterContribution.systemPrompt,
-		/Skill Contribution: contribution_/,
+		/No active Action Loop Work Case/,
 	);
 	assert.match(
 		afterContribution.systemPrompt,
-		/Need Coverage: coverage_.* · covered/,
+		/Completed Action Loop Work Case: work_case_/,
 	);
-	assert.match(afterContribution.systemPrompt, /Open Judgment: none/);
-	assert.match(
-		afterContribution.systemPrompt,
-		/Judgment Conclusion: conclusion_/,
-	);
-	assert.match(
-		afterContribution.systemPrompt,
-		/Action Candidate: action_candidate_/,
-	);
-	assert.match(afterContribution.systemPrompt, /clearance not implied/);
-	assert.match(
-		afterContribution.systemPrompt,
-		/Action Clearance: action_clearance_/,
-	);
-	assert.match(afterContribution.systemPrompt, /Effect: effect_.* · pending/);
-	assert.match(
-		afterContribution.systemPrompt,
-		/Effect Observation: effect_observation_.* · tool-result · settlement not implied/,
-	);
-	assert.match(
-		afterContribution.systemPrompt,
-		/Effect Assessment: effect_assessment_.* · unknown/,
-	);
+	assert.match(afterContribution.systemPrompt, /Closure Target: closure_target_/);
+	assert.match(afterContribution.systemPrompt, /Closure Claim: closure_claim_.* · completed/);
 });
 
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {

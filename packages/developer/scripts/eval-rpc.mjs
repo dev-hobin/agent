@@ -328,6 +328,8 @@ try {
 		"developer_close_judgment",
 		"developer_propose_action",
 		"developer_settle_effect",
+		"developer_prepare_closure",
+		"developer_complete_work_case",
 		"developer_route_question",
 		"developer_load_reference",
 		"developer_record_judgment",

@@ -18,6 +18,7 @@ import {
 import { Container, Markdown, Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 
+import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
 import {
 	liveCapabilityInventoryPrompt,
 	prepareLiveCapabilityInventory,
@@ -46,6 +47,13 @@ import {
 	ACTION_LOOP_CLOSE_JUDGMENT_TOOL,
 	closeLiveJudgment,
 } from "./action-loop-conclusion.ts";
+import {
+	ACTION_LOOP_COMPLETE_WORK_CASE_TOOL,
+	ACTION_LOOP_PREPARE_CLOSURE_TOOL,
+	completeLiveWorkCase,
+	liveCompletedWorkCasePrompt,
+	prepareLiveWorkCaseClosure,
+} from "./action-loop-completion.ts";
 import {
 	ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL,
 	acceptLiveSkillContribution,
@@ -165,6 +173,8 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_CLOSE_JUDGMENT_TOOL,
 	ACTION_LOOP_PROPOSE_ACTION_TOOL,
 	ACTION_LOOP_SETTLE_EFFECT_TOOL,
+	ACTION_LOOP_PREPARE_CLOSURE_TOOL,
+	ACTION_LOOP_COMPLETE_WORK_CASE_TOOL,
 	ROUTE_TOOL,
 	REFERENCE_TOOL,
 	JUDGMENT_TOOL,
@@ -759,6 +769,7 @@ export default async function developer(pi: ExtensionAPI) {
 	let availableSkills = new Map<string, Skill>();
 	let liveCapabilityInventory: LiveCapabilityInventoryResult | undefined;
 	let activeWorkCase: LiveWorkCaseState | undefined;
+	let completedWorkCase: CompletedWorkCase | undefined;
 	let state = initialState();
 	let routeOpening = false;
 	const routesWithMutation = new Set<string>();
@@ -880,6 +891,7 @@ export default async function developer(pi: ExtensionAPI) {
 	const reconstruct = (ctx: ExtensionContext) => {
 		const branch = ctx.sessionManager.getBranch();
 		activeWorkCase = undefined;
+		completedWorkCase = undefined;
 		state = toolPolicyRestartRequired
 			? initialState()
 			: reconstructState(branch);
@@ -900,7 +912,10 @@ export default async function developer(pi: ExtensionAPI) {
 		};
 		pi.appendEntry(ACTIVATION_ENTRY, event);
 		state = applyDeveloperEvent(state, event);
-		if (!enabled) activeWorkCase = undefined;
+		if (!enabled) {
+			activeWorkCase = undefined;
+			completedWorkCase = undefined;
+		}
 		syncProtocolTools();
 		refreshUI(ctx);
 		return true;
@@ -959,6 +974,7 @@ export default async function developer(pi: ExtensionAPI) {
 				fail(result.message);
 			}
 			activeWorkCase = result.value;
+			completedWorkCase = undefined;
 			return textResult(
 				result.status === "opened"
 					? `Work Case opened: ${result.value.workCase.workCaseId}`
@@ -1839,6 +1855,134 @@ export default async function developer(pi: ExtensionAPI) {
 					kind: settled.status,
 					assessment: settled.assessment as unknown,
 					assessmentId,
+				},
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_PREPARE_CLOSURE_TOOL,
+		label: "Developer Prepare Closure",
+		description:
+			"Prepare a revision-bound Closure Target from the complete canonical Work Case inventory.",
+		promptSnippet: "Prepare current Work Case closure",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_PREPARE_CLOSURE_TOOL} before proposing completion. Do not select Conclusion or Effect subsets.`,
+			"Resolve every returned blocker before making a Closure Claim.",
+		],
+		parameters: Type.Object({}, { additionalProperties: false }),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute() {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			const prepared = prepareLiveWorkCaseClosure(activeWorkCase);
+			if (prepared.status === "invalid") fail(prepared.message);
+			if (prepared.status === "not-ready") {
+				return textResult(
+					`Work Case closure not ready: ${prepared.blockers.map((blocker) => blocker.code).join(", ")}`,
+					{
+						protocol: "developer-action-loop/v1",
+						kind: "closure-preparation",
+						status: "not-ready",
+						artifact: prepared.blockers as unknown,
+					},
+				);
+			}
+			return textResult(
+				`Closure Target ready: ${prepared.target.closureTargetId}`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: "closure-preparation",
+					status: "ready",
+					artifact: prepared.target as unknown,
+				},
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_COMPLETE_WORK_CASE_TOOL,
+		label: "Developer Complete Work Case",
+		description:
+			"Accept complete Closure Claim accounting and atomically revalidate the current Work Case before completion.",
+		promptSnippet: "Complete the current Work Case",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_COMPLETE_WORK_CASE_TOOL} only with the exact current Closure Target returned by ${ACTION_LOOP_PREPARE_CLOSURE_TOOL}.`,
+			"Account for every Closure Obligation and apply every current Conclusion, Effect assessment, and remediation exactly once.",
+		],
+		parameters: Type.Object(
+			{
+				closure_target_id: Type.String({ minLength: 1, maxLength: 512 }),
+				mode: StringEnum(["completed", "no-change"] as const),
+				obligation_dispositions: Type.Array(
+					Type.Object(
+						{
+							closure_obligation_id: Type.String({
+								minLength: 1,
+								maxLength: 512,
+							}),
+							conclusion_ids: Type.Array(
+								Type.String({ minLength: 1, maxLength: 512 }),
+								{ maxItems: 32 },
+							),
+							effect_assessment_ids: Type.Array(
+								Type.String({ minLength: 1, maxLength: 512 }),
+								{ maxItems: 32 },
+							),
+							effect_remediation_ids: Type.Array(
+								Type.String({ minLength: 1, maxLength: 512 }),
+								{ maxItems: 32 },
+							),
+							basis: Type.Array(
+								Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+								{ minItems: 1, maxItems: 16 },
+							),
+						},
+						{ additionalProperties: false },
+					),
+					{ minItems: 1, maxItems: 64 },
+				),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: 16 },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			const completed = completeLiveWorkCase(activeWorkCase, {
+				closureTargetId: params.closure_target_id,
+				mode: params.mode,
+				obligationDispositions: params.obligation_dispositions.map(
+					(disposition) => ({
+						closureObligationId: disposition.closure_obligation_id,
+						conclusionIds: disposition.conclusion_ids,
+						effectAssessmentIds: disposition.effect_assessment_ids,
+						effectRemediationIds: disposition.effect_remediation_ids,
+						basis: disposition.basis,
+					}),
+				),
+				basis: params.basis,
+			});
+			if (completed.status === "invalid") fail(completed.message);
+			completedWorkCase = completed.value;
+			activeWorkCase = undefined;
+			syncProtocolTools();
+			return textResult(
+				`Work Case completed: ${completed.value.workCaseId} · ${completed.value.revisionId}`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: "completed",
+					workCase: completed.value,
 				},
 			);
 		},
@@ -3673,7 +3817,8 @@ export default async function developer(pi: ExtensionAPI) {
 				event.systemPrompt +
 				protocolPrompt(state, [...availableSkills.keys()]) +
 				`\n${liveCapabilityInventoryPrompt(inventory)}` +
-				`\n${liveWorkCasePrompt(activeWorkCase)}`,
+				`\n${liveWorkCasePrompt(activeWorkCase)}` +
+				`\n${liveCompletedWorkCasePrompt(completedWorkCase)}`,
 		};
 	});
 

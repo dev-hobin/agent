@@ -528,6 +528,8 @@ assert.match(extension, /name: ACTION_LOOP_ASSESS_COVERAGE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_CLOSE_JUDGMENT_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_PROPOSE_ACTION_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_SETTLE_EFFECT_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_PREPARE_CLOSURE_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_COMPLETE_WORK_CASE_TOOL/);
 assert.match(extension, /name: ROUTE_TOOL/);
 assert.match(extension, /name: JUDGMENT_TOOL/);
 assert.match(extension, /registerCommand\("developer"/);
@@ -637,6 +639,14 @@ assert.match(liveEffectIntegration, /acceptEffectObservation\(/);
 assert.match(liveEffectIntegration, /settleEffect\(/);
 assert.match(liveEffectIntegration, /recordWorkCaseEffectAssessment\(/);
 assert.match(liveEffectIntegration, /does not by itself establish/);
+
+const liveCompletionIntegration = await readFile(
+	join(root, "extensions", "action-loop-completion.ts"),
+	"utf8",
+);
+assert.match(liveCompletionIntegration, /prepareClosureTarget\(/);
+assert.match(liveCompletionIntegration, /acceptClosureClaim\(/);
+assert.match(liveCompletionIntegration, /completeWorkCase\(/);
 
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),

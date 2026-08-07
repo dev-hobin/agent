@@ -86,3 +86,15 @@ export function completeLiveWorkCase(
 		? completed
 		: { status: "invalid", message: completed.refusal.message };
 }
+
+export function liveCompletedWorkCasePrompt(
+	completed: CompletedWorkCase | undefined,
+): string {
+	if (completed === undefined) return "Completed Action Loop Work Case: none";
+	return [
+		`Completed Action Loop Work Case: ${completed.workCaseId}`,
+		`Completed revision: ${completed.revisionId}`,
+		`Closure Target: ${completed.closureTarget.closureTargetId}`,
+		`Closure Claim: ${completed.closureClaim.closureClaimId} · ${completed.closureClaim.mode}`,
+	].join("\n");
+}
