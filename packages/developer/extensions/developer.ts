@@ -24,6 +24,15 @@ import {
 	type LiveCapabilityInventoryResult,
 } from "./action-loop-capability-inventory.ts";
 import {
+	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
+	MAX_LIVE_BASIS_ITEMS,
+	MAX_LIVE_OUTCOME_ITEMS,
+	MAX_LIVE_OUTCOME_TEXT,
+	liveWorkCasePrompt,
+	openLiveWorkCase,
+	type LiveWorkCaseState,
+} from "./action-loop-work-case.ts";
+import {
 	completeDeveloperArgs,
 	parseDeveloperCommand,
 } from "./developer-command.ts";
@@ -101,7 +110,12 @@ import {
 	type ImmediateQuestionDisposition,
 } from "./tui.ts";
 
-const PROTOCOL_TOOLS = [ROUTE_TOOL, REFERENCE_TOOL, JUDGMENT_TOOL] as const;
+const PROTOCOL_TOOLS = [
+	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
+	ROUTE_TOOL,
+	REFERENCE_TOOL,
+	JUDGMENT_TOOL,
+] as const;
 const extensionRoot = dirname(fileURLToPath(import.meta.url));
 const skillsRoot = resolve(extensionRoot, "..", "skills");
 const structuralChangeMethodPath = resolve(
@@ -690,6 +704,7 @@ function expandedJudgment(
 
 export default async function developer(pi: ExtensionAPI) {
 	let availableSkills = new Map<string, Skill>();
+	let activeWorkCase: LiveWorkCaseState | undefined;
 	let state = initialState();
 	let routeOpening = false;
 	const routesWithMutation = new Set<string>();
@@ -803,6 +818,7 @@ export default async function developer(pi: ExtensionAPI) {
 
 	const reconstruct = (ctx: ExtensionContext) => {
 		const branch = ctx.sessionManager.getBranch();
+		activeWorkCase = undefined;
 		state = toolPolicyRestartRequired
 			? initialState()
 			: reconstructState(branch);
@@ -823,10 +839,78 @@ export default async function developer(pi: ExtensionAPI) {
 		};
 		pi.appendEntry(ACTIVATION_ENTRY, event);
 		state = applyDeveloperEvent(state, event);
+		if (!enabled) activeWorkCase = undefined;
 		syncProtocolTools();
 		refreshUI(ctx);
 		return true;
 	};
+
+	pi.registerTool({
+		name: ACTION_LOOP_OPEN_WORK_CASE_TOOL,
+		label: "Developer Open Work Case",
+		description:
+			"Propose one bounded Outcome as the process-local canonical Action Loop Work Case. Opening preserves continuity but grants no Action Clearance and makes no completion claim.",
+		promptSnippet: "Open one bounded Action Loop Work Case",
+		promptGuidelines: [
+			`Call ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} before consequential Developer routing when no Work Case is active.`,
+			"Derive the Outcome, acceptance conditions, constraints, and basis from the current delegated request and observed context. Do not invent unresolved product policy.",
+		],
+		parameters: Type.Object(
+			{
+				statement: Type.String({
+					minLength: 1,
+					maxLength: MAX_LIVE_OUTCOME_TEXT,
+				}),
+				acceptance_conditions: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_LIVE_OUTCOME_TEXT }),
+					{ minItems: 1, maxItems: MAX_LIVE_OUTCOME_ITEMS },
+				),
+				constraints: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_LIVE_OUTCOME_TEXT }),
+					{ maxItems: MAX_LIVE_OUTCOME_ITEMS },
+				),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_LIVE_OUTCOME_TEXT }),
+					{ minItems: 1, maxItems: MAX_LIVE_BASIS_ITEMS },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			const result = openLiveWorkCase(activeWorkCase, {
+				outcome: {
+					statement: params.statement,
+					acceptanceConditions: params.acceptance_conditions,
+					constraints: params.constraints,
+				},
+				basis: params.basis,
+				provenance: { kind: "model", source: "pi:tool-call" },
+			});
+			if (
+				result.status === "invalid" ||
+				result.status === "active-work-case-exists"
+			) {
+				fail(result.message);
+			}
+			activeWorkCase = result.value;
+			return textResult(
+				result.status === "opened"
+					? `Work Case opened: ${result.value.workCase.workCaseId}`
+					: `Work Case already active: ${result.value.workCase.workCaseId}`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: result.status,
+					workCase: result.value.workCase,
+					openingBasis: result.value.openingBasis,
+				},
+			);
+		},
+	});
 
 	const SharedRouteParams = {
 		question: Type.String({
@@ -2358,9 +2442,12 @@ export default async function developer(pi: ExtensionAPI) {
 			const turnOff = async (): Promise<boolean> => {
 				if (
 					ctx.mode === "tui" &&
-					(state.activeRoute || state.pendingQuestions.length > 0)
+					(activeWorkCase ||
+						state.activeRoute ||
+						state.pendingQuestions.length > 0)
 				) {
 					const work = [
+						...(activeWorkCase ? ["the active Action Loop Work Case"] : []),
 						...(state.activeRoute ? ["the active route"] : []),
 						...(state.pendingQuestions.length > 0
 							? [`${state.pendingQuestions.length} open question(s)`]
@@ -2544,7 +2631,8 @@ export default async function developer(pi: ExtensionAPI) {
 			systemPrompt:
 				event.systemPrompt +
 				protocolPrompt(state, [...availableSkills.keys()]) +
-				`\n${liveCapabilityInventoryPrompt(inventory)}`,
+				`\n${liveCapabilityInventoryPrompt(inventory)}` +
+				`\n${liveWorkCasePrompt(activeWorkCase)}`,
 		};
 	});
 

@@ -518,6 +518,7 @@ const extension = await readFile(
 	join(root, "extensions", "developer.ts"),
 	"utf8",
 );
+assert.match(extension, /name: ACTION_LOOP_OPEN_WORK_CASE_TOOL/);
 assert.match(extension, /name: ROUTE_TOOL/);
 assert.match(extension, /name: JUDGMENT_TOOL/);
 assert.match(extension, /registerCommand\("developer"/);
@@ -549,6 +550,14 @@ assert.match(
 	/catalogBeforeAgentStartSkills\(event\)/,
 );
 assert.match(liveCapabilityIntegration, /bindPiCapabilityInventory\(catalog\)/);
+
+const liveWorkCaseIntegration = await readFile(
+	join(root, "extensions", "action-loop-work-case.ts"),
+	"utf8",
+);
+assert.match(liveWorkCaseIntegration, /openWorkCase\(/);
+assert.match(liveWorkCaseIntegration, /active-work-case-exists/);
+assert.match(liveWorkCaseIntegration, /does not imply Action Clearance/);
 
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),

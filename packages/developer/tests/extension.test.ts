@@ -13,9 +13,7 @@ import {
 
 import developer from "../extensions/developer.ts";
 import {
-	ACTIVATION_ENTRY,
 	JUDGMENT_TOOL,
-	PROTOCOL,
 	REFERENCE_TOOL,
 	ROUTE_TOOL,
 } from "../extensions/state.ts";
@@ -1445,6 +1443,68 @@ test("the protocol prompt lists only skills Pi made available", async () => {
 		result.systemPrompt,
 		/Available Developer skills:.*model/,
 	);
+});
+
+test("a live Work Case opens once and projects across agent turns", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	const opening = harness.tools.get("developer_open_work_case");
+	assert.ok(opening);
+	const opened = await opening.execute("tool-open-work-case", {
+		statement: "The package exposes one live bounded Work Case.",
+		acceptance_conditions: [
+			"The accepted Work Case is projected into the next agent turn.",
+		],
+		constraints: ["No second Outcome replaces active work."],
+		basis: ["The current delegated request requires this bounded Outcome."],
+	});
+	assert.match(resultText(opened), /Work Case opened/);
+
+	const next = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: [] },
+	});
+	assert.match(next.systemPrompt, /Active Action Loop Work Case:/);
+	assert.match(
+		next.systemPrompt,
+		/The package exposes one live bounded Work Case\./,
+	);
+	await assert.rejects(
+		opening.execute("tool-replace-work-case", {
+			statement: "Replace the active Outcome.",
+			acceptance_conditions: ["The replacement wins."],
+			constraints: [],
+			basis: ["A model proposed replacement without closure."],
+		}),
+		/active Work Case/i,
+	);
+	harness.ctx.mode = "tui";
+	harness.setConfirmResult(false);
+	await harness.commands.get("developer").handler("off", harness.ctx);
+	const afterDecline = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: [] },
+	});
+	assert.match(afterDecline.systemPrompt, /Active Action Loop Work Case:/);
+	harness.ctx.mode = "print";
+	await harness.commands.get("developer").handler("off", harness.ctx);
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	const afterReset = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "new work",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: [] },
+	});
+	assert.match(afterReset.systemPrompt, /No active Action Loop Work Case/);
 });
 
 test("a later turn can recover the active leaf method from its canonical location", async () => {
