@@ -95,6 +95,27 @@ test("duplicate Conclusion is idempotent", () => {
 	}
 });
 
+test("recording enforces category-bound intervention disposition", () => {
+	const current = workCase();
+	const missing = recordWorkCaseConclusion(current, {
+		...conclusion(current.workCaseId, "conclusion-intervention"),
+		category: "Proportionate Intervention",
+	});
+	const misplaced = recordWorkCaseConclusion(current, {
+		...conclusion(current.workCaseId, "conclusion-claim"),
+		interventionDisposition: "no-action",
+	});
+
+	assert.equal(missing.status, "invalid");
+	assert.equal(misplaced.status, "invalid");
+	if (missing.status === "invalid") {
+		assert.equal(missing.error.code, "invalid-conclusion");
+	}
+	if (misplaced.status === "invalid") {
+		assert.equal(misplaced.error.code, "invalid-conclusion");
+	}
+});
+
 test("cross-Case and stale Conclusion recording fail closed", () => {
 	const current = workCase();
 	const crossCase = recordWorkCaseConclusion(

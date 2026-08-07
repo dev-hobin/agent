@@ -6101,6 +6101,13 @@ function recordWorkCaseConclusion(workCase, conclusion) {
       "Work Case revision does not match its closure inventory"
     );
   }
+  if (conclusion.category === "Proportionate Intervention" && conclusion.interventionDisposition !== "action-required" && conclusion.interventionDisposition !== "no-action" || conclusion.category !== "Proportionate Intervention" && conclusion.interventionDisposition !== void 0) {
+    return invalid19(
+      "invalid-conclusion",
+      "conclusion.interventionDisposition",
+      "Conclusion intervention disposition does not match its Judgment Category"
+    );
+  }
   if (conclusion.workCaseId !== workCase.workCaseId) {
     return invalid19(
       "identity-mismatch",
@@ -7277,7 +7284,7 @@ import { StringEnum as StringEnum7 } from "@earendil-works/pi-ai";
 import { Type as Type7 } from "typebox";
 
 // src/action-loop/judgment/close-judgment.ts
-var JUDGMENT_CONCLUSION_VERSION = "developer-judgment-conclusion/v1";
+var JUDGMENT_CONCLUSION_VERSION = "developer-judgment-conclusion/v2";
 var JUDGMENT_REFUSAL_VERSION = "developer-judgment-refusal/v1";
 var JUDGMENT_CATEGORIES = /* @__PURE__ */ new Set([
   "Contextual Adequacy",
@@ -7805,9 +7812,39 @@ function validateClosureOutcome(proposal) {
         }
       };
     }
+    if (proposal.category === "Proportionate Intervention") {
+      if (proposal.interventionDisposition !== "action-required" && proposal.interventionDisposition !== "no-action") {
+        return {
+          ok: false,
+          error: {
+            code: "invalid-intervention-disposition",
+            path: "proposal.interventionDisposition",
+            message: "Proportionate Intervention Conclusion requires action-required or no-action"
+          }
+        };
+      }
+      return {
+        ok: true,
+        value: {
+          answer: answer.value,
+          interventionDisposition: proposal.interventionDisposition,
+          refusalReasons: []
+        }
+      };
+    }
+    if (proposal.interventionDisposition !== void 0) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid-intervention-disposition",
+          path: "proposal.interventionDisposition",
+          message: "Only a Proportionate Intervention Conclusion may carry an intervention disposition"
+        }
+      };
+    }
     return { ok: true, value: { answer: answer.value, refusalReasons: [] } };
   }
-  if (proposal.answer !== void 0 || refusalReasons.value.length === 0) {
+  if (proposal.answer !== void 0 || proposal.interventionDisposition !== void 0 || refusalReasons.value.length === 0) {
     return {
       ok: false,
       error: {
@@ -7863,6 +7900,7 @@ function validateClosureInput(contract, coverages, proposal) {
       basis: basis.value,
       provenance: provenance.value,
       answer: outcome.value.answer,
+      interventionDisposition: outcome.value.interventionDisposition,
       refusalReasons: outcome.value.refusalReasons
     }
   };
@@ -7873,6 +7911,7 @@ function conclusionResult(contract, validated) {
     ...contractIdentityParts(contract, validated.requirements.ordered),
     ...dispositionIdentityParts(validated.dispositions),
     validated.answer,
+    validated.interventionDisposition ?? "no-intervention-disposition",
     String(validated.basis.length),
     ...validated.basis
   ]);
@@ -7886,6 +7925,7 @@ function conclusionResult(contract, validated) {
       subject: contract.subject.trim(),
       contextRevisionId: contract.contextRevisionId,
       answer: validated.answer,
+      ...validated.interventionDisposition ? { interventionDisposition: validated.interventionDisposition } : {},
       requirementDispositions: validated.dispositions,
       coverageIds,
       basis: validated.basis,
@@ -7955,10 +7995,16 @@ function isRecord7(value) {
 function rejected7(code, message) {
   return { status: "rejected", code, message };
 }
-function conclusionParameters(requirements) {
+function conclusionParameters(contract) {
   const fields = {
     outcome: StringEnum7(closureOutcomes),
     answer: Type7.Optional(Type7.String({ minLength: 1, maxLength: 12e3 })),
+    ...contract.category === "Proportionate Intervention" ? {
+      intervention_disposition: StringEnum7([
+        "action-required",
+        "no-action"
+      ])
+    } : {},
     refusal_reasons_json: Type7.String({
       minLength: 2,
       maxLength: 32768,
@@ -7970,7 +8016,7 @@ function conclusionParameters(requirements) {
       description: "JSON array of one or more synthesis basis strings."
     })
   };
-  for (const [index, requirement] of requirements.entries()) {
+  for (const [index, requirement] of contract.requirements.entries()) {
     fields[`requirement_status_${index}`] = StringEnum7(requirementStatuses, {
       description: requirement.statement
     });
@@ -8068,6 +8114,7 @@ function canonicalProposal2(input) {
       contextRevisionId: input.contract.contextRevisionId,
       outcome,
       ...typeof input.raw.answer === "string" ? { answer: input.raw.answer } : {},
+      ...input.raw.intervention_disposition === "action-required" || input.raw.intervention_disposition === "no-action" ? { interventionDisposition: input.raw.intervention_disposition } : {},
       refusalReasons: refusalReasons.value,
       requirementDispositions: dispositions.value,
       basis: basis.value,
@@ -8080,7 +8127,7 @@ function conclusionTool(input) {
     name: "submit_judgment_conclusion",
     label: "Submit one upper Judgment synthesis",
     description: "Synthesize complete current Need Coverage into a Conclusion or explicit bounded refusal.",
-    parameters: conclusionParameters(input.contract.requirements),
+    parameters: conclusionParameters(input.contract),
     execute: async (raw) => {
       if (!isRecord7(raw)) {
         return rejected7(
@@ -8129,6 +8176,9 @@ ${input.contract.subject}`,
     `Category: ${input.contract.category}`,
     `Current Requirements and Need Coverage:
 ${requirements}`,
+    ...input.contract.category === "Proportionate Intervention" ? [
+      "A Conclusion must set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when the proportionate decision is to preserve current state."
+    ] : [],
     "Conclude only when every Requirement is supported by complete current Coverage. Otherwise return an explicit refusal and preserve blockers."
   ].join("\n\n");
 }
@@ -10241,9 +10291,19 @@ function mapJudgmentResult(result, baseSteps, baseCheckpoints) {
         refusal: result.refusal
       };
     case "bounded-stop":
-      return { ...common, status: result.status, stage: result.stage, reason: result.reason };
+      return {
+        ...common,
+        status: result.status,
+        stage: result.stage,
+        reason: result.reason
+      };
     case "runtime-failure":
-      return { ...common, status: result.status, stage: result.stage, message: result.message };
+      return {
+        ...common,
+        status: result.status,
+        stage: result.stage,
+        message: result.message
+      };
     case "invariant-failure":
       return {
         ...common,
@@ -10383,9 +10443,7 @@ async function progressEffect(input) {
     }
     return {
       status: "ready-for-completion",
-      effectAssessmentIds: input.state.workCase.currentEffectAssessments.map(
-        currentAssessmentId
-      ),
+      effectAssessmentIds: input.state.workCase.currentEffectAssessments.map(currentAssessmentId),
       state: input.state,
       steps: input.steps,
       checkpoints: input.checkpoints
@@ -10522,6 +10580,12 @@ function nextRequiredJudgmentCategory(state) {
   if (!categories2.has("Proportionate Intervention") && !categories2.has("Claim Assurance")) {
     return "Proportionate Intervention";
   }
+  const intervention = state.workCase.conclusions.find(
+    (conclusion) => conclusion.category === "Proportionate Intervention"
+  );
+  if (intervention?.interventionDisposition === "no-action" && !categories2.has("Claim Assurance")) {
+    return "Claim Assurance";
+  }
   return void 0;
 }
 async function progressAction(input) {
@@ -10577,7 +10641,31 @@ async function progressAction(input) {
   const categories2 = new Set(
     workCase.conclusions.map((conclusion) => conclusion.category)
   );
-  if (input.complete && categories2.has("Claim Assurance") && !categories2.has("Proportionate Intervention")) {
+  const intervention = workCase.conclusions.find(
+    (conclusion) => conclusion.category === "Proportionate Intervention"
+  );
+  if (intervention && intervention.interventionDisposition === void 0) {
+    return {
+      status: "invariant-failure",
+      stage: "action",
+      code: "missing-intervention-disposition",
+      message: "Proportionate Intervention Conclusion has no canonical intervention disposition.",
+      state: input.state,
+      steps: input.steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  const noActionCompletion = categories2.has("Claim Assurance") && (intervention?.interventionDisposition === "no-action" || !intervention);
+  if (noActionCompletion && !input.complete) {
+    return {
+      status: "ready-for-completion",
+      effectAssessmentIds: [],
+      state: input.state,
+      steps: input.steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  if (noActionCompletion) {
     return progressCompletion({
       request: input.request,
       state: input.state,

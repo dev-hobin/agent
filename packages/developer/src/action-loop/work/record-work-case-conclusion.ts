@@ -3,7 +3,8 @@ import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
 
 export type WorkCaseConclusionRecordErrorCode =
 	| "stale-work-case"
-	| "identity-mismatch";
+	| "identity-mismatch"
+	| "invalid-conclusion";
 
 export interface WorkCaseConclusionRecordError {
 	readonly code: WorkCaseConclusionRecordErrorCode;
@@ -41,6 +42,19 @@ export function recordWorkCaseConclusion(
 			"stale-work-case",
 			"workCase.revisionId",
 			"Work Case revision does not match its closure inventory",
+		);
+	}
+	if (
+		(conclusion.category === "Proportionate Intervention" &&
+			conclusion.interventionDisposition !== "action-required" &&
+			conclusion.interventionDisposition !== "no-action") ||
+		(conclusion.category !== "Proportionate Intervention" &&
+			conclusion.interventionDisposition !== undefined)
+	) {
+		return invalid(
+			"invalid-conclusion",
+			"conclusion.interventionDisposition",
+			"Conclusion intervention disposition does not match its Judgment Category",
 		);
 	}
 	if (conclusion.workCaseId !== workCase.workCaseId) {

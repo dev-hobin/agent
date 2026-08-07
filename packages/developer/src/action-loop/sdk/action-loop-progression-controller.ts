@@ -593,6 +593,15 @@ function nextRequiredJudgmentCategory(
 	) {
 		return "Proportionate Intervention";
 	}
+	const intervention = state.workCase.conclusions.find(
+		(conclusion) => conclusion.category === "Proportionate Intervention",
+	);
+	if (
+		intervention?.interventionDisposition === "no-action" &&
+		!categories.has("Claim Assurance")
+	) {
+		return "Claim Assurance";
+	}
 	return undefined;
 }
 
@@ -662,11 +671,34 @@ async function progressAction(input: {
 	const categories = new Set(
 		workCase.conclusions.map((conclusion) => conclusion.category),
 	);
-	if (
-		input.complete &&
+	const intervention = workCase.conclusions.find(
+		(conclusion) => conclusion.category === "Proportionate Intervention",
+	);
+	if (intervention && intervention.interventionDisposition === undefined) {
+		return {
+			status: "invariant-failure",
+			stage: "action",
+			code: "missing-intervention-disposition",
+			message:
+				"Proportionate Intervention Conclusion has no canonical intervention disposition.",
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const noActionCompletion =
 		categories.has("Claim Assurance") &&
-		!categories.has("Proportionate Intervention")
-	) {
+		(intervention?.interventionDisposition === "no-action" || !intervention);
+	if (noActionCompletion && !input.complete) {
+		return {
+			status: "ready-for-completion",
+			effectAssessmentIds: [],
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (noActionCompletion) {
 		return progressCompletion({
 			request: input.request,
 			state: input.state,

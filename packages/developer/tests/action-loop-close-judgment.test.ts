@@ -108,6 +108,45 @@ test("covered Needs and satisfied requirements produce one bounded Conclusion", 
 	assert.equal("actionClearance" in result.value, false);
 });
 
+test("Proportionate Intervention requires a canonical intervention disposition", () => {
+	const interventionContract: JudgmentClosureContract = {
+		...contract,
+		category: "Proportionate Intervention",
+	};
+	const missing = closeJudgment(
+		interventionContract,
+		[behaviorCoverage, riskCoverage],
+		proposal({ category: "Proportionate Intervention" }),
+	);
+	assert.equal(missing.status, "invalid");
+	if (missing.status === "invalid") {
+		assert.equal(missing.error.code, "invalid-intervention-disposition");
+	}
+
+	const concluded = closeJudgment(
+		interventionContract,
+		[behaviorCoverage, riskCoverage],
+		proposal({
+			category: "Proportionate Intervention",
+			interventionDisposition: "no-action",
+		}),
+	);
+	assert.equal(concluded.status, "concluded");
+	if (concluded.status !== "concluded") return;
+	assert.equal(concluded.value.interventionDisposition, "no-action");
+});
+
+test("non-intervention Conclusions reject an intervention disposition", () => {
+	const result = closeJudgment(
+		contract,
+		[behaviorCoverage, riskCoverage],
+		proposal({ interventionDisposition: "action-required" }),
+	);
+	assert.equal(result.status, "invalid");
+	if (result.status !== "invalid") return;
+	assert.equal(result.error.code, "invalid-intervention-disposition");
+});
+
 test("input order and evaluator provenance do not alter Conclusion identity", () => {
 	const first = closeJudgment(
 		contract,

@@ -49,6 +49,7 @@ function conclusion(workCaseId: string): JudgmentConclusion {
 		coverageIds: Object.freeze([]),
 		basis: Object.freeze(["A bounded repair is proportionate."]),
 		answer: "Apply the repair.",
+		interventionDisposition: "action-required",
 		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
 	});
 }

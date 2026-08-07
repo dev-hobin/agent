@@ -4,7 +4,7 @@ import type {
 	NeedCoverageStatus,
 } from "../need-coverage/assess-need-coverage.ts";
 
-export const JUDGMENT_CONCLUSION_VERSION = "developer-judgment-conclusion/v1";
+export const JUDGMENT_CONCLUSION_VERSION = "developer-judgment-conclusion/v2";
 export const JUDGMENT_REFUSAL_VERSION = "developer-judgment-refusal/v1";
 
 const JUDGMENT_CATEGORIES: ReadonlySet<string> = new Set([
@@ -36,6 +36,8 @@ export type ClosureRequirementStatus =
 	| "satisfied"
 	| "not-satisfied"
 	| "needs-context";
+
+export type InterventionDisposition = "action-required" | "no-action";
 
 export interface ClosureRequirement {
 	readonly requirementId: string;
@@ -71,6 +73,7 @@ export interface JudgmentClosureProposal {
 	readonly contextRevisionId: string;
 	readonly outcome: "conclude" | "refuse";
 	readonly answer?: string;
+	readonly interventionDisposition?: InterventionDisposition;
 	readonly refusalReasons: readonly string[];
 	readonly requirementDispositions: readonly ClosureRequirementDispositionProposal[];
 	readonly basis: readonly string[];
@@ -125,6 +128,7 @@ interface ClosureArtifactBase {
 export interface JudgmentConclusion extends ClosureArtifactBase {
 	readonly conclusionId: string;
 	readonly answer: string;
+	readonly interventionDisposition?: InterventionDisposition;
 }
 
 export interface JudgmentClosureRefusal extends ClosureArtifactBase {
@@ -144,6 +148,7 @@ export type JudgmentClosureErrorCode =
 	| "coverage-citation"
 	| "unsupported-outcome"
 	| "invalid-conclusion-answer"
+	| "invalid-intervention-disposition"
 	| "invalid-refusal"
 	| "empty-basis"
 	| "duplicate-value"
@@ -743,11 +748,13 @@ interface ValidatedClosureInput {
 	readonly basis: readonly string[];
 	readonly provenance: ClosureProposalProvenance;
 	readonly answer?: string;
+	readonly interventionDisposition?: InterventionDisposition;
 	readonly refusalReasons: readonly string[];
 }
 
 interface ValidatedClosureOutcome {
 	readonly answer?: string;
+	readonly interventionDisposition?: InterventionDisposition;
 	readonly refusalReasons: readonly string[];
 }
 
@@ -787,9 +794,48 @@ function validateClosureOutcome(
 				},
 			};
 		}
+		if (proposal.category === "Proportionate Intervention") {
+			if (
+				proposal.interventionDisposition !== "action-required" &&
+				proposal.interventionDisposition !== "no-action"
+			) {
+				return {
+					ok: false,
+					error: {
+						code: "invalid-intervention-disposition",
+						path: "proposal.interventionDisposition",
+						message:
+							"Proportionate Intervention Conclusion requires action-required or no-action",
+					},
+				};
+			}
+			return {
+				ok: true,
+				value: {
+					answer: answer.value,
+					interventionDisposition: proposal.interventionDisposition,
+					refusalReasons: [],
+				},
+			};
+		}
+		if (proposal.interventionDisposition !== undefined) {
+			return {
+				ok: false,
+				error: {
+					code: "invalid-intervention-disposition",
+					path: "proposal.interventionDisposition",
+					message:
+						"Only a Proportionate Intervention Conclusion may carry an intervention disposition",
+				},
+			};
+		}
 		return { ok: true, value: { answer: answer.value, refusalReasons: [] } };
 	}
-	if (proposal.answer !== undefined || refusalReasons.value.length === 0) {
+	if (
+		proposal.answer !== undefined ||
+		proposal.interventionDisposition !== undefined ||
+		refusalReasons.value.length === 0
+	) {
 		return {
 			ok: false,
 			error: {
@@ -850,6 +896,7 @@ function validateClosureInput(
 			basis: basis.value,
 			provenance: provenance.value,
 			answer: outcome.value.answer,
+			interventionDisposition: outcome.value.interventionDisposition,
 			refusalReasons: outcome.value.refusalReasons,
 		},
 	};
@@ -864,6 +911,7 @@ function conclusionResult(
 		...contractIdentityParts(contract, validated.requirements.ordered),
 		...dispositionIdentityParts(validated.dispositions),
 		validated.answer,
+		validated.interventionDisposition ?? "no-intervention-disposition",
 		String(validated.basis.length),
 		...validated.basis,
 	]);
@@ -877,6 +925,9 @@ function conclusionResult(
 			subject: contract.subject.trim(),
 			contextRevisionId: contract.contextRevisionId,
 			answer: validated.answer,
+			...(validated.interventionDisposition
+				? { interventionDisposition: validated.interventionDisposition }
+				: {}),
 			requirementDispositions: validated.dispositions,
 			coverageIds,
 			basis: validated.basis,

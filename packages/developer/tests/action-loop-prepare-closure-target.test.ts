@@ -49,6 +49,9 @@ function conclusion(
 			"Current bounded evidence supports this Conclusion.",
 		]),
 		answer: "The bounded claim is supported.",
+		...(category === "Proportionate Intervention"
+			? { interventionDisposition: "action-required" as const }
+			: {}),
 		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
 	});
 }

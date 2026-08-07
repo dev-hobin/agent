@@ -180,6 +180,7 @@ test("SDK Action Loop progression does not open a replacement Judgment after Con
 		basis: Object.freeze(["The current bounded evidence warrants action."]),
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 		answer: "Proceed to exact Action proposal.",
+		interventionDisposition: "action-required",
 	});
 	const recorded = recordWorkCaseConclusion(opened.value, conclusion);
 	if (recorded.status !== "recorded")
@@ -284,6 +285,74 @@ test("SDK Action Loop progression opens the next required intervention Judgment"
 	);
 });
 
+test("SDK Action Loop progression routes no-action intervention to Claim Assurance", async () => {
+	const opened = openWorkCase({
+		outcome: {
+			statement: "The bounded analysis preserves current workspace state.",
+			acceptanceConditions: ["No unnecessary Action is performed."],
+			constraints: ["Claim Assurance remains independently explicit."],
+		},
+		provenance: { kind: "human", source: "sdk:test" },
+	});
+	if (opened.status !== "opened") throw new Error(opened.error.message);
+	const intervention: JudgmentConclusion = Object.freeze({
+		conclusionId: "conclusion-action-loop-no-action-route",
+		workCaseId: opened.value.workCaseId,
+		judgmentId: "judgment-action-loop-no-action-route",
+		category: "Proportionate Intervention",
+		subject: "Whether any host Action is warranted",
+		contextRevisionId: opened.value.revisionId,
+		requirementDispositions: Object.freeze([]),
+		coverageIds: Object.freeze([]),
+		basis: Object.freeze(["Current state already satisfies the intervention aim."]),
+		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
+		answer: "No host Action is proportionate.",
+		interventionDisposition: "no-action",
+	});
+	const recorded = recordWorkCaseConclusion(opened.value, intervention);
+	if (recorded.status !== "recorded") throw new Error("Conclusion not recorded");
+	const checkpoints: SdkActionLoopCheckpoint[] = [];
+	const result = await progressActionLoopWithSdk({
+		request: "Complete the bounded analysis without changing files.",
+		state: {
+			workCase: recorded.value,
+			applicabilityAssessments: [],
+			assignments: [],
+			selections: [],
+			contexts: [],
+			contributions: [],
+			coverages: [],
+		},
+		capabilities: [],
+		runner: scriptedSdkRunner([
+			{
+				proposals: [
+					{
+						...judgmentProposal,
+						category: "Claim Assurance",
+						question: "Does current evidence support no-change completion?",
+					},
+				],
+			},
+		]),
+		maxSteps: 1,
+		checkpoint(checkpoint) {
+			checkpoints.push(checkpoint);
+		},
+	});
+
+	assert.equal(result.status, "bounded-stop");
+	if (result.status !== "bounded-stop") return;
+	assert.equal(result.stage, "inventory");
+	assert.deepEqual(
+		checkpoints.map(({ kind }) => kind),
+		["judgment-opened"],
+	);
+	const checkpoint = checkpoints[0];
+	if (checkpoint?.kind !== "judgment-opened") return;
+	assert.equal(checkpoint.result.judgment.category, "Claim Assurance");
+});
+
 test("SDK Action Loop progression completes a Claim-Assured no-change Outcome before Action", async () => {
 	const opened = openWorkCase({
 		outcome: {
@@ -294,6 +363,23 @@ test("SDK Action Loop progression completes a Claim-Assured no-change Outcome be
 		provenance: { kind: "human", source: "sdk:test" },
 	});
 	if (opened.status !== "opened") throw new Error(opened.error.message);
+	const intervention: JudgmentConclusion = Object.freeze({
+		conclusionId: "conclusion-action-loop-no-action",
+		workCaseId: opened.value.workCaseId,
+		judgmentId: "judgment-action-loop-no-action",
+		category: "Proportionate Intervention",
+		subject: "Whether the analysis requires host mutation",
+		contextRevisionId: opened.value.revisionId,
+		requirementDispositions: Object.freeze([]),
+		coverageIds: Object.freeze([]),
+		basis: Object.freeze(["No host mutation is warranted."]),
+		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
+		answer: "Preserve current workspace state.",
+		interventionDisposition: "no-action",
+	});
+	const intervened = recordWorkCaseConclusion(opened.value, intervention);
+	if (intervened.status !== "recorded")
+		throw new Error("Intervention not recorded");
 	const assurance: JudgmentConclusion = Object.freeze({
 		conclusionId: "conclusion-action-loop-no-change",
 		workCaseId: opened.value.workCaseId,
@@ -307,7 +393,7 @@ test("SDK Action Loop progression completes a Claim-Assured no-change Outcome be
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 		answer: "The analysis is complete and no workspace Action is warranted.",
 	});
-	const recorded = recordWorkCaseConclusion(opened.value, assurance);
+	const recorded = recordWorkCaseConclusion(intervened.value, assurance);
 	if (recorded.status !== "recorded") throw new Error("Assurance not recorded");
 	const checkpoints: SdkActionLoopCheckpoint[] = [];
 	const result = await progressActionLoopWithSdk({
@@ -342,12 +428,12 @@ test("SDK Action Loop progression completes a Claim-Assured no-change Outcome be
 						mode: "no-change",
 						basis_json:
 							'["Every current closure obligation is supported without an external Effect."]',
-						obligation_0_conclusion_indices_json: "[0]",
+						obligation_0_conclusion_indices_json: "[0,1]",
 						obligation_0_effect_indices_json: "[]",
 						obligation_0_remediation_indices_json: "[]",
 						obligation_0_basis:
 							"Claim Assurance supports the analysis acceptance condition.",
-						obligation_1_conclusion_indices_json: "[0]",
+						obligation_1_conclusion_indices_json: "[0,1]",
 						obligation_1_effect_indices_json: "[]",
 						obligation_1_remediation_indices_json: "[]",
 						obligation_1_basis:
@@ -393,6 +479,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 		basis: Object.freeze(["The exact write is warranted."]),
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 		answer: "Write config.json with the accepted content.",
+		interventionDisposition: "action-required",
 	});
 	const recorded = recordWorkCaseConclusion(opened.value, conclusion);
 	if (recorded.status !== "recorded")
@@ -402,6 +489,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 		conclusionId: "conclusion-action-loop-assurance",
 		judgmentId: "judgment-action-loop-assurance",
 		category: "Claim Assurance",
+		interventionDisposition: undefined,
 		subject: "The exact bounded write and its completion evidence",
 		answer: "Current exact evidence can support bounded completion.",
 	});

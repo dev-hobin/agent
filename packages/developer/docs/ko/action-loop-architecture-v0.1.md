@@ -244,6 +244,7 @@ openJudgment(gap) =
 #### Closure
 
 - 선택된 action 또는 no-action, scope, timing, stop이 현재 evidence에 비례한다.
+- Canonical Conclusion은 `action-required` 또는 `no-action`을 보유하며, prose만으로 Action을 authorize하거나 Claim Assurance를 조용히 건너뛸 수 없다.
 - material alternative가 왜 선택되거나 배제됐는지 설명할 수 있다.
 - speculative future flexibility만으로 scope가 확장되지 않는다.
 

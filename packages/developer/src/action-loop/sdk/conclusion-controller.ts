@@ -78,11 +78,19 @@ function rejected(code: string, message: string): SdkProposalAdmission<never> {
 }
 
 function conclusionParameters(
-	requirements: readonly ClosureRequirement[],
+	contract: JudgmentClosureContract,
 ): TSchema {
 	const fields: Record<string, TSchema> = {
 		outcome: StringEnum(closureOutcomes),
 		answer: Type.Optional(Type.String({ minLength: 1, maxLength: 12_000 })),
+		...(contract.category === "Proportionate Intervention"
+			? {
+					intervention_disposition: StringEnum([
+						"action-required",
+						"no-action",
+					] as const),
+				}
+			: {}),
 		refusal_reasons_json: Type.String({
 			minLength: 2,
 			maxLength: 32_768,
@@ -95,7 +103,7 @@ function conclusionParameters(
 			description: "JSON array of one or more synthesis basis strings.",
 		}),
 	};
-	for (const [index, requirement] of requirements.entries()) {
+	for (const [index, requirement] of contract.requirements.entries()) {
 		fields[`requirement_status_${index}`] = StringEnum(requirementStatuses, {
 			description: requirement.statement,
 		});
@@ -223,6 +231,10 @@ function canonicalProposal(input: {
 			...(typeof input.raw.answer === "string"
 				? { answer: input.raw.answer }
 				: {}),
+			...(input.raw.intervention_disposition === "action-required" ||
+			input.raw.intervention_disposition === "no-action"
+				? { interventionDisposition: input.raw.intervention_disposition }
+				: {}),
 			refusalReasons: refusalReasons.value,
 			requirementDispositions: dispositions.value,
 			basis: basis.value,
@@ -240,7 +252,7 @@ function conclusionTool(input: {
 		label: "Submit one upper Judgment synthesis",
 		description:
 			"Synthesize complete current Need Coverage into a Conclusion or explicit bounded refusal.",
-		parameters: conclusionParameters(input.contract.requirements),
+		parameters: conclusionParameters(input.contract),
 		execute: async (raw) => {
 			if (!isRecord(raw)) {
 				return rejected(
@@ -294,6 +306,11 @@ function conclusionPrompt(input: SdkJudgmentConclusionInput): string {
 		`Judgment subject:\n${input.contract.subject}`,
 		`Category: ${input.contract.category}`,
 		`Current Requirements and Need Coverage:\n${requirements}`,
+		...(input.contract.category === "Proportionate Intervention"
+			? [
+					"A Conclusion must set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when the proportionate decision is to preserve current state.",
+				]
+			: []),
 		"Conclude only when every Requirement is supported by complete current Coverage. Otherwise return an explicit refusal and preserve blockers.",
 	].join("\n\n");
 }

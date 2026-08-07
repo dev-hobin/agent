@@ -1682,13 +1682,16 @@ export default async function developer(pi: ExtensionAPI) {
 		promptSnippet: "Conclude or explicitly refuse the current Judgment",
 		promptGuidelines: [
 			`Use ${ACTION_LOOP_CLOSE_JUDGMENT_TOOL} only after current Need Coverage is assessed. Cite exactly the Coverage IDs that serve each Requirement.`,
-			"Use refuse when evidence, Coverage, Context, or evaluator confidence is insufficient. A refusal leaves the Judgment open.",
+			"A Proportionate Intervention Conclusion must explicitly classify the intervention as action-required or no-action. Use refuse when evidence, Coverage, Context, or evaluator confidence is insufficient.",
 		],
 		parameters: Type.Object(
 			{
 				outcome: StringEnum(["conclude", "refuse"] as const),
 				answer: Type.Optional(
 					Type.String({ minLength: 1, maxLength: MAX_RESULT_CHARS }),
+				),
+				intervention_disposition: Type.Optional(
+					StringEnum(["action-required", "no-action"] as const),
 				),
 				refusal_reasons: Type.Array(
 					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
@@ -1758,6 +1761,7 @@ export default async function developer(pi: ExtensionAPI) {
 			const proposal = {
 				outcome: params.outcome,
 				answer: params.answer,
+				interventionDisposition: params.intervention_disposition,
 				refusalReasons: params.refusal_reasons,
 				requirementDispositions,
 				basis: params.basis,

@@ -221,6 +221,45 @@ test("SDK Contribution remains local and Coverage separately owns synthesis", as
 		conclusionEvent.expected.conclusionId,
 		conclusion.conclusion.conclusionId,
 	);
+
+	const intervention = await concludeJudgmentWithSdk({
+		request,
+		contract: {
+			workCaseId: assignment.workCaseId,
+			judgmentId: assignment.judgmentId,
+			category: "Proportionate Intervention",
+			subject: "Whether current state requires a host Action",
+			contextRevisionId: "context-sdk-contribution",
+			requirements: [
+				{
+					requirementId: "requirement-sdk-contribution",
+					statement: "The proportionate intervention is explicit.",
+					contributionNeedIds: [assignment.contributionNeedId],
+				},
+			],
+		},
+		coverages: [coverage.coverage],
+		runner: scriptedSdkRunner([
+			{
+				proposals: [
+					{
+						outcome: "conclude",
+						answer: "Current state should remain unchanged.",
+						intervention_disposition: "no-action",
+						refusal_reasons_json: "[]",
+						basis_json:
+							'["Current Need Coverage supports preserving current state."]',
+						requirement_status_0: "satisfied",
+						requirement_basis_0:
+							"The current covered Need supports no host Action.",
+					},
+				],
+			},
+		]),
+	});
+	assert.equal(intervention.status, "concluded");
+	if (intervention.status !== "concluded") return;
+	assert.equal(intervention.conclusion.interventionDisposition, "no-action");
 });
 
 test("SDK Contribution bounded stop admits no canonical Contribution", async () => {

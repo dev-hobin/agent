@@ -32,6 +32,9 @@ function conclusion(
 		coverageIds: Object.freeze([]),
 		basis: Object.freeze(["Current bounded evidence supports the Conclusion."]),
 		answer: "There is no current closure path until the blocker changes.",
+		...(category === "Proportionate Intervention"
+			? { interventionDisposition: "action-required" as const }
+			: {}),
 		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
 	});
 }

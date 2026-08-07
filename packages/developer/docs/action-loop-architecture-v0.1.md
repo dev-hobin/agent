@@ -244,6 +244,7 @@ It must be possible to say when the gap itself has been resolved without closing
 #### Closure
 
 - The selected action or no-action, scope, timing, and stop are proportionate to the current evidence.
+- The canonical Conclusion carries `action-required` or `no-action`; prose alone cannot authorize an Action or silently skip Claim Assurance.
 - It is possible to explain why a material alternative was selected or excluded.
 - Scope is not expanded solely for speculative future flexibility.
 
