@@ -1777,7 +1777,7 @@ test("non-applicable Capability assessment cannot authorize Skill routing", asyn
 
 test("a later turn can recover the active leaf method from its canonical location", async () => {
 	const harness = await startHarness();
-	await harness.tools.get(ROUTE_TOOL).execute(
+	const routed = await harness.tools.get(ROUTE_TOOL).execute(
 		"recoverable",
 		{
 			question: "What must be true?",
@@ -1788,6 +1788,9 @@ test("a later turn can recover the active leaf method from its canonical locatio
 		undefined,
 		harness.ctx,
 	);
+	assert.match(resultText(routed), /Sealed Skill context: sealed_/);
+	assert.match(resultText(routed), /exactly one Skill file · no References/);
+	assert.match(String(routed.details.sealedContextId), /^sealed_[a-f0-9]{64}$/);
 	const result = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",

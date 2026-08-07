@@ -330,8 +330,10 @@ export async function loadSkillReference(
 	};
 }
 
-export async function renderSkillMethod(skill: Skill): Promise<string> {
-	const source = await readFile(skill.filePath, "utf8");
+export function renderAcquiredSkillMethod(
+	skill: Skill,
+	source: string,
+): string {
 	const body = stripFrontmatter(source).trim();
 	const bodyBytes = Buffer.byteLength(body, "utf8");
 	const bodyLines = body.split(/\r?\n/).length;
@@ -353,4 +355,8 @@ export async function renderSkillMethod(skill: Skill): Promise<string> {
 		"",
 		`Resolve relative references from ${skill.baseDir}.`,
 	].join("\n");
+}
+
+export async function renderSkillMethod(skill: Skill): Promise<string> {
+	return renderAcquiredSkillMethod(skill, await readFile(skill.filePath, "utf8"));
 }

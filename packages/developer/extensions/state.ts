@@ -150,6 +150,7 @@ export interface RouteEvent {
 	contributionNeedId?: string;
 	capabilityAssignmentId?: string;
 	capabilityRevisionId?: string;
+	sealedContextId?: string;
 	targetQuestionId?: string;
 	methodLocation?: string;
 	executionProfile?: ImplementationProfile;
@@ -720,6 +721,8 @@ export function normalizeDeveloperEvent(
 				typeof value.capabilityAssignmentId !== "string") ||
 			(value.capabilityRevisionId !== undefined &&
 				typeof value.capabilityRevisionId !== "string") ||
+			(value.sealedContextId !== undefined &&
+				typeof value.sealedContextId !== "string") ||
 			(value.targetQuestionId !== undefined &&
 				typeof value.targetQuestionId !== "string") ||
 			(value.methodLocation !== undefined &&
@@ -771,6 +774,9 @@ export function normalizeDeveloperEvent(
 				: {}),
 			...(typeof value.capabilityRevisionId === "string"
 				? { capabilityRevisionId: value.capabilityRevisionId }
+				: {}),
+			...(typeof value.sealedContextId === "string"
+				? { sealedContextId: value.sealedContextId }
 				: {}),
 			targetQuestionId: value.targetQuestionId,
 			methodLocation: value.methodLocation,

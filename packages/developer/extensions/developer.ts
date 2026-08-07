@@ -28,6 +28,7 @@ import {
 	assessLiveCapabilityApplicability,
 	assignedLiveCapability,
 } from "./action-loop-applicability.ts";
+import { sealLiveUnstructuredCapability } from "./action-loop-context.ts";
 import {
 	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
 	openLiveJudgment,
@@ -55,6 +56,7 @@ import {
 	isWithinRoot,
 	loadSkillReference,
 	loadSkillReferencePolicy,
+	renderAcquiredSkillMethod,
 	renderSkillMethod,
 	skillReferencePaths,
 } from "./skills.ts";
@@ -1546,6 +1548,20 @@ export default async function developer(pi: ExtensionAPI) {
 						`Capability ${target} has no current applicable assignment for Contribution Need ${selectedNeed.contributionNeedId}. Use ${ACTION_LOOP_ASSESS_CAPABILITY_TOOL} first.`,
 					);
 				}
+				let sealedUnstructuredContext;
+				if (
+					boundCapabilityEntry?.routing === "unstructured" &&
+					capabilityAssignment !== undefined
+				) {
+					const sealed = await sealLiveUnstructuredCapability(
+						activeWorkCase,
+						boundCapabilityEntry,
+						capabilityAssignment,
+					);
+					if (sealed.status === "invalid") fail(sealed.message);
+					activeWorkCase = sealed.state;
+					sealedUnstructuredContext = sealed.context;
+				}
 				const availableReferences = skill
 					? await skillReferencePaths(skill)
 					: [];
@@ -1554,7 +1570,12 @@ export default async function developer(pi: ExtensionAPI) {
 					: { routes: [] };
 				let method: string;
 				if (skill) {
-					method = await renderSkillMethod(skill);
+					method = sealedUnstructuredContext
+						? renderAcquiredSkillMethod(
+								skill,
+								sealedUnstructuredContext.materials[0].content,
+							)
+						: await renderSkillMethod(skill);
 				} else if (executionProfile === "behavior-preserving-structure") {
 					const profile = await readFile(structuralChangeMethodPath, "utf8");
 					method = [
@@ -1591,6 +1612,7 @@ export default async function developer(pi: ExtensionAPI) {
 					contributionNeedId: selectedNeed.contributionNeedId,
 					capabilityAssignmentId: capabilityAssignment?.assignmentId,
 					capabilityRevisionId: capabilityAssignment?.capabilityRevisionId,
+					sealedContextId: sealedUnstructuredContext?.sealedContextId,
 					targetQuestionId,
 					methodLocation: skill?.filePath,
 					executionProfile,
@@ -1604,6 +1626,9 @@ export default async function developer(pi: ExtensionAPI) {
 					capabilityAssignment
 						? `Capability assignment: ${capabilityAssignment.assignmentId} · ${capabilityAssignment.capabilityRevisionId}`
 						: "Capability assignment: implementation compatibility route",
+					sealedUnstructuredContext
+						? `Sealed Skill context: ${sealedUnstructuredContext.sealedContextId} · exactly one Skill file · no References`
+						: "Sealed Skill context: structured selection not yet live or implementation route",
 					skill
 						? `Skill location: ${skill.filePath}`
 						: "Skill location: implementation action; no skill file",
@@ -1718,6 +1743,7 @@ export default async function developer(pi: ExtensionAPI) {
 				text += `\n${detailLine(theme, "revisits", event.targetQuestionId ?? "none")}`;
 				text += `\n${detailLine(theme, "Contribution Need", event.contributionNeedId ?? "unbound legacy route")}`;
 				text += `\n${detailLine(theme, "Capability assignment", event.capabilityAssignmentId ?? "implementation compatibility route")}`;
+				text += `\n${detailLine(theme, "Sealed context", event.sealedContextId ?? "none")}`;
 				text += `\n${detailLine(theme, "skill", event.methodLocation ?? "implementation action")}`;
 				if ((event.availableReferences ?? []).length > 0) {
 					text += `\n${detailLine(theme, "references", event.availableReferences.join(", "))}`;

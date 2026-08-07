@@ -578,6 +578,13 @@ assert.match(liveApplicabilityIntegration, /acceptCapabilityApplicability\(/);
 assert.match(liveApplicabilityIntegration, /assignedLiveCapability\(/);
 assert.match(liveApplicabilityIntegration, /already has a different assessment/);
 
+const liveContextIntegration = await readFile(
+	join(root, "extensions", "action-loop-context.ts"),
+	"utf8",
+);
+assert.match(liveContextIntegration, /sealUnstructuredSkillContext\(/);
+assert.match(liveContextIntegration, /exact current Capability Assignment/);
+
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),
 	"utf8",
