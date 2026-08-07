@@ -586,7 +586,7 @@ developer_open_work_case proposal
   → next-turn before_agent_start projection
 ```
 
-Exact duplicate는 stutter하고, 다른 Outcome은 active work를 교체할 수 없으며, Developer를 끄면 기존 confirmation boundary 뒤에 process-local state가 제거된다. Opening은 Action Clearance를 부여하지 않고 completion을 뜻하지 않는다. 이 slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 state를 제거한다. Applicability, Reference routing, Contribution, 이후 Work Case transition은 pure-only로 남는다.
+Exact duplicate는 stutter하고, 다른 Outcome은 active work를 교체할 수 없으며, Developer를 끄면 기존 confirmation boundary 뒤에 process-local state가 제거된다. Opening은 Action Clearance를 부여하지 않고 completion을 뜻하지 않는다. Live `developer_route_question` boundary는 이제 이 Work Case가 생기기 전 consequential routing을 거부하므로 preserved protocol이 Outcome continuity를 우회할 수 없다. Route result는 아직 Work Case inventory에 기록되지 않는다. 이 slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 state를 제거한다. Applicability, Reference routing, Contribution, 이후 Work Case transition은 pure-only로 남는다.
 
 ## 12. Extension-level guarantee boundary
 

@@ -586,7 +586,7 @@ developer_open_work_case proposal
   → next-turn before_agent_start projection
 ```
 
-An exact duplicate stutters, a different Outcome cannot replace active work, and turning Developer off clears this process-local state after the existing confirmation boundary. Opening grants no Action Clearance and implies no completion. This slice deliberately has no session replay yet; reconstruction or process restart clears it rather than guessing canonical history. Applicability, Reference routing, Contribution, and later Work Case transitions remain pure-only.
+An exact duplicate stutters, a different Outcome cannot replace active work, and turning Developer off clears this process-local state after the existing confirmation boundary. Opening grants no Action Clearance and implies no completion. The live `developer_route_question` boundary now rejects consequential routing until this Work Case exists, so the preserved protocol cannot bypass Outcome continuity. Route results are not yet recorded into the Work Case inventory. This slice deliberately has no session replay yet; reconstruction or process restart clears it rather than guessing canonical history. Applicability, Reference routing, Contribution, and later Work Case transitions remain pure-only.
 
 ## 12. Extension-level guarantee boundary
 
