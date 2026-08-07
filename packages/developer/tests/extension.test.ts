@@ -1761,7 +1761,8 @@ test("an unstructured Capability seals SKILL.md through an empty Reference dispo
 			],
 			basis: ["The active Outcome contains an unresolved product meaning."],
 		});
-	const needId = opened.details.judgment.contributionNeeds[0].contributionNeedId;
+	const needId =
+		opened.details.judgment.contributionNeeds[0].contributionNeedId;
 	await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",
@@ -1787,12 +1788,12 @@ test("an unstructured Capability seals SKILL.md through an empty Reference dispo
 			contribution_need_id: needId,
 			dispositions: [],
 		});
-	assert.match(resultText(sealed), /Unstructured Skill context sealed: sealed_/);
-	assert.equal(sealed.details.selectedPaths.length, 0);
-	assert.equal(
-		sealed.details.replayEvent.kind,
-		"unstructured-context-sealed",
+	assert.match(
+		resultText(sealed),
+		/Unstructured Skill context sealed: sealed_/,
 	);
+	assert.equal(sealed.details.selectedPaths.length, 0);
+	assert.equal(sealed.details.replayEvent.kind, "unstructured-context-sealed");
 	const contributed = await harness.tools
 		.get("developer_accept_contribution")
 		.execute("contribute-unstructured", {
