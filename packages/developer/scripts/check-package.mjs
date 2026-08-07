@@ -519,6 +519,7 @@ const extension = await readFile(
 	"utf8",
 );
 assert.match(extension, /name: ACTION_LOOP_OPEN_WORK_CASE_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_OPEN_JUDGMENT_TOOL/);
 assert.match(extension, /name: ROUTE_TOOL/);
 assert.match(extension, /name: JUDGMENT_TOOL/);
 assert.match(extension, /registerCommand\("developer"/);
@@ -558,6 +559,14 @@ const liveWorkCaseIntegration = await readFile(
 assert.match(liveWorkCaseIntegration, /openWorkCase\(/);
 assert.match(liveWorkCaseIntegration, /active-work-case-exists/);
 assert.match(liveWorkCaseIntegration, /does not imply Action Clearance/);
+
+const liveJudgmentIntegration = await readFile(
+	join(root, "extensions", "action-loop-judgment.ts"),
+	"utf8",
+);
+assert.match(liveJudgmentIntegration, /openJudgment\(/);
+assert.match(liveJudgmentIntegration, /recordWorkCaseJudgment\(/);
+assert.match(liveJudgmentIntegration, /different Judgment is already open/);
 
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),

@@ -1539,6 +1539,57 @@ test("a live Work Case opens once and projects across agent turns", async () => 
 	assert.match(afterReset.systemPrompt, /No active Action Loop Work Case/);
 });
 
+test("a live Judgment exposes Closure Requirements and Contribution Needs", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	await openTestWorkCase(harness, "live-judgment");
+	const opening = harness.tools.get("developer_open_judgment");
+	const opened = await opening.execute("open-live-judgment", {
+		category: "Claim Assurance",
+		subject: "The current bounded completion Claim.",
+		question: "What does current evidence support?",
+		requirements: [
+			{
+				statement: "Every closure obligation has relevant evidence.",
+				contribution_needs: ["claim-relevant verifier"],
+			},
+		],
+		basis: ["The active Outcome is approaching a closure Claim."],
+	});
+	assert.match(resultText(opened), /Judgment opened/);
+	const next = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(next.systemPrompt, /Open Judgment: open_judgment_/);
+	assert.match(next.systemPrompt, /Closure Requirements:/);
+	assert.match(next.systemPrompt, /Contribution Needs:/);
+	await assert.rejects(
+		opening.execute("open-second-judgment", {
+			category: "Proportionate Intervention",
+			subject: "Another independent intervention.",
+			question: "Should another Judgment replace the current one?",
+			requirements: [
+				{
+					statement: "The intervention is proportionate.",
+					contribution_needs: ["cost and reversibility comparison"],
+				},
+			],
+			basis: [
+				"A second proposal attempted to bypass current Judgment closure.",
+			],
+		}),
+		/already open/i,
+	);
+});
+
 test("a later turn can recover the active leaf method from its canonical location", async () => {
 	const harness = await startHarness();
 	await harness.tools.get(ROUTE_TOOL).execute(

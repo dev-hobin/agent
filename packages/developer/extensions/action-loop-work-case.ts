@@ -18,6 +18,7 @@ export interface LiveWorkCaseProposal {
 
 export interface LiveWorkCaseState {
 	readonly workCase: ActiveWorkCase;
+	readonly contextRevisionId: string;
 	readonly openingBasis: readonly string[];
 }
 
@@ -125,7 +126,11 @@ export function openLiveWorkCase(
 	}
 	return {
 		status: "opened",
-		value: Object.freeze({ workCase: opened.value, openingBasis: basis }),
+		value: Object.freeze({
+			workCase: opened.value,
+			contextRevisionId: opened.value.revisionId,
+			openingBasis: basis,
+		}),
 	};
 }
 
@@ -136,12 +141,23 @@ export function liveWorkCasePrompt(
 		return "No active Action Loop Work Case. Before consequential Developer routing or action, propose one bounded Outcome with developer_open_work_case; do not infer permission or completion from opening it.";
 	}
 	const { workCase, openingBasis } = state;
+	const judgment = workCase.openJudgments[0];
+	const judgmentLines =
+		judgment === undefined
+			? ["Open Judgment: none"]
+			: [
+					`Open Judgment: ${judgment.judgmentId} · ${judgment.category} · ${judgment.question}`,
+					`Closure Requirements: ${judgment.requirements.map(({ statement }) => statement).join(" | ")}`,
+					`Contribution Needs: ${judgment.contributionNeeds.map(({ contributionNeedId, function: needFunction }) => `${contributionNeedId}: ${needFunction}`).join(" | ")}`,
+				];
 	return [
 		`Active Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
 		`Outcome: ${workCase.outcome.statement}`,
+		`Context revision: ${state.contextRevisionId}`,
 		`Acceptance conditions: ${workCase.outcome.acceptanceConditions.join(" | ")}`,
 		`Constraints: ${workCase.outcome.constraints.join(" | ") || "none"}`,
 		`Opening basis: ${openingBasis.join(" | ")}`,
+		...judgmentLines,
 		"This process-local projection preserves active Outcome continuity but does not imply Action Clearance or completion.",
 	].join("\n");
 }

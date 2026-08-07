@@ -24,6 +24,10 @@ import {
 	type LiveCapabilityInventoryResult,
 } from "./action-loop-capability-inventory.ts";
 import {
+	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
+	openLiveJudgment,
+} from "./action-loop-judgment.ts";
+import {
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 	MAX_LIVE_BASIS_ITEMS,
 	MAX_LIVE_OUTCOME_ITEMS,
@@ -112,6 +116,7 @@ import {
 
 const PROTOCOL_TOOLS = [
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
+	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
 	ROUTE_TOOL,
 	REFERENCE_TOOL,
 	JUDGMENT_TOOL,
@@ -907,6 +912,90 @@ export default async function developer(pi: ExtensionAPI) {
 					kind: result.status,
 					workCase: result.value.workCase,
 					openingBasis: result.value.openingBasis,
+				},
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_OPEN_JUDGMENT_TOOL,
+		label: "Developer Open Judgment",
+		description:
+			"Propose one Category-scoped Judgment for the active Work Case, with explicit Closure Requirements and functional Contribution Needs. It does not select a Skill or grant permission.",
+		promptSnippet: "Open one bounded Action Loop Judgment",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_OPEN_JUDGMENT_TOOL} only for a consequential unresolved Warrant Gap with an independent stop.`,
+			"Choose Category from the gap, never from a Skill name. Contribution Needs describe missing input functions, not Capabilities.",
+		],
+		parameters: Type.Object(
+			{
+				category: StringEnum([
+					"Contextual Adequacy",
+					"Proportionate Intervention",
+					"Consequence Integrity",
+					"Claim Assurance",
+				] as const),
+				subject: Type.String({ minLength: 1, maxLength: MAX_QUESTION_CHARS }),
+				question: Type.String({ minLength: 1, maxLength: MAX_QUESTION_CHARS }),
+				requirements: Type.Array(
+					Type.Object(
+						{
+							statement: Type.String({
+								minLength: 1,
+								maxLength: MAX_QUESTION_CHARS,
+							}),
+							contribution_needs: Type.Array(
+								Type.String({
+									minLength: 1,
+									maxLength: MAX_EVIDENCE_CHARS,
+								}),
+								{ minItems: 1, maxItems: 8 },
+							),
+						},
+						{ additionalProperties: false },
+					),
+					{ minItems: 1, maxItems: 8 },
+				),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: MAX_LIVE_BASIS_ITEMS },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) {
+				fail(
+					`No active Action Loop Work Case. Open one with ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} before opening a Judgment.`,
+				);
+			}
+			const result = openLiveJudgment(activeWorkCase, {
+				category: params.category,
+				subject: params.subject,
+				question: params.question,
+				requirements: params.requirements.map((requirement) => ({
+					statement: requirement.statement,
+					contributionNeeds: requirement.contribution_needs,
+				})),
+				basis: params.basis,
+				provenance: { kind: "model", source: "pi:tool-call" },
+			});
+			if (result.status === "invalid") fail(result.message);
+			activeWorkCase = result.state;
+			return textResult(
+				result.status === "opened"
+					? `Judgment opened: ${result.judgment.judgmentId}`
+					: `Judgment already open: ${result.judgment.judgmentId}`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: result.status,
+					judgment: result.judgment,
+					workCaseRevisionId: result.state.workCase.revisionId,
 				},
 			);
 		},
