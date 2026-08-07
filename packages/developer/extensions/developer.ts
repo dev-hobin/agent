@@ -78,10 +78,18 @@ import {
 } from "./action-loop-judgment.ts";
 import {
 	ACTION_LOOP_SESSION_PROTOCOL,
+	actionLoopCapabilityAssessedEvent,
+	actionLoopContributionAcceptedEvent,
+	actionLoopCoverageAssessedEvent,
+	actionLoopJudgmentConcludedEvent,
+	actionLoopJudgmentOpenedEvent,
+	actionLoopReferencesSelectedEvent,
+	actionLoopUnstructuredContextSealedEvent,
 	actionLoopWorkCaseOpenedEvent,
 	replayActionLoopSession,
 	withActionLoopReplayEvent,
 	type ActionLoopSessionBranchEntry,
+	type ActionLoopUnstructuredContextSealedEvent,
 } from "./action-loop-session.ts";
 import {
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
@@ -1072,7 +1080,7 @@ export default async function developer(pi: ExtensionAPI) {
 					`No active Action Loop Work Case. Open one with ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} before opening a Judgment.`,
 				);
 			}
-			const result = openLiveJudgment(activeWorkCase, {
+			const proposal = {
 				category: params.category,
 				subject: params.subject,
 				question: params.question,
@@ -1081,20 +1089,28 @@ export default async function developer(pi: ExtensionAPI) {
 					contributionNeeds: requirement.contribution_needs,
 				})),
 				basis: params.basis,
-				provenance: { kind: "model", source: "pi:tool-call" },
-			});
+				provenance: { kind: "model" as const, source: "pi:tool-call" },
+			};
+			const result = openLiveJudgment(activeWorkCase, proposal);
 			if (result.status === "invalid") fail(result.message);
 			activeWorkCase = result.state;
 			return textResult(
 				result.status === "opened"
 					? `Judgment opened: ${result.judgment.judgmentId}`
 					: `Judgment already open: ${result.judgment.judgmentId}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: result.status,
-					judgment: result.judgment,
-					workCaseRevisionId: result.state.workCase.revisionId,
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: result.status,
+						judgment: result.judgment,
+						workCaseRevisionId: result.state.workCase.revisionId,
+					},
+					actionLoopJudgmentOpenedEvent(
+						proposal,
+						result.judgment.judgmentId,
+						result.state.workCase.revisionId,
+					),
+				),
 			);
 		},
 	});
@@ -1169,25 +1185,38 @@ export default async function developer(pi: ExtensionAPI) {
 					`Capability ${params.capability} is unavailable, excluded, ambiguous, or unbound.`,
 				);
 			}
-			const result = assessLiveCapabilityApplicability(activeWorkCase, entry, {
+			const proposal = {
 				contributionNeedId: params.contribution_need_id,
 				status: params.status,
 				matchedWhen: params.matched_when,
 				matchedUnless: params.matched_unless,
 				basis: params.basis,
 				missingContext: params.missing_context,
-			});
+			};
+			const result = assessLiveCapabilityApplicability(
+				activeWorkCase,
+				entry,
+				proposal,
+			);
 			if (result.status === "invalid") fail(result.message);
 			activeWorkCase = result.state;
 			return textResult(
 				`Capability ${params.capability}: ${result.assessment.status}${result.assignment ? ` · ${result.assignment.assignmentId}` : ""}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: result.status,
-					capability: params.capability,
-					assessment: result.assessment,
-					assignment: result.assignment,
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: result.status,
+						capability: params.capability,
+						assessment: result.assessment,
+						assignment: result.assignment,
+					},
+					actionLoopCapabilityAssessedEvent(
+						params.capability,
+						proposal,
+						result.assessment,
+						result.assignment?.assignmentId,
+					),
+				),
 			);
 		},
 	});
@@ -1288,14 +1317,24 @@ export default async function developer(pi: ExtensionAPI) {
 				result.context
 					? `Reference selection sealed: ${result.selectionId} · ${result.context.sealedContextId}`
 					: `Reference selection unresolved: ${result.selectionId}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: result.status,
-					capability: params.capability,
-					selectionId: result.selectionId,
-					sealedContextId: result.context?.sealedContextId,
-					selectedPaths: result.context?.selectedPaths ?? [],
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: result.status,
+						capability: params.capability,
+						selectionId: result.selectionId,
+						sealedContextId: result.context?.sealedContextId,
+						selectedPaths: result.context?.selectedPaths ?? [],
+					},
+					actionLoopReferencesSelectedEvent({
+						skillName: params.capability,
+						capabilityRevisionId: entry.capability.capabilityRevisionId,
+						contributionNeedId: need.value.contributionNeedId,
+						dispositions: params.dispositions,
+						selectionId: result.selectionId,
+						sealedContextId: result.context?.sealedContextId,
+					}),
+				),
 			);
 		},
 	});
@@ -1430,15 +1469,20 @@ export default async function developer(pi: ExtensionAPI) {
 			if (entry === undefined) {
 				fail(`Capability ${params.capability} is unavailable or unbound.`);
 			}
-			const accepted = acceptLiveSkillContribution(activeWorkCase, entry, {
+			const proposal = {
 				contributionNeedId: params.contribution_need_id,
 				localStatus: params.local_status,
 				result: params.result,
 				referenceApplications: params.reference_applications,
 				limitations: params.limitations,
 				residualNeeds: params.residual_needs,
-				provenance: { kind: "model", source: "pi:tool-call" },
-			});
+				provenance: { kind: "model" as const, source: "pi:tool-call" },
+			};
+			const accepted = acceptLiveSkillContribution(
+				activeWorkCase,
+				entry,
+				proposal,
+			);
 			if (accepted.status === "invalid") fail(accepted.message);
 			activeWorkCase = accepted.state;
 			let compatibilityRouteClosed = false;
@@ -1472,13 +1516,21 @@ export default async function developer(pi: ExtensionAPI) {
 			}
 			return textResult(
 				`Skill Contribution ${accepted.status}: ${accepted.contribution.contributionId}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: accepted.status,
-					capability: params.capability,
-					contribution: accepted.contribution,
-					compatibilityRouteClosed,
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: accepted.status,
+						capability: params.capability,
+						contribution: accepted.contribution,
+						compatibilityRouteClosed,
+					},
+					actionLoopContributionAcceptedEvent(
+						params.capability,
+						entry.capability.capabilityRevisionId,
+						proposal,
+						accepted.contribution.contributionId,
+					),
+				),
 			);
 		},
 	});
@@ -1562,7 +1614,7 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const assessed = assessLiveNeedCoverage(activeWorkCase, {
+			const proposal = {
 				contributionNeedId: params.contribution_need_id,
 				status: params.status,
 				dispositions: params.dispositions.map((disposition) => ({
@@ -1576,17 +1628,24 @@ export default async function developer(pi: ExtensionAPI) {
 					basis: conflict.basis,
 				})),
 				basis: params.basis,
-				provenance: { kind: "model", source: "pi:tool-call" },
-			});
+				provenance: { kind: "model" as const, source: "pi:tool-call" },
+			};
+			const assessed = assessLiveNeedCoverage(activeWorkCase, proposal);
 			if (assessed.status === "invalid") fail(assessed.message);
 			activeWorkCase = assessed.state;
 			return textResult(
 				`Need Coverage ${assessed.status}: ${assessed.coverage.coverageId} · ${assessed.coverage.status}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: assessed.status,
-					coverage: assessed.coverage,
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: assessed.status,
+						coverage: assessed.coverage,
+					},
+					actionLoopCoverageAssessedEvent(
+						proposal,
+						assessed.coverage.coverageId,
+					),
+				),
 			);
 		},
 	});
@@ -1650,7 +1709,7 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const closed = closeLiveJudgment(activeWorkCase, {
+			const proposal = {
 				outcome: params.outcome,
 				answer: params.answer,
 				refusalReasons: params.refusal_reasons,
@@ -1663,8 +1722,9 @@ export default async function developer(pi: ExtensionAPI) {
 					}),
 				),
 				basis: params.basis,
-				provenance: { kind: "model", source: "pi:tool-call" },
-			});
+				provenance: { kind: "model" as const, source: "pi:tool-call" },
+			};
+			const closed = closeLiveJudgment(activeWorkCase, proposal);
 			if (closed.status === "invalid") fail(closed.message);
 			if (closed.status === "refused") {
 				return textResult(
@@ -1681,13 +1741,20 @@ export default async function developer(pi: ExtensionAPI) {
 			activeWorkCase = closed.state;
 			return textResult(
 				`Judgment concluded: ${closed.conclusion.conclusionId}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: "closure",
-					artifactKind: "conclusion",
-					artifact: closed.conclusion as unknown,
-					workCaseRevisionId: closed.state.workCase.revisionId,
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: "closure",
+						artifactKind: "conclusion",
+						artifact: closed.conclusion as unknown,
+						workCaseRevisionId: closed.state.workCase.revisionId,
+					},
+					actionLoopJudgmentConcludedEvent(
+						proposal,
+						closed.conclusion.conclusionId,
+						closed.state.workCase.revisionId,
+					),
+				),
 			);
 		},
 	});
@@ -2513,6 +2580,9 @@ export default async function developer(pi: ExtensionAPI) {
 					);
 				}
 				let sealedSkillContext;
+				let unstructuredReplayEvent:
+					| ActionLoopUnstructuredContextSealedEvent
+					| undefined;
 				if (
 					boundCapabilityEntry?.routing === "unstructured" &&
 					capabilityAssignment !== undefined
@@ -2525,6 +2595,13 @@ export default async function developer(pi: ExtensionAPI) {
 					if (sealed.status === "invalid") fail(sealed.message);
 					activeWorkCase = sealed.state;
 					sealedSkillContext = sealed.context;
+					unstructuredReplayEvent =
+						actionLoopUnstructuredContextSealedEvent(
+							target,
+							boundCapabilityEntry.capability.capabilityRevisionId,
+							capabilityAssignment.assignmentId,
+							sealed.context.sealedContextId,
+						);
 				}
 				if (
 					boundCapabilityEntry?.routing === "structured" &&
@@ -2689,7 +2766,12 @@ export default async function developer(pi: ExtensionAPI) {
 				state = applyDeveloperEvent(state, event);
 				syncProtocolTools();
 				refreshUI(ctx);
-				return textResult(response, event);
+				return textResult(
+					response,
+					unstructuredReplayEvent
+						? withActionLoopReplayEvent(event, unstructuredReplayEvent)
+						: event,
+				);
 			} finally {
 				routeOpening = false;
 			}
@@ -3887,7 +3969,10 @@ export default async function developer(pi: ExtensionAPI) {
 		const inventory = await prepareLiveCapabilityInventory(event, skillsRoot);
 		applyLiveCapabilityInventory(inventory);
 		if (pendingActionLoopBranch) {
-			const replayed = await replayActionLoopSession(pendingActionLoopBranch);
+			const replayed = await replayActionLoopSession(
+				pendingActionLoopBranch,
+				inventory,
+			);
 			pendingActionLoopBranch = undefined;
 			if (replayed.status === "ready") {
 				activeWorkCase = replayed.activeWorkCase;

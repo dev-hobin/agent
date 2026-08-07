@@ -2128,6 +2128,157 @@ test("the current Pi branch restores a persisted Action Loop Work Case opening",
 	assert.ok(resumed.systemPrompt.includes(opened.details.workCase.revisionId));
 });
 
+test("the current Pi branch restores Judgment routing through Conclusion", async () => {
+	const first = createHarness();
+	await developer(first.api);
+	await first.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await first.commands.get("developer").handler("on", first.ctx);
+	await first.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "start",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	const opened = await first.tools
+		.get("developer_open_work_case")
+		.execute("replay-routing-work-case", {
+			statement: "The Pi session restores canonical Judgment routing.",
+			acceptance_conditions: [
+				"The current Conclusion remains bound to its exact Contribution evidence.",
+			],
+			constraints: ["Sealed bytes are reacquired only when their hash matches."],
+			basis: ["The selected replay design requires branch-exact continuity."],
+		});
+	const judgment = await first.tools
+		.get("developer_open_judgment")
+		.execute("replay-routing-judgment", {
+			category: "Contextual Adequacy",
+			subject: "The Action Loop replay boundary.",
+			question: "Does the current session preserve exact routing evidence?",
+			requirements: [
+				{
+					statement: "The replay boundary preserves one exact routed Contribution.",
+					contribution_needs: ["session replay design evidence"],
+				},
+			],
+			basis: ["Durable continuity is required before live nonterminal status."],
+		});
+	const contributionNeedId =
+		judgment.details.judgment.contributionNeeds[0].contributionNeedId;
+	const assessed = await first.tools
+		.get("developer_assess_capability")
+		.execute("replay-routing-assessment", {
+			capability: "model",
+			contribution_need_id: contributionNeedId,
+			status: "applicable",
+			matched_when: [
+				"Consequential conditions, rules, contracts, histories, or proof boundaries must be modeled.",
+			],
+			matched_unless: [],
+			basis: ["Replay ordering and drift behavior are consequential rules."],
+			missing_context: [],
+		});
+	const selected = await first.tools
+		.get("developer_select_references")
+		.execute("replay-routing-selection", {
+			capability: "model",
+			contribution_need_id: contributionNeedId,
+			dispositions: TEST_CAPABILITY_REFERENCES.model.map((path) => ({
+				path,
+				status: "not-needed",
+				basis: ["The replay protocol cases are already explicit in this test."],
+			})),
+		});
+	const contribution = await first.tools
+		.get("developer_accept_contribution")
+		.execute("replay-routing-contribution", {
+			capability: "model",
+			contribution_need_id: contributionNeedId,
+			local_status: "resolved",
+			result: "The branch event order and exact identity checks preserve routing evidence.",
+			reference_applications: [],
+			limitations: [],
+			residual_needs: [],
+		});
+	const coverage = await first.tools
+		.get("developer_assess_coverage")
+		.execute("replay-routing-coverage", {
+			contribution_need_id: contributionNeedId,
+			status: "covered",
+			dispositions: [
+				{
+					contribution_id: contribution.details.contribution.contributionId,
+					status: "supports",
+					basis: ["The accepted Contribution answers the replay design Need."],
+				},
+			],
+			conflicts: [],
+			basis: ["All current Contributions are accounted."],
+		});
+	const conclusion = await first.tools
+		.get("developer_close_judgment")
+		.execute("replay-routing-conclusion", {
+			outcome: "conclude",
+			answer: "Pi branch replay preserves the exact canonical routing chain.",
+			refusal_reasons: [],
+			requirement_dispositions: [
+				{
+					requirement_id:
+						judgment.details.judgment.requirements[0].requirementId,
+					status: "satisfied",
+					coverage_ids: [coverage.details.coverage.coverageId],
+					basis: ["The current Coverage satisfies the replay Requirement."],
+				},
+			],
+			basis: ["Every current Requirement has exact Coverage."],
+		});
+
+	const second = createHarness();
+	second.setBranch([
+		...first.entries.map((entry) => ({ type: "custom", ...entry })),
+		...[opened, judgment, assessed, selected, contribution, coverage, conclusion].map(
+			(result) => ({
+				type: "message",
+				message: {
+					role: "toolResult",
+					toolName: "developer-action-loop-test",
+					details: result.details,
+				},
+			}),
+		),
+	]);
+	await developer(second.api);
+	await second.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	const resumed = await second.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "resume",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+
+	assert.ok(
+		resumed.systemPrompt.includes(
+			`Judgment Conclusion: ${conclusion.details.artifact.conclusionId}`,
+		),
+	);
+	assert.ok(
+		resumed.systemPrompt.includes(
+			`Skill Contribution: ${contribution.details.contribution.contributionId}`,
+		),
+	);
+	assert.ok(
+		resumed.systemPrompt.includes(
+			`Sealed Skill context: ${selected.details.sealedContextId}`,
+		),
+	);
+});
+
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
