@@ -284,11 +284,7 @@ test("ready structured selection seals Skill and selected References atomically"
 							assert.equal(effect.effect.status, "pending");
 							assert.deepEqual(clearedLivePiToolNames(effect.state), []);
 							assert.equal(
-								matchingLiveActionClearance(
-									effect.state,
-									"write",
-									toolInput,
-								),
+								matchingLiveActionClearance(effect.state, "write", toolInput),
 								undefined,
 							);
 							const observed = observeLivePiToolResult(
@@ -331,8 +327,7 @@ test("ready structured selection seals Skill and selected References atomically"
 										],
 										intendedEffectDispositions: [
 											{
-												intendedEffect:
-													"The bounded artifact is updated.",
+												intendedEffect: "The bounded artifact is updated.",
 												status: "unknown",
 												observationIds: [
 													observed.observation.effectObservationId,

@@ -1896,7 +1896,10 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		input: { ...actionToolInput, content: "different artifact" },
 		toolCallId: "write:mismatched-live-action",
 	});
-	assert.match(mismatchedAction.reason, /exact current unconsumed Action Clearance/);
+	assert.match(
+		mismatchedAction.reason,
+		/exact current unconsumed Action Clearance/,
+	);
 	assert.equal(
 		await harness.emit("tool_call", {
 			toolName: "write",
@@ -1954,7 +1957,10 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 			],
 			basis: ["Keep the Effect unsettled until artifact state is verified."],
 		});
-	assert.match(resultText(effectSettlement), /Effect unsettled: effect_assessment_/);
+	assert.match(
+		resultText(effectSettlement),
+		/Effect unsettled: effect_assessment_/,
+	);
 	assert.match(resultText(effectSettlement), /· unknown/);
 	const notReadyClosure = await harness.tools
 		.get("developer_prepare_closure")
@@ -2004,11 +2010,17 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		input: actionToolInput,
 		toolCallId: "write:repeated-live-action",
 	});
-	assert.match(repeatedAction.reason, /exact current unconsumed Action Clearance/);
+	assert.match(
+		repeatedAction.reason,
+		/exact current unconsumed Action Clearance/,
+	);
 	const readyClosure = await harness.tools
 		.get("developer_prepare_closure")
 		.execute("prepare-ready-closure", {});
-	assert.match(resultText(readyClosure), /Closure Target ready: closure_target_/);
+	assert.match(
+		resultText(readyClosure),
+		/Closure Target ready: closure_target_/,
+	);
 	const closureTarget = readyClosure.details.artifact;
 	assert.equal(closureTarget.obligations.length, 2);
 	assert.equal(closureTarget.conclusionIds.length, 1);
@@ -2036,7 +2048,9 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 					basis: ["The observed-success Effect supports this obligation."],
 				},
 			],
-			basis: ["Every current closure obligation and evidence item is accounted."],
+			basis: [
+				"Every current closure obligation and evidence item is accounted.",
+			],
 		});
 	assert.match(resultText(completed), /Work Case completed: work_case_/);
 	const afterContribution = await harness.emit("before_agent_start", {
@@ -2053,8 +2067,14 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		afterContribution.systemPrompt,
 		/Completed Action Loop Work Case: work_case_/,
 	);
-	assert.match(afterContribution.systemPrompt, /Closure Target: closure_target_/);
-	assert.match(afterContribution.systemPrompt, /Closure Claim: closure_claim_.* · completed/);
+	assert.match(
+		afterContribution.systemPrompt,
+		/Closure Target: closure_target_/,
+	);
+	assert.match(
+		afterContribution.systemPrompt,
+		/Closure Claim: closure_claim_.* · completed/,
+	);
 });
 
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {

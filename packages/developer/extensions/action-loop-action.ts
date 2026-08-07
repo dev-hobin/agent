@@ -139,7 +139,9 @@ export function clearedLivePiToolNames(
 		const name = clearance.controlledAction.kind.replace("pi-tool-call:", "");
 		if (name === "bash" || name === "edit" || name === "write") names.add(name);
 	}
-	return Object.freeze([...names].sort((left, right) => left.localeCompare(right)));
+	return Object.freeze(
+		[...names].sort((left, right) => left.localeCompare(right)),
+	);
 }
 
 /** Applies an adapter-owned host Permission Decision to one recorded Candidate. */

@@ -88,7 +88,10 @@ test("unsupported, non-JSON, deeply nested, and oversized inputs fail closed", (
 		status: "invalid",
 		message: "Unsupported controlled Pi tool: read",
 	});
-	assert.equal(bindPiControlledAction("write", { content: undefined }).status, "invalid");
+	assert.equal(
+		bindPiControlledAction("write", { content: undefined }).status,
+		"invalid",
+	);
 	let nested: unknown = "leaf";
 	for (let depth = 0; depth < 34; depth += 1) nested = [nested];
 	assert.equal(bindPiControlledAction("write", { nested }).status, "invalid");

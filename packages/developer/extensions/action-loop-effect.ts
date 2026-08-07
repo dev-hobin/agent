@@ -155,7 +155,8 @@ export function observeLivePiToolResult(
 			? { status: "unchanged", state, observation: current }
 			: {
 					status: "invalid",
-					message: "A different Pi tool result Observation already exists for this Effect",
+					message:
+						"A different Pi tool result Observation already exists for this Effect",
 				};
 	}
 	const effectObservations = Object.freeze(
@@ -225,8 +226,7 @@ export function settleLiveEffect(
 		return { status: "invalid", message: recorded.error.message };
 	}
 	return {
-		status:
-			recorded.status === "unchanged" ? "unchanged" : settled.status,
+		status: recorded.status === "unchanged" ? "unchanged" : settled.status,
 		state:
 			recorded.status === "recorded"
 				? Object.freeze({ ...state, workCase: recorded.value })
@@ -259,7 +259,8 @@ export function recordLiveEffectRemediation(
 	) {
 		return {
 			status: "invalid",
-			message: "Effect remediation requires two current settled Effect assessments",
+			message:
+				"Effect remediation requires two current settled Effect assessments",
 		};
 	}
 	const accepted = acceptEffectRemediation(adverse, remediation, {

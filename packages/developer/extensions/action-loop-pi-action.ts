@@ -2,8 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { ControlledActionIdentity } from "../src/action-loop/action/accept-action-candidate.ts";
 
-export const PI_CONTROLLED_ACTION_VERSION =
-	"developer-pi-controlled-action/v1";
+export const PI_CONTROLLED_ACTION_VERSION = "developer-pi-controlled-action/v1";
 export const PI_TOOL_RESULT_EVIDENCE_VERSION =
 	"developer-pi-tool-result-evidence/v1";
 export const MAX_PI_CONTROLLED_ACTION_INPUT_CHARS = 131_072;

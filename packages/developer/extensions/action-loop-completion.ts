@@ -9,12 +9,13 @@ import {
 import {
 	prepareClosureTarget,
 	type SealedClosureTarget,
-	 type ClosureTargetBlocker,
+	type ClosureTargetBlocker,
 } from "../src/action-loop/work/prepare-closure-target.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
 export const ACTION_LOOP_PREPARE_CLOSURE_TOOL = "developer_prepare_closure";
-export const ACTION_LOOP_COMPLETE_WORK_CASE_TOOL = "developer_complete_work_case";
+export const ACTION_LOOP_COMPLETE_WORK_CASE_TOOL =
+	"developer_complete_work_case";
 
 export type LiveClosurePreparationResult =
 	| { readonly status: "ready"; readonly target: SealedClosureTarget }
@@ -67,7 +68,8 @@ export function completeLiveWorkCase(
 	if (prepared.target.closureTargetId !== proposal.closureTargetId) {
 		return {
 			status: "invalid",
-			message: "Closure Target is stale or belongs to another Work Case revision",
+			message:
+				"Closure Target is stale or belongs to another Work Case revision",
 		};
 	}
 	const claim = acceptClosureClaim(prepared.target, {
@@ -81,7 +83,11 @@ export function completeLiveWorkCase(
 	if (claim.status === "invalid") {
 		return { status: "invalid", message: claim.error.message };
 	}
-	const completed = completeWorkCase(state.workCase, prepared.target, claim.value);
+	const completed = completeWorkCase(
+		state.workCase,
+		prepared.target,
+		claim.value,
+	);
 	return completed.status === "completed"
 		? completed
 		: { status: "invalid", message: completed.refusal.message };
