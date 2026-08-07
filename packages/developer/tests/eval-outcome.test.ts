@@ -56,10 +56,7 @@ test("eval outcomes distinguish unchanged, held, active-changed, and completed p
 });
 
 test("trial disposition separates agent settlement from Work Case completion", () => {
-	assert.equal(
-		classifyTrialDisposition({ status: status() }),
-		"completed",
-	);
+	assert.equal(classifyTrialDisposition({ status: status() }), "completed");
 	assert.equal(
 		classifyTrialDisposition({
 			status: status({ protocol: "active", active: "active" }),

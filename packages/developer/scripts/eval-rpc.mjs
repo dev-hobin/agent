@@ -377,9 +377,12 @@ try {
 							: undefined,
 				});
 				if (trialOutcome === "protocol-unavailable") {
-					throw new Error(`${fixture.id}: canonical protocol became unavailable`);
+					throw new Error(
+						`${fixture.id}: canonical protocol became unavailable`,
+					);
 				}
-				const terminal = trialOutcome === "completed" || trialOutcome === "held";
+				const terminal =
+					trialOutcome === "completed" || trialOutcome === "held";
 				const traceSummary = terminal
 					? await validateExecutionTrace(
 							fixture,
@@ -411,9 +414,9 @@ try {
 							status: status.protocol,
 							...(waitResult.status === "bounded-stop"
 								? {
-									budgetStop: waitResult.budgetStop,
-									recentEvents: waitResult.recentEvents,
-								}
+										budgetStop: waitResult.budgetStop,
+										recentEvents: waitResult.recentEvents,
+									}
 								: {}),
 							...(tracePath ? { tracePath } : {}),
 							...traceSummary,

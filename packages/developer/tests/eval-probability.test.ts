@@ -50,10 +50,7 @@ test("live failure classification keeps wrong answers distinct from ordinary var
 		classifyLiveFailure("structurally inadmissible first Capability"),
 		"inadmissible-result",
 	);
-	assert.equal(
-		classifyLiveFailure("wall-clock budget 10/1ms"),
-		"bounded-stop",
-	);
+	assert.equal(classifyLiveFailure("wall-clock budget 10/1ms"), "bounded-stop");
 	assert.equal(
 		classifyLiveFailure("no canonical Judgment followed Work Case opening"),
 		"protocol-attempt-rejected",
