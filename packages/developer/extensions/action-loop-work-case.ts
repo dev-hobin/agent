@@ -180,6 +180,10 @@ export function liveWorkCasePrompt(
 			(effect) =>
 				`Effect: ${effect.effectId} · ${effect.status} · occurrence ${effect.occurrenceId}`,
 		),
+		...state.effectObservations.map(
+			(observation) =>
+				`Effect Observation: ${observation.effectObservationId} · ${observation.evidence.kind} · settlement not implied`,
+		),
 	];
 	if (actionLines.length === 0) actionLines.push("Actions: none");
 	const judgmentLines =

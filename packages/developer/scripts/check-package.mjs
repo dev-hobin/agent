@@ -542,7 +542,7 @@ assert.doesNotMatch(
 	extension,
 	/developer\.snapshot|acceptedContract|verifiedClaims|completionState/,
 );
-assert.doesNotMatch(extension, /isError\s*:/);
+assert.match(extension, /observeLivePiToolResult\(/);
 assert.doesNotMatch(
 	extension,
 	/compaction-language|COMPACTION_LANGUAGE|compactionLanguage|detectStrongUserLanguage/u,
@@ -626,6 +626,14 @@ assert.match(liveActionIntegration, /acceptActionCandidate\(/);
 assert.match(liveActionIntegration, /without granting permission or clearance/);
 assert.match(liveActionIntegration, /acceptActionClearance\(/);
 assert.match(liveActionIntegration, /adapter-owned host Permission Decision/);
+
+const liveEffectIntegration = await readFile(
+	join(root, "extensions", "action-loop-effect.ts"),
+	"utf8",
+);
+assert.match(liveEffectIntegration, /beginEffect\(/);
+assert.match(liveEffectIntegration, /acceptEffectObservation\(/);
+assert.match(liveEffectIntegration, /does not by itself establish/);
 
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),

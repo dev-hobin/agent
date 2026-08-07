@@ -30,7 +30,10 @@ import {
 	clearedLivePiToolNames,
 	matchingLiveActionClearance,
 } from "./action-loop-action.ts";
-import { beginLiveActionEffect } from "./action-loop-effect.ts";
+import {
+	beginLiveActionEffect,
+	observeLivePiToolResult,
+} from "./action-loop-effect.ts";
 import {
 	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
 	assessLiveCapabilityApplicability,
@@ -3648,6 +3651,36 @@ export default async function developer(pi: ExtensionAPI) {
 					? "Developer requires an active judgment or implementation route before Pi built-in bash can execute evidence checks."
 					: `Developer requires an active ${ROUTE_TOOL} targeting implementation (target=implementation) before Pi built-in edit or write.`,
 		};
+	});
+
+	pi.on("tool_result", (event) => {
+		if (!activeWorkCase) return;
+		const effect = activeWorkCase.workCase.effects.find(
+			(current) => current.occurrenceId === event.toolCallId,
+		);
+		if (effect === undefined) return;
+		const observed = observeLivePiToolResult(
+			activeWorkCase,
+			event.toolName,
+			event.toolCallId,
+			{
+				isError: event.isError,
+				content: event.content,
+				details: event.details,
+			},
+		);
+		if (observed.status === "invalid") {
+			return {
+				content: [
+					...event.content,
+					{
+						type: "text" as const,
+						text: `Developer could not record Effect Observation: ${observed.message}`,
+					},
+				],
+			};
+		}
+		activeWorkCase = observed.state;
 	});
 
 	pi.on("session_start", (event, ctx) => {

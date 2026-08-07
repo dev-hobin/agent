@@ -1906,6 +1906,17 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		undefined,
 	);
 	assert.equal(harness.activeTools().includes("write"), false);
+	assert.equal(
+		await harness.emit("tool_result", {
+			toolName: "write",
+			toolCallId: "write:cleared-live-action",
+			input: actionToolInput,
+			content: [{ type: "text", text: "Wrote file successfully" }],
+			isError: false,
+			details: undefined,
+		}),
+		undefined,
+	);
 	const repeatedAction = await harness.emit("tool_call", {
 		toolName: "write",
 		input: actionToolInput,
@@ -1941,6 +1952,10 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		/Action Clearance: action_clearance_/,
 	);
 	assert.match(afterContribution.systemPrompt, /Effect: effect_.* · pending/);
+	assert.match(
+		afterContribution.systemPrompt,
+		/Effect Observation: effect_observation_.* · tool-result · settlement not implied/,
+	);
 });
 
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {
