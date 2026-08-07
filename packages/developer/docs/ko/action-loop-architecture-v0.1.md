@@ -600,7 +600,9 @@ developer_open_judgment proposal
   → next-turn before_agent_start projection
 ```
 
-Pure Work Case revision은 이제 open Judgment identity를 포함하고 open Judgment는 Closure Target 준비를 막는다. Matching Conclusion은 open inventory에서 Judgment를 제거하고, Category, Subject, Context identity를 바꾸는 Conclusion은 거부된다. Narrow live adapter는 current open Judgment 하나만 admit한다. Exact duplicate는 stutter하고 다른 proposal은 그것을 교체할 수 없다. Live Judgment closure와 preserved route result는 아직 canonical Work Case inventory에 연결되지 않았다.
+Pure Work Case revision은 이제 open Judgment identity를 포함하고 open Judgment는 Closure Target 준비를 막는다. Matching Conclusion은 open inventory에서 Judgment를 제거하고, Category, Subject, Context identity를 바꾸는 Conclusion은 거부된다. Narrow live adapter는 current open Judgment 하나만 admit한다. Exact duplicate는 stutter하고 다른 proposal은 그것을 교체할 수 없다.
+
+`developer_route_question`은 이제 그 open Judgment가 없으면 routing을 거부한다. Exact requested `contribution_need_id`를 선택하고, 선택이 모호하지 않은 Need 하나만 있을 때에만 sole Need를 자동 선택하며 route event에 그 identity를 보존한다. Capability name이 Need를 도출하지 않는다. Preserved route result는 아직 canonical Work Case inventory에서 accepted Capability나 Contribution이 아니고, live Judgment closure도 아직 연결되지 않았다.
 
 이 live slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 state를 제거한다. Capability Applicability, Reference routing, Contribution, Need Coverage, Action, Effect, 이후 Work Case transition은 pure-only로 남는다.
 

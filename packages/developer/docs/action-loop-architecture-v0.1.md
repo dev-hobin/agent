@@ -600,7 +600,9 @@ developer_open_judgment proposal
   → next-turn before_agent_start projection
 ```
 
-The pure Work Case revision now includes open Judgment identities, and an open Judgment blocks Closure Target preparation. A matching Conclusion removes it from open inventory; a Conclusion that changes Category, Subject, or Context identity is refused. The narrow live adapter admits only one current open Judgment: an exact duplicate stutters and a different proposal cannot replace it. Live Judgment closure and preserved route results are not yet connected to canonical Work Case inventory.
+The pure Work Case revision now includes open Judgment identities, and an open Judgment blocks Closure Target preparation. A matching Conclusion removes it from open inventory; a Conclusion that changes Category, Subject, or Context identity is refused. The narrow live adapter admits only one current open Judgment: an exact duplicate stutters and a different proposal cannot replace it.
+
+`developer_route_question` now refuses routing without that open Judgment. It selects the exact requested `contribution_need_id`, or the sole Need only when selection is unambiguous, and preserves that identity on the route event. A Capability name never derives the Need. Preserved route results are still not accepted Capabilities or Contributions in canonical Work Case inventory, and live Judgment closure is not connected yet.
 
 This live slice deliberately has no session replay yet; reconstruction or process restart clears it rather than guessing canonical history. Capability Applicability, Reference routing, Contribution, Need Coverage, Action, Effect, and later Work Case transitions remain pure-only.
 
