@@ -95,12 +95,17 @@ export function beginLiveActionEffect(
 	if (recorded.status === "invalid") {
 		return { status: "invalid", message: recorded.error.message };
 	}
+	const piActionProposals = state.piActionProposals.filter(
+		(proposal) =>
+			proposal.actionCandidateId !== clearance.actionCandidateId,
+	);
 	return {
 		status: recorded.status === "recorded" ? "begun" : "unchanged",
-		state:
-			recorded.status === "recorded"
-				? Object.freeze({ ...state, workCase: recorded.value })
-				: state,
+		state: Object.freeze({
+			...state,
+			workCase: recorded.value,
+			piActionProposals: Object.freeze(piActionProposals),
+		}),
 		effect: begun.value,
 	};
 }

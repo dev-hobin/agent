@@ -2137,13 +2137,13 @@ function conclusionInventoryIssue(workCase) {
   };
 }
 function candidateInventoryIssue(workCase, conclusions) {
-  const invalid24 = workCase.actionCandidates.find(
+  const invalid26 = workCase.actionCandidates.find(
     (candidate) => candidate.workCaseId !== workCase.workCaseId || candidate.requiredConclusionIds.some((id) => !conclusions.has(id))
   );
-  return invalid24 === void 0 ? void 0 : {
+  return invalid26 === void 0 ? void 0 : {
     code: "missing-dependency",
     path: "workCase.actionCandidates",
-    message: `Action Candidate has a missing Work Case dependency: ${invalid24.actionCandidateId}`
+    message: `Action Candidate has a missing Work Case dependency: ${invalid26.actionCandidateId}`
   };
 }
 function clearanceInventoryIssue(workCase, conclusions, candidates) {
@@ -3424,6 +3424,9 @@ function acceptActionCandidate(proposal) {
 
 // src/action-loop/action/action-clearance.ts
 var ACTION_CLEARANCE_VERSION = "developer-action-clearance/v1";
+var CURRENT_ACTION_WARRANT_BASIS = Object.freeze([
+  "Every Conclusion required by the Action Candidate is recorded in the current canonical Work Case inventory."
+]);
 var PERMISSION_STATUSES = /* @__PURE__ */ new Set([
   "granted",
   "denied",
@@ -3994,9 +3997,7 @@ function clearActionWithHostPermission(input) {
       workCaseId: input.candidate.workCaseId,
       actionCandidateId: input.candidate.actionCandidateId,
       conclusionIds: input.candidate.requiredConclusionIds,
-      warrantBasis: [
-        "Every Conclusion required by the Action Candidate is present in the current canonical inventory."
-      ],
+      warrantBasis: CURRENT_ACTION_WARRANT_BASIS,
       provenance: { kind: "external", source: input.permission.source }
     }
   );
@@ -4017,6 +4018,129 @@ function clearActionWithHostPermission(input) {
   return { status: "cleared", clearance: accepted.value };
 }
 
+// src/action-loop/work/record-work-case-action-candidate.ts
+function invalid13(code, path, message) {
+  return { status: "invalid", error: { code, path, message } };
+}
+function recordWorkCaseActionCandidate(workCase, candidate) {
+  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
+    return invalid13(
+      "stale-work-case",
+      "workCase.revisionId",
+      "Work Case revision does not match its closure inventory"
+    );
+  }
+  if (candidate.workCaseId !== workCase.workCaseId) {
+    return invalid13(
+      "identity-mismatch",
+      "candidate.workCaseId",
+      "Action Candidate belongs to another Work Case"
+    );
+  }
+  if (workCase.actionCandidates.some(
+    ({ actionCandidateId }) => actionCandidateId === candidate.actionCandidateId
+  )) {
+    return { status: "unchanged", value: workCase };
+  }
+  const conclusionIds = new Set(
+    workCase.conclusions.map(({ conclusionId }) => conclusionId)
+  );
+  const missingConclusionId = candidate.requiredConclusionIds.find(
+    (conclusionId) => !conclusionIds.has(conclusionId)
+  );
+  if (missingConclusionId !== void 0) {
+    return invalid13(
+      "missing-conclusion",
+      "candidate.requiredConclusionIds",
+      `Required Conclusion is not recorded: ${missingConclusionId}`
+    );
+  }
+  const actionCandidates = Object.freeze(
+    [...workCase.actionCandidates, candidate].sort(
+      (left, right) => left.actionCandidateId.localeCompare(right.actionCandidateId)
+    )
+  );
+  const nextState = { ...workCase, actionCandidates };
+  return {
+    status: "recorded",
+    value: Object.freeze({
+      ...nextState,
+      revisionId: deriveWorkCaseRevisionId(nextState)
+    })
+  };
+}
+
+// src/action-loop/work/record-work-case-action-clearance.ts
+function invalid14(code, path, message) {
+  return { status: "invalid", error: { code, path, message } };
+}
+function recordWorkCaseActionClearance(workCase, clearance) {
+  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
+    return invalid14(
+      "stale-work-case",
+      "workCase.revisionId",
+      "Work Case revision does not match its closure inventory"
+    );
+  }
+  if (clearance.workCaseId !== workCase.workCaseId) {
+    return invalid14(
+      "identity-mismatch",
+      "clearance.workCaseId",
+      "Action Clearance belongs to another Work Case"
+    );
+  }
+  if (workCase.actionClearances.some(
+    ({ actionClearanceId }) => actionClearanceId === clearance.actionClearanceId
+  )) {
+    return { status: "unchanged", value: workCase };
+  }
+  const candidate = workCase.actionCandidates.find(
+    ({ actionCandidateId }) => actionCandidateId === clearance.actionCandidateId
+  );
+  if (candidate === void 0) {
+    return invalid14(
+      "missing-action-candidate",
+      "clearance.actionCandidateId",
+      "Cleared Action Candidate is not recorded"
+    );
+  }
+  if (candidate.controlledAction.kind !== clearance.controlledAction.kind || candidate.controlledAction.fingerprint !== clearance.controlledAction.fingerprint || candidate.intendedEffects.length !== clearance.intendedEffects.length || candidate.intendedEffects.some(
+    (effect, index) => effect !== clearance.intendedEffects[index]
+  )) {
+    return invalid14(
+      "identity-mismatch",
+      "clearance.controlledAction",
+      "Clearance does not preserve the recorded controlled Action and Effects"
+    );
+  }
+  const conclusionIds = new Set(
+    workCase.conclusions.map(({ conclusionId }) => conclusionId)
+  );
+  const missingConclusionId = clearance.conclusionIds.find(
+    (conclusionId) => !conclusionIds.has(conclusionId)
+  );
+  if (missingConclusionId !== void 0) {
+    return invalid14(
+      "missing-conclusion",
+      "clearance.conclusionIds",
+      `Cleared Conclusion is not recorded: ${missingConclusionId}`
+    );
+  }
+  const actionClearances = Object.freeze(
+    [...workCase.actionClearances, clearance].sort(
+      (left, right) => left.actionClearanceId.localeCompare(right.actionClearanceId)
+    )
+  );
+  const nextState = { ...workCase, actionClearances };
+  return {
+    status: "recorded",
+    value: Object.freeze({
+      ...nextState,
+      revisionId: deriveWorkCaseRevisionId(nextState)
+    })
+  };
+}
+
 // src/action-loop/sdk/judgment-controller.ts
 import { StringEnum as StringEnum2 } from "@earendil-works/pi-ai";
 import { Type as Type2 } from "typebox";
@@ -4034,7 +4158,7 @@ var MAX_TEXT_LENGTH2 = 4096;
 var MAX_REQUIREMENTS = 32;
 var MAX_NEEDS_PER_REQUIREMENT = 32;
 var MAX_BASIS_ITEMS2 = 16;
-function invalid13(code, path, message) {
+function invalid15(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId3(value) {
@@ -4148,14 +4272,14 @@ function canonicalRequirements(proposals) {
 }
 function openJudgment(proposal) {
   if (!validId3(proposal.workCaseId) || !validId3(proposal.contextRevisionId)) {
-    return invalid13(
+    return invalid15(
       "invalid-id",
       "proposal",
       "Expected canonical Work Case and Context revision IDs"
     );
   }
   if (!CATEGORIES.has(proposal.category)) {
-    return invalid13(
+    return invalid15(
       "unsupported-category",
       "proposal.category",
       "Unsupported Judgment Category"
@@ -4174,7 +4298,7 @@ function openJudgment(proposal) {
   );
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (typeof proposal.provenance !== "object" || proposal.provenance === null || !PROVENANCE_KINDS6.has(proposal.provenance.kind) || !validId3(proposal.provenance.source)) {
-    return invalid13(
+    return invalid15(
       "invalid-provenance",
       "proposal.provenance",
       "Expected bounded supported proposal provenance"
@@ -4255,26 +4379,26 @@ function openJudgment(proposal) {
 }
 
 // src/action-loop/work/record-work-case-judgment.ts
-function invalid14(code, path, message) {
+function invalid16(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function recordWorkCaseJudgment(workCase, judgment) {
   if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-    return invalid14(
+    return invalid16(
       "stale-work-case",
       "workCase.revisionId",
       "Work Case revision does not match its closure inventory"
     );
   }
   if (workCaseInventoryIssue(workCase) !== void 0) {
-    return invalid14(
+    return invalid16(
       "invalid-work-case-inventory",
       "workCase",
       "Work Case closure inventory is relationally incoherent"
     );
   }
   if (judgment.workCaseId !== workCase.workCaseId) {
-    return invalid14(
+    return invalid16(
       "identity-mismatch",
       "judgment.workCaseId",
       "Judgment belongs to another Work Case"
@@ -4283,7 +4407,7 @@ function recordWorkCaseJudgment(workCase, judgment) {
   if (workCase.conclusions.some(
     ({ judgmentId }) => judgmentId === judgment.judgmentId
   )) {
-    return invalid14(
+    return invalid16(
       "judgment-already-concluded",
       "judgment.judgmentId",
       "A Conclusion already closes this Judgment"
@@ -4463,7 +4587,7 @@ async function openJudgmentWithSdk(input) {
 }
 
 // src/action-loop/work/record-work-case-conclusion.ts
-function invalid15(code, path, message) {
+function invalid17(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function hasCurrentRevision(workCase) {
@@ -4471,14 +4595,14 @@ function hasCurrentRevision(workCase) {
 }
 function recordWorkCaseConclusion(workCase, conclusion) {
   if (!hasCurrentRevision(workCase)) {
-    return invalid15(
+    return invalid17(
       "stale-work-case",
       "workCase.revisionId",
       "Work Case revision does not match its closure inventory"
     );
   }
   if (conclusion.workCaseId !== workCase.workCaseId) {
-    return invalid15(
+    return invalid17(
       "identity-mismatch",
       "conclusion.workCaseId",
       "Conclusion belongs to another Work Case"
@@ -4493,7 +4617,7 @@ function recordWorkCaseConclusion(workCase, conclusion) {
     ({ judgmentId }) => judgmentId === conclusion.judgmentId
   );
   if (openJudgment2 !== void 0 && (openJudgment2.category !== conclusion.category || openJudgment2.subject !== conclusion.subject || openJudgment2.contextRevisionId !== conclusion.contextRevisionId)) {
-    return invalid15(
+    return invalid17(
       "identity-mismatch",
       "conclusion",
       "Conclusion changes the identity of its open Judgment"
@@ -4534,7 +4658,7 @@ var APPLICABILITY_STATUSES = /* @__PURE__ */ new Set([
   "not-applicable",
   "needs-context"
 ]);
-function invalid16(code, path, message) {
+function invalid18(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId4(id) {
@@ -4605,7 +4729,7 @@ function checkTarget(target) {
     ["target.contributionNeedId", target.contributionNeedId]
   ]) {
     if (!validId4(id)) {
-      return invalid16(
+      return invalid18(
         "invalid-target-id",
         path,
         "Expected a canonical target ID"
@@ -4630,7 +4754,7 @@ function checkIdentity(target, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid16(
+      return invalid18(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -4641,14 +4765,14 @@ function checkIdentity(target, proposal) {
 }
 function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requiresWhenMatch) {
   if (!APPLICABILITY_STATUSES.has(proposal.status)) {
-    return invalid16(
+    return invalid18(
       "unsupported-status",
       "proposal.status",
       `Unsupported applicability status ${proposal.status}`
     );
   }
   if (proposal.status !== "needs-context" && missingContext.length > 0) {
-    return invalid16(
+    return invalid18(
       "unexpected-missing-context",
       "proposal.missingContext",
       "Only needs-context may carry missing context"
@@ -4656,14 +4780,14 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
   }
   if (proposal.status === "applicable") {
     if (requiresWhenMatch && matchedWhen.length === 0) {
-      return invalid16(
+      return invalid18(
         "applicable-without-when",
         "proposal.matchedWhen",
         "Structured applicability requires at least one declared when match"
       );
     }
     if (matchedUnless.length > 0) {
-      return invalid16(
+      return invalid18(
         "excluded-by-unless",
         "proposal.matchedUnless",
         "A matched unless condition overrides applicability"
@@ -4673,7 +4797,7 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
   }
   if (proposal.status === "not-applicable") {
     if (matchedWhen.length > 0 && matchedUnless.length === 0) {
-      return invalid16(
+      return invalid18(
         "not-applicable-with-positive-match",
         "proposal.status",
         "A positive when match requires an excluding unless match"
@@ -4682,14 +4806,14 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
     return void 0;
   }
   if (matchedUnless.length > 0) {
-    return invalid16(
+    return invalid18(
       "decisive-unless-cannot-wait",
       "proposal.matchedUnless",
       "A matched unless condition is already not-applicable"
     );
   }
   if (missingContext.length === 0) {
-    return invalid16(
+    return invalid18(
       "missing-context-required",
       "proposal.missingContext",
       "Needs-context requires at least one missing context item"
@@ -4753,7 +4877,7 @@ function acceptCapabilityApplicability(target, proposal) {
   const basis = normalizeList(proposal.basis, "proposal.basis", "empty-basis");
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (basis.value.length === 0) {
-    return invalid16(
+    return invalid18(
       "empty-basis",
       "proposal.basis",
       "Applicability assessment requires explicit basis"
@@ -5673,7 +5797,7 @@ var PROVENANCE_KINDS7 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid17(code, path, message) {
+function invalid19(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId5(id) {
@@ -5826,7 +5950,7 @@ function checkProposalIdentity(contract, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid17(
+      return invalid19(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -6605,7 +6729,7 @@ var PROVENANCE_KINDS8 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid18(code, path, message) {
+function invalid20(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function canonicalText15(value, code, path) {
@@ -6680,7 +6804,7 @@ function checkIdentity2(assignment, context, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid18(
+      return invalid20(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -6866,7 +6990,7 @@ function acceptSkillContribution(assignment, context, proposal) {
   const identityFailure = checkIdentity2(assignment, context, proposal);
   if (identityFailure !== void 0) return identityFailure;
   if (!LOCAL_STATUSES.has(proposal.localStatus)) {
-    return invalid18(
+    return invalid20(
       "unsupported-local-status",
       "proposal.localStatus",
       `Unsupported local status ${proposal.localStatus}`
@@ -6900,14 +7024,14 @@ function acceptSkillContribution(assignment, context, proposal) {
     (application) => application.status === "limited"
   );
   if (proposal.localStatus === "partial" && limitations.value.length === 0 && !residual && !limitedApplication) {
-    return invalid18(
+    return invalid20(
       "partial-without-limitation",
       "proposal.localStatus",
       "Partial Contribution requires a limitation or residual Need"
     );
   }
   if (proposal.localStatus === "resolved" && residual) {
-    return invalid18(
+    return invalid20(
       "resolved-with-residual",
       "proposal.localStatus",
       "Resolved local status cannot retain a residual local Need"
@@ -7183,20 +7307,20 @@ async function contributeSkillWithSdk(input) {
 }
 
 // src/action-loop/sdk/contribution-progress.ts
-function invalid19(code, message) {
+function invalid21(code, message) {
   return { status: "invalid", code, message };
 }
 function inspectContributionProgress(input) {
   const contextsByAssignment = /* @__PURE__ */ new Map();
   for (const context of input.contexts) {
     if (context.workCaseId !== input.workCaseId || context.judgmentId !== input.judgmentId) {
-      return invalid19(
+      return invalid21(
         "context-mismatch",
         `Sealed Context ${context.sealedContextId} does not belong to the current Work Case and Judgment.`
       );
     }
     if (contextsByAssignment.has(context.assignmentId)) {
-      return invalid19(
+      return invalid21(
         "duplicate-context",
         `Assignment ${context.assignmentId} has more than one sealed Context.`
       );
@@ -7207,13 +7331,13 @@ function inspectContributionProgress(input) {
   for (const contribution of input.contributions) {
     const context = contextsByAssignment.get(contribution.assignmentId);
     if (context === void 0 || contribution.workCaseId !== input.workCaseId || contribution.judgmentId !== input.judgmentId || contribution.contributionNeedId !== context.contributionNeedId || contribution.capabilityRevisionId !== context.capabilityRevisionId || contribution.sealedContextId !== context.sealedContextId) {
-      return invalid19(
+      return invalid21(
         "contribution-mismatch",
         `Contribution ${contribution.contributionId} has no exact current sealed Context.`
       );
     }
     if (contributionsByAssignment.has(contribution.assignmentId)) {
-      return invalid19(
+      return invalid21(
         "duplicate-contribution",
         `Assignment ${contribution.assignmentId} has more than one Contribution.`
       );
@@ -7261,7 +7385,7 @@ var PROVENANCE_KINDS9 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid20(code, path, message) {
+function invalid22(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId6(id) {
@@ -7304,7 +7428,7 @@ function checkTarget2(target, proposal) {
     ["target.contributionNeedId", target.contributionNeedId]
   ]) {
     if (!validId6(id)) {
-      return invalid20(
+      return invalid22(
         "invalid-target-id",
         path,
         "Expected a canonical target ID"
@@ -7321,7 +7445,7 @@ function checkTarget2(target, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid20(
+      return invalid22(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -7635,7 +7759,7 @@ function assessNeedCoverage(target, contributions, proposal) {
   const targetFailure = checkTarget2(target, proposal);
   if (targetFailure !== void 0) return targetFailure;
   if (!COVERAGE_STATUSES.has(proposal.status)) {
-    return invalid20(
+    return invalid22(
       "unsupported-coverage-status",
       "proposal.status",
       `Unsupported Coverage status ${proposal.status}`
@@ -7659,7 +7783,7 @@ function assessNeedCoverage(target, contributions, proposal) {
   const basis = canonicalList5(proposal.basis, "proposal.basis");
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (basis.value.length === 0) {
-    return invalid20(
+    return invalid22(
       "empty-basis",
       "proposal.basis",
       "Need Coverage requires explicit basis"
@@ -7669,7 +7793,7 @@ function assessNeedCoverage(target, contributions, proposal) {
   if (!provenance.ok) return { status: "invalid", error: provenance.error };
   const derivedStatus = deriveStatus(dispositions.value, conflicts.value);
   if (proposal.status !== derivedStatus) {
-    return invalid20(
+    return invalid22(
       "status-mismatch",
       "proposal.status",
       `Coverage evidence derives ${derivedStatus}, not ${proposal.status}`
@@ -8640,6 +8764,194 @@ function mapJudgmentResult(result, baseSteps, baseCheckpoints) {
       return result;
   }
 }
+async function progressAction(input) {
+  const { workCase } = input.state;
+  const pendingClearance = workCase.actionClearances.find(
+    (clearance2) => !workCase.effects.some(
+      (effect) => effect.actionClearanceId === clearance2.actionClearanceId
+    )
+  );
+  if (pendingClearance) {
+    return {
+      status: "ready-for-host-action",
+      actionCandidateId: pendingClearance.actionCandidateId,
+      actionClearanceId: pendingClearance.actionClearanceId,
+      state: input.state,
+      steps: input.steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  if (workCase.effects.length > 0) {
+    return {
+      status: "effect-pending",
+      effectIds: workCase.effects.map((effect) => effect.effectId),
+      state: input.state,
+      steps: input.steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  if (!input.actions || !input.authorizeAction) {
+    return {
+      status: "ready-for-action",
+      conclusionIds: workCase.conclusions.map(
+        (conclusion) => conclusion.conclusionId
+      ),
+      state: input.state,
+      steps: input.steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  if (input.steps >= input.maxSteps) {
+    return {
+      status: "bounded-stop",
+      stage: "action",
+      reason: "progression-step-budget",
+      state: input.state,
+      steps: input.steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  const action = await proposeActionWithSdk({
+    request: input.request,
+    workCaseId: workCase.workCaseId,
+    conclusions: workCase.conclusions,
+    actions: input.actions,
+    runner: input.runner
+  });
+  const steps = input.steps + 1;
+  if (action.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      stage: "action",
+      reason: action.reason,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  if (action.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      stage: "action",
+      message: action.message,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  if (action.status === "invariant-failure") {
+    return {
+      status: "invariant-failure",
+      stage: "action",
+      code: action.code,
+      message: action.message,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  let permission;
+  try {
+    permission = await input.authorizeAction(action);
+  } catch (error) {
+    return {
+      status: "runtime-failure",
+      stage: "action",
+      message: compactError2(error),
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  const clearance = clearActionWithHostPermission({
+    candidate: action.candidate,
+    conclusions: workCase.conclusions,
+    permission
+  });
+  if (clearance.status === "not-cleared") {
+    return {
+      status: "action-not-cleared",
+      blockerCodes: clearance.blockers.map((blocker) => blocker.code),
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  if (clearance.status === "invariant-failure") {
+    return {
+      status: "invariant-failure",
+      stage: "action",
+      code: clearance.code,
+      message: clearance.message,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  const candidateRecord = recordWorkCaseActionCandidate(
+    workCase,
+    action.candidate
+  );
+  if (candidateRecord.status === "invalid") {
+    return {
+      status: "invariant-failure",
+      stage: "action",
+      code: candidateRecord.error.code,
+      message: candidateRecord.error.message,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  const clearanceRecord = recordWorkCaseActionClearance(
+    candidateRecord.value,
+    clearance.clearance
+  );
+  if (clearanceRecord.status === "invalid") {
+    return {
+      status: "invariant-failure",
+      stage: "action",
+      code: clearanceRecord.error.code,
+      message: clearanceRecord.error.message,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  const nextState = Object.freeze({
+    ...input.state,
+    workCase: clearanceRecord.value
+  });
+  const checkpoint = {
+    kind: "action-cleared",
+    action,
+    clearance,
+    workCase: clearanceRecord.value
+  };
+  try {
+    await input.checkpoint(checkpoint);
+  } catch (error) {
+    return {
+      status: "checkpoint-failure",
+      stage: "action",
+      message: compactError2(error),
+      pendingCheckpoint: checkpoint,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  return {
+    status: "ready-for-host-action",
+    actionCandidateId: action.candidate.actionCandidateId,
+    actionClearanceId: clearance.clearance.actionClearanceId,
+    toolName: action.toolName,
+    toolInput: action.toolInput,
+    state: nextState,
+    steps,
+    checkpoints: input.checkpoints + 1
+  };
+}
 async function progressActionLoopWithSdk(input) {
   const maxSteps = positiveInteger2(input.maxSteps, "maxSteps");
   let state = input.state;
@@ -8689,15 +9001,17 @@ async function progressActionLoopWithSdk(input) {
     checkpoints += 1;
   }
   if (state.workCase.openJudgments.length === 0 && state.workCase.conclusions.length > 0) {
-    return {
-      status: "ready-for-action",
-      conclusionIds: state.workCase.conclusions.map(
-        (conclusion) => conclusion.conclusionId
-      ),
+    return progressAction({
+      request: input.request,
       state,
+      actions: input.actions,
+      authorizeAction: input.authorizeAction,
+      runner: input.runner,
+      checkpoint: input.checkpoint,
+      maxSteps,
       steps,
       checkpoints
-    };
+    });
   }
   if (state.workCase.openJudgments.length > 1) {
     return {
@@ -9420,7 +9734,7 @@ async function completeWorkCaseWithSdk(input) {
 }
 
 // src/action-loop/sdk/context-progress.ts
-function invalid21(code, message) {
+function invalid23(code, message) {
   return { status: "invalid", code, message };
 }
 function indexAssignments(input) {
@@ -9429,7 +9743,7 @@ function indexAssignments(input) {
     if (assignment.workCaseId !== input.workCaseId || assignment.judgmentId !== input.judgmentId || assignment.contributionNeedId !== input.contributionNeedId) {
       return {
         ok: false,
-        error: invalid21(
+        error: invalid23(
           "assignment-mismatch",
           `Assignment ${assignment.assignmentId} does not belong to the requested Work Case, Judgment, and Contribution Need.`
         )
@@ -9438,7 +9752,7 @@ function indexAssignments(input) {
     if (assignments.has(assignment.assignmentId)) {
       return {
         ok: false,
-        error: invalid21(
+        error: invalid23(
           "duplicate-assignment",
           `Assignment ${assignment.assignmentId} occurs more than once.`
         )
@@ -9455,7 +9769,7 @@ function indexSelections(selections, assignments) {
     if (assignment === void 0 || selection.capabilityRevisionId !== assignment.capabilityRevisionId) {
       return {
         ok: false,
-        error: invalid21(
+        error: invalid23(
           "selection-mismatch",
           `Reference Selection ${selection.selectionId} has no exact current Assignment.`
         )
@@ -9464,7 +9778,7 @@ function indexSelections(selections, assignments) {
     if (indexed.has(selection.assignmentId)) {
       return {
         ok: false,
-        error: invalid21(
+        error: invalid23(
           "duplicate-selection",
           `Assignment ${selection.assignmentId} has more than one Reference Selection.`
         )
@@ -9487,7 +9801,7 @@ function indexContexts(input, assignments, selections) {
     if (!matchingContext(input, context, assignments.get(context.assignmentId))) {
       return {
         ok: false,
-        error: invalid21(
+        error: invalid23(
           "context-mismatch",
           `Sealed Context ${context.sealedContextId} has no exact current Assignment.`
         )
@@ -9496,7 +9810,7 @@ function indexContexts(input, assignments, selections) {
     if (indexed.has(context.assignmentId)) {
       return {
         ok: false,
-        error: invalid21(
+        error: invalid23(
           "duplicate-context",
           `Assignment ${context.assignmentId} has more than one sealed Context.`
         )
@@ -9505,7 +9819,7 @@ function indexContexts(input, assignments, selections) {
     if (!matchingContextMode(context, selections.get(context.assignmentId))) {
       return {
         ok: false,
-        error: invalid21(
+        error: invalid23(
           "inconsistent-context",
           `Sealed Context ${context.sealedContextId} does not match its routing mode and Reference Selection.`
         )
@@ -9519,13 +9833,13 @@ function validateSelections(selections, contexts) {
   for (const selection of selections) {
     const hasContext = contexts.has(selection.assignmentId);
     if (selection.status === "ready" && !hasContext) {
-      return invalid21(
+      return invalid23(
         "inconsistent-context",
         `Ready Reference Selection ${selection.selectionId} has no sealed Context.`
       );
     }
     if (selection.status === "needs-context" && hasContext) {
-      return invalid21(
+      return invalid23(
         "inconsistent-context",
         `Unresolved Reference Selection ${selection.selectionId} cannot have a sealed Context.`
       );
@@ -9585,14 +9899,14 @@ function inspectCapabilityContextProgress(input) {
 }
 
 // src/action-loop/sdk/coverage-progress.ts
-function invalid22(code, message) {
+function invalid24(code, message) {
   return { status: "invalid", code, message };
 }
 function inspectCoverageProgress(input) {
   const needsById = /* @__PURE__ */ new Map();
   for (const need of input.contributionNeeds) {
     if (needsById.has(need.contributionNeedId)) {
-      return invalid22(
+      return invalid24(
         "duplicate-need",
         `Contribution Need ${need.contributionNeedId} occurs more than once.`
       );
@@ -9602,13 +9916,13 @@ function inspectCoverageProgress(input) {
   const coveragesByNeed = /* @__PURE__ */ new Map();
   for (const coverage of input.coverages) {
     if (coverage.workCaseId !== input.workCaseId || coverage.judgmentId !== input.judgmentId || !needsById.has(coverage.contributionNeedId)) {
-      return invalid22(
+      return invalid24(
         "coverage-mismatch",
         `Need Coverage ${coverage.coverageId} has no exact current Contribution Need.`
       );
     }
     if (coveragesByNeed.has(coverage.contributionNeedId)) {
-      return invalid22(
+      return invalid24(
         "duplicate-coverage",
         `Contribution Need ${coverage.contributionNeedId} has more than one current Coverage assessment.`
       );
@@ -9932,7 +10246,7 @@ var PROVENANCE_KINDS11 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid23(code, path, message) {
+function invalid25(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function canonicalBasis10(values, path) {
@@ -10324,14 +10638,14 @@ function accountingIdentityParts(input) {
 }
 function settleEffect(effect, observations, proposal) {
   if (proposal.workCaseId !== effect.workCaseId || proposal.effectId !== effect.effectId) {
-    return invalid23(
+    return invalid25(
       "identity-mismatch",
       "proposal",
       "Settlement proposal targets another Work Case or Effect"
     );
   }
   if (!OUTCOMES.has(proposal.outcome)) {
-    return invalid23(
+    return invalid25(
       "unsupported-outcome",
       "proposal.outcome",
       `Unsupported Effect outcome ${proposal.outcome}`
@@ -10364,7 +10678,7 @@ function settleEffect(effect, observations, proposal) {
     intendedDispositions.value
   );
   if (proposal.outcome !== derived) {
-    return invalid23(
+    return invalid25(
       "outcome-mismatch",
       "proposal.outcome",
       `Current accounting derives ${derived}, not ${proposal.outcome}`

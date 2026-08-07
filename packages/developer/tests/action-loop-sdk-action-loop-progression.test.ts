@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { progressLiveActionLoopWithSdk } from "../extensions/action-loop-sdk-progression.ts";
+import { bindPiControlledAction } from "../extensions/action-loop-pi-action.ts";
+import {
+	applySdkActionLoopCheckpoint,
+	progressLiveActionLoopWithSdk,
+	sdkActionLoopCheckpointEvent,
+} from "../extensions/action-loop-sdk-progression.ts";
+import type { SdkControlledActionAdapter } from "../src/action-loop/sdk/action-controller.ts";
 import {
 	progressActionLoopWithSdk,
 	type SdkActionLoopCheckpoint,
@@ -195,6 +201,185 @@ test("SDK Action Loop progression does not open a replacement Judgment after Con
 	assert.deepEqual(result.conclusionIds, [conclusion.conclusionId]);
 	assert.equal(result.steps, 0);
 	assert.equal(result.checkpoints, 0);
+});
+
+test("SDK Action Loop progression checkpoints one exact host-cleared Action", async () => {
+	const opened = openWorkCase({
+		outcome: {
+			statement: "The bounded configuration is ready to write.",
+			acceptanceConditions: ["The accepted configuration is written exactly."],
+			constraints: ["No unrelated path changes."],
+		},
+		provenance: { kind: "human", source: "sdk:test" },
+	});
+	if (opened.status !== "opened") throw new Error(opened.error.message);
+	const conclusion: JudgmentConclusion = Object.freeze({
+		conclusionId: "conclusion-action-loop-write",
+		workCaseId: opened.value.workCaseId,
+		judgmentId: "judgment-action-loop-write",
+		category: "Proportionate Intervention",
+		subject: "The exact bounded write",
+		contextRevisionId: opened.value.revisionId,
+		requirementDispositions: Object.freeze([]),
+		coverageIds: Object.freeze([]),
+		basis: Object.freeze(["The exact write is warranted."]),
+		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
+		answer: "Write config.json with the accepted content.",
+	});
+	const recorded = recordWorkCaseConclusion(opened.value, conclusion);
+	if (recorded.status !== "recorded") throw new Error("Conclusion not recorded");
+	const writeAction: SdkControlledActionAdapter = {
+		name: "write",
+		description: "Write exact content to one path.",
+		bind(input) {
+			const bound = bindPiControlledAction("write", input);
+			if (bound.status === "invalid") return bound;
+			return {
+				status: "bound",
+				value: {
+					controlledAction: bound.value,
+					canonicalInput: bound.canonicalInput,
+				},
+			};
+		},
+	};
+	const state: SdkJudgmentProgressState = {
+		workCase: recorded.value,
+		applicabilityAssessments: [],
+		assignments: [],
+		selections: [],
+		contexts: [],
+		contributions: [],
+		coverages: [],
+	};
+	const checkpoints: SdkActionLoopCheckpoint[] = [];
+	const result = await progressActionLoopWithSdk({
+		request: "Write the accepted bounded configuration.",
+		state,
+		capabilities: [],
+		actions: [writeAction],
+		authorizeAction(action) {
+			return {
+				actionCandidateId: action.candidate.actionCandidateId,
+				status: "granted",
+				source: "pi:test-host",
+				basis: ["The trusted test host grants this exact candidate."],
+			};
+		},
+		runner: scriptedSdkRunner([
+			{
+				proposals: [
+					{
+						tool_name: "write",
+						tool_input_json:
+							'{"path":"config.json","content":"{\\n  \\"enabled\\": true\\n}\\n"}',
+						summary: "Write the accepted bounded configuration.",
+						intended_effects_json:
+							'["config.json contains the accepted enabled value."]',
+						requires_conclusion_0: true,
+					},
+				],
+			},
+		]),
+		maxSteps: 1,
+		checkpoint(checkpoint) {
+			checkpoints.push(checkpoint);
+		},
+	});
+
+	assert.equal(result.status, "ready-for-host-action");
+	if (result.status !== "ready-for-host-action") return;
+	assert.equal(result.toolName, "write");
+	assert.deepEqual(result.toolInput, {
+		path: "config.json",
+		content: '{\n  "enabled": true\n}\n',
+	});
+	assert.deepEqual(checkpoints.map(({ kind }) => kind), ["action-cleared"]);
+	assert.equal(result.state?.workCase.actionCandidates.length, 1);
+	assert.equal(result.state?.workCase.actionClearances.length, 1);
+	const actionCheckpoint = checkpoints[0];
+	if (actionCheckpoint?.kind !== "action-cleared") return;
+	assert.equal(sdkActionLoopCheckpointEvent(actionCheckpoint).kind, "action-cleared");
+	const live = applySdkActionLoopCheckpoint(
+		{
+			workCase: state.workCase,
+			contextRevisionId: state.workCase.revisionId,
+			openingBasis: ["The test host opened this bounded Work Case."],
+			applicabilityAssessments: [],
+			capabilityAssignments: [],
+			referenceSelections: [],
+			sealedSkillContexts: [],
+			contributions: [],
+			needCoverages: [],
+			piActionProposals: [],
+			effectObservations: [],
+		},
+		actionCheckpoint,
+	);
+	assert.deepEqual(live.piActionProposals, [
+		{
+			actionCandidateId: result.actionCandidateId,
+			toolName: "write",
+			toolInput: result.toolInput,
+		},
+	]);
+
+	const resumed = await progressActionLoopWithSdk({
+		request: "Resume the exact cleared Action.",
+		state: result.state,
+		capabilities: [],
+		actions: [writeAction],
+		authorizeAction() {
+			throw new Error("A resumed Clearance must not request permission again.");
+		},
+		runner: scriptedSdkRunner([]),
+		maxSteps: 1,
+		checkpoint() {
+			throw new Error("A resumed Clearance must not checkpoint again.");
+		},
+	});
+	assert.equal(resumed.status, "ready-for-host-action");
+	assert.equal(resumed.steps, 0);
+	assert.equal(resumed.checkpoints, 0);
+
+	const unacknowledged = await progressActionLoopWithSdk({
+		request: "Write the accepted bounded configuration.",
+		state,
+		capabilities: [],
+		actions: [writeAction],
+		authorizeAction(action) {
+			return {
+				actionCandidateId: action.candidate.actionCandidateId,
+				status: "granted",
+				source: "pi:test-host",
+				basis: ["The trusted test host grants this exact candidate."],
+			};
+		},
+		runner: scriptedSdkRunner([
+			{
+				proposals: [
+					{
+						tool_name: "write",
+						tool_input_json:
+							'{"path":"config.json","content":"{\\n  \\"enabled\\": true\\n}\\n"}',
+						summary: "Write the accepted bounded configuration.",
+						intended_effects_json:
+							'["config.json contains the accepted enabled value."]',
+						requires_conclusion_0: true,
+					},
+				],
+			},
+		]),
+		maxSteps: 1,
+		checkpoint() {
+			throw new Error("Pi branch Action checkpoint failed");
+		},
+	});
+	assert.equal(unacknowledged.status, "checkpoint-failure");
+	if (unacknowledged.status !== "checkpoint-failure") return;
+	assert.equal(unacknowledged.stage, "action");
+	assert.equal(unacknowledged.pendingCheckpoint.kind, "action-cleared");
+	assert.equal(unacknowledged.state?.workCase.actionClearances.length, 0);
 });
 
 test("SDK Action Loop progression does not depend on an unacknowledged opening", async () => {

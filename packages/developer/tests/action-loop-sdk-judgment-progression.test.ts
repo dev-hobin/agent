@@ -311,6 +311,7 @@ test("Pi adapter appends semantic checkpoints before advancing its live projecti
 			sealedSkillContexts: [],
 			contributions: [],
 			needCoverages: [],
+			piActionProposals: [],
 			effectObservations: [],
 		},
 		inventory: {

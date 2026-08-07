@@ -16,6 +16,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { Type, type TSchema } from "typebox";
 
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
+import type { SdkControlledActionAdapter } from "../src/action-loop/sdk/action-controller.ts";
 import {
 	liveCapabilityInventoryPrompt,
 	prepareLiveCapabilityInventory,
@@ -130,6 +131,7 @@ import {
 	resumeLiveWaitingWorkCase,
 	waitLiveWorkCase,
 } from "./action-loop-continuity.ts";
+import { bindPiControlledAction } from "./action-loop-pi-action.ts";
 import {
 	MAX_LIVE_HOST_OBSERVATIONS,
 	admitLiveToolResultObservation,
@@ -271,7 +273,7 @@ function actionLoopProtocolPrompt(
 		`Evidence is not automatically truth. ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} is only for exact admitted host evidence that directly answers a current Need without Skill interpretation.`,
 		`Before controlled bash, edit, or write, use ${ACTION_LOOP_PROPOSE_ACTION_TOOL} for the exact one-use input. Tool return is an Observation, not Effect success; use ${ACTION_LOOP_SETTLE_EFFECT_TOOL} for complete settlement.`,
 		`Pause, wait, block, resume, and completion require their exact current evidence and complete current Work Case inventory; never infer terminal status or choose convenient Conclusion and Effect subsets.`,
-		`The current SDK cutover owns opening through Conclusion. Action, host execution, Effect, and Completion still use the transitional host bridge until their controller cutover completes.`,
+		`The current SDK cutover owns opening through exact Action Clearance. The Pi host executes only that one-use input; Effect settlement and Completion remain transitional until their controller cutover completes.`,
 		"Internal IDs shown in model context are exact protocol arguments. Never repeat IDs, revisions, hashes, fingerprints, or transition identities to the user.",
 		`Pi-admitted Developer Skills: ${availableSkillNames.length > 0 ? availableSkillNames.join(", ") : "none"}. Never rediscover excluded Skills or bypass the admitted inventory.`,
 	].join("\n");
@@ -563,11 +565,33 @@ export default async function developer(pi: ExtensionAPI) {
 		return true;
 	};
 
+	const piSdkControlledActions = (): readonly SdkControlledActionAdapter[] => {
+		const descriptions = new Map(
+			pi.getAllTools().map((tool) => [tool.name, tool.description]),
+		);
+		return (["bash", "edit", "write"] as const).map((name) => ({
+			name,
+			description:
+				descriptions.get(name) ?? `Execute one exact controlled Pi ${name} Action.`,
+			bind(input: Readonly<Record<string, unknown>>) {
+				const bound = bindPiControlledAction(name, input);
+				if (bound.status === "invalid") return bound;
+				return {
+					status: "bound" as const,
+					value: {
+						controlledAction: bound.value,
+						canonicalInput: bound.canonicalInput,
+					},
+				};
+			},
+		}));
+	};
+
 	registerActionLoopTool({
 		name: ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL,
 		label: "Developer Progress Action Loop",
 		description:
-			"Run the bounded SDK controller from missing Work Case ownership through upper Judgment Conclusion. Every accepted transition is durably checkpointed before dependent work.",
+			"Run the bounded SDK controller from missing Work Case ownership through upper Judgment Conclusion and exact host Action Clearance. Every accepted transition is durably checkpointed before dependent work.",
 		promptSnippet: "Progress canonical work with the SDK controller",
 		promptGuidelines: [
 			`Use ${ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL} as the primary Developer entry point when no Work Case exists or the current Work Case has one unfinished Judgment.`,
@@ -623,6 +647,17 @@ export default async function developer(pi: ExtensionAPI) {
 				...(activeWorkCase ? { state: activeWorkCase } : {}),
 				inventory: liveCapabilityInventory.value,
 				runner: prepared.runner,
+				actions: piSdkControlledActions(),
+				authorizeAction(action) {
+					return {
+						actionCandidateId: action.candidate.actionCandidateId,
+						status: "granted",
+						source: "pi:default-permission-policy",
+						basis: [
+							"The Pi Extension host adapter inherits Pi's current default permission policy without accepting model-authored authority.",
+						],
+					};
+				},
 				maxSteps: 34,
 				appendCheckpoint(event) {
 					pi.appendEntry(ACTION_LOOP_SESSION_ENTRY, event);
@@ -639,7 +674,17 @@ export default async function developer(pi: ExtensionAPI) {
 			const result = progressed.result;
 			const failure = sdkActionLoopProgressionFailure(result);
 			if (failure) fail(failure);
-			return textResult(sdkActionLoopProgressionSummary(result), {
+			const pendingHostAction =
+				result.status === "ready-for-host-action"
+					? activeWorkCase?.piActionProposals.find(
+							(proposal) =>
+								proposal.actionCandidateId === result.actionCandidateId,
+						)
+					: undefined;
+			const summary = pendingHostAction
+				? `${sdkActionLoopProgressionSummary(result)} Execute ${pendingHostAction.toolName} with exactly this input: ${JSON.stringify(pendingHostAction.toolInput)}`
+				: sdkActionLoopProgressionSummary(result);
+			return textResult(summary, {
 				protocol: "developer-action-loop/sdk-action-loop-progression/v1",
 				kind: "sdk-action-loop-progression",
 				status: result.status,
@@ -647,6 +692,14 @@ export default async function developer(pi: ExtensionAPI) {
 				checkpoints: result.checkpoints,
 				...("stage" in result ? { stage: result.stage } : {}),
 				...("reason" in result ? { reason: result.reason } : {}),
+				...(pendingHostAction
+					? {
+							hostAction: {
+								toolName: pendingHostAction.toolName,
+								toolInput: pendingHostAction.toolInput,
+							},
+						}
+					: {}),
 			});
 		},
 	});

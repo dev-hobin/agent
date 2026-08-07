@@ -1576,6 +1576,36 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 			intended_effects: ["The bounded replay fixture is written."],
 			required_conclusion_ids: [conclusion.details.artifact.conclusionId],
 		});
+	const pendingAction = createHarness();
+	pendingAction.setBranch([
+		...routingBranch,
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_propose_action",
+				details: action.details,
+			},
+		},
+	]);
+	await developer(pendingAction.api);
+	await pendingAction.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	const pendingProjection = await pendingAction.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "resume the exact cleared action",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(pendingProjection.systemPrompt, /Cleared Pi Action input:/);
+	assert.match(
+		pendingProjection.systemPrompt,
+		/\/tmp\/developer-action-loop-session-replay\.txt/,
+	);
+	assert.match(pendingProjection.systemPrompt, /session replay/);
+	assert.equal(pendingAction.activeTools().includes("write"), true);
 	await first.emit("tool_call", {
 		toolName: "write",
 		input: toolInput,

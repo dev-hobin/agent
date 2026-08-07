@@ -5,6 +5,7 @@ import {
 } from "../src/action-loop/action/accept-action-candidate.ts";
 import {
 	acceptActionClearance,
+	CURRENT_ACTION_WARRANT_BASIS,
 	type ActionClearance,
 	type ActionClearanceAssessment,
 	type ActionClearanceBlocker,
@@ -95,12 +96,45 @@ export function acceptLivePiActionCandidate(
 		proposal.toolInput,
 	);
 	if (controlledAction.status === "invalid") return controlledAction;
-	return acceptLiveActionCandidate(state, {
+	const accepted = acceptLiveActionCandidate(state, {
 		controlledAction: controlledAction.value,
 		summary: proposal.summary,
 		intendedEffects: proposal.intendedEffects,
 		requiredConclusionIds: proposal.requiredConclusionIds,
 	});
+	if (accepted.status === "invalid") return accepted;
+	const conflicting = state.piActionProposals.find(
+		(candidate) =>
+			candidate.actionCandidateId !== accepted.candidate.actionCandidateId,
+	);
+	if (conflicting) {
+		return {
+			status: "invalid",
+			message:
+				"A different cleared Pi Action remains unconsumed; execute or explicitly reset current ownership before proposing another.",
+		};
+	}
+	const current = accepted.state.piActionProposals.find(
+		(candidate) =>
+			candidate.actionCandidateId === accepted.candidate.actionCandidateId,
+	);
+	return {
+		...accepted,
+		state:
+			current !== undefined
+				? accepted.state
+				: Object.freeze({
+						...accepted.state,
+						piActionProposals: Object.freeze([
+							...accepted.state.piActionProposals,
+							Object.freeze({
+								actionCandidateId: accepted.candidate.actionCandidateId,
+								toolName: proposal.toolName,
+								toolInput: Object.freeze({ ...proposal.toolInput }),
+							}),
+						]),
+					}),
+	};
 }
 
 /** Finds a current Clearance only for the exact observed Pi tool input. */
@@ -167,9 +201,7 @@ export function assessLiveActionClearance(
 			workCaseId: state.workCase.workCaseId,
 			actionCandidateId,
 			conclusionIds: candidate.requiredConclusionIds,
-			warrantBasis: [
-				"Every Conclusion required by the Action Candidate is recorded in the current Work Case.",
-			],
+			warrantBasis: CURRENT_ACTION_WARRANT_BASIS,
 			provenance: { kind: "external", source: permission.source },
 		},
 	);

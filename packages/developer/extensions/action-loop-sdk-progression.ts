@@ -1,8 +1,13 @@
+import type {
+	SdkActionCandidateResult,
+	SdkControlledActionAdapter,
+} from "../src/action-loop/sdk/action-controller.ts";
 import {
 	progressActionLoopWithSdk,
 	type SdkActionLoopCheckpoint,
 	type SdkActionLoopProgressionResult,
 } from "../src/action-loop/sdk/action-loop-progression-controller.ts";
+import type { PermissionDecision } from "../src/action-loop/action/action-clearance.ts";
 import type { SdkNamedCapability } from "../src/action-loop/sdk/capability-inventory-controller.ts";
 import type { SdkDecisionRunner } from "../src/action-loop/sdk/decision-controller.ts";
 import {
@@ -10,8 +15,13 @@ import {
 	type SdkJudgmentCheckpoint,
 	type SdkJudgmentProgressionResult,
 } from "../src/action-loop/sdk/judgment-progression-controller.ts";
+import {
+	acceptLivePiActionCandidate,
+	assessLiveActionClearance,
+} from "./action-loop-action.ts";
 import type { LiveCapabilityInventory } from "./action-loop-capability-inventory.ts";
 import {
+	sdkActionClearedEvent,
 	sdkJudgmentCheckpointEvent,
 	sdkJudgmentOpenedEvent,
 	sdkWorkCaseOpenedEvent,
@@ -27,6 +37,7 @@ export const ACTION_LOOP_PROGRESS_JUDGMENT_TOOL =
 export type SdkActionLoopCheckpointSessionEvent =
 	| ReturnType<typeof sdkWorkCaseOpenedEvent>
 	| ReturnType<typeof sdkJudgmentOpenedEvent>
+	| ReturnType<typeof sdkActionClearedEvent>
 	| SdkJudgmentCheckpointSessionEvent;
 
 export interface LiveSdkActionLoopProgressionInput {
@@ -37,6 +48,13 @@ export interface LiveSdkActionLoopProgressionInput {
 		"boundCapabilitiesBySkillName"
 	>;
 	readonly runner: SdkDecisionRunner;
+	readonly actions?: readonly SdkControlledActionAdapter[];
+	readonly authorizeAction?: (
+		action: Extract<
+			SdkActionCandidateResult,
+			{ readonly status: "accepted" }
+		>,
+	) => Promise<PermissionDecision> | PermissionDecision;
 	readonly maxSteps: number;
 	readonly appendCheckpoint: (
 		event: SdkActionLoopCheckpointSessionEvent,
@@ -86,6 +104,12 @@ export function sdkActionLoopProgressionSummary(
 	switch (result.status) {
 		case "ready-for-action":
 			return "The current Work Case has acknowledged Conclusions and is ready for Action progression.";
+		case "ready-for-host-action":
+			return "One exact controlled Action is cleared for the Pi host.";
+		case "effect-pending":
+			return "The current controlled Action has begun Effect accounting and must be observed and settled.";
+		case "action-not-cleared":
+			return "Host permission or current canonical warrants did not clear the proposed Action.";
 		case "judgment-concluded":
 			return "The SDK controller opened and concluded the current Judgment from acknowledged checkpoints.";
 		case "needs-context":
@@ -153,6 +177,12 @@ export function sdkActionLoopCheckpointEvent(
 			return sdkWorkCaseOpenedEvent(checkpoint.result);
 		case "judgment-opened":
 			return sdkJudgmentOpenedEvent(checkpoint.result);
+		case "action-cleared":
+			return sdkActionClearedEvent({
+				action: checkpoint.action,
+				clearance: checkpoint.clearance,
+				revisionId: checkpoint.workCase.revisionId,
+			});
 		default:
 			return sdkJudgmentCheckpointEvent(checkpoint);
 	}
@@ -175,11 +205,53 @@ export function applySdkActionLoopCheckpoint(
 				sealedSkillContexts: Object.freeze([]),
 				contributions: Object.freeze([]),
 				needCoverages: Object.freeze([]),
+				piActionProposals: Object.freeze([]),
 				effectObservations: Object.freeze([]),
 			});
 		case "judgment-opened":
 			if (!state) throw new Error("SDK Judgment opening requires active work.");
 			return Object.freeze({ ...state, workCase: checkpoint.result.workCase });
+		case "action-cleared": {
+			if (!state) throw new Error("SDK Action clearance requires active work.");
+			if (
+				checkpoint.action.toolName !== "bash" &&
+				checkpoint.action.toolName !== "edit" &&
+				checkpoint.action.toolName !== "write"
+			) {
+				throw new Error("SDK Action is not a controlled Pi built-in.");
+			}
+			const accepted = acceptLivePiActionCandidate(state, {
+				toolName: checkpoint.action.toolName,
+				toolInput: checkpoint.action.toolInput,
+				summary: checkpoint.action.candidate.summary,
+				intendedEffects: checkpoint.action.candidate.intendedEffects,
+				requiredConclusionIds:
+					checkpoint.action.candidate.requiredConclusionIds,
+			});
+			if (accepted.status === "invalid") throw new Error(accepted.message);
+			const cleared = assessLiveActionClearance(
+				accepted.state,
+				accepted.candidate.actionCandidateId,
+				checkpoint.clearance.clearance.permission,
+			);
+			if (cleared.status !== "cleared") {
+				throw new Error(
+					cleared.status === "invalid"
+						? cleared.message
+						: "SDK Action did not reproduce its exact Clearance.",
+				);
+			}
+			if (
+				cleared.clearance.actionClearanceId !==
+					checkpoint.clearance.clearance.actionClearanceId ||
+				cleared.state.workCase.revisionId !== checkpoint.workCase.revisionId
+			) {
+				throw new Error(
+					`SDK Action checkpoint identity drifted: clearance ${cleared.clearance.actionClearanceId}/${checkpoint.clearance.clearance.actionClearanceId}, revision ${cleared.state.workCase.revisionId}/${checkpoint.workCase.revisionId}.`,
+				);
+			}
+			return cleared.state;
+		}
 		default:
 			if (!state) throw new Error("SDK Judgment checkpoint requires active work.");
 			return applySdkJudgmentCheckpoint(state, checkpoint);
@@ -289,6 +361,10 @@ export async function progressLiveActionLoopWithSdk(
 				}
 			: {}),
 		capabilities,
+		...(input.actions ? { actions: input.actions } : {}),
+		...(input.authorizeAction
+			? { authorizeAction: input.authorizeAction }
+			: {}),
 		runner: input.runner,
 		maxSteps: input.maxSteps,
 		async checkpoint(checkpoint) {

@@ -8,6 +8,7 @@ import {
 } from "../action/accept-action-candidate.ts";
 import {
 	acceptActionClearance,
+	CURRENT_ACTION_WARRANT_BASIS,
 	type ActionClearance,
 	type ActionClearanceAssessment,
 	type ActionClearanceBlocker,
@@ -326,9 +327,7 @@ export function clearActionWithHostPermission(input: {
 			workCaseId: input.candidate.workCaseId,
 			actionCandidateId: input.candidate.actionCandidateId,
 			conclusionIds: input.candidate.requiredConclusionIds,
-			warrantBasis: [
-				"Every Conclusion required by the Action Candidate is present in the current canonical inventory.",
-			],
+			warrantBasis: CURRENT_ACTION_WARRANT_BASIS,
 			provenance: { kind: "external", source: input.permission.source },
 		},
 	);

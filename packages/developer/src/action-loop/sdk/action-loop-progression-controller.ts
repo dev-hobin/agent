@@ -1,3 +1,13 @@
+import type { PermissionDecision } from "../action/action-clearance.ts";
+import { recordWorkCaseActionCandidate } from "../work/record-work-case-action-candidate.ts";
+import { recordWorkCaseActionClearance } from "../work/record-work-case-action-clearance.ts";
+import {
+	clearActionWithHostPermission,
+	proposeActionWithSdk,
+	type SdkActionCandidateResult,
+	type SdkActionClearanceResult,
+	type SdkControlledActionAdapter,
+} from "./action-controller.ts";
 import type { SdkNamedCapability } from "./capability-inventory-controller.ts";
 import type { SdkDecisionRunner } from "./decision-controller.ts";
 import {
@@ -22,7 +32,8 @@ export type SdkActionLoopProgressionStage =
 	| "context"
 	| "contribution"
 	| "coverage"
-	| "conclusion";
+	| "conclusion"
+	| "action";
 
 export type SdkActionLoopCheckpoint =
 	| {
@@ -39,6 +50,18 @@ export type SdkActionLoopCheckpoint =
 				{ readonly status: "opened" | "unchanged" }
 			>;
 	  }
+	| {
+			readonly kind: "action-cleared";
+			readonly action: Extract<
+				SdkActionCandidateResult,
+				{ readonly status: "accepted" }
+			>;
+			readonly clearance: Extract<
+				SdkActionClearanceResult,
+				{ readonly status: "cleared" }
+			>;
+			readonly workCase: SdkJudgmentProgressState["workCase"];
+	  }
 	| SdkJudgmentCheckpoint;
 
 interface ProgressResultBase {
@@ -51,6 +74,21 @@ export type SdkActionLoopProgressionResult =
 	| (ProgressResultBase & {
 			readonly status: "ready-for-action";
 			readonly conclusionIds: readonly string[];
+	  })
+	| (ProgressResultBase & {
+			readonly status: "ready-for-host-action";
+			readonly actionCandidateId: string;
+			readonly actionClearanceId: string;
+			readonly toolName?: string;
+			readonly toolInput?: Readonly<Record<string, unknown>>;
+	  })
+	| (ProgressResultBase & {
+			readonly status: "effect-pending";
+			readonly effectIds: readonly string[];
+	  })
+	| (ProgressResultBase & {
+			readonly status: "action-not-cleared";
+			readonly blockerCodes: readonly string[];
 	  })
 	| (ProgressResultBase & {
 			readonly status: "judgment-concluded";
@@ -94,6 +132,13 @@ export interface SdkActionLoopProgressionInput {
 	readonly request: string;
 	readonly state?: SdkJudgmentProgressState;
 	readonly capabilities: readonly SdkNamedCapability[];
+	readonly actions?: readonly SdkControlledActionAdapter[];
+	readonly authorizeAction?: (
+		action: Extract<
+			SdkActionCandidateResult,
+			{ readonly status: "accepted" }
+		>,
+	) => Promise<PermissionDecision> | PermissionDecision;
 	readonly runner: SdkDecisionRunner;
 	readonly maxSteps: number;
 	readonly checkpoint: (
@@ -193,6 +238,206 @@ function mapJudgmentResult(
 	}
 }
 
+async function progressAction(input: {
+	readonly request: string;
+	readonly state: SdkJudgmentProgressState;
+	readonly actions?: readonly SdkControlledActionAdapter[];
+	readonly authorizeAction?: SdkActionLoopProgressionInput["authorizeAction"];
+	readonly runner: SdkDecisionRunner;
+	readonly checkpoint: SdkActionLoopProgressionInput["checkpoint"];
+	readonly maxSteps: number;
+	readonly steps: number;
+	readonly checkpoints: number;
+}): Promise<SdkActionLoopProgressionResult> {
+	const { workCase } = input.state;
+	const pendingClearance = workCase.actionClearances.find(
+		(clearance) =>
+			!workCase.effects.some(
+				(effect) => effect.actionClearanceId === clearance.actionClearanceId,
+			),
+	);
+	if (pendingClearance) {
+		return {
+			status: "ready-for-host-action",
+			actionCandidateId: pendingClearance.actionCandidateId,
+			actionClearanceId: pendingClearance.actionClearanceId,
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (workCase.effects.length > 0) {
+		return {
+			status: "effect-pending",
+			effectIds: workCase.effects.map((effect) => effect.effectId),
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (!input.actions || !input.authorizeAction) {
+		return {
+			status: "ready-for-action",
+			conclusionIds: workCase.conclusions.map(
+				(conclusion) => conclusion.conclusionId,
+			),
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (input.steps >= input.maxSteps) {
+		return {
+			status: "bounded-stop",
+			stage: "action",
+			reason: "progression-step-budget",
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const action = await proposeActionWithSdk({
+		request: input.request,
+		workCaseId: workCase.workCaseId,
+		conclusions: workCase.conclusions,
+		actions: input.actions,
+		runner: input.runner,
+	});
+	const steps = input.steps + 1;
+	if (action.status === "bounded-stop") {
+		return {
+			status: "bounded-stop",
+			stage: "action",
+			reason: action.reason,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (action.status === "runtime-failure") {
+		return {
+			status: "runtime-failure",
+			stage: "action",
+			message: action.message,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (action.status === "invariant-failure") {
+		return {
+			status: "invariant-failure",
+			stage: "action",
+			code: action.code,
+			message: action.message,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	let permission: PermissionDecision;
+	try {
+		permission = await input.authorizeAction(action);
+	} catch (error) {
+		return {
+			status: "runtime-failure",
+			stage: "action",
+			message: compactError(error),
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const clearance = clearActionWithHostPermission({
+		candidate: action.candidate,
+		conclusions: workCase.conclusions,
+		permission,
+	});
+	if (clearance.status === "not-cleared") {
+		return {
+			status: "action-not-cleared",
+			blockerCodes: clearance.blockers.map((blocker) => blocker.code),
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (clearance.status === "invariant-failure") {
+		return {
+			status: "invariant-failure",
+			stage: "action",
+			code: clearance.code,
+			message: clearance.message,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const candidateRecord = recordWorkCaseActionCandidate(
+		workCase,
+		action.candidate,
+	);
+	if (candidateRecord.status === "invalid") {
+		return {
+			status: "invariant-failure",
+			stage: "action",
+			code: candidateRecord.error.code,
+			message: candidateRecord.error.message,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const clearanceRecord = recordWorkCaseActionClearance(
+		candidateRecord.value,
+		clearance.clearance,
+	);
+	if (clearanceRecord.status === "invalid") {
+		return {
+			status: "invariant-failure",
+			stage: "action",
+			code: clearanceRecord.error.code,
+			message: clearanceRecord.error.message,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const nextState = Object.freeze({
+		...input.state,
+		workCase: clearanceRecord.value,
+	});
+	const checkpoint: SdkActionLoopCheckpoint = {
+		kind: "action-cleared",
+		action,
+		clearance,
+		workCase: clearanceRecord.value,
+	};
+	try {
+		await input.checkpoint(checkpoint);
+	} catch (error) {
+		return {
+			status: "checkpoint-failure",
+			stage: "action",
+			message: compactError(error),
+			pendingCheckpoint: checkpoint,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	return {
+		status: "ready-for-host-action",
+		actionCandidateId: action.candidate.actionCandidateId,
+		actionClearanceId: clearance.clearance.actionClearanceId,
+		toolName: action.toolName,
+		toolInput: action.toolInput,
+		state: nextState,
+		steps,
+		checkpoints: input.checkpoints + 1,
+	};
+}
+
 /**
  * Opens missing canonical ownership and then progresses one upper Judgment.
  * Every accepted opening or Judgment transition is acknowledged before the
@@ -254,15 +499,17 @@ export async function progressActionLoopWithSdk(
 		state.workCase.openJudgments.length === 0 &&
 		state.workCase.conclusions.length > 0
 	) {
-		return {
-			status: "ready-for-action",
-			conclusionIds: state.workCase.conclusions.map(
-				(conclusion) => conclusion.conclusionId,
-			),
+		return progressAction({
+			request: input.request,
 			state,
+			actions: input.actions,
+			authorizeAction: input.authorizeAction,
+			runner: input.runner,
+			checkpoint: input.checkpoint,
+			maxSteps,
 			steps,
 			checkpoints,
-		};
+		});
 	}
 	if (state.workCase.openJudgments.length > 1) {
 		return {

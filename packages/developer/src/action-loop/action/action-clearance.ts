@@ -7,6 +7,9 @@ import type {
 } from "./accept-action-candidate.ts";
 
 export const ACTION_CLEARANCE_VERSION = "developer-action-clearance/v1";
+export const CURRENT_ACTION_WARRANT_BASIS = Object.freeze([
+	"Every Conclusion required by the Action Candidate is recorded in the current canonical Work Case inventory.",
+]);
 
 const PERMISSION_STATUSES: ReadonlySet<string> = new Set([
 	"granted",

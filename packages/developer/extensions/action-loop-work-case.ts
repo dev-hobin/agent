@@ -33,6 +33,12 @@ export interface LiveWorkCaseProposal {
 
 export type LiveContribution = SkillContribution | HostContribution;
 
+export interface LivePiActionProposal {
+	readonly actionCandidateId: string;
+	readonly toolName: "bash" | "edit" | "write";
+	readonly toolInput: Readonly<Record<string, unknown>>;
+}
+
 export interface LiveWorkCaseState {
 	readonly workCase: ActiveWorkCase;
 	readonly contextRevisionId: string;
@@ -43,6 +49,7 @@ export interface LiveWorkCaseState {
 	readonly sealedSkillContexts: readonly SkillContributionContext[];
 	readonly contributions: readonly LiveContribution[];
 	readonly needCoverages: readonly NeedCoverage[];
+	readonly piActionProposals: readonly LivePiActionProposal[];
 	readonly effectObservations: readonly EffectObservation[];
 }
 
@@ -197,6 +204,7 @@ export function openLiveWorkCase(
 			sealedSkillContexts: Object.freeze([]),
 			contributions: Object.freeze([]),
 			needCoverages: Object.freeze([]),
+			piActionProposals: Object.freeze([]),
 			effectObservations: Object.freeze([]),
 		}),
 	};
@@ -211,6 +219,10 @@ export function liveWorkCasePrompt(
 	const { workCase, openingBasis } = state;
 	const judgment = workCase.openJudgments[0];
 	const actionLines = [
+		...state.piActionProposals.map(
+			(proposal) =>
+				`Cleared Pi Action input: ${proposal.actionCandidateId} · ${proposal.toolName} ${JSON.stringify(proposal.toolInput)}`,
+		),
 		...workCase.actionCandidates.map(
 			(candidate) =>
 				`Action Candidate: ${candidate.actionCandidateId} · ${candidate.controlledAction.kind}@${candidate.controlledAction.fingerprint} · clearance not implied`,
