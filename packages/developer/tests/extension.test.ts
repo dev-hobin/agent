@@ -356,15 +356,22 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 	assert.match(result.systemPrompt, /Pi-admitted Developer Skills: specify\./);
 	assert.match(
 		result.systemPrompt,
-		/Action Loop capability inventory: 1 bound \(0 unavailable, 0 excluded\)\./,
+		/Developer Capability inventory: 1 admitted by Pi\./,
 	);
-	assert.match(result.systemPrompt, /Observe → Judge → Act → Settle/);
+	assert.match(result.systemPrompt, /developer_progress_action_loop_with_sdk/);
 	assert.match(
 		result.systemPrompt,
 		/developer_accept_observation_contribution/,
 	);
 	assert.match(result.systemPrompt, /Evidence is not automatically truth/);
-	assert.match(result.systemPrompt, /exact one-use input/);
+	assert.match(result.systemPrompt, /exact cleared host Action/);
+	assert.equal(
+		harness.activeTools().includes("developer_progress_action_loop_with_sdk"),
+		true,
+	);
+	assert.equal(harness.activeTools().includes("developer_open_work_case"), false);
+	assert.equal(harness.activeTools().includes("developer_assess_coverage"), false);
+	assert.equal(harness.activeTools().includes("developer_pause_work_case"), true);
 	assert.doesNotMatch(result.systemPrompt, /developer_route_question/);
 	assert.doesNotMatch(result.systemPrompt, /developer_record_judgment/);
 	assert.doesNotMatch(
@@ -373,7 +380,7 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 	);
 });
 
-test("structured Capability inventory separates applicability from Reference selection conditions", async () => {
+test("structured Capability routing stays inside the primary SDK controller prompt boundary", async () => {
 	const model = loadedLeaves.find((skill) => skill.name === "model")!;
 	const harness = createHarness();
 	await developer(harness.api);
@@ -389,14 +396,10 @@ test("structured Capability inventory separates applicability from Reference sel
 		systemPromptOptions: { cwd: packageRoot, skills: [model] },
 	});
 
-	assert.match(
-		result.systemPrompt,
-		/Capability applicability conditions for matched_when:/,
-	);
-	assert.match(
-		result.systemPrompt,
-		/Reference-only selection condition[\s\S]*never use in matched_when or matched_unless/,
-	);
+	assert.match(result.systemPrompt, /Developer Capability inventory: 1 admitted/);
+	assert.doesNotMatch(result.systemPrompt, /matched_when/);
+	assert.doesNotMatch(result.systemPrompt, /Reference-only selection condition/);
+	assert.doesNotMatch(result.systemPrompt, /caprev_/);
 });
 
 test("a live Work Case opens once and projects across agent turns", async () => {
@@ -953,10 +956,8 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 	assert.match(next.systemPrompt, /Open Judgment: open_judgment_/);
 	assert.match(next.systemPrompt, /Closure Requirements:/);
 	assert.match(next.systemPrompt, /Contribution Needs:/);
-	assert.match(
-		next.systemPrompt,
-		/Capability verify · caprev_.* · structured[\s\S]*A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged\./,
-	);
+	assert.match(next.systemPrompt, /Developer Capability inventory: 11 admitted/);
+	assert.doesNotMatch(next.systemPrompt, /Capability verify · caprev_/);
 	const assessed = await harness.tools
 		.get("developer_assess_capability")
 		.execute("assess-live-verify", {

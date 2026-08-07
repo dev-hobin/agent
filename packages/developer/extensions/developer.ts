@@ -18,7 +18,6 @@ import { Type, type TSchema } from "typebox";
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
 import type { SdkControlledActionAdapter } from "../src/action-loop/sdk/action-controller.ts";
 import {
-	liveCapabilityInventoryPrompt,
 	prepareLiveCapabilityInventory,
 	type LiveCapabilityInventoryResult,
 } from "./action-loop-capability-inventory.ts";
@@ -177,8 +176,16 @@ import {
 } from "./tool-policy.ts";
 
 const TOOL_POLICY_PROTOCOL = "developer-action-loop/tool-policy/v1";
-const PROTOCOL_TOOLS = [
+const PRIMARY_PROTOCOL_TOOLS = [
 	ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL,
+	ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL,
+	ACTION_LOOP_RECORD_REMEDIATION_TOOL,
+	ACTION_LOOP_PAUSE_WORK_CASE_TOOL,
+	ACTION_LOOP_WAIT_WORK_CASE_TOOL,
+	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
+	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
+] as const;
+const TRANSITIONAL_PROTOCOL_TOOLS = [
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
 	ACTION_LOOP_PROGRESS_JUDGMENT_TOOL,
@@ -186,18 +193,16 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_SELECT_REFERENCES_TOOL,
 	ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
 	ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL,
-	ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL,
 	ACTION_LOOP_ASSESS_COVERAGE_TOOL,
 	ACTION_LOOP_CLOSE_JUDGMENT_TOOL,
 	ACTION_LOOP_PROPOSE_ACTION_TOOL,
 	ACTION_LOOP_SETTLE_EFFECT_TOOL,
-	ACTION_LOOP_RECORD_REMEDIATION_TOOL,
-	ACTION_LOOP_PAUSE_WORK_CASE_TOOL,
-	ACTION_LOOP_WAIT_WORK_CASE_TOOL,
-	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
-	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
 	ACTION_LOOP_PREPARE_CLOSURE_TOOL,
 	ACTION_LOOP_COMPLETE_WORK_CASE_TOOL,
+] as const;
+const PROTOCOL_TOOLS = [
+	...PRIMARY_PROTOCOL_TOOLS,
+	...TRANSITIONAL_PROTOCOL_TOOLS,
 ] as const;
 const extensionRoot = dirname(fileURLToPath(import.meta.url));
 const skillsRoot = resolve(extensionRoot, "..", "skills");
@@ -267,15 +272,12 @@ function actionLoopProtocolPrompt(
 ): string {
 	return [
 		"",
-		"Developer Action Loop is active. The canonical Work Case is the sole owner of Outcome continuity, Judgments, Contributions, Coverage, Conclusions, Actions, Effects, and completion.",
-		"Operate Observe → Judge → Act → Settle until Complete, Block, or Pause. These are semantic responsibilities, not a mandatory phase order; revisit Judgment whenever evidence changes.",
-		`Use ${ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL} as the primary bounded controller. It checkpoints ownership, sequential Judgments, complete admitted Capability routing, exact Action Clearance, Effect settlement, and Completion before dependent work. Lower-level protocol tools are transitional fallback controls.`,
-		`Evidence is not automatically truth. ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} is only for exact admitted host evidence that directly answers a current Need without Skill interpretation.`,
-		`When the primary controller returns an exact one-use input for cleared bash, edit, or write, execute only that input and then call the primary controller again for Effect settlement and Completion. Manual fallback Actions still require ${ACTION_LOOP_PROPOSE_ACTION_TOOL}; tool return never implies Effect success.`,
-		`Pause, wait, block, resume, and completion require their exact current evidence and complete current Work Case inventory; never infer terminal status or choose convenient Conclusion and Effect subsets.`,
-		`The SDK controller owns opening through revision-revalidated Completion. The Pi Extension alone bridges exact host execution and captures its result as an Observation; model output cannot grant permission, settle from absence, or claim completion.`,
-		"Internal IDs shown in model context are exact protocol arguments. Never repeat IDs, revisions, hashes, fingerprints, or transition identities to the user.",
-		`Pi-admitted Developer Skills: ${availableSkillNames.length > 0 ? availableSkillNames.join(", ") : "none"}. Never rediscover excluded Skills or bypass the admitted inventory.`,
+		"Developer Action Loop is active. Its canonical Work Case owns Outcome continuity through completion.",
+		`Use ${ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL} for bounded progression and call it again after any exact cleared host Action returns. A bounded stop preserves acknowledged Pi branch checkpoints.`,
+		`Evidence is not automatically truth. Use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} only for exact admitted host evidence that directly answers a current Need; adverse Effect remediation remains explicit.`,
+		"The SDK controller owns opening, routing, sequential Judgment, Action proposal, Effect settlement, and revision-revalidated Completion. Do not reproduce these transitions with lower-level tools.",
+		"Never infer permission, Effect success, or completion. Never expose internal IDs, revisions, hashes, fingerprints, or transition identities to the user.",
+		`Pi-admitted Developer Skills: ${availableSkillNames.length > 0 ? availableSkillNames.join(", ") : "none"}. Never rediscover excluded Skills.`,
 	].join("\n");
 }
 
@@ -452,10 +454,13 @@ export default async function developer(pi: ExtensionAPI) {
 			activeTools: current,
 			allTools: pi.getAllTools(),
 			enabled: developerEnabled,
-			protocolTools: PROTOCOL_TOOLS,
+			protocolTools: PRIMARY_PROTOCOL_TOOLS,
 			memory: toolPolicyMemory,
 		});
 		const nextActive = new Set(next.activeTools);
+		for (const toolName of TRANSITIONAL_PROTOCOL_TOOLS) {
+			nextActive.delete(toolName);
+		}
 		const nextWithheld = new Set(next.memory.withheldBuiltins);
 		for (const toolName of clearedLivePiToolNames(activeWorkCase)) {
 			nextActive.add(toolName);
@@ -3351,11 +3356,15 @@ export default async function developer(pi: ExtensionAPI) {
 		if (admittedPrompt.status === "admitted") {
 			rememberHostObservation(admittedPrompt.observation);
 		}
+		const inventoryPrompt =
+			inventory.status === "ready"
+				? `\nDeveloper Capability inventory: ${inventory.value.summary.bound} admitted by Pi.`
+				: `\nDeveloper Capability inventory is unavailable (${inventory.error.code}).`;
 		return {
 			systemPrompt:
 				event.systemPrompt +
 				actionLoopProtocolPrompt([...availableSkills.keys()]) +
-				`\n${liveCapabilityInventoryPrompt(inventory)}` +
+				inventoryPrompt +
 				(actionLoopReplayFailure
 					? `\nAction Loop session replay unavailable (${ACTION_LOOP_SESSION_PROTOCOL}): ${actionLoopReplayFailure}. Do not open replacement work or infer completion.`
 					: `\n${liveWorkCasePrompt(activeWorkCase ?? heldWorkCase)}\n${liveCompletedWorkCasePrompt(completedWorkCase)}\n${liveHostObservationPrompt(liveHostObservations)}`),
