@@ -96,5 +96,8 @@ test("duplicate Pi source occurrence rejects the live handoff atomically", async
 	assert.equal(result.status, "rejected");
 	if (result.status !== "rejected") return;
 	assert.match(liveCapabilityInventoryPrompt(result), /inventory rejected/);
-	assert.match(liveCapabilityInventoryPrompt(result), /no Developer Skill is admitted/);
+	assert.match(
+		liveCapabilityInventoryPrompt(result),
+		/no Developer Skill is admitted/,
+	);
 });

@@ -544,7 +544,10 @@ const liveCapabilityIntegration = await readFile(
 	"utf8",
 );
 assert.match(liveCapabilityIntegration, /event\.systemPromptOptions\.skills/);
-assert.match(liveCapabilityIntegration, /catalogBeforeAgentStartSkills\(event\)/);
+assert.match(
+	liveCapabilityIntegration,
+	/catalogBeforeAgentStartSkills\(event\)/,
+);
 assert.match(liveCapabilityIntegration, /bindPiCapabilityInventory\(catalog\)/);
 
 const skillIntegration = await readFile(

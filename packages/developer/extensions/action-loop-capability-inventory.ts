@@ -50,7 +50,10 @@ export async function prepareLiveCapabilityInventory(
 	const admittedPackageSkills = new Map<string, Skill>();
 	const ambiguousNames = new Set<string>();
 	for (const skill of event.systemPromptOptions.skills ?? []) {
-		if (skill.disableModelInvocation || !isWithinRoot(skillsRoot, skill.filePath)) {
+		if (
+			skill.disableModelInvocation ||
+			!isWithinRoot(skillsRoot, skill.filePath)
+		) {
 			continue;
 		}
 		const canonicalPath = await realpath(skill.filePath).catch(() =>
