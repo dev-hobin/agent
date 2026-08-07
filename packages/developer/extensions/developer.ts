@@ -946,6 +946,8 @@ export default async function developer(pi: ExtensionAPI) {
 		if (!enabled) {
 			activeWorkCase = undefined;
 			completedWorkCase = undefined;
+			pendingActionLoopBranch = undefined;
+			actionLoopReplayFailure = undefined;
 		}
 		syncProtocolTools();
 		refreshUI(ctx);
@@ -956,7 +958,7 @@ export default async function developer(pi: ExtensionAPI) {
 		name: ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 		label: "Developer Open Work Case",
 		description:
-			"Propose one bounded Outcome as the process-local canonical Action Loop Work Case. Opening preserves continuity but grants no Action Clearance and makes no completion claim.",
+			"Propose one bounded Outcome as the current Pi session branch's canonical Action Loop Work Case. Opening preserves continuity but grants no Action Clearance and makes no completion claim.",
 		promptSnippet: "Open one bounded Action Loop Work Case",
 		promptGuidelines: [
 			`Call ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} before consequential Developer routing when no Work Case is active.`,
@@ -4073,6 +4075,14 @@ export default async function developer(pi: ExtensionAPI) {
 			event.toolName,
 		);
 		if (!capability) return;
+		if (pendingActionLoopBranch || actionLoopReplayFailure) {
+			return {
+				block: true,
+				reason: pendingActionLoopBranch
+					? "Developer must replay the current Pi session branch before controlled tool execution."
+					: `Developer Action Loop session replay is unavailable: ${actionLoopReplayFailure}`,
+			};
+		}
 
 		const access = protocolToolAccess(state);
 		const implementationBlockers = state.pendingQuestions.filter(

@@ -10,7 +10,7 @@
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 하나의 process-local Work Case를 current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, exact Pi Action Clearance와 occurrence, Effect Observation과 settlement, Closure Claim, completion까지 진행한다. Live adapter는 별도 approval feature를 추가하지 않고 Pi의 default permission policy를 상속한다. Exact adverse Effect remediation은 live이며 nonterminal Work Status transition은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
+> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 하나의 Pi session branch-owned Work Case를 current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, exact Pi Action Clearance와 occurrence, Effect Observation과 settlement, Closure Claim, completion까지 진행한다. Versioned semantic session event가 sealed Skill 또는 Reference bytes를 저장하지 않고 current Pi branch에서 그 state를 replay한다. Live adapter는 별도 approval feature를 추가하지 않고 Pi의 default permission policy를 상속한다. Exact adverse Effect remediation은 live이며 nonterminal Work Status transition은 아직 live extension state가 아니다. Published runtime과 Skills는 recovery baseline으로 유지된다.
 >
 > 작성 시점: 2026-08-06
 
@@ -582,11 +582,11 @@ before_agent_start.systemPromptOptions.skills
 developer_open_work_case proposal
   → bounded Outcome, acceptance conditions, Constraints, and basis
   → openWorkCase transition
-  → process-local active Work Case
-  → next-turn before_agent_start projection
+  → current Pi session branch-owned active Work Case
+  → next-turn, restart, session-tree projection
 ```
 
-Exact duplicate는 stutter하고, 다른 Outcome은 active work를 교체할 수 없으며, Developer를 끄면 기존 confirmation boundary 뒤에 process-local state가 제거된다. Opening은 Action Clearance를 부여하지 않고 completion을 뜻하지 않는다. Live `developer_route_question` boundary는 이제 이 Work Case가 생기기 전 consequential routing을 거부하므로 preserved protocol이 Outcome continuity를 우회할 수 없다.
+Exact duplicate는 stutter하고, 다른 Outcome은 active work를 교체할 수 없으며, Developer를 끄면 기존 confirmation boundary 뒤에 branch-local activation reset을 append한다. Opening은 Action Clearance를 부여하지 않고 completion을 뜻하지 않는다. Live `developer_route_question` boundary는 이제 이 Work Case가 생기기 전 consequential routing을 거부하므로 preserved protocol이 Outcome continuity를 우회할 수 없다.
 
 그 Work Case 안에서 current upper Judgment 하나를 여는 다음 slice도 live다.
 
@@ -645,7 +645,11 @@ Capability Assignment
 
 새 Contribution은 그 Need의 current Coverage를 invalidate한다. Refusal은 Judgment를 open 상태로 남긴다. Conclusion은 open Judgment를 제거하고 canonical Work Case revision을 전진시킨다. Accepted Contribution은 matching preserved compatibility route도 memory에서 닫지만 이 projection은 canonical Work Case evidence가 아니다. Route event는 Need, Assignment, Capability revision, Reference Selection, sealed Context identity를 보존한다.
 
-이 live slice에는 의도적으로 session replay가 아직 없다. Reconstruction이나 process restart는 canonical history를 추측하는 대신 process-local routing, Judgment, Action, Effect, completion artifact를 제거한다. Model은 계속 Candidate만 제안하고 adapter가 exact tool identity를 도출하며 Pi default policy에서 Permission Decision을 공급한다. Exact Clearance는 그 built-in tool을 일시적으로 expose하고 변경되거나 반복된 input을 거부한다. 별도 approval setting이나 prompt는 추가하지 않는다. 더 강한 approval policy는 implicit restriction이 아니라 나중의 optional feature로 남긴다. Tool result는 제한이 명시된 Observation으로 보존되며 explicit settlement accounting이 `pending`, `unknown`, 또는 settled outcome을 도출해야 한다. Current failed 또는 partially-applied settlement는 distinct current `observed-success` repair에만 bind할 수 있고 closure accounting은 두 Effect history를 모두 보존한다. Closure preparation은 전체 Work Case inventory를 소유하고 completion은 revision-bound Target과 Claim을 재검증한다. 유용한 pause, wait, block에는 durable continuity가 필요하고 restart에서 조용히 사라지는 process-local status는 ownership을 잘못 나타내므로 nonterminal Work Status transition은 pure-only로 남는다.
+이 live slice는 이제 Pi의 append-only current branch에서 canonical Action Loop state를 replay한다. Protocol-tool result는 versioned semantic transition event를 가진다. Exact controlled-tool occurrence와 Effect Observation은 Developer protocol-tool result에 속하지 않으므로 작은 custom session entry를 사용한다. `session_start`와 `session_tree`는 `ctx.sessionManager.getBranch()`만 같은 domain transition으로 fold하고 expected canonical identity를 비교하며 active Work Case 또는 마지막 completed projection을 복구한다. Malformed 또는 unsupported claimed event는 absence가 되지 않고 fail-closed한다.
+
+Session event는 Capability revision, source descriptor, selection, hash, proposal, expected identity를 유지하지만 sealed Skill 또는 Reference bytes를 저장하지 않는다. Replay는 current Pi-admitted bounded loader를 통해서만 selected material을 재획득한다. Exclusion, absence, content drift로 exact Capability 또는 sealed Context identity를 재생성하지 못하면 replay는 visibly unavailable해지고 replacement work를 block한다. Filesystem fallback이나 silent substitution은 없다. Pi `--no-session` mode는 정의상 restart를 넘으면 process-local이다.
+
+Model은 계속 Candidate만 제안하고 adapter가 exact tool identity를 도출하며 Pi default policy에서 Permission Decision을 공급한다. Exact Clearance는 그 built-in tool을 일시적으로 expose하고 변경되거나 반복된 input을 거부한다. 별도 approval setting이나 prompt는 추가하지 않는다. 더 강한 approval policy는 implicit restriction이 아니라 나중의 optional feature로 남긴다. Tool result는 제한이 명시된 Observation으로 보존되며 explicit settlement accounting이 `pending`, `unknown`, 또는 settled outcome을 도출해야 한다. Current failed 또는 partially-applied settlement는 distinct current `observed-success` repair에만 bind할 수 있고 closure accounting은 두 Effect history를 모두 보존한다. Closure preparation은 전체 Work Case inventory를 소유하고 completion은 revision-bound Target과 Claim을 재검증한다. Durable substrate는 이제 있지만, 각 status에 필요한 distinct human decision, external resume predicate, blocker assurance를 live command와 resume surface가 보존할 때까지 nonterminal Work Status transition은 pure-only로 남는다.
 
 ## 12. Extension-level guarantee boundary
 

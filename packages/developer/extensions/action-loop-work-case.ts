@@ -268,6 +268,6 @@ export function liveWorkCasePrompt(
 		...contributionLines,
 		...coverageLines,
 		...actionLines,
-		"This process-local projection preserves active Outcome continuity but does not imply Action Clearance or completion.",
+		"This current Pi session-branch projection preserves active Outcome continuity but does not imply Action Clearance or completion.",
 	].join("\n");
 }

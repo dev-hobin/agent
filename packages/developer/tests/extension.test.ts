@@ -2290,6 +2290,51 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 		),
 	);
 
+	const excluded = createHarness();
+	excluded.setBranch(routingBranch);
+	await developer(excluded.api);
+	await excluded.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	const unavailable = await excluded.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "resume without model",
+		systemPrompt: "base",
+		systemPromptOptions: {
+			cwd: packageRoot,
+			skills: loadedLeaves.filter((skill) => skill.name !== "model"),
+		},
+	});
+	assert.match(unavailable.systemPrompt, /Action Loop session replay unavailable/);
+	assert.match(unavailable.systemPrompt, /Capability model@caprev_/);
+	await assert.rejects(
+		excluded.tools.get("developer_open_work_case").execute("replace-replay", {
+			statement: "Replacement work must not hide unavailable replay state.",
+			acceptance_conditions: ["The unavailable state remains visible."],
+			constraints: [],
+			basis: ["Replay failed against the current Pi-admitted inventory."],
+		}),
+		/cannot replace unavailable Action Loop session state/,
+	);
+	const blockedMutation = await excluded.emit("tool_call", {
+		toolName: "write",
+		toolCallId: "write:blocked-replay",
+		input: { path: "/tmp/blocked-replay", content: "blocked" },
+	});
+	assert.match(blockedMutation.reason, /session replay is unavailable/i);
+	await excluded.commands.get("developer").handler("off", excluded.ctx);
+	await excluded.commands.get("developer").handler("on", excluded.ctx);
+	const resetOpening = await excluded.tools
+		.get("developer_open_work_case")
+		.execute("reset-replay", {
+			statement: "An explicit Developer-off reset starts new bounded work.",
+			acceptance_conditions: ["The old unavailable branch state is not reused."],
+			constraints: [],
+			basis: ["The branch-local activation reset explicitly cleared ownership."],
+		});
+	assert.match(resultText(resetOpening), /Work Case opened/);
+
 	const toolInput = {
 		path: "/tmp/developer-action-loop-session-replay.txt",
 		content: "session replay",

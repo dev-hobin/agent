@@ -7,6 +7,7 @@ import {
 	withActionLoopReplayEvent,
 } from "../extensions/action-loop-session.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
+import { ACTIVATION_ENTRY, PROTOCOL } from "../extensions/state.ts";
 
 const proposal = {
 	outcome: {
@@ -52,6 +53,34 @@ test("a Pi tool-result replay event reconstructs one exact active Work Case", as
 		opened.value.workCase.revisionId,
 	);
 	assert.equal(replayed.appliedTransitions, 1);
+});
+
+test("a later Developer-off entry clears replayed Action Loop ownership", async () => {
+	const opened = openLiveWorkCase(undefined, proposal);
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const replayed = await replayActionLoopSession([
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_open_work_case",
+				details: withActionLoopReplayEvent(
+					{ protocol: "developer-action-loop/v1", kind: "opened" },
+					actionLoopWorkCaseOpenedEvent(proposal, opened.value),
+				),
+			},
+		},
+		{
+			type: "custom",
+			customType: ACTIVATION_ENTRY,
+			data: { protocol: PROTOCOL, kind: "activation", enabled: false },
+		},
+	]);
+
+	assert.equal(replayed.status, "ready");
+	if (replayed.status !== "ready") return;
+	assert.equal(replayed.activeWorkCase, undefined);
 });
 
 test("a malformed claimed replay event fails closed instead of becoming absence", async () => {

@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-architecture-v0.1.md)
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, and carries one process-local Work Case through current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, exact Pi Action Clearance and occurrence, Effect Observation and settlement, Closure Claim, and completion. The live adapter inherits Pi's default permission policy without adding a separate approval feature. Exact adverse Effect remediation is live; nonterminal Work Status transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
+> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, and carries one Pi session branch-owned Work Case through current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, exact Pi Action Clearance and occurrence, Effect Observation and settlement, Closure Claim, and completion. Versioned semantic session events replay that state from the current Pi branch without persisting sealed Skill or Reference bytes. The live adapter inherits Pi's default permission policy without adding a separate approval feature. Exact adverse Effect remediation is live; nonterminal Work Status transitions are not yet live extension state. The published runtime and Skills remain the recovery baseline.
 >
 > Date written: 2026-08-06
 
@@ -582,11 +582,11 @@ The next live slice opens and projects one bounded Work Case:
 developer_open_work_case proposal
   → bounded Outcome, acceptance conditions, Constraints, and basis
   → openWorkCase transition
-  → process-local active Work Case
-  → next-turn before_agent_start projection
+  → current Pi session branch-owned active Work Case
+  → next-turn, restart, and session-tree projection
 ```
 
-An exact duplicate stutters, a different Outcome cannot replace active work, and turning Developer off clears this process-local state after the existing confirmation boundary. Opening grants no Action Clearance and implies no completion. The live `developer_route_question` boundary now rejects consequential routing until this Work Case exists, so the preserved protocol cannot bypass Outcome continuity.
+An exact duplicate stutters, a different Outcome cannot replace active work, and turning Developer off appends the branch-local activation reset after the existing confirmation boundary. Opening grants no Action Clearance and implies no completion. The live `developer_route_question` boundary now rejects consequential routing until this Work Case exists, so the preserved protocol cannot bypass Outcome continuity.
 
 The following slice opens one current upper Judgment inside that Work Case:
 
@@ -645,7 +645,11 @@ Capability Assignment
 
 A new Contribution invalidates current Coverage for its Need. A refusal leaves the Judgment open. A Conclusion removes the open Judgment and advances canonical Work Case revision. The accepted Contribution also closes the matching preserved compatibility route in memory, but that projection does not become canonical Work Case evidence. The route event preserves Need, Assignment, Capability revision, Reference Selection, and sealed Context identities.
 
-This live slice deliberately has no session replay yet; reconstruction or process restart clears its process-local routing, Judgment, Action, Effect, and completion artifacts rather than guessing canonical history. The model still proposes only the Candidate; the adapter derives the exact tool identity and supplies the Permission Decision from Pi's default policy. An exact Clearance temporarily exposes its built-in tool and rejects changed or repeated input. No separate approval setting or prompt is added. A stronger approval policy remains a possible later feature rather than an implicit restriction. Tool results are preserved as limited Observations, while explicit settlement accounting must derive `pending`, `unknown`, or a settled outcome. A current failed or partially-applied settlement may bind only to a distinct current `observed-success` repair, preserving both Effect histories in closure accounting. Closure preparation owns the complete Work Case inventory, and completion revalidates its revision-bound Target and Claim. Nonterminal Work Status transitions remain pure-only because a useful pause, wait, or block requires durable continuity; a process-local status that silently disappears on restart would misrepresent ownership.
+This live slice now replays canonical Action Loop state from Pi's append-only current branch. Protocol-tool results carry versioned semantic transition events. Exact controlled-tool occurrences and Effect Observations use small custom session entries because they do not belong to a Developer protocol-tool result. `session_start` and `session_tree` fold only `ctx.sessionManager.getBranch()` through the same domain transitions, compare expected canonical identities, and restore either the active Work Case or the last completed projection. Malformed or unsupported claimed events fail closed rather than becoming absence.
+
+The session events retain Capability revisions, source descriptors, selections, hashes, proposals, and expected identities, but do not persist sealed Skill or Reference bytes. Replay reacquires selected material only through the current Pi-admitted bounded loader. Exclusion, absence, or content drift prevents exact Capability or sealed Context identity reproduction, makes replay visibly unavailable, and blocks replacement work; no filesystem fallback or silent substitution occurs. Pi `--no-session` mode remains process-local across restart by definition.
+
+The model still proposes only the Candidate; the adapter derives the exact tool identity and supplies the Permission Decision from Pi's default policy. An exact Clearance temporarily exposes its built-in tool and rejects changed or repeated input. No separate approval setting or prompt is added. A stronger approval policy remains a possible later feature rather than an implicit restriction. Tool results are preserved as limited Observations, while explicit settlement accounting must derive `pending`, `unknown`, or a settled outcome. A current failed or partially-applied settlement may bind only to a distinct current `observed-success` repair, preserving both Effect histories in closure accounting. Closure preparation owns the complete Work Case inventory, and completion revalidates its revision-bound Target and Claim. The durable substrate now exists, but nonterminal Work Status transitions remain pure-only until their live command and resume surfaces preserve the distinct human decision, external resume predicate, or blocker assurance each status requires.
 
 ## 12. Extension-level guarantee boundary
 
