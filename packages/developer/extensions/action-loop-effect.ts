@@ -3,7 +3,12 @@ import {
 	beginEffect,
 	type PendingEffect,
 } from "../src/action-loop/effect/begin-effect.ts";
+import {
+	acceptEffectObservation,
+	type EffectObservation,
+} from "../src/action-loop/effect/effect-observation.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
+import { fingerprintPiToolResult } from "./action-loop-pi-action.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
 export type LiveEffectBeginningResult =
@@ -11,6 +16,20 @@ export type LiveEffectBeginningResult =
 			readonly status: "begun" | "unchanged";
 			readonly state: LiveWorkCaseState;
 			readonly effect: PendingEffect;
+	  }
+	| { readonly status: "invalid"; readonly message: string };
+
+export interface LivePiToolResult {
+	readonly isError: boolean;
+	readonly content: readonly unknown[];
+	readonly details: unknown;
+}
+
+export type LiveEffectObservationResult =
+	| {
+			readonly status: "observed" | "unchanged";
+			readonly state: LiveWorkCaseState;
+			readonly observation: EffectObservation;
 	  }
 	| { readonly status: "invalid"; readonly message: string };
 
@@ -40,5 +59,76 @@ export function beginLiveActionEffect(
 				? Object.freeze({ ...state, workCase: recorded.value })
 				: state,
 		effect: begun.value,
+	};
+}
+
+/** Records a Pi tool result as evidence without inferring Effect settlement. */
+export function observeLivePiToolResult(
+	state: LiveWorkCaseState,
+	toolName: string,
+	occurrenceId: string,
+	result: LivePiToolResult,
+): LiveEffectObservationResult {
+	const effect = state.workCase.effects.find(
+		(current) => current.occurrenceId === occurrenceId,
+	);
+	if (effect === undefined) {
+		return {
+			status: "invalid",
+			message: `No pending Effect belongs to Pi occurrence: ${occurrenceId}`,
+		};
+	}
+	if (effect.controlledAction.kind !== `pi-tool-call:${toolName}`) {
+		return {
+			status: "invalid",
+			message: "Pi tool result does not match the Effect controlled Action",
+		};
+	}
+	const evidence = fingerprintPiToolResult(toolName, {
+		isError: result.isError,
+		content: result.content,
+		details: result.details ?? null,
+	});
+	if (evidence.status === "invalid") return evidence;
+	const accepted = acceptEffectObservation(effect, {
+		workCaseId: state.workCase.workCaseId,
+		effectId: effect.effectId,
+		occurrenceId,
+		evidence: {
+			kind: "tool-result",
+			locator: `pi-tool-result:${occurrenceId}`,
+			fingerprint: evidence.fingerprint,
+		},
+		statement: result.isError
+			? "Pi reported a tool execution error for the cleared Action occurrence."
+			: "Pi returned from the cleared Action occurrence without reporting a tool execution error.",
+		limitations: [
+			"A Pi tool result does not by itself establish any intended Effect as successful.",
+		],
+		provenance: { kind: "tool", source: `pi:${toolName}:tool-result` },
+	});
+	if (accepted.status === "invalid") {
+		return { status: "invalid", message: accepted.error.message };
+	}
+	const current = state.effectObservations.find(
+		(observation) => observation.effectId === effect.effectId,
+	);
+	if (current !== undefined) {
+		return current.effectObservationId === accepted.value.effectObservationId
+			? { status: "unchanged", state, observation: current }
+			: {
+					status: "invalid",
+					message: "A different Pi tool result Observation already exists for this Effect",
+				};
+	}
+	const effectObservations = Object.freeze(
+		[...state.effectObservations, accepted.value].sort((left, right) =>
+			left.effectObservationId.localeCompare(right.effectObservationId),
+		),
+	);
+	return {
+		status: "observed",
+		state: Object.freeze({ ...state, effectObservations }),
+		observation: accepted.value,
 	};
 }

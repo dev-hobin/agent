@@ -16,7 +16,10 @@ import {
 } from "../extensions/action-loop-context.ts";
 import { acceptLiveSkillContribution } from "../extensions/action-loop-contribution.ts";
 import { assessLiveNeedCoverage } from "../extensions/action-loop-coverage.ts";
-import { beginLiveActionEffect } from "../extensions/action-loop-effect.ts";
+import {
+	beginLiveActionEffect,
+	observeLivePiToolResult,
+} from "../extensions/action-loop-effect.ts";
 import { closeLiveJudgment } from "../extensions/action-loop-conclusion.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
@@ -286,6 +289,30 @@ test("ready structured selection seals Skill and selected References atomically"
 								),
 								undefined,
 							);
+							const observed = observeLivePiToolResult(
+								effect.state,
+								"write",
+								"pi-tool-call:write:1",
+								{
+									isError: false,
+									content: [{ type: "text", text: "wrote file" }],
+									details: null,
+								},
+							);
+							assert.equal(observed.status, "observed");
+							if (observed.status === "observed") {
+								assert.deepEqual(observed.state.effectObservations, [
+									observed.observation,
+								]);
+								assert.equal(
+									observed.state.workCase.effects[0]?.status,
+									"pending",
+								);
+								assert.match(
+									observed.observation.limitations[0] ?? "",
+									/does not by itself establish/,
+								);
+							}
 						}
 					}
 				}

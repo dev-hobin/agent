@@ -3,6 +3,7 @@ import type {
 	SkillContribution,
 	SkillContributionContext,
 } from "../src/action-loop/contribution/accept-skill-contribution.ts";
+import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
 import type {
 	AcceptedApplicabilityAssessment,
 	CapabilityAssignment,
@@ -36,6 +37,7 @@ export interface LiveWorkCaseState {
 	readonly sealedSkillContexts: readonly SkillContributionContext[];
 	readonly contributions: readonly SkillContribution[];
 	readonly needCoverages: readonly NeedCoverage[];
+	readonly effectObservations: readonly EffectObservation[];
 }
 
 export type LiveWorkCaseOpeningResult =
@@ -152,6 +154,7 @@ export function openLiveWorkCase(
 			sealedSkillContexts: Object.freeze([]),
 			contributions: Object.freeze([]),
 			needCoverages: Object.freeze([]),
+			effectObservations: Object.freeze([]),
 		}),
 	};
 }
