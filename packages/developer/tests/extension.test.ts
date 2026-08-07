@@ -2077,6 +2077,57 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 	);
 });
 
+test("the current Pi branch restores a persisted Action Loop Work Case opening", async () => {
+	const first = createHarness();
+	await developer(first.api);
+	await first.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await first.commands.get("developer").handler("on", first.ctx);
+	const opened = await first.tools
+		.get("developer_open_work_case")
+		.execute("persisted-work-case", {
+			statement: "The Pi session branch restores the active Work Case.",
+			acceptance_conditions: [
+				"The exact canonical Work Case identity is reconstructed.",
+			],
+			constraints: ["No separate persistence store is used."],
+			basis: ["The user selected Pi session-backed replay."],
+		});
+
+	const second = createHarness();
+	second.setBranch([
+		...first.entries.map((entry) => ({ type: "custom", ...entry })),
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_open_work_case",
+				details: opened.details,
+			},
+		},
+	]);
+	await developer(second.api);
+	await second.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	const resumed = await second.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "resume",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+
+	assert.ok(
+		resumed.systemPrompt.includes(
+			`Active Action Loop Work Case: ${opened.details.workCase.workCaseId}`,
+		),
+	);
+	assert.ok(resumed.systemPrompt.includes(opened.details.workCase.revisionId));
+});
+
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {
 	const harness = createHarness();
 	await developer(harness.api);

@@ -77,6 +77,13 @@ import {
 	selectLiveContributionNeed,
 } from "./action-loop-judgment.ts";
 import {
+	ACTION_LOOP_SESSION_PROTOCOL,
+	actionLoopWorkCaseOpenedEvent,
+	replayActionLoopSession,
+	withActionLoopReplayEvent,
+	type ActionLoopSessionBranchEntry,
+} from "./action-loop-session.ts";
+import {
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 	MAX_LIVE_BASIS_ITEMS,
 	MAX_LIVE_OUTCOME_ITEMS,
@@ -773,6 +780,10 @@ export default async function developer(pi: ExtensionAPI) {
 	let liveCapabilityInventory: LiveCapabilityInventoryResult | undefined;
 	let activeWorkCase: LiveWorkCaseState | undefined;
 	let completedWorkCase: CompletedWorkCase | undefined;
+	let pendingActionLoopBranch:
+		| readonly ActionLoopSessionBranchEntry[]
+		| undefined;
+	let actionLoopReplayFailure: string | undefined;
 	let state = initialState();
 	let routeOpening = false;
 	const routesWithMutation = new Set<string>();
@@ -895,6 +906,8 @@ export default async function developer(pi: ExtensionAPI) {
 		const branch = ctx.sessionManager.getBranch();
 		activeWorkCase = undefined;
 		completedWorkCase = undefined;
+		pendingActionLoopBranch = toolPolicyRestartRequired ? undefined : branch;
+		actionLoopReplayFailure = undefined;
 		state = toolPolicyRestartRequired
 			? initialState()
 			: reconstructState(branch);
@@ -961,33 +974,43 @@ export default async function developer(pi: ExtensionAPI) {
 			if (!state.enabled) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
-			const result = openLiveWorkCase(activeWorkCase, {
+			if (actionLoopReplayFailure) {
+				fail(
+					`Developer cannot replace unavailable Action Loop session state: ${actionLoopReplayFailure}`,
+				);
+			}
+			const proposal = {
 				outcome: {
 					statement: params.statement,
 					acceptanceConditions: params.acceptance_conditions,
 					constraints: params.constraints,
 				},
 				basis: params.basis,
-				provenance: { kind: "model", source: "pi:tool-call" },
-			});
+				provenance: { kind: "model" as const, source: "pi:tool-call" },
+			};
+			const result = openLiveWorkCase(activeWorkCase, proposal);
 			if (
 				result.status === "invalid" ||
 				result.status === "active-work-case-exists"
 			) {
 				fail(result.message);
 			}
+			pendingActionLoopBranch = undefined;
 			activeWorkCase = result.value;
 			completedWorkCase = undefined;
 			return textResult(
 				result.status === "opened"
 					? `Work Case opened: ${result.value.workCase.workCaseId}`
 					: `Work Case already active: ${result.value.workCase.workCaseId}`,
-				{
-					protocol: "developer-action-loop/v1",
-					kind: result.status,
-					workCase: result.value.workCase,
-					openingBasis: result.value.openingBasis,
-				},
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: result.status,
+						workCase: result.value.workCase,
+						openingBasis: result.value.openingBasis,
+					},
+					actionLoopWorkCaseOpenedEvent(proposal, result.value),
+				),
 			);
 		},
 	});
@@ -3863,14 +3886,29 @@ export default async function developer(pi: ExtensionAPI) {
 	pi.on("before_agent_start", async (event) => {
 		const inventory = await prepareLiveCapabilityInventory(event, skillsRoot);
 		applyLiveCapabilityInventory(inventory);
+		if (pendingActionLoopBranch) {
+			const replayed = await replayActionLoopSession(pendingActionLoopBranch);
+			pendingActionLoopBranch = undefined;
+			if (replayed.status === "ready") {
+				activeWorkCase = replayed.activeWorkCase;
+				completedWorkCase = replayed.completedWorkCase;
+				actionLoopReplayFailure = undefined;
+			} else {
+				activeWorkCase = undefined;
+				completedWorkCase = undefined;
+				actionLoopReplayFailure = `entry ${replayed.entryIndex}: ${replayed.message}`;
+			}
+			syncProtocolTools();
+		}
 		if (!state.enabled) return;
 		return {
 			systemPrompt:
 				event.systemPrompt +
 				protocolPrompt(state, [...availableSkills.keys()]) +
 				`\n${liveCapabilityInventoryPrompt(inventory)}` +
-				`\n${liveWorkCasePrompt(activeWorkCase)}` +
-				`\n${liveCompletedWorkCasePrompt(completedWorkCase)}`,
+				(actionLoopReplayFailure
+					? `\nAction Loop session replay unavailable (${ACTION_LOOP_SESSION_PROTOCOL}): ${actionLoopReplayFailure}. Do not open replacement work or infer completion.`
+					: `\n${liveWorkCasePrompt(activeWorkCase)}\n${liveCompletedWorkCasePrompt(completedWorkCase)}`),
 		};
 	});
 
