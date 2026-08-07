@@ -1795,6 +1795,32 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 	);
 	assert.match(resultText(routed), /Contribution Need: contribution_need_/);
 	assert.match(resultText(routed), /claim-relevant verifier/);
+	assert.match(resultText(routed), /Canonical selected Reference contract:/);
+	const contributed = await harness.tools
+		.get("developer_accept_contribution")
+		.execute("accept-live-verify-contribution", {
+			capability: "verify",
+			local_status: "resolved",
+			result: "The selected verifier method supports the current Claim.",
+			reference_applications: [
+				{
+					path: "references/verifier-selection-and-pass-but-wrong.md",
+					status: "applied",
+					application:
+						"Used the pass-but-wrong distinction to bound the supported Claim.",
+				},
+			],
+			limitations: ["No unknown external Effect was inferred as successful."],
+			residual_needs: [],
+		});
+	assert.match(resultText(contributed), /Skill Contribution accepted: contribution_/);
+	const afterContribution = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(afterContribution.systemPrompt, /Skill Contribution: contribution_/);
 });
 
 test("non-applicable Capability assessment cannot authorize Skill routing", async () => {

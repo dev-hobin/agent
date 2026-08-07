@@ -29,6 +29,10 @@ import {
 	assignedLiveCapability,
 } from "./action-loop-applicability.ts";
 import {
+	ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL,
+	acceptLiveSkillContribution,
+} from "./action-loop-contribution.ts";
+import {
 	ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
 	ACTION_LOOP_SELECT_REFERENCES_TOOL,
 	loadLiveSelectedReference,
@@ -134,6 +138,7 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
 	ACTION_LOOP_SELECT_REFERENCES_TOOL,
 	ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
+	ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL,
 	ROUTE_TOOL,
 	REFERENCE_TOOL,
 	JUDGMENT_TOOL,
@@ -1258,6 +1263,105 @@ export default async function developer(pi: ExtensionAPI) {
 				hash: loaded.hash,
 				byteLength: loaded.byteLength,
 			});
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL,
+		label: "Developer Accept Contribution",
+		description:
+			"Accept one Skill-local result from an exact Capability Assignment and sealed Skill context. This does not grant Need Coverage or close Judgment.",
+		promptSnippet: "Accept one sealed Skill Contribution",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL} after the assigned Skill has produced its bounded result. Account exactly once for every selected Reference.`,
+			"Return residual Needs that remain local and emergent Needs that must be routed upward. Do not claim Coverage or Conclusion here.",
+		],
+		parameters: Type.Object(
+			{
+				capability: Type.String({ minLength: 1, maxLength: 64 }),
+				contribution_need_id: Type.Optional(
+					Type.String({ minLength: 1, maxLength: 512 }),
+				),
+				local_status: StringEnum(["resolved", "partial"] as const),
+				result: Type.String({ minLength: 1, maxLength: MAX_RESULT_CHARS }),
+				reference_applications: Type.Array(
+					Type.Object(
+						{
+							path: Type.String({ minLength: 1, maxLength: 512 }),
+							status: StringEnum(["applied", "limited"] as const),
+							application: Type.String({
+								minLength: 1,
+								maxLength: MAX_EVIDENCE_CHARS,
+							}),
+						},
+						{ additionalProperties: false },
+					),
+					{ maxItems: 32 },
+				),
+				limitations: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ maxItems: 32 },
+				),
+				residual_needs: Type.Array(
+					Type.Object(
+						{
+							kind: StringEnum(["residual", "emergent"] as const),
+							description: Type.String({
+								minLength: 1,
+								maxLength: MAX_EVIDENCE_CHARS,
+							}),
+							basis: Type.Array(
+								Type.String({
+									minLength: 1,
+									maxLength: MAX_EVIDENCE_CHARS,
+								}),
+								{ minItems: 1, maxItems: MAX_LIVE_BASIS_ITEMS },
+							),
+						},
+						{ additionalProperties: false },
+					),
+					{ maxItems: 32 },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			if (!liveCapabilityInventory || liveCapabilityInventory.status !== "ready") {
+				fail("No current accepted Pi Capability inventory is available.");
+			}
+			const entry =
+				liveCapabilityInventory.value.boundCapabilitiesBySkillName.get(
+					params.capability,
+				);
+			if (entry === undefined) {
+				fail(`Capability ${params.capability} is unavailable or unbound.`);
+			}
+			const accepted = acceptLiveSkillContribution(activeWorkCase, entry, {
+				contributionNeedId: params.contribution_need_id,
+				localStatus: params.local_status,
+				result: params.result,
+				referenceApplications: params.reference_applications,
+				limitations: params.limitations,
+				residualNeeds: params.residual_needs,
+				provenance: { kind: "model", source: "pi:tool-call" },
+			});
+			if (accepted.status === "invalid") fail(accepted.message);
+			activeWorkCase = accepted.state;
+			return textResult(
+				`Skill Contribution ${accepted.status}: ${accepted.contribution.contributionId}`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: accepted.status,
+					capability: params.capability,
+					contribution: accepted.contribution,
+				},
+			);
 		},
 	});
 
