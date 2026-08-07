@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+	ACTION_LOOP_SESSION_ENTRY,
+	ACTION_LOOP_SESSION_PROTOCOL,
+	MAX_ACTION_LOOP_SESSION_EVENT_BYTES,
 	actionLoopWorkCaseOpenedEvent,
 	replayActionLoopSession,
 	withActionLoopReplayEvent,
@@ -81,6 +84,38 @@ test("a later Developer-off entry clears replayed Action Loop ownership", async 
 	assert.equal(replayed.status, "ready");
 	if (replayed.status !== "ready") return;
 	assert.equal(replayed.activeWorkCase, undefined);
+});
+
+test("an oversized claimed replay event fails before domain replay", async () => {
+	const replayed = await replayActionLoopSession([
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: {
+				protocol: ACTION_LOOP_SESSION_PROTOCOL,
+				kind: "action-cleared",
+				transitionId: "clearance-oversized",
+				proposal: {
+					toolName: "write",
+					toolInput: {
+						content: "x".repeat(MAX_ACTION_LOOP_SESSION_EVENT_BYTES),
+					},
+					summary: "Oversized session event",
+					intendedEffects: ["The event is rejected."],
+					requiredConclusionIds: ["conclusion-1"],
+				},
+				expected: {
+					actionCandidateId: "candidate-1",
+					actionClearanceId: "clearance-oversized",
+					revisionId: "revision-1",
+				},
+			},
+		},
+	]);
+
+	assert.equal(replayed.status, "unavailable");
+	if (replayed.status !== "unavailable") return;
+	assert.match(replayed.message, /malformed or unsupported/i);
 });
 
 test("a malformed claimed replay event fails closed instead of becoming absence", async () => {

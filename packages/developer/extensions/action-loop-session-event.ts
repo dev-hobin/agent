@@ -11,6 +11,7 @@ import type {
 export const ACTION_LOOP_SESSION_PROTOCOL =
 	"developer-action-loop/session-event/v1";
 export const ACTION_LOOP_SESSION_ENTRY = "developer.action-loop.session-event";
+export const MAX_ACTION_LOOP_SESSION_EVENT_BYTES = 2_097_152;
 
 const IdSchema = Type.String({ minLength: 1, maxLength: 512 });
 const ShortTextSchema = Type.String({ minLength: 1, maxLength: 2_000 });
@@ -914,12 +915,28 @@ function claimedReplayEvent(
 	return { claimed: false };
 }
 
+function sessionEventByteLength(value: unknown): number | undefined {
+	try {
+		const serialized = JSON.stringify(value);
+		return serialized === undefined
+			? undefined
+			: new TextEncoder().encode(serialized).byteLength;
+	} catch {
+		return undefined;
+	}
+}
+
 export function extractReplayEvent(
 	entry: ActionLoopSessionBranchEntry,
 ): ExtractedEvent {
 	const candidate = claimedReplayEvent(entry);
 	if (!candidate.claimed) return { status: "absent" };
-	if (!Check(SessionEventSchema, candidate.value)) {
+	const byteLength = sessionEventByteLength(candidate.value);
+	if (
+		byteLength === undefined ||
+		byteLength > MAX_ACTION_LOOP_SESSION_EVENT_BYTES ||
+		!Check(SessionEventSchema, candidate.value)
+	) {
 		return { status: "invalid" };
 	}
 	return { status: "event", event: candidate.value };
