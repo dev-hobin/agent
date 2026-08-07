@@ -4,6 +4,8 @@ import type { ControlledActionIdentity } from "../src/action-loop/action/accept-
 
 export const PI_CONTROLLED_ACTION_VERSION =
 	"developer-pi-controlled-action/v1";
+export const PI_TOOL_RESULT_EVIDENCE_VERSION =
+	"developer-pi-tool-result-evidence/v1";
 export const MAX_PI_CONTROLLED_ACTION_INPUT_CHARS = 131_072;
 const MAX_CANONICAL_DEPTH = 32;
 const CONTROLLED_PI_TOOLS: ReadonlySet<string> = new Set([
@@ -19,6 +21,13 @@ export type PiControlledActionBindingResult =
 			readonly status: "bound";
 			readonly value: ControlledActionIdentity;
 			readonly canonicalInput: string;
+	  }
+	| { readonly status: "invalid"; readonly message: string };
+
+export type PiToolResultFingerprintResult =
+	| {
+			readonly status: "fingerprinted";
+			readonly fingerprint: string;
 	  }
 	| { readonly status: "invalid"; readonly message: string };
 
@@ -91,5 +100,35 @@ export function bindPiControlledAction(
 			fingerprint,
 		}),
 		canonicalInput,
+	};
+}
+
+/** Fingerprints the exact host result without interpreting it as Effect success. */
+export function fingerprintPiToolResult(
+	toolName: string,
+	result: Readonly<Record<string, unknown>>,
+): PiToolResultFingerprintResult {
+	const canonicalResult = canonicalJson(result, 0);
+	if (canonicalResult === undefined) {
+		return {
+			status: "invalid",
+			message: "Pi tool result is not canonical JSON data",
+		};
+	}
+	if (canonicalResult.length > MAX_PI_CONTROLLED_ACTION_INPUT_CHARS) {
+		return {
+			status: "invalid",
+			message: `Pi tool result exceeds ${MAX_PI_CONTROLLED_ACTION_INPUT_CHARS} canonical characters`,
+		};
+	}
+	return {
+		status: "fingerprinted",
+		fingerprint: createHash("sha256")
+			.update(PI_TOOL_RESULT_EVIDENCE_VERSION, "utf8")
+			.update("\0", "utf8")
+			.update(toolName, "utf8")
+			.update("\0", "utf8")
+			.update(canonicalResult, "utf8")
+			.digest("hex"),
 	};
 }

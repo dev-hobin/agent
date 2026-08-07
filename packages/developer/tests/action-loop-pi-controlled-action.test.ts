@@ -4,6 +4,7 @@ import test from "node:test";
 import {
 	MAX_PI_CONTROLLED_ACTION_INPUT_CHARS,
 	bindPiControlledAction,
+	fingerprintPiToolResult,
 } from "../extensions/action-loop-pi-action.ts";
 
 test("one exact Pi tool input has an order-independent controlled Action identity", () => {
@@ -52,6 +53,36 @@ test("tool name and exact input remain part of controlled Action identity", () =
 	}
 });
 
+test("tool result evidence is exact but does not claim Effect success", () => {
+	const first = fingerprintPiToolResult("write", {
+		isError: false,
+		content: [{ type: "text", text: "wrote file" }],
+		details: null,
+	});
+	const reordered = fingerprintPiToolResult("write", {
+		details: null,
+		content: [{ text: "wrote file", type: "text" }],
+		isError: false,
+	});
+	const failed = fingerprintPiToolResult("write", {
+		isError: true,
+		content: [{ type: "text", text: "wrote file" }],
+		details: null,
+	});
+	assert.equal(first.status, "fingerprinted");
+	assert.equal(reordered.status, "fingerprinted");
+	assert.equal(failed.status, "fingerprinted");
+	if (
+		first.status === "fingerprinted" &&
+		reordered.status === "fingerprinted" &&
+		failed.status === "fingerprinted"
+	) {
+		assert.equal(first.fingerprint, reordered.fingerprint);
+		assert.notEqual(first.fingerprint, failed.fingerprint);
+		assert.match(first.fingerprint, /^[a-f0-9]{64}$/);
+	}
+});
+
 test("unsupported, non-JSON, deeply nested, and oversized inputs fail closed", () => {
 	assert.deepEqual(bindPiControlledAction("read", { path: "/tmp/a" }), {
 		status: "invalid",
@@ -65,6 +96,10 @@ test("unsupported, non-JSON, deeply nested, and oversized inputs fail closed", (
 		bindPiControlledAction("write", {
 			content: "x".repeat(MAX_PI_CONTROLLED_ACTION_INPUT_CHARS),
 		}).status,
+		"invalid",
+	);
+	assert.equal(
+		fingerprintPiToolResult("write", { details: undefined }).status,
 		"invalid",
 	);
 });
