@@ -214,7 +214,7 @@ export function liveWorkCasePrompt(
 	state: LiveWorkCaseOwnership | undefined,
 ): string {
 	if (state === undefined) {
-		return "No active Action Loop Work Case. Before consequential Developer routing or action, propose one bounded Outcome with developer_open_work_case; do not infer permission or completion from opening it.";
+		return "No active Action Loop Work Case. Use developer_progress_action_loop_with_sdk as the primary entry point; it must checkpoint bounded ownership before consequential routing or action.";
 	}
 	const { workCase, openingBasis } = state;
 	const judgment = workCase.openJudgments[0];
