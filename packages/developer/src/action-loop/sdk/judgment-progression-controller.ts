@@ -196,7 +196,10 @@ function positiveInteger(value: number, label: string): number {
 }
 
 function compactError(error: unknown): string {
-	return (error instanceof Error ? error.message : String(error)).slice(0, 2_048);
+	return (error instanceof Error ? error.message : String(error)).slice(
+		0,
+		2_048,
+	);
 }
 
 function snapshot(progress: MutableProgress): SdkJudgmentProgressState {

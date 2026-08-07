@@ -200,8 +200,8 @@ test("SDK Judgment progression checkpoints every accepted dependency before Conc
 		],
 	);
 	assert.deepEqual(
-		checkpoints.map((checkpoint) =>
-			sdkJudgmentCheckpointEvent(checkpoint).kind,
+		checkpoints.map(
+			(checkpoint) => sdkJudgmentCheckpointEvent(checkpoint).kind,
 		),
 		[
 			"capability-inventory-assessed",
@@ -266,9 +266,10 @@ test("SDK Judgment progression resumes after a step budget without reassessing i
 	if (first.status !== "bounded-stop") return;
 	assert.equal(first.stage, "context");
 	assert.equal(first.reason, "progression-step-budget");
-	assert.deepEqual(firstCheckpoints.map(({ kind }) => kind), [
-		"capability-inventory-assessed",
-	]);
+	assert.deepEqual(
+		firstCheckpoints.map(({ kind }) => kind),
+		["capability-inventory-assessed"],
+	);
 
 	const resumedCheckpoints: SdkJudgmentCheckpoint[] = [];
 	const resumed = await progressJudgmentWithSdk({
