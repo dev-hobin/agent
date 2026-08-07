@@ -16,6 +16,15 @@ export type LiveJudgmentProposal = Omit<
 	readonly provenance: ActionCandidateProvenance;
 };
 
+export interface LiveContributionNeedSelection {
+	readonly contributionNeedId: string;
+	readonly function: string;
+}
+
+export type LiveContributionNeedSelectionResult =
+	| { readonly status: "selected"; readonly value: LiveContributionNeedSelection }
+	| { readonly status: "invalid"; readonly message: string };
+
 export type LiveJudgmentOpeningResult =
 	| {
 			readonly status: "opened" | "unchanged";
@@ -23,6 +32,41 @@ export type LiveJudgmentOpeningResult =
 			readonly judgment: OpenJudgment;
 	  }
 	| { readonly status: "invalid"; readonly message: string };
+
+/** Selects one current functional Need without deriving it from a Capability name. */
+export function selectLiveContributionNeed(
+	state: LiveWorkCaseState,
+	contributionNeedId?: string,
+): LiveContributionNeedSelectionResult {
+	const judgment = state.workCase.openJudgments[0];
+	if (judgment === undefined) {
+		return {
+			status: "invalid",
+			message:
+				"No current open Judgment. Open one before routing a Contribution Need.",
+		};
+	}
+	const requestedId = contributionNeedId?.trim();
+	if (requestedId) {
+		const selected = judgment.contributionNeeds.find(
+			(need) => need.contributionNeedId === requestedId,
+		);
+		return selected === undefined
+			? {
+					status: "invalid",
+					message: `Contribution Need does not belong to the current open Judgment: ${requestedId}`,
+				}
+			: { status: "selected", value: selected };
+	}
+	if (judgment.contributionNeeds.length !== 1) {
+		return {
+			status: "invalid",
+			message:
+				"contribution_need_id is required when the current open Judgment has several Contribution Needs",
+		};
+	}
+	return { status: "selected", value: judgment.contributionNeeds[0] };
+}
 
 /** Opens and records one Judgment against the exact current live Context revision. */
 export function openLiveJudgment(

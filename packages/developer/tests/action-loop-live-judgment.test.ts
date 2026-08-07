@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
+import {
+	openLiveJudgment,
+	selectLiveContributionNeed,
+} from "../extensions/action-loop-judgment.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
 
 function workCase() {
@@ -59,6 +62,35 @@ test("exact duplicate stutters without advancing Work Case revision", () => {
 	if (repeated.status === "unchanged") {
 		assert.equal(repeated.state, first.state);
 	}
+});
+
+test("routing selects only a Need of the current open Judgment", () => {
+	const current = workCase();
+	assert.equal(selectLiveContributionNeed(current).status, "invalid");
+	const opened = openLiveJudgment(current, {
+		...proposal(),
+		requirements: [
+			{
+				statement: "Both observations are explicit.",
+				contributionNeeds: [
+					"accepted behavior observation",
+					"current constraint observation",
+				],
+			},
+		],
+	});
+	if (opened.status !== "opened") return;
+	assert.equal(selectLiveContributionNeed(opened.state).status, "invalid");
+	const selectedId = opened.judgment.contributionNeeds[1].contributionNeedId;
+	const selected = selectLiveContributionNeed(opened.state, selectedId);
+	assert.equal(selected.status, "selected");
+	if (selected.status === "selected") {
+		assert.equal(selected.value.contributionNeedId, selectedId);
+	}
+	assert.equal(
+		selectLiveContributionNeed(opened.state, "contribution_need_other").status,
+		"invalid",
+	);
 });
 
 test("missing Needs and malformed basis cannot mutate live Work Case", () => {

@@ -566,6 +566,7 @@ const liveJudgmentIntegration = await readFile(
 );
 assert.match(liveJudgmentIntegration, /openJudgment\(/);
 assert.match(liveJudgmentIntegration, /recordWorkCaseJudgment\(/);
+assert.match(liveJudgmentIntegration, /selectLiveContributionNeed\(/);
 assert.match(liveJudgmentIntegration, /different Judgment is already open/);
 
 const skillIntegration = await readFile(

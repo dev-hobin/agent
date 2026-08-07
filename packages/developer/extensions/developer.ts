@@ -26,6 +26,7 @@ import {
 import {
 	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
 	openLiveJudgment,
+	selectLiveContributionNeed,
 } from "./action-loop-judgment.ts";
 import {
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
@@ -1002,6 +1003,14 @@ export default async function developer(pi: ExtensionAPI) {
 	});
 
 	const SharedRouteParams = {
+		contribution_need_id: Type.Optional(
+			Type.String({
+				minLength: 1,
+				maxLength: 512,
+				description:
+					"Exact current Contribution Need ID. It may be omitted only when the open Judgment has exactly one Need.",
+			}),
+		),
 		question: Type.String({
 			minLength: 1,
 			maxLength: MAX_QUESTION_CHARS,
@@ -1308,6 +1317,12 @@ export default async function developer(pi: ExtensionAPI) {
 					`No active Action Loop Work Case. Open one with ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} before routing consequential work.`,
 				);
 			}
+			const needSelection = selectLiveContributionNeed(
+				activeWorkCase,
+				params.contribution_need_id,
+			);
+			if (needSelection.status === "invalid") fail(needSelection.message);
+			const selectedNeed = needSelection.value;
 			if (state.activeRoute || routeOpening) {
 				if (!state.activeRoute)
 					fail(
@@ -1457,6 +1472,7 @@ export default async function developer(pi: ExtensionAPI) {
 					referenceExemptionCriteria: referencePolicy.exemption,
 					referencePolicySha256: referencePolicy.contentSha256,
 					loadedReferences: [],
+					contributionNeedId: selectedNeed.contributionNeedId,
 					targetQuestionId,
 					methodLocation: skill?.filePath,
 					executionProfile,
@@ -1466,6 +1482,7 @@ export default async function developer(pi: ExtensionAPI) {
 					`Route ID: ${event.routeId}`,
 					`Question: ${event.question}`,
 					`Target: ${event.target}`,
+					`Contribution Need: ${selectedNeed.contributionNeedId} — ${selectedNeed.function}`,
 					skill
 						? `Skill location: ${skill.filePath}`
 						: "Skill location: implementation action; no skill file",
@@ -1578,6 +1595,7 @@ export default async function developer(pi: ExtensionAPI) {
 					text += `\n${detailLine(theme, `considered ${alternative.target}`, alternative.reason)}`;
 				}
 				text += `\n${detailLine(theme, "revisits", event.targetQuestionId ?? "none")}`;
+				text += `\n${detailLine(theme, "Contribution Need", event.contributionNeedId ?? "unbound legacy route")}`;
 				text += `\n${detailLine(theme, "skill", event.methodLocation ?? "implementation action")}`;
 				if ((event.availableReferences ?? []).length > 0) {
 					text += `\n${detailLine(theme, "references", event.availableReferences.join(", "))}`;

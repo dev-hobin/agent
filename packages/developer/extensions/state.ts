@@ -147,6 +147,7 @@ export interface RouteEvent {
 	referenceExemptionCriteria?: ReferencePolicyExemption;
 	referencePolicySha256?: string;
 	loadedReferences: ReferenceLoad[];
+	contributionNeedId?: string;
 	targetQuestionId?: string;
 	methodLocation?: string;
 	executionProfile?: ImplementationProfile;
@@ -711,6 +712,8 @@ export function normalizeDeveloperEvent(
 				typeof value.referencePolicySha256 !== "string") ||
 			(value.loadedReferences !== undefined &&
 				!Array.isArray(value.loadedReferences)) ||
+			(value.contributionNeedId !== undefined &&
+				typeof value.contributionNeedId !== "string") ||
 			(value.targetQuestionId !== undefined &&
 				typeof value.targetQuestionId !== "string") ||
 			(value.methodLocation !== undefined &&
@@ -754,6 +757,9 @@ export function normalizeDeveloperEvent(
 					: parseReferencePolicyExemption(value.referenceExemptionCriteria),
 			referencePolicySha256: value.referencePolicySha256,
 			loadedReferences,
+			...(typeof value.contributionNeedId === "string"
+				? { contributionNeedId: value.contributionNeedId }
+				: {}),
 			targetQuestionId: value.targetQuestionId,
 			methodLocation: value.methodLocation,
 			executionProfile: value.executionProfile,

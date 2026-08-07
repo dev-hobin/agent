@@ -310,6 +310,7 @@ function entryEnabled(entry: { data: unknown }): boolean | undefined {
 async function openTestWorkCase(
 	harness: ReturnType<typeof createHarness>,
 	label = "default",
+	withJudgment = true,
 ): Promise<void> {
 	await harness.tools
 		.get("developer_open_work_case")
@@ -321,6 +322,19 @@ async function openTestWorkCase(
 			constraints: ["No unrelated test behavior changes."],
 			basis: ["The current test delegates this bounded Outcome."],
 		});
+	if (!withJudgment) return;
+	await harness.tools.get("developer_open_judgment").execute("judgment-fixture", {
+		category: "Contextual Adequacy",
+		subject: `The ${label} test route.`,
+		question: `Which Contribution serves the ${label} test route?`,
+		requirements: [
+			{
+				statement: `The ${label} route is supported by a relevant Contribution.`,
+				contribution_needs: ["test-selected routing contribution"],
+			},
+		],
+		basis: ["The route requires one explicit functional Need."],
+	});
 }
 
 async function startHarness(loadedSkills: Skill[] = loadedLeaves) {
@@ -1509,6 +1523,14 @@ test("a live Work Case opens once and projects across agent turns", async () => 
 		/The package exposes one live bounded Work Case\./,
 	);
 	await assert.rejects(
+		harness.tools.get(ROUTE_TOOL).execute("route-without-judgment", {
+			question: "Can routing bypass the upper Judgment?",
+			target: "specify",
+			reason: "No Judgment has supplied a Contribution Need.",
+		}),
+		/open Judgment/i,
+	);
+	await assert.rejects(
 		opening.execute("tool-replace-work-case", {
 			statement: "Replace the active Outcome.",
 			acceptance_conditions: ["The replacement wins."],
@@ -1547,7 +1569,7 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		reason: "startup",
 	});
 	await harness.commands.get("developer").handler("on", harness.ctx);
-	await openTestWorkCase(harness, "live-judgment");
+	await openTestWorkCase(harness, "live-judgment", false);
 	const opening = harness.tools.get("developer_open_judgment");
 	const opened = await opening.execute("open-live-judgment", {
 		category: "Claim Assurance",
@@ -1588,6 +1610,19 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 		}),
 		/already open/i,
 	);
+	const routed = await harness.tools.get(ROUTE_TOOL).execute(
+		"route-one-need",
+		{
+			question: "What evidence supports the current completion Claim?",
+			target: "verify",
+			reason: "The sole current Contribution Need asks for a verifier.",
+		},
+		undefined,
+		undefined,
+		harness.ctx,
+	);
+	assert.match(resultText(routed), /Contribution Need: contribution_need_/);
+	assert.match(resultText(routed), /claim-relevant verifier/);
 });
 
 test("a later turn can recover the active leaf method from its canonical location", async () => {
