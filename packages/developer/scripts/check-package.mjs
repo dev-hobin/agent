@@ -48,14 +48,8 @@ assert.match(
 	manifest.scripts["eval:live:sdk"],
 	/eval-live\.mjs --transport sdk/,
 );
-assert.match(
-	manifest.scripts.check,
-	/build-sdk-public-api\.mjs --check/,
-);
-assert.match(
-	manifest.scripts.prepack,
-	/build-sdk-public-api\.mjs --check/,
-);
+assert.match(manifest.scripts.check, /build-sdk-public-api\.mjs --check/);
+assert.match(manifest.scripts.prepack, /build-sdk-public-api\.mjs --check/);
 assert.deepEqual(manifest.exports["./sdk"], {
 	types: "./src/action-loop/sdk/index.ts",
 	import: "./dist/sdk.mjs",

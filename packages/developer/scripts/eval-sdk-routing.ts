@@ -180,9 +180,7 @@ function evaluatorResult(result: SdkCapabilityRoutingResult): object {
 		toolErrorCount,
 		controllerDecisionCount: result.decisions.length,
 		decisionRetryCount,
-		recoveryCount: completedRouting
-			? toolErrorCount + runtimeFailureCount
-			: 0,
+		recoveryCount: completedRouting ? toolErrorCount + runtimeFailureCount : 0,
 		model: modelSpec,
 		piVersion: sdkPackage.version,
 	};

@@ -107,11 +107,7 @@ const applicabilityParameters = Type.Object(
 	{ additionalProperties: false },
 );
 
-const referenceStatuses = [
-	"selected",
-	"not-needed",
-	"needs-context",
-] as const;
+const referenceStatuses = ["selected", "not-needed", "needs-context"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -131,9 +127,7 @@ function isReferenceStatus(
 	value: unknown,
 ): value is ReferenceDisposition["status"] {
 	return (
-		value === "selected" ||
-		value === "not-needed" ||
-		value === "needs-context"
+		value === "selected" || value === "not-needed" || value === "needs-context"
 	);
 }
 
@@ -153,7 +147,10 @@ function applicabilityTool(
 		parameters: applicabilityParameters,
 		execute: async (raw) => {
 			if (!isRecord(raw)) {
-				return rejected("invalid-arguments", "Applicability arguments must be an object.");
+				return rejected(
+					"invalid-arguments",
+					"Applicability arguments must be an object.",
+				);
 			}
 			if (
 				!isApplicabilityStatus(raw.status) ||
@@ -223,7 +220,10 @@ function referenceTool(toc: ParsedToc): SdkProposalTool<ReferenceDecision> {
 		parameters: referenceParameters(toc),
 		execute: async (raw) => {
 			if (!isRecord(raw)) {
-				return rejected("invalid-arguments", "Reference arguments must be an object.");
+				return rejected(
+					"invalid-arguments",
+					"Reference arguments must be an object.",
+				);
 			}
 			const dispositions: ReferenceDisposition[] = [];
 			for (const [index, reference] of toc.references.entries()) {
@@ -347,7 +347,8 @@ export async function routeStructuredCapabilityWithSdk(
 			status: "invariant-failure",
 			stage: "references",
 			code: "accepted-selection-became-invalid",
-			message: "An accepted Reference proposal did not reproduce its canonical selection.",
+			message:
+				"An accepted Reference proposal did not reproduce its canonical selection.",
 			decisions: Object.freeze(decisions),
 		};
 	}

@@ -30,11 +30,13 @@ interface ScriptedDecision {
 	readonly result?: "bounded-stop" | "runtime-failure";
 }
 
-function decisionMetrics(input: {
-	readonly toolCalls?: number;
-	readonly toolErrors?: number;
-	readonly runtimeFailures?: number;
-} = {}): SdkDecisionMetrics {
+function decisionMetrics(
+	input: {
+		readonly toolCalls?: number;
+		readonly toolErrors?: number;
+		readonly runtimeFailures?: number;
+	} = {},
+): SdkDecisionMetrics {
 	return {
 		runs: 1,
 		toolCalls: input.toolCalls ?? 0,
@@ -179,14 +181,22 @@ test("SDK routing retries rejected raw proposals before binding canonical identi
 
 	assert.equal(result.status, "routed");
 	if (result.status !== "routed") return;
-	assert.match(result.applicability.assignment.assignmentId, /^assign_[a-f0-9]{64}$/);
-	assert.deepEqual(result.applicability.assessment.matchedWhen, [capabilityWhen]);
+	assert.match(
+		result.applicability.assignment.assignmentId,
+		/^assign_[a-f0-9]{64}$/,
+	);
+	assert.deepEqual(result.applicability.assessment.matchedWhen, [
+		capabilityWhen,
+	]);
 	assert.deepEqual(result.selection.selectedPaths, [
 		"references/temporal-behavior-models.md",
 	]);
 	assert.equal(result.decisions[0]?.metrics.toolCalls, 2);
 	assert.equal(result.decisions[0]?.metrics.toolErrors, 1);
-	assert.equal(result.selection.assignmentId, result.applicability.assignment.assignmentId);
+	assert.equal(
+		result.selection.assignmentId,
+		result.applicability.assignment.assignmentId,
+	);
 });
 
 test("SDK routing reports a Reference decision budget stop without partial binding", async () => {

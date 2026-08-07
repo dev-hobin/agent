@@ -7,9 +7,7 @@ export type PiSdkModelRuntime = Awaited<
 	ReturnType<PiSdkModule["ModelRuntime"]["create"]>
 >;
 
-export type PiSdkModel = NonNullable<
-	ReturnType<PiSdkModelRuntime["getModel"]>
->;
+export type PiSdkModel = NonNullable<ReturnType<PiSdkModelRuntime["getModel"]>>;
 
 type PiSdkAgentSession = Awaited<
 	ReturnType<PiSdkModule["createAgentSession"]>
@@ -90,7 +88,13 @@ export interface PiSdkDecisionControllerOptions {
 	readonly cwd: string;
 	readonly maxRuns: number;
 	readonly maxToolErrorsPerRun: number;
-	readonly thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+	readonly thinkingLevel?:
+		| "off"
+		| "minimal"
+		| "low"
+		| "medium"
+		| "high"
+		| "xhigh";
 }
 
 interface DecisionCounters {
@@ -120,7 +124,9 @@ function positiveInteger(value: number, label: string): number {
 
 function compactError(error: unknown): string {
 	const message = error instanceof Error ? error.message : String(error);
-	return message.replace(/\s+/g, " ").trim().slice(0, 320) || "Unknown SDK error";
+	return (
+		message.replace(/\s+/g, " ").trim().slice(0, 320) || "Unknown SDK error"
+	);
 }
 
 function fullControlLoader(
@@ -155,7 +161,10 @@ function currentMetrics(counters: DecisionCounters): SdkDecisionMetrics {
 }
 
 function resultText(result: {
-	readonly content: readonly { readonly type: string; readonly text?: string }[];
+	readonly content: readonly {
+		readonly type: string;
+		readonly text?: string;
+	}[];
 }): string {
 	return result.content
 		.flatMap((item) =>

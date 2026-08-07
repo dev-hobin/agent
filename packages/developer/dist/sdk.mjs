@@ -830,11 +830,7 @@ var applicabilityParameters = Type.Object(
   },
   { additionalProperties: false }
 );
-var referenceStatuses = [
-  "selected",
-  "not-needed",
-  "needs-context"
-];
+var referenceStatuses = ["selected", "not-needed", "needs-context"];
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -855,7 +851,10 @@ function applicabilityTool(target, toc) {
     parameters: applicabilityParameters,
     execute: async (raw) => {
       if (!isRecord(raw)) {
-        return rejected("invalid-arguments", "Applicability arguments must be an object.");
+        return rejected(
+          "invalid-arguments",
+          "Applicability arguments must be an object."
+        );
       }
       if (!isApplicabilityStatus(raw.status) || typeof raw.matches_when !== "boolean" || typeof raw.matches_unless !== "boolean" || typeof raw.basis !== "string" || raw.missing_context !== void 0 && typeof raw.missing_context !== "string") {
         return rejected(
@@ -909,7 +908,10 @@ function referenceTool(toc) {
     parameters: referenceParameters(toc),
     execute: async (raw) => {
       if (!isRecord(raw)) {
-        return rejected("invalid-arguments", "Reference arguments must be an object.");
+        return rejected(
+          "invalid-arguments",
+          "Reference arguments must be an object."
+        );
       }
       const dispositions = [];
       for (const [index, reference] of toc.references.entries()) {
