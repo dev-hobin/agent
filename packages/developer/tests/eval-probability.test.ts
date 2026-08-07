@@ -12,17 +12,34 @@ const assert: typeof assertModule.strict = assertModule.strict;
 
 test("probabilistic reports separate admissibility from preferred decisions", () => {
 	const observations = [
-		{ classification: "preferred" },
-		{ classification: "preferred" },
+		{
+			classification: "preferred",
+			toolCallAttemptCount: 10,
+			routeAttemptCount: 2,
+			toolErrorCount: 0,
+		},
+		{
+			classification: "preferred",
+			toolCallAttemptCount: 14,
+			routeAttemptCount: 4,
+			toolErrorCount: 2,
+		},
 		{ classification: "admissible-non-preferred" },
 		{ classification: "inadmissible-result" },
+		{ classification: "bounded-stop" },
+		{ classification: "active-incomplete" },
 	];
 	const summary = summarizeTrialObservations("fixture", observations);
 	assert.equal(summary.accepted, 3);
 	assert.equal(summary.preferred, 2);
 	assert.equal(summary.admissibleNonPreferred, 1);
 	assert.equal(summary.inadmissible, 1);
-	assert.equal(summary.acceptanceRate, 0.75);
+	assert.equal(summary.boundedStops, 1);
+	assert.equal(summary.activeIncomplete, 1);
+	assert.equal(summary.acceptanceRate, 0.5);
+	assert.equal(summary.medianToolCallAttempts, 12);
+	assert.equal(summary.medianRouteAttempts, 3);
+	assert.equal(summary.medianToolErrors, 1);
 	assert.equal(summary.preferredRateAmongAccepted, 2 / 3);
 	assert.equal(summary.acceptanceWilson95.length, 2);
 	assert.deepEqual(wilsonInterval(0, 0), [0, 0]);
@@ -35,7 +52,7 @@ test("live failure classification keeps wrong answers distinct from ordinary var
 	);
 	assert.equal(
 		classifyLiveFailure("wall-clock budget 10/1ms"),
-		"budget-exhausted",
+		"bounded-stop",
 	);
 	assert.equal(
 		classifyLiveFailure("no canonical Judgment followed Work Case opening"),

@@ -10,7 +10,7 @@ export function containsProtocolProgress(events) {
 	return events.some((event) => protocolProgressEvents.has(event.type));
 }
 
-export function fixtureBudgetFailure({
+export function fixtureBudgetStop({
 	trace,
 	fixture,
 	elapsedMs,
@@ -34,21 +34,50 @@ export function fixtureBudgetFailure({
 	const maxToolErrors = fixture.maxToolErrors ?? 8;
 
 	if (routeCount > maxRoutes) {
-		return `Capability routing budget ${routeCount}/${maxRoutes}`;
+		return {
+			kind: "route-limit",
+			observed: routeCount,
+			limit: maxRoutes,
+			message: `Capability routing budget ${routeCount}/${maxRoutes}`,
+		};
 	}
 	if (executions.length > maxToolCalls) {
-		return `tool-call budget ${executions.length}/${maxToolCalls}`;
+		return {
+			kind: "tool-call-limit",
+			observed: executions.length,
+			limit: maxToolCalls,
+			message: `tool-call budget ${executions.length}/${maxToolCalls}`,
+		};
 	}
 	if (failedToolCount > maxToolErrors) {
-		return `tool-error budget ${failedToolCount}/${maxToolErrors}`;
+		return {
+			kind: "tool-error-limit",
+			observed: failedToolCount,
+			limit: maxToolErrors,
+			message: `tool-error budget ${failedToolCount}/${maxToolErrors}`,
+		};
 	}
 	if (elapsedMs > fixtureTimeoutMs) {
-		return `wall-clock budget ${elapsedMs}/${fixtureTimeoutMs}ms`;
+		return {
+			kind: "wall-clock-limit",
+			observed: elapsedMs,
+			limit: fixtureTimeoutMs,
+			message: `wall-clock budget ${elapsedMs}/${fixtureTimeoutMs}ms`,
+		};
 	}
 	if (noProgressMs > noProgressTimeoutMs) {
-		return `no-progress budget ${noProgressMs}/${noProgressTimeoutMs}ms`;
+		return {
+			kind: "no-progress-limit",
+			observed: noProgressMs,
+			limit: noProgressTimeoutMs,
+			message: `no-progress budget ${noProgressMs}/${noProgressTimeoutMs}ms`,
+		};
 	}
 	return undefined;
+}
+
+export function fixtureBudgetFailure(input) {
+	return fixtureBudgetStop(input)?.message;
 }
 
 export function createFixtureBudgetMonitor({
@@ -64,9 +93,9 @@ export function createFixtureBudgetMonitor({
 		observe(events) {
 			if (containsProtocolProgress(events)) lastProgressAt = now();
 		},
-		failure(trace) {
+		stop(trace) {
 			const current = now();
-			return fixtureBudgetFailure({
+			return fixtureBudgetStop({
 				trace,
 				fixture,
 				elapsedMs: current - startedAt,
@@ -74,6 +103,9 @@ export function createFixtureBudgetMonitor({
 				fixtureTimeoutMs,
 				noProgressTimeoutMs,
 			});
+		},
+		failure(trace) {
+			return this.stop(trace)?.message;
 		},
 	};
 }

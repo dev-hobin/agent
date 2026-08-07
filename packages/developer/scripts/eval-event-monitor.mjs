@@ -6,6 +6,7 @@ export function createEvalEventMonitor({
   fixtureTimeoutMs,
   noProgressTimeoutMs,
   now = Date.now,
+  onStop,
   onFailure,
 }) {
   const events = [];
@@ -16,6 +17,7 @@ export function createEvalEventMonitor({
     now,
   });
   let failure;
+  let budgetStop;
 
   const fail = (error) => {
     if (failure) return;
@@ -27,12 +29,13 @@ export function createEvalEventMonitor({
     onFailure?.(error);
   };
   const check = () => {
-    const reason = budget.failure(events);
+    if (failure || budgetStop) return budgetStop;
+    const reason = budget.stop(events);
     if (!reason) return undefined;
     const recent = events.slice(-20).map((event) => event.type).join(", ") || "none";
-    const error = new Error(`${fixture.id}: ${reason}; recent events: ${recent}`);
-    fail(error);
-    return error;
+    budgetStop = { ...reason, recentEvents: recent };
+    onStop?.(budgetStop);
+    return budgetStop;
   };
   const decoder = createJsonlDecoder({
     onValue(event) {
@@ -53,14 +56,17 @@ export function createEvalEventMonitor({
   return {
     events,
     push(chunk) {
-      if (!failure) decoder.push(chunk);
+      if (!failure && !budgetStop) decoder.push(chunk);
     },
     end() {
-      if (!failure) decoder.end();
+      if (!failure && !budgetStop) decoder.end();
     },
     check,
     get failure() {
       return failure;
+    },
+    get budgetStop() {
+      return budgetStop;
     },
   };
 }

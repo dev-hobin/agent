@@ -70,13 +70,30 @@ export function statusFromDeveloperEvents(events) {
 	return status;
 }
 
+/** @param {{ status: Record<string, string>, budgetStop?: unknown }} input */
+export function classifyTrialDisposition({ status, budgetStop }) {
+	if (budgetStop) return "bounded-stop";
+	if (status.protocol === "completed") return "completed";
+	if (["paused", "waiting", "blocked"].includes(status.protocol)) {
+		return "held";
+	}
+	if (status.protocol === "active") return "active-incomplete";
+	if (status.protocol === "unavailable") return "protocol-unavailable";
+	return "idle-incomplete";
+}
+
 export function classifyEvalOutcome({ changes, status }) {
 	const changed = changes.length > 0;
-	const pending = status.pending !== "none";
-	if (!changed) return pending ? "pending" : "settled-unchanged";
-	return status.protocol === "completed"
-		? "changed-verified"
-		: "changed-paused";
+	if (status.protocol === "completed") {
+		return changed ? "changed-verified" : "settled-unchanged";
+	}
+	if (status.pending !== "none") {
+		return changed ? "changed-paused" : "pending";
+	}
+	if (status.protocol === "active") {
+		return changed ? "changed-active" : "active-unchanged";
+	}
+	return changed ? "changed-incomplete" : "idle-unchanged";
 }
 
 export function assertAllowedOutcome(fixture, outcome) {

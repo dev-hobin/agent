@@ -27,7 +27,7 @@ export function classifyLiveFailure(output) {
 			output,
 		)
 	) {
-		return "budget-exhausted";
+		return "bounded-stop";
 	}
 	if (
 		/removed compatibility tool|no canonical Work Case|no canonical Judgment|no applicable Capability|canonical sealed Reference was not loaded/.test(
@@ -63,6 +63,15 @@ export function parseEvalResult(output) {
 	}
 }
 
+function median(values) {
+	if (values.length === 0) return null;
+	const ordered = [...values].sort((left, right) => left - right);
+	const middle = Math.floor(ordered.length / 2);
+	return ordered.length % 2 === 0
+		? (ordered[middle - 1] + ordered[middle]) / 2
+		: ordered[middle];
+}
+
 export function summarizeTrialObservations(fixtureId, observations) {
 	const trials = observations.length;
 	const accepted = observations.filter(
@@ -73,9 +82,20 @@ export function summarizeTrialObservations(fixtureId, observations) {
 	const preferred = observations.filter(
 		(observation) => observation.classification === "preferred",
 	).length;
-	const inadmissible = observations.filter(
-		(observation) => observation.classification === "inadmissible-result",
-	).length;
+	const count = (classification) =>
+		observations.filter(
+			(observation) => observation.classification === classification,
+		).length;
+	const inadmissible = count("inadmissible-result");
+	const boundedStops = count("bounded-stop");
+	const activeIncomplete = count("active-incomplete");
+	const idleIncomplete = count("idle-incomplete");
+	const blockedEnvironment = count("blocked-environment");
+	const runnerFailures = count("runner-failure");
+	const numeric = (field) =>
+		observations
+			.map((observation) => observation[field])
+			.filter((value) => Number.isFinite(value));
 	return {
 		fixtureId,
 		trials,
@@ -83,10 +103,18 @@ export function summarizeTrialObservations(fixtureId, observations) {
 		preferred,
 		admissibleNonPreferred: accepted - preferred,
 		inadmissible,
+		boundedStops,
+		activeIncomplete,
+		idleIncomplete,
+		blockedEnvironment,
+		runnerFailures,
 		acceptanceRate: trials > 0 ? accepted / trials : 0,
 		acceptanceWilson95: wilsonInterval(accepted, trials),
 		preferredRateAmongAccepted: accepted > 0 ? preferred / accepted : 0,
 		preferredWilson95: wilsonInterval(preferred, accepted),
+		medianToolCallAttempts: median(numeric("toolCallAttemptCount")),
+		medianRouteAttempts: median(numeric("routeAttemptCount")),
+		medianToolErrors: median(numeric("toolErrorCount")),
 		observations,
 	};
 }

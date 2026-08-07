@@ -5,6 +5,7 @@ import {
 	containsProtocolProgress,
 	createFixtureBudgetMonitor,
 	fixtureBudgetFailure,
+	fixtureBudgetStop,
 } from "../scripts/eval-budget.mjs";
 
 const assert: typeof assertModule.strict = assertModule.strict;
@@ -33,7 +34,7 @@ test("eval progress ignores token streaming and recognizes protocol movement", (
 	assert.equal(containsProtocolProgress([{ type: "agent_settled" }]), true);
 });
 
-test("eval budgets stop route, tool, error, wall-clock, and no-progress loops", () => {
+test("eval budgets produce structured circuit-breaker observations", () => {
 	const routes = Array.from({ length: 3 }, (_, index) => ({
 		type: "tool_execution_start",
 		toolName: "developer_assess_capability",
@@ -41,6 +42,22 @@ test("eval budgets stop route, tool, error, wall-clock, and no-progress loops", 
 		args: { status: "applicable" },
 	}));
 	assert.equal(budget(routes), "Capability routing budget 3/2");
+	assert.deepEqual(
+		fixtureBudgetStop({
+			trace: routes,
+			fixture,
+			elapsedMs: 10,
+			noProgressMs: 10,
+			fixtureTimeoutMs: 100,
+			noProgressTimeoutMs: 50,
+		}),
+		{
+			kind: "route-limit",
+			observed: 3,
+			limit: 2,
+			message: "Capability routing budget 3/2",
+		},
+	);
 
 	const calls = Array.from({ length: 5 }, (_, index) => ({
 		type: "tool_execution_start",
@@ -72,6 +89,12 @@ test("the shared budget monitor ignores token streaming and resets only on proto
 	monitor.observe([{ type: "message_update" }]);
 	current = 51;
 	assert.equal(monitor.failure([]), "no-progress budget 51/50ms");
+	assert.deepEqual(monitor.stop([]), {
+		kind: "no-progress-limit",
+		observed: 51,
+		limit: 50,
+		message: "no-progress budget 51/50ms",
+	});
 
 	current = 60;
 	const progressing = createFixtureBudgetMonitor({

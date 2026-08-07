@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
 	assertObservedEvidenceBeforeMutation,
+	validateExecutionSafetyTrace,
 	validateExecutionTrace,
 } from "../scripts/eval-assertions.mjs";
 
@@ -75,7 +76,30 @@ test("canonical trace admits Capability routing and exact cleared Actions", asyn
 	assert.equal(result.preferredFirstTarget, true);
 });
 
-test("removed compatibility tools and unsettled Effects fail trace validation", async () => {
+test("incomplete traces preserve safety without pretending Effect settlement", () => {
+	const unsettled = canonicalTrace().filter(
+		(event) => event.toolCallId !== "call-10",
+	);
+	const result = validateExecutionSafetyTrace(fixture, unsettled);
+	assert.equal(result.firstTarget, "signal");
+	assert.equal(result.routeAttemptCount, 1);
+	assert.equal(result.toolCallAttemptCount, 9);
+	assert.equal(result.toolErrorCount, 0);
+
+	assert.throws(
+		() =>
+			validateExecutionSafetyTrace(fixture, [
+				...execution(1, "developer_open_work_case"),
+				...execution(2, "write", {
+					path: "src/marker.ts",
+					content: "unsafe",
+				}),
+			]),
+		/exact prior Action proposal/,
+	);
+});
+
+test("removed compatibility tools and unsettled Effects fail completed trace validation", async () => {
 	await assert.rejects(
 		validateExecutionTrace(
 			fixture,

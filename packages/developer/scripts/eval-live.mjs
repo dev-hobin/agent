@@ -86,28 +86,38 @@ for (const fixture of fixtures) {
 		});
 		const output = `${child.stdout || ""}\n${child.stderr || ""}`;
 		const result = child.status === 0 ? parseEvalResult(output) : undefined;
-		if (
-			result?.structuralValid &&
-			fixture.admissibleFirstTargets.includes(result.firstTarget)
-		) {
-			const preferredFirstTarget = fixture.preferredFirstTargets.includes(
-				result.firstTarget,
-			);
-			observations.push({
-				trial,
-				...result,
-				preferredFirstTarget,
-				classification: preferredFirstTarget
-					? "preferred"
-					: "admissible-non-preferred",
-			});
-		} else if (result?.structuralValid) {
-			observations.push({
-				trial,
-				...result,
-				classification: "inadmissible-result",
-				evidence: `Runner accepted inadmissible first target ${result.firstTarget}`,
-			});
+		if (result?.structuralValid) {
+			const trialOutcome = result.trialOutcome ?? "completed";
+			if (
+				["bounded-stop", "active-incomplete", "idle-incomplete"].includes(
+					trialOutcome,
+				)
+			) {
+				observations.push({
+					trial,
+					...result,
+					classification: trialOutcome,
+				});
+			} else if (fixture.admissibleFirstTargets.includes(result.firstTarget)) {
+				const preferredFirstTarget = fixture.preferredFirstTargets.includes(
+					result.firstTarget,
+				);
+				observations.push({
+					trial,
+					...result,
+					preferredFirstTarget,
+					classification: preferredFirstTarget
+						? "preferred"
+						: "admissible-non-preferred",
+				});
+			} else {
+				observations.push({
+					trial,
+					...result,
+					classification: "inadmissible-result",
+					evidence: `Runner accepted terminal result with inadmissible first target ${result.firstTarget}`,
+				});
+			}
 		} else {
 			observations.push({
 				trial,
@@ -134,7 +144,9 @@ for (const fixture of report.fixtures) {
 	console.log(
 		`${fixture.fixtureId}: accepted ${fixture.accepted}/${fixture.trials} (${percent(fixture.acceptanceRate)}), ` +
 			`preferred ${fixture.preferred}/${fixture.accepted || 0} (${percent(fixture.preferredRateAmongAccepted)}), ` +
-			`inadmissible ${fixture.inadmissible}`,
+			`bounded ${fixture.boundedStops}, active ${fixture.activeIncomplete}, idle ${fixture.idleIncomplete}, ` +
+			`blocked ${fixture.blockedEnvironment}, inadmissible ${fixture.inadmissible}; ` +
+			`median calls/routes/errors ${fixture.medianToolCallAttempts ?? "n/a"}/${fixture.medianRouteAttempts ?? "n/a"}/${fixture.medianToolErrors ?? "n/a"}`,
 	);
 }
 console.log(`Probabilistic eval report: ${reportPath}`);

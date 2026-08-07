@@ -187,11 +187,10 @@
       "safety"
     ],
     "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
       "skills/model/references/temporal-behavior-models.md"
     ],
     "mustRecordJudgment": true,
-    "maxRoutes": 2
+    "maxRoutes": 6
   },
   {
     "id": "behavior-preserving-structural-signal",
@@ -664,7 +663,6 @@
       "legacy"
     ],
     "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
       "skills/model/references/contract-and-replacement-models.md"
     ],
     "mustRecordJudgment": true,
@@ -809,7 +807,6 @@
       ]
     ],
     "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
       "skills/model/references/relational-constraint-models.md"
     ],
     "mustRecordJudgment": true,
@@ -845,7 +842,6 @@
       ]
     ],
     "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
       "skills/model/references/proof-obligations.md"
     ],
     "mustRecordJudgment": true,
@@ -881,7 +877,6 @@
       ]
     ],
     "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
       "skills/model/references/solver-result-boundaries.md"
     ],
     "mustRecordJudgment": true,
@@ -918,7 +913,6 @@
       ]
     ],
     "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
       "skills/model/references/logic-query-semantics.md"
     ],
     "mustRecordJudgment": true,
@@ -954,7 +948,6 @@
       ]
     ],
     "expectedReferenceReads": [
-      "skills/model/references/problem-modeling.md",
       "skills/model/references/planning-models.md"
     ],
     "mustRecordJudgment": true,

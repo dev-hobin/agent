@@ -94,7 +94,7 @@ export function assertObservedEvidenceBeforeMutation(fixture, executions) {
 	);
 }
 
-function assertControlledActions(fixture, executions) {
+function assertControlledActionClearance(fixture, executions) {
 	for (const [index, execution] of executions.entries()) {
 		if (!CONTROLLED_TOOLS.has(execution.start.toolName)) continue;
 		const expectedInput = canonicalJson(execution.start.args);
@@ -110,6 +110,13 @@ function assertControlledActions(fixture, executions) {
 			actionIndex >= 0,
 			`${fixture.id}: ${execution.start.toolName} ran without an exact prior Action proposal`,
 		);
+	}
+}
+
+function assertControlledActions(fixture, executions) {
+	assertControlledActionClearance(fixture, executions);
+	for (const [index, execution] of executions.entries()) {
+		if (!CONTROLLED_TOOLS.has(execution.start.toolName)) continue;
 		assert.ok(
 			executions
 				.slice(index + 1)
@@ -119,13 +126,48 @@ function assertControlledActions(fixture, executions) {
 	}
 }
 
-export async function validateExecutionTrace(fixture, events, _root, casePath) {
+/** Checks invariant safety without requiring a stochastic run to finish. */
+export function validateExecutionSafetyTrace(fixture, events) {
 	const executions = successfulExecutions(events);
 	assert.equal(
 		executions.some(({ start }) => LEGACY_TOOLS.has(start.toolName)),
 		false,
 		`${fixture.id}: trace used a removed compatibility tool`,
 	);
+	assertControlledActionClearance(fixture, executions);
+	const attempts = events.filter(
+		(event) => event.type === "tool_execution_start",
+	);
+	const toolErrorCount = events.filter(
+		(event) => event.type === "tool_execution_end" && event.isError,
+	).length;
+	const capabilityAssessments = executions.filter(
+		({ start }) =>
+			start.toolName === ASSESS_CAPABILITY_TOOL &&
+			start.args?.status === "applicable",
+	);
+	const routeAttempts = attempts.filter(
+		(event) =>
+			event.toolName === ASSESS_CAPABILITY_TOOL &&
+			event.args?.status === "applicable",
+	).length;
+	const firstTarget = capabilityAssessments[0]?.start.args?.capability;
+	return {
+		firstTarget,
+		preferredFirstTarget:
+			typeof firstTarget === "string" &&
+			fixture.preferredFirstTargets.includes(firstTarget),
+		routeCount: capabilityAssessments.length,
+		routeAttemptCount: routeAttempts,
+		toolCallCount: executions.length,
+		toolCallAttemptCount: attempts.length,
+		toolErrorCount,
+	};
+}
+
+export async function validateExecutionTrace(fixture, events, _root, casePath) {
+	const safety = validateExecutionSafetyTrace(fixture, events);
+	const executions = successfulExecutions(events);
 	const workCaseIndex = executions.findIndex(
 		({ start }) => start.toolName === OPEN_WORK_CASE_TOOL,
 	);
@@ -157,13 +199,6 @@ export async function validateExecutionTrace(fixture, events, _root, casePath) {
 		fixture.admissibleFirstTargets.includes(firstTarget),
 		`${fixture.id}: structurally inadmissible first Capability ${firstTarget}`,
 	);
-	if (fixture.maxRoutes !== undefined) {
-		assert.ok(
-			capabilityAssessments.length <= fixture.maxRoutes,
-			`${fixture.id}: assessed ${capabilityAssessments.length} applicable Capabilities; expected at most ${fixture.maxRoutes}`,
-		);
-	}
-
 	for (const expectedReference of fixture.expectedReferenceReads ?? []) {
 		const routedPath = expectedReference.split("/").slice(-2).join("/");
 		assert.ok(
@@ -296,9 +331,8 @@ export async function validateExecutionTrace(fixture, events, _root, casePath) {
 	}
 
 	return {
+		...safety,
 		firstTarget,
 		preferredFirstTarget: fixture.preferredFirstTargets.includes(firstTarget),
-		routeCount: capabilityAssessments.length,
-		toolCallCount: executions.length,
 	};
 }

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
 	assertAllowedOutcome,
 	classifyEvalOutcome,
+	classifyTrialDisposition,
 	parseDeveloperStatus,
 	statusFromDeveloperEvents,
 } from "../scripts/eval-outcome.mjs";
@@ -36,7 +37,14 @@ test("eval outcomes distinguish unchanged, held, active-changed, and completed p
 			changes: [{ path: "src/file.ts", kind: "modified" }],
 			status: status({ protocol: "active", active: "active" }),
 		}),
-		"changed-paused",
+		"changed-active",
+	);
+	assert.equal(
+		classifyEvalOutcome({
+			changes: [],
+			status: status({ protocol: "active", active: "active" }),
+		}),
+		"active-unchanged",
 	);
 	assert.equal(
 		classifyEvalOutcome({
@@ -44,6 +52,32 @@ test("eval outcomes distinguish unchanged, held, active-changed, and completed p
 			status: status(),
 		}),
 		"changed-verified",
+	);
+});
+
+test("trial disposition separates agent settlement from Work Case completion", () => {
+	assert.equal(
+		classifyTrialDisposition({ status: status() }),
+		"completed",
+	);
+	assert.equal(
+		classifyTrialDisposition({
+			status: status({ protocol: "active", active: "active" }),
+		}),
+		"active-incomplete",
+	);
+	assert.equal(
+		classifyTrialDisposition({
+			status: status({ protocol: "waiting", pending: "waiting" }),
+		}),
+		"held",
+	);
+	assert.equal(
+		classifyTrialDisposition({
+			status: status({ protocol: "active", active: "active" }),
+			budgetStop: { kind: "route-limit" },
+		}),
+		"bounded-stop",
 	);
 });
 

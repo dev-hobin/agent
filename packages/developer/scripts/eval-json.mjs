@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { validateExecutionTrace } from "./eval-assertions.mjs";
+import {
+	validateExecutionSafetyTrace,
+	validateExecutionTrace,
+} from "./eval-assertions.mjs";
 import { createEvalEventMonitor } from "./eval-event-monitor.mjs";
 import {
 	diffWorkspaceSnapshots,
@@ -14,6 +17,7 @@ import {
 import {
 	assertAllowedOutcome,
 	classifyEvalOutcome,
+	classifyTrialDisposition,
 	parseDeveloperStatus,
 	statusFromDeveloperEvents,
 } from "./eval-outcome.mjs";
@@ -105,12 +109,12 @@ function runFixture(fixture) {
 		let budgetTimer;
 		let monitor;
 
-		const finish = (error) => {
+		const finish = (result, error) => {
 			if (finished) return;
 			finished = true;
 			if (budgetTimer) clearInterval(budgetTimer);
 			if (!error) {
-				resolve(monitor.events);
+				resolve(result);
 				return;
 			}
 			child.kill("SIGTERM");
@@ -126,9 +130,13 @@ function runFixture(fixture) {
 			fixture,
 			fixtureTimeoutMs,
 			noProgressTimeoutMs,
+			onStop(budgetStop) {
+				child.kill("SIGTERM");
+				finish({ events: [...monitor.events], budgetStop });
+			},
 			onFailure(error) {
 				if (stderr) error.message += `\n${stderr}`;
-				finish(error);
+				finish(undefined, error);
 			},
 		});
 
@@ -140,14 +148,17 @@ function runFixture(fixture) {
 			stderr += chunk;
 		});
 		budgetTimer = setInterval(() => monitor.check(), 50);
-		child.on("error", (error) => finish(error));
+		child.on("error", (error) => finish(undefined, error));
 		child.on("close", (code) => {
 			if (finished) return;
 			if (code !== 0) {
-				finish(new Error(fixture.id + ": Pi exited " + code + "\n" + stderr));
+				finish(
+					undefined,
+					new Error(fixture.id + ": Pi exited " + code + "\n" + stderr),
+				);
 				return;
 			}
-			finish();
+			finish({ events: [...monitor.events] });
 		});
 	});
 }
@@ -157,24 +168,21 @@ for (const fixture of fixtures) {
 	const before = await snapshotWorkspace(casePath);
 	let events = [];
 	try {
-		events = await runFixture(fixture);
-		assert.ok(
-			events.some((event) => event.type === "agent_settled"),
-			fixture.id + ": no agent_settled event",
-		);
-		const traceSummary = await validateExecutionTrace(
-			fixture,
-			events,
-			root,
-			casePath,
-		);
+		const run = await runFixture(fixture);
+		events = run.events;
+		if (!run.budgetStop) {
+			assert.ok(
+				events.some((event) => event.type === "agent_settled"),
+				fixture.id + ": no agent_settled event",
+			);
+		}
 		const statusEvent = events
 			.toReversed()
 			.find(
 				(event) =>
 					event.type === "extension_ui_request" &&
 					event.method === "setStatus" &&
-					String(event.statusText).startsWith("developer:"),
+					String(event.statusText).startsWith("developer"),
 			);
 		const status = statusEvent
 			? parseDeveloperStatus(statusEvent.statusText)
@@ -183,18 +191,43 @@ for (const fixture of fixtures) {
 			before,
 			await snapshotWorkspace(casePath),
 		);
+		const trialOutcome = classifyTrialDisposition({
+			status,
+			budgetStop: run.budgetStop,
+		});
+		if (trialOutcome === "protocol-unavailable") {
+			throw new Error(`${fixture.id}: canonical protocol became unavailable`);
+		}
+		const terminal = trialOutcome === "completed" || trialOutcome === "held";
+		const traceSummary = terminal
+			? await validateExecutionTrace(fixture, events, root, casePath)
+			: validateExecutionSafetyTrace(fixture, events);
 		const outcome = classifyEvalOutcome({ changes, status });
-		assertAllowedOutcome(fixture, outcome);
+		if (terminal) assertAllowedOutcome(fixture, outcome);
+		let tracePath;
+		if (!terminal) {
+			tracePath = join(
+				tmpdir(),
+				`developer-eval-${fixture.id}-${Date.now()}.json`,
+			);
+			await writeFile(tracePath, JSON.stringify(events, null, 2));
+		}
 		console.log(
 			"DEVELOPER_EVAL_RESULT " +
 				JSON.stringify({
 					fixtureId: fixture.id,
 					structuralValid: true,
+					trialOutcome,
 					outcome,
+					status: status.protocol,
+					...(run.budgetStop ? { budgetStop: run.budgetStop } : {}),
+					...(tracePath ? { tracePath } : {}),
 					...traceSummary,
 				}),
 		);
-		console.log(`JSON eval passed: ${fixture.id} (${outcome})`);
+		console.log(
+			`JSON eval observed: ${fixture.id} (${trialOutcome}; ${outcome})`,
+		);
 	} catch (error) {
 		const failure = error instanceof Error ? error : new Error(String(error));
 		const tracePath = join(tmpdir(), `developer-eval-${fixture.id}.json`);

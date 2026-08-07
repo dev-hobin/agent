@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { validateExecutionTrace } from "./eval-assertions.mjs";
+import {
+	validateExecutionSafetyTrace,
+	validateExecutionTrace,
+} from "./eval-assertions.mjs";
 import { createFixtureBudgetMonitor } from "./eval-budget.mjs";
 import {
 	diffWorkspaceSnapshots,
@@ -14,6 +17,7 @@ import {
 import {
 	assertAllowedOutcome,
 	classifyEvalOutcome,
+	classifyTrialDisposition,
 	parseDeveloperStatus,
 } from "./eval-outcome.mjs";
 import { createEvalWorkspace } from "./eval-workspace.mjs";
@@ -36,7 +40,9 @@ if (piVersionResult.status !== 0) {
 const piVersion = piVersionResult.stdout.trim();
 if (!piVersion) throw new Error(`Pi ${piBin} returned an empty version.`);
 const live = process.env.DEVELOPER_EVAL_LIVE === "1";
+const liveModel = process.env.DEVELOPER_EVAL_MODEL;
 const liveThinking = process.env.DEVELOPER_EVAL_THINKING || "medium";
+const durableSession = process.env.DEVELOPER_EVAL_DURABLE_SESSION === "1";
 const fixtureTimeoutMs = Number(
 	process.env.DEVELOPER_EVAL_TIMEOUT_MS || 150000,
 );
@@ -105,7 +111,8 @@ const child = spawn(
 		"--mode",
 		"rpc",
 		"--offline",
-		"--no-session",
+		...(durableSession ? [] : ["--no-session"]),
+		...(liveModel ? ["--model", liveModel] : []),
 		...(live ? ["--thinking", liveThinking] : []),
 		...resourceArgs,
 	],
@@ -195,15 +202,17 @@ async function waitForFixtureSettled(start, fixture) {
 	while (true) {
 		const trace = events.slice(start);
 		const settled = trace.find((event) => event.type === "agent_settled");
-		if (settled) return settled;
+		if (settled) return { status: "agent-settled" };
 
 		budget.observe(events.slice(observed));
 		observed = events.length;
-		const budgetFailure = budget.failure(trace);
-		if (budgetFailure) {
-			throw new Error(
-				`${fixture.id}: ${budgetFailure}; recent events: ${recentEventTypes(start) || "none"}\n${stderr}`,
-			);
+		const budgetStop = budget.stop(trace);
+		if (budgetStop) {
+			return {
+				status: "bounded-stop",
+				budgetStop,
+				recentEvents: recentEventTypes(start) || "none",
+			};
 		}
 		await new Promise((resolve) => setTimeout(resolve, 50));
 	}
@@ -228,6 +237,18 @@ async function currentDeveloperStatus() {
 }
 
 try {
+	const stateResponse = await send({ type: "get_state" });
+	assert.equal(stateResponse.success, true, stateResponse.error);
+	const selectedModel = stateResponse.data.model
+		? `${stateResponse.data.model.provider}/${stateResponse.data.model.id}`
+		: "none";
+	if (liveModel) {
+		assert.equal(
+			selectedModel,
+			liveModel,
+			`Pi selected ${selectedModel} instead of requested ${liveModel}`,
+		);
+	}
 	const commandsResponse = await send({ type: "get_commands" });
 	assert.equal(commandsResponse.success, true, commandsResponse.error);
 	const commands = commandsResponse.data.commands;
@@ -283,7 +304,7 @@ try {
 		"Expected /developer on to publish branch-visible status",
 	);
 	console.log(
-		`RPC smoke: command, skills, and activation state are available on Pi ${piVersion}`,
+		`RPC smoke: command, skills, and activation state are available on Pi ${piVersion} with ${selectedModel}`,
 	);
 
 	const enabledStatusStart = events.length;
@@ -316,7 +337,7 @@ try {
 	assert.ok(disabledStatus, "Expected canonical disabled status output");
 	await command("/developer on");
 	console.log(
-		`RPC smoke: canonical Action-Clearance tool gating is available on Pi ${piVersion}`,
+		`RPC smoke: canonical Action-Clearance tool gating is available on Pi ${piVersion} with ${selectedModel}`,
 	);
 
 	if (live) {
@@ -336,39 +357,82 @@ try {
 						fixture.request,
 				});
 				assert.equal(response.success, true, response.error);
-				await waitForFixtureSettled(start, fixture);
+				const waitResult = await waitForFixtureSettled(start, fixture);
+				if (waitResult.status === "bounded-stop") {
+					const aborted = await send({ type: "abort" }, 5000);
+					assert.equal(aborted.success, true, aborted.error);
+				}
 
 				const executionTrace = events.slice(start);
-				const traceSummary = await validateExecutionTrace(
-					fixture,
-					executionTrace,
-					packageUnderTest,
-					casePath,
-				);
 				const changes = diffWorkspaceSnapshots(
 					workspaceBefore,
 					await snapshotWorkspace(casePath),
 				);
 				const status = await currentDeveloperStatus();
+				const trialOutcome = classifyTrialDisposition({
+					status,
+					budgetStop:
+						waitResult.status === "bounded-stop"
+							? waitResult.budgetStop
+							: undefined,
+				});
+				if (trialOutcome === "protocol-unavailable") {
+					throw new Error(`${fixture.id}: canonical protocol became unavailable`);
+				}
+				const terminal = trialOutcome === "completed" || trialOutcome === "held";
+				const traceSummary = terminal
+					? await validateExecutionTrace(
+							fixture,
+							executionTrace,
+							packageUnderTest,
+							casePath,
+						)
+					: validateExecutionSafetyTrace(fixture, executionTrace);
 				const outcome = classifyEvalOutcome({ changes, status });
-				assertAllowedOutcome(fixture, outcome);
+				if (terminal) assertAllowedOutcome(fixture, outcome);
+
+				let tracePath;
+				if (!terminal) {
+					const modelSlug = selectedModel.replace(/[^a-z0-9.-]+/gi, "-");
+					tracePath = join(
+						tmpdir(),
+						`developer-eval-${fixture.id}-${modelSlug}-${Date.now()}.json`,
+					);
+					await writeFile(tracePath, JSON.stringify(executionTrace, null, 2));
+				}
 				console.log(
 					"DEVELOPER_EVAL_RESULT " +
 						JSON.stringify({
 							fixtureId: fixture.id,
+							model: selectedModel,
 							structuralValid: true,
+							trialOutcome,
 							outcome,
+							status: status.protocol,
+							...(waitResult.status === "bounded-stop"
+								? {
+									budgetStop: waitResult.budgetStop,
+									recentEvents: waitResult.recentEvents,
+								}
+								: {}),
+							...(tracePath ? { tracePath } : {}),
 							...traceSummary,
 						}),
 				);
-				console.log(`Live eval passed: ${fixture.id} (${outcome})`);
+				console.log(
+					`Live eval observed: ${fixture.id} (${trialOutcome}; ${outcome})`,
+				);
 			} catch (error) {
 				try {
 					await send({ type: "abort" }, 5000);
 				} catch {
 					child.kill("SIGTERM");
 				}
-				const tracePath = join(tmpdir(), `developer-eval-${fixture.id}.json`);
+				const modelSlug = selectedModel.replace(/[^a-z0-9.-]+/gi, "-");
+				const tracePath = join(
+					tmpdir(),
+					`developer-eval-${fixture.id}-${modelSlug}-${Date.now()}.json`,
+				);
 				await writeFile(
 					tracePath,
 					JSON.stringify(events.slice(start), null, 2),

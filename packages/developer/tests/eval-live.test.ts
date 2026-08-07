@@ -58,6 +58,31 @@ test("probabilistic live evaluation aggregates isolated trials instead of treati
     const inadmissibleReport = JSON.parse(await readFile(inadmissibleReportPath, "utf8"));
     assert.equal(inadmissibleReport.fixtures[0].accepted, 0);
     assert.equal(inadmissibleReport.fixtures[0].inadmissible, 1);
+
+    const boundedReportPath = join(directory, "bounded-report.json");
+    const boundedRun = spawnSync(
+      process.execPath,
+      [join(packageRoot, "scripts", "eval-live.mjs"), "--transport", "rpc"],
+      {
+        cwd: packageRoot,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PI_CODING_AGENT_DIR: directory,
+          DEVELOPER_EVAL_FIXTURE: "vague-product-request",
+          DEVELOPER_EVAL_TRIALS: "1",
+          DEVELOPER_EVAL_RUNNER: join(packageRoot, "tests", "fixtures", "fake-eval-runner.mjs"),
+          DEVELOPER_EVAL_REPORT: boundedReportPath,
+          DEVELOPER_FAKE_TRIAL_OUTCOME: "bounded-stop",
+        },
+      },
+    );
+    assert.equal(boundedRun.status, 0, boundedRun.stderr);
+    const boundedReport = JSON.parse(await readFile(boundedReportPath, "utf8"));
+    assert.equal(boundedReport.fixtures[0].accepted, 0);
+    assert.equal(boundedReport.fixtures[0].boundedStops, 1);
+    assert.equal(boundedReport.fixtures[0].medianToolCallAttempts, 6);
+    assert.match(boundedRun.stdout, /bounded 1/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
