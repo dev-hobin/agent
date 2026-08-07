@@ -520,6 +520,7 @@ const extension = await readFile(
 );
 assert.match(extension, /name: ACTION_LOOP_OPEN_WORK_CASE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_OPEN_JUDGMENT_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_ASSESS_CAPABILITY_TOOL/);
 assert.match(extension, /name: ROUTE_TOOL/);
 assert.match(extension, /name: JUDGMENT_TOOL/);
 assert.match(extension, /registerCommand\("developer"/);
@@ -568,6 +569,14 @@ assert.match(liveJudgmentIntegration, /openJudgment\(/);
 assert.match(liveJudgmentIntegration, /recordWorkCaseJudgment\(/);
 assert.match(liveJudgmentIntegration, /selectLiveContributionNeed\(/);
 assert.match(liveJudgmentIntegration, /different Judgment is already open/);
+
+const liveApplicabilityIntegration = await readFile(
+	join(root, "extensions", "action-loop-applicability.ts"),
+	"utf8",
+);
+assert.match(liveApplicabilityIntegration, /acceptCapabilityApplicability\(/);
+assert.match(liveApplicabilityIntegration, /assignedLiveCapability\(/);
+assert.match(liveApplicabilityIntegration, /already has a different assessment/);
 
 const skillIntegration = await readFile(
 	join(root, "extensions", "skills.ts"),

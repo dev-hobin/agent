@@ -24,6 +24,10 @@ import {
 	type LiveCapabilityInventoryResult,
 } from "./action-loop-capability-inventory.ts";
 import {
+	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
+	assessLiveCapabilityApplicability,
+} from "./action-loop-applicability.ts";
+import {
 	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
 	openLiveJudgment,
 	selectLiveContributionNeed,
@@ -118,6 +122,7 @@ import {
 const PROTOCOL_TOOLS = [
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 	ACTION_LOOP_OPEN_JUDGMENT_TOOL,
+	ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
 	ROUTE_TOOL,
 	REFERENCE_TOOL,
 	JUDGMENT_TOOL,
@@ -710,6 +715,7 @@ function expandedJudgment(
 
 export default async function developer(pi: ExtensionAPI) {
 	let availableSkills = new Map<string, Skill>();
+	let liveCapabilityInventory: LiveCapabilityInventoryResult | undefined;
 	let activeWorkCase: LiveWorkCaseState | undefined;
 	let state = initialState();
 	let routeOpening = false;
@@ -997,6 +1003,94 @@ export default async function developer(pi: ExtensionAPI) {
 					kind: result.status,
 					judgment: result.judgment,
 					workCaseRevisionId: result.state.workCase.revisionId,
+				},
+			);
+		},
+	});
+
+	pi.registerTool({
+		name: ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
+		label: "Developer Assess Capability",
+		description:
+			"Propose applicability of one Pi-admitted, source-bound Capability for one current Contribution Need. This does not select References or accept a Contribution.",
+		promptSnippet: "Assess one Capability for a current Contribution Need",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_ASSESS_CAPABILITY_TOOL} before routing a Skill. Copy only exact declared when/unless conditions projected by the Capability; unstructured Capabilities require empty condition arrays.`,
+			"Use needs-context rather than guessing. A Skill name never creates or implies a Contribution Need.",
+		],
+		parameters: Type.Object(
+			{
+				capability: Type.String({
+					minLength: 1,
+					maxLength: 64,
+					description: "Exact available Developer Skill name",
+				}),
+				contribution_need_id: Type.Optional(
+					Type.String({ minLength: 1, maxLength: 512 }),
+				),
+				status: StringEnum(
+					["applicable", "not-applicable", "needs-context"] as const,
+				),
+				matched_when: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ maxItems: 32 },
+				),
+				matched_unless: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ maxItems: 32 },
+				),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: MAX_LIVE_BASIS_ITEMS },
+				),
+				missing_context: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ maxItems: 16 },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!activeWorkCase) {
+				fail(
+					`No active Action Loop Work Case. Open one with ${ACTION_LOOP_OPEN_WORK_CASE_TOOL} first.`,
+				);
+			}
+			if (!liveCapabilityInventory || liveCapabilityInventory.status !== "ready") {
+				fail("No current accepted Pi Capability inventory is available.");
+			}
+			const entry =
+				liveCapabilityInventory.value.boundCapabilitiesBySkillName.get(
+					params.capability,
+				);
+			if (entry === undefined) {
+				fail(
+					`Capability ${params.capability} is unavailable, excluded, ambiguous, or unbound.`,
+				);
+			}
+			const result = assessLiveCapabilityApplicability(activeWorkCase, entry, {
+				contributionNeedId: params.contribution_need_id,
+				status: params.status,
+				matchedWhen: params.matched_when,
+				matchedUnless: params.matched_unless,
+				basis: params.basis,
+				missingContext: params.missing_context,
+			});
+			if (result.status === "invalid") fail(result.message);
+			activeWorkCase = result.state;
+			return textResult(
+				`Capability ${params.capability}: ${result.assessment.status}${result.assignment ? ` · ${result.assignment.assignmentId}` : ""}`,
+				{
+					protocol: "developer-action-loop/v1",
+					kind: result.status,
+					capability: params.capability,
+					assessment: result.assessment,
+					assignment: result.assignment,
 				},
 			);
 		},
@@ -2440,6 +2534,7 @@ export default async function developer(pi: ExtensionAPI) {
 	const applyLiveCapabilityInventory = (
 		result: LiveCapabilityInventoryResult,
 	) => {
+		liveCapabilityInventory = result;
 		availableSkills =
 			result.status === "ready"
 				? new Map(result.value.availablePackageSkills)

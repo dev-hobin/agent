@@ -98,5 +98,25 @@ export function liveCapabilityInventoryPrompt(
 		return `Action Loop capability inventory rejected (${result.error.code}); no Developer Skill is admitted.`;
 	}
 	const { bound, unavailable, excluded } = result.value.summary;
-	return `Action Loop capability inventory: ${bound} bound (${unavailable} unavailable, ${excluded} excluded).`;
+	const capabilityLines = [
+		...result.value.boundCapabilitiesBySkillName.entries(),
+	]
+		.sort(([left], [right]) => left.localeCompare(right))
+		.flatMap(([name, entry]) => {
+			const capability = entry.capability;
+			return "toc" in capability
+				? [
+						`Capability ${name} · ${capability.capabilityRevisionId} · structured`,
+						`  when: ${capability.toc.when.join(" | ")}`,
+						`  unless: ${capability.toc.unless.join(" | ") || "none"}`,
+					]
+				: [
+						`Capability ${name} · ${capability.capabilityRevisionId} · unstructured`,
+						"  when/unless: none; matched_when and matched_unless must be empty",
+					];
+		});
+	return [
+		`Action Loop capability inventory: ${bound} bound (${unavailable} unavailable, ${excluded} excluded).`,
+		...capabilityLines,
+	].join("\n");
 }

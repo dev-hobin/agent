@@ -1595,6 +1595,30 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 	assert.match(next.systemPrompt, /Open Judgment: open_judgment_/);
 	assert.match(next.systemPrompt, /Closure Requirements:/);
 	assert.match(next.systemPrompt, /Contribution Needs:/);
+	assert.match(
+		next.systemPrompt,
+		/Capability verify · caprev_.* · structured[\s\S]*A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged\./,
+	);
+	const assessed = await harness.tools
+		.get("developer_assess_capability")
+		.execute("assess-live-verify", {
+			capability: "verify",
+			status: "applicable",
+			matched_when: [
+				"A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged.",
+			],
+			matched_unless: [],
+			basis: ["The current Contribution Need asks for a claim-relevant verifier."],
+			missing_context: [],
+		});
+	assert.match(resultText(assessed), /Capability verify: applicable · assign_/);
+	const afterAssessment = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(afterAssessment.systemPrompt, /Capability assignment: assign_/);
 	await assert.rejects(
 		opening.execute("open-second-judgment", {
 			category: "Proportionate Intervention",

@@ -158,6 +158,20 @@ export function liveWorkCasePrompt(
 					`Closure Requirements: ${judgment.requirements.map(({ statement }) => statement).join(" | ")}`,
 					`Contribution Needs: ${judgment.contributionNeeds.map(({ contributionNeedId, function: needFunction }) => `${contributionNeedId}: ${needFunction}`).join(" | ")}`,
 				];
+	const applicabilityLines =
+		state.applicabilityAssessments.length === 0
+			? ["Capability applicability: none assessed"]
+			: state.applicabilityAssessments.map(
+					(assessment) =>
+						`Capability applicability: ${assessment.capabilityRevisionId} → ${assessment.contributionNeedId} · ${assessment.status}`,
+				);
+	const assignmentLines =
+		state.capabilityAssignments.length === 0
+			? ["Capability assignments: none"]
+			: state.capabilityAssignments.map(
+					(assignment) =>
+						`Capability assignment: ${assignment.assignmentId} · ${assignment.capabilityRevisionId} → ${assignment.contributionNeedId}`,
+				);
 	return [
 		`Active Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
 		`Outcome: ${workCase.outcome.statement}`,
@@ -166,6 +180,8 @@ export function liveWorkCasePrompt(
 		`Constraints: ${workCase.outcome.constraints.join(" | ") || "none"}`,
 		`Opening basis: ${openingBasis.join(" | ")}`,
 		...judgmentLines,
+		...applicabilityLines,
+		...assignmentLines,
 		"This process-local projection preserves active Outcome continuity but does not imply Action Clearance or completion.",
 	].join("\n");
 }
