@@ -569,7 +569,8 @@ function replayWorkCaseWaiting(
 	const result = waitLiveWorkCase(state, event.proposal);
 	if (
 		result.status !== "waiting" ||
-		result.state.workCase.wait.workCaseWaitId !== event.expected.workCaseWaitId ||
+		result.state.workCase.wait.workCaseWaitId !==
+			event.expected.workCaseWaitId ||
 		result.state.workCase.revisionId !== event.expected.revisionId ||
 		event.transitionId !== event.expected.workCaseWaitId
 	) {
@@ -609,7 +610,8 @@ function replayWorkCaseBlocked(
 	const result = blockLiveWorkCase(state, event.proposal);
 	if (
 		result.status !== "blocked" ||
-		result.state.workCase.block.workCaseBlockId !== event.expected.workCaseBlockId ||
+		result.state.workCase.block.workCaseBlockId !==
+			event.expected.workCaseBlockId ||
 		result.state.workCase.revisionId !== event.expected.revisionId ||
 		event.transitionId !== event.expected.workCaseBlockId
 	) {

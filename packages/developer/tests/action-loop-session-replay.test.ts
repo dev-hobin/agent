@@ -133,10 +133,7 @@ test("human pause and resume replay as branch-local ownership transitions", asyn
 		{
 			type: "custom",
 			customType: ACTION_LOOP_SESSION_ENTRY,
-			data: actionLoopPausedWorkCaseResumedEvent(
-				resumeProposal,
-				resumed.state,
-			),
+			data: actionLoopPausedWorkCaseResumedEvent(resumeProposal, resumed.state),
 		},
 	]);
 	assert.equal(resumedReplay.status, "ready");
@@ -162,7 +159,9 @@ test("observed wait and predicate-bound resume replay branch-locally", async () 
 			kind: "human" as const,
 			observationId: "pi-command-wait-test",
 			source: "pi:/developer wait",
-			basis: ["The human observed and reported the current external condition."],
+			basis: [
+				"The human observed and reported the current external condition.",
+			],
 		},
 	};
 	const waiting = waitLiveWorkCase(opened.value, waitProposal);

@@ -961,7 +961,9 @@ export function actionLoopWaitingWorkCaseResumedEvent(
 ): ActionLoopWaitingWorkCaseResumedEvent {
 	const workCaseWaitResumeId = state.workCase.continuityIds.at(-1);
 	if (workCaseWaitResumeId === undefined) {
-		throw new Error("Resumed waiting Work Case has no continuity transition ID");
+		throw new Error(
+			"Resumed waiting Work Case has no continuity transition ID",
+		);
 	}
 	return Object.freeze({
 		protocol: ACTION_LOOP_SESSION_PROTOCOL,
@@ -1022,7 +1024,9 @@ export function actionLoopBlockedWorkCaseResumedEvent(
 ): ActionLoopBlockedWorkCaseResumedEvent {
 	const workCaseUnblockId = state.workCase.continuityIds.at(-1);
 	if (workCaseUnblockId === undefined) {
-		throw new Error("Resumed blocked Work Case has no continuity transition ID");
+		throw new Error(
+			"Resumed blocked Work Case has no continuity transition ID",
+		);
 	}
 	return Object.freeze({
 		protocol: ACTION_LOOP_SESSION_PROTOCOL,

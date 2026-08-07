@@ -60,9 +60,7 @@ export type LiveHeldWorkCaseState =
 	| LiveWaitingWorkCaseState
 	| LiveBlockedWorkCaseState;
 
-export type LiveWorkCaseOwnership =
-	| LiveWorkCaseState
-	| LiveHeldWorkCaseState;
+export type LiveWorkCaseOwnership = LiveWorkCaseState | LiveHeldWorkCaseState;
 
 export function isLivePausedWorkCaseState(
 	state: LiveHeldWorkCaseState,
