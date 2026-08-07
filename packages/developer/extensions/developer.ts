@@ -14,9 +14,10 @@ import {
 	type Skill,
 	type Theme,
 	type ThemeColor,
+	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Text } from "@earendil-works/pi-tui";
-import { Type, type Static } from "typebox";
+import { Type, type Static, type TSchema } from "typebox";
 
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
 import {
@@ -107,6 +108,8 @@ import {
 } from "./action-loop-session.ts";
 import {
 	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
+	ACTION_LOOP_PAUSE_WORK_CASE_TOOL,
+	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
 	ACTION_LOOP_WAIT_WORK_CASE_TOOL,
 	MAX_LIVE_CONTINUITY_TEXT,
 	blockLiveWorkCase,
@@ -116,6 +119,15 @@ import {
 	resumeLiveWaitingWorkCase,
 	waitLiveWorkCase,
 } from "./action-loop-continuity.ts";
+import {
+	MAX_LIVE_HOST_OBSERVATIONS,
+	admitLiveToolResultObservation,
+	admitLiveUserPromptObservation,
+	bindLiveHostObservation,
+	liveHostObservationPrompt,
+	matchingLiveHostObservation,
+	type LiveHostObservation,
+} from "./action-loop-host-observation.ts";
 import {
 	ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 	MAX_LIVE_BASIS_ITEMS,
@@ -220,8 +232,10 @@ const PROTOCOL_TOOLS = [
 	ACTION_LOOP_PROPOSE_ACTION_TOOL,
 	ACTION_LOOP_SETTLE_EFFECT_TOOL,
 	ACTION_LOOP_RECORD_REMEDIATION_TOOL,
+	ACTION_LOOP_PAUSE_WORK_CASE_TOOL,
 	ACTION_LOOP_WAIT_WORK_CASE_TOOL,
 	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
+	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
 	ACTION_LOOP_PREPARE_CLOSURE_TOOL,
 	ACTION_LOOP_COMPLETE_WORK_CASE_TOOL,
 	ROUTE_TOOL,
@@ -825,11 +839,145 @@ export default async function developer(pi: ExtensionAPI) {
 		| undefined;
 	let actionLoopReplayFailure: string | undefined;
 	let actionLoopSessionDurable = false;
+	let liveHostObservations: LiveHostObservation[] = [];
 	let state = initialState();
 	let routeOpening = false;
 	const routesWithMutation = new Set<string>();
 	let toolPolicyMemory: ToolPolicyMemory = { withheldBuiltins: new Set() };
 	let toolPolicyRestartRequired = false;
+
+	const rememberHostObservation = (observation: LiveHostObservation) => {
+		liveHostObservations = [
+			...liveHostObservations.filter(
+				(current) => current.observationId !== observation.observationId,
+			),
+			observation,
+		].slice(-MAX_LIVE_HOST_OBSERVATIONS);
+	};
+
+	const bindPendingHostObservations = (workCaseId: string) => {
+		liveHostObservations = liveHostObservations.flatMap((observation) => {
+			const bound = bindLiveHostObservation(observation, workCaseId);
+			return bound ? [bound] : [];
+		});
+	};
+
+	const actionLoopToolPresentation = (
+		toolName: string,
+		args: Readonly<Record<string, unknown>>,
+	): { readonly title: string; readonly detail?: string } => {
+		const text = (key: string) =>
+			typeof args[key] === "string" ? String(args[key]).trim() : undefined;
+		switch (toolName) {
+			case ACTION_LOOP_OPEN_WORK_CASE_TOOL:
+				return { title: "Define work", detail: text("statement") };
+			case ACTION_LOOP_OPEN_JUDGMENT_TOOL:
+				return { title: "Examine a decision", detail: text("question") };
+			case ACTION_LOOP_ASSESS_CAPABILITY_TOOL:
+				return {
+					title: "Assess an available method",
+					detail: text("capability"),
+				};
+			case ACTION_LOOP_SELECT_REFERENCES_TOOL:
+				return { title: "Select relevant guidance", detail: text("capability") };
+			case ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL:
+				return { title: "Review selected guidance", detail: text("path") };
+			case ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL:
+				return { title: "Record a contribution", detail: text("capability") };
+			case ACTION_LOOP_ASSESS_COVERAGE_TOOL:
+				return { title: "Assess evidence coverage" };
+			case ACTION_LOOP_CLOSE_JUDGMENT_TOOL:
+				return { title: "Conclude the current decision" };
+			case ACTION_LOOP_PROPOSE_ACTION_TOOL:
+				return { title: "Prepare an exact action", detail: text("summary") };
+			case ACTION_LOOP_SETTLE_EFFECT_TOOL:
+				return { title: "Assess the observed effect", detail: text("outcome") };
+			case ACTION_LOOP_RECORD_REMEDIATION_TOOL:
+				return { title: "Record effect remediation" };
+			case ACTION_LOOP_PAUSE_WORK_CASE_TOOL:
+				return { title: "Pause work", detail: text("reason") };
+			case ACTION_LOOP_WAIT_WORK_CASE_TOOL:
+				return {
+					title: "Wait for an external condition",
+					detail: text("external_condition"),
+				};
+			case ACTION_LOOP_BLOCK_WORK_CASE_TOOL:
+				return { title: "Record blocked work", detail: text("reason") };
+			case ACTION_LOOP_RESUME_WORK_CASE_TOOL:
+				return {
+					title: "Resume held work",
+					detail: text("observed_change") ?? text("continuation"),
+				};
+			case ACTION_LOOP_PREPARE_CLOSURE_TOOL:
+				return { title: "Review completion readiness" };
+			case ACTION_LOOP_COMPLETE_WORK_CASE_TOOL:
+				return { title: "Complete current work", detail: text("mode") };
+			default:
+				return { title: "Update current work" };
+		}
+	};
+
+	const registerActionLoopTool = <
+		TParams extends TSchema,
+		TDetails = unknown,
+		TState = unknown,
+	>(tool: ToolDefinition<TParams, TDetails, TState>) => {
+		pi.registerTool({
+			...tool,
+			renderShell: "self",
+			renderCall(args, theme) {
+				const presentation = actionLoopToolPresentation(
+					tool.name,
+					args as Readonly<Record<string, unknown>>,
+				);
+				return new Text(
+					`${theme.fg("toolTitle", theme.bold("Developer"))} ${theme.fg("accent", presentation.title)}${presentation.detail ? `\n${theme.fg("muted", compactLine(presentation.detail))}` : ""}`,
+					0,
+					0,
+				);
+			},
+			renderResult(_result, options, theme, context) {
+				const presentation = actionLoopToolPresentation(
+					tool.name,
+					context.args as Readonly<Record<string, unknown>>,
+				);
+				const status = options.isPartial
+					? theme.fg("muted", "…")
+					: context.isError
+						? theme.fg("error", "not accepted")
+						: theme.fg("success", "accepted");
+				return new Text(`${status} · ${presentation.title}`, 0, 0);
+			},
+		});
+	};
+
+	const currentHostObservation = (
+		observationId: string,
+		workCase: LiveWorkCaseState | LiveHeldWorkCaseState,
+	): LiveHostObservation | undefined => {
+		const admitted = matchingLiveHostObservation(
+			liveHostObservations,
+			observationId,
+			workCase.workCase.workCaseId,
+		);
+		if (admitted) return admitted;
+		if (!("effectObservations" in workCase)) return undefined;
+		const effectObservation = workCase.effectObservations.find(
+			(candidate) => candidate.effectObservationId === observationId,
+		);
+		if (!effectObservation) return undefined;
+		return Object.freeze({
+			observationId: effectObservation.effectObservationId,
+			kind: "tool" as const,
+			source: effectObservation.provenance.source,
+			statement: effectObservation.statement,
+			evidenceFingerprint: effectObservation.evidence.fingerprint,
+			workCaseId: effectObservation.workCaseId,
+			basis: Object.freeze([
+				`Current Effect Observation ${effectObservation.effectObservationId} binds exact host evidence ${effectObservation.evidence.locator} (${effectObservation.evidence.fingerprint}).`,
+			]),
+		});
+	};
 
 	pi.registerFlag("developer", {
 		description: "Start with Developer enabled",
@@ -899,11 +1047,17 @@ export default async function developer(pi: ExtensionAPI) {
 				: isLiveWaitingWorkCaseState(heldWorkCase)
 					? heldWorkCase.workCase.wait.externalCondition
 					: heldWorkCase.workCase.block.reason;
+			const continuationHint = isLivePausedWorkCaseState(heldWorkCase)
+				? "continue · say when you want to resume"
+				: isLiveWaitingWorkCaseState(heldWorkCase)
+					? `continue when · ${compactLine(heldWorkCase.workCase.wait.resumePredicate)}`
+					: "continue · describe the changed blocker and available next step";
 			ctx.ui.setWidget(
 				"developer",
 				[
 					`${heldWorkCase.workCase.status} · ${compactLine(heldDetail)}`,
-					"resume · /developer resume",
+					continuationHint,
+					"update · send a normal message; no protocol command is required",
 				],
 				{ placement: "belowEditor" },
 			);
@@ -970,6 +1124,7 @@ export default async function developer(pi: ExtensionAPI) {
 		activeWorkCase = undefined;
 		heldWorkCase = undefined;
 		completedWorkCase = undefined;
+		liveHostObservations = [];
 		pendingActionLoopBranch = toolPolicyRestartRequired ? undefined : branch;
 		actionLoopReplayFailure = undefined;
 		state = toolPolicyRestartRequired
@@ -996,6 +1151,7 @@ export default async function developer(pi: ExtensionAPI) {
 			activeWorkCase = undefined;
 			heldWorkCase = undefined;
 			completedWorkCase = undefined;
+			liveHostObservations = [];
 			pendingActionLoopBranch = undefined;
 			actionLoopReplayFailure = undefined;
 		}
@@ -1004,7 +1160,7 @@ export default async function developer(pi: ExtensionAPI) {
 		return true;
 	};
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_OPEN_WORK_CASE_TOOL,
 		label: "Developer Open Work Case",
 		description:
@@ -1047,7 +1203,9 @@ export default async function developer(pi: ExtensionAPI) {
 				);
 			}
 			if (heldWorkCase) {
-				fail(`Developer cannot replace a ${heldWorkCase.workCase.status} Action Loop Work Case. Use /developer resume or /developer off.`);
+				fail(
+					`Developer cannot replace a ${heldWorkCase.workCase.status} Action Loop Work Case. Use /developer resume or /developer off.`,
+				);
 			}
 			const proposal = {
 				outcome: {
@@ -1067,6 +1225,7 @@ export default async function developer(pi: ExtensionAPI) {
 			}
 			pendingActionLoopBranch = undefined;
 			activeWorkCase = result.value;
+			bindPendingHostObservations(result.value.workCase.workCaseId);
 			completedWorkCase = undefined;
 			return textResult(
 				result.status === "opened"
@@ -1085,7 +1244,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_OPEN_JUDGMENT_TOOL,
 		label: "Developer Open Judgment",
 		description:
@@ -1177,7 +1336,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_ASSESS_CAPABILITY_TOOL,
 		label: "Developer Assess Capability",
 		description:
@@ -1283,7 +1442,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_SELECT_REFERENCES_TOOL,
 		label: "Developer Select References",
 		description:
@@ -1401,7 +1560,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL,
 		label: "Developer Load Selected Reference",
 		description:
@@ -1452,7 +1611,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL,
 		label: "Developer Accept Contribution",
 		description:
@@ -1601,7 +1760,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_ASSESS_COVERAGE_TOOL,
 		label: "Developer Assess Coverage",
 		description:
@@ -1716,7 +1875,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_CLOSE_JUDGMENT_TOOL,
 		label: "Developer Close Judgment",
 		description:
@@ -1825,7 +1984,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_PROPOSE_ACTION_TOOL,
 		label: "Developer Propose Action",
 		description:
@@ -1908,7 +2067,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_SETTLE_EFFECT_TOOL,
 		label: "Developer Settle Effect",
 		description:
@@ -2043,7 +2202,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_RECORD_REMEDIATION_TOOL,
 		label: "Developer Record Effect Remediation",
 		description:
@@ -2101,19 +2260,100 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
-		name: ACTION_LOOP_WAIT_WORK_CASE_TOOL,
-		label: "Developer Wait Work Case",
+	registerActionLoopTool({
+		name: ACTION_LOOP_PAUSE_WORK_CASE_TOOL,
+		label: "Developer Pause Work Case",
 		description:
-			"Retain durable waiting ownership from one exact current Effect Observation, an observed external condition, and an observable resume predicate.",
-		promptSnippet: "Wait on an observed external condition",
+			"Pause the current Work Case only from an exact host-admitted human prompt that explicitly delegates suspension.",
+		promptSnippet: "Pause current work from an exact human decision",
 		promptGuidelines: [
-			`Use ${ACTION_LOOP_WAIT_WORK_CASE_TOOL} only when a current Effect Observation evidences an external condition that prevents continuation.`,
-			"State one exact observable resume predicate. Waiting blocks controlled Actions and replacement work until explicit predicate-bound resume or Developer-off reset.",
+			`Use ${ACTION_LOOP_PAUSE_WORK_CASE_TOOL} when the exact current user prompt explicitly asks to pause; the user should not need to invoke a protocol command.`,
+			"Do not infer a human pause from model uncertainty, external waiting, or an ordinary end of turn.",
 		],
 		parameters: Type.Object(
 			{
-				effect_observation_id: Type.String({ minLength: 1, maxLength: 512 }),
+				observation_id: Type.String({ minLength: 1, maxLength: 512 }),
+				reason: Type.String({
+					minLength: 1,
+					maxLength: MAX_LIVE_CONTINUITY_TEXT,
+				}),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: 16 },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!actionLoopSessionDurable) {
+				fail(
+					"Developer cannot retain paused ownership in Pi --no-session mode.",
+				);
+			}
+			if (actionLoopReplayFailure) {
+				fail(
+					`Developer cannot pause unavailable Action Loop state: ${actionLoopReplayFailure}`,
+				);
+			}
+			if (!activeWorkCase) fail("No active Action Loop Work Case.");
+			const observation = currentHostObservation(
+				params.observation_id,
+				activeWorkCase,
+			);
+			if (!observation || observation.kind !== "human") {
+				fail("Pausing requires an exact current human-origin Observation.");
+			}
+			const proposal = {
+				workCaseId: activeWorkCase.workCase.workCaseId,
+				expectedRevisionId: activeWorkCase.workCase.revisionId,
+				reason: params.reason,
+				decision: {
+					kind: "human" as const,
+					decisionId: observation.observationId,
+					source: observation.source,
+					basis: [...observation.basis, ...params.basis],
+				},
+			};
+			const result = pauseLiveWorkCase(activeWorkCase, proposal);
+			if (result.status === "invalid") fail(result.message);
+			activeWorkCase = undefined;
+			heldWorkCase = result.state;
+			liveHostObservations = [];
+			completedWorkCase = undefined;
+			syncProtocolTools();
+			return textResult(
+				"Work paused by the current human decision.",
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: "paused",
+						workCasePauseId: result.state.workCase.pause.workCasePauseId,
+						revisionId: result.state.workCase.revisionId,
+					},
+					actionLoopWorkCasePausedEvent(proposal, result.state),
+				),
+			);
+		},
+	});
+
+	registerActionLoopTool({
+		name: ACTION_LOOP_WAIT_WORK_CASE_TOOL,
+		label: "Developer Wait Work Case",
+		description:
+			"Retain durable waiting ownership from one exact host-admitted user prompt, finalized tool result, or current Effect Observation plus an observable resume predicate.",
+		promptSnippet: "Wait on an observed external condition",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_WAIT_WORK_CASE_TOOL} when an exact host-admitted observation evidences an external condition that prevents continuation; the user should not need to invoke a wait command.`,
+			"State one exact observable resume predicate. Waiting blocks controlled Actions and replacement work until observation-bound resume or Developer-off reset.",
+		],
+		parameters: Type.Object(
+			{
+				observation_id: Type.String({ minLength: 1, maxLength: 512 }),
 				external_condition: Type.String({
 					minLength: 1,
 					maxLength: MAX_LIVE_CONTINUITY_TEXT,
@@ -2136,18 +2376,22 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!actionLoopSessionDurable) {
-				fail("Developer cannot retain waiting ownership in Pi --no-session mode.");
+				fail(
+					"Developer cannot retain waiting ownership in Pi --no-session mode.",
+				);
 			}
 			if (actionLoopReplayFailure) {
-				fail(`Developer cannot wait unavailable Action Loop state: ${actionLoopReplayFailure}`);
+				fail(
+					`Developer cannot wait unavailable Action Loop state: ${actionLoopReplayFailure}`,
+				);
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const observation = activeWorkCase.effectObservations.find(
-				(candidate) =>
-					candidate.effectObservationId === params.effect_observation_id,
+			const observation = currentHostObservation(
+				params.observation_id,
+				activeWorkCase,
 			);
 			if (!observation) {
-				fail("Waiting requires an exact current Effect Observation.");
+				fail("Waiting requires an exact current host-admitted Observation.");
 			}
 			const proposal = {
 				workCaseId: activeWorkCase.workCase.workCaseId,
@@ -2155,23 +2399,21 @@ export default async function developer(pi: ExtensionAPI) {
 				externalCondition: params.external_condition,
 				resumePredicate: params.resume_predicate,
 				observation: {
-					kind: "tool" as const,
-					observationId: observation.effectObservationId,
-					source: observation.provenance.source,
-					basis: [
-						...params.basis,
-						`Current Effect Observation ${observation.effectObservationId} supplies the exact host evidence.`,
-					],
+					kind: observation.kind,
+					observationId: observation.observationId,
+					source: observation.source,
+					basis: [...observation.basis, ...params.basis],
 				},
 			};
 			const result = waitLiveWorkCase(activeWorkCase, proposal);
 			if (result.status === "invalid") fail(result.message);
 			activeWorkCase = undefined;
 			heldWorkCase = result.state;
+			liveHostObservations = [];
 			completedWorkCase = undefined;
 			syncProtocolTools();
 			return textResult(
-				`Work Case waiting: ${result.state.workCase.wait.workCaseWaitId}`,
+				"Work is waiting on the observed external condition.",
 				withActionLoopReplayEvent(
 					{
 						protocol: "developer-action-loop/v1",
@@ -2185,7 +2427,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
 		label: "Developer Block Work Case",
 		description:
@@ -2219,20 +2461,25 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!actionLoopSessionDurable) {
-				fail("Developer cannot retain blocked ownership in Pi --no-session mode.");
+				fail(
+					"Developer cannot retain blocked ownership in Pi --no-session mode.",
+				);
 			}
 			if (actionLoopReplayFailure) {
-				fail(`Developer cannot block unavailable Action Loop state: ${actionLoopReplayFailure}`);
+				fail(
+					`Developer cannot block unavailable Action Loop state: ${actionLoopReplayFailure}`,
+				);
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
 			const assurance = activeWorkCase.workCase.conclusions.find(
 				(conclusion) =>
-					conclusion.conclusionId ===
-						params.claim_assurance_conclusion_id &&
+					conclusion.conclusionId === params.claim_assurance_conclusion_id &&
 					conclusion.category === "Claim Assurance",
 			);
 			if (!assurance) {
-				fail("Blocking requires the exact ID of a current Claim Assurance Conclusion.");
+				fail(
+					"Blocking requires the exact ID of a current Claim Assurance Conclusion.",
+				);
 			}
 			const prepared = prepareLiveWorkCaseClosure(activeWorkCase);
 			if (prepared.status === "invalid") fail(prepared.message);
@@ -2240,7 +2487,9 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("A closure-ready Work Case cannot be declared blocked.");
 			}
 			if (prepared.blockers.length > MAX_ACTION_LOOP_BLOCKER_DISPOSITIONS) {
-				fail(`Current blocker accounting exceeds the durable limit of ${MAX_ACTION_LOOP_BLOCKER_DISPOSITIONS}.`);
+				fail(
+					`Current blocker accounting exceeds the durable limit of ${MAX_ACTION_LOOP_BLOCKER_DISPOSITIONS}.`,
+				);
 			}
 			const proposal = {
 				workCaseId: activeWorkCase.workCase.workCaseId,
@@ -2257,10 +2506,11 @@ export default async function developer(pi: ExtensionAPI) {
 			if (result.status === "invalid") fail(result.message);
 			activeWorkCase = undefined;
 			heldWorkCase = result.state;
+			liveHostObservations = [];
 			completedWorkCase = undefined;
 			syncProtocolTools();
 			return textResult(
-				`Work Case blocked: ${result.state.workCase.block.workCaseBlockId}`,
+				"Work is blocked with complete Claim Assurance.",
 				withActionLoopReplayEvent(
 					{
 						protocol: "developer-action-loop/v1",
@@ -2274,7 +2524,171 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
+		name: ACTION_LOOP_RESUME_WORK_CASE_TOOL,
+		label: "Developer Resume Work Case",
+		description:
+			"Resume the current paused, waiting, or blocked Work Case from one exact host-admitted Observation. Waiting requires evidence satisfying its exact predicate; blocked requires an observed change and bounded continuation; paused requires a human prompt decision.",
+		promptSnippet: "Resume held Action Loop work from exact host evidence",
+		promptGuidelines: [
+			`Use ${ACTION_LOOP_RESUME_WORK_CASE_TOOL} when the current user prompt or a finalized tool result supplies exact evidence that held work may continue; the user should not need to invoke a resume command.`,
+			"Never resume waiting without evidence satisfying the stored predicate, blocked without an observed change and concrete continuation, or paused without a human-origin Observation.",
+		],
+		parameters: Type.Object(
+			{
+				observation_id: Type.String({ minLength: 1, maxLength: 512 }),
+				observed_change: Type.Optional(
+					Type.String({ minLength: 1, maxLength: MAX_LIVE_CONTINUITY_TEXT }),
+				),
+				continuation: Type.Optional(
+					Type.String({ minLength: 1, maxLength: MAX_LIVE_CONTINUITY_TEXT }),
+				),
+				basis: Type.Array(
+					Type.String({ minLength: 1, maxLength: MAX_EVIDENCE_CHARS }),
+					{ minItems: 1, maxItems: 16 },
+				),
+			},
+			{ additionalProperties: false },
+		),
+		executionMode: "sequential",
+		renderShell: "self",
+		async execute(_toolCallId, params) {
+			if (!state.enabled) {
+				fail("Developer protocol is off. Run /developer on first.");
+			}
+			if (!actionLoopSessionDurable) {
+				fail(
+					"Developer cannot resume durable ownership in Pi --no-session mode.",
+				);
+			}
+			if (actionLoopReplayFailure) {
+				fail(
+					`Developer cannot resume unavailable Action Loop state: ${actionLoopReplayFailure}`,
+				);
+			}
+			if (!heldWorkCase) {
+				fail("No paused, waiting, or blocked Action Loop Work Case.");
+			}
+			const observation = currentHostObservation(
+				params.observation_id,
+				heldWorkCase,
+			);
+			if (!observation) {
+				fail("Resume requires an exact current host-admitted Observation.");
+			}
+			const basis = [...observation.basis, ...params.basis];
+			if (isLivePausedWorkCaseState(heldWorkCase)) {
+				if (observation.kind !== "human") {
+					fail("Paused work requires a human-origin resume decision.");
+				}
+				const proposal = {
+					workCaseId: heldWorkCase.workCase.workCaseId,
+					expectedRevisionId: heldWorkCase.workCase.revisionId,
+					decision: {
+						kind: "human",
+						decisionId: observation.observationId,
+						source: observation.source,
+						basis,
+					},
+				};
+				const result = resumeLivePausedWorkCase(heldWorkCase, proposal);
+				if (result.status === "invalid") fail(result.message);
+				heldWorkCase = undefined;
+				activeWorkCase = result.state;
+				liveHostObservations = [];
+				syncProtocolTools();
+				return textResult(
+					"Paused work resumed from the current human decision.",
+					withActionLoopReplayEvent(
+						{
+							protocol: "developer-action-loop/v1",
+							kind: "resumed-paused",
+							revisionId: result.state.workCase.revisionId,
+						},
+						actionLoopPausedWorkCaseResumedEvent(proposal, result.state),
+					),
+				);
+			}
+			if (isLiveWaitingWorkCaseState(heldWorkCase)) {
+				const proposal = {
+					workCaseId: heldWorkCase.workCase.workCaseId,
+					expectedRevisionId: heldWorkCase.workCase.revisionId,
+					assessment: {
+						resumePredicate: heldWorkCase.workCase.wait.resumePredicate,
+						status: "satisfied" as const,
+						observationKind: observation.kind,
+						observationId: observation.observationId,
+						source: observation.source,
+						basis,
+					},
+				};
+				const result = resumeLiveWaitingWorkCase(heldWorkCase, proposal);
+				if (result.status !== "active") {
+					fail(
+						result.status === "invalid"
+							? result.message
+							: "The exact waiting resume predicate remains unsatisfied.",
+					);
+				}
+				heldWorkCase = undefined;
+				activeWorkCase = result.state;
+				liveHostObservations = [];
+				syncProtocolTools();
+				return textResult(
+					"Waiting work resumed from current evidence.",
+					withActionLoopReplayEvent(
+						{
+							protocol: "developer-action-loop/v1",
+							kind: "resumed-waiting",
+							revisionId: result.state.workCase.revisionId,
+						},
+						actionLoopWaitingWorkCaseResumedEvent(proposal, result.state),
+					),
+				);
+			}
+			if (!isLiveBlockedWorkCaseState(heldWorkCase)) {
+				fail("Unsupported held Work Case status.");
+			}
+			const observedChange = params.observed_change?.trim();
+			const continuation = params.continuation?.trim();
+			if (!observedChange || !continuation) {
+				fail(
+					"Blocked work requires an observed_change and concrete continuation.",
+				);
+			}
+			const proposal = {
+				workCaseId: heldWorkCase.workCase.workCaseId,
+				expectedRevisionId: heldWorkCase.workCase.revisionId,
+				continuation,
+				observation: {
+					kind: observation.kind,
+					observationId: observation.observationId,
+					source: observation.source,
+					statement: observedChange,
+					basis,
+				},
+			};
+			const result = resumeLiveBlockedWorkCase(heldWorkCase, proposal);
+			if (result.status === "invalid") fail(result.message);
+			heldWorkCase = undefined;
+			activeWorkCase = result.state;
+			liveHostObservations = [];
+			syncProtocolTools();
+			return textResult(
+				"Blocked work resumed from the observed change and bounded continuation.",
+				withActionLoopReplayEvent(
+					{
+						protocol: "developer-action-loop/v1",
+						kind: "resumed-blocked",
+						revisionId: result.state.workCase.revisionId,
+					},
+					actionLoopBlockedWorkCaseResumedEvent(proposal, result.state),
+				),
+			);
+		},
+	});
+
+	registerActionLoopTool({
 		name: ACTION_LOOP_PREPARE_CLOSURE_TOOL,
 		label: "Developer Prepare Closure",
 		description:
@@ -2317,7 +2731,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerTool({
+	registerActionLoopTool({
 		name: ACTION_LOOP_COMPLETE_WORK_CASE_TOOL,
 		label: "Developer Complete Work Case",
 		description:
@@ -4092,7 +4506,10 @@ export default async function developer(pi: ExtensionAPI) {
 
 			const pauseCurrentWorkCase = async (): Promise<boolean> => {
 				if (!state.enabled) {
-					ctx.ui.notify("Developer is off. Run /developer on first.", "warning");
+					ctx.ui.notify(
+						"Developer is off. Run /developer on first.",
+						"warning",
+					);
 					return false;
 				}
 				if (ctx.sessionManager.getSessionFile() === undefined) {
@@ -4117,11 +4534,17 @@ export default async function developer(pi: ExtensionAPI) {
 					return false;
 				}
 				if (!activeWorkCase) {
-					ctx.ui.notify("Developer has no active Action Loop Work Case to pause.", "warning");
+					ctx.ui.notify(
+						"Developer has no active Action Loop Work Case to pause.",
+						"warning",
+					);
 					return false;
 				}
 				if (!ctx.hasUI) {
-					ctx.ui.notify("Pausing requires dialog-capable human input.", "error");
+					ctx.ui.notify(
+						"Pausing requires dialog-capable human input.",
+						"error",
+					);
 					return false;
 				}
 				const enteredReason = await ctx.ui.input(
@@ -4170,7 +4593,10 @@ export default async function developer(pi: ExtensionAPI) {
 
 			const waitCurrentWorkCase = async (): Promise<boolean> => {
 				if (!state.enabled) {
-					ctx.ui.notify("Developer is off. Run /developer on first.", "warning");
+					ctx.ui.notify(
+						"Developer is off. Run /developer on first.",
+						"warning",
+					);
 					return false;
 				}
 				if (ctx.sessionManager.getSessionFile() === undefined) {
@@ -4195,11 +4621,17 @@ export default async function developer(pi: ExtensionAPI) {
 					return false;
 				}
 				if (!activeWorkCase) {
-					ctx.ui.notify("Developer has no active Action Loop Work Case to wait.", "warning");
+					ctx.ui.notify(
+						"Developer has no active Action Loop Work Case to wait.",
+						"warning",
+					);
 					return false;
 				}
 				if (!ctx.hasUI) {
-					ctx.ui.notify("Waiting requires dialog-capable human Observation.", "error");
+					ctx.ui.notify(
+						"Waiting requires dialog-capable human Observation.",
+						"error",
+					);
 					return false;
 				}
 				const enteredCondition = await ctx.ui.input(
@@ -4258,7 +4690,10 @@ export default async function developer(pi: ExtensionAPI) {
 
 			const blockCurrentWorkCase = async (): Promise<boolean> => {
 				if (!state.enabled) {
-					ctx.ui.notify("Developer is off. Run /developer on first.", "warning");
+					ctx.ui.notify(
+						"Developer is off. Run /developer on first.",
+						"warning",
+					);
 					return false;
 				}
 				if (ctx.sessionManager.getSessionFile() === undefined) {
@@ -4283,11 +4718,17 @@ export default async function developer(pi: ExtensionAPI) {
 					return false;
 				}
 				if (!activeWorkCase) {
-					ctx.ui.notify("Developer has no active Action Loop Work Case to block.", "warning");
+					ctx.ui.notify(
+						"Developer has no active Action Loop Work Case to block.",
+						"warning",
+					);
 					return false;
 				}
 				if (!ctx.hasUI) {
-					ctx.ui.notify("Blocking requires dialog-capable human input.", "error");
+					ctx.ui.notify(
+						"Blocking requires dialog-capable human input.",
+						"error",
+					);
 					return false;
 				}
 				const prepared = prepareLiveWorkCaseClosure(activeWorkCase);
@@ -4380,7 +4821,10 @@ export default async function developer(pi: ExtensionAPI) {
 
 			const resumeHeldWork = async (): Promise<boolean> => {
 				if (!state.enabled) {
-					ctx.ui.notify("Developer is off. Run /developer on first.", "warning");
+					ctx.ui.notify(
+						"Developer is off. Run /developer on first.",
+						"warning",
+					);
 					return false;
 				}
 				if (ctx.sessionManager.getSessionFile() === undefined) {
@@ -4391,11 +4835,17 @@ export default async function developer(pi: ExtensionAPI) {
 					return false;
 				}
 				if (!heldWorkCase) {
-					ctx.ui.notify("Developer has no paused, waiting, or blocked Action Loop Work Case.", "warning");
+					ctx.ui.notify(
+						"Developer has no paused, waiting, or blocked Action Loop Work Case.",
+						"warning",
+					);
 					return false;
 				}
 				if (!ctx.hasUI) {
-					ctx.ui.notify("Resuming requires dialog-capable human input.", "error");
+					ctx.ui.notify(
+						"Resuming requires dialog-capable human input.",
+						"error",
+					);
 					return false;
 				}
 				if (isLivePausedWorkCaseState(heldWorkCase)) {
@@ -4728,6 +5178,15 @@ export default async function developer(pi: ExtensionAPI) {
 			syncProtocolTools();
 		}
 		if (!state.enabled) return;
+		liveHostObservations = [];
+		const ownership = activeWorkCase ?? heldWorkCase;
+		const admittedPrompt = admitLiveUserPromptObservation(
+			event.prompt,
+			ownership?.workCase.workCaseId,
+		);
+		if (admittedPrompt.status === "admitted") {
+			rememberHostObservation(admittedPrompt.observation);
+		}
 		return {
 			systemPrompt:
 				event.systemPrompt +
@@ -4735,7 +5194,23 @@ export default async function developer(pi: ExtensionAPI) {
 				`\n${liveCapabilityInventoryPrompt(inventory)}` +
 				(actionLoopReplayFailure
 					? `\nAction Loop session replay unavailable (${ACTION_LOOP_SESSION_PROTOCOL}): ${actionLoopReplayFailure}. Do not open replacement work or infer completion.`
-					: `\n${liveWorkCasePrompt(activeWorkCase ?? heldWorkCase)}\n${liveCompletedWorkCasePrompt(completedWorkCase)}`),
+					: `\n${liveWorkCasePrompt(activeWorkCase ?? heldWorkCase)}\n${liveCompletedWorkCasePrompt(completedWorkCase)}\n${liveHostObservationPrompt(liveHostObservations)}`),
+		};
+	});
+
+	pi.on("context", (event) => {
+		if (!state.enabled || liveHostObservations.length === 0) return;
+		return {
+			messages: [
+				...event.messages,
+				{
+					role: "custom" as const,
+					customType: "developer.host-observations",
+					content: liveHostObservationPrompt(liveHostObservations),
+					display: false,
+					timestamp: Date.now(),
+				},
+			],
 		};
 	});
 
@@ -4771,7 +5246,7 @@ export default async function developer(pi: ExtensionAPI) {
 		if (heldWorkCase) {
 			return {
 				block: true,
-				reason: `Developer blocks controlled Actions while the durable Action Loop Work Case is ${heldWorkCase.workCase.status}. A human must run /developer resume or /developer off.`,
+				reason: `Developer blocks controlled Actions while work is ${heldWorkCase.workCase.status}. Supply current evidence in a normal message so Developer can resume, or turn Developer off to discard ownership.`,
 			};
 		}
 		if (pendingActionLoopBranch || actionLoopReplayFailure) {
@@ -4863,13 +5338,49 @@ export default async function developer(pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_result", (event) => {
-		if (!activeWorkCase) return;
-		const effect = activeWorkCase.workCase.effects.find(
-			(current) => current.occurrenceId === event.toolCallId,
-		);
-		if (effect === undefined) return;
-		const observed = observeLivePiToolResult(
-			activeWorkCase,
+		if (!state.enabled) return;
+		if ((PROTOCOL_TOOLS as readonly string[]).includes(event.toolName)) return;
+		if (activeWorkCase) {
+			const effect = activeWorkCase.workCase.effects.find(
+				(current) => current.occurrenceId === event.toolCallId,
+			);
+			if (effect !== undefined) {
+				const observed = observeLivePiToolResult(
+					activeWorkCase,
+					event.toolName,
+					event.toolCallId,
+					{
+						isError: event.isError,
+						content: event.content,
+						details: event.details,
+					},
+				);
+				if (observed.status === "invalid") {
+					return {
+						content: [
+							...event.content,
+							{
+								type: "text" as const,
+								text: `Developer could not record Effect Observation: ${observed.message}`,
+							},
+						],
+					};
+				}
+				pi.appendEntry(
+					ACTION_LOOP_SESSION_ENTRY,
+					actionLoopEffectObservedEvent(observed.observation),
+				);
+				activeWorkCase = observed.state;
+				const admittedEffect = currentHostObservation(
+					observed.observation.effectObservationId,
+					observed.state,
+				);
+				if (admittedEffect) rememberHostObservation(admittedEffect);
+				return;
+			}
+		}
+		const ownership = activeWorkCase ?? heldWorkCase;
+		const admitted = admitLiveToolResultObservation(
 			event.toolName,
 			event.toolCallId,
 			{
@@ -4877,23 +5388,11 @@ export default async function developer(pi: ExtensionAPI) {
 				content: event.content,
 				details: event.details,
 			},
+			ownership?.workCase.workCaseId,
 		);
-		if (observed.status === "invalid") {
-			return {
-				content: [
-					...event.content,
-					{
-						type: "text" as const,
-						text: `Developer could not record Effect Observation: ${observed.message}`,
-					},
-				],
-			};
+		if (admitted.status === "admitted") {
+			rememberHostObservation(admitted.observation);
 		}
-		pi.appendEntry(
-			ACTION_LOOP_SESSION_ENTRY,
-			actionLoopEffectObservedEvent(observed.observation),
-		);
-		activeWorkCase = observed.state;
 	});
 
 	pi.on("session_start", (event, ctx) => {

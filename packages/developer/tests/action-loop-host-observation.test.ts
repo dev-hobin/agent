@@ -52,11 +52,16 @@ test("one exact finalized tool result becomes provenance-bound evidence", () => 
 	);
 	assert.equal(first.observation.kind, "tool");
 	assert.match(first.observation.source, /check_ci:call-1/);
-	assert.match(first.observation.basis.join("\n"), /does not imply semantic truth/);
+	assert.match(
+		first.observation.basis.join("\n"),
+		/does not imply semantic truth/,
+	);
 });
 
 test("pre-opening evidence binds to one Work Case and cannot cross ownership", () => {
-	const admitted = admitLiveUserPromptObservation("The external review is pending.");
+	const admitted = admitLiveUserPromptObservation(
+		"The external review is pending.",
+	);
 	assert.equal(admitted.status, "admitted");
 	if (admitted.status !== "admitted") return;
 	const bound = bindLiveHostObservation(admitted.observation, "work-case-1");

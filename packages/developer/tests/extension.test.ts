@@ -1730,7 +1730,9 @@ test("human commands durably pause and resume one live Work Case", async () => {
 		constraints: ["Controlled Actions remain blocked while paused."],
 		basis: ["The durable session boundary now owns nonterminal continuity."],
 	});
-	harness.setInputResult("The delegating human needs to inspect the current result.");
+	harness.setInputResult(
+		"The delegating human needs to inspect the current result.",
+	);
 	await harness.commands.get("developer").handler("pause", harness.ctx);
 	assert.equal(
 		(harness.entries.at(-1)?.data as { kind?: string }).kind,
@@ -1793,10 +1795,7 @@ test("human commands durably pause and resume one live Work Case", async () => {
 		},
 	];
 	const restored = createHarness();
-	restored.setBranch([
-		...activeBranch,
-		{ type: "custom", ...pausedEntry },
-	]);
+	restored.setBranch([...activeBranch, { type: "custom", ...pausedEntry }]);
 	await developer(restored.api);
 	await restored.emit("session_start", {
 		type: "session_start",
@@ -1822,7 +1821,55 @@ test("human commands durably pause and resume one live Work Case", async () => {
 	assert.doesNotMatch(restoredActive.systemPrompt, /Pause:/);
 });
 
-test("human Observation durably waits and resumes on an exact predicate", async () => {
+test("natural human decisions durably pause and resume without protocol commands", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	await openTestWorkCase(harness, "natural-pause", false);
+	const pauseTurn = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "Pause here while I inspect the current result.",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	const pauseObservationId = pauseTurn.systemPrompt.match(
+		/- (observation_[a-f0-9]+) ·/,
+	)?.[1];
+	assert.ok(pauseObservationId);
+	const paused = await harness.tools
+		.get("developer_pause_work_case")
+		.execute("pause-from-user-observation", {
+			observation_id: pauseObservationId,
+			reason: "The delegating human is inspecting the current result.",
+			basis: ["The exact current human message explicitly requests pause."],
+		});
+	assert.equal(paused.details.kind, "paused");
+	assert.doesNotMatch(resultText(paused), /observation_[a-f0-9]+/);
+	const resumeTurn = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "Inspection is complete. Continue the work.",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	const resumeObservationId = resumeTurn.systemPrompt.match(
+		/- (observation_[a-f0-9]+) ·/,
+	)?.[1];
+	assert.ok(resumeObservationId);
+	const resumed = await harness.tools
+		.get("developer_resume_work_case")
+		.execute("resume-paused-from-user-observation", {
+			observation_id: resumeObservationId,
+			basis: ["The exact current human message explicitly requests continuation."],
+		});
+	assert.equal(resumed.details.kind, "resumed-paused");
+	assert.doesNotMatch(resultText(resumed), /observation_[a-f0-9]+/);
+});
+
+test("natural user Observations durably wait and resume without protocol commands", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
 	await harness.emit("session_start", {
@@ -1831,26 +1878,28 @@ test("human Observation durably waits and resumes on an exact predicate", async 
 	});
 	await harness.commands.get("developer").handler("on", harness.ctx);
 	await openTestWorkCase(harness, "live-wait", false);
-	harness.setInputResults([
-		"The external package registry is unavailable.",
-		"A bounded package registry probe succeeds.",
-	]);
-	await harness.commands.get("developer").handler("wait", harness.ctx);
-	assert.equal(
-		(harness.entries.at(-1)?.data as { kind?: string }).kind,
-		"work-case-waiting",
-	);
-	const waitingTurn = await harness.emit("before_agent_start", {
+	const waitingPrompt = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
-		prompt: "continue",
+		prompt: "The external package registry is unavailable, so wait until a bounded probe succeeds.",
 		systemPrompt: "base",
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
-	assert.match(waitingTurn.systemPrompt, /Waiting Action Loop Work Case:/);
-	assert.match(
-		waitingTurn.systemPrompt,
-		/Resume predicate: A bounded package registry probe succeeds\./,
-	);
+	const waitingObservationId = waitingPrompt.systemPrompt.match(
+		/- (observation_[a-f0-9]+) ·/,
+	)?.[1];
+	assert.ok(waitingObservationId);
+	const waited = await harness.tools
+		.get("developer_wait_work_case")
+		.execute("wait-from-user-observation", {
+			observation_id: waitingObservationId,
+			external_condition: "The external package registry is unavailable.",
+			resume_predicate: "A bounded package registry probe succeeds.",
+			basis: [
+				"The exact current user message reports the external condition and desired resume boundary.",
+			],
+		});
+	assert.equal(waited.details.kind, "waiting");
+	assert.doesNotMatch(resultText(waited), /observation_[a-f0-9]+/);
 	const blockedAction = await harness.emit("tool_call", {
 		type: "tool_call",
 		toolName: "bash",
@@ -1859,13 +1908,33 @@ test("human Observation durably waits and resumes on an exact predicate", async 
 	});
 	assert.equal(blockedAction.block, true);
 	assert.match(blockedAction.reason, /waiting/);
+	assert.doesNotMatch(blockedAction.reason, /\/developer resume/);
 
-	harness.setConfirmResult(true);
-	await harness.commands.get("developer").handler("resume", harness.ctx);
-	assert.equal(
-		(harness.entries.at(-1)?.data as { kind?: string }).kind,
-		"waiting-work-case-resumed",
+	const resumePrompt = await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "The bounded package registry probe now succeeds. Continue the work.",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	assert.match(resumePrompt.systemPrompt, /Waiting Action Loop Work Case:/);
+	assert.match(
+		resumePrompt.systemPrompt,
+		/Resume predicate: A bounded package registry probe succeeds\./,
 	);
+	const resumeObservationId = resumePrompt.systemPrompt.match(
+		/- (observation_[a-f0-9]+) ·/,
+	)?.[1];
+	assert.ok(resumeObservationId);
+	const resumed = await harness.tools
+		.get("developer_resume_work_case")
+		.execute("resume-from-user-observation", {
+			observation_id: resumeObservationId,
+			basis: [
+				"The exact current user message reports that the stored predicate is now satisfied.",
+			],
+		});
+	assert.equal(resumed.details.kind, "resumed-waiting");
+	assert.doesNotMatch(resultText(resumed), /observation_[a-f0-9]+/);
 	const resumedTurn = await harness.emit("before_agent_start", {
 		type: "before_agent_start",
 		prompt: "continue",
@@ -1874,6 +1943,53 @@ test("human Observation durably waits and resumes on an exact predicate", async 
 	});
 	assert.match(resumedTurn.systemPrompt, /Active Action Loop Work Case:/);
 	assert.doesNotMatch(resumedTurn.systemPrompt, /Resume predicate:/);
+});
+
+test("finalized tool evidence reaches the model without exposing internal IDs in tool output", async () => {
+	const harness = await startHarness();
+	await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "Check the package registry and wait if it is unavailable.",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	const originalResult = {
+		type: "tool_result",
+		toolName: "registry_status",
+		toolCallId: "registry-status-1",
+		isError: false,
+		content: [{ type: "text", text: "registry status: unavailable" }],
+		details: { status: "unavailable" },
+	};
+	const resultPatch = await harness.emit("tool_result", originalResult);
+	assert.equal(resultPatch, undefined);
+	assert.doesNotMatch(
+		originalResult.content.map((item) => item.text).join("\n"),
+		/observation_[a-f0-9]+/,
+	);
+	const context = await harness.emit("context", {
+		type: "context",
+		messages: [],
+	});
+	const internal = context.messages.at(-1);
+	assert.equal(internal.role, "custom");
+	assert.equal(internal.display, false);
+	const observationId = String(internal.content).match(
+		/- (observation_[a-f0-9]+) ·/,
+	)?.[1];
+	assert.ok(observationId);
+	const waited = await harness.tools
+		.get("developer_wait_work_case")
+		.execute("wait-from-tool-observation", {
+			observation_id: observationId,
+			external_condition: "The package registry is unavailable.",
+			resume_predicate: "A finalized registry probe reports available.",
+			basis: [
+				"The exact finalized registry tool result reports the external condition.",
+			],
+		});
+	assert.equal(waited.details.kind, "waiting");
+	assert.doesNotMatch(resultText(waited), /observation_[a-f0-9]+/);
 });
 
 test("Pi --no-session mode refuses live nonterminal ownership", async () => {
@@ -1902,8 +2018,16 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 	assert.equal(harness.entries.length, entriesBefore);
 	assert.match(harness.notifications.at(-1)?.message ?? "", /--no-session/);
 	await assert.rejects(
+		harness.tools.get("developer_pause_work_case").execute("pause-no-session", {
+			observation_id: "observation_missing",
+			reason: "This must not become a process-local pause.",
+			basis: ["This must fail before process-local ownership is retained."],
+		}),
+		/--no-session/,
+	);
+	await assert.rejects(
 		harness.tools.get("developer_wait_work_case").execute("wait-no-session", {
-			effect_observation_id: "effect_observation_missing",
+			observation_id: "observation_missing",
 			external_condition: "An external condition is observed.",
 			resume_predicate: "The external condition changes.",
 			basis: ["This must fail before process-local ownership is retained."],
@@ -1915,6 +2039,13 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 			claim_assurance_conclusion_id: "conclusion_missing",
 			reason: "No continuation exists.",
 			basis: ["This must fail before process-local ownership is retained."],
+		}),
+		/--no-session/,
+	);
+	await assert.rejects(
+		harness.tools.get("developer_resume_work_case").execute("resume-no-session", {
+			observation_id: "observation_missing",
+			basis: ["This must fail before a process-local resume is accepted."],
 		}),
 		/--no-session/,
 	);
@@ -2616,7 +2747,7 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 	const waited = await first.tools
 		.get("developer_wait_work_case")
 		.execute("wait-on-effect-observation", {
-			effect_observation_id: observedEvent.expected.effectObservationId,
+			observation_id: observedEvent.expected.effectObservationId,
 			external_condition:
 				"The write result exists but independent human verification is not yet observed.",
 			resume_predicate:
@@ -2625,12 +2756,27 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 				"The current Effect Observation establishes the write result while independent verification remains external.",
 			],
 		});
-	assert.match(resultText(waited), /Work Case waiting/);
-	await first.commands.get("developer").handler("resume", first.ctx);
-	const resumedWaitingEntry = first.entries.find(
-		(entry) => entryKind(entry) === "waiting-work-case-resumed",
-	);
-	assert.ok(resumedWaitingEntry);
+	assert.match(resultText(waited), /work is waiting/i);
+	const waitingResumeTurn = await first.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt:
+			"The delegating human confirms the exact write result is available for settlement.",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	const waitingResumeObservationId = waitingResumeTurn.systemPrompt.match(
+		/- (observation_[a-f0-9]+) ·/,
+	)?.[1];
+	assert.ok(waitingResumeObservationId);
+	const resumedWaiting = await first.tools
+		.get("developer_resume_work_case")
+		.execute("resume-waiting-from-observation", {
+			observation_id: waitingResumeObservationId,
+			basis: [
+				"The exact current human Observation satisfies the stored resume predicate.",
+			],
+		});
+	assert.equal(resumedWaiting.details.kind, "resumed-waiting");
 
 	const blocked = await first.tools
 		.get("developer_block_work_case")
@@ -2642,24 +2788,33 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 				"The current Claim Assurance Conclusion accounts the exact unsettled Effect blocker.",
 			],
 		});
-	assert.match(resultText(blocked), /Work Case blocked/);
+	assert.match(resultText(blocked), /work is blocked/i);
 	const blockedTurn = await first.emit("before_agent_start", {
 		type: "before_agent_start",
-		prompt: "inspect blocked",
+		prompt:
+			"The exact Effect Observation is now available for settlement, so settle the pending Effect from that Observation.",
 		systemPrompt: "base",
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
 	assert.match(blockedTurn.systemPrompt, /Blocked Action Loop Work Case:/);
 	assert.match(blockedTurn.systemPrompt, /Claim Assurance:/);
-	first.setInputResults([
-		"The exact Effect Observation is now available for settlement.",
-		"Settle the pending Effect from the current Observation.",
-	]);
-	await first.commands.get("developer").handler("resume", first.ctx);
-	const resumedBlockedEntry = first.entries.find(
-		(entry) => entryKind(entry) === "blocked-work-case-resumed",
-	);
-	assert.ok(resumedBlockedEntry);
+	const blockedResumeObservationId = blockedTurn.systemPrompt.match(
+		/- (observation_[a-f0-9]+) ·/,
+	)?.[1];
+	assert.ok(blockedResumeObservationId);
+	const resumedBlocked = await first.tools
+		.get("developer_resume_work_case")
+		.execute("resume-blocked-from-observation", {
+			observation_id: blockedResumeObservationId,
+			observed_change:
+				"The exact Effect Observation is now available for settlement.",
+			continuation:
+				"Settle the pending Effect from the current Observation.",
+			basis: [
+				"The current human Observation supplies the changed blocker state and bounded continuation.",
+			],
+		});
+	assert.equal(resumedBlocked.details.kind, "resumed-blocked");
 	const nonterminalEntries = [
 		{
 			type: "message",
@@ -2669,7 +2824,14 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 				details: waited.details,
 			},
 		},
-		{ type: "custom", ...resumedWaitingEntry },
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_resume_work_case",
+				details: resumedWaiting.details,
+			},
+		},
 		{
 			type: "message",
 			message: {
@@ -2678,7 +2840,14 @@ test("the current Pi branch restores Judgment routing through Conclusion", async
 				details: blocked.details,
 			},
 		},
-		{ type: "custom", ...resumedBlockedEntry },
+		{
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "developer_resume_work_case",
+				details: resumedBlocked.details,
+			},
+		},
 	];
 	const settlement = await first.tools
 		.get("developer_settle_effect")
@@ -4408,6 +4577,59 @@ test("a multi-question editor cancel returns to the Workbench", async () => {
 		true,
 	);
 	assert.deepEqual(workbenchQuestionOptions[2], FULL_SCREEN_SURFACE_OPTIONS);
+});
+
+test("canonical tool rows never expose internal Action Loop identities", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	const canonicalTools = [
+		"developer_open_work_case",
+		"developer_open_judgment",
+		"developer_assess_capability",
+		"developer_select_references",
+		"developer_load_selected_reference",
+		"developer_accept_contribution",
+		"developer_assess_coverage",
+		"developer_close_judgment",
+		"developer_propose_action",
+		"developer_settle_effect",
+		"developer_record_effect_remediation",
+		"developer_pause_work_case",
+		"developer_wait_work_case",
+		"developer_block_work_case",
+		"developer_resume_work_case",
+		"developer_prepare_closure",
+		"developer_complete_work_case",
+	];
+	const internalId = "observation_aaaaaaaaaaaaaaaa";
+	for (const toolName of canonicalTools) {
+		const tool = harness.tools.get(toolName);
+		assert.ok(tool, toolName);
+		assert.equal(tool.renderShell, "self");
+		const args = {
+			observation_id: internalId,
+			work_case_id: "work_case_bbbbbbbbbbbbbbbb",
+			revision_id: "revision_cccccccccccccccc",
+			reason: "An external decision is pending.",
+		};
+		const call = renderedText(tool.renderCall(args, theme, { args }));
+		const result = renderedText(
+			tool.renderResult(
+				{
+					content: [
+						{ type: "text", text: `internal ${internalId}` },
+					],
+					details: { observationId: internalId },
+				},
+				{ expanded: true, isPartial: false },
+				theme,
+				{ args, isError: false },
+			),
+		);
+		assert.match(call, /Developer/);
+		assert.doesNotMatch(call, /(?:observation|work_case|revision)_[a-f0-9]+/);
+		assert.doesNotMatch(result, /(?:observation|work_case|revision)_[a-f0-9]+/);
+	}
 });
 
 test("tool renderers are partial-safe and expose routing evidence when expanded", async () => {

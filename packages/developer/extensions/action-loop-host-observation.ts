@@ -84,14 +84,14 @@ export function admitLiveToolResultObservation(
 	toolName: string,
 	toolCallId: string,
 	result: Readonly<Record<string, unknown>>,
-	workCaseId: string,
+	workCaseId?: string,
 ): AdmitLiveHostObservationResult {
 	const canonicalToolName = toolName.trim();
 	const canonicalToolCallId = toolCallId.trim();
-	if (!canonicalToolName || !canonicalToolCallId || !workCaseId.trim()) {
+	if (!canonicalToolName || !canonicalToolCallId) {
 		return {
 			status: "invalid",
-			message: "Tool observation requires tool, call, and Work Case identity",
+			message: "Tool observation requires tool and call identity",
 		};
 	}
 	const fingerprinted = fingerprintPiToolResult(canonicalToolName, result);
@@ -110,7 +110,7 @@ export function admitLiveToolResultObservation(
 			source,
 			statement: `${canonicalToolName} returned an exact finalized Pi tool result.`,
 			evidenceFingerprint: fingerprinted.fingerprint,
-			workCaseId,
+			...(workCaseId ? { workCaseId } : {}),
 			basis: Object.freeze([
 				`Pi finalized ${canonicalToolName} call ${canonicalToolCallId} with exact result fingerprint ${fingerprinted.fingerprint}.`,
 				"The host observation records returned evidence only; it does not imply semantic truth or Effect success.",
@@ -153,9 +153,11 @@ export function liveHostObservationPrompt(
 	if (observations.length === 0) return "Host-admitted observations: none.";
 	return [
 		"Host-admitted observations are evidence, not conclusions. Use only an exact listed observation ID when proposing waiting or resume:",
-		...observations.slice(-MAX_LIVE_HOST_OBSERVATIONS).map(
-			(observation) =>
-				`- ${observation.observationId} · ${observation.kind} · ${observation.source} · ${observation.statement}`,
-		),
+		...observations
+			.slice(-MAX_LIVE_HOST_OBSERVATIONS)
+			.map(
+				(observation) =>
+					`- ${observation.observationId} · ${observation.kind} · ${observation.source} · ${observation.statement}`,
+			),
 	].join("\n");
 }
