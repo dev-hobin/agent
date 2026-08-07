@@ -1733,6 +1733,48 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 	assert.match(resultText(routed), /claim-relevant verifier/);
 });
 
+test("non-applicable Capability assessment cannot authorize Skill routing", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	await openTestWorkCase(harness, "not-applicable-capability");
+	await harness.emit("before_agent_start", {
+		type: "before_agent_start",
+		prompt: "continue",
+		systemPrompt: "base",
+		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
+	});
+	const assessed = await harness.tools
+		.get("developer_assess_capability")
+		.execute("assess-not-applicable", {
+			capability: "specify",
+			status: "not-applicable",
+			matched_when: [],
+			matched_unless: [],
+			basis: ["The current Need is not a product-meaning clarification."],
+			missing_context: [],
+		});
+	assert.match(resultText(assessed), /Capability specify: not-applicable/);
+	await assert.rejects(
+		harness.tools.get(ROUTE_TOOL).execute(
+			"route-not-applicable",
+			{
+				question: "Can a non-applicable Capability still be routed?",
+				target: "specify",
+				reason: "This route must fail without an assignment.",
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		),
+		/no current applicable assignment/i,
+	);
+});
+
 test("a later turn can recover the active leaf method from its canonical location", async () => {
 	const harness = await startHarness();
 	await harness.tools.get(ROUTE_TOOL).execute(
