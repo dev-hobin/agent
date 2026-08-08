@@ -44,10 +44,16 @@ assert.equal(manifest.scripts["eval:json"], undefined);
 assert.equal(manifest.scripts["eval:live"], undefined);
 assert.equal(manifest.scripts["eval:live:json"], undefined);
 assert.equal(manifest.scripts["eval:live:sdk"], undefined);
-assert.equal(
-	manifest.scripts["eval:live:sdk:routing"],
-	"node scripts/eval-sdk-routing.ts",
-);
+const expectedEvaluatorScripts = {
+	"eval:live:sdk:routing": "node scripts/eval-sdk-routing.ts",
+	"eval:live:sdk:judgment": "node scripts/eval-sdk-judgment.ts",
+	"eval:live:sdk:intervention": "node scripts/eval-sdk-intervention.ts",
+	"eval:live:sdk:remediation": "node scripts/eval-sdk-remediation.ts",
+	"eval:live:sdk:resume": "node scripts/eval-sdk-action-loop-resume.mjs",
+};
+for (const [name, command] of Object.entries(expectedEvaluatorScripts)) {
+	assert.equal(manifest.scripts[name], command);
+}
 assert.match(manifest.scripts.check, /build-sdk-public-api\.mjs --check/);
 assert.match(manifest.scripts.prepack, /build-sdk-public-api\.mjs --check/);
 assert.deepEqual(manifest.exports["./sdk"], {
