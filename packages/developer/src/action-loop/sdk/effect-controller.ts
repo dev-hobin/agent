@@ -19,6 +19,7 @@ import type {
 	SdkProposalAdmission,
 	SdkProposalTool,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkStringList } from "./proposal-json.ts";
 
 const effectOutcomes = [
@@ -81,10 +82,6 @@ export interface SdkEffectSettlementInput {
 	readonly effect: PendingEffect;
 	readonly observations: readonly EffectObservation[];
 	readonly runner: SdkDecisionRunner;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isEffectSettlementOutcome(
@@ -292,7 +289,7 @@ function effectTool(
 			"Disposition every current Observation and intended Effect without treating tool return as implicit success.",
 		parameters: effectParameters(input),
 		execute: async (raw) => {
-			if (!isRecord(raw)) {
+			if (!isSdkProposalObject(raw)) {
 				return rejected(
 					"invalid-arguments",
 					"Effect settlement arguments must be an object.",

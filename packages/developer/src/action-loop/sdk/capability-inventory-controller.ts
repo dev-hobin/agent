@@ -13,6 +13,7 @@ import type {
 	SdkDecisionStopReason,
 	SdkProposalAdmission,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 
 const applicabilityStatuses = [
 	"applicable",
@@ -65,10 +66,6 @@ export interface SdkCapabilityInventoryInput {
 	readonly contributionNeed: string;
 	readonly capabilities: readonly SdkNamedCapability[];
 	readonly runner: SdkDecisionRunner;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isApplicabilityStatus(
@@ -188,7 +185,7 @@ function inventoryTool(input: {
 		execute: async (
 			raw: unknown,
 		): Promise<SdkProposalAdmission<CapabilityInventoryDecision>> => {
-			if (!isRecord(raw)) {
+			if (!isSdkProposalObject(raw)) {
 				return rejected(
 					"invalid-arguments",
 					"Capability inventory arguments must be an object.",

@@ -3839,6 +3839,11 @@ function acceptActionClearance(candidate, conclusions, permission, proposal) {
   };
 }
 
+// src/action-loop/sdk/proposal-object.ts
+function isSdkProposalObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 // src/action-loop/sdk/proposal-json.ts
 var MAX_SDK_PROPOSAL_JSON_CHARS = 32768;
 function decodeSdkProposalJson(value, label) {
@@ -3870,9 +3875,6 @@ function decodeSdkStringList(input) {
 }
 
 // src/action-loop/sdk/action-controller.ts
-function isRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function rejected(code, message) {
   return { status: "rejected", code, message };
 }
@@ -3920,7 +3922,7 @@ function actionTool(input) {
     description: "Propose exact host tool input and intended Effects without granting permission or executing the Action.",
     parameters: actionParameters(input),
     execute: async (raw) => {
-      if (!isRecord(raw)) {
+      if (!isSdkProposalObject(raw)) {
         return rejected(
           "invalid-arguments",
           "Action Candidate arguments must be an object."
@@ -3943,7 +3945,7 @@ function actionTool(input) {
         raw.tool_input_json,
         "tool_input_json"
       );
-      if (!decodedInput.ok || !isRecord(decodedInput.value)) {
+      if (!decodedInput.ok || !isSdkProposalObject(decodedInput.value)) {
         return rejected(
           "invalid-tool-input",
           decodedInput.ok ? "tool_input_json must encode one JSON object." : decodedInput.message
@@ -4652,9 +4654,6 @@ function completeWorkCase(workCase, target, claim) {
 
 // src/action-loop/sdk/completion-controller.ts
 var completionModes = ["completed", "no-change"];
-function isRecord2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function rejected2(code, message) {
   return { status: "rejected", code, message };
 }
@@ -4775,7 +4774,7 @@ function completionTool(input) {
     description: "Apply all current Conclusions, Effect assessments, and remediations to every closure obligation before atomic revalidation.",
     parameters: completionParameters(input.target),
     execute: async (raw) => {
-      if (!isRecord2(raw)) {
+      if (!isSdkProposalObject(raw)) {
         return rejected2(
           "invalid-arguments",
           "Completion arguments must be an object."
@@ -5451,9 +5450,6 @@ var intendedStatuses = [
   "partially-observed",
   "unknown"
 ];
-function isRecord3(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function isEffectSettlementOutcome(value) {
   return effectOutcomes.some((candidate) => candidate === value);
 }
@@ -5604,7 +5600,7 @@ function effectTool(input) {
     description: "Disposition every current Observation and intended Effect without treating tool return as implicit success.",
     parameters: effectParameters(input),
     execute: async (raw) => {
-      if (!isRecord3(raw)) {
+      if (!isSdkProposalObject(raw)) {
         return rejected3(
           "invalid-arguments",
           "Effect settlement arguments must be an object."
@@ -5725,9 +5721,6 @@ async function settleEffectWithSdk(input) {
 import { StringEnum as StringEnum4 } from "@earendil-works/pi-ai";
 import { Type as Type4 } from "typebox";
 var remediationOutcomes = ["remediate", "refuse"];
-function isRecord4(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function rejected4(code, message) {
   return { status: "rejected", code, message };
 }
@@ -5771,7 +5764,7 @@ function remediationTool(input) {
     description: "Bind one exact adverse settlement to one distinct observed-success settlement, or refuse when current evidence does not support that relation.",
     parameters: remediationParameters(input),
     execute: async (raw) => {
-      if (!isRecord4(raw)) {
+      if (!isSdkProposalObject(raw)) {
         return rejected4(
           "invalid-arguments",
           "Effect remediation arguments must be an object."
@@ -6251,9 +6244,6 @@ var categories = [
 var MAX_REQUIREMENTS2 = 8;
 var MAX_NEEDS_PER_REQUIREMENT2 = 8;
 var MAX_BASIS_ITEMS3 = 16;
-function isRecord5(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function rejected5(code, message) {
   return { status: "rejected", code, message };
 }
@@ -6270,7 +6260,7 @@ function decodeRequirements(value) {
   }
   const requirements = [];
   for (const item of decoded.value) {
-    if (!isRecord5(item)) {
+    if (!isSdkProposalObject(item)) {
       return {
         ok: false,
         message: "Every Requirement must be an object."
@@ -6336,7 +6326,7 @@ async function openJudgmentWithSdk(input) {
         { additionalProperties: false }
       ),
       execute: async (raw) => {
-        if (!isRecord5(raw) || !isCategory(raw.category) || input.requiredCategory !== void 0 && raw.category !== input.requiredCategory || typeof raw.subject !== "string" || typeof raw.question !== "string") {
+        if (!isSdkProposalObject(raw) || !isCategory(raw.category) || input.requiredCategory !== void 0 && raw.category !== input.requiredCategory || typeof raw.subject !== "string" || typeof raw.question !== "string") {
           return rejected5(
             "invalid-arguments",
             "Judgment requires category, subject, question, requirements_json, and basis_json."
@@ -6744,9 +6734,6 @@ var applicabilityStatuses = [
   "not-applicable",
   "needs-context"
 ];
-function isRecord6(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function isApplicabilityStatus(value) {
   return applicabilityStatuses.some((status) => status === value);
 }
@@ -6833,7 +6820,7 @@ function inventoryTool(input) {
     description: "Disposition every admitted Capability for one Contribution Need. The controller owns all names, conditions, identities, and complete accounting.",
     parameters: inventoryParameters(input.capabilities),
     execute: async (raw) => {
-      if (!isRecord6(raw)) {
+      if (!isSdkProposalObject(raw)) {
         return rejected6(
           "invalid-arguments",
           "Capability inventory arguments must be an object."
@@ -7235,9 +7222,6 @@ var applicabilityParameters = Type7.Object(
   { additionalProperties: false }
 );
 var referenceStatuses = ["selected", "not-needed", "needs-context"];
-function isRecord7(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function isApplicabilityStatus2(value) {
   return value === "applicable" || value === "not-applicable" || value === "needs-context";
 }
@@ -7254,7 +7238,7 @@ function applicabilityTool(target, toc) {
     description: "Submit one semantic applicability decision; the SDK controller supplies exact canonical conditions and identities.",
     parameters: applicabilityParameters,
     execute: async (raw) => {
-      if (!isRecord7(raw)) {
+      if (!isSdkProposalObject(raw)) {
         return rejected7(
           "invalid-arguments",
           "Applicability arguments must be an object."
@@ -7311,7 +7295,7 @@ function referenceTool(toc) {
     description: "Disposition every declared Reference in one comparative proposal; the SDK controller maps flat fields to canonical paths.",
     parameters: referenceParameters(toc),
     execute: async (raw) => {
-      if (!isRecord7(raw)) {
+      if (!isSdkProposalObject(raw)) {
         return rejected7(
           "invalid-arguments",
           "Reference arguments must be an object."
@@ -8305,9 +8289,6 @@ var requirementStatuses = [
   "not-satisfied",
   "needs-context"
 ];
-function isRecord8(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function rejected8(code, message) {
   return { status: "rejected", code, message };
 }
@@ -8446,7 +8427,7 @@ function conclusionTool(input) {
     description: "Synthesize complete current Need Coverage into a Conclusion or explicit bounded refusal.",
     parameters: conclusionParameters(input.contract),
     execute: async (raw) => {
-      if (!isRecord8(raw)) {
+      if (!isSdkProposalObject(raw)) {
         return rejected8(
           "invalid-arguments",
           "Conclusion arguments must be an object."
@@ -8941,9 +8922,6 @@ function acceptSkillContribution(assignment, context, proposal) {
 // src/action-loop/sdk/contribution-controller.ts
 var localStatuses = ["resolved", "partial"];
 var applicationStatuses = ["applied", "limited"];
-function isRecord9(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function rejected9(code, message) {
   return { status: "rejected", code, message };
 }
@@ -8985,7 +8963,7 @@ function decodeResidualNeeds(value) {
   }
   const residualNeeds = [];
   for (const [index, item] of decoded.value.entries()) {
-    if (!isRecord9(item) || item.kind !== "residual" && item.kind !== "emergent" || typeof item.description !== "string" || !Array.isArray(item.basis) || item.basis.length === 0 || item.basis.length > 32 || item.basis.some((basis) => typeof basis !== "string")) {
+    if (!isSdkProposalObject(item) || item.kind !== "residual" && item.kind !== "emergent" || typeof item.description !== "string" || !Array.isArray(item.basis) || item.basis.length === 0 || item.basis.length > 32 || item.basis.some((basis) => typeof basis !== "string")) {
       return {
         ok: false,
         message: `Residual Need ${index} requires kind, description, and one or more basis strings.`
@@ -9085,7 +9063,7 @@ function contributionTool(input) {
     description: "Propose one local result from the sealed Skill Context without claiming Need Coverage or a final Conclusion.",
     parameters: contributionParameters(input.context),
     execute: async (raw) => {
-      if (!isRecord9(raw)) {
+      if (!isSdkProposalObject(raw)) {
         return rejected9(
           "invalid-arguments",
           "Contribution arguments must be an object."
@@ -9707,9 +9685,6 @@ var dispositionStatuses = [
   "limited-support",
   "not-relied-on"
 ];
-function isRecord10(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function rejected10(code, message) {
   return { status: "rejected", code, message };
 }
@@ -9759,7 +9734,7 @@ function decodeDispositions(raw, contributions) {
 }
 function decodeConflictItem(input) {
   const { item, index, contributionCount } = input;
-  if (!isRecord10(item)) {
+  if (!isSdkProposalObject(item)) {
     return { ok: false, message: `Conflict ${index} must be an object.` };
   }
   const leftIndex = item.left_index;
@@ -9867,7 +9842,7 @@ function coverageTool(input) {
     description: "Disposition every current Contribution and assess one Need without closing the Judgment.",
     parameters: coverageParameters(input.contributions),
     execute: async (raw) => {
-      if (!isRecord10(raw)) {
+      if (!isSdkProposalObject(raw)) {
         return rejected10(
           "invalid-arguments",
           "Coverage arguments must be an object."
@@ -10448,9 +10423,6 @@ async function progressJudgmentWithSdk(input) {
 import { Type as Type11 } from "typebox";
 var MAX_OUTCOME_ITEMS = 32;
 var MAX_BASIS_ITEMS4 = 16;
-function isRecord11(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function rejected11(code, message) {
   return { status: "rejected", code, message };
 }
@@ -10486,7 +10458,7 @@ async function openWorkCaseWithSdk(input) {
         { additionalProperties: false }
       ),
       execute: async (raw) => {
-        if (!isRecord11(raw) || typeof raw.statement !== "string") {
+        if (!isSdkProposalObject(raw) || typeof raw.statement !== "string") {
           return rejected11(
             "invalid-arguments",
             "Work Case proposal requires a statement and three JSON text fields."

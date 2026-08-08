@@ -17,6 +17,7 @@ import type {
 	SdkProposalAdmission,
 	SdkProposalTool,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
 
 const coverageStatuses = [
@@ -70,10 +71,6 @@ export interface SdkNeedCoverageInput {
 	readonly target: NeedCoverageTarget;
 	readonly contributions: readonly SdkCoverageContribution[];
 	readonly runner: SdkDecisionRunner;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function rejected(code: string, message: string): SdkProposalAdmission<never> {
@@ -155,7 +152,7 @@ function decodeConflictItem(input: {
 	  }
 	| { readonly ok: false; readonly message: string } {
 	const { item, index, contributionCount } = input;
-	if (!isRecord(item)) {
+	if (!isSdkProposalObject(item)) {
 		return { ok: false, message: `Conflict ${index} must be an object.` };
 	}
 	const leftIndex = item.left_index;
@@ -300,7 +297,7 @@ function coverageTool(input: {
 			"Disposition every current Contribution and assess one Need without closing the Judgment.",
 		parameters: coverageParameters(input.contributions),
 		execute: async (raw) => {
-			if (!isRecord(raw)) {
+			if (!isSdkProposalObject(raw)) {
 				return rejected(
 					"invalid-arguments",
 					"Coverage arguments must be an object.",

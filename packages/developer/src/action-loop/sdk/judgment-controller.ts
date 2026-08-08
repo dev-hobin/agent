@@ -15,6 +15,7 @@ import type {
 	SdkDecisionStopReason,
 	SdkProposalAdmission,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
 
 const categories = [
@@ -63,10 +64,6 @@ export interface SdkJudgmentOpeningInput {
 	readonly runner: SdkDecisionRunner;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function rejected<T>(code: string, message: string): SdkProposalAdmission<T> {
 	return { status: "rejected", code, message };
 }
@@ -97,7 +94,7 @@ function decodeRequirements(value: unknown):
 	}
 	const requirements: JudgmentRequirementProposal[] = [];
 	for (const item of decoded.value) {
-		if (!isRecord(item)) {
+		if (!isSdkProposalObject(item)) {
 			return {
 				ok: false,
 				message: "Every Requirement must be an object.",
@@ -179,7 +176,7 @@ export async function openJudgmentWithSdk(
 			),
 			execute: async (raw) => {
 				if (
-					!isRecord(raw) ||
+					!isSdkProposalObject(raw) ||
 					!isCategory(raw.category) ||
 					(input.requiredCategory !== undefined &&
 						raw.category !== input.requiredCategory) ||

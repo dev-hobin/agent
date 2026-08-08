@@ -22,6 +22,7 @@ import type {
 	SdkProposalAdmission,
 	SdkProposalTool,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
 
 export interface SdkControlledActionBinding {
@@ -95,10 +96,6 @@ export type SdkActionClearanceResult =
 			readonly message: string;
 	  };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function rejected(code: string, message: string): SdkProposalAdmission<never> {
 	return { status: "rejected", code, message };
 }
@@ -160,7 +157,7 @@ function actionTool(
 			"Propose exact host tool input and intended Effects without granting permission or executing the Action.",
 		parameters: actionParameters(input),
 		execute: async (raw) => {
-			if (!isRecord(raw)) {
+			if (!isSdkProposalObject(raw)) {
 				return rejected(
 					"invalid-arguments",
 					"Action Candidate arguments must be an object.",
@@ -183,7 +180,7 @@ function actionTool(
 				raw.tool_input_json,
 				"tool_input_json",
 			);
-			if (!decodedInput.ok || !isRecord(decodedInput.value)) {
+			if (!decodedInput.ok || !isSdkProposalObject(decodedInput.value)) {
 				return rejected(
 					"invalid-tool-input",
 					decodedInput.ok

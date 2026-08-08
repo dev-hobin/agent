@@ -18,6 +18,7 @@ import type {
 	SdkProposalAdmission,
 	SdkProposalTool,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkStringList } from "./proposal-json.ts";
 
 const closureOutcomes = ["conclude", "refuse"] as const;
@@ -67,10 +68,6 @@ export interface SdkJudgmentConclusionInput {
 	readonly contract: JudgmentClosureContract;
 	readonly coverages: readonly NeedCoverage[];
 	readonly runner: SdkDecisionRunner;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function rejected(code: string, message: string): SdkProposalAdmission<never> {
@@ -254,7 +251,7 @@ function conclusionTool(input: {
 			"Synthesize complete current Need Coverage into a Conclusion or explicit bounded refusal.",
 		parameters: conclusionParameters(input.contract),
 		execute: async (raw) => {
-			if (!isRecord(raw)) {
+			if (!isSdkProposalObject(raw)) {
 				return rejected(
 					"invalid-arguments",
 					"Conclusion arguments must be an object.",

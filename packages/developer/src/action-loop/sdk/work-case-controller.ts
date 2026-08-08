@@ -7,6 +7,7 @@ import type {
 	SdkDecisionStopReason,
 	SdkProposalAdmission,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkStringList } from "./proposal-json.ts";
 
 const MAX_OUTCOME_ITEMS = 32;
@@ -38,10 +39,6 @@ export type SdkWorkCaseOpeningResult =
 export interface SdkWorkCaseOpeningInput {
 	readonly request: string;
 	readonly runner: SdkDecisionRunner;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function rejected<T>(code: string, message: string): SdkProposalAdmission<T> {
@@ -84,7 +81,7 @@ export async function openWorkCaseWithSdk(
 				{ additionalProperties: false },
 			),
 			execute: async (raw) => {
-				if (!isRecord(raw) || typeof raw.statement !== "string") {
+				if (!isSdkProposalObject(raw) || typeof raw.statement !== "string") {
 					return rejected(
 						"invalid-arguments",
 						"Work Case proposal requires a statement and three JSON text fields.",

@@ -13,6 +13,7 @@ import type {
 	SdkProposalAdmission,
 	SdkProposalTool,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkStringList } from "./proposal-json.ts";
 
 const remediationOutcomes = ["remediate", "refuse"] as const;
@@ -57,10 +58,6 @@ export interface SdkEffectRemediationInput {
 	readonly adverseSettlements: readonly EffectSettlement[];
 	readonly successfulSettlements: readonly EffectSettlement[];
 	readonly runner: SdkDecisionRunner;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function rejected(code: string, message: string): SdkProposalAdmission<never> {
@@ -120,7 +117,7 @@ function remediationTool(
 			"Bind one exact adverse settlement to one distinct observed-success settlement, or refuse when current evidence does not support that relation.",
 		parameters: remediationParameters(input),
 		execute: async (raw) => {
-			if (!isRecord(raw)) {
+			if (!isSdkProposalObject(raw)) {
 				return rejected(
 					"invalid-arguments",
 					"Effect remediation arguments must be an object.",

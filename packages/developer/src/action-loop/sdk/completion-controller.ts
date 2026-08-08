@@ -23,6 +23,7 @@ import type {
 	SdkProposalAdmission,
 	SdkProposalTool,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
 
 const completionModes = ["completed", "no-change"] as const;
@@ -65,10 +66,6 @@ export interface SdkWorkCaseCompletionInput {
 	readonly request: string;
 	readonly workCase: ActiveWorkCase;
 	readonly runner: SdkDecisionRunner;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function rejected(code: string, message: string): SdkProposalAdmission<never> {
@@ -234,7 +231,7 @@ function completionTool(input: {
 			"Apply all current Conclusions, Effect assessments, and remediations to every closure obligation before atomic revalidation.",
 		parameters: completionParameters(input.target),
 		execute: async (raw) => {
-			if (!isRecord(raw)) {
+			if (!isSdkProposalObject(raw)) {
 				return rejected(
 					"invalid-arguments",
 					"Completion arguments must be an object.",

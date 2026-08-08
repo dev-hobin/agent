@@ -25,6 +25,7 @@ import type {
 	SdkProposalAdmission,
 	SdkProposalTool,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 
 type AssignedApplicability = Extract<
 	ApplicabilityAcceptanceResult,
@@ -142,10 +143,6 @@ const applicabilityParameters = Type.Object(
 
 const referenceStatuses = ["selected", "not-needed", "needs-context"] as const;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function isApplicabilityStatus(
 	value: unknown,
 ): value is "applicable" | "not-applicable" | "needs-context" {
@@ -179,7 +176,7 @@ function applicabilityTool(
 			"Submit one semantic applicability decision; the SDK controller supplies exact canonical conditions and identities.",
 		parameters: applicabilityParameters,
 		execute: async (raw) => {
-			if (!isRecord(raw)) {
+			if (!isSdkProposalObject(raw)) {
 				return rejected(
 					"invalid-arguments",
 					"Applicability arguments must be an object.",
@@ -252,7 +249,7 @@ function referenceTool(toc: ParsedToc): SdkProposalTool<ReferenceDecision> {
 			"Disposition every declared Reference in one comparative proposal; the SDK controller maps flat fields to canonical paths.",
 		parameters: referenceParameters(toc),
 		execute: async (raw) => {
-			if (!isRecord(raw)) {
+			if (!isSdkProposalObject(raw)) {
 				return rejected(
 					"invalid-arguments",
 					"Reference arguments must be an object.",

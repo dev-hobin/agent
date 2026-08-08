@@ -17,6 +17,7 @@ import type {
 	SdkProposalAdmission,
 	SdkProposalTool,
 } from "./decision-controller.ts";
+import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
 
 const localStatuses = ["resolved", "partial"] as const;
@@ -56,10 +57,6 @@ export interface SdkSkillContributionInput {
 	readonly assignment: CapabilityAssignment;
 	readonly context: SkillContributionContext;
 	readonly runner: SdkDecisionRunner;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function rejected(code: string, message: string): SdkProposalAdmission<never> {
@@ -111,7 +108,7 @@ function decodeResidualNeeds(
 	const residualNeeds: ResidualNeedProposal[] = [];
 	for (const [index, item] of decoded.value.entries()) {
 		if (
-			!isRecord(item) ||
+			!isSdkProposalObject(item) ||
 			(item.kind !== "residual" && item.kind !== "emergent") ||
 			typeof item.description !== "string" ||
 			!Array.isArray(item.basis) ||
@@ -242,7 +239,7 @@ function contributionTool(input: {
 			"Propose one local result from the sealed Skill Context without claiming Need Coverage or a final Conclusion.",
 		parameters: contributionParameters(input.context),
 		execute: async (raw) => {
-			if (!isRecord(raw)) {
+			if (!isSdkProposalObject(raw)) {
 				return rejected(
 					"invalid-arguments",
 					"Contribution arguments must be an object.",
