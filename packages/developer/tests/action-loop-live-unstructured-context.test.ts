@@ -89,7 +89,7 @@ test("live unstructured sealing acquires exactly one assigned Skill file", async
 	assert.equal(sealed.context.materials.length, 1);
 	assert.equal(sealed.context.materials[0].kind, "skill");
 	assert.equal(sealed.context.materials[0].content, skillText);
-	assert.deepEqual(sealed.state.sealedSkillContexts, [sealed.context]);
+	assert.deepEqual(sealed.state.contexts, [sealed.context]);
 	const repeated = await sealLiveUnstructuredCapability(
 		sealed.state,
 		current.entry,

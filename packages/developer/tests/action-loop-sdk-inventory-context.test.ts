@@ -427,9 +427,9 @@ test("Pi branch events resume the next unsealed SDK Context without a parallel c
 		workCaseId: partial.activeWorkCase.workCase.workCaseId,
 		judgmentId: judgment.judgment.judgmentId,
 		contributionNeedId: need.contributionNeedId,
-		assignments: partial.activeWorkCase.capabilityAssignments,
-		selections: partial.activeWorkCase.referenceSelections,
-		contexts: partial.activeWorkCase.sealedSkillContexts,
+		assignments: partial.activeWorkCase.assignments,
+		selections: partial.activeWorkCase.selections,
+		contexts: partial.activeWorkCase.contexts,
 	});
 	assert.equal(pending.status, "pending");
 	if (pending.status !== "pending") return;
@@ -463,9 +463,9 @@ test("Pi branch events resume the next unsealed SDK Context without a parallel c
 		workCaseId: complete.activeWorkCase.workCase.workCaseId,
 		judgmentId: judgment.judgment.judgmentId,
 		contributionNeedId: need.contributionNeedId,
-		assignments: complete.activeWorkCase.capabilityAssignments,
-		selections: complete.activeWorkCase.referenceSelections,
-		contexts: complete.activeWorkCase.sealedSkillContexts,
+		assignments: complete.activeWorkCase.assignments,
+		selections: complete.activeWorkCase.selections,
+		contexts: complete.activeWorkCase.contexts,
 	});
 	assert.equal(progress.status, "complete");
 	assert.equal(complete.appliedTransitions, 5);

@@ -50,7 +50,7 @@ export function acceptLiveSkillContribution(
 			message: "Contribution requires the exact current Capability Assignment",
 		};
 	}
-	const context = state.sealedSkillContexts.find(
+	const context = state.contexts.find(
 		(candidate) => candidate.assignmentId === assignment.assignmentId,
 	);
 	if (context === undefined) {
@@ -97,15 +97,15 @@ export function acceptLiveSkillContribution(
 			left.contributionId.localeCompare(right.contributionId),
 		),
 	);
-	const needCoverages = Object.freeze(
-		state.needCoverages.filter(
+	const coverages = Object.freeze(
+		state.coverages.filter(
 			(coverage) =>
 				coverage.contributionNeedId !== need.value.contributionNeedId,
 		),
 	);
 	return {
 		status: "accepted",
-		state: Object.freeze({ ...state, contributions, needCoverages }),
+		state: Object.freeze({ ...state, contributions, coverages }),
 		contribution: accepted.value,
 	};
 }

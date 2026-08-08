@@ -259,7 +259,7 @@ export function inspectActionLoopWorkbench(
 						),
 					),
 				),
-				...ownership.needCoverages.map((coverage) =>
+				...ownership.coverages.map((coverage) =>
 					item(
 						"Need coverage",
 						coverage.status,

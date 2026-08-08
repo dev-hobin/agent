@@ -1,22 +1,14 @@
 import type { ActionCandidateProvenance } from "../src/action-loop/action/accept-action-candidate.ts";
-import type { HostContribution } from "../src/action-loop/contribution/accept-host-contribution.ts";
-import type {
-	SkillContribution,
-	SkillContributionContext,
-} from "../src/action-loop/contribution/accept-skill-contribution.ts";
 import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
 import type {
-	AcceptedApplicabilityAssessment,
-	CapabilityAssignment,
-} from "../src/action-loop/routing/accept-applicability.ts";
-import type { NeedCoverage } from "../src/action-loop/need-coverage/assess-need-coverage.ts";
-import type { BoundReferenceSelection } from "../src/action-loop/routing/bind-reference-selection.ts";
+	ActionLoopContribution,
+	ActionLoopState,
+} from "../src/action-loop/work/action-loop-state.ts";
 import type { BlockedWorkCase } from "../src/action-loop/work/block-work-case.ts";
 import type { PausedWorkCase } from "../src/action-loop/work/pause-work-case.ts";
 import type { WaitingWorkCase } from "../src/action-loop/work/wait-work-case.ts";
 import {
 	openWorkCase,
-	type ActiveWorkCase,
 	type OutcomeProposal,
 } from "../src/action-loop/work/work-case.ts";
 
@@ -30,7 +22,7 @@ export interface LiveWorkCaseProposal {
 	readonly provenance: ActionCandidateProvenance;
 }
 
-export type LiveContribution = SkillContribution | HostContribution;
+export type LiveContribution = ActionLoopContribution;
 
 export interface LivePiActionProposal {
 	readonly actionCandidateId: string;
@@ -38,15 +30,8 @@ export interface LivePiActionProposal {
 	readonly toolInput: Readonly<Record<string, unknown>>;
 }
 
-export interface LiveWorkCaseState {
-	readonly workCase: ActiveWorkCase;
+export interface LiveWorkCaseState extends ActionLoopState {
 	readonly openingBasis: readonly string[];
-	readonly applicabilityAssessments: readonly AcceptedApplicabilityAssessment[];
-	readonly capabilityAssignments: readonly CapabilityAssignment[];
-	readonly referenceSelections: readonly BoundReferenceSelection[];
-	readonly sealedSkillContexts: readonly SkillContributionContext[];
-	readonly contributions: readonly LiveContribution[];
-	readonly needCoverages: readonly NeedCoverage[];
 	readonly piActionProposals: readonly LivePiActionProposal[];
 	readonly effectObservations: readonly EffectObservation[];
 }
@@ -196,11 +181,11 @@ export function openLiveWorkCase(
 			workCase: opened.value,
 			openingBasis: basis,
 			applicabilityAssessments: Object.freeze([]),
-			capabilityAssignments: Object.freeze([]),
-			referenceSelections: Object.freeze([]),
-			sealedSkillContexts: Object.freeze([]),
+			assignments: Object.freeze([]),
+			selections: Object.freeze([]),
+			contexts: Object.freeze([]),
 			contributions: Object.freeze([]),
-			needCoverages: Object.freeze([]),
+			coverages: Object.freeze([]),
 			piActionProposals: Object.freeze([]),
 			effectObservations: Object.freeze([]),
 		}),
@@ -269,23 +254,23 @@ export function liveWorkCasePrompt(
 						`Capability applicability: ${assessment.capabilityRevisionId} → ${assessment.contributionNeedId} · ${assessment.status}`,
 				);
 	const assignmentLines =
-		state.capabilityAssignments.length === 0
+		state.assignments.length === 0
 			? ["Capability assignments: none"]
-			: state.capabilityAssignments.map(
+			: state.assignments.map(
 					(assignment) =>
 						`Capability assignment: ${assignment.assignmentId} · ${assignment.capabilityRevisionId} → ${assignment.contributionNeedId}`,
 				);
 	const selectionLines =
-		state.referenceSelections.length === 0
+		state.selections.length === 0
 			? ["Reference selections: none"]
-			: state.referenceSelections.map(
+			: state.selections.map(
 					(selection) =>
 						`Reference selection: ${selection.selectionId} · ${selection.status} · selected=${selection.selectedPaths.join(", ") || "none"}`,
 				);
 	const contextLines =
-		state.sealedSkillContexts.length === 0
+		state.contexts.length === 0
 			? ["Sealed Skill contexts: none"]
-			: state.sealedSkillContexts.map((context) => {
+			: state.contexts.map((context) => {
 					let routing = "structured";
 					if ("routing" in context) routing = context.routing;
 					return `Sealed Skill context: ${context.sealedContextId} · ${routing} · ${context.assignmentId}`;
@@ -298,9 +283,9 @@ export function liveWorkCasePrompt(
 						`Skill Contribution: ${contribution.contributionId} · ${contribution.localStatus} → ${contribution.contributionNeedId}`,
 				);
 	const coverageLines =
-		state.needCoverages.length === 0
+		state.coverages.length === 0
 			? ["Need Coverage: none"]
-			: state.needCoverages.map(
+			: state.coverages.map(
 					(coverage) =>
 						`Need Coverage: ${coverage.coverageId} · ${coverage.status} → ${coverage.contributionNeedId}`,
 				);

@@ -39,7 +39,7 @@ export function closeLiveJudgment(
 			({ contributionNeedId }) => contributionNeedId,
 		),
 	);
-	const coverages = state.needCoverages.filter((coverage) =>
+	const coverages = state.coverages.filter((coverage) =>
 		needIds.has(coverage.contributionNeedId),
 	);
 	const closed = closeJudgment(judgment, coverages, {

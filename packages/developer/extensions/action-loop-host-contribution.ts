@@ -86,15 +86,15 @@ export function acceptLiveHostContribution(
 			left.contributionId.localeCompare(right.contributionId),
 		),
 	);
-	const needCoverages = Object.freeze(
-		state.needCoverages.filter(
+	const coverages = Object.freeze(
+		state.coverages.filter(
 			(coverage) =>
 				coverage.contributionNeedId !== need.value.contributionNeedId,
 		),
 	);
 	return {
 		status: "accepted",
-		state: Object.freeze({ ...state, contributions, needCoverages }),
+		state: Object.freeze({ ...state, contributions, coverages }),
 		contribution: accepted.value,
 	};
 }

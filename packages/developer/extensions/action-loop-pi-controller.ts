@@ -190,11 +190,11 @@ export function reproduceSdkActionLoopCheckpoint(
 				workCase: checkpoint.result.workCase,
 				openingBasis: checkpoint.result.basis,
 				applicabilityAssessments: Object.freeze([]),
-				capabilityAssignments: Object.freeze([]),
-				referenceSelections: Object.freeze([]),
-				sealedSkillContexts: Object.freeze([]),
+				assignments: Object.freeze([]),
+				selections: Object.freeze([]),
+				contexts: Object.freeze([]),
 				contributions: Object.freeze([]),
-				needCoverages: Object.freeze([]),
+				coverages: Object.freeze([]),
 				piActionProposals: Object.freeze([]),
 				effectObservations: Object.freeze([]),
 			});
@@ -292,7 +292,7 @@ function reproduceSdkJudgmentCheckpoint(
 	switch (checkpoint.kind) {
 		case "capability-inventory-assessed": {
 			let applicabilityAssessments = state.applicabilityAssessments;
-			let capabilityAssignments = state.capabilityAssignments;
+			let assignments = state.assignments;
 			for (const disposition of checkpoint.result.dispositions) {
 				applicabilityAssessments = appendUniqueCheckpointValue(
 					applicabilityAssessments,
@@ -301,8 +301,8 @@ function reproduceSdkJudgmentCheckpoint(
 						`${assessment.contributionNeedId}:${assessment.capabilityRevisionId}`,
 				);
 				if (disposition.assignment) {
-					capabilityAssignments = appendUniqueCheckpointValue(
-						capabilityAssignments,
+					assignments = appendUniqueCheckpointValue(
+						assignments,
 						disposition.assignment,
 						(assignment) => assignment.assignmentId,
 					);
@@ -311,30 +311,30 @@ function reproduceSdkJudgmentCheckpoint(
 			return Object.freeze({
 				...state,
 				applicabilityAssessments,
-				capabilityAssignments,
+				assignments,
 			});
 		}
 		case "capability-context-prepared": {
-			let referenceSelections = state.referenceSelections;
+			let selections = state.selections;
 			if (checkpoint.result.selection) {
-				referenceSelections = appendUniqueCheckpointValue(
-					referenceSelections,
+				selections = appendUniqueCheckpointValue(
+					selections,
 					checkpoint.result.selection,
 					(selection) => selection.selectionId,
 				);
 			}
-			const sealedSkillContexts =
+			const contexts =
 				checkpoint.result.status === "sealed"
 					? appendUniqueCheckpointValue(
-							state.sealedSkillContexts,
+							state.contexts,
 							checkpoint.result.context,
 							(context) => context.sealedContextId,
 						)
-					: state.sealedSkillContexts;
+					: state.contexts;
 			return Object.freeze({
 				...state,
-				referenceSelections,
-				sealedSkillContexts,
+				selections,
+				contexts,
 			});
 		}
 		case "contribution-accepted":
@@ -349,8 +349,8 @@ function reproduceSdkJudgmentCheckpoint(
 		case "coverage-assessed":
 			return Object.freeze({
 				...state,
-				needCoverages: appendUniqueCheckpointValue(
-					state.needCoverages,
+				coverages: appendUniqueCheckpointValue(
+					state.coverages,
 					checkpoint.result.coverage,
 					(coverage) => coverage.coverageId,
 				),
@@ -374,19 +374,7 @@ export async function progressPiActionLoop(
 	);
 	const result = await progressActionLoopWithSdk({
 		request: input.request,
-		...(current
-			? {
-					state: {
-						workCase: current.workCase,
-						applicabilityAssessments: current.applicabilityAssessments,
-						assignments: current.capabilityAssignments,
-						selections: current.referenceSelections,
-						contexts: current.sealedSkillContexts,
-						contributions: current.contributions,
-						coverages: current.needCoverages,
-					},
-				}
-			: {}),
+		...(current ? { state: current } : {}),
 		capabilities,
 		effectObservations: current?.effectObservations ?? [],
 		complete: input.complete ?? false,

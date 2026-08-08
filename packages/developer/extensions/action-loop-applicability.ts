@@ -111,7 +111,7 @@ export function assessLiveCapabilityApplicability(
 			state,
 			need: need.value,
 			assessment: existing,
-			assignment: state.capabilityAssignments.find(
+			assignment: state.assignments.find(
 				(assignment) => assessmentKey(assignment) === key,
 			),
 		};
@@ -121,21 +121,21 @@ export function assessLiveCapabilityApplicability(
 			(left, right) => assessmentKey(left).localeCompare(assessmentKey(right)),
 		),
 	);
-	const capabilityAssignments =
+	const assignments =
 		accepted.status === "assigned"
 			? Object.freeze(
-					[...state.capabilityAssignments, accepted.assignment].sort(
+					[...state.assignments, accepted.assignment].sort(
 						(left, right) =>
 							left.assignmentId.localeCompare(right.assignmentId),
 					),
 				)
-			: state.capabilityAssignments;
+			: state.assignments;
 	return {
 		status: "assessed",
 		state: Object.freeze({
 			...state,
 			applicabilityAssessments,
-			capabilityAssignments,
+			assignments,
 		}),
 		need: need.value,
 		assessment: accepted.assessment,
@@ -151,7 +151,7 @@ export function assignedLiveCapability(
 	entry: LiveBoundCapability,
 	contributionNeedId: string,
 ): CapabilityAssignment | undefined {
-	return state.capabilityAssignments.find(
+	return state.assignments.find(
 		(assignment) =>
 			assignment.contributionNeedId === contributionNeedId &&
 			assignment.capabilityRevisionId === entry.capability.capabilityRevisionId,

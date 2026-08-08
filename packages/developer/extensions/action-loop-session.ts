@@ -340,7 +340,7 @@ async function replayUnstructuredContext(
 		event.skillName,
 		event.capabilityRevisionId,
 	);
-	const assignment = state.capabilityAssignments.find(
+	const assignment = state.assignments.find(
 		(candidate) => candidate.assignmentId === event.assignmentId,
 	);
 	if (!capability || capability.routing !== "unstructured" || !assignment) {

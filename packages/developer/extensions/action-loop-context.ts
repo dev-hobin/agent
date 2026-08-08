@@ -66,7 +66,7 @@ export async function sealLiveUnstructuredCapability(
 	entry: LiveUnstructuredCapability,
 	assignment: CapabilityAssignment,
 ): Promise<LiveUnstructuredContextResult> {
-	const currentAssignment = state.capabilityAssignments.find(
+	const currentAssignment = state.assignments.find(
 		(candidate) => candidate.assignmentId === assignment.assignmentId,
 	);
 	if (
@@ -80,7 +80,7 @@ export async function sealLiveUnstructuredCapability(
 				"Unstructured sealing requires the exact current Capability Assignment",
 		};
 	}
-	const existing = state.sealedSkillContexts.find(
+	const existing = state.contexts.find(
 		(context) => context.assignmentId === currentAssignment.assignmentId,
 	);
 	if (existing !== undefined) {
@@ -104,14 +104,14 @@ export async function sealLiveUnstructuredCapability(
 	if (!sealed.ok) {
 		return { status: "invalid", message: sealed.error.message };
 	}
-	const sealedSkillContexts = Object.freeze(
-		[...state.sealedSkillContexts, sealed.value].sort((left, right) =>
+	const contexts = Object.freeze(
+		[...state.contexts, sealed.value].sort((left, right) =>
 			left.sealedContextId.localeCompare(right.sealedContextId),
 		),
 	);
 	return {
 		status: "sealed",
-		state: Object.freeze({ ...state, sealedSkillContexts }),
+		state: Object.freeze({ ...state, contexts }),
 		context: sealed.value,
 	};
 }
@@ -122,7 +122,7 @@ export function loadLiveSelectedReference(
 	sealedContextId: string,
 	path: string,
 ): LiveSelectedReferenceResult {
-	const context = state.sealedSkillContexts.find(
+	const context = state.contexts.find(
 		(candidate) => candidate.sealedContextId === sealedContextId,
 	);
 	if (context === undefined || "routing" in context) {
@@ -164,7 +164,7 @@ export async function selectAndSealLiveStructuredCapability(
 	assignment: CapabilityAssignment,
 	dispositions: readonly ReferenceDisposition[],
 ): Promise<LiveStructuredContextResult> {
-	const currentAssignment = state.capabilityAssignments.find(
+	const currentAssignment = state.assignments.find(
 		(candidate) => candidate.assignmentId === assignment.assignmentId,
 	);
 	if (
@@ -195,7 +195,7 @@ export async function selectAndSealLiveStructuredCapability(
 		selected,
 	);
 	if (!bound.ok) return { status: "invalid", message: bound.error.message };
-	const existingSelection = state.referenceSelections.find(
+	const existingSelection = state.selections.find(
 		(selection) => selection.assignmentId === currentAssignment.assignmentId,
 	);
 	if (existingSelection !== undefined) {
@@ -206,7 +206,7 @@ export async function selectAndSealLiveStructuredCapability(
 					"Assignment already has a different Reference selection for this Context",
 			};
 		}
-		const existingContext = state.sealedSkillContexts.find(
+		const existingContext = state.contexts.find(
 			(context) => context.assignmentId === currentAssignment.assignmentId,
 		);
 		return {
@@ -223,8 +223,8 @@ export async function selectAndSealLiveStructuredCapability(
 			status: "selected",
 			state: Object.freeze({
 				...state,
-				referenceSelections: Object.freeze([
-					...state.referenceSelections,
+				selections: Object.freeze([
+					...state.selections,
 					bound.value,
 				]),
 			}),
@@ -238,13 +238,13 @@ export async function selectAndSealLiveStructuredCapability(
 		selection: bound.value,
 	});
 	if (!sealed.ok) return { status: "invalid", message: sealed.error.message };
-	const referenceSelections = Object.freeze(
-		[...state.referenceSelections, bound.value].sort((left, right) =>
+	const selections = Object.freeze(
+		[...state.selections, bound.value].sort((left, right) =>
 			left.selectionId.localeCompare(right.selectionId),
 		),
 	);
-	const sealedSkillContexts = Object.freeze(
-		[...state.sealedSkillContexts, sealed.value].sort((left, right) =>
+	const contexts = Object.freeze(
+		[...state.contexts, sealed.value].sort((left, right) =>
 			left.sealedContextId.localeCompare(right.sealedContextId),
 		),
 	);
@@ -252,8 +252,8 @@ export async function selectAndSealLiveStructuredCapability(
 		status: "sealed",
 		state: Object.freeze({
 			...state,
-			referenceSelections,
-			sealedSkillContexts,
+			selections,
+			contexts,
 		}),
 		selectionId: bound.value.selectionId,
 		context: sealed.value,

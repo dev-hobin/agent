@@ -107,7 +107,7 @@ test("applicable Capability creates one current live assignment", () => {
 	assert.equal(result.assessment.status, "applicable");
 	assert.match(result.assignment?.assignmentId ?? "", /^assign_[a-f0-9]{64}$/);
 	assert.deepEqual(result.state.applicabilityAssessments, [result.assessment]);
-	assert.deepEqual(result.state.capabilityAssignments, [result.assignment]);
+	assert.deepEqual(result.state.assignments, [result.assignment]);
 	assert.equal(
 		assignedLiveCapability(result.state, entry, result.need.contributionNeedId)
 			?.assignmentId,
@@ -145,7 +145,7 @@ test("needs-context is recorded without creating an assignment", () => {
 	if (result.status !== "assessed") return;
 	assert.equal(result.assessment.status, "needs-context");
 	assert.equal(result.assignment, undefined);
-	assert.deepEqual(result.state.capabilityAssignments, []);
+	assert.deepEqual(result.state.assignments, []);
 });
 
 test("unstructured Capability requires no synthetic condition", () => {

@@ -53,7 +53,7 @@ export function assessLiveNeedCoverage(
 	if (assessed.status === "invalid") {
 		return { status: "invalid", message: assessed.error.message };
 	}
-	const existing = state.needCoverages.find(
+	const existing = state.coverages.find(
 		(coverage) => coverage.contributionNeedId === need.value.contributionNeedId,
 	);
 	if (existing !== undefined) {
@@ -64,14 +64,14 @@ export function assessLiveNeedCoverage(
 					message: "Need already has a different current Coverage assessment",
 				};
 	}
-	const needCoverages = Object.freeze(
-		[...state.needCoverages, assessed.value].sort((left, right) =>
+	const coverages = Object.freeze(
+		[...state.coverages, assessed.value].sort((left, right) =>
 			left.coverageId.localeCompare(right.coverageId),
 		),
 	);
 	return {
 		status: "assessed",
-		state: Object.freeze({ ...state, needCoverages }),
+		state: Object.freeze({ ...state, coverages }),
 		coverage: assessed.value,
 	};
 }

@@ -141,7 +141,7 @@ test("ready structured selection seals Skill and selected References atomically"
 		["SKILL.md", relevantPath],
 	);
 	assert.deepEqual(
-		result.state.referenceSelections.map(({ status }) => status),
+		result.state.selections.map(({ status }) => status),
 		["ready"],
 	);
 	const loaded = loadLiveSelectedReference(
@@ -198,7 +198,7 @@ test("ready structured selection seals Skill and selected References atomically"
 		assert.equal(coverage.status, "assessed");
 		if (coverage.status === "assessed") {
 			assert.equal(coverage.coverage.status, "covered");
-			assert.deepEqual(coverage.state.needCoverages, [coverage.coverage]);
+			assert.deepEqual(coverage.state.coverages, [coverage.coverage]);
 			const requirement =
 				coverage.state.workCase.openJudgments[0].requirements[0];
 			const closed = closeLiveJudgment(coverage.state, {
@@ -474,9 +474,9 @@ test("needs-context remains unsealed and incomplete accounting fails closed", as
 	assert.equal(unresolved.status, "selected");
 	if (unresolved.status === "selected") {
 		assert.equal(unresolved.context, undefined);
-		assert.deepEqual(unresolved.state.sealedSkillContexts, []);
+		assert.deepEqual(unresolved.state.contexts, []);
 		assert.deepEqual(
-			unresolved.state.referenceSelections.map(({ status }) => status),
+			unresolved.state.selections.map(({ status }) => status),
 			["needs-context"],
 		);
 	}
