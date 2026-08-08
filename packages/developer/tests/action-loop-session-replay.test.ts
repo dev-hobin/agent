@@ -62,7 +62,7 @@ test("a Pi tool-result replay event reconstructs one exact active Work Case", as
 			type: "message",
 			message: {
 				role: "toolResult",
-				toolName: "developer_progress_action_loop_with_sdk",
+				toolName: "developer_progress_action_loop",
 				details,
 			},
 		},
@@ -360,7 +360,7 @@ test("human pause and resume replay as branch-local ownership transitions", asyn
 		type: "message",
 		message: {
 			role: "toolResult",
-			toolName: "developer_progress_action_loop_with_sdk",
+			toolName: "developer_progress_action_loop",
 			details: withActionLoopReplayEvent(
 				{ protocol: "developer-action-loop/v1", kind: "opened" },
 				actionLoopWorkCaseOpenedEvent(proposal, opened.value),
@@ -441,7 +441,7 @@ test("observed wait and predicate-bound resume replay branch-locally", async () 
 		type: "message",
 		message: {
 			role: "toolResult",
-			toolName: "developer_progress_action_loop_with_sdk",
+			toolName: "developer_progress_action_loop",
 			details: withActionLoopReplayEvent(
 				{ protocol: "developer-action-loop/v1", kind: "opened" },
 				actionLoopWorkCaseOpenedEvent(proposal, opened.value),
@@ -524,7 +524,7 @@ test("duplicate and stale nonterminal transitions fail closed", async () => {
 		type: "message",
 		message: {
 			role: "toolResult",
-			toolName: "developer_progress_action_loop_with_sdk",
+			toolName: "developer_progress_action_loop",
 			details: withActionLoopReplayEvent(
 				{ protocol: "developer-action-loop/v1", kind: "opened" },
 				actionLoopWorkCaseOpenedEvent(proposal, opened.value),
@@ -596,7 +596,7 @@ test("a later Developer-off entry clears replayed Action Loop ownership", async 
 			type: "message",
 			message: {
 				role: "toolResult",
-				toolName: "developer_progress_action_loop_with_sdk",
+				toolName: "developer_progress_action_loop",
 				details: withActionLoopReplayEvent(
 					{ protocol: "developer-action-loop/v1", kind: "opened" },
 					actionLoopWorkCaseOpenedEvent(proposal, opened.value),
@@ -676,7 +676,7 @@ test("a malformed claimed replay event fails closed instead of becoming absence"
 			type: "message",
 			message: {
 				role: "toolResult",
-				toolName: "developer_progress_action_loop_with_sdk",
+				toolName: "developer_progress_action_loop",
 				details: {
 					replayEvent: {
 						protocol: "developer-action-loop/session-event/v1",

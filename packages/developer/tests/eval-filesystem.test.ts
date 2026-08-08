@@ -75,7 +75,7 @@ test("the eval observer rejects artifact changes without clearance and permits e
 			newText: "inside",
 		};
 		await toolResult({
-			toolName: "developer_progress_action_loop_with_sdk",
+			toolName: "developer_progress_action_loop",
 			toolCallId: "candidate-only:edit",
 			isError: false,
 			details: {
@@ -100,7 +100,7 @@ test("the eval observer rejects artifact changes without clearance and permits e
 		assert.equal(candidateViolation?.isError, true);
 
 		await toolResult({
-			toolName: "developer_progress_action_loop_with_sdk",
+			toolName: "developer_progress_action_loop",
 			toolCallId: "action:edit",
 			isError: false,
 			details: {

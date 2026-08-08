@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { MODEL_FACING_ACTION_LOOP_TOOLS } from "../extensions/action-loop-model-tools.ts";
 import {
 	TOOL_POLICY_LIFECYCLE_ENTRY,
 	builtinControlledToolCapabilities,
@@ -10,11 +11,7 @@ import {
 	type ToolPolicyMemory,
 } from "../extensions/tool-policy.ts";
 
-const protocolTools = [
-	"developer_progress_action_loop_with_sdk",
-	"developer_pause_work_case",
-	"developer_resume_work_case",
-];
+const protocolTools = [...MODEL_FACING_ACTION_LOOP_TOOLS];
 const allTools = [
 	{ name: "read", sourceInfo: { source: "builtin" } },
 	{ name: "edit", sourceInfo: { source: "builtin" } },

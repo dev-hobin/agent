@@ -19,7 +19,6 @@ import {
 	type LiveCapabilityInventoryResult,
 } from "./action-loop-capability-inventory.ts";
 import {
-	ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL,
 	progressLiveActionLoopWithSdk,
 	sdkActionLoopProgressionFailure,
 	sdkActionLoopProgressionSummary,
@@ -38,10 +37,7 @@ import {
 	liveCompletedWorkCasePrompt,
 	prepareLiveWorkCaseClosure,
 } from "./action-loop-completion.ts";
-import {
-	ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL,
-	acceptLiveHostContribution,
-} from "./action-loop-host-contribution.ts";
+import { acceptLiveHostContribution } from "./action-loop-host-contribution.ts";
 import {
 	ACTION_LOOP_SESSION_ENTRY,
 	ACTION_LOOP_SESSION_PROTOCOL,
@@ -62,10 +58,6 @@ import {
 	type ActionLoopSessionEvent,
 } from "./action-loop-session.ts";
 import {
-	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
-	ACTION_LOOP_PAUSE_WORK_CASE_TOOL,
-	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
-	ACTION_LOOP_WAIT_WORK_CASE_TOOL,
 	MAX_LIVE_CONTINUITY_TEXT,
 	blockLiveWorkCase,
 	pauseLiveWorkCase,
@@ -74,6 +66,16 @@ import {
 	resumeLiveWaitingWorkCase,
 	waitLiveWorkCase,
 } from "./action-loop-continuity.ts";
+import {
+	ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL,
+	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
+	ACTION_LOOP_PAUSE_WORK_CASE_TOOL,
+	ACTION_LOOP_PROGRESS_TOOL,
+	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
+	ACTION_LOOP_WAIT_WORK_CASE_TOOL,
+	MODEL_FACING_ACTION_LOOP_TOOLS,
+	isModelFacingActionLoopTool,
+} from "./action-loop-model-tools.ts";
 import { bindPiControlledAction } from "./action-loop-pi-action.ts";
 import {
 	MAX_LIVE_HOST_OBSERVATIONS,
@@ -116,15 +118,6 @@ import {
 } from "./tool-policy.ts";
 
 const TOOL_POLICY_PROTOCOL = "developer-action-loop/tool-policy/v1";
-const PRIMARY_PROTOCOL_TOOLS = [
-	ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL,
-	ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL,
-	ACTION_LOOP_PAUSE_WORK_CASE_TOOL,
-	ACTION_LOOP_WAIT_WORK_CASE_TOOL,
-	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
-	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
-] as const;
-const PRIMARY_PROTOCOL_TOOL_SET = new Set<string>(PRIMARY_PROTOCOL_TOOLS);
 const isDeveloperNamespacedTool = (toolName: string) =>
 	toolName.startsWith("developer_");
 const extensionRoot = dirname(fileURLToPath(import.meta.url));
@@ -162,7 +155,7 @@ function actionLoopProtocolPrompt(
 	return [
 		"",
 		"Developer Action Loop is active. Its canonical Work Case owns Outcome continuity through completion.",
-		`Use ${ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL} for bounded progression and call it again after any exact cleared host Action returns. A bounded stop preserves acknowledged Pi branch checkpoints.`,
+		`Use ${ACTION_LOOP_PROGRESS_TOOL} for bounded progression and call it again after any exact cleared host Action returns. A bounded stop preserves acknowledged Pi branch checkpoints.`,
 		`Evidence is not automatically truth. Use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} only for exact admitted host evidence that directly answers a current Need; adverse Effect remediation remains explicit.`,
 		"The SDK controller owns opening, routing, sequential Judgment, Action proposal, Effect settlement, and revision-revalidated Completion. Do not reproduce these transitions with lower-level tools.",
 		"Never infer permission, Effect success, or completion. Never expose internal IDs, revisions, hashes, fingerprints, or transition identities to the user.",
@@ -215,7 +208,7 @@ export default async function developer(pi: ExtensionAPI) {
 		const text = (key: string) =>
 			typeof args[key] === "string" ? String(args[key]).trim() : undefined;
 		switch (toolName) {
-			case ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL:
+			case ACTION_LOOP_PROGRESS_TOOL:
 				return { title: "Progress canonical work" };
 			case ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL:
 				return { title: "Use observed evidence" };
@@ -314,7 +307,7 @@ export default async function developer(pi: ExtensionAPI) {
 			activeTools: current,
 			allTools: pi.getAllTools(),
 			enabled: developerEnabled,
-			protocolTools: PRIMARY_PROTOCOL_TOOLS,
+			protocolTools: MODEL_FACING_ACTION_LOOP_TOOLS,
 			memory: toolPolicyMemory,
 		});
 		const nextActive = new Set(next.activeTools);
@@ -340,7 +333,7 @@ export default async function developer(pi: ExtensionAPI) {
 			activeTools: current,
 			allTools: pi.getAllTools(),
 			enabled: false,
-			protocolTools: PRIMARY_PROTOCOL_TOOLS,
+			protocolTools: MODEL_FACING_ACTION_LOOP_TOOLS,
 			memory: toolPolicyMemory,
 		});
 		toolPolicyMemory = next.memory;
@@ -456,13 +449,13 @@ export default async function developer(pi: ExtensionAPI) {
 	};
 
 	registerActionLoopTool({
-		name: ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL,
+		name: ACTION_LOOP_PROGRESS_TOOL,
 		label: "Developer Progress Action Loop",
 		description:
 			"Run the bounded SDK controller from missing Work Case ownership through Judgment, exact host Action Clearance, Effect settlement, and revision-revalidated Completion. Every accepted transition is durably checkpointed before dependent work.",
 		promptSnippet: "Progress canonical work with the SDK controller",
 		promptGuidelines: [
-			`Use ${ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL} as the primary Developer entry point and call it again after the exact cleared host Action returns.`,
+			`Use ${ACTION_LOOP_PROGRESS_TOOL} as the primary Developer entry point and call it again after the exact cleared host Action returns.`,
 			"A bounded stop preserves acknowledged branch checkpoints. Do not replace replay-unavailable or held ownership, infer Effect success from a tool return, or bypass complete closure revalidation.",
 		],
 		parameters: Type.Object({}, { additionalProperties: false }),
@@ -1882,7 +1875,7 @@ export default async function developer(pi: ExtensionAPI) {
 
 	pi.on("tool_result", async (event) => {
 		if (!developerEnabled) return;
-		if (PRIMARY_PROTOCOL_TOOL_SET.has(event.toolName)) return;
+		if (isModelFacingActionLoopTool(event.toolName)) return;
 		if (
 			await isDirectSkillMaterialRead(
 				event.toolName,
@@ -1975,7 +1968,7 @@ export default async function developer(pi: ExtensionAPI) {
 			.some(
 				(tool) =>
 					isDeveloperNamespacedTool(tool.name) &&
-					!PRIMARY_PROTOCOL_TOOL_SET.has(tool.name),
+					!isModelFacingActionLoopTool(tool.name),
 			);
 		toolPolicyRestartRequired =
 			event.reason === "reload" &&
@@ -1983,7 +1976,7 @@ export default async function developer(pi: ExtensionAPI) {
 				toolPolicyReloadRequiresRestart({
 					entries: branch,
 					protocol: TOOL_POLICY_PROTOCOL,
-					protocolTools: PRIMARY_PROTOCOL_TOOLS,
+					protocolTools: MODEL_FACING_ACTION_LOOP_TOOLS,
 				}));
 		reconstruct(ctx);
 		if (toolPolicyRestartRequired) {

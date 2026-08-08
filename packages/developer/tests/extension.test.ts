@@ -11,6 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
+import { MODEL_FACING_ACTION_LOOP_TOOLS } from "../extensions/action-loop-model-tools.ts";
 import { ACTION_LOOP_SESSION_ENTRY } from "../extensions/action-loop-session.ts";
 import {
 	actionLoopJudgmentOpenedEvent,
@@ -36,14 +37,7 @@ const FULL_SCREEN_SURFACE_OPTIONS = {
 	},
 } as const;
 
-const MODEL_FACING_TOOL_NAMES = [
-	"developer_progress_action_loop_with_sdk",
-	"developer_accept_observation_contribution",
-	"developer_pause_work_case",
-	"developer_wait_work_case",
-	"developer_block_work_case",
-	"developer_resume_work_case",
-].sort();
+const MODEL_FACING_TOOL_NAMES = [...MODEL_FACING_ACTION_LOOP_TOOLS].sort();
 
 interface HarnessBranchEntry {
 	type?: string;
@@ -383,7 +377,7 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 		result.systemPrompt,
 		/Developer Capability inventory: 1 admitted by Pi\./,
 	);
-	assert.match(result.systemPrompt, /developer_progress_action_loop_with_sdk/);
+	assert.match(result.systemPrompt, /developer_progress_action_loop/);
 	assert.match(
 		result.systemPrompt,
 		/developer_accept_observation_contribution/,
@@ -717,7 +711,7 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 	assert.match(harness.notifications.at(-1)?.message ?? "", /--no-session/);
 	await assert.rejects(
 		harness.tools
-			.get("developer_progress_action_loop_with_sdk")
+			.get("developer_progress_action_loop")
 			.execute("progress-action-loop-no-session", {}),
 		/durable Pi session branch/,
 	);
@@ -958,7 +952,7 @@ test("primary SDK progression refuses to create ownership without an active mode
 	const entriesBefore = harness.entries.length;
 	await assert.rejects(
 		harness.tools
-			.get("developer_progress_action_loop_with_sdk")
+			.get("developer_progress_action_loop")
 			.execute("progress-no-model", {}, undefined, undefined, harness.ctx),
 		/no active model/,
 	);
@@ -969,7 +963,7 @@ test("canonical tool rows never expose internal Action Loop identities", async (
 	const harness = createHarness();
 	await developer(harness.api);
 	const canonicalTools = [
-		"developer_progress_action_loop_with_sdk",
+		"developer_progress_action_loop",
 		"developer_accept_observation_contribution",
 		"developer_pause_work_case",
 		"developer_wait_work_case",

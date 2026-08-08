@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
+import {
+	ACTION_LOOP_PROGRESS_TOOL,
+	isModelFacingActionLoopTool,
+} from "../extensions/action-loop-model-tools.ts";
 import { parseDeveloperStatus } from "./eval-outcome.mjs";
 import {
 	classifySdkResumeRun,
@@ -46,7 +50,7 @@ const noProgressTimeoutMs = Number(
 );
 const continuationPrompt =
 	process.env.DEVELOPER_EVAL_CONTINUATION_PROMPT ||
-	"Resume the current canonical Action Loop from its acknowledged Pi branch checkpoints. Use developer_progress_action_loop_with_sdk only for protocol progression. Do not recompute completed transitions, use transitional lower-level protocol tools, or infer Effect success from a tool return.";
+	"Resume the current canonical Action Loop from its acknowledged Pi branch checkpoints. Use developer_progress_action_loop only for protocol progression. Do not recompute completed transitions, use lower-level SDK operations directly, or infer Effect success from a tool return.";
 const sessionOperation = process.env.DEVELOPER_EVAL_SESSION_OPERATION || "none";
 const activateBeforeResume = process.env.DEVELOPER_EVAL_ACTIVATE === "1";
 const compactBeforeResume = process.env.DEVELOPER_EVAL_COMPACT === "1";
@@ -282,16 +286,8 @@ async function currentStatus() {
 	return parseDeveloperStatus(notification.message);
 }
 
-const modelFacingDeveloperTools = new Set([
-	"developer_progress_action_loop_with_sdk",
-	"developer_accept_observation_contribution",
-	"developer_pause_work_case",
-	"developer_wait_work_case",
-	"developer_block_work_case",
-	"developer_resume_work_case",
-]);
 const isUnrecognizedDeveloperTool = (toolName) =>
-	toolName.startsWith("developer_") && !modelFacingDeveloperTools.has(toolName);
+	toolName.startsWith("developer_") && !isModelFacingActionLoopTool(toolName);
 
 const runs = [];
 let providerBlock;
@@ -471,8 +467,7 @@ try {
 			checkpoints: allCheckpoints.length,
 			primaryCalls: runs
 				.flatMap((run) => run.toolCalls)
-				.filter((name) => name === "developer_progress_action_loop_with_sdk")
-				.length,
+				.filter((name) => name === ACTION_LOOP_PROGRESS_TOOL).length,
 			unrecognizedDeveloperCalls: runs
 				.flatMap((run) => run.toolCalls)
 				.filter(isUnrecognizedDeveloperTool).length,

@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 
+import { MODEL_FACING_ACTION_LOOP_TOOLS } from "../extensions/action-loop-model-tools.ts";
+
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 async function readJson(path) {
@@ -431,14 +433,7 @@ for (const documentPath of markdownDocuments) {
 	}
 }
 
-const modelFacingToolNames = [
-	"developer_progress_action_loop_with_sdk",
-	"developer_accept_observation_contribution",
-	"developer_pause_work_case",
-	"developer_wait_work_case",
-	"developer_block_work_case",
-	"developer_resume_work_case",
-];
+const modelFacingToolNames = [...MODEL_FACING_ACTION_LOOP_TOOLS];
 const modelFacingToolNameSet = new Set(modelFacingToolNames);
 const publicRuntimeDocuments = [
 	"README.md",
@@ -469,7 +464,7 @@ const extension = await readFile(
 	join(root, "extensions", "developer.ts"),
 	"utf8",
 );
-assert.match(extension, /name: ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_PROGRESS_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_PAUSE_WORK_CASE_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_WAIT_WORK_CASE_TOOL/);

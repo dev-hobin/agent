@@ -29,10 +29,6 @@ import type {
 	LiveWorkCaseState,
 } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_PAUSE_WORK_CASE_TOOL = "developer_pause_work_case";
-export const ACTION_LOOP_WAIT_WORK_CASE_TOOL = "developer_wait_work_case";
-export const ACTION_LOOP_BLOCK_WORK_CASE_TOOL = "developer_block_work_case";
-export const ACTION_LOOP_RESUME_WORK_CASE_TOOL = "developer_resume_work_case";
 export const MAX_LIVE_CONTINUITY_TEXT = 2_000;
 
 export type LivePauseResult =

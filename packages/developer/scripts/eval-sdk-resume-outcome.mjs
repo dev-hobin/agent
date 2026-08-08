@@ -1,3 +1,5 @@
+import { ACTION_LOOP_PROGRESS_TOOL } from "../extensions/action-loop-model-tools.ts";
+
 const RECOVERY_REQUIRED_PATTERNS = [
 	/Action Loop session replay is unavailable/i,
 	/cannot resume unavailable Action Loop state/i,
@@ -14,8 +16,6 @@ function textContent(result) {
 		.join("\n");
 }
 
-const PRIMARY_CONTROLLER_TOOL = "developer_progress_action_loop_with_sdk";
-
 export function repeatedPrimaryResultWithoutCheckpoint(trace, threshold = 8) {
 	let repeatedStatus;
 	let repetitions = 0;
@@ -27,7 +27,7 @@ export function repeatedPrimaryResultWithoutCheckpoint(trace, threshold = 8) {
 		}
 		if (
 			event.type !== "tool_execution_end" ||
-			event.toolName !== PRIMARY_CONTROLLER_TOOL ||
+			event.toolName !== ACTION_LOOP_PROGRESS_TOOL ||
 			event.isError
 		) {
 			continue;
@@ -52,7 +52,7 @@ export function summarizeSdkResumeRun(index, trace, waitResult) {
 		.filter(
 			(event) =>
 				event.type === "tool_execution_end" &&
-				event.toolName === PRIMARY_CONTROLLER_TOOL,
+				event.toolName === ACTION_LOOP_PROGRESS_TOOL,
 		)
 		.map((event) => ({
 			isError: event.isError,
@@ -134,7 +134,7 @@ export function classifySdkResumeRun(run) {
 			reason: run.agentErrors.join(" | "),
 		};
 	}
-	if (run.toolCalls.includes(PRIMARY_CONTROLLER_TOOL)) {
+	if (run.toolCalls.includes(ACTION_LOOP_PROGRESS_TOOL)) {
 		return { status: "continue" };
 	}
 	if (run.toolErrors.some((error) => error.flattenedArguments)) {

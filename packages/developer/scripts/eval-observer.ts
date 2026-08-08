@@ -1,11 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import { ACTION_LOOP_PROGRESS_TOOL } from "../extensions/action-loop-model-tools.ts";
 import {
 	diffWorkspaceSnapshots,
 	snapshotWorkspace,
 } from "./eval-filesystem.mjs";
 
-const ACTION_LOOP_PROGRESSION_TOOL = "developer_progress_action_loop_with_sdk";
 const ACTION_CLEARANCE_STATUS = "ready-for-host-action";
 const monitoredTools = new Set(["bash", "edit", "write"]);
 
@@ -46,7 +46,7 @@ export default function evalObserver(pi: ExtensionAPI): void {
 	});
 
 	pi.on("tool_result", async (event) => {
-		if (event.toolName === ACTION_LOOP_PROGRESSION_TOOL && !event.isError) {
+		if (event.toolName === ACTION_LOOP_PROGRESS_TOOL && !event.isError) {
 			const details = event.details as
 				| {
 						status?: string;

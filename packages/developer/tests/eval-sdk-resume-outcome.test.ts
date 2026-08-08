@@ -44,11 +44,11 @@ test("SDK resume evaluation prioritizes deterministic replay recovery over provi
 		[
 			{
 				type: "tool_execution_start",
-				toolName: "developer_progress_action_loop_with_sdk",
+				toolName: "developer_progress_action_loop",
 			},
 			{
 				type: "tool_execution_end",
-				toolName: "developer_progress_action_loop_with_sdk",
+				toolName: "developer_progress_action_loop",
 				isError: true,
 				result: toolResult(
 					"Developer Action Loop session replay is unavailable: persisted Conclusion does not reproduce.",
@@ -133,7 +133,7 @@ test("SDK resume evaluation separates generic tool rejection from provider seria
 test("SDK resume evaluation circuit-breaks repeated primary results without checkpoints", () => {
 	const protocolResult = (status: string) => ({
 		type: "tool_execution_end",
-		toolName: "developer_progress_action_loop_with_sdk",
+		toolName: "developer_progress_action_loop",
 		isError: false,
 		result: toolResult("No advancement.", { status }),
 	});
@@ -188,7 +188,7 @@ test("SDK resume evaluation continues only after the primary controller is invok
 		[
 			{
 				type: "tool_execution_start",
-				toolName: "developer_progress_action_loop_with_sdk",
+				toolName: "developer_progress_action_loop",
 			},
 			{
 				type: "entry_appended",
@@ -196,7 +196,7 @@ test("SDK resume evaluation continues only after the primary controller is invok
 			},
 			{
 				type: "tool_execution_end",
-				toolName: "developer_progress_action_loop_with_sdk",
+				toolName: "developer_progress_action_loop",
 				isError: false,
 				result: toolResult("Checkpointed.", { status: "bounded-stop" }),
 			},

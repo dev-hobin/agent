@@ -8,9 +8,6 @@ import { selectLiveContributionNeed } from "./action-loop-judgment.ts";
 import type { LiveHostObservation } from "./action-loop-host-observation.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL =
-	"developer_accept_observation_contribution";
-
 export interface LiveHostContributionProposal {
 	readonly contributionNeedId?: string;
 	readonly localStatus: "resolved" | "partial";
