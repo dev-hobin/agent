@@ -5,7 +5,9 @@ import {
 	snapshotWorkspace,
 } from "./eval-filesystem.mjs";
 
-const ACTION_TOOL = "developer_propose_action";
+const ACTION_LOOP_PROGRESSION_TOOL =
+	"developer_progress_action_loop_with_sdk";
+const ACTION_CLEARANCE_STATUS = "ready-for-host-action";
 const monitoredTools = new Set(["bash", "edit", "write"]);
 
 function canonicalJson(value: unknown): string {
@@ -45,18 +47,21 @@ export default function evalObserver(pi: ExtensionAPI): void {
 	});
 
 	pi.on("tool_result", async (event) => {
-		if (event.toolName === ACTION_TOOL && !event.isError) {
-			const candidate = (
-				event.details as
-					| {
-							candidate?: { toolName?: string; toolInput?: unknown };
-					  }
-					| undefined
-			)?.candidate;
-			if (candidate?.toolName && monitoredTools.has(candidate.toolName)) {
+		if (event.toolName === ACTION_LOOP_PROGRESSION_TOOL && !event.isError) {
+			const details = event.details as
+				| {
+						status?: string;
+						hostAction?: { toolName?: string; toolInput?: unknown };
+				  }
+				| undefined;
+			const clearance =
+				details?.status === ACTION_CLEARANCE_STATUS
+					? details.hostAction
+					: undefined;
+			if (clearance?.toolName && monitoredTools.has(clearance.toolName)) {
 				clearedInputs.push({
-					toolName: candidate.toolName,
-					input: canonicalJson(candidate.toolInput),
+					toolName: clearance.toolName,
+					input: canonicalJson(clearance.toolInput),
 				});
 			}
 			return;
