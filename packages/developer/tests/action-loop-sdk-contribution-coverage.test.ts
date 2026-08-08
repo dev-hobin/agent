@@ -10,8 +10,12 @@ import type { SealedUnstructuredSkillContext } from "../src/action-loop/io/seal-
 import type { CapabilityAssignment } from "../src/action-loop/routing/accept-applicability.ts";
 import { concludeJudgmentWithSdk } from "../src/action-loop/sdk/conclusion-controller.ts";
 import { contributeSkillWithSdk } from "../src/action-loop/sdk/contribution-controller.ts";
+import type { SdkDecisionRequest } from "../src/action-loop/sdk/decision-controller.ts";
 import { inspectContributionProgress } from "../src/action-loop/sdk/contribution-progress.ts";
-import { assessNeedCoverageWithSdk } from "../src/action-loop/sdk/coverage-controller.ts";
+import {
+	assessNeedCoverageWithSdk,
+	type SdkCoverageContribution,
+} from "../src/action-loop/sdk/coverage-controller.ts";
 import { inspectCoverageProgress } from "../src/action-loop/sdk/coverage-progress.ts";
 import { scriptedSdkRunner } from "./fixtures/scripted-sdk-runner.ts";
 
@@ -340,4 +344,69 @@ test("SDK Coverage can canonically report a missing Need with no Contributions",
 	if (refusal.status !== "refused") return;
 	assert.ok(refusal.refusal.blockers.length > 0);
 	assert.equal("conclusion" in refusal, false);
+});
+
+test("SDK Coverage synthesis is not capped by its weakest Contribution", async () => {
+	const target = {
+		workCaseId: assignment.workCaseId,
+		judgmentId: assignment.judgmentId,
+		contributionNeedId: assignment.contributionNeedId,
+	};
+	const contributions: SdkCoverageContribution[] = [
+		{
+			...target,
+			contributionId: "contribution-strong",
+			localStatus: "resolved",
+			result: "Current runtime evidence fully establishes the bounded Need.",
+			limitations: [],
+		},
+		{
+			...target,
+			contributionId: "contribution-weak",
+			localStatus: "partial",
+			result: "Earlier path-string evidence omitted runtime resolution.",
+			limitations: ["It cannot resolve symbolic links."],
+		},
+	];
+	let systemPrompt = "";
+	const delegated = scriptedSdkRunner([
+		{
+			proposals: [
+				{
+					status: "covered",
+					disposition_status_0: "supports",
+					disposition_basis_0:
+						"The current runtime evidence fully answers the Need.",
+					disposition_status_1: "not-relied-on",
+					disposition_basis_1:
+						"The earlier weaker evidence is superseded for this synthesis.",
+					conflicts_json: "[]",
+					basis_json:
+						'["The relied-on current evidence closes the Need without depending on the weaker Contribution."]',
+				},
+			],
+		},
+	]);
+	const runner = {
+		async run<T>(decision: SdkDecisionRequest<T>) {
+			systemPrompt = decision.systemPrompt;
+			return delegated.run(decision);
+		},
+	};
+	const result = await assessNeedCoverageWithSdk({
+		request,
+		contributionNeed,
+		target,
+		contributions,
+		runner,
+	});
+	assert.equal(result.status, "assessed");
+	if (result.status !== "assessed") return;
+	assert.equal(result.coverage.status, "covered");
+	assert.deepEqual(
+		result.coverage.dispositions.map(({ status }) => status),
+		["supports", "not-relied-on"],
+	);
+	assert.match(systemPrompt, /not from the weakest individual Contribution/);
+	assert.match(systemPrompt, /does not cap Coverage/);
 });

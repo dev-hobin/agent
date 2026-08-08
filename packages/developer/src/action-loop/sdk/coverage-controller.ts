@@ -354,6 +354,8 @@ export async function assessNeedCoverageWithSdk(
 		systemPrompt: [
 			"Assess one current Contribution Need comparatively.",
 			"Call the supplied decision tool exactly once and disposition every current Contribution.",
+			"Set aggregate Coverage from whether the combined relied-on evidence answers the Need, not from the weakest individual Contribution or an average of local statuses.",
+			"A partial, limited-support, or not-relied-on Contribution does not cap Coverage when independent current evidence fully closes the Need; preserve its limitations in its disposition and basis.",
 			"Expose limitations and conflicts; do not create a final Judgment Conclusion.",
 			"The SDK controller owns Contribution identities, complete accounting, canonical admission, retries, and stop decisions.",
 		].join("\n"),
