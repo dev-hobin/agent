@@ -25,6 +25,7 @@ import {
 	actionLoopWorkCaseOpenedEvent,
 	actionLoopWorkCasePausedEvent,
 	actionLoopWorkCaseWaitingEvent,
+	assertPersistableActionLoopSessionEvent,
 	replayActionLoopSession,
 	withActionLoopReplayEvent,
 } from "../extensions/action-loop-session.ts";
@@ -612,6 +613,29 @@ test("a later Developer-off entry clears replayed Action Loop ownership", async 
 	assert.equal(replayed.status, "ready");
 	if (replayed.status !== "ready") return;
 	assert.equal(replayed.activeWorkCase, undefined);
+});
+
+test("session events fail before persistence when their closed shape drifts", () => {
+	const opened = openLiveWorkCase(undefined, proposal);
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const event = actionLoopWorkCaseOpenedEvent(proposal, opened.value);
+	assert.doesNotThrow(() => assertPersistableActionLoopSessionEvent(event));
+	const malformed = {
+		...event,
+		proposal: {
+			...event.proposal,
+			outcome: { ...event.proposal.outcome, derivedStatus: "accepted" },
+		},
+	};
+	assert.throws(
+		() => assertPersistableActionLoopSessionEvent(malformed),
+		/closed, bounded canonical schema/,
+	);
+	assert.throws(
+		() => withActionLoopReplayEvent({}, malformed as typeof event),
+		/closed, bounded canonical schema/,
+	);
 });
 
 test("an oversized claimed replay event fails before domain replay", async () => {

@@ -1462,6 +1462,7 @@ export function withActionLoopReplayEvent<T extends object>(
 	details: T,
 	replayEvent: ActionLoopSessionEvent,
 ): T & { readonly replayEvent: ActionLoopSessionEvent } {
+	assertPersistableActionLoopSessionEvent(replayEvent);
 	return Object.freeze({ ...details, replayEvent });
 }
 
@@ -1495,17 +1496,34 @@ function sessionEventByteLength(value: unknown): number | undefined {
 	}
 }
 
+function isPersistableActionLoopSessionEvent(
+	value: unknown,
+): value is ActionLoopSessionEvent {
+	const byteLength = sessionEventByteLength(value);
+	return (
+		byteLength !== undefined &&
+		byteLength <= MAX_ACTION_LOOP_SESSION_EVENT_BYTES &&
+		Check(SessionEventSchema, value)
+	);
+}
+
+/** Rejects malformed, open-shape, or oversized events before Pi persists them. */
+export function assertPersistableActionLoopSessionEvent(
+	value: unknown,
+): asserts value is ActionLoopSessionEvent {
+	if (!isPersistableActionLoopSessionEvent(value)) {
+		throw new TypeError(
+			"Action Loop session events must satisfy the closed, bounded canonical schema before persistence.",
+		);
+	}
+}
+
 export function extractReplayEvent(
 	entry: ActionLoopSessionBranchEntry,
 ): ExtractedEvent {
 	const candidate = claimedReplayEvent(entry);
 	if (!candidate.claimed) return { status: "absent" };
-	const byteLength = sessionEventByteLength(candidate.value);
-	if (
-		byteLength === undefined ||
-		byteLength > MAX_ACTION_LOOP_SESSION_EVENT_BYTES ||
-		!Check(SessionEventSchema, candidate.value)
-	) {
+	if (!isPersistableActionLoopSessionEvent(candidate.value)) {
 		return { status: "invalid" };
 	}
 	return { status: "event", event: candidate.value };

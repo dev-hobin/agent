@@ -55,9 +55,11 @@ import {
 	actionLoopWaitingWorkCaseResumedEvent,
 	actionLoopWorkCasePausedEvent,
 	actionLoopWorkCaseWaitingEvent,
+	assertPersistableActionLoopSessionEvent,
 	replayActionLoopSession,
 	withActionLoopReplayEvent,
 	type ActionLoopSessionBranchEntry,
+	type ActionLoopSessionEvent,
 } from "./action-loop-session.ts";
 import {
 	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
@@ -184,6 +186,11 @@ export default async function developer(pi: ExtensionAPI) {
 	let developerEnabled = false;
 	let toolPolicyMemory: ToolPolicyMemory = { withheldBuiltins: new Set() };
 	let toolPolicyRestartRequired = false;
+
+	const appendActionLoopSessionEvent = (event: ActionLoopSessionEvent) => {
+		assertPersistableActionLoopSessionEvent(event);
+		pi.appendEntry(ACTION_LOOP_SESSION_ENTRY, event);
+	};
 
 	const rememberHostObservation = (observation: LiveHostObservation) => {
 		liveHostObservations = [
@@ -522,7 +529,7 @@ export default async function developer(pi: ExtensionAPI) {
 				},
 				maxSteps: 34,
 				appendCheckpoint(event) {
-					pi.appendEntry(ACTION_LOOP_SESSION_ENTRY, event);
+					appendActionLoopSessionEvent(event);
 				},
 			});
 			activeWorkCase = progressed.state;
@@ -1253,8 +1260,7 @@ export default async function developer(pi: ExtensionAPI) {
 					ctx.ui.notify(result.message, "error");
 					return false;
 				}
-				pi.appendEntry(
-					ACTION_LOOP_SESSION_ENTRY,
+				appendActionLoopSessionEvent(
 					actionLoopWorkCasePausedEvent(proposal, result.state),
 				);
 				activeWorkCase = undefined;
@@ -1350,8 +1356,7 @@ export default async function developer(pi: ExtensionAPI) {
 					ctx.ui.notify(result.message, "error");
 					return false;
 				}
-				pi.appendEntry(
-					ACTION_LOOP_SESSION_ENTRY,
+				appendActionLoopSessionEvent(
 					actionLoopWorkCaseWaitingEvent(proposal, result.state),
 				);
 				activeWorkCase = undefined;
@@ -1481,8 +1486,7 @@ export default async function developer(pi: ExtensionAPI) {
 					ctx.ui.notify(result.message, "error");
 					return false;
 				}
-				pi.appendEntry(
-					ACTION_LOOP_SESSION_ENTRY,
+				appendActionLoopSessionEvent(
 					actionLoopWorkCaseBlockedEvent(proposal, result.state),
 				);
 				activeWorkCase = undefined;
@@ -1546,8 +1550,7 @@ export default async function developer(pi: ExtensionAPI) {
 						ctx.ui.notify(result.message, "error");
 						return false;
 					}
-					pi.appendEntry(
-						ACTION_LOOP_SESSION_ENTRY,
+					appendActionLoopSessionEvent(
 						actionLoopPausedWorkCaseResumedEvent(proposal, result.state),
 					);
 					heldWorkCase = undefined;
@@ -1587,8 +1590,7 @@ export default async function developer(pi: ExtensionAPI) {
 						);
 						return false;
 					}
-					pi.appendEntry(
-						ACTION_LOOP_SESSION_ENTRY,
+					appendActionLoopSessionEvent(
 						actionLoopWaitingWorkCaseResumedEvent(proposal, result.state),
 					);
 					heldWorkCase = undefined;
@@ -1642,8 +1644,7 @@ export default async function developer(pi: ExtensionAPI) {
 					ctx.ui.notify(result.message, "error");
 					return false;
 				}
-				pi.appendEntry(
-					ACTION_LOOP_SESSION_ENTRY,
+				appendActionLoopSessionEvent(
 					actionLoopBlockedWorkCaseResumedEvent(proposal, result.state),
 				);
 				heldWorkCase = undefined;
@@ -1867,8 +1868,7 @@ export default async function developer(pi: ExtensionAPI) {
 				reason: `Developer could not begin Effect accounting for the cleared Action: ${effect.message}`,
 			};
 		}
-		pi.appendEntry(
-			ACTION_LOOP_SESSION_ENTRY,
+		appendActionLoopSessionEvent(
 			actionLoopEffectBegunEvent(
 				clearance.actionClearanceId,
 				event.toolCallId,
@@ -1913,8 +1913,7 @@ export default async function developer(pi: ExtensionAPI) {
 					};
 				}
 				if (observed.status === "observed") {
-					pi.appendEntry(
-						ACTION_LOOP_SESSION_ENTRY,
+					appendActionLoopSessionEvent(
 						actionLoopEffectObservedEvent(observed.observation),
 					);
 				}

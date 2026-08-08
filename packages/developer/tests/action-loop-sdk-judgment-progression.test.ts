@@ -303,7 +303,6 @@ test("Pi adapter appends semantic checkpoints before advancing its live projecti
 		request,
 		state: {
 			workCase: fixture.state.workCase,
-			contextRevisionId: judgment.contextRevisionId,
 			openingBasis: ["The delegated request opened this Work Case."],
 			applicabilityAssessments: [],
 			capabilityAssignments: [],
