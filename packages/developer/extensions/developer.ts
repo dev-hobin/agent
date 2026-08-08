@@ -633,7 +633,8 @@ export default async function developer(pi: ExtensionAPI) {
 		promptSnippet: "Use exact observed evidence for one current Need",
 		promptGuidelines: [
 			`Use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} when an exact host-admitted Observation directly contributes to a current Need without Skill interpretation.`,
-			"Use only an Observation ID listed in model-only host context. State limitations and residual Needs explicitly; do not infer Coverage or Conclusion.",
+			"Use only an Observation ID listed in model-only host context. Scope local_status, limitations, and residual_needs to that exact Need; downstream Action, Effect, or completion work outside the Need does not make the Contribution partial.",
+			"State material limitations and residual Needs explicitly; do not infer Coverage or Conclusion.",
 		],
 		parameters: Type.Object(
 			{

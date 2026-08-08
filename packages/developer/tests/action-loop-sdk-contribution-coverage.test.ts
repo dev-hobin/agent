@@ -266,6 +266,39 @@ test("SDK Contribution remains local and Coverage separately owns synthesis", as
 	assert.equal(intervention.conclusion.interventionDisposition, "no-action");
 });
 
+test("SDK Contribution status stays scoped to its exact assigned Need", async () => {
+	let systemPrompt = "";
+	const delegated = scriptedSdkRunner([
+		{
+			proposals: [
+				{
+					local_status: "resolved",
+					result:
+						"The sealed source fully answers the exact retry-state Need.",
+					limitations_json: "[]",
+					residual_needs_json: "[]",
+				},
+			],
+		},
+	]);
+	const runner = {
+		async run<T>(decision: SdkDecisionRequest<T>) {
+			systemPrompt = decision.systemPrompt;
+			return delegated.run(decision);
+		},
+	};
+	const result = await contributeSkillWithSdk({
+		request,
+		contributionNeed,
+		assignment,
+		context,
+		runner,
+	});
+	assert.equal(result.status, "accepted");
+	assert.match(systemPrompt, /Scope localStatus, limitations, and residual Needs/);
+	assert.match(systemPrompt, /does not make this local Contribution partial/);
+});
+
 test("SDK Contribution bounded stop admits no canonical Contribution", async () => {
 	const result = await contributeSkillWithSdk({
 		request,
@@ -408,5 +441,7 @@ test("SDK Coverage synthesis is not capped by its weakest Contribution", async (
 		["supports", "not-relied-on"],
 	);
 	assert.match(systemPrompt, /not from the weakest individual Contribution/);
-	assert.match(systemPrompt, /does not cap Coverage/);
+	assert.match(systemPrompt, /no weaker Contribution caps aggregate Coverage/);
+	assert.match(systemPrompt, /complete current canonical inventory/);
+	assert.match(systemPrompt, /Do not count downstream Action, Effect/);
 });

@@ -296,6 +296,8 @@ export async function contributeSkillWithSdk(
 			"Produce one source-bound local Skill Contribution.",
 			"Call the supplied decision tool exactly once.",
 			"Apply every selected Reference explicitly, preserve limitations, and expose residual or emergent Needs.",
+			"Scope localStatus, limitations, and residual Needs to the exact assigned Contribution Need. A downstream Action, Effect, completion claim, or unrelated claim does not make this local Contribution partial.",
+			"Use partial only when the sealed Context leaves a material gap in serving this exact Need.",
 			"The SDK controller owns identity, sealed bytes, canonical admission, retries, and stop decisions.",
 		].join("\n"),
 		prompt: contributionPrompt(input),
