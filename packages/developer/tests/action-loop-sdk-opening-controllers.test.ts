@@ -117,6 +117,11 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 		systemPrompt,
 		/evidence available before this Judgment's Conclusion/,
 	);
+	assert.match(systemPrompt, /Do not create Contribution Needs to re-prove/);
+	assert.match(
+		systemPrompt,
+		/assigned sealed Skill Context or an exact Host Observation/,
+	);
 	assert.match(
 		systemPrompt,
 		/Proportionate Intervention decides whether current evidence warrants a next Action/,
