@@ -261,7 +261,8 @@ function summarizeRun(index, trace, waitResult) {
 		(candidate) => candidate.type === "tool_execution_end" && candidate.isError,
 	)) {
 		const fullText = textContent(event.result);
-		const contractText = fullText.split("\n\nReceived arguments:")[0] || fullText;
+		const contractText =
+			fullText.split("\n\nReceived arguments:")[0] || fullText;
 		const key = `${event.toolName}\n${contractText}`;
 		const current = toolErrorSummaries.get(key);
 		toolErrorSummaries.set(key, {
@@ -449,10 +450,7 @@ try {
 		if (!run.toolCalls.includes("developer_progress_action_loop_with_sdk")) {
 			if (run.toolErrors.some((error) => error.flattenedArguments)) {
 				providerBlock = run.toolErrors
-					.map(
-						(error) =>
-							`${error.toolName} (${error.count}): ${error.text}`,
-					)
+					.map((error) => `${error.toolName} (${error.count}): ${error.text}`)
 					.join(" | ");
 			} else if (run.toolErrors.length > 0) {
 				usabilityStop = "tool-contract-rejected";
