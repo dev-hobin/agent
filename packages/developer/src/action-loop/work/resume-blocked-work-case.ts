@@ -104,7 +104,9 @@ export function resumeBlockedWorkCase(
 		);
 	}
 	const continuation = canonicalContinuityText(proposal.continuation);
-	const observationId = canonicalContinuityText(proposal.observation.observationId);
+	const observationId = canonicalContinuityText(
+		proposal.observation.observationId,
+	);
 	const source = canonicalContinuityText(proposal.observation.source);
 	const statement = canonicalContinuityText(proposal.observation.statement);
 	const basis = canonicalContinuityBasis(proposal.observation.basis);
