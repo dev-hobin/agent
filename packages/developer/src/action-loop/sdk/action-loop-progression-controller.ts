@@ -364,9 +364,7 @@ function successfulEffectSettlements(
 	);
 }
 
-function consumedConclusionIds(
-	state: SdkActionLoopState,
-): ReadonlySet<string> {
+function consumedConclusionIds(state: SdkActionLoopState): ReadonlySet<string> {
 	return new Set(
 		state.workCase.actionCandidates.flatMap(
 			({ requiredConclusionIds }) => requiredConclusionIds,

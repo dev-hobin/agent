@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-	applySdkActionLoopCheckpoint,
-	sdkActionLoopCheckpointEvent,
-} from "../extensions/action-loop-sdk-progression.ts";
+	reproduceSdkActionLoopCheckpoint,
+	sessionEventForSdkCheckpoint,
+} from "../extensions/action-loop-pi-controller.ts";
 import { acceptActionCandidate } from "../src/action-loop/action/accept-action-candidate.ts";
 import { acceptActionClearance } from "../src/action-loop/action/action-clearance.ts";
 import {
@@ -309,9 +309,9 @@ test("successful repair is canonically remediated and checkpointed before projec
 	);
 	const checkpoint = checkpoints[0];
 	if (checkpoint?.kind !== "effect-remediated") return;
-	const event = sdkActionLoopCheckpointEvent(checkpoint);
+	const event = sessionEventForSdkCheckpoint(checkpoint);
 	assert.equal(event.kind, "effect-remediated");
-	const applied = applySdkActionLoopCheckpoint(
+	const applied = reproduceSdkActionLoopCheckpoint(
 		{
 			workCase: fixture.state.workCase,
 			openingBasis: ["The test owns this bounded Work Case."],

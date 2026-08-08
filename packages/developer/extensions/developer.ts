@@ -19,10 +19,10 @@ import {
 	type LiveCapabilityInventoryResult,
 } from "./action-loop-capability-inventory.ts";
 import {
-	progressLiveActionLoopWithSdk,
-	sdkActionLoopProgressionFailure,
-	sdkActionLoopProgressionSummary,
-} from "./action-loop-sdk-progression.ts";
+	actionLoopProgressionFailureMessage,
+	actionLoopProgressionSummary,
+	progressPiActionLoop,
+} from "./action-loop-pi-controller.ts";
 import { createPiExtensionSdkRunner } from "./action-loop-sdk-runner.ts";
 import {
 	clearedLivePiToolNames,
@@ -503,7 +503,7 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("The current Pi session has no active model for SDK progression.");
 			}
 			const hadActiveWorkCase = activeWorkCase !== undefined;
-			const progressed = await progressLiveActionLoopWithSdk({
+			const progressed = await progressPiActionLoop({
 				request: currentActionLoopRequest,
 				...(activeWorkCase ? { state: activeWorkCase } : {}),
 				inventory: liveCapabilityInventory.value,
@@ -534,7 +534,7 @@ export default async function developer(pi: ExtensionAPI) {
 			syncProtocolTools();
 			refreshUI(ctx);
 			const result = progressed.result;
-			const failure = sdkActionLoopProgressionFailure(result);
+			const failure = actionLoopProgressionFailureMessage(result);
 			if (failure) fail(failure);
 			const pendingHostAction =
 				result.status === "ready-for-host-action"
@@ -544,8 +544,8 @@ export default async function developer(pi: ExtensionAPI) {
 						)
 					: undefined;
 			const summary = pendingHostAction
-				? `${sdkActionLoopProgressionSummary(result)} Execute ${pendingHostAction.toolName} with exactly this input: ${JSON.stringify(pendingHostAction.toolInput)}`
-				: sdkActionLoopProgressionSummary(result);
+				? `${actionLoopProgressionSummary(result)} Execute ${pendingHostAction.toolName} with exactly this input: ${JSON.stringify(pendingHostAction.toolInput)}`
+				: actionLoopProgressionSummary(result);
 			return textResult(summary, {
 				protocol: "developer-action-loop/sdk-action-loop-progression/v1",
 				kind: "sdk-action-loop-progression",

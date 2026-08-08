@@ -31,7 +31,7 @@ import {
 } from "./action-loop-sdk-session.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export type SdkActionLoopCheckpointSessionEvent =
+export type PiActionLoopCheckpointEvent =
 	| ReturnType<typeof sdkWorkCaseOpenedEvent>
 	| ReturnType<typeof sdkJudgmentOpenedEvent>
 	| ReturnType<typeof sdkActionClearedEvent>
@@ -40,7 +40,7 @@ export type SdkActionLoopCheckpointSessionEvent =
 	| ReturnType<typeof sdkWorkCaseCompletedEvent>
 	| SdkJudgmentCheckpointSessionEvent;
 
-export interface LiveSdkActionLoopProgressionInput {
+export interface PiActionLoopProgressionInput {
 	readonly request: string;
 	readonly state?: LiveWorkCaseState;
 	readonly inventory: Pick<
@@ -55,17 +55,17 @@ export interface LiveSdkActionLoopProgressionInput {
 	) => Promise<PermissionDecision> | PermissionDecision;
 	readonly maxSteps: number;
 	readonly appendCheckpoint: (
-		event: SdkActionLoopCheckpointSessionEvent,
+		event: PiActionLoopCheckpointEvent,
 	) => Promise<void> | void;
 }
 
-export interface LiveSdkActionLoopProgressionResult {
+export interface PiActionLoopProgressionResult {
 	readonly result: SdkActionLoopProgressionResult;
 	readonly state?: LiveWorkCaseState;
 	readonly completedWorkCase?: CompletedWorkCase;
 }
 
-export function sdkActionLoopProgressionFailure(
+export function actionLoopProgressionFailureMessage(
 	result: SdkActionLoopProgressionResult,
 ): string | undefined {
 	switch (result.status) {
@@ -78,7 +78,7 @@ export function sdkActionLoopProgressionFailure(
 	}
 }
 
-export function sdkActionLoopProgressionSummary(
+export function actionLoopProgressionSummary(
 	result: SdkActionLoopProgressionResult,
 ): string {
 	switch (result.status) {
@@ -121,7 +121,7 @@ export function sdkActionLoopProgressionSummary(
 	}
 }
 
-function appendUniqueBy<T>(
+function appendUniqueCheckpointValue<T>(
 	values: readonly T[],
 	value: T,
 	identity: (candidate: T) => string,
@@ -137,9 +137,9 @@ function appendUniqueBy<T>(
 	return Object.freeze([...values, value]);
 }
 
-export function sdkActionLoopCheckpointEvent(
+export function sessionEventForSdkCheckpoint(
 	checkpoint: SdkActionLoopCheckpoint,
-): SdkActionLoopCheckpointSessionEvent {
+): PiActionLoopCheckpointEvent {
 	switch (checkpoint.kind) {
 		case "work-case-completed":
 			return sdkWorkCaseCompletedEvent(checkpoint.result);
@@ -174,14 +174,14 @@ export function sdkActionLoopCheckpointEvent(
 	}
 }
 
-export function applySdkActionLoopCheckpoint(
+export function reproduceSdkActionLoopCheckpoint(
 	state: LiveWorkCaseState | undefined,
 	checkpoint: SdkActionLoopCheckpoint,
 ): LiveWorkCaseState {
 	switch (checkpoint.kind) {
 		case "work-case-completed":
 			throw new Error(
-				"SDK Work Case completion must be applied as a terminal projection.",
+				"SDK Work Case completion must be reproduced as a terminal projection.",
 			);
 		case "work-case-opened":
 			if (state)
@@ -280,12 +280,12 @@ export function applySdkActionLoopCheckpoint(
 		default:
 			if (!state)
 				throw new Error("SDK Judgment checkpoint requires active work.");
-			return applySdkJudgmentCheckpoint(state, checkpoint);
+			return reproduceSdkJudgmentCheckpoint(state, checkpoint);
 	}
 }
 
-/** Applies only an already-admitted SDK checkpoint to the in-memory projection. */
-function applySdkJudgmentCheckpoint(
+/** Reproduces one admitted SDK checkpoint and rejects canonical identity drift. */
+function reproduceSdkJudgmentCheckpoint(
 	state: LiveWorkCaseState,
 	checkpoint: SdkJudgmentCheckpoint,
 ): LiveWorkCaseState {
@@ -294,14 +294,14 @@ function applySdkJudgmentCheckpoint(
 			let applicabilityAssessments = state.applicabilityAssessments;
 			let capabilityAssignments = state.capabilityAssignments;
 			for (const disposition of checkpoint.result.dispositions) {
-				applicabilityAssessments = appendUniqueBy(
+				applicabilityAssessments = appendUniqueCheckpointValue(
 					applicabilityAssessments,
 					disposition.assessment,
 					(assessment) =>
 						`${assessment.contributionNeedId}:${assessment.capabilityRevisionId}`,
 				);
 				if (disposition.assignment) {
-					capabilityAssignments = appendUniqueBy(
+					capabilityAssignments = appendUniqueCheckpointValue(
 						capabilityAssignments,
 						disposition.assignment,
 						(assignment) => assignment.assignmentId,
@@ -317,7 +317,7 @@ function applySdkJudgmentCheckpoint(
 		case "capability-context-prepared": {
 			let referenceSelections = state.referenceSelections;
 			if (checkpoint.result.selection) {
-				referenceSelections = appendUniqueBy(
+				referenceSelections = appendUniqueCheckpointValue(
 					referenceSelections,
 					checkpoint.result.selection,
 					(selection) => selection.selectionId,
@@ -325,7 +325,7 @@ function applySdkJudgmentCheckpoint(
 			}
 			const sealedSkillContexts =
 				checkpoint.result.status === "sealed"
-					? appendUniqueBy(
+					? appendUniqueCheckpointValue(
 							state.sealedSkillContexts,
 							checkpoint.result.context,
 							(context) => context.sealedContextId,
@@ -340,7 +340,7 @@ function applySdkJudgmentCheckpoint(
 		case "contribution-accepted":
 			return Object.freeze({
 				...state,
-				contributions: appendUniqueBy(
+				contributions: appendUniqueCheckpointValue(
 					state.contributions,
 					checkpoint.result.contribution,
 					(contribution) => contribution.contributionId,
@@ -349,7 +349,7 @@ function applySdkJudgmentCheckpoint(
 		case "coverage-assessed":
 			return Object.freeze({
 				...state,
-				needCoverages: appendUniqueBy(
+				needCoverages: appendUniqueCheckpointValue(
 					state.needCoverages,
 					checkpoint.result.coverage,
 					(coverage) => coverage.coverageId,
@@ -362,9 +362,9 @@ function applySdkJudgmentCheckpoint(
 	}
 }
 
-export async function progressLiveActionLoopWithSdk(
-	input: LiveSdkActionLoopProgressionInput,
-): Promise<LiveSdkActionLoopProgressionResult> {
+export async function progressPiActionLoop(
+	input: PiActionLoopProgressionInput,
+): Promise<PiActionLoopProgressionResult> {
 	let current = input.state;
 	let completedWorkCase: CompletedWorkCase | undefined;
 	const capabilities: readonly SdkNamedCapability[] = Object.freeze(
@@ -398,13 +398,13 @@ export async function progressLiveActionLoopWithSdk(
 		maxSteps: input.maxSteps,
 		async checkpoint(checkpoint) {
 			if (checkpoint.kind === "work-case-completed") {
-				await input.appendCheckpoint(sdkActionLoopCheckpointEvent(checkpoint));
+				await input.appendCheckpoint(sessionEventForSdkCheckpoint(checkpoint));
 				completedWorkCase = checkpoint.result.workCase;
 				current = undefined;
 				return;
 			}
-			const next = applySdkActionLoopCheckpoint(current, checkpoint);
-			await input.appendCheckpoint(sdkActionLoopCheckpointEvent(checkpoint));
+			const next = reproduceSdkActionLoopCheckpoint(current, checkpoint);
+			await input.appendCheckpoint(sessionEventForSdkCheckpoint(checkpoint));
 			current = next;
 		},
 	});

@@ -7,10 +7,10 @@ import {
 } from "../extensions/action-loop-effect.ts";
 import { bindPiControlledAction } from "../extensions/action-loop-pi-action.ts";
 import {
-	applySdkActionLoopCheckpoint,
-	progressLiveActionLoopWithSdk,
-	sdkActionLoopCheckpointEvent,
-} from "../extensions/action-loop-sdk-progression.ts";
+	reproduceSdkActionLoopCheckpoint,
+	progressPiActionLoop,
+	sessionEventForSdkCheckpoint,
+} from "../extensions/action-loop-pi-controller.ts";
 import type { SdkControlledActionAdapter } from "../src/action-loop/sdk/action-controller.ts";
 import {
 	progressActionLoopWithSdk,
@@ -124,7 +124,7 @@ test("SDK Action Loop progression checkpoints opening before dependent work", as
 
 test("Pi adapter appends opening checkpoints before advancing its live projection", async () => {
 	const events: string[] = [];
-	const first = await progressLiveActionLoopWithSdk({
+	const first = await progressPiActionLoop({
 		request,
 		inventory: { boundCapabilitiesBySkillName: new Map() },
 		runner: scriptedSdkRunner([{ proposals: [workCaseProposal] }]),
@@ -140,7 +140,7 @@ test("Pi adapter appends opening checkpoints before advancing its live projectio
 	assert.deepEqual(events, ["work-case-opened"]);
 
 	const resumedEvents: string[] = [];
-	const resumed = await progressLiveActionLoopWithSdk({
+	const resumed = await progressPiActionLoop({
 		request,
 		state: first.state,
 		inventory: { boundCapabilitiesBySkillName: new Map() },
@@ -574,10 +574,10 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 	const actionCheckpoint = checkpoints[0];
 	if (actionCheckpoint?.kind !== "action-cleared") return;
 	assert.equal(
-		sdkActionLoopCheckpointEvent(actionCheckpoint).kind,
+		sessionEventForSdkCheckpoint(actionCheckpoint).kind,
 		"action-cleared",
 	);
-	const live = applySdkActionLoopCheckpoint(
+	const live = reproduceSdkActionLoopCheckpoint(
 		{
 			workCase: state.workCase,
 			openingBasis: ["The test host opened this bounded Work Case."],
@@ -725,7 +725,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 	);
 	const effectCheckpoint = effectCheckpoints[0];
 	if (effectCheckpoint?.kind !== "effect-settled") return;
-	const effectEvent = sdkActionLoopCheckpointEvent(effectCheckpoint);
+	const effectEvent = sessionEventForSdkCheckpoint(effectCheckpoint);
 	assert.equal(effectEvent.kind, "effect-settled");
 	if (effectEvent.kind !== "effect-settled") return;
 	const replayedSettlement = settleLiveEffect(
@@ -744,7 +744,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 			: replayedSettlement.assessment.effectAssessmentId,
 		effectEvent.expected.assessmentId,
 	);
-	const settledLive = applySdkActionLoopCheckpoint(
+	const settledLive = reproduceSdkActionLoopCheckpoint(
 		Object.freeze({
 			...begun.state,
 			effectObservations: Object.freeze([observation]),
@@ -769,7 +769,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 	assert.equal(completionReady.checkpoints, 0);
 
 	const completionEvents: string[] = [];
-	const completed = await progressLiveActionLoopWithSdk({
+	const completed = await progressPiActionLoop({
 		request: "Complete the bounded write after exact settlement.",
 		state: settledLive,
 		inventory: { boundCapabilitiesBySkillName: new Map() },
