@@ -1,9 +1,6 @@
 import type { ActionCandidateProvenance } from "../src/action-loop/action/accept-action-candidate.ts";
 import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
-import type {
-	ActionLoopContribution,
-	ActionLoopState,
-} from "../src/action-loop/work/action-loop-state.ts";
+import type { ActionLoopState } from "../src/action-loop/work/action-loop-state.ts";
 import type { BlockedWorkCase } from "../src/action-loop/work/block-work-case.ts";
 import type { PausedWorkCase } from "../src/action-loop/work/pause-work-case.ts";
 import type { WaitingWorkCase } from "../src/action-loop/work/wait-work-case.ts";
@@ -21,8 +18,6 @@ export interface LiveWorkCaseProposal {
 	readonly basis: readonly string[];
 	readonly provenance: ActionCandidateProvenance;
 }
-
-export type LiveContribution = ActionLoopContribution;
 
 export interface LivePiActionProposal {
 	readonly actionCandidateId: string;
