@@ -14,6 +14,37 @@ function textContent(result) {
 		.join("\n");
 }
 
+const PRIMARY_CONTROLLER_TOOL =
+	"developer_progress_action_loop_with_sdk";
+
+export function repeatedPrimaryResultWithoutCheckpoint(trace, threshold = 8) {
+	let repeatedStatus;
+	let repetitions = 0;
+	for (const event of trace) {
+		if (event.type === "entry_appended" && event.entry?.data?.kind) {
+			repeatedStatus = undefined;
+			repetitions = 0;
+			continue;
+		}
+		if (
+			event.type !== "tool_execution_end" ||
+			event.toolName !== PRIMARY_CONTROLLER_TOOL ||
+			event.isError
+		) {
+			continue;
+		}
+		const status = event.result?.details?.status;
+		if (typeof status !== "string") continue;
+		if (status === repeatedStatus) repetitions += 1;
+		else {
+			repeatedStatus = status;
+			repetitions = 1;
+		}
+		if (repetitions >= threshold) return status;
+	}
+	return undefined;
+}
+
 export function summarizeSdkResumeRun(index, trace, waitResult) {
 	const toolCalls = trace
 		.filter((event) => event.type === "tool_execution_start")
@@ -22,7 +53,7 @@ export function summarizeSdkResumeRun(index, trace, waitResult) {
 		.filter(
 			(event) =>
 				event.type === "tool_execution_end" &&
-				event.toolName === "developer_progress_action_loop_with_sdk",
+				event.toolName === PRIMARY_CONTROLLER_TOOL,
 		)
 		.map((event) => ({
 			isError: event.isError,
@@ -82,13 +113,19 @@ export function classifySdkResumeRun(run) {
 				.join(" | "),
 		};
 	}
+	if (run.wait.status === "usability-stalled") {
+		return {
+			status: "usability-stalled",
+			reason: run.wait.reason,
+		};
+	}
 	if (run.agentErrors.length > 0) {
 		return {
 			status: "provider-blocked",
 			reason: run.agentErrors.join(" | "),
 		};
 	}
-	if (run.toolCalls.includes("developer_progress_action_loop_with_sdk")) {
+	if (run.toolCalls.includes(PRIMARY_CONTROLLER_TOOL)) {
 		return { status: "continue" };
 	}
 	if (run.toolErrors.some((error) => error.flattenedArguments)) {

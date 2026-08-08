@@ -88,9 +88,11 @@ test("one exact finalized tool result becomes provenance-bound evidence", () => 
 	);
 	assert.equal(first.observation.kind, "tool");
 	assert.match(first.observation.source, /check_ci:call-1/);
+	assert.match(first.observation.statement, /pending/);
+	assert.doesNotMatch(first.observation.statement, /success/);
 	assert.match(
 		first.observation.basis.join("\n"),
-		/does not imply semantic truth/,
+		/canonical Judgment or Effect settlement/,
 	);
 });
 

@@ -78,8 +78,14 @@ test("tool result evidence is exact but does not claim Effect success", () => {
 		failed.status === "fingerprinted"
 	) {
 		assert.equal(first.fingerprint, reordered.fingerprint);
+		assert.equal(first.canonicalResult, reordered.canonicalResult);
 		assert.notEqual(first.fingerprint, failed.fingerprint);
+		assert.notEqual(first.canonicalResult, failed.canonicalResult);
 		assert.match(first.fingerprint, /^[a-f0-9]{64}$/);
+		assert.equal(
+			first.canonicalResult,
+			'{"content":[{"text":"wrote file","type":"text"}],"details":null,"isError":false}',
+		);
 	}
 });
 

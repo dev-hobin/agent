@@ -6,6 +6,7 @@ import { parseDeveloperStatus } from "./eval-outcome.mjs";
 import {
 	classifySdkResumeRun,
 	isSdkReplayRecoveryRequired,
+	repeatedPrimaryResultWithoutCheckpoint,
 	summarizeSdkResumeRun,
 } from "./eval-sdk-resume-outcome.mjs";
 import { createJsonlDecoder } from "./jsonl.mjs";
@@ -220,6 +221,15 @@ async function waitForRun(start) {
 				elapsedMs: Date.now() - startedAt,
 			};
 		}
+		const repeatedPrimaryResult =
+			repeatedPrimaryResultWithoutCheckpoint(trace);
+		if (repeatedPrimaryResult) {
+			return {
+				status: "usability-stalled",
+				reason: `repeated-primary-result:${repeatedPrimaryResult}`,
+				elapsedMs: Date.now() - startedAt,
+			};
+		}
 		if (trace.some((event) => event.type === "agent_settled")) {
 			return { status: "settled", elapsedMs: Date.now() - startedAt };
 		}
@@ -386,7 +396,8 @@ try {
 		const waitResult = await waitForRun(start);
 		if (
 			waitResult.status === "bounded-stop" ||
-			waitResult.status === "recovery-required"
+			waitResult.status === "recovery-required" ||
+			waitResult.status === "usability-stalled"
 		) {
 			const aborted = await send({ type: "abort" }, 5_000);
 			assert.equal(aborted.success, true, aborted.error);

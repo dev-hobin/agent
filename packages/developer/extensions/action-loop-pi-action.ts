@@ -27,6 +27,7 @@ export type PiToolResultFingerprintResult =
 	| {
 			readonly status: "fingerprinted";
 			readonly fingerprint: string;
+			readonly canonicalResult: string;
 	  }
 	| { readonly status: "invalid"; readonly message: string };
 
@@ -129,5 +130,6 @@ export function fingerprintPiToolResult(
 			.update("\0", "utf8")
 			.update(canonicalResult, "utf8")
 			.digest("hex"),
+		canonicalResult,
 	};
 }

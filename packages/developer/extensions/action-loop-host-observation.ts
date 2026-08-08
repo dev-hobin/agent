@@ -142,12 +142,15 @@ export function admitLiveToolResultObservation(
 			observationId,
 			kind: "tool",
 			source,
-			statement: `${canonicalToolName} returned an exact finalized Pi tool result.`,
+			statement: compactStatement(
+				`${canonicalToolName} finalized with canonical result ${fingerprinted.canonicalResult}`,
+			),
 			evidenceFingerprint: fingerprinted.fingerprint,
 			...(workCaseId ? { workCaseId } : {}),
 			basis: Object.freeze([
 				`Pi finalized ${canonicalToolName} call ${canonicalToolCallId} with exact result fingerprint ${fingerprinted.fingerprint}.`,
-				"The host observation records returned evidence only; it does not imply semantic truth or Effect success.",
+				"The readable statement is bounded; the fingerprint remains bound to the complete exact result.",
+				"Receipt records evidence only; canonical Judgment or Effect settlement must determine what the result warrants.",
 			]),
 		}),
 	};

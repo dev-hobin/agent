@@ -20,6 +20,7 @@ import {
 	beginLiveActionEffect,
 	currentLiveEffectAssessmentId,
 	observeLivePiToolResult,
+	observeLivePiToolResultForEffect,
 	settleLiveEffect,
 } from "../extensions/action-loop-effect.ts";
 import { closeLiveJudgment } from "../extensions/action-loop-conclusion.ts";
@@ -307,8 +308,12 @@ test("ready structured selection seals Skill and selected References atomically"
 									"pending",
 								);
 								assert.match(
+									observed.observation.statement,
+									/"text":"wrote file"/,
+								);
+								assert.match(
 									observed.observation.limitations[0] ?? "",
-									/does not by itself establish/,
+									/not implicit Effect success/,
 								);
 								const settlement = settleLiveEffect(
 									observed.state,
@@ -352,6 +357,72 @@ test("ready structured selection seals Skill and selected References atomically"
 										),
 										settlement.assessment.effectAssessmentId,
 									);
+									const verified = observeLivePiToolResultForEffect(
+										settlement.state,
+										{
+											effectId: effect.effect.effectId,
+											toolName: "read",
+											toolCallId: "pi-tool-call:read:1",
+											result: {
+												isError: false,
+												content: [
+													{
+														type: "text",
+														text: "verified content",
+													},
+												],
+												details: null,
+											},
+										},
+									);
+									assert.equal(verified.status, "observed");
+									if (verified.status === "observed") {
+										assert.equal(verified.state.effectObservations.length, 2);
+										const resettled = settleLiveEffect(
+											verified.state,
+											effect.effect.effectId,
+											{
+												expectedCurrentAssessmentId:
+													settlement.assessment.effectAssessmentId,
+												outcome: "observed-success",
+												observationDispositions: [
+													{
+														effectObservationId:
+															observed.observation.effectObservationId,
+														status: "not-relied-on",
+														basis: [
+															"The write receipt does not verify artifact bytes.",
+														],
+													},
+													{
+														effectObservationId:
+															verified.observation.effectObservationId,
+														status: "relied-on",
+														basis: [
+															"The read result directly verifies the artifact content.",
+														],
+													},
+												],
+												intendedEffectDispositions: [
+													{
+														intendedEffect:
+															"The bounded artifact is updated.",
+														status: "observed",
+														observationIds: [
+															verified.observation.effectObservationId,
+														],
+														basis: [
+															"The exact read result matches the intended artifact.",
+														],
+													},
+												],
+												basis: [
+													"Every current Observation is dispositioned and the intended Effect is observed.",
+												],
+											},
+										);
+										assert.equal(resettled.status, "settled");
+									}
 								}
 							}
 						}

@@ -240,7 +240,7 @@ function createHarness() {
 			branchEntries = [...entries];
 		},
 		async emit(name: string, event: any) {
-			let result;
+			let result: any;
 			for (const handler of handlers.get(name) ?? [])
 				result = await handler(event, ctx);
 			return result;
@@ -640,6 +640,7 @@ test("finalized tool evidence reaches the model without exposing internal IDs in
 	const internal = context.messages.at(-1);
 	assert.equal(internal.role, "custom");
 	assert.equal(internal.display, false);
+	assert.match(String(internal.content), /registry status: unavailable/);
 	const observationId = String(internal.content).match(
 		/- (observation_[a-f0-9]+) ·/,
 	)?.[1];

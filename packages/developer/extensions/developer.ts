@@ -2,17 +2,14 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { StringEnum } from "@earendil-works/pi-ai";
-import {
-	DEFAULT_MAX_BYTES,
-	DEFAULT_MAX_LINES,
-	getMarkdownTheme,
-	type ExtensionAPI,
-	type ExtensionCommandContext,
-	type ExtensionContext,
-	type Skill,
-	type ToolDefinition,
+import type {
+	ExtensionAPI,
+	ExtensionCommandContext,
+	ExtensionContext,
+	Skill,
+	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { Container, Text } from "@earendil-works/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import { Type, type TSchema } from "typebox";
 
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
@@ -35,6 +32,7 @@ import {
 import {
 	beginLiveActionEffect,
 	observeLivePiToolResult,
+	observeLivePiToolResultForEffect,
 } from "./action-loop-effect.ts";
 import {
 	liveCompletedWorkCasePrompt,
@@ -134,44 +132,11 @@ const MAX_RESULT_CHARS = 12_000;
 const TOOL_POLICY_RESTART_MESSAGE =
 	"Developer detected an in-process package reload from a version without reload-safe tool handoff. Restart the Pi process before enabling Developer; /reload and /developer off/on cannot safely reconstruct the prior built-in tool selection.";
 
-function isStringEnumValue<T extends string>(
-	value: unknown,
-	values: readonly T[],
-): value is T {
-	return typeof value === "string" && values.some((item) => item === value);
-}
-
 function textResult<T>(text: string, details: T) {
 	return {
 		content: [{ type: "text" as const, text }],
 		details,
 	};
-}
-
-function resultText(result: {
-	content: Array<{ type: string; text?: string }>;
-}): string {
-	return result.content
-		.filter((item) => item.type === "text" && item.text)
-		.map((item) => item.text)
-		.join("\n");
-}
-
-function reusableText(content: string, lastComponent: unknown): Text {
-	const component =
-		lastComponent instanceof Text ? lastComponent : new Text("", 0, 0);
-	component.setText(content);
-	return component;
-}
-
-function ensureSafeToolText(text: string, label: string): void {
-	const bytes = Buffer.byteLength(text, "utf8");
-	const lines = text.split(/\r?\n/).length;
-	if (bytes > DEFAULT_MAX_BYTES || lines > DEFAULT_MAX_LINES) {
-		fail(
-			`${label} exceeds Pi's tool-output limit (${bytes} bytes, ${lines} lines). Narrow the routed question or evidence.`,
-		);
-	}
 }
 
 function fail(message: string): never {
@@ -1928,20 +1893,14 @@ export default async function developer(pi: ExtensionAPI) {
 			return;
 		}
 		if (activeWorkCase) {
-			const effect = activeWorkCase.workCase.effects.find(
-				(current) => current.occurrenceId === event.toolCallId,
-			);
-			if (effect !== undefined) {
-				const observed = observeLivePiToolResult(
-					activeWorkCase,
-					event.toolName,
-					event.toolCallId,
-					{
-						isError: event.isError,
-						content: event.content,
-						details: event.details,
-					},
-				);
+			const toolResult = {
+				isError: event.isError,
+				content: event.content,
+				details: event.details,
+			};
+			const persistEffectObservation = (
+				observed: ReturnType<typeof observeLivePiToolResult>,
+			) => {
 				if (observed.status === "invalid") {
 					return {
 						content: [
@@ -1953,17 +1912,45 @@ export default async function developer(pi: ExtensionAPI) {
 						],
 					};
 				}
-				pi.appendEntry(
-					ACTION_LOOP_SESSION_ENTRY,
-					actionLoopEffectObservedEvent(observed.observation),
-				);
+				if (observed.status === "observed") {
+					pi.appendEntry(
+						ACTION_LOOP_SESSION_ENTRY,
+						actionLoopEffectObservedEvent(observed.observation),
+					);
+				}
 				activeWorkCase = observed.state;
 				const admittedEffect = currentHostObservation(
 					observed.observation.effectObservationId,
 					observed.state,
 				);
 				if (admittedEffect) rememberHostObservation(admittedEffect);
-				return;
+			};
+			const actionEffect = activeWorkCase.workCase.effects.find(
+				(current) => current.occurrenceId === event.toolCallId,
+			);
+			if (actionEffect !== undefined) {
+				return persistEffectObservation(
+					observeLivePiToolResult(
+						activeWorkCase,
+						event.toolName,
+						event.toolCallId,
+						toolResult,
+					),
+				);
+			}
+			const unsettledAssessments =
+				activeWorkCase.workCase.currentEffectAssessments.filter(
+					(assessment) => "effectAssessmentId" in assessment,
+				);
+			if (unsettledAssessments.length === 1) {
+				return persistEffectObservation(
+					observeLivePiToolResultForEffect(activeWorkCase, {
+						effectId: unsettledAssessments[0].effectId,
+						toolName: event.toolName,
+						toolCallId: event.toolCallId,
+						result: toolResult,
+					}),
+				);
 			}
 		}
 		const ownership = activeWorkCase ?? heldWorkCase;

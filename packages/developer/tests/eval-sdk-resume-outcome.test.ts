@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
 	classifySdkResumeRun,
+	repeatedPrimaryResultWithoutCheckpoint,
 	summarizeSdkResumeRun,
 } from "../scripts/eval-sdk-resume-outcome.mjs";
 
@@ -125,6 +126,42 @@ test("SDK resume evaluation separates generic tool rejection from provider seria
 	assert.deepEqual(classifySdkResumeRun(run), {
 		status: "usability-stalled",
 		reason: "tool-contract-rejected",
+	});
+});
+
+test("SDK resume evaluation circuit-breaks repeated primary results without checkpoints", () => {
+	const protocolResult = (status: string) => ({
+		type: "tool_execution_end",
+		toolName: "developer_progress_action_loop_with_sdk",
+		isError: false,
+		result: toolResult("No advancement.", { status }),
+	});
+	const repeated = Array.from({ length: 8 }, () =>
+		protocolResult("effect-unsettled"),
+	);
+	assert.equal(
+		repeatedPrimaryResultWithoutCheckpoint(repeated),
+		"effect-unsettled",
+	);
+	assert.equal(
+		repeatedPrimaryResultWithoutCheckpoint([
+			...repeated.slice(0, 7),
+			{
+				type: "entry_appended",
+				entry: { data: { kind: "effect-observed" } },
+			},
+			...repeated.slice(0, 7),
+		]),
+		undefined,
+	);
+	const run = summarizeSdkResumeRun(1, repeated, {
+		status: "usability-stalled",
+		reason: "repeated-primary-result:effect-unsettled",
+		elapsedMs: 100,
+	});
+	assert.deepEqual(classifySdkResumeRun(run), {
+		status: "usability-stalled",
+		reason: "repeated-primary-result:effect-unsettled",
 	});
 });
 

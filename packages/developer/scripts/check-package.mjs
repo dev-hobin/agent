@@ -608,7 +608,8 @@ assert.match(liveEffectIntegration, /settleEffect\(/);
 assert.match(liveEffectIntegration, /recordWorkCaseEffectAssessment\(/);
 assert.match(liveEffectIntegration, /acceptEffectRemediation\(/);
 assert.match(liveEffectIntegration, /recordWorkCaseEffectRemediation\(/);
-assert.match(liveEffectIntegration, /does not by itself establish/);
+assert.match(liveEffectIntegration, /canonicalResult/);
+assert.match(liveEffectIntegration, /not implicit Effect success/);
 
 const liveCompletionIntegration = await readFile(
 	join(root, "extensions", "action-loop-completion.ts"),
