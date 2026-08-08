@@ -10647,7 +10647,9 @@ function currentEffectSettlements(state) {
 }
 function unresolvedAdverseSettlements(state) {
   const remediated = new Set(
-    state.workCase.effectRemediations.map(({ adverseEffectId }) => adverseEffectId)
+    state.workCase.effectRemediations.map(
+      ({ adverseEffectId }) => adverseEffectId
+    )
   );
   return currentEffectSettlements(state).filter(
     (settlement) => (settlement.outcome === "failed" || settlement.outcome === "partially-applied") && !remediated.has(settlement.effectId)
@@ -10956,7 +10958,9 @@ async function progressRemediation(input) {
   if (result.status === "refused") {
     return {
       status: "remediation-required",
-      adverseEffectIds: input.adverseSettlements.map(({ effectId }) => effectId),
+      adverseEffectIds: input.adverseSettlements.map(
+        ({ effectId }) => effectId
+      ),
       refusalReasons: result.refusalReasons,
       state: input.state,
       steps,

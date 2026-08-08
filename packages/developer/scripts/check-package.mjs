@@ -482,20 +482,16 @@ const extension = await readFile(
 	join(root, "extensions", "developer.ts"),
 	"utf8",
 );
-assert.match(extension, /name: ACTION_LOOP_OPEN_WORK_CASE_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_OPEN_JUDGMENT_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_ASSESS_CAPABILITY_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_SELECT_REFERENCES_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL/);
 assert.match(extension, /name: ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_ASSESS_COVERAGE_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_CLOSE_JUDGMENT_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_PROPOSE_ACTION_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_SETTLE_EFFECT_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_RECORD_REMEDIATION_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_PREPARE_CLOSURE_TOOL/);
-assert.match(extension, /name: ACTION_LOOP_COMPLETE_WORK_CASE_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_PAUSE_WORK_CASE_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_WAIT_WORK_CASE_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_BLOCK_WORK_CASE_TOOL/);
+assert.match(extension, /name: ACTION_LOOP_RESUME_WORK_CASE_TOOL/);
+assert.doesNotMatch(
+	extension,
+	/name: ACTION_LOOP_(?:OPEN|ASSESS|SELECT|LOAD|CLOSE|PROPOSE|SETTLE|RECORD|PREPARE|COMPLETE|PROGRESS_JUDGMENT|ACCEPT_CONTRIBUTION)/,
+);
 assert.doesNotMatch(
 	extension,
 	/name: ROUTE_TOOL|name: REFERENCE_TOOL|name: JUDGMENT_TOOL/,
