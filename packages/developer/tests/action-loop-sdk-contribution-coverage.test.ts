@@ -273,8 +273,7 @@ test("SDK Contribution status stays scoped to its exact assigned Need", async ()
 			proposals: [
 				{
 					local_status: "resolved",
-					result:
-						"The sealed source fully answers the exact retry-state Need.",
+					result: "The sealed source fully answers the exact retry-state Need.",
 					limitations_json: "[]",
 					residual_needs_json: "[]",
 				},
@@ -295,7 +294,10 @@ test("SDK Contribution status stays scoped to its exact assigned Need", async ()
 		runner,
 	});
 	assert.equal(result.status, "accepted");
-	assert.match(systemPrompt, /Scope localStatus, limitations, and residual Needs/);
+	assert.match(
+		systemPrompt,
+		/Scope localStatus, limitations, and residual Needs/,
+	);
 	assert.match(systemPrompt, /does not make this local Contribution partial/);
 });
 

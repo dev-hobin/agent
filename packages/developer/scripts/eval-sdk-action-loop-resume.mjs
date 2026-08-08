@@ -373,11 +373,7 @@ try {
 			const aborted = await send({ type: "abort" }, 5_000);
 			assert.equal(aborted.success, true, aborted.error);
 		}
-		const run = summarizeSdkResumeRun(
-			index,
-			events.slice(start),
-			waitResult,
-		);
+		const run = summarizeSdkResumeRun(index, events.slice(start), waitResult);
 		runs.push(run);
 		const usedTransitional = run.toolCalls.filter((name) =>
 			transitionalTools.has(name),

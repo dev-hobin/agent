@@ -39,8 +39,7 @@ const encoder = new TextEncoder();
 const structuredWhen = "A state and time contract remains unresolved.";
 const structuredUnless = "No state or time behavior is consequential.";
 const referencePath = "references/temporal.md";
-const referenceContent =
-	"Temporal retry and stale-response distinctions.\n";
+const referenceContent = "Temporal retry and stale-response distinctions.\n";
 const request =
 	"Model retry, stale, duplicate, and reordered approval behavior.";
 
@@ -545,6 +544,9 @@ test("Pi branch events resume the next unsealed SDK Context without a parallel c
 	assert.equal(staleSkill.status, "unavailable");
 	if (staleSkill.status === "unavailable") {
 		assert.equal(staleSkill.entryIndex, 3);
-		assert.match(staleSkill.message, /drifted from their exact sealed identity/);
+		assert.match(
+			staleSkill.message,
+			/drifted from their exact sealed identity/,
+		);
 	}
 });
