@@ -392,7 +392,9 @@ for (const removedEvaluator of [
 	"eval-live.mjs",
 	"eval-probability.mjs",
 	"eval-rpc.mjs",
+	"eval-sdk-context.ts",
 	"eval-workspace.mjs",
+	"ghostty-tui-qa.sh",
 ]) {
 	await assert.rejects(access(join(root, "scripts", removedEvaluator)));
 }
