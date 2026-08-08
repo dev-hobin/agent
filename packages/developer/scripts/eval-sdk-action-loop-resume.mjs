@@ -13,7 +13,7 @@ import {
 	repeatedPrimaryResultWithoutCheckpoint,
 	sdkResumeBudgetStop,
 	summarizeSdkResumeRun,
-} from "./eval-sdk-resume-outcome.mjs";
+} from "./sdk-resume-classification.mjs";
 import { createJsonlDecoder } from "./jsonl.mjs";
 
 const packageRoot = resolve(

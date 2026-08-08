@@ -6,7 +6,7 @@ import {
 	repeatedPrimaryResultWithoutCheckpoint,
 	sdkResumeBudgetStop,
 	summarizeSdkResumeRun,
-} from "../scripts/eval-sdk-resume-outcome.mjs";
+} from "../scripts/sdk-resume-classification.mjs";
 
 const wait = { status: "settled", elapsedMs: 20 };
 
