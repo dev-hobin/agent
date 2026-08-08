@@ -40,7 +40,6 @@ export interface LivePiActionProposal {
 
 export interface LiveWorkCaseState {
 	readonly workCase: ActiveWorkCase;
-	readonly contextRevisionId: string;
 	readonly openingBasis: readonly string[];
 	readonly applicabilityAssessments: readonly AcceptedApplicabilityAssessment[];
 	readonly capabilityAssignments: readonly CapabilityAssignment[];
@@ -195,7 +194,6 @@ export function openLiveWorkCase(
 		status: "opened",
 		value: Object.freeze({
 			workCase: opened.value,
-			contextRevisionId: opened.value.revisionId,
 			openingBasis: basis,
 			applicabilityAssessments: Object.freeze([]),
 			capabilityAssignments: Object.freeze([]),
@@ -337,7 +335,7 @@ export function liveWorkCasePrompt(
 	return [
 		`${statusLabel} Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
 		`Outcome: ${workCase.outcome.statement}`,
-		`Context revision: ${state.contextRevisionId}`,
+		`Current revision: ${workCase.revisionId}`,
 		`Acceptance conditions: ${workCase.outcome.acceptanceConditions.join(" | ")}`,
 		`Constraints: ${workCase.outcome.constraints.join(" | ") || "none"}`,
 		`Opening basis: ${openingBasis.join(" | ")}`,

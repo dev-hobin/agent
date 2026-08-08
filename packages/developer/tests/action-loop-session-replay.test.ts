@@ -243,6 +243,26 @@ test("Proportionate Intervention disposition survives semantic event replay", as
 	const concluded = closeLiveJudgment(coverage.state, conclusionProposal);
 	assert.equal(concluded.status, "concluded");
 	if (concluded.status !== "concluded") return;
+	const assuranceProposal = {
+		category: "Claim Assurance" as const,
+		subject: "Whether the no-change Outcome is currently assured",
+		question: "Does current evidence warrant completion without an Action?",
+		requirements: [
+			{
+				statement: "The no-change Outcome is supported by current evidence.",
+				contributionNeeds: ["Current evidence for no-change completion"],
+			},
+		],
+		basis: ["The prior Proportionate Intervention concluded no Action is needed."],
+		provenance: { kind: "model" as const, source: "pi:sdk-action-loop" },
+	};
+	const assurance = openLiveJudgment(concluded.state, assuranceProposal);
+	assert.equal(assurance.status, "opened");
+	if (assurance.status !== "opened") return;
+	assert.equal(
+		assurance.judgment.contextRevisionId,
+		concluded.state.workCase.revisionId,
+	);
 
 	const replayed = await replayActionLoopSession([
 		{
@@ -292,13 +312,26 @@ test("Proportionate Intervention disposition survives semantic event replay", as
 				concluded.state.workCase.revisionId,
 			),
 		},
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopJudgmentOpenedEvent(
+				assuranceProposal,
+				assurance.judgment.judgmentId,
+				assurance.state.workCase.revisionId,
+			),
+		},
 	]);
 	assert.equal(replayed.status, "ready");
 	if (replayed.status !== "ready") return;
-	assert.equal(replayed.appliedTransitions, 5);
+	assert.equal(replayed.appliedTransitions, 6);
 	assert.equal(
 		replayed.activeWorkCase?.workCase.conclusions[0]?.interventionDisposition,
 		"no-action",
+	);
+	assert.equal(
+		replayed.activeWorkCase?.workCase.openJudgments[0]?.judgmentId,
+		assurance.judgment.judgmentId,
 	);
 });
 

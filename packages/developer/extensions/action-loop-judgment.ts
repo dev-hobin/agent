@@ -74,10 +74,12 @@ export function openLiveJudgment(
 	state: LiveWorkCaseState,
 	proposal: LiveJudgmentProposal,
 ): LiveJudgmentOpeningResult {
+	const currentOpenJudgment = state.workCase.openJudgments[0];
 	const judgment = openJudgment({
 		...proposal,
 		workCaseId: state.workCase.workCaseId,
-		contextRevisionId: state.contextRevisionId,
+		contextRevisionId:
+			currentOpenJudgment?.contextRevisionId ?? state.workCase.revisionId,
 	});
 	if (judgment.status === "invalid") {
 		return { status: "invalid", message: judgment.error.message };

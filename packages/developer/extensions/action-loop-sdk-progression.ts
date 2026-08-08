@@ -244,7 +244,6 @@ export function applySdkActionLoopCheckpoint(
 				throw new Error("SDK Work Case opening cannot replace active work.");
 			return Object.freeze({
 				workCase: checkpoint.result.workCase,
-				contextRevisionId: checkpoint.result.workCase.revisionId,
 				openingBasis: checkpoint.result.basis,
 				applicabilityAssessments: Object.freeze([]),
 				capabilityAssignments: Object.freeze([]),
