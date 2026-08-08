@@ -174,6 +174,24 @@ export default async function developer(pi: ExtensionAPI) {
 		pi.appendEntry(ACTION_LOOP_SESSION_ENTRY, event);
 	};
 
+	const replaceWorkCaseOwnership = (next: {
+		readonly active?: LiveWorkCaseState;
+		readonly held?: LiveHeldWorkCaseState;
+		readonly completed?: CompletedWorkCase;
+	}) => {
+		const owners = [next.active, next.held, next.completed].filter(
+			(owner) => owner !== undefined,
+		);
+		if (owners.length > 1) {
+			throw new Error(
+				"Developer runtime cannot project multiple current Work Case owners.",
+			);
+		}
+		activeWorkCase = next.active;
+		heldWorkCase = next.held;
+		completedWorkCase = next.completed;
+	};
+
 	const rememberHostObservation = (observation: LiveHostObservation) => {
 		liveHostObservations = [
 			...liveHostObservations.filter(
@@ -349,9 +367,7 @@ export default async function developer(pi: ExtensionAPI) {
 		const branch = ctx.sessionManager.getBranch();
 		actionLoopSessionDurable =
 			ctx.sessionManager.getSessionFile() !== undefined;
-		activeWorkCase = undefined;
-		heldWorkCase = undefined;
-		completedWorkCase = undefined;
+		replaceWorkCaseOwnership({});
 		liveHostObservations = [];
 		currentActionLoopRequest = undefined;
 		pendingActionLoopBranch = toolPolicyRestartRequired ? undefined : branch;
@@ -373,9 +389,7 @@ export default async function developer(pi: ExtensionAPI) {
 		pi.appendEntry(DEVELOPER_MODE_ENTRY, event);
 		developerEnabled = enabled;
 		if (!enabled) {
-			activeWorkCase = undefined;
-			heldWorkCase = undefined;
-			completedWorkCase = undefined;
+			replaceWorkCaseOwnership({});
 			liveHostObservations = [];
 			currentActionLoopRequest = undefined;
 			pendingActionLoopBranch = undefined;
@@ -486,12 +500,14 @@ export default async function developer(pi: ExtensionAPI) {
 					appendActionLoopSessionEvent(event);
 				},
 			});
-			activeWorkCase = progressed.state;
+			replaceWorkCaseOwnership({
+				active: progressed.state,
+				completed: progressed.completedWorkCase,
+			});
 			if (!hadActiveWorkCase && activeWorkCase) {
 				bindPendingHostObservations(activeWorkCase.workCase.workCaseId);
 			}
 			pendingActionLoopBranch = undefined;
-			completedWorkCase = progressed.completedWorkCase;
 			reconcileActionLoopTools();
 			refreshUI(ctx);
 			const result = progressed.result;
@@ -705,10 +721,8 @@ export default async function developer(pi: ExtensionAPI) {
 			};
 			const result = pauseLiveWorkCase(activeWorkCase, proposal);
 			if (result.status === "invalid") fail(result.message);
-			activeWorkCase = undefined;
-			heldWorkCase = result.state;
+			replaceWorkCaseOwnership({ held: result.state });
 			liveHostObservations = [];
-			completedWorkCase = undefined;
 			reconcileActionLoopTools();
 			return textResult(
 				"Work paused by the current human decision.",
@@ -791,10 +805,8 @@ export default async function developer(pi: ExtensionAPI) {
 			};
 			const result = waitLiveWorkCase(activeWorkCase, proposal);
 			if (result.status === "invalid") fail(result.message);
-			activeWorkCase = undefined;
-			heldWorkCase = result.state;
+			replaceWorkCaseOwnership({ held: result.state });
 			liveHostObservations = [];
-			completedWorkCase = undefined;
 			reconcileActionLoopTools();
 			return textResult(
 				"Work is waiting on the observed external condition.",
@@ -888,10 +900,8 @@ export default async function developer(pi: ExtensionAPI) {
 			};
 			const result = blockLiveWorkCase(activeWorkCase, proposal);
 			if (result.status === "invalid") fail(result.message);
-			activeWorkCase = undefined;
-			heldWorkCase = result.state;
+			replaceWorkCaseOwnership({ held: result.state });
 			liveHostObservations = [];
-			completedWorkCase = undefined;
 			reconcileActionLoopTools();
 			return textResult(
 				"Work is blocked with complete Claim Assurance.",
@@ -977,8 +987,7 @@ export default async function developer(pi: ExtensionAPI) {
 				};
 				const result = resumeLivePausedWorkCase(heldWorkCase, proposal);
 				if (result.status === "invalid") fail(result.message);
-				heldWorkCase = undefined;
-				activeWorkCase = result.state;
+				replaceWorkCaseOwnership({ active: result.state });
 				liveHostObservations = [];
 				reconcileActionLoopTools();
 				return textResult(
@@ -1014,8 +1023,7 @@ export default async function developer(pi: ExtensionAPI) {
 							: "The exact waiting resume predicate remains unsatisfied.",
 					);
 				}
-				heldWorkCase = undefined;
-				activeWorkCase = result.state;
+				replaceWorkCaseOwnership({ active: result.state });
 				liveHostObservations = [];
 				reconcileActionLoopTools();
 				return textResult(
@@ -1054,8 +1062,7 @@ export default async function developer(pi: ExtensionAPI) {
 			};
 			const result = resumeLiveBlockedWorkCase(heldWorkCase, proposal);
 			if (result.status === "invalid") fail(result.message);
-			heldWorkCase = undefined;
-			activeWorkCase = result.state;
+			replaceWorkCaseOwnership({ active: result.state });
 			liveHostObservations = [];
 			reconcileActionLoopTools();
 			return textResult(
@@ -1217,9 +1224,7 @@ export default async function developer(pi: ExtensionAPI) {
 				appendActionLoopSessionEvent(
 					actionLoopWorkCasePausedEvent(proposal, result.state),
 				);
-				activeWorkCase = undefined;
-				heldWorkCase = result.state;
-				completedWorkCase = undefined;
+				replaceWorkCaseOwnership({ held: result.state });
 				reconcileActionLoopTools();
 				refreshUI(ctx);
 				ctx.ui.notify("Developer Action Loop Work Case paused.", "info");
@@ -1313,9 +1318,7 @@ export default async function developer(pi: ExtensionAPI) {
 				appendActionLoopSessionEvent(
 					actionLoopWorkCaseWaitingEvent(proposal, result.state),
 				);
-				activeWorkCase = undefined;
-				heldWorkCase = result.state;
-				completedWorkCase = undefined;
+				replaceWorkCaseOwnership({ held: result.state });
 				reconcileActionLoopTools();
 				refreshUI(ctx);
 				ctx.ui.notify("Developer Action Loop Work Case is waiting.", "info");
@@ -1443,9 +1446,7 @@ export default async function developer(pi: ExtensionAPI) {
 				appendActionLoopSessionEvent(
 					actionLoopWorkCaseBlockedEvent(proposal, result.state),
 				);
-				activeWorkCase = undefined;
-				heldWorkCase = result.state;
-				completedWorkCase = undefined;
+				replaceWorkCaseOwnership({ held: result.state });
 				reconcileActionLoopTools();
 				refreshUI(ctx);
 				ctx.ui.notify("Developer Action Loop Work Case is blocked.", "info");
@@ -1507,8 +1508,7 @@ export default async function developer(pi: ExtensionAPI) {
 					appendActionLoopSessionEvent(
 						actionLoopPausedWorkCaseResumedEvent(proposal, result.state),
 					);
-					heldWorkCase = undefined;
-					activeWorkCase = result.state;
+					replaceWorkCaseOwnership({ active: result.state });
 					reconcileActionLoopTools();
 					refreshUI(ctx);
 					ctx.ui.notify("Developer Action Loop Work Case resumed.", "info");
@@ -1547,8 +1547,7 @@ export default async function developer(pi: ExtensionAPI) {
 					appendActionLoopSessionEvent(
 						actionLoopWaitingWorkCaseResumedEvent(proposal, result.state),
 					);
-					heldWorkCase = undefined;
-					activeWorkCase = result.state;
+					replaceWorkCaseOwnership({ active: result.state });
 					reconcileActionLoopTools();
 					refreshUI(ctx);
 					ctx.ui.notify("Developer Action Loop Work Case resumed.", "info");
@@ -1601,8 +1600,7 @@ export default async function developer(pi: ExtensionAPI) {
 				appendActionLoopSessionEvent(
 					actionLoopBlockedWorkCaseResumedEvent(proposal, result.state),
 				);
-				heldWorkCase = undefined;
-				activeWorkCase = result.state;
+				replaceWorkCaseOwnership({ active: result.state });
 				reconcileActionLoopTools();
 				refreshUI(ctx);
 				ctx.ui.notify("Developer Action Loop Work Case resumed.", "info");
@@ -1718,14 +1716,14 @@ export default async function developer(pi: ExtensionAPI) {
 			);
 			pendingActionLoopBranch = undefined;
 			if (replayed.status === "ready") {
-				activeWorkCase = replayed.activeWorkCase;
-				heldWorkCase = replayed.heldWorkCase;
-				completedWorkCase = replayed.completedWorkCase;
+				replaceWorkCaseOwnership({
+					active: replayed.activeWorkCase,
+					held: replayed.heldWorkCase,
+					completed: replayed.completedWorkCase,
+				});
 				actionLoopReplayFailure = undefined;
 			} else {
-				activeWorkCase = undefined;
-				heldWorkCase = undefined;
-				completedWorkCase = undefined;
+				replaceWorkCaseOwnership({});
 				actionLoopReplayFailure = `entry ${replayed.entryIndex}: ${replayed.message}`;
 			}
 			reconcileActionLoopTools();
