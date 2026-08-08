@@ -604,6 +604,15 @@ export default async function developer(pi: ExtensionAPI) {
 				checkpoints: result.checkpoints,
 				...("stage" in result ? { stage: result.stage } : {}),
 				...("reason" in result ? { reason: result.reason } : {}),
+				...(result.status === "judgment-refused"
+					? {
+							blockerCodes: [
+								...new Set(
+									result.refusal.blockers.map((blocker) => blocker.code),
+								),
+							],
+						}
+					: {}),
 				...(pendingHostAction
 					? {
 							hostAction: {

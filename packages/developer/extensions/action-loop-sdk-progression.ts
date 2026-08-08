@@ -136,8 +136,12 @@ export function sdkActionLoopProgressionSummary(
 			return "The SDK controller opened and concluded the current Judgment from acknowledged checkpoints.";
 		case "needs-context":
 			return "The current Judgment needs additional Context before progression can continue.";
-		case "judgment-refused":
-			return "The current evidence canonically refused Judgment closure.";
+		case "judgment-refused": {
+			const blockerCodes = [
+				...new Set(result.refusal.blockers.map((blocker) => blocker.code)),
+			];
+			return `The current evidence canonically refused Judgment closure (${blockerCodes.join(", ")}). Repeating progression without new accepted evidence cannot advance.`;
+		}
 		case "bounded-stop":
 			return `SDK Action Loop progression reached a bounded stop at ${result.stage}; acknowledged checkpoints are preserved.`;
 		default:

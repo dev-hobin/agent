@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { SdkDecisionRequest } from "../src/action-loop/sdk/decision-controller.ts";
 import { openJudgmentWithSdk } from "../src/action-loop/sdk/judgment-controller.ts";
 import { openWorkCaseWithSdk } from "../src/action-loop/sdk/work-case-controller.ts";
 import { scriptedSdkRunner } from "./fixtures/scripted-sdk-runner.ts";
@@ -87,6 +88,40 @@ test("SDK opening pipeline refines text proposals into one Work Case and Judgmen
 		"A condition model of state, retry, identity, and temporal behavior",
 	);
 	assert.equal(judgment.decision.toolCalls, 1);
+});
+
+test("SDK Judgment opening keeps sequential Warrant Gaps independently closable", async () => {
+	const openingRunner = scriptedSdkRunner([
+		{ proposals: [workCaseProposal()] },
+	]);
+	const opened = await openWorkCaseWithSdk({ request, runner: openingRunner });
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+
+	let systemPrompt = "";
+	const delegated = scriptedSdkRunner([{ proposals: [judgmentProposal()] }]);
+	const runner = {
+		async run<T>(decision: SdkDecisionRequest<T>) {
+			systemPrompt = decision.systemPrompt;
+			return delegated.run(decision);
+		},
+	};
+	const judgment = await openJudgmentWithSdk({
+		request,
+		workCase: opened.workCase,
+		contextRevisionId: opened.workCase.revisionId,
+		runner,
+	});
+	assert.equal(judgment.status, "opened");
+	assert.match(
+		systemPrompt,
+		/evidence available before this Judgment's Conclusion/,
+	);
+	assert.match(
+		systemPrompt,
+		/Proportionate Intervention decides whether current evidence warrants a next Action/,
+	);
+	assert.match(systemPrompt, /Claim Assurance follows settled Effects/);
 });
 
 test("SDK Judgment opening enforces a controller-required Category", async () => {

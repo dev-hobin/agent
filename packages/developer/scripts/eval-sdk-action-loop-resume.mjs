@@ -41,6 +41,7 @@ const continuationPrompt =
 	process.env.DEVELOPER_EVAL_CONTINUATION_PROMPT ||
 	"Resume the current canonical Action Loop from its acknowledged Pi branch checkpoints. Use developer_progress_action_loop_with_sdk only for protocol progression. Do not recompute completed transitions, use transitional lower-level protocol tools, or infer Effect success from a tool return.";
 const sessionOperation = process.env.DEVELOPER_EVAL_SESSION_OPERATION || "none";
+const activateBeforeResume = process.env.DEVELOPER_EVAL_ACTIVATE === "1";
 const compactBeforeResume = process.env.DEVELOPER_EVAL_COMPACT === "1";
 const compactionPaddingBytes = Number(
 	process.env.DEVELOPER_EVAL_COMPACTION_PADDING_BYTES || 0,
@@ -259,12 +260,23 @@ function summarizeRun(index, trace, waitResult) {
 		.filter((event) => event.type === "entry_appended")
 		.map((event) => event.entry?.data?.kind)
 		.filter(Boolean);
+	const agentErrors = trace
+		.filter(
+			(event) =>
+				event.type === "message_end" &&
+				event.message?.role === "assistant" &&
+				event.message?.stopReason === "error",
+		)
+		.map((event) =>
+			String(event.message.errorMessage || "unknown agent error"),
+		);
 	return {
 		index,
 		wait: waitResult,
 		toolCalls,
 		protocolEnds,
 		checkpointKinds,
+		agentErrors,
 	};
 }
 
@@ -290,7 +302,6 @@ const transitionalTools = new Set([
 	"developer_select_references",
 	"developer_load_selected_reference",
 	"developer_accept_contribution",
-	"developer_accept_observation_contribution",
 	"developer_assess_coverage",
 	"developer_close_judgment",
 	"developer_propose_action",
@@ -301,6 +312,7 @@ const transitionalTools = new Set([
 ]);
 
 const runs = [];
+let providerBlock;
 try {
 	const state = await send({ type: "get_state" });
 	assert.equal(state.success, true, state.error);
@@ -385,6 +397,11 @@ try {
 		};
 	}
 
+	if (activateBeforeResume) {
+		const activated = await send({ type: "prompt", message: "/developer on" });
+		assert.equal(activated.success, true, activated.error);
+	}
+
 	for (let index = 1; index <= maximumRuns; index += 1) {
 		const start = events.length;
 		const response = await send({
@@ -407,6 +424,10 @@ try {
 			[],
 			`Run ${index} used transitional protocol tools.`,
 		);
+		if (run.agentErrors.length > 0) {
+			providerBlock = run.agentErrors.join(" | ");
+			break;
+		}
 		assert.ok(
 			run.toolCalls.includes("developer_progress_action_loop_with_sdk"),
 			`Run ${index} did not invoke the primary SDK controller.`,
@@ -437,9 +458,11 @@ try {
 		workspace,
 		skills,
 		sessionOperation,
+		activateBeforeResume,
 		...(forkedFromEntryId ? { forkedFromEntryId } : {}),
 		...(compaction ? { compaction } : {}),
-		status: status.protocol,
+		status: providerBlock ? "provider-blocked" : status.protocol,
+		...(providerBlock ? { providerBlock } : {}),
 		runs,
 		totals: {
 			runs: runs.length,
