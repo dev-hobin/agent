@@ -369,9 +369,18 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 		harness.activeTools().includes("developer_progress_action_loop_with_sdk"),
 		true,
 	);
-	assert.equal(harness.activeTools().includes("developer_open_work_case"), false);
-	assert.equal(harness.activeTools().includes("developer_assess_coverage"), false);
-	assert.equal(harness.activeTools().includes("developer_pause_work_case"), true);
+	assert.equal(
+		harness.activeTools().includes("developer_open_work_case"),
+		false,
+	);
+	assert.equal(
+		harness.activeTools().includes("developer_assess_coverage"),
+		false,
+	);
+	assert.equal(
+		harness.activeTools().includes("developer_pause_work_case"),
+		true,
+	);
 	assert.doesNotMatch(result.systemPrompt, /developer_route_question/);
 	assert.doesNotMatch(result.systemPrompt, /developer_record_judgment/);
 	assert.doesNotMatch(
@@ -396,9 +405,15 @@ test("structured Capability routing stays inside the primary SDK controller prom
 		systemPromptOptions: { cwd: packageRoot, skills: [model] },
 	});
 
-	assert.match(result.systemPrompt, /Developer Capability inventory: 1 admitted/);
+	assert.match(
+		result.systemPrompt,
+		/Developer Capability inventory: 1 admitted/,
+	);
 	assert.doesNotMatch(result.systemPrompt, /matched_when/);
-	assert.doesNotMatch(result.systemPrompt, /Reference-only selection condition/);
+	assert.doesNotMatch(
+		result.systemPrompt,
+		/Reference-only selection condition/,
+	);
 	assert.doesNotMatch(result.systemPrompt, /caprev_/);
 });
 
@@ -956,7 +971,10 @@ test("a live Judgment exposes Closure Requirements and Contribution Needs", asyn
 	assert.match(next.systemPrompt, /Open Judgment: open_judgment_/);
 	assert.match(next.systemPrompt, /Closure Requirements:/);
 	assert.match(next.systemPrompt, /Contribution Needs:/);
-	assert.match(next.systemPrompt, /Developer Capability inventory: 11 admitted/);
+	assert.match(
+		next.systemPrompt,
+		/Developer Capability inventory: 11 admitted/,
+	);
 	assert.doesNotMatch(next.systemPrompt, /Capability verify · caprev_/);
 	const assessed = await harness.tools
 		.get("developer_assess_capability")

@@ -77,9 +77,7 @@ function rejected(code: string, message: string): SdkProposalAdmission<never> {
 	return { status: "rejected", code, message };
 }
 
-function conclusionParameters(
-	contract: JudgmentClosureContract,
-): TSchema {
+function conclusionParameters(contract: JudgmentClosureContract): TSchema {
 	const fields: Record<string, TSchema> = {
 		outcome: StringEnum(closureOutcomes),
 		answer: Type.Optional(Type.String({ minLength: 1, maxLength: 12_000 })),

@@ -47,7 +47,9 @@ const compactionPaddingBytes = Number(
 );
 
 if (!Number.isInteger(maximumRuns) || maximumRuns < 1 || maximumRuns > 32) {
-	throw new Error("DEVELOPER_EVAL_MAX_RUNS must be an integer from 1 through 32.");
+	throw new Error(
+		"DEVELOPER_EVAL_MAX_RUNS must be an integer from 1 through 32.",
+	);
 }
 if (!Number.isFinite(runTimeoutMs) || runTimeoutMs < 1_000) {
 	throw new Error("DEVELOPER_EVAL_TIMEOUT_MS must be at least 1000.");
@@ -106,10 +108,7 @@ if (piVersionResult.status !== 0) {
 const piVersion = piVersionResult.stdout.trim();
 const extension = resolve(packageRoot, "extensions", "developer.ts");
 const skills = configuredSkillPaths();
-const observer = resolve(
-	import.meta.dirname,
-	"eval-observer.ts",
-);
+const observer = resolve(import.meta.dirname, "eval-observer.ts");
 const child = spawn(
 	piBin,
 	[
@@ -200,22 +199,28 @@ async function waitForRun(start) {
 			return { status: "settled", elapsedMs: Date.now() - startedAt };
 		}
 		if (events.length > observed) {
-			const progress = events.slice(observed).some((event) =>
-				[
-					"message_update",
-					"message_end",
-					"tool_execution_start",
-					"tool_execution_update",
-					"tool_execution_end",
-					"entry_appended",
-				].includes(event.type),
-			);
+			const progress = events
+				.slice(observed)
+				.some((event) =>
+					[
+						"message_update",
+						"message_end",
+						"tool_execution_start",
+						"tool_execution_update",
+						"tool_execution_end",
+						"entry_appended",
+					].includes(event.type),
+				);
 			if (progress) lastProgressAt = Date.now();
 			observed = events.length;
 		}
 		const now = Date.now();
 		if (now - startedAt >= runTimeoutMs) {
-			return { status: "bounded-stop", reason: "run-timeout", elapsedMs: now - startedAt };
+			return {
+				status: "bounded-stop",
+				reason: "run-timeout",
+				elapsedMs: now - startedAt,
+			};
 		}
 		if (now - lastProgressAt >= noProgressTimeoutMs) {
 			return {
@@ -267,10 +272,12 @@ async function currentStatus() {
 	const start = events.length;
 	const response = await send({ type: "prompt", message: "/developer status" });
 	assert.equal(response.success, true, response.error);
-	const notification = events.slice(start).find(
-		(event) =>
-			event.type === "extension_ui_request" && event.method === "notify",
-	);
+	const notification = events
+		.slice(start)
+		.find(
+			(event) =>
+				event.type === "extension_ui_request" && event.method === "notify",
+		);
 	assert.ok(notification, "Expected /developer status notification.");
 	return parseDeveloperStatus(notification.message);
 }
@@ -380,7 +387,10 @@ try {
 
 	for (let index = 1; index <= maximumRuns; index += 1) {
 		const start = events.length;
-		const response = await send({ type: "prompt", message: continuationPrompt });
+		const response = await send({
+			type: "prompt",
+			message: continuationPrompt,
+		});
 		assert.equal(response.success, true, response.error);
 		const waitResult = await waitForRun(start);
 		if (waitResult.status === "bounded-stop") {

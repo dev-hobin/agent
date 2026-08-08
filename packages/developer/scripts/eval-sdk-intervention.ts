@@ -4,7 +4,8 @@ import { pathToFileURL } from "node:url";
 import { createSdkEvalRuntime } from "./sdk-eval-runtime.ts";
 
 const packageRoot = resolve(
-	process.env.DEVELOPER_EVAL_PACKAGE_PATH ?? new URL("..", import.meta.url).pathname,
+	process.env.DEVELOPER_EVAL_PACKAGE_PATH ??
+		new URL("..", import.meta.url).pathname,
 );
 const sdk = (await import(
 	pathToFileURL(resolve(packageRoot, "dist", "sdk.mjs")).href

@@ -304,13 +304,16 @@ test("SDK Action Loop progression routes no-action intervention to Claim Assuran
 		contextRevisionId: opened.value.revisionId,
 		requirementDispositions: Object.freeze([]),
 		coverageIds: Object.freeze([]),
-		basis: Object.freeze(["Current state already satisfies the intervention aim."]),
+		basis: Object.freeze([
+			"Current state already satisfies the intervention aim.",
+		]),
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 		answer: "No host Action is proportionate.",
 		interventionDisposition: "no-action",
 	});
 	const recorded = recordWorkCaseConclusion(opened.value, intervention);
-	if (recorded.status !== "recorded") throw new Error("Conclusion not recorded");
+	if (recorded.status !== "recorded")
+		throw new Error("Conclusion not recorded");
 	const checkpoints: SdkActionLoopCheckpoint[] = [];
 	const result = await progressActionLoopWithSdk({
 		request: "Complete the bounded analysis without changing files.",
