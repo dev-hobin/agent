@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseDeveloperStatus } from "../scripts/eval-outcome.mjs";
+import { parseDeveloperStatus } from "../scripts/developer-status-classification.mjs";
 
 test("Developer status parsing preserves terminal and held protocol states", () => {
 	assert.deepEqual(parseDeveloperStatus("developer · Completed"), {
