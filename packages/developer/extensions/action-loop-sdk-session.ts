@@ -158,7 +158,7 @@ export function sdkWorkCaseCompletedEvent(
 			mode: result.claim.mode,
 			obligationDispositions: result.claim.obligationDispositions.map(
 				(disposition) => ({
-					...disposition,
+					closureObligationId: disposition.closureObligationId,
 					conclusionIds: [...disposition.conclusionIds],
 					effectAssessmentIds: [...disposition.effectAssessmentIds],
 					effectRemediationIds: [...disposition.effectRemediationIds],

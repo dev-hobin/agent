@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import {
+	ACTION_LOOP_SESSION_ENTRY,
+	extractReplayEvent,
+} from "../extensions/action-loop-session-event.ts";
 import { sdkWorkCaseCompletedEvent } from "../extensions/action-loop-sdk-session.ts";
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
 import { completeWorkCaseWithSdk } from "../src/action-loop/sdk/completion-controller.ts";
@@ -97,6 +101,18 @@ test("SDK Completion accounts for all current evidence and revalidates the revis
 	const event = sdkWorkCaseCompletedEvent(result);
 	assert.equal(event.kind, "work-case-completed");
 	assert.equal(event.expected.revisionId, result.workCase.revisionId);
+	assert.equal(
+		"status" in event.proposal.obligationDispositions[0],
+		false,
+	);
+	assert.equal(
+		extractReplayEvent({
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: event,
+		}).status,
+		"event",
+	);
 });
 
 test("SDK Completion stops before a model session when Claim Assurance is missing", async () => {
