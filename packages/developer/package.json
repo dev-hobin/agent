@@ -42,11 +42,7 @@
   "scripts": {
     "check": "node scripts/build-sdk-public-api.mjs --check && node scripts/check-package.mjs && node --test tests/*.test.ts",
     "sdk:build": "node scripts/build-sdk-public-api.mjs",
-    "eval": "node scripts/eval-rpc.mjs",
-    "eval:json": "node scripts/eval-json.mjs",
-    "eval:live": "node scripts/eval-live.mjs --transport rpc",
-    "eval:live:json": "node scripts/eval-live.mjs --transport json",
-    "eval:live:sdk": "node scripts/eval-live.mjs --transport sdk",
+    "eval:live:sdk": "node scripts/eval-live.mjs",
     "eval:live:sdk:judgment": "node scripts/eval-sdk-judgment.ts",
     "eval:live:sdk:intervention": "node scripts/eval-sdk-intervention.ts",
     "eval:live:sdk:remediation": "node scripts/eval-sdk-remediation.ts",

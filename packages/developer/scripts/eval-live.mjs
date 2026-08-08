@@ -11,17 +11,9 @@ import {
 } from "./eval-probability.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const transportArg = process.argv.indexOf("--transport");
-const transport = transportArg >= 0 ? process.argv[transportArg + 1] : "rpc";
-if (transport !== "rpc" && transport !== "json" && transport !== "sdk") {
-	throw new Error("Live eval transport must be rpc, json, or sdk");
-}
-if (transport === "sdk") {
-	if (!process.env.DEVELOPER_SDK_PI_ROOT) {
-		throw new Error("Probabilistic SDK eval requires DEVELOPER_SDK_PI_ROOT");
-	}
-} else if (!process.env.PI_CODING_AGENT_DIR) {
-	throw new Error("Probabilistic live eval requires PI_CODING_AGENT_DIR");
+const transport = "sdk";
+if (!process.env.DEVELOPER_SDK_PI_ROOT) {
+	throw new Error("Probabilistic SDK eval requires DEVELOPER_SDK_PI_ROOT");
 }
 
 function parseJson(value, label) {
@@ -42,19 +34,6 @@ function positiveInteger(value, label) {
 	return number;
 }
 
-function defaultRunnerForTransport(value) {
-	switch (value) {
-		case "rpc":
-			return "eval-rpc.mjs";
-		case "json":
-			return "eval-json.mjs";
-		case "sdk":
-			return "eval-sdk-routing.ts";
-		default:
-			throw new Error(`Unsupported live eval transport: ${value}`);
-	}
-}
-
 const allFixtures = parseJson(
 	await readFile(join(root, "evals", "fixtures.json"), "utf8"),
 	"Invalid eval fixtures",
@@ -73,17 +52,14 @@ const trials = positiveInteger(
 );
 const runner =
 	process.env.DEVELOPER_EVAL_RUNNER ||
-	join(root, "scripts", defaultRunnerForTransport(transport));
+	join(root, "scripts", "eval-sdk-routing.ts");
 const trialTimeoutMs = Number(
 	process.env.DEVELOPER_EVAL_TRIAL_TIMEOUT_MS || 300000,
 );
 const report = {
 	protocol: "developer/probabilistic-eval-v2",
 	transport,
-	modelProfile:
-		transport === "sdk"
-			? process.env.DEVELOPER_SDK_MODEL
-			: process.env.PI_CODING_AGENT_DIR,
+	modelProfile: process.env.DEVELOPER_SDK_MODEL,
 	trialsPerFixture: trials,
 	createdAt: new Date().toISOString(),
 	fixtures: [],
@@ -101,13 +77,8 @@ for (const fixture of fixtures) {
 				...process.env,
 				DEVELOPER_EVAL_FIXTURE: fixture.id,
 				DEVELOPER_EVAL_TRIAL_INDEX: String(trial),
-				...(transport === "rpc" ? { DEVELOPER_EVAL_LIVE: "1" } : {}),
-				...(transport === "sdk"
-					? {
-							DEVELOPER_EVAL_MODE: "sdk",
-							DEVELOPER_SDK_REQUEST: fixture.request,
-						}
-					: {}),
+				DEVELOPER_EVAL_MODE: "sdk",
+				DEVELOPER_SDK_REQUEST: fixture.request,
 			},
 		});
 		const output = `${child.stdout || ""}\n${child.stderr || ""}`;

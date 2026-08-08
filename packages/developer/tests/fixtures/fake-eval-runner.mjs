@@ -3,6 +3,30 @@ const trial = Number(process.env.DEVELOPER_EVAL_TRIAL_INDEX);
 const preferredFirstTarget = trial % 2 === 1;
 const forcedTrialOutcome = process.env.DEVELOPER_FAKE_TRIAL_OUTCOME;
 const sdkMode = process.env.DEVELOPER_EVAL_MODE === "sdk";
+
+function configuredSelectedTargets(encoded) {
+	if (!encoded) return preferredFirstTarget ? ["specify"] : ["model"];
+	try {
+		const parsed = JSON.parse(encoded);
+		if (
+			!Array.isArray(parsed) ||
+			parsed.length === 0 ||
+			parsed.some((target) => typeof target !== "string")
+		) {
+			throw new Error("expected a nonempty string array");
+		}
+		return parsed;
+	} catch (error) {
+		throw new Error(
+			`Invalid DEVELOPER_FAKE_SELECTED_TARGETS_JSON: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error },
+		);
+	}
+}
+
+const sdkSelectedTargets = configuredSelectedTargets(
+	process.env.DEVELOPER_FAKE_SELECTED_TARGETS_JSON,
+);
 process.stdout.write(
 	"DEVELOPER_EVAL_RESULT " +
 		JSON.stringify({
@@ -15,11 +39,11 @@ process.stdout.write(
 					? "active-unchanged"
 					: "settled-unchanged",
 			firstTarget: sdkMode
-				? "sketch"
+				? sdkSelectedTargets[0]
 				: preferredFirstTarget
 					? "specify"
 					: "model",
-			...(sdkMode ? { selectedTargets: ["model", "sketch"] } : {}),
+			...(sdkMode ? { selectedTargets: sdkSelectedTargets } : {}),
 			preferredFirstTarget,
 			...(sdkMode
 				? {

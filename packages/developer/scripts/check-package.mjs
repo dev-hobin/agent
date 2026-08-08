@@ -39,15 +39,11 @@ assert.equal(manifest.version, "0.2.0-rc.1");
 assert.equal(manifest.dependencies?.xstate, undefined);
 assert.deepEqual(manifest.pi.extensions, ["./extensions/developer.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
-assert.match(manifest.scripts["eval:live"], /eval-live\.mjs --transport rpc/);
-assert.match(
-	manifest.scripts["eval:live:json"],
-	/eval-live\.mjs --transport json/,
-);
-assert.match(
-	manifest.scripts["eval:live:sdk"],
-	/eval-live\.mjs --transport sdk/,
-);
+assert.equal(manifest.scripts.eval, undefined);
+assert.equal(manifest.scripts["eval:json"], undefined);
+assert.equal(manifest.scripts["eval:live"], undefined);
+assert.equal(manifest.scripts["eval:live:json"], undefined);
+assert.equal(manifest.scripts["eval:live:sdk"], "node scripts/eval-live.mjs");
 assert.match(manifest.scripts.check, /build-sdk-public-api\.mjs --check/);
 assert.match(manifest.scripts.prepack, /build-sdk-public-api\.mjs --check/);
 assert.deepEqual(manifest.exports["./sdk"], {
@@ -428,27 +424,20 @@ for (const fixtureId of [
 		`Missing required live eval fixture: ${fixtureId}`,
 	);
 }
-const evalJson = await readFile(join(root, "scripts/eval-json.mjs"), "utf8");
-const evalRpc = await readFile(join(root, "scripts/eval-rpc.mjs"), "utf8");
-const evalEventMonitor = await readFile(
-	join(root, "scripts/eval-event-monitor.mjs"),
-	"utf8",
-);
 const evalLive = await readFile(join(root, "scripts/eval-live.mjs"), "utf8");
-assert.match(evalJson, /createEvalEventMonitor/);
-assert.match(
-	evalJson,
-	/"--skill",\s*skills,\s*fixture\.request,\s*"--developer"/,
-	"JSON eval must place the positional prompt before the extension flag",
-);
-assert.match(evalEventMonitor, /createFixtureBudgetMonitor/);
-assert.match(evalEventMonitor, /createJsonlDecoder/);
-assert.match(
-	evalRpc,
-	/value\.type !== "message_update"/,
-	"RPC eval traces must drop cumulative token updates before long Doctor runs",
-);
+assert.match(evalLive, /eval-sdk-routing\.ts/);
 assert.match(evalLive, /summarizeTrialObservations/);
+assert.doesNotMatch(evalLive, /eval-rpc\.mjs|eval-json\.mjs|--transport/);
+for (const removedEvaluator of [
+	"eval-assertions.mjs",
+	"eval-budget.mjs",
+	"eval-event-monitor.mjs",
+	"eval-json.mjs",
+	"eval-rpc.mjs",
+	"eval-workspace.mjs",
+]) {
+	await assert.rejects(access(join(root, "scripts", removedEvaluator)));
+}
 
 const scheduleReference = await readFile(
 	join(root, "skills/schedule/references/structural-change-timing.md"),

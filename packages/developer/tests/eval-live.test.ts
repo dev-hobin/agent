@@ -9,7 +9,7 @@ import test from "node:test";
 const assert: typeof assertModule.strict = assertModule.strict;
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-test("probabilistic live evaluation aggregates isolated trials instead of treating one sample as a test", async () => {
+test("probabilistic SDK evaluation aggregates isolated trials instead of treating one sample as a test", async () => {
 	const directory = await mkdtemp(
 		join(tmpdir(), "developer-probability-test-"),
 	);
@@ -17,13 +17,14 @@ test("probabilistic live evaluation aggregates isolated trials instead of treati
 	try {
 		const run = spawnSync(
 			process.execPath,
-			[join(packageRoot, "scripts", "eval-live.mjs"), "--transport", "rpc"],
+			[join(packageRoot, "scripts", "eval-live.mjs")],
 			{
 				cwd: packageRoot,
 				encoding: "utf8",
 				env: {
 					...process.env,
-					PI_CODING_AGENT_DIR: directory,
+					DEVELOPER_SDK_PI_ROOT: directory,
+					DEVELOPER_SDK_MODEL: "test/model",
 					DEVELOPER_EVAL_FIXTURE: "vague-product-request",
 					DEVELOPER_EVAL_TRIALS: "2",
 					DEVELOPER_EVAL_RUNNER: join(
@@ -47,13 +48,15 @@ test("probabilistic live evaluation aggregates isolated trials instead of treati
 		const inadmissibleReportPath = join(directory, "inadmissible-report.json");
 		const inadmissibleRun = spawnSync(
 			process.execPath,
-			[join(packageRoot, "scripts", "eval-live.mjs"), "--transport", "rpc"],
+			[join(packageRoot, "scripts", "eval-live.mjs")],
 			{
 				cwd: packageRoot,
 				encoding: "utf8",
 				env: {
 					...process.env,
-					PI_CODING_AGENT_DIR: directory,
+					DEVELOPER_SDK_PI_ROOT: directory,
+					DEVELOPER_SDK_MODEL: "test/model",
+					DEVELOPER_FAKE_SELECTED_TARGETS_JSON: '["model"]',
 					DEVELOPER_EVAL_FIXTURE: "self-referential-design-template",
 					DEVELOPER_EVAL_TRIALS: "1",
 					DEVELOPER_EVAL_RUNNER: join(
@@ -76,13 +79,14 @@ test("probabilistic live evaluation aggregates isolated trials instead of treati
 		const boundedReportPath = join(directory, "bounded-report.json");
 		const boundedRun = spawnSync(
 			process.execPath,
-			[join(packageRoot, "scripts", "eval-live.mjs"), "--transport", "rpc"],
+			[join(packageRoot, "scripts", "eval-live.mjs")],
 			{
 				cwd: packageRoot,
 				encoding: "utf8",
 				env: {
 					...process.env,
-					PI_CODING_AGENT_DIR: directory,
+					DEVELOPER_SDK_PI_ROOT: directory,
+					DEVELOPER_SDK_MODEL: "test/model",
 					DEVELOPER_EVAL_FIXTURE: "vague-product-request",
 					DEVELOPER_EVAL_TRIALS: "1",
 					DEVELOPER_EVAL_RUNNER: join(
@@ -100,13 +104,13 @@ test("probabilistic live evaluation aggregates isolated trials instead of treati
 		const boundedReport = JSON.parse(await readFile(boundedReportPath, "utf8"));
 		assert.equal(boundedReport.fixtures[0].accepted, 0);
 		assert.equal(boundedReport.fixtures[0].boundedStops, 1);
-		assert.equal(boundedReport.fixtures[0].medianToolCallAttempts, 6);
+		assert.equal(boundedReport.fixtures[0].medianToolCallAttempts, 2);
 		assert.match(boundedRun.stdout, /bounded 1/);
 
 		const sdkReportPath = join(directory, "sdk-report.json");
 		const sdkRun = spawnSync(
 			process.execPath,
-			[join(packageRoot, "scripts", "eval-live.mjs"), "--transport", "sdk"],
+			[join(packageRoot, "scripts", "eval-live.mjs")],
 			{
 				cwd: packageRoot,
 				encoding: "utf8",
@@ -114,6 +118,7 @@ test("probabilistic live evaluation aggregates isolated trials instead of treati
 					...process.env,
 					DEVELOPER_SDK_PI_ROOT: directory,
 					DEVELOPER_SDK_MODEL: "test/model",
+					DEVELOPER_FAKE_SELECTED_TARGETS_JSON: '["model","sketch"]',
 					DEVELOPER_EVAL_FIXTURE: "specialized-temporal-model",
 					DEVELOPER_EVAL_TRIALS: "1",
 					DEVELOPER_EVAL_RUNNER: join(
