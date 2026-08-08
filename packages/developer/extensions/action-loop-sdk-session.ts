@@ -363,6 +363,12 @@ export function sdkJudgmentConcludedEvent(input: {
 				}),
 			),
 			basis: [...conclusion.basis],
+			...(conclusion.interventionDisposition === undefined
+				? {}
+				: {
+						interventionDisposition:
+							conclusion.interventionDisposition,
+					}),
 			provenance: { ...conclusion.provenance },
 		},
 		conclusion.conclusionId,

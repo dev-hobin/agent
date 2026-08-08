@@ -7,15 +7,19 @@ import {
 	resumeLiveWaitingWorkCase,
 	waitLiveWorkCase,
 } from "../extensions/action-loop-continuity.ts";
+import { closeLiveJudgment } from "../extensions/action-loop-conclusion.ts";
 import { acceptLiveHostContribution } from "../extensions/action-loop-host-contribution.ts";
 import { admitLiveUserPromptObservation } from "../extensions/action-loop-host-observation.ts";
+import { assessLiveNeedCoverage } from "../extensions/action-loop-coverage.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import {
 	ACTION_LOOP_SESSION_ENTRY,
 	ACTION_LOOP_SESSION_PROTOCOL,
 	MAX_ACTION_LOOP_SESSION_EVENT_BYTES,
 	actionLoopPausedWorkCaseResumedEvent,
+	actionLoopCoverageAssessedEvent,
 	actionLoopHostContributionAcceptedEvent,
+	actionLoopJudgmentConcludedEvent,
 	actionLoopJudgmentOpenedEvent,
 	actionLoopWaitingWorkCaseResumedEvent,
 	actionLoopWorkCaseOpenedEvent,
@@ -156,6 +160,150 @@ test("an exact host Contribution replays without Skill material", async () => {
 		contribution.contribution.contributionId,
 	);
 	assert.equal(replayed.appliedTransitions, 3);
+});
+
+test("Proportionate Intervention disposition survives semantic event replay", async () => {
+	const opened = openLiveWorkCase(undefined, proposal);
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const judgmentProposal = {
+		category: "Proportionate Intervention" as const,
+		subject: "Whether a bounded host Action is warranted",
+		question: "Does current evidence warrant one bounded host Action?",
+		requirements: [
+			{
+				statement: "The intervention disposition is evidence-backed.",
+				contributionNeeds: ["An exact current intervention decision"],
+			},
+		],
+		basis: ["The Action decision must remain distinct from its evidence."],
+		provenance: { kind: "model" as const, source: "pi:sdk-action-loop" },
+	};
+	const judgment = openLiveJudgment(opened.value, judgmentProposal);
+	assert.equal(judgment.status, "opened");
+	if (judgment.status !== "opened") return;
+	const need = judgment.judgment.contributionNeeds[0];
+	const requirement = judgment.judgment.requirements[0];
+	assert.ok(need);
+	assert.ok(requirement);
+	const observation = admitLiveUserPromptObservation(
+		"Preserve the current state; no host Action is warranted.",
+		opened.value.workCase.workCaseId,
+	);
+	assert.equal(observation.status, "admitted");
+	if (observation.status !== "admitted") return;
+	const hostProposal = {
+		contributionNeedId: need.contributionNeedId,
+		localStatus: "resolved" as const,
+		result: "Current evidence warrants no host Action.",
+		limitations: [],
+		residualNeeds: [],
+		basis: ["The exact human Observation answers the current Need."],
+	};
+	const contribution = acceptLiveHostContribution(
+		judgment.state,
+		observation.observation,
+		hostProposal,
+	);
+	assert.equal(contribution.status, "accepted");
+	if (contribution.status !== "accepted") return;
+	const coverageProposal = {
+		contributionNeedId: need.contributionNeedId,
+		status: "covered" as const,
+		dispositions: [
+			{
+				contributionId: contribution.contribution.contributionId,
+				status: "supports" as const,
+				basis: ["The exact current decision fully answers the Need."],
+			},
+		],
+		conflicts: [],
+		basis: ["Current relied-on evidence closes the Need."],
+		provenance: { kind: "model" as const, source: "pi:sdk-action-loop" },
+	};
+	const coverage = assessLiveNeedCoverage(
+		contribution.state,
+		coverageProposal,
+	);
+	assert.equal(coverage.status, "assessed");
+	if (coverage.status !== "assessed") return;
+	const conclusionProposal = {
+		outcome: "conclude" as const,
+		answer: "Preserve the current state without a host Action.",
+		interventionDisposition: "no-action" as const,
+		refusalReasons: [],
+		requirementDispositions: [
+			{
+				requirementId: requirement.requirementId,
+				status: "satisfied" as const,
+				coverageIds: [coverage.coverage.coverageId],
+				basis: ["The exact current decision satisfies the Requirement."],
+			},
+		],
+		basis: ["All current Requirements are covered."],
+		provenance: { kind: "model" as const, source: "pi:sdk-action-loop" },
+	};
+	const concluded = closeLiveJudgment(coverage.state, conclusionProposal);
+	assert.equal(concluded.status, "concluded");
+	if (concluded.status !== "concluded") return;
+
+	const replayed = await replayActionLoopSession([
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopWorkCaseOpenedEvent(proposal, opened.value),
+		},
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopJudgmentOpenedEvent(
+				judgmentProposal,
+				judgment.judgment.judgmentId,
+				judgment.state.workCase.revisionId,
+			),
+		},
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopHostContributionAcceptedEvent(
+				{
+					observationId: observation.observation.observationId,
+					kind: observation.observation.kind,
+					source: observation.observation.source,
+					statement: observation.observation.statement,
+					evidenceFingerprint: observation.observation.evidenceFingerprint,
+					basis: [...observation.observation.basis],
+				},
+				hostProposal,
+				contribution.contribution.contributionId,
+			),
+		},
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopCoverageAssessedEvent(
+				coverageProposal,
+				coverage.coverage.coverageId,
+			),
+		},
+		{
+			type: "custom",
+			customType: ACTION_LOOP_SESSION_ENTRY,
+			data: actionLoopJudgmentConcludedEvent(
+				conclusionProposal,
+				concluded.conclusion.conclusionId,
+				concluded.state.workCase.revisionId,
+			),
+		},
+	]);
+	assert.equal(replayed.status, "ready");
+	if (replayed.status !== "ready") return;
+	assert.equal(replayed.appliedTransitions, 5);
+	assert.equal(
+		replayed.activeWorkCase?.workCase.conclusions[0]
+			?.interventionDisposition,
+		"no-action",
+	);
 });
 
 test("human pause and resume replay as branch-local ownership transitions", async () => {

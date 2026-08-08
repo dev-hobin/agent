@@ -5,8 +5,7 @@ import {
 	snapshotWorkspace,
 } from "./eval-filesystem.mjs";
 
-const ACTION_LOOP_PROGRESSION_TOOL =
-	"developer_progress_action_loop_with_sdk";
+const ACTION_LOOP_PROGRESSION_TOOL = "developer_progress_action_loop_with_sdk";
 const ACTION_CLEARANCE_STATUS = "ready-for-host-action";
 const monitoredTools = new Set(["bash", "edit", "write"]);
 

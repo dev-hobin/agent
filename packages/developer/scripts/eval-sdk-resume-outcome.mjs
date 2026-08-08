@@ -1,3 +1,12 @@
+const RECOVERY_REQUIRED_PATTERNS = [
+	/Action Loop session replay is unavailable/i,
+	/cannot resume unavailable Action Loop state/i,
+];
+
+export function isSdkReplayRecoveryRequired(text) {
+	return RECOVERY_REQUIRED_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 function textContent(result) {
 	return (result?.content ?? [])
 		.filter((item) => item.type === "text" && typeof item.text === "string")
@@ -62,6 +71,17 @@ export function summarizeSdkResumeRun(index, trace, waitResult) {
 }
 
 export function classifySdkResumeRun(run) {
+	const recoveryErrors = run.toolErrors.filter((error) =>
+		isSdkReplayRecoveryRequired(error.text),
+	);
+	if (recoveryErrors.length > 0) {
+		return {
+			status: "recovery-required",
+			reason: recoveryErrors
+				.map((error) => `${error.toolName} (${error.count}): ${error.text}`)
+				.join(" | "),
+		};
+	}
 	if (run.agentErrors.length > 0) {
 		return {
 			status: "provider-blocked",

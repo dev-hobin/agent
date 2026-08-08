@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { parseDeveloperStatus } from "./eval-outcome.mjs";
 import {
 	classifySdkResumeRun,
+	isSdkReplayRecoveryRequired,
 	summarizeSdkResumeRun,
 } from "./eval-sdk-resume-outcome.mjs";
 import { createJsonlDecoder } from "./jsonl.mjs";
@@ -200,6 +201,26 @@ async function waitForRun(start) {
 	let lastProgressAt = startedAt;
 	while (true) {
 		const trace = events.slice(start);
+		const recoveryFailure = trace.find(
+			(event) =>
+				event.type === "tool_execution_end" &&
+				event.isError &&
+				isSdkReplayRecoveryRequired(
+					(event.result?.content ?? [])
+						.filter(
+							(item) =>
+								item.type === "text" && typeof item.text === "string",
+						)
+						.map((item) => item.text)
+						.join("\n"),
+				),
+		);
+		if (recoveryFailure) {
+			return {
+				status: "recovery-required",
+				elapsedMs: Date.now() - startedAt,
+			};
+		}
 		if (trace.some((event) => event.type === "agent_settled")) {
 			return { status: "settled", elapsedMs: Date.now() - startedAt };
 		}
@@ -272,6 +293,7 @@ const transitionalTools = new Set([
 const runs = [];
 let providerBlock;
 let usabilityStop;
+let recoveryStop;
 try {
 	const state = await send({ type: "get_state" });
 	assert.equal(state.success, true, state.error);
@@ -369,7 +391,10 @@ try {
 		});
 		assert.equal(response.success, true, response.error);
 		const waitResult = await waitForRun(start);
-		if (waitResult.status === "bounded-stop") {
+		if (
+			waitResult.status === "bounded-stop" ||
+			waitResult.status === "recovery-required"
+		) {
 			const aborted = await send({ type: "abort" }, 5_000);
 			assert.equal(aborted.success, true, aborted.error);
 		}
@@ -384,6 +409,10 @@ try {
 			`Run ${index} used transitional protocol tools.`,
 		);
 		const classification = classifySdkResumeRun(run);
+		if (classification.status === "recovery-required") {
+			recoveryStop = classification.reason;
+			break;
+		}
 		if (classification.status === "provider-blocked") {
 			providerBlock = classification.reason;
 			break;
@@ -409,7 +438,8 @@ try {
 		"Resume progression reopened canonical Work Case ownership.",
 	);
 	let evaluationStatus = status.protocol;
-	if (providerBlock) evaluationStatus = "provider-blocked";
+	if (recoveryStop) evaluationStatus = "recovery-required";
+	else if (providerBlock) evaluationStatus = "provider-blocked";
 	else if (usabilityStop) evaluationStatus = "usability-stalled";
 	const report = {
 		protocol: "developer-sdk-action-loop-resume-eval/v1",
@@ -425,6 +455,7 @@ try {
 		...(forkedFromEntryId ? { forkedFromEntryId } : {}),
 		...(compaction ? { compaction } : {}),
 		status: evaluationStatus,
+		...(recoveryStop ? { recoveryStop } : {}),
 		...(providerBlock ? { providerBlock } : {}),
 		...(usabilityStop ? { usabilityStop } : {}),
 		runs,

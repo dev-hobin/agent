@@ -264,6 +264,11 @@ test("SDK Contribution remains local and Coverage separately owns synthesis", as
 	assert.equal(intervention.status, "concluded");
 	if (intervention.status !== "concluded") return;
 	assert.equal(intervention.conclusion.interventionDisposition, "no-action");
+	const interventionEvent = sdkJudgmentConcludedEvent({
+		result: intervention,
+		revisionId: "revision-after-intervention",
+	});
+	assert.equal(interventionEvent.proposal.interventionDisposition, "no-action");
 });
 
 test("SDK Contribution status stays scoped to its exact assigned Need", async () => {

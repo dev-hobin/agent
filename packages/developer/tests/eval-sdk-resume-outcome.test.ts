@@ -36,6 +36,38 @@ test("SDK resume evaluation classifies an outer agent runtime error as provider-
 	});
 });
 
+test("SDK resume evaluation prioritizes deterministic replay recovery over provider timeout", () => {
+	const run = summarizeSdkResumeRun(
+		1,
+		[
+			{
+				type: "tool_execution_start",
+				toolName: "developer_progress_action_loop_with_sdk",
+			},
+			{
+				type: "tool_execution_end",
+				toolName: "developer_progress_action_loop_with_sdk",
+				isError: true,
+				result: toolResult(
+					"Developer Action Loop session replay is unavailable: persisted Conclusion does not reproduce.",
+				),
+			},
+			{
+				type: "message_end",
+				message: {
+					role: "assistant",
+					stopReason: "error",
+					errorMessage: "Request timed out.",
+				},
+			},
+		],
+		wait,
+	);
+	const classification = classifySdkResumeRun(run);
+	assert.equal(classification.status, "recovery-required");
+	assert.match(classification.reason, /session replay is unavailable/);
+});
+
 test("SDK resume evaluation compacts repeated flattened provider arguments", () => {
 	const validation = [
 		'Validation failed for tool "developer_accept_observation_contribution":',
