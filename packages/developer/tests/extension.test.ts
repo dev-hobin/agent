@@ -378,6 +378,10 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 		false,
 	);
 	assert.equal(
+		harness.activeTools().includes("developer_record_effect_remediation"),
+		false,
+	);
+	assert.equal(
 		harness.activeTools().includes("developer_pause_work_case"),
 		true,
 	);
