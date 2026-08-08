@@ -1,8 +1,10 @@
 import type { PermissionDecision } from "../action/action-clearance.ts";
 import type { EffectObservation } from "../effect/effect-observation.ts";
+import type { EffectSettlement } from "../effect/effect-settlement.ts";
 import { recordWorkCaseActionCandidate } from "../work/record-work-case-action-candidate.ts";
 import { recordWorkCaseActionClearance } from "../work/record-work-case-action-clearance.ts";
 import { recordWorkCaseEffectAssessment } from "../work/record-work-case-effect-assessment.ts";
+import { recordWorkCaseEffectRemediation } from "../work/record-work-case-effect-remediation.ts";
 import {
 	clearActionWithHostPermission,
 	proposeActionWithSdk,
@@ -19,6 +21,10 @@ import {
 	settleEffectWithSdk,
 	type SdkEffectSettlementResult,
 } from "./effect-controller.ts";
+import {
+	resolveEffectRemediationWithSdk,
+	type SdkEffectRemediationResult,
+} from "./effect-remediation-controller.ts";
 import type { SdkDecisionRunner } from "./decision-controller.ts";
 import {
 	openJudgmentWithSdk,
@@ -46,6 +52,7 @@ export type SdkActionLoopProgressionStage =
 	| "conclusion"
 	| "action"
 	| "effect"
+	| "remediation"
 	| "completion";
 
 export type SdkActionLoopCheckpoint =
@@ -77,6 +84,14 @@ export type SdkActionLoopCheckpoint =
 				{ readonly status: "settled" | "unsettled" }
 			>;
 			readonly expectedCurrentAssessmentId?: string;
+			readonly workCase: SdkJudgmentProgressState["workCase"];
+	  }
+	| {
+			readonly kind: "effect-remediated";
+			readonly result: Extract<
+				SdkEffectRemediationResult,
+				{ readonly status: "remediated" }
+			>;
 			readonly workCase: SdkJudgmentProgressState["workCase"];
 	  }
 	| {
@@ -122,6 +137,16 @@ export type SdkActionLoopProgressionResult =
 	| (ProgressResultBase & {
 			readonly status: "effect-unsettled";
 			readonly outcome: string;
+	  })
+	| (ProgressResultBase & {
+			readonly status: "effect-remediated";
+			readonly adverseEffectId: string;
+			readonly remediationEffectId: string;
+	  })
+	| (ProgressResultBase & {
+			readonly status: "remediation-required";
+			readonly adverseEffectIds: readonly string[];
+			readonly refusalReasons?: readonly string[];
 	  })
 	| (ProgressResultBase & {
 			readonly status: "ready-for-completion";
@@ -305,6 +330,57 @@ function currentAssessmentId(
 	return "effectSettlementId" in assessment
 		? assessment.effectSettlementId
 		: assessment.effectAssessmentId;
+}
+
+function currentEffectSettlements(
+	state: SdkJudgmentProgressState,
+): readonly EffectSettlement[] {
+	return state.workCase.currentEffectAssessments.flatMap((assessment) =>
+		"effectSettlementId" in assessment ? [assessment] : [],
+	);
+}
+
+function unresolvedAdverseSettlements(
+	state: SdkJudgmentProgressState,
+): readonly EffectSettlement[] {
+	const remediated = new Set(
+		state.workCase.effectRemediations.map(({ adverseEffectId }) => adverseEffectId),
+	);
+	return currentEffectSettlements(state).filter(
+		(settlement) =>
+			(settlement.outcome === "failed" ||
+				settlement.outcome === "partially-applied") &&
+			!remediated.has(settlement.effectId),
+	);
+}
+
+function successfulEffectSettlements(
+	state: SdkJudgmentProgressState,
+): readonly EffectSettlement[] {
+	return currentEffectSettlements(state).filter(
+		({ outcome }) => outcome === "observed-success",
+	);
+}
+
+function consumedConclusionIds(
+	state: SdkJudgmentProgressState,
+): ReadonlySet<string> {
+	return new Set(
+		state.workCase.actionCandidates.flatMap(
+			({ requiredConclusionIds }) => requiredConclusionIds,
+		),
+	);
+}
+
+function pendingRemediationIntervention(
+	state: SdkJudgmentProgressState,
+): SdkJudgmentProgressState["workCase"]["conclusions"][number] | undefined {
+	const consumed = consumedConclusionIds(state);
+	return state.workCase.conclusions.find(
+		(conclusion) =>
+			conclusion.category === "Proportionate Intervention" &&
+			!consumed.has(conclusion.conclusionId),
+	);
 }
 
 async function progressCompletion(input: {
@@ -564,6 +640,123 @@ async function progressEffect(input: {
 	};
 }
 
+async function progressRemediation(input: {
+	readonly request: string;
+	readonly state: SdkJudgmentProgressState;
+	readonly adverseSettlements: readonly EffectSettlement[];
+	readonly successfulSettlements: readonly EffectSettlement[];
+	readonly runner: SdkDecisionRunner;
+	readonly checkpoint: SdkActionLoopProgressionInput["checkpoint"];
+	readonly maxSteps: number;
+	readonly steps: number;
+	readonly checkpoints: number;
+}): Promise<SdkActionLoopProgressionResult> {
+	if (input.steps >= input.maxSteps) {
+		return {
+			status: "bounded-stop",
+			stage: "remediation",
+			reason: "progression-step-budget",
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const result = await resolveEffectRemediationWithSdk({
+		request: input.request,
+		workCaseId: input.state.workCase.workCaseId,
+		adverseSettlements: input.adverseSettlements,
+		successfulSettlements: input.successfulSettlements,
+		runner: input.runner,
+	});
+	const steps = input.steps + 1;
+	if (result.status === "bounded-stop") {
+		return {
+			status: "bounded-stop",
+			stage: "remediation",
+			reason: result.reason,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (result.status === "runtime-failure") {
+		return {
+			status: "runtime-failure",
+			stage: "remediation",
+			message: result.message,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (result.status === "invariant-failure") {
+		return {
+			status: "invariant-failure",
+			stage: "remediation",
+			code: result.code,
+			message: result.message,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (result.status === "refused") {
+		return {
+			status: "remediation-required",
+			adverseEffectIds: input.adverseSettlements.map(({ effectId }) => effectId),
+			refusalReasons: result.refusalReasons,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const recorded = recordWorkCaseEffectRemediation(
+		input.state.workCase,
+		result.remediation,
+	);
+	if (recorded.status === "invalid") {
+		return {
+			status: "invariant-failure",
+			stage: "remediation",
+			code: recorded.error.code,
+			message: recorded.error.message,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const nextState = Object.freeze({
+		...input.state,
+		workCase: recorded.value,
+	});
+	const checkpoint: SdkActionLoopCheckpoint = {
+		kind: "effect-remediated",
+		result,
+		workCase: recorded.value,
+	};
+	try {
+		await input.checkpoint(checkpoint);
+	} catch (error) {
+		return {
+			status: "checkpoint-failure",
+			stage: "remediation",
+			message: compactError(error),
+			pendingCheckpoint: checkpoint,
+			state: input.state,
+			steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	return {
+		status: "effect-remediated",
+		adverseEffectId: result.remediation.adverseEffectId,
+		remediationEffectId: result.remediation.remediationEffectId,
+		state: nextState,
+		steps,
+		checkpoints: input.checkpoints + 1,
+	};
+}
+
 function nextRequiredJudgmentCategory(
 	state: SdkJudgmentProgressState,
 ): SdkJudgmentCategory | undefined {
@@ -578,14 +771,22 @@ function nextRequiredJudgmentCategory(
 			),
 		);
 		if (
-			state.workCase.effects.every((effect) =>
+			!state.workCase.effects.every((effect) =>
 				settledEffectIds.has(effect.effectId),
-			) &&
-			!categories.has("Claim Assurance")
+			)
 		) {
-			return "Claim Assurance";
+			return undefined;
 		}
-		return undefined;
+		const adverse = unresolvedAdverseSettlements(state);
+		if (adverse.length > 0) {
+			if (successfulEffectSettlements(state).length > 0) return undefined;
+			return pendingRemediationIntervention(state) === undefined
+				? "Proportionate Intervention"
+				: undefined;
+		}
+		return !categories.has("Claim Assurance")
+			? "Claim Assurance"
+			: undefined;
 	}
 	if (
 		!categories.has("Proportionate Intervention") &&
@@ -619,6 +820,7 @@ async function progressAction(input: {
 	readonly checkpoints: number;
 }): Promise<SdkActionLoopProgressionResult> {
 	const { workCase } = input.state;
+	let actionConclusions = workCase.conclusions;
 	const pendingClearance = workCase.actionClearances.find(
 		(clearance) =>
 			!workCase.effects.some(
@@ -647,26 +849,58 @@ async function progressAction(input: {
 			checkpoints: input.checkpoints,
 		});
 		if (progressed.status !== "ready-for-completion") return progressed;
-		if (!input.complete) return progressed;
-		if (!progressed.state) {
-			return {
-				status: "invariant-failure",
-				stage: "completion",
-				code: "missing-active-work-case",
-				message: "Completion progression lost the active Work Case.",
+		const adverse = unresolvedAdverseSettlements(input.state);
+		if (adverse.length > 0) {
+			const successful = successfulEffectSettlements(input.state);
+			if (successful.length > 0) {
+				return progressRemediation({
+					request: input.request,
+					state: input.state,
+					adverseSettlements: adverse,
+					successfulSettlements: successful,
+					runner: input.runner,
+					checkpoint: input.checkpoint,
+					maxSteps: input.maxSteps,
+					steps: progressed.steps,
+					checkpoints: progressed.checkpoints,
+				});
+			}
+			const intervention = pendingRemediationIntervention(input.state);
+			if (
+				intervention === undefined ||
+				intervention.interventionDisposition !== "action-required"
+			) {
+				return {
+					status: "remediation-required",
+					adverseEffectIds: adverse.map(({ effectId }) => effectId),
+					state: input.state,
+					steps: progressed.steps,
+					checkpoints: progressed.checkpoints,
+				};
+			}
+			actionConclusions = [intervention];
+		} else {
+			if (!input.complete) return progressed;
+			if (!progressed.state) {
+				return {
+					status: "invariant-failure",
+					stage: "completion",
+					code: "missing-active-work-case",
+					message: "Completion progression lost the active Work Case.",
+					steps: progressed.steps,
+					checkpoints: progressed.checkpoints,
+				};
+			}
+			return progressCompletion({
+				request: input.request,
+				state: progressed.state,
+				runner: input.runner,
+				checkpoint: input.checkpoint,
+				maxSteps: input.maxSteps,
 				steps: progressed.steps,
 				checkpoints: progressed.checkpoints,
-			};
+			});
 		}
-		return progressCompletion({
-			request: input.request,
-			state: progressed.state,
-			runner: input.runner,
-			checkpoint: input.checkpoint,
-			maxSteps: input.maxSteps,
-			steps: progressed.steps,
-			checkpoints: progressed.checkpoints,
-		});
 	}
 	const categories = new Set(
 		workCase.conclusions.map((conclusion) => conclusion.category),
@@ -712,7 +946,7 @@ async function progressAction(input: {
 	if (!input.actions || !input.authorizeAction) {
 		return {
 			status: "ready-for-action",
-			conclusionIds: workCase.conclusions.map(
+			conclusionIds: actionConclusions.map(
 				(conclusion) => conclusion.conclusionId,
 			),
 			state: input.state,
@@ -733,7 +967,7 @@ async function progressAction(input: {
 	const action = await proposeActionWithSdk({
 		request: input.request,
 		workCaseId: workCase.workCaseId,
-		conclusions: workCase.conclusions,
+		conclusions: actionConclusions,
 		actions: input.actions,
 		runner: input.runner,
 	});

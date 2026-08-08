@@ -10,6 +10,7 @@ import type { SdkJudgmentConclusionResult } from "../src/action-loop/sdk/conclus
 import type { SdkSkillContributionResult } from "../src/action-loop/sdk/contribution-controller.ts";
 import type { SdkNeedCoverageResult } from "../src/action-loop/sdk/coverage-controller.ts";
 import type { SdkEffectSettlementResult } from "../src/action-loop/sdk/effect-controller.ts";
+import type { SdkEffectRemediationResult } from "../src/action-loop/sdk/effect-remediation-controller.ts";
 import type { SdkJudgmentOpeningResult } from "../src/action-loop/sdk/judgment-controller.ts";
 import type { SdkJudgmentCheckpoint } from "../src/action-loop/sdk/judgment-progression-controller.ts";
 import type { SdkWorkCaseOpeningResult } from "../src/action-loop/sdk/work-case-controller.ts";
@@ -18,6 +19,7 @@ import {
 	actionLoopCapabilityInventoryAssessedEvent,
 	actionLoopContributionAcceptedEvent,
 	actionLoopCoverageAssessedEvent,
+	actionLoopEffectRemediatedEvent,
 	actionLoopEffectSettledEvent,
 	actionLoopJudgmentConcludedEvent,
 	actionLoopJudgmentOpenedEvent,
@@ -29,6 +31,7 @@ import {
 	type ActionLoopCapabilityInventoryAssessedEvent,
 	type ActionLoopContributionAcceptedEvent,
 	type ActionLoopCoverageAssessedEvent,
+	type ActionLoopEffectRemediatedEvent,
 	type ActionLoopEffectSettledEvent,
 	type ActionLoopJudgmentConcludedEvent,
 	type ActionLoopJudgmentOpenedEvent,
@@ -125,6 +128,22 @@ export function sdkEffectSettledEvent(input: {
 		assessmentId,
 		input.revisionId,
 	);
+}
+
+export function sdkEffectRemediatedEvent(input: {
+	readonly result: Extract<
+		SdkEffectRemediationResult,
+		{ readonly status: "remediated" }
+	>;
+	readonly revisionId: string;
+}): ActionLoopEffectRemediatedEvent {
+	return actionLoopEffectRemediatedEvent({
+		adverseEffectId: input.result.remediation.adverseEffectId,
+		remediationEffectId: input.result.remediation.remediationEffectId,
+		basis: [...input.result.remediation.basis],
+		remediationId: input.result.remediation.effectRemediationId,
+		revisionId: input.revisionId,
+	});
 }
 
 export function sdkWorkCaseCompletedEvent(

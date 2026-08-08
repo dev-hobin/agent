@@ -2137,13 +2137,13 @@ function conclusionInventoryIssue(workCase) {
   };
 }
 function candidateInventoryIssue(workCase, conclusions) {
-  const invalid27 = workCase.actionCandidates.find(
+  const invalid28 = workCase.actionCandidates.find(
     (candidate) => candidate.workCaseId !== workCase.workCaseId || candidate.requiredConclusionIds.some((id) => !conclusions.has(id))
   );
-  return invalid27 === void 0 ? void 0 : {
+  return invalid28 === void 0 ? void 0 : {
     code: "missing-dependency",
     path: "workCase.actionCandidates",
-    message: `Action Candidate has a missing Work Case dependency: ${invalid27.actionCandidateId}`
+    message: `Action Candidate has a missing Work Case dependency: ${invalid28.actionCandidateId}`
   };
 }
 function clearanceInventoryIssue(workCase, conclusions, candidates) {
@@ -4216,6 +4216,90 @@ function recordWorkCaseActionClearance(workCase, clearance) {
   };
 }
 
+// src/action-loop/work/record-work-case-effect-remediation.ts
+function invalid16(code, path, message) {
+  return { status: "invalid", error: { code, path, message } };
+}
+function assessmentId(assessment) {
+  return "effectSettlementId" in assessment ? assessment.effectSettlementId : assessment.effectAssessmentId;
+}
+function recordWorkCaseEffectRemediation(workCase, remediation) {
+  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
+    return invalid16(
+      "stale-work-case",
+      "workCase.revisionId",
+      "Work Case revision does not match its closure inventory"
+    );
+  }
+  if (workCaseInventoryIssue(workCase) !== void 0) {
+    return invalid16(
+      "invalid-work-case-inventory",
+      "workCase",
+      "Work Case closure inventory is relationally incoherent"
+    );
+  }
+  if (remediation.workCaseId !== workCase.workCaseId) {
+    return invalid16(
+      "identity-mismatch",
+      "remediation.workCaseId",
+      "Effect remediation belongs to another Work Case"
+    );
+  }
+  const existing = workCase.effectRemediations.find(
+    ({ effectRemediationId }) => effectRemediationId === remediation.effectRemediationId
+  );
+  if (existing !== void 0) return { status: "unchanged", value: workCase };
+  if (workCase.effectRemediations.some(
+    ({ adverseEffectId }) => adverseEffectId === remediation.adverseEffectId
+  )) {
+    return invalid16(
+      "adverse-effect-already-remediated",
+      "remediation.adverseEffectId",
+      "The adverse Effect already has a current remediation"
+    );
+  }
+  const adverse = workCase.currentEffectAssessments.find(
+    ({ effectId }) => effectId === remediation.adverseEffectId
+  );
+  const resolving = workCase.currentEffectAssessments.find(
+    ({ effectId }) => effectId === remediation.remediationEffectId
+  );
+  if (adverse === void 0 || resolving === void 0) {
+    return invalid16(
+      "missing-assessment",
+      "remediation",
+      "Both remediation assessments must be recorded in the Work Case"
+    );
+  }
+  if (assessmentId(adverse) !== remediation.adverseEffectSettlementId || assessmentId(resolving) !== remediation.remediationEffectSettlementId) {
+    return invalid16(
+      "stale-assessment",
+      "remediation",
+      "Effect remediation does not bind the current assessments"
+    );
+  }
+  const effectRemediations = Object.freeze(
+    [...workCase.effectRemediations, remediation].sort(
+      (left, right) => left.adverseEffectId.localeCompare(right.adverseEffectId)
+    )
+  );
+  const nextState = { ...workCase, effectRemediations };
+  if (workCaseInventoryIssue(nextState) !== void 0) {
+    return invalid16(
+      "invalid-work-case-inventory",
+      "remediation",
+      "Effect remediation would create an incoherent Work Case inventory"
+    );
+  }
+  return {
+    status: "recorded",
+    value: Object.freeze({
+      ...nextState,
+      revisionId: deriveWorkCaseRevisionId(nextState)
+    })
+  };
+}
+
 // src/action-loop/sdk/completion-controller.ts
 import { StringEnum as StringEnum2 } from "@earendil-works/pi-ai";
 import { Type as Type2 } from "typebox";
@@ -4867,7 +4951,7 @@ var PROVENANCE_KINDS7 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid16(code, path, message) {
+function invalid17(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function canonicalBasis10(values, path) {
@@ -5259,14 +5343,14 @@ function accountingIdentityParts(input) {
 }
 function settleEffect(effect, observations, proposal) {
   if (proposal.workCaseId !== effect.workCaseId || proposal.effectId !== effect.effectId) {
-    return invalid16(
+    return invalid17(
       "identity-mismatch",
       "proposal",
       "Settlement proposal targets another Work Case or Effect"
     );
   }
   if (!OUTCOMES.has(proposal.outcome)) {
-    return invalid16(
+    return invalid17(
       "unsupported-outcome",
       "proposal.outcome",
       `Unsupported Effect outcome ${proposal.outcome}`
@@ -5299,7 +5383,7 @@ function settleEffect(effect, observations, proposal) {
     intendedDispositions.value
   );
   if (proposal.outcome !== derived) {
-    return invalid16(
+    return invalid17(
       "outcome-mismatch",
       "proposal.outcome",
       `Current accounting derives ${derived}, not ${proposal.outcome}`
@@ -5637,9 +5721,229 @@ async function settleEffectWithSdk(input) {
   };
 }
 
-// src/action-loop/sdk/judgment-controller.ts
+// src/action-loop/sdk/effect-remediation-controller.ts
 import { StringEnum as StringEnum4 } from "@earendil-works/pi-ai";
 import { Type as Type4 } from "typebox";
+var remediationOutcomes = ["remediate", "refuse"];
+function isRecord4(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function rejected4(code, message) {
+  return { status: "rejected", code, message };
+}
+function remediationParameters(input) {
+  return Type4.Object(
+    {
+      outcome: StringEnum4(remediationOutcomes),
+      adverse_effect: Type4.Optional(
+        StringEnum4(
+          input.adverseSettlements.map((_, index) => `adverse_${index}`)
+        )
+      ),
+      remediation_effect: Type4.Optional(
+        StringEnum4(
+          input.successfulSettlements.map((_, index) => `success_${index}`)
+        )
+      ),
+      basis_json: Type4.String({ minLength: 2, maxLength: 32768 }),
+      refusal_reasons_json: Type4.String({ minLength: 2, maxLength: 32768 })
+    },
+    { additionalProperties: false }
+  );
+}
+function selectedIndex(value, prefix, length) {
+  if (typeof value !== "string" || !value.startsWith(prefix)) return void 0;
+  const index = Number(value.slice(prefix.length));
+  return Number.isInteger(index) && index >= 0 && index < length ? index : void 0;
+}
+function remediationTool(input) {
+  return {
+    name: "submit_effect_remediation",
+    label: "Submit one Effect remediation disposition",
+    description: "Bind one exact adverse settlement to one distinct observed-success settlement, or refuse when current evidence does not support that relation.",
+    parameters: remediationParameters(input),
+    execute: async (raw) => {
+      if (!isRecord4(raw)) {
+        return rejected4(
+          "invalid-arguments",
+          "Effect remediation arguments must be an object."
+        );
+      }
+      const refusalReasons = decodeSdkStringList({
+        value: raw.refusal_reasons_json,
+        label: "refusal_reasons_json",
+        allowEmpty: true,
+        maximumItems: 32
+      });
+      if (!refusalReasons.ok) {
+        return rejected4("invalid-refusal-reasons", refusalReasons.message);
+      }
+      if (raw.outcome === "refuse") {
+        if (refusalReasons.value.length === 0) {
+          return rejected4(
+            "missing-refusal-reason",
+            "Refusal requires at least one bounded reason."
+          );
+        }
+        return {
+          status: "accepted",
+          value: {
+            outcome: "refuse",
+            refusalReasons: refusalReasons.value
+          },
+          message: "Effect remediation was explicitly refused.",
+          resultStatus: "refused"
+        };
+      }
+      if (raw.outcome !== "remediate") {
+        return rejected4(
+          "invalid-outcome",
+          "outcome must be remediate or refuse."
+        );
+      }
+      if (refusalReasons.value.length > 0) {
+        return rejected4(
+          "unexpected-refusal-reasons",
+          "A remediation proposal cannot include refusal reasons."
+        );
+      }
+      const adverseIndex = selectedIndex(
+        raw.adverse_effect,
+        "adverse_",
+        input.adverseSettlements.length
+      );
+      const remediationIndex = selectedIndex(
+        raw.remediation_effect,
+        "success_",
+        input.successfulSettlements.length
+      );
+      if (adverseIndex === void 0 || remediationIndex === void 0) {
+        return rejected4(
+          "missing-effect-selection",
+          "Remediation must select one current adverse and one current successful Effect."
+        );
+      }
+      const basis = decodeSdkStringList({
+        value: raw.basis_json,
+        label: "basis_json",
+        allowEmpty: false,
+        maximumItems: 32
+      });
+      if (!basis.ok) return rejected4("invalid-basis", basis.message);
+      const adverse = input.adverseSettlements[adverseIndex];
+      const remediation = input.successfulSettlements[remediationIndex];
+      if (!adverse || !remediation) {
+        return rejected4(
+          "missing-effect-selection",
+          "Selected Effect is not in the current bounded inventory."
+        );
+      }
+      const accepted = acceptEffectRemediation(adverse, remediation, {
+        workCaseId: input.workCaseId,
+        adverseEffectId: adverse.effectId,
+        adverseEffectSettlementId: adverse.effectSettlementId,
+        remediationEffectId: remediation.effectId,
+        remediationEffectSettlementId: remediation.effectSettlementId,
+        basis: basis.value,
+        provenance: { kind: "model", source: "pi:sdk-effect-remediation" }
+      });
+      if (accepted.status === "invalid") {
+        return rejected4(accepted.error.code, accepted.error.message);
+      }
+      return {
+        status: "accepted",
+        value: {
+          outcome: "remediate",
+          remediation: accepted.value,
+          refusalReasons: Object.freeze([])
+        },
+        message: "Exact Effect remediation accepted.",
+        resultStatus: "remediated"
+      };
+    }
+  };
+}
+function remediationPrompt(input) {
+  const adverse = input.adverseSettlements.map(
+    (settlement, index) => `adverse_${index}: ${settlement.outcome}; ${settlement.basis.join(" ")}`
+  ).join("\n");
+  const successful = input.successfulSettlements.map(
+    (settlement, index) => `success_${index}: ${settlement.outcome}; ${settlement.basis.join(" ")}`
+  ).join("\n");
+  return [
+    `Delegated request:
+${input.request}`,
+    `Current unresolved adverse Effects:
+${adverse}`,
+    `Current observed-success Effects:
+${successful}`,
+    "Bind exactly one causal repair only when current evidence supports it. Otherwise refuse; do not accept an adverse Effect as completion."
+  ].join("\n\n");
+}
+async function resolveEffectRemediationWithSdk(input) {
+  if (input.adverseSettlements.length === 0) {
+    return {
+      status: "invariant-failure",
+      code: "missing-adverse-effect",
+      message: "Effect remediation requires a current adverse settlement."
+    };
+  }
+  if (input.successfulSettlements.length === 0) {
+    return {
+      status: "invariant-failure",
+      code: "missing-successful-effect",
+      message: "Effect remediation requires a distinct observed-success settlement."
+    };
+  }
+  const decision = await input.runner.run({
+    systemPrompt: [
+      "Assess one exact adverse Effect remediation relation.",
+      "Call the supplied decision tool exactly once.",
+      "Select only current indexed settlements and provide a source-bound causal basis, or refuse.",
+      "The SDK controller owns identities, outcome eligibility, canonical admission, retries, and stop decisions."
+    ].join("\n"),
+    prompt: remediationPrompt(input),
+    tool: remediationTool(input)
+  });
+  if (decision.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      reason: decision.reason,
+      decision: decision.metrics
+    };
+  }
+  if (decision.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      message: decision.message,
+      decision: decision.metrics
+    };
+  }
+  if (decision.value.outcome === "refuse") {
+    return {
+      status: "refused",
+      refusalReasons: decision.value.refusalReasons,
+      decision: decision.metrics
+    };
+  }
+  if (!decision.value.remediation) {
+    return {
+      status: "invariant-failure",
+      code: "missing-remediation",
+      message: "Accepted remediation decision has no canonical remediation.",
+      decision: decision.metrics
+    };
+  }
+  return {
+    status: "remediated",
+    remediation: decision.value.remediation,
+    decision: decision.metrics
+  };
+}
+
+// src/action-loop/sdk/judgment-controller.ts
+import { StringEnum as StringEnum5 } from "@earendil-works/pi-ai";
+import { Type as Type5 } from "typebox";
 
 // src/action-loop/judgment/open-judgment.ts
 var OPEN_JUDGMENT_VERSION = "developer-open-judgment/v1";
@@ -5654,7 +5958,7 @@ var MAX_TEXT_LENGTH2 = 4096;
 var MAX_REQUIREMENTS = 32;
 var MAX_NEEDS_PER_REQUIREMENT = 32;
 var MAX_BASIS_ITEMS2 = 16;
-function invalid17(code, path, message) {
+function invalid18(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId3(value) {
@@ -5768,14 +6072,14 @@ function canonicalRequirements(proposals) {
 }
 function openJudgment(proposal) {
   if (!validId3(proposal.workCaseId) || !validId3(proposal.contextRevisionId)) {
-    return invalid17(
+    return invalid18(
       "invalid-id",
       "proposal",
       "Expected canonical Work Case and Context revision IDs"
     );
   }
   if (!CATEGORIES.has(proposal.category)) {
-    return invalid17(
+    return invalid18(
       "unsupported-category",
       "proposal.category",
       "Unsupported Judgment Category"
@@ -5794,7 +6098,7 @@ function openJudgment(proposal) {
   );
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (typeof proposal.provenance !== "object" || proposal.provenance === null || !PROVENANCE_KINDS8.has(proposal.provenance.kind) || !validId3(proposal.provenance.source)) {
-    return invalid17(
+    return invalid18(
       "invalid-provenance",
       "proposal.provenance",
       "Expected bounded supported proposal provenance"
@@ -5875,26 +6179,26 @@ function openJudgment(proposal) {
 }
 
 // src/action-loop/work/record-work-case-judgment.ts
-function invalid18(code, path, message) {
+function invalid19(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function recordWorkCaseJudgment(workCase, judgment) {
   if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-    return invalid18(
+    return invalid19(
       "stale-work-case",
       "workCase.revisionId",
       "Work Case revision does not match its closure inventory"
     );
   }
   if (workCaseInventoryIssue(workCase) !== void 0) {
-    return invalid18(
+    return invalid19(
       "invalid-work-case-inventory",
       "workCase",
       "Work Case closure inventory is relationally incoherent"
     );
   }
   if (judgment.workCaseId !== workCase.workCaseId) {
-    return invalid18(
+    return invalid19(
       "identity-mismatch",
       "judgment.workCaseId",
       "Judgment belongs to another Work Case"
@@ -5903,7 +6207,7 @@ function recordWorkCaseJudgment(workCase, judgment) {
   if (workCase.conclusions.some(
     ({ judgmentId }) => judgmentId === judgment.judgmentId
   )) {
-    return invalid18(
+    return invalid19(
       "judgment-already-concluded",
       "judgment.judgmentId",
       "A Conclusion already closes this Judgment"
@@ -5939,10 +6243,10 @@ var categories = [
 var MAX_REQUIREMENTS2 = 8;
 var MAX_NEEDS_PER_REQUIREMENT2 = 8;
 var MAX_BASIS_ITEMS3 = 16;
-function isRecord4(value) {
+function isRecord5(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function rejected4(code, message) {
+function rejected5(code, message) {
   return { status: "rejected", code, message };
 }
 function isCategory(value) {
@@ -5958,7 +6262,7 @@ function decodeRequirements(value) {
   }
   const requirements = [];
   for (const item of decoded.value) {
-    if (!isRecord4(item)) {
+    if (!isRecord5(item)) {
       return {
         ok: false,
         message: "Every Requirement must be an object."
@@ -6004,31 +6308,31 @@ async function openJudgmentWithSdk(input) {
       name: "submit_judgment",
       label: "Submit Judgment",
       description: "Submit one Judgment. requirements_json is an array of {statement, contribution_needs}; basis_json is a string array.",
-      parameters: Type4.Object(
+      parameters: Type5.Object(
         {
-          category: StringEnum4(
+          category: StringEnum5(
             input.requiredCategory ? [input.requiredCategory] : categories
           ),
-          subject: Type4.String({ minLength: 1, maxLength: 4096 }),
-          question: Type4.String({ minLength: 1, maxLength: 4096 }),
-          requirements_json: Type4.String({
+          subject: Type5.String({ minLength: 1, maxLength: 4096 }),
+          question: Type5.String({ minLength: 1, maxLength: 4096 }),
+          requirements_json: Type5.String({
             minLength: 2,
             maxLength: 32768
           }),
-          basis_json: Type4.String({ minLength: 2, maxLength: 32768 })
+          basis_json: Type5.String({ minLength: 2, maxLength: 32768 })
         },
         { additionalProperties: false }
       ),
       execute: async (raw) => {
-        if (!isRecord4(raw) || !isCategory(raw.category) || input.requiredCategory !== void 0 && raw.category !== input.requiredCategory || typeof raw.subject !== "string" || typeof raw.question !== "string") {
-          return rejected4(
+        if (!isRecord5(raw) || !isCategory(raw.category) || input.requiredCategory !== void 0 && raw.category !== input.requiredCategory || typeof raw.subject !== "string" || typeof raw.question !== "string") {
+          return rejected5(
             "invalid-arguments",
             "Judgment requires category, subject, question, requirements_json, and basis_json."
           );
         }
         const requirements = decodeRequirements(raw.requirements_json);
         if (!requirements.ok) {
-          return rejected4("invalid-requirements", requirements.message);
+          return rejected5("invalid-requirements", requirements.message);
         }
         const basis = decodeSdkStringList({
           value: raw.basis_json,
@@ -6036,7 +6340,7 @@ async function openJudgmentWithSdk(input) {
           allowEmpty: false,
           maximumItems: MAX_BASIS_ITEMS3
         });
-        if (!basis.ok) return rejected4("invalid-basis", basis.message);
+        if (!basis.ok) return rejected5("invalid-basis", basis.message);
         const proposal = {
           workCaseId: input.workCase.workCaseId,
           contextRevisionId: input.contextRevisionId,
@@ -6049,11 +6353,11 @@ async function openJudgmentWithSdk(input) {
         };
         const opened = openJudgment(proposal);
         if (opened.status === "invalid") {
-          return rejected4(opened.error.code, opened.error.message);
+          return rejected5(opened.error.code, opened.error.message);
         }
         const recorded = recordWorkCaseJudgment(input.workCase, opened.value);
         if (recorded.status === "invalid") {
-          return rejected4(recorded.error.code, recorded.error.message);
+          return rejected5(recorded.error.code, recorded.error.message);
         }
         return {
           status: "accepted",
@@ -6087,7 +6391,7 @@ async function openJudgmentWithSdk(input) {
 }
 
 // src/action-loop/work/record-work-case-conclusion.ts
-function invalid19(code, path, message) {
+function invalid20(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function hasCurrentRevision(workCase) {
@@ -6095,21 +6399,21 @@ function hasCurrentRevision(workCase) {
 }
 function recordWorkCaseConclusion(workCase, conclusion) {
   if (!hasCurrentRevision(workCase)) {
-    return invalid19(
+    return invalid20(
       "stale-work-case",
       "workCase.revisionId",
       "Work Case revision does not match its closure inventory"
     );
   }
   if (conclusion.category === "Proportionate Intervention" && conclusion.interventionDisposition !== "action-required" && conclusion.interventionDisposition !== "no-action" || conclusion.category !== "Proportionate Intervention" && conclusion.interventionDisposition !== void 0) {
-    return invalid19(
+    return invalid20(
       "invalid-conclusion",
       "conclusion.interventionDisposition",
       "Conclusion intervention disposition does not match its Judgment Category"
     );
   }
   if (conclusion.workCaseId !== workCase.workCaseId) {
-    return invalid19(
+    return invalid20(
       "identity-mismatch",
       "conclusion.workCaseId",
       "Conclusion belongs to another Work Case"
@@ -6124,7 +6428,7 @@ function recordWorkCaseConclusion(workCase, conclusion) {
     ({ judgmentId }) => judgmentId === conclusion.judgmentId
   );
   if (openJudgment2 !== void 0 && (openJudgment2.category !== conclusion.category || openJudgment2.subject !== conclusion.subject || openJudgment2.contextRevisionId !== conclusion.contextRevisionId)) {
-    return invalid19(
+    return invalid20(
       "identity-mismatch",
       "conclusion",
       "Conclusion changes the identity of its open Judgment"
@@ -6155,8 +6459,8 @@ function recordWorkCaseConclusion(workCase, conclusion) {
 }
 
 // src/action-loop/sdk/capability-inventory-controller.ts
-import { StringEnum as StringEnum5 } from "@earendil-works/pi-ai";
-import { Type as Type5 } from "typebox";
+import { StringEnum as StringEnum6 } from "@earendil-works/pi-ai";
+import { Type as Type6 } from "typebox";
 
 // src/action-loop/routing/accept-applicability.ts
 var CAPABILITY_ASSIGNMENT_VERSION = "developer-capability-assignment/v1";
@@ -6165,7 +6469,7 @@ var APPLICABILITY_STATUSES = /* @__PURE__ */ new Set([
   "not-applicable",
   "needs-context"
 ]);
-function invalid20(code, path, message) {
+function invalid21(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId4(id) {
@@ -6236,7 +6540,7 @@ function checkTarget(target) {
     ["target.contributionNeedId", target.contributionNeedId]
   ]) {
     if (!validId4(id)) {
-      return invalid20(
+      return invalid21(
         "invalid-target-id",
         path,
         "Expected a canonical target ID"
@@ -6261,7 +6565,7 @@ function checkIdentity(target, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid20(
+      return invalid21(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -6272,14 +6576,14 @@ function checkIdentity(target, proposal) {
 }
 function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requiresWhenMatch) {
   if (!APPLICABILITY_STATUSES.has(proposal.status)) {
-    return invalid20(
+    return invalid21(
       "unsupported-status",
       "proposal.status",
       `Unsupported applicability status ${proposal.status}`
     );
   }
   if (proposal.status !== "needs-context" && missingContext.length > 0) {
-    return invalid20(
+    return invalid21(
       "unexpected-missing-context",
       "proposal.missingContext",
       "Only needs-context may carry missing context"
@@ -6287,14 +6591,14 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
   }
   if (proposal.status === "applicable") {
     if (requiresWhenMatch && matchedWhen.length === 0) {
-      return invalid20(
+      return invalid21(
         "applicable-without-when",
         "proposal.matchedWhen",
         "Structured applicability requires at least one declared when match"
       );
     }
     if (matchedUnless.length > 0) {
-      return invalid20(
+      return invalid21(
         "excluded-by-unless",
         "proposal.matchedUnless",
         "A matched unless condition overrides applicability"
@@ -6304,7 +6608,7 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
   }
   if (proposal.status === "not-applicable") {
     if (matchedWhen.length > 0 && matchedUnless.length === 0) {
-      return invalid20(
+      return invalid21(
         "not-applicable-with-positive-match",
         "proposal.status",
         "A positive when match requires an excluding unless match"
@@ -6313,14 +6617,14 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
     return void 0;
   }
   if (matchedUnless.length > 0) {
-    return invalid20(
+    return invalid21(
       "decisive-unless-cannot-wait",
       "proposal.matchedUnless",
       "A matched unless condition is already not-applicable"
     );
   }
   if (missingContext.length === 0) {
-    return invalid20(
+    return invalid21(
       "missing-context-required",
       "proposal.missingContext",
       "Needs-context requires at least one missing context item"
@@ -6384,7 +6688,7 @@ function acceptCapabilityApplicability(target, proposal) {
   const basis = normalizeList(proposal.basis, "proposal.basis", "empty-basis");
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (basis.value.length === 0) {
-    return invalid20(
+    return invalid21(
       "empty-basis",
       "proposal.basis",
       "Applicability assessment requires explicit basis"
@@ -6428,13 +6732,13 @@ var applicabilityStatuses = [
   "not-applicable",
   "needs-context"
 ];
-function isRecord5(value) {
+function isRecord6(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isApplicabilityStatus(value) {
   return applicabilityStatuses.some((status) => status === value);
 }
-function rejected5(code, message) {
+function rejected6(code, message) {
   return { status: "rejected", code, message };
 }
 function canonicalInventory(capabilities) {
@@ -6467,23 +6771,23 @@ function inventoryParameters(capabilities) {
   const fields = {};
   for (const [index, { name, entry }] of capabilities.entries()) {
     const conditions = entry.routing === "structured" ? `when: ${entry.capability.toc.when.join(" | ")}; unless: ${entry.capability.toc.unless.join(" | ") || "none"}` : "unstructured Capability without declared conditions";
-    fields[`status_${index}`] = StringEnum5(applicabilityStatuses, {
+    fields[`status_${index}`] = StringEnum6(applicabilityStatuses, {
       description: `${name} \u2014 ${conditions}`
     });
-    fields[`basis_${index}`] = Type5.String({
+    fields[`basis_${index}`] = Type6.String({
       minLength: 1,
       maxLength: 2048,
       description: `Why ${name} has this status for the current Contribution Need.`
     });
-    fields[`missing_context_${index}`] = Type5.Optional(
-      Type5.String({ maxLength: 2048 })
+    fields[`missing_context_${index}`] = Type6.Optional(
+      Type6.String({ maxLength: 2048 })
     );
     if (entry.routing !== "structured") continue;
     for (const [
       conditionIndex,
       condition
     ] of entry.capability.toc.when.entries()) {
-      fields[`when_${index}_${conditionIndex}`] = Type5.Boolean({
+      fields[`when_${index}_${conditionIndex}`] = Type6.Boolean({
         description: `${name} when condition: ${condition}`
       });
     }
@@ -6491,12 +6795,12 @@ function inventoryParameters(capabilities) {
       conditionIndex,
       condition
     ] of entry.capability.toc.unless.entries()) {
-      fields[`unless_${index}_${conditionIndex}`] = Type5.Boolean({
+      fields[`unless_${index}_${conditionIndex}`] = Type6.Boolean({
         description: `${name} unless condition: ${condition}`
       });
     }
   }
-  return Type5.Object(fields, { additionalProperties: false });
+  return Type6.Object(fields, { additionalProperties: false });
 }
 function selectedConditions(input) {
   const selected = [];
@@ -6517,8 +6821,8 @@ function inventoryTool(input) {
     description: "Disposition every admitted Capability for one Contribution Need. The controller owns all names, conditions, identities, and complete accounting.",
     parameters: inventoryParameters(input.capabilities),
     execute: async (raw) => {
-      if (!isRecord5(raw)) {
-        return rejected5(
+      if (!isRecord6(raw)) {
+        return rejected6(
           "invalid-arguments",
           "Capability inventory arguments must be an object."
         );
@@ -6529,7 +6833,7 @@ function inventoryTool(input) {
         const basis = raw[`basis_${index}`];
         const missingContext = raw[`missing_context_${index}`];
         if (!isApplicabilityStatus(status) || typeof basis !== "string" || missingContext !== void 0 && typeof missingContext !== "string") {
-          return rejected5(
+          return rejected6(
             "invalid-capability-disposition",
             `Capability ${name} requires canonical status_${index}, basis_${index}, and optional missing_context_${index}.`
           );
@@ -6541,7 +6845,7 @@ function inventoryTool(input) {
           conditions: entry.capability.toc.when
         }) : { ok: true, value: [] };
         if (!matchedWhen.ok) {
-          return rejected5("invalid-when-accounting", matchedWhen.message);
+          return rejected6("invalid-when-accounting", matchedWhen.message);
         }
         const matchedUnless = entry.routing === "structured" ? selectedConditions({
           raw,
@@ -6550,7 +6854,7 @@ function inventoryTool(input) {
           conditions: entry.capability.toc.unless
         }) : { ok: true, value: [] };
         if (!matchedUnless.ok) {
-          return rejected5("invalid-unless-accounting", matchedUnless.message);
+          return rejected6("invalid-unless-accounting", matchedUnless.message);
         }
         const accepted = acceptCapabilityApplicability(
           {
@@ -6572,7 +6876,7 @@ function inventoryTool(input) {
           }
         );
         if (accepted.status === "invalid") {
-          return rejected5(
+          return rejected6(
             accepted.error.code,
             `${name}: ${accepted.error.message}`
           );
@@ -6660,8 +6964,8 @@ async function assessCapabilityInventoryWithSdk(input) {
 }
 
 // src/action-loop/sdk/capability-routing-controller.ts
-import { StringEnum as StringEnum6 } from "@earendil-works/pi-ai";
-import { Type as Type6 } from "typebox";
+import { StringEnum as StringEnum7 } from "@earendil-works/pi-ai";
+import { Type as Type7 } from "typebox";
 
 // src/action-loop/routing/bind-reference-selection.ts
 var REFERENCE_SELECTION_VERSION = "developer-reference-selection/v1";
@@ -6904,22 +7208,22 @@ function selectDeclaredReferences(declarations, proposals) {
 }
 
 // src/action-loop/sdk/capability-routing-controller.ts
-var applicabilityParameters = Type6.Object(
+var applicabilityParameters = Type7.Object(
   {
-    status: StringEnum6([
+    status: StringEnum7([
       "applicable",
       "not-applicable",
       "needs-context"
     ]),
-    matches_when: Type6.Boolean(),
-    matches_unless: Type6.Boolean(),
-    basis: Type6.String({ minLength: 1, maxLength: 2048 }),
-    missing_context: Type6.Optional(Type6.String({ maxLength: 2048 }))
+    matches_when: Type7.Boolean(),
+    matches_unless: Type7.Boolean(),
+    basis: Type7.String({ minLength: 1, maxLength: 2048 }),
+    missing_context: Type7.Optional(Type7.String({ maxLength: 2048 }))
   },
   { additionalProperties: false }
 );
 var referenceStatuses = ["selected", "not-needed", "needs-context"];
-function isRecord6(value) {
+function isRecord7(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isApplicabilityStatus2(value) {
@@ -6928,7 +7232,7 @@ function isApplicabilityStatus2(value) {
 function isReferenceStatus(value) {
   return value === "selected" || value === "not-needed" || value === "needs-context";
 }
-function rejected6(code, message) {
+function rejected7(code, message) {
   return { status: "rejected", code, message };
 }
 function applicabilityTool(target, toc) {
@@ -6938,14 +7242,14 @@ function applicabilityTool(target, toc) {
     description: "Submit one semantic applicability decision; the SDK controller supplies exact canonical conditions and identities.",
     parameters: applicabilityParameters,
     execute: async (raw) => {
-      if (!isRecord6(raw)) {
-        return rejected6(
+      if (!isRecord7(raw)) {
+        return rejected7(
           "invalid-arguments",
           "Applicability arguments must be an object."
         );
       }
       if (!isApplicabilityStatus2(raw.status) || typeof raw.matches_when !== "boolean" || typeof raw.matches_unless !== "boolean" || typeof raw.basis !== "string" || raw.missing_context !== void 0 && typeof raw.missing_context !== "string") {
-        return rejected6(
+        return rejected7(
           "invalid-arguments",
           "Applicability requires status, matches_when, matches_unless, basis, and optional missing_context with their declared scalar types."
         );
@@ -6963,7 +7267,7 @@ function applicabilityTool(target, toc) {
         missingContext: raw.status === "needs-context" && missingContext ? [missingContext] : []
       });
       if (result.status === "invalid") {
-        return rejected6(result.error.code, result.error.message);
+        return rejected7(result.error.code, result.error.message);
       }
       return {
         status: "accepted",
@@ -6977,16 +7281,16 @@ function applicabilityTool(target, toc) {
 function referenceParameters(toc) {
   const fields = {};
   for (const [index, reference] of toc.references.entries()) {
-    fields[`status_${index}`] = StringEnum6(referenceStatuses, {
+    fields[`status_${index}`] = StringEnum7(referenceStatuses, {
       description: `${reference.path} \u2014 ${reference.when.join(" | ")}`
     });
-    fields[`basis_${index}`] = Type6.String({
+    fields[`basis_${index}`] = Type7.String({
       minLength: 1,
       maxLength: 2048,
       description: `Why ${reference.path} is selected, not needed, or needs context relative to every other declared Reference.`
     });
   }
-  return Type6.Object(fields, { additionalProperties: false });
+  return Type7.Object(fields, { additionalProperties: false });
 }
 function referenceTool(toc) {
   return {
@@ -6995,8 +7299,8 @@ function referenceTool(toc) {
     description: "Disposition every declared Reference in one comparative proposal; the SDK controller maps flat fields to canonical paths.",
     parameters: referenceParameters(toc),
     execute: async (raw) => {
-      if (!isRecord6(raw)) {
-        return rejected6(
+      if (!isRecord7(raw)) {
+        return rejected7(
           "invalid-arguments",
           "Reference arguments must be an object."
         );
@@ -7006,7 +7310,7 @@ function referenceTool(toc) {
         const status = raw[`status_${index}`];
         const basis = raw[`basis_${index}`];
         if (!isReferenceStatus(status) || typeof basis !== "string") {
-          return rejected6(
+          return rejected7(
             "invalid-reference-disposition",
             `Reference disposition ${index} requires canonical status_${index} and non-empty basis_${index}.`
           );
@@ -7015,7 +7319,7 @@ function referenceTool(toc) {
       }
       const selected = selectDeclaredReferences(toc.references, dispositions);
       if (selected.status === "invalid") {
-        return rejected6(
+        return rejected7(
           "invalid-reference-selection",
           `Reference dispositions are invalid: ${selected.issues.map((issue) => `${issue.code}:${issue.path}`).join(" | ")}`
         );
@@ -7280,8 +7584,8 @@ async function sealCapabilityContextWithSdk(input) {
 }
 
 // src/action-loop/sdk/conclusion-controller.ts
-import { StringEnum as StringEnum7 } from "@earendil-works/pi-ai";
-import { Type as Type7 } from "typebox";
+import { StringEnum as StringEnum8 } from "@earendil-works/pi-ai";
+import { Type as Type8 } from "typebox";
 
 // src/action-loop/judgment/close-judgment.ts
 var JUDGMENT_CONCLUSION_VERSION = "developer-judgment-conclusion/v2";
@@ -7304,7 +7608,7 @@ var PROVENANCE_KINDS9 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid21(code, path, message) {
+function invalid22(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId5(id) {
@@ -7457,7 +7761,7 @@ function checkProposalIdentity(contract, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid21(
+      return invalid22(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -7989,44 +8293,44 @@ var requirementStatuses = [
   "not-satisfied",
   "needs-context"
 ];
-function isRecord7(value) {
+function isRecord8(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function rejected7(code, message) {
+function rejected8(code, message) {
   return { status: "rejected", code, message };
 }
 function conclusionParameters(contract) {
   const fields = {
-    outcome: StringEnum7(closureOutcomes),
-    answer: Type7.Optional(Type7.String({ minLength: 1, maxLength: 12e3 })),
+    outcome: StringEnum8(closureOutcomes),
+    answer: Type8.Optional(Type8.String({ minLength: 1, maxLength: 12e3 })),
     ...contract.category === "Proportionate Intervention" ? {
-      intervention_disposition: Type7.Optional(
-        StringEnum7(["action-required", "no-action"], {
+      intervention_disposition: Type8.Optional(
+        StringEnum8(["action-required", "no-action"], {
           description: "Required only when outcome is conclude. Omit this field when outcome is refuse."
         })
       )
     } : {},
-    refusal_reasons_json: Type7.String({
+    refusal_reasons_json: Type8.String({
       minLength: 2,
       maxLength: 32768,
       description: "JSON array of explicit evaluator refusal reasons. Use [] unless refusing or preserving an additional blocker."
     }),
-    basis_json: Type7.String({
+    basis_json: Type8.String({
       minLength: 2,
       maxLength: 32768,
       description: "JSON array of one or more synthesis basis strings."
     })
   };
   for (const [index, requirement] of contract.requirements.entries()) {
-    fields[`requirement_status_${index}`] = StringEnum7(requirementStatuses, {
+    fields[`requirement_status_${index}`] = StringEnum8(requirementStatuses, {
       description: requirement.statement
     });
-    fields[`requirement_basis_${index}`] = Type7.String({
+    fields[`requirement_basis_${index}`] = Type8.String({
       minLength: 1,
       maxLength: 2048
     });
   }
-  return Type7.Object(fields, { additionalProperties: false });
+  return Type8.Object(fields, { additionalProperties: false });
 }
 function mappedCoverageIds(requirement, coverages) {
   const needIds = new Set(requirement.contributionNeedIds);
@@ -8130,21 +8434,21 @@ function conclusionTool(input) {
     description: "Synthesize complete current Need Coverage into a Conclusion or explicit bounded refusal.",
     parameters: conclusionParameters(input.contract),
     execute: async (raw) => {
-      if (!isRecord7(raw)) {
-        return rejected7(
+      if (!isRecord8(raw)) {
+        return rejected8(
           "invalid-arguments",
           "Conclusion arguments must be an object."
         );
       }
       const proposal = canonicalProposal2({ ...input, raw });
-      if (!proposal.ok) return rejected7(proposal.code, proposal.message);
+      if (!proposal.ok) return rejected8(proposal.code, proposal.message);
       const closed = closeJudgment(
         input.contract,
         input.coverages,
         proposal.value
       );
       if (closed.status === "invalid") {
-        return rejected7(closed.error.code, closed.error.message);
+        return rejected8(closed.error.code, closed.error.message);
       }
       return {
         status: "accepted",
@@ -8260,8 +8564,8 @@ async function concludeJudgmentWithSdk(input) {
 }
 
 // src/action-loop/sdk/contribution-controller.ts
-import { StringEnum as StringEnum8 } from "@earendil-works/pi-ai";
-import { Type as Type8 } from "typebox";
+import { StringEnum as StringEnum9 } from "@earendil-works/pi-ai";
+import { Type as Type9 } from "typebox";
 
 // src/action-loop/contribution/accept-skill-contribution.ts
 var SKILL_CONTRIBUTION_VERSION = "developer-skill-contribution/v1";
@@ -8280,7 +8584,7 @@ var PROVENANCE_KINDS10 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid22(code, path, message) {
+function invalid23(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function canonicalText15(value, code, path) {
@@ -8355,7 +8659,7 @@ function checkIdentity2(assignment, context, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid22(
+      return invalid23(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -8541,7 +8845,7 @@ function acceptSkillContribution(assignment, context, proposal) {
   const identityFailure = checkIdentity2(assignment, context, proposal);
   if (identityFailure !== void 0) return identityFailure;
   if (!LOCAL_STATUSES.has(proposal.localStatus)) {
-    return invalid22(
+    return invalid23(
       "unsupported-local-status",
       "proposal.localStatus",
       `Unsupported local status ${proposal.localStatus}`
@@ -8575,14 +8879,14 @@ function acceptSkillContribution(assignment, context, proposal) {
     (application) => application.status === "limited"
   );
   if (proposal.localStatus === "partial" && limitations.value.length === 0 && !residual && !limitedApplication) {
-    return invalid22(
+    return invalid23(
       "partial-without-limitation",
       "proposal.localStatus",
       "Partial Contribution requires a limitation or residual Need"
     );
   }
   if (proposal.localStatus === "resolved" && residual) {
-    return invalid22(
+    return invalid23(
       "resolved-with-residual",
       "proposal.localStatus",
       "Resolved local status cannot retain a residual local Need"
@@ -8625,38 +8929,38 @@ function acceptSkillContribution(assignment, context, proposal) {
 // src/action-loop/sdk/contribution-controller.ts
 var localStatuses = ["resolved", "partial"];
 var applicationStatuses = ["applied", "limited"];
-function isRecord8(value) {
+function isRecord9(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function rejected8(code, message) {
+function rejected9(code, message) {
   return { status: "rejected", code, message };
 }
 function contributionParameters(context) {
   const fields = {
-    local_status: StringEnum8(localStatuses),
-    result: Type8.String({ minLength: 1, maxLength: 12e3 }),
-    limitations_json: Type8.String({
+    local_status: StringEnum9(localStatuses),
+    result: Type9.String({ minLength: 1, maxLength: 12e3 }),
+    limitations_json: Type9.String({
       minLength: 2,
       maxLength: 32768,
       description: "JSON array of zero or more explicit limitation strings."
     }),
-    residual_needs_json: Type8.String({
+    residual_needs_json: Type9.String({
       minLength: 2,
       maxLength: 32768,
       description: 'JSON array of {"kind":"residual"|"emergent","description":string,"basis":string[]} objects.'
     })
   };
   for (const [index, path] of context.selectedPaths.entries()) {
-    fields[`reference_status_${index}`] = StringEnum8(applicationStatuses, {
+    fields[`reference_status_${index}`] = StringEnum9(applicationStatuses, {
       description: `Application status for selected Reference ${path}.`
     });
-    fields[`reference_application_${index}`] = Type8.String({
+    fields[`reference_application_${index}`] = Type9.String({
       minLength: 1,
       maxLength: 2048,
       description: `How selected Reference ${path} was applied or limited.`
     });
   }
-  return Type8.Object(fields, { additionalProperties: false });
+  return Type9.Object(fields, { additionalProperties: false });
 }
 function decodeResidualNeeds(value) {
   const decoded = decodeSdkProposalJson(value, "residual_needs_json");
@@ -8669,7 +8973,7 @@ function decodeResidualNeeds(value) {
   }
   const residualNeeds = [];
   for (const [index, item] of decoded.value.entries()) {
-    if (!isRecord8(item) || item.kind !== "residual" && item.kind !== "emergent" || typeof item.description !== "string" || !Array.isArray(item.basis) || item.basis.length === 0 || item.basis.length > 32 || item.basis.some((basis) => typeof basis !== "string")) {
+    if (!isRecord9(item) || item.kind !== "residual" && item.kind !== "emergent" || typeof item.description !== "string" || !Array.isArray(item.basis) || item.basis.length === 0 || item.basis.length > 32 || item.basis.some((basis) => typeof basis !== "string")) {
       return {
         ok: false,
         message: `Residual Need ${index} requires kind, description, and one or more basis strings.`
@@ -8769,21 +9073,21 @@ function contributionTool(input) {
     description: "Propose one local result from the sealed Skill Context without claiming Need Coverage or a final Conclusion.",
     parameters: contributionParameters(input.context),
     execute: async (raw) => {
-      if (!isRecord8(raw)) {
-        return rejected8(
+      if (!isRecord9(raw)) {
+        return rejected9(
           "invalid-arguments",
           "Contribution arguments must be an object."
         );
       }
       const proposal = canonicalProposal3({ ...input, raw });
-      if (!proposal.ok) return rejected8(proposal.code, proposal.message);
+      if (!proposal.ok) return rejected9(proposal.code, proposal.message);
       const accepted = acceptSkillContribution(
         input.assignment,
         input.context,
         proposal.value
       );
       if (accepted.status === "invalid") {
-        return rejected8(accepted.error.code, accepted.error.message);
+        return rejected9(accepted.error.code, accepted.error.message);
       }
       return {
         status: "accepted",
@@ -8858,20 +9162,20 @@ async function contributeSkillWithSdk(input) {
 }
 
 // src/action-loop/sdk/contribution-progress.ts
-function invalid23(code, message) {
+function invalid24(code, message) {
   return { status: "invalid", code, message };
 }
 function inspectContributionProgress(input) {
   const contextsByAssignment = /* @__PURE__ */ new Map();
   for (const context of input.contexts) {
     if (context.workCaseId !== input.workCaseId || context.judgmentId !== input.judgmentId) {
-      return invalid23(
+      return invalid24(
         "context-mismatch",
         `Sealed Context ${context.sealedContextId} does not belong to the current Work Case and Judgment.`
       );
     }
     if (contextsByAssignment.has(context.assignmentId)) {
-      return invalid23(
+      return invalid24(
         "duplicate-context",
         `Assignment ${context.assignmentId} has more than one sealed Context.`
       );
@@ -8882,13 +9186,13 @@ function inspectContributionProgress(input) {
   for (const contribution of input.contributions) {
     const context = contextsByAssignment.get(contribution.assignmentId);
     if (context === void 0 || contribution.workCaseId !== input.workCaseId || contribution.judgmentId !== input.judgmentId || contribution.contributionNeedId !== context.contributionNeedId || contribution.capabilityRevisionId !== context.capabilityRevisionId || contribution.sealedContextId !== context.sealedContextId) {
-      return invalid23(
+      return invalid24(
         "contribution-mismatch",
         `Contribution ${contribution.contributionId} has no exact current sealed Context.`
       );
     }
     if (contributionsByAssignment.has(contribution.assignmentId)) {
-      return invalid23(
+      return invalid24(
         "duplicate-contribution",
         `Assignment ${contribution.assignmentId} has more than one Contribution.`
       );
@@ -8914,8 +9218,8 @@ function inspectContributionProgress(input) {
 }
 
 // src/action-loop/sdk/coverage-controller.ts
-import { StringEnum as StringEnum9 } from "@earendil-works/pi-ai";
-import { Type as Type9 } from "typebox";
+import { StringEnum as StringEnum10 } from "@earendil-works/pi-ai";
+import { Type as Type10 } from "typebox";
 
 // src/action-loop/need-coverage/assess-need-coverage.ts
 var NEED_COVERAGE_VERSION = "developer-need-coverage/v1";
@@ -8936,7 +9240,7 @@ var PROVENANCE_KINDS11 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid24(code, path, message) {
+function invalid25(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId6(id) {
@@ -8979,7 +9283,7 @@ function checkTarget2(target, proposal) {
     ["target.contributionNeedId", target.contributionNeedId]
   ]) {
     if (!validId6(id)) {
-      return invalid24(
+      return invalid25(
         "invalid-target-id",
         path,
         "Expected a canonical target ID"
@@ -8996,7 +9300,7 @@ function checkTarget2(target, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid24(
+      return invalid25(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -9310,7 +9614,7 @@ function assessNeedCoverage(target, contributions, proposal) {
   const targetFailure = checkTarget2(target, proposal);
   if (targetFailure !== void 0) return targetFailure;
   if (!COVERAGE_STATUSES.has(proposal.status)) {
-    return invalid24(
+    return invalid25(
       "unsupported-coverage-status",
       "proposal.status",
       `Unsupported Coverage status ${proposal.status}`
@@ -9334,7 +9638,7 @@ function assessNeedCoverage(target, contributions, proposal) {
   const basis = canonicalList5(proposal.basis, "proposal.basis");
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (basis.value.length === 0) {
-    return invalid24(
+    return invalid25(
       "empty-basis",
       "proposal.basis",
       "Need Coverage requires explicit basis"
@@ -9344,7 +9648,7 @@ function assessNeedCoverage(target, contributions, proposal) {
   if (!provenance.ok) return { status: "invalid", error: provenance.error };
   const derivedStatus = deriveStatus(dispositions.value, conflicts.value);
   if (proposal.status !== derivedStatus) {
-    return invalid24(
+    return invalid25(
       "status-mismatch",
       "proposal.status",
       `Coverage evidence derives ${derivedStatus}, not ${proposal.status}`
@@ -9389,36 +9693,36 @@ var dispositionStatuses = [
   "limited-support",
   "not-relied-on"
 ];
-function isRecord9(value) {
+function isRecord10(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function rejected9(code, message) {
+function rejected10(code, message) {
   return { status: "rejected", code, message };
 }
 function coverageParameters(contributions) {
   const fields = {
-    status: StringEnum9(coverageStatuses),
-    conflicts_json: Type9.String({
+    status: StringEnum10(coverageStatuses),
+    conflicts_json: Type10.String({
       minLength: 2,
       maxLength: 32768,
       description: 'JSON array of {"left_index":integer,"right_index":integer,"basis":string[]} conflicts. Use [] when none.'
     }),
-    basis_json: Type9.String({
+    basis_json: Type10.String({
       minLength: 2,
       maxLength: 32768,
       description: "JSON array of one or more synthesis basis strings."
     })
   };
   for (const [index, contribution] of contributions.entries()) {
-    fields[`disposition_status_${index}`] = StringEnum9(dispositionStatuses, {
+    fields[`disposition_status_${index}`] = StringEnum10(dispositionStatuses, {
       description: `Disposition for Contribution ${index} (${contribution.localStatus}).`
     });
-    fields[`disposition_basis_${index}`] = Type9.String({
+    fields[`disposition_basis_${index}`] = Type10.String({
       minLength: 1,
       maxLength: 2048
     });
   }
-  return Type9.Object(fields, { additionalProperties: false });
+  return Type10.Object(fields, { additionalProperties: false });
 }
 function decodeDispositions(raw, contributions) {
   const dispositions = [];
@@ -9441,7 +9745,7 @@ function decodeDispositions(raw, contributions) {
 }
 function decodeConflictItem(input) {
   const { item, index, contributionCount } = input;
-  if (!isRecord9(item)) {
+  if (!isRecord10(item)) {
     return { ok: false, message: `Conflict ${index} must be an object.` };
   }
   const leftIndex = item.left_index;
@@ -9549,21 +9853,21 @@ function coverageTool(input) {
     description: "Disposition every current Contribution and assess one Need without closing the Judgment.",
     parameters: coverageParameters(input.contributions),
     execute: async (raw) => {
-      if (!isRecord9(raw)) {
-        return rejected9(
+      if (!isRecord10(raw)) {
+        return rejected10(
           "invalid-arguments",
           "Coverage arguments must be an object."
         );
       }
       const proposal = canonicalProposal4({ ...input, raw });
-      if (!proposal.ok) return rejected9(proposal.code, proposal.message);
+      if (!proposal.ok) return rejected10(proposal.code, proposal.message);
       const assessed = assessNeedCoverage(
         input.target,
         input.contributions,
         proposal.value
       );
       if (assessed.status === "invalid") {
-        return rejected9(assessed.error.code, assessed.error.message);
+        return rejected10(assessed.error.code, assessed.error.message);
       }
       return {
         status: "accepted",
@@ -10122,13 +10426,13 @@ async function progressJudgmentWithSdk(input) {
 }
 
 // src/action-loop/sdk/work-case-controller.ts
-import { Type as Type10 } from "typebox";
+import { Type as Type11 } from "typebox";
 var MAX_OUTCOME_ITEMS = 32;
 var MAX_BASIS_ITEMS4 = 16;
-function isRecord10(value) {
+function isRecord11(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function rejected10(code, message) {
+function rejected11(code, message) {
   return { status: "rejected", code, message };
 }
 async function openWorkCaseWithSdk(input) {
@@ -10147,24 +10451,24 @@ async function openWorkCaseWithSdk(input) {
       name: "submit_work_case_outcome",
       label: "Submit Work Case Outcome",
       description: "Submit one proposal. acceptance_conditions_json, constraints_json, and basis_json are JSON-encoded string arrays.",
-      parameters: Type10.Object(
+      parameters: Type11.Object(
         {
-          statement: Type10.String({ minLength: 1, maxLength: 4096 }),
-          acceptance_conditions_json: Type10.String({
+          statement: Type11.String({ minLength: 1, maxLength: 4096 }),
+          acceptance_conditions_json: Type11.String({
             minLength: 2,
             maxLength: 32768
           }),
-          constraints_json: Type10.String({
+          constraints_json: Type11.String({
             minLength: 2,
             maxLength: 32768
           }),
-          basis_json: Type10.String({ minLength: 2, maxLength: 32768 })
+          basis_json: Type11.String({ minLength: 2, maxLength: 32768 })
         },
         { additionalProperties: false }
       ),
       execute: async (raw) => {
-        if (!isRecord10(raw) || typeof raw.statement !== "string") {
-          return rejected10(
+        if (!isRecord11(raw) || typeof raw.statement !== "string") {
+          return rejected11(
             "invalid-arguments",
             "Work Case proposal requires a statement and three JSON text fields."
           );
@@ -10176,7 +10480,7 @@ async function openWorkCaseWithSdk(input) {
           maximumItems: MAX_OUTCOME_ITEMS
         });
         if (!acceptanceConditions.ok) {
-          return rejected10(
+          return rejected11(
             "invalid-acceptance-conditions",
             acceptanceConditions.message
           );
@@ -10188,7 +10492,7 @@ async function openWorkCaseWithSdk(input) {
           maximumItems: MAX_OUTCOME_ITEMS
         });
         if (!constraints.ok) {
-          return rejected10("invalid-constraints", constraints.message);
+          return rejected11("invalid-constraints", constraints.message);
         }
         const basis = decodeSdkStringList({
           value: raw.basis_json,
@@ -10196,7 +10500,7 @@ async function openWorkCaseWithSdk(input) {
           allowEmpty: false,
           maximumItems: MAX_BASIS_ITEMS4
         });
-        if (!basis.ok) return rejected10("invalid-basis", basis.message);
+        if (!basis.ok) return rejected11("invalid-basis", basis.message);
         const opened = openWorkCase({
           outcome: {
             statement: raw.statement,
@@ -10206,7 +10510,7 @@ async function openWorkCaseWithSdk(input) {
           provenance: { kind: "model", source: "sdk:work-case-opening" }
         });
         if (opened.status === "invalid") {
-          return rejected10(opened.error.code, opened.error.message);
+          return rejected11(opened.error.code, opened.error.message);
         }
         return {
           status: "accepted",
@@ -10327,6 +10631,37 @@ function mapJudgmentResult(result, baseSteps, baseCheckpoints) {
 }
 function currentAssessmentId(assessment) {
   return "effectSettlementId" in assessment ? assessment.effectSettlementId : assessment.effectAssessmentId;
+}
+function currentEffectSettlements(state) {
+  return state.workCase.currentEffectAssessments.flatMap(
+    (assessment) => "effectSettlementId" in assessment ? [assessment] : []
+  );
+}
+function unresolvedAdverseSettlements(state) {
+  const remediated = new Set(
+    state.workCase.effectRemediations.map(({ adverseEffectId }) => adverseEffectId)
+  );
+  return currentEffectSettlements(state).filter(
+    (settlement) => (settlement.outcome === "failed" || settlement.outcome === "partially-applied") && !remediated.has(settlement.effectId)
+  );
+}
+function successfulEffectSettlements(state) {
+  return currentEffectSettlements(state).filter(
+    ({ outcome }) => outcome === "observed-success"
+  );
+}
+function consumedConclusionIds(state) {
+  return new Set(
+    state.workCase.actionCandidates.flatMap(
+      ({ requiredConclusionIds }) => requiredConclusionIds
+    )
+  );
+}
+function pendingRemediationIntervention(state) {
+  const consumed = consumedConclusionIds(state);
+  return state.workCase.conclusions.find(
+    (conclusion) => conclusion.category === "Proportionate Intervention" && !consumed.has(conclusion.conclusionId)
+  );
 }
 async function progressCompletion(input) {
   if (input.steps >= input.maxSteps) {
@@ -10560,6 +10895,112 @@ async function progressEffect(input) {
     checkpoints: input.checkpoints + 1
   };
 }
+async function progressRemediation(input) {
+  if (input.steps >= input.maxSteps) {
+    return {
+      status: "bounded-stop",
+      stage: "remediation",
+      reason: "progression-step-budget",
+      state: input.state,
+      steps: input.steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  const result = await resolveEffectRemediationWithSdk({
+    request: input.request,
+    workCaseId: input.state.workCase.workCaseId,
+    adverseSettlements: input.adverseSettlements,
+    successfulSettlements: input.successfulSettlements,
+    runner: input.runner
+  });
+  const steps = input.steps + 1;
+  if (result.status === "bounded-stop") {
+    return {
+      status: "bounded-stop",
+      stage: "remediation",
+      reason: result.reason,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  if (result.status === "runtime-failure") {
+    return {
+      status: "runtime-failure",
+      stage: "remediation",
+      message: result.message,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  if (result.status === "invariant-failure") {
+    return {
+      status: "invariant-failure",
+      stage: "remediation",
+      code: result.code,
+      message: result.message,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  if (result.status === "refused") {
+    return {
+      status: "remediation-required",
+      adverseEffectIds: input.adverseSettlements.map(({ effectId }) => effectId),
+      refusalReasons: result.refusalReasons,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  const recorded = recordWorkCaseEffectRemediation(
+    input.state.workCase,
+    result.remediation
+  );
+  if (recorded.status === "invalid") {
+    return {
+      status: "invariant-failure",
+      stage: "remediation",
+      code: recorded.error.code,
+      message: recorded.error.message,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  const nextState = Object.freeze({
+    ...input.state,
+    workCase: recorded.value
+  });
+  const checkpoint = {
+    kind: "effect-remediated",
+    result,
+    workCase: recorded.value
+  };
+  try {
+    await input.checkpoint(checkpoint);
+  } catch (error) {
+    return {
+      status: "checkpoint-failure",
+      stage: "remediation",
+      message: compactError2(error),
+      pendingCheckpoint: checkpoint,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  return {
+    status: "effect-remediated",
+    adverseEffectId: result.remediation.adverseEffectId,
+    remediationEffectId: result.remediation.remediationEffectId,
+    state: nextState,
+    steps,
+    checkpoints: input.checkpoints + 1
+  };
+}
 function nextRequiredJudgmentCategory(state) {
   if (state.workCase.conclusions.length === 0) return void 0;
   const categories2 = new Set(
@@ -10571,12 +11012,17 @@ function nextRequiredJudgmentCategory(state) {
         (assessment) => "effectSettlementId" in assessment ? [assessment.effectId] : []
       )
     );
-    if (state.workCase.effects.every(
+    if (!state.workCase.effects.every(
       (effect) => settledEffectIds.has(effect.effectId)
-    ) && !categories2.has("Claim Assurance")) {
-      return "Claim Assurance";
+    )) {
+      return void 0;
     }
-    return void 0;
+    const adverse = unresolvedAdverseSettlements(state);
+    if (adverse.length > 0) {
+      if (successfulEffectSettlements(state).length > 0) return void 0;
+      return pendingRemediationIntervention(state) === void 0 ? "Proportionate Intervention" : void 0;
+    }
+    return !categories2.has("Claim Assurance") ? "Claim Assurance" : void 0;
   }
   if (!categories2.has("Proportionate Intervention") && !categories2.has("Claim Assurance")) {
     return "Proportionate Intervention";
@@ -10591,6 +11037,7 @@ function nextRequiredJudgmentCategory(state) {
 }
 async function progressAction(input) {
   const { workCase } = input.state;
+  let actionConclusions = workCase.conclusions;
   const pendingClearance = workCase.actionClearances.find(
     (clearance2) => !workCase.effects.some(
       (effect) => effect.actionClearanceId === clearance2.actionClearanceId
@@ -10618,26 +11065,55 @@ async function progressAction(input) {
       checkpoints: input.checkpoints
     });
     if (progressed.status !== "ready-for-completion") return progressed;
-    if (!input.complete) return progressed;
-    if (!progressed.state) {
-      return {
-        status: "invariant-failure",
-        stage: "completion",
-        code: "missing-active-work-case",
-        message: "Completion progression lost the active Work Case.",
+    const adverse = unresolvedAdverseSettlements(input.state);
+    if (adverse.length > 0) {
+      const successful = successfulEffectSettlements(input.state);
+      if (successful.length > 0) {
+        return progressRemediation({
+          request: input.request,
+          state: input.state,
+          adverseSettlements: adverse,
+          successfulSettlements: successful,
+          runner: input.runner,
+          checkpoint: input.checkpoint,
+          maxSteps: input.maxSteps,
+          steps: progressed.steps,
+          checkpoints: progressed.checkpoints
+        });
+      }
+      const intervention2 = pendingRemediationIntervention(input.state);
+      if (intervention2 === void 0 || intervention2.interventionDisposition !== "action-required") {
+        return {
+          status: "remediation-required",
+          adverseEffectIds: adverse.map(({ effectId }) => effectId),
+          state: input.state,
+          steps: progressed.steps,
+          checkpoints: progressed.checkpoints
+        };
+      }
+      actionConclusions = [intervention2];
+    } else {
+      if (!input.complete) return progressed;
+      if (!progressed.state) {
+        return {
+          status: "invariant-failure",
+          stage: "completion",
+          code: "missing-active-work-case",
+          message: "Completion progression lost the active Work Case.",
+          steps: progressed.steps,
+          checkpoints: progressed.checkpoints
+        };
+      }
+      return progressCompletion({
+        request: input.request,
+        state: progressed.state,
+        runner: input.runner,
+        checkpoint: input.checkpoint,
+        maxSteps: input.maxSteps,
         steps: progressed.steps,
         checkpoints: progressed.checkpoints
-      };
+      });
     }
-    return progressCompletion({
-      request: input.request,
-      state: progressed.state,
-      runner: input.runner,
-      checkpoint: input.checkpoint,
-      maxSteps: input.maxSteps,
-      steps: progressed.steps,
-      checkpoints: progressed.checkpoints
-    });
   }
   const categories2 = new Set(
     workCase.conclusions.map((conclusion) => conclusion.category)
@@ -10680,7 +11156,7 @@ async function progressAction(input) {
   if (!input.actions || !input.authorizeAction) {
     return {
       status: "ready-for-action",
-      conclusionIds: workCase.conclusions.map(
+      conclusionIds: actionConclusions.map(
         (conclusion) => conclusion.conclusionId
       ),
       state: input.state,
@@ -10701,7 +11177,7 @@ async function progressAction(input) {
   const action = await proposeActionWithSdk({
     request: input.request,
     workCaseId: workCase.workCaseId,
-    conclusions: workCase.conclusions,
+    conclusions: actionConclusions,
     actions: input.actions,
     runner: input.runner
   });
@@ -11006,7 +11482,7 @@ async function progressActionLoopWithSdk(input) {
 }
 
 // src/action-loop/sdk/context-progress.ts
-function invalid25(code, message) {
+function invalid26(code, message) {
   return { status: "invalid", code, message };
 }
 function indexAssignments(input) {
@@ -11015,7 +11491,7 @@ function indexAssignments(input) {
     if (assignment.workCaseId !== input.workCaseId || assignment.judgmentId !== input.judgmentId || assignment.contributionNeedId !== input.contributionNeedId) {
       return {
         ok: false,
-        error: invalid25(
+        error: invalid26(
           "assignment-mismatch",
           `Assignment ${assignment.assignmentId} does not belong to the requested Work Case, Judgment, and Contribution Need.`
         )
@@ -11024,7 +11500,7 @@ function indexAssignments(input) {
     if (assignments.has(assignment.assignmentId)) {
       return {
         ok: false,
-        error: invalid25(
+        error: invalid26(
           "duplicate-assignment",
           `Assignment ${assignment.assignmentId} occurs more than once.`
         )
@@ -11041,7 +11517,7 @@ function indexSelections(selections, assignments) {
     if (assignment === void 0 || selection.capabilityRevisionId !== assignment.capabilityRevisionId) {
       return {
         ok: false,
-        error: invalid25(
+        error: invalid26(
           "selection-mismatch",
           `Reference Selection ${selection.selectionId} has no exact current Assignment.`
         )
@@ -11050,7 +11526,7 @@ function indexSelections(selections, assignments) {
     if (indexed.has(selection.assignmentId)) {
       return {
         ok: false,
-        error: invalid25(
+        error: invalid26(
           "duplicate-selection",
           `Assignment ${selection.assignmentId} has more than one Reference Selection.`
         )
@@ -11073,7 +11549,7 @@ function indexContexts(input, assignments, selections) {
     if (!matchingContext(input, context, assignments.get(context.assignmentId))) {
       return {
         ok: false,
-        error: invalid25(
+        error: invalid26(
           "context-mismatch",
           `Sealed Context ${context.sealedContextId} has no exact current Assignment.`
         )
@@ -11082,7 +11558,7 @@ function indexContexts(input, assignments, selections) {
     if (indexed.has(context.assignmentId)) {
       return {
         ok: false,
-        error: invalid25(
+        error: invalid26(
           "duplicate-context",
           `Assignment ${context.assignmentId} has more than one sealed Context.`
         )
@@ -11091,7 +11567,7 @@ function indexContexts(input, assignments, selections) {
     if (!matchingContextMode(context, selections.get(context.assignmentId))) {
       return {
         ok: false,
-        error: invalid25(
+        error: invalid26(
           "inconsistent-context",
           `Sealed Context ${context.sealedContextId} does not match its routing mode and Reference Selection.`
         )
@@ -11105,13 +11581,13 @@ function validateSelections(selections, contexts) {
   for (const selection of selections) {
     const hasContext = contexts.has(selection.assignmentId);
     if (selection.status === "ready" && !hasContext) {
-      return invalid25(
+      return invalid26(
         "inconsistent-context",
         `Ready Reference Selection ${selection.selectionId} has no sealed Context.`
       );
     }
     if (selection.status === "needs-context" && hasContext) {
-      return invalid25(
+      return invalid26(
         "inconsistent-context",
         `Unresolved Reference Selection ${selection.selectionId} cannot have a sealed Context.`
       );
@@ -11171,14 +11647,14 @@ function inspectCapabilityContextProgress(input) {
 }
 
 // src/action-loop/sdk/coverage-progress.ts
-function invalid26(code, message) {
+function invalid27(code, message) {
   return { status: "invalid", code, message };
 }
 function inspectCoverageProgress(input) {
   const needsById = /* @__PURE__ */ new Map();
   for (const need of input.contributionNeeds) {
     if (needsById.has(need.contributionNeedId)) {
-      return invalid26(
+      return invalid27(
         "duplicate-need",
         `Contribution Need ${need.contributionNeedId} occurs more than once.`
       );
@@ -11188,13 +11664,13 @@ function inspectCoverageProgress(input) {
   const coveragesByNeed = /* @__PURE__ */ new Map();
   for (const coverage of input.coverages) {
     if (coverage.workCaseId !== input.workCaseId || coverage.judgmentId !== input.judgmentId || !needsById.has(coverage.contributionNeedId)) {
-      return invalid26(
+      return invalid27(
         "coverage-mismatch",
         `Need Coverage ${coverage.coverageId} has no exact current Contribution Need.`
       );
     }
     if (coveragesByNeed.has(coverage.contributionNeedId)) {
-      return invalid26(
+      return invalid27(
         "duplicate-coverage",
         `Contribution Need ${coverage.contributionNeedId} has more than one current Coverage assessment.`
       );
@@ -11523,6 +11999,7 @@ export {
   progressActionLoopWithSdk,
   progressJudgmentWithSdk,
   proposeActionWithSdk,
+  resolveEffectRemediationWithSdk,
   resumeBlockedWorkCase,
   resumePausedWorkCase,
   resumeWaitingWorkCase,

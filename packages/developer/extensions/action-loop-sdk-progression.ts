@@ -10,6 +10,7 @@ import {
 import type { PermissionDecision } from "../src/action-loop/action/action-clearance.ts";
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
 import { recordWorkCaseEffectAssessment } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
+import { recordWorkCaseEffectRemediation } from "../src/action-loop/work/record-work-case-effect-remediation.ts";
 import type { SdkNamedCapability } from "../src/action-loop/sdk/capability-inventory-controller.ts";
 import type { SdkDecisionRunner } from "../src/action-loop/sdk/decision-controller.ts";
 import {
@@ -24,6 +25,7 @@ import {
 import type { LiveCapabilityInventory } from "./action-loop-capability-inventory.ts";
 import {
 	sdkActionClearedEvent,
+	sdkEffectRemediatedEvent,
 	sdkEffectSettledEvent,
 	sdkJudgmentCheckpointEvent,
 	sdkJudgmentOpenedEvent,
@@ -43,6 +45,7 @@ export type SdkActionLoopCheckpointSessionEvent =
 	| ReturnType<typeof sdkJudgmentOpenedEvent>
 	| ReturnType<typeof sdkActionClearedEvent>
 	| ReturnType<typeof sdkEffectSettledEvent>
+	| ReturnType<typeof sdkEffectRemediatedEvent>
 	| ReturnType<typeof sdkWorkCaseCompletedEvent>
 	| SdkJudgmentCheckpointSessionEvent;
 
@@ -117,6 +120,10 @@ export function sdkActionLoopProgressionSummary(
 			return `The current Effect was canonically settled as ${result.outcome}.`;
 		case "effect-unsettled":
 			return `The current Effect remains ${result.outcome}; additional evidence is required.`;
+		case "effect-remediated":
+			return "One current adverse Effect was bound to an exact observed-success remediation.";
+		case "remediation-required":
+			return "A current adverse Effect still requires a proportionate remediation or an explicit hold.";
 		case "ready-for-completion":
 			return "Every current Effect has a settled assessment; the Work Case is ready for completion progression.";
 		case "completion-not-ready":
@@ -205,6 +212,11 @@ export function sdkActionLoopCheckpointEvent(
 						}
 					: {}),
 			});
+		case "effect-remediated":
+			return sdkEffectRemediatedEvent({
+				result: checkpoint.result,
+				revisionId: checkpoint.workCase.revisionId,
+			});
 		case "action-cleared":
 			return sdkActionClearedEvent({
 				action: checkpoint.action,
@@ -261,6 +273,21 @@ export function applySdkActionLoopCheckpoint(
 			}
 			if (recorded.value.revisionId !== checkpoint.workCase.revisionId) {
 				throw new Error("SDK Effect checkpoint identity drifted.");
+			}
+			return Object.freeze({ ...state, workCase: recorded.value });
+		}
+		case "effect-remediated": {
+			if (!state)
+				throw new Error("SDK Effect remediation requires active work.");
+			const recorded = recordWorkCaseEffectRemediation(
+				state.workCase,
+				checkpoint.result.remediation,
+			);
+			if (recorded.status === "invalid") {
+				throw new Error(recorded.error.message);
+			}
+			if (recorded.value.revisionId !== checkpoint.workCase.revisionId) {
+				throw new Error("SDK Effect remediation checkpoint identity drifted.");
 			}
 			return Object.freeze({ ...state, workCase: recorded.value });
 		}
