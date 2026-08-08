@@ -464,6 +464,53 @@ for (const documentPath of markdownDocuments) {
 	}
 }
 
+const modelFacingToolNames = [
+	"developer_progress_action_loop_with_sdk",
+	"developer_accept_observation_contribution",
+	"developer_pause_work_case",
+	"developer_wait_work_case",
+	"developer_block_work_case",
+	"developer_resume_work_case",
+];
+const removedModelToolNames = [
+	"developer_open_work_case",
+	"developer_open_judgment",
+	"developer_progress_judgment_with_sdk",
+	"developer_assess_capability",
+	"developer_select_references",
+	"developer_load_selected_reference",
+	"developer_accept_contribution",
+	"developer_assess_coverage",
+	"developer_close_judgment",
+	"developer_propose_action",
+	"developer_settle_effect",
+	"developer_record_effect_remediation",
+	"developer_prepare_closure",
+	"developer_complete_work_case",
+];
+const publicRuntimeDocuments = [
+	"README.md",
+	"README.ko.md",
+	"REFERENCE_ROUTING.md",
+	"docs/action-loop-architecture-v0.1.md",
+	"docs/ko/action-loop-architecture-v0.1.md",
+];
+for (const documentPath of publicRuntimeDocuments) {
+	const source = await readFile(join(root, documentPath), "utf8");
+	for (const removedName of removedModelToolNames) {
+		assert.doesNotMatch(
+			source,
+			new RegExp(`\\b${removedName}\\b`),
+			`${documentPath} presents removed model tool ${removedName}`,
+		);
+	}
+	if (documentPath === "README.md" || documentPath === "README.ko.md") {
+		for (const toolName of modelFacingToolNames) {
+			assert.match(source, new RegExp(`\\b${toolName}\\b`));
+		}
+	}
+}
+
 await assert.rejects(
 	access(join(root, "extensions", "compaction-language.ts")),
 );
@@ -502,6 +549,21 @@ assert.doesNotMatch(
 	extension,
 	/compaction-language|COMPACTION_LANGUAGE|compactionLanguage|detectStrongUserLanguage/u,
 );
+for (const entry of await readdir(join(root, "extensions"), {
+	withFileTypes: true,
+})) {
+	if (!entry.isFile() || !entry.name.endsWith(".ts") || entry.name === "developer.ts") {
+		continue;
+	}
+	const source = await readFile(join(root, "extensions", entry.name), "utf8");
+	for (const removedName of removedModelToolNames) {
+		assert.doesNotMatch(
+			source,
+			new RegExp(`\\b${removedName}\\b`),
+			`${entry.name} retains removed model tool ${removedName}`,
+		);
+	}
+}
 
 const liveCapabilityIntegration = await readFile(
 	join(root, "extensions", "action-loop-capability-inventory.ts"),

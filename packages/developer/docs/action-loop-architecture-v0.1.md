@@ -556,7 +556,7 @@ A model switch does not automatically make Outcome, open Judgment, Closure Requi
 ### Hook responsibilities
 
 - `before_agent_start`: provides the model context with current canonical work, unresolved Closure Requirements, and Contribution Needs.
-- protocol tools: require the model to explicitly propose judgment, contribution, action, settlement, and completion transitions.
+- primary progression tool: delegates bounded proposal sessions while trusted controllers admit judgment, contribution, action, settlement, and completion transitions; exact host evidence and continuity remain separate Pi-boundary tools.
 - `tool_call`: verifies that a controlled Action matches the current Cleared Action.
 - `tool_result`: records the execution result as an Effect Observation.
 - `agent_settled`: does not mistake settlement for completion and evaluates continuation, waiting, blocked, and paused candidates.
@@ -580,7 +580,7 @@ This boundary is live in the reconstruction package. Rejected catalogs admit no 
 The next live slice opens and projects one bounded Work Case:
 
 ```text
-developer_open_work_case proposal
+primary SDK Work Case proposal
   → bounded Outcome, acceptance conditions, Constraints, and basis
   → openWorkCase transition
   → current Pi session branch-owned active Work Case
@@ -592,7 +592,7 @@ An exact duplicate stutters, a different Outcome cannot replace active work, and
 The following slice opens one current upper Judgment inside that Work Case:
 
 ```text
-developer_open_judgment proposal
+primary SDK Judgment proposal
   → Judgment Category + Subject + Question
   → explicit Closure Requirements + functional Contribution Needs + basis
   → adapter-supplied Work Case identity + separate current Context revision
@@ -603,14 +603,14 @@ developer_open_judgment proposal
 
 The pure Work Case revision now includes open Judgment identities, and an open Judgment blocks Closure Target preparation. A matching Conclusion removes it from open inventory; a Conclusion that changes Category, Subject, or Context identity is refused. The narrow live adapter admits only one current open Judgment: an exact duplicate stutters and a different proposal cannot replace it.
 
-`developer_assess_capability` refuses routing without that open Judgment. It selects the exact requested `contribution_need_id`, or the sole Need only when selection is unambiguous. A Capability name never derives the Need.
+The Capability inventory controller refuses routing without that open Judgment. It selects the exact current Contribution Need, or the sole Need only when selection is unambiguous. A Capability name never derives the Need.
 
 The Capability Applicability slice is also live:
 
 ```text
 before_agent_start bound Capability projection
   → exact Capability revision + declared when/unless conditions
-developer_assess_capability proposal
+primary SDK applicability proposal
   → applicable | not-applicable | needs-context
   → acceptCapabilityApplicability
   → current assessment

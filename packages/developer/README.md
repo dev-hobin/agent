@@ -124,32 +124,18 @@ Each command does one job, accepts and returns explicit values, and admits model
 
 This RC provides primary SDK progression through upper Judgment Conclusion, exact Action Candidate proposal, separate host Permission clearance, explicit Effect settlement, and revision-revalidated Completion. Capability inventory admission is journaled as one atomic semantic batch, while each sealed Context, Contribution, Coverage, cleared Action, and Effect assessment remains independently replayable from the Pi branch. Exact host execution and Effect Observation stay in the Extension bridge; model output cannot grant permission or turn a tool return into success. The production Extension path remains active until live-evaluation parity and host integration are complete. Maintainers can run `pnpm eval:live:sdk:intervention` against an exact packed package and Pi SDK root to isolate the structured `action-required`/`no-action` provider contract, and `pnpm eval:live:sdk:remediation` to contrast an evidence-backed adverse-to-success binding with an unrelated-success refusal. Run `pnpm eval:live:sdk:resume` with exact `DEVELOPER_EVAL_PACKAGE_PATH`, `DEVELOPER_EVAL_SESSION_FILE`, `DEVELOPER_EVAL_WORKSPACE`, and `PI_CODING_AGENT_DIR` provenance to exercise bounded stock-Pi restarts while rejecting transitional protocol-tool fallback. Set `DEVELOPER_EVAL_ACTIVATE=1` only when the evaluator must activate Developer on a fresh session; provider failures are reported as `provider-blocked` rather than canonical progression failures. `DEVELOPER_EVAL_SESSION_OPERATION=clone|fork-latest` and `DEVELOPER_EVAL_COMPACT=1` add actual Pi branch and compaction rounds; rerun against the reported session file to verify post-operation process restart. For a branch below Pi's compaction threshold, opt-in `DEVELOPER_EVAL_COMPACTION_PADDING_BYTES` adds only read-only RPC command output before retrying compaction. Canonical pause, wait, block, resume, Effect beginning, Observation admission, and remediation commands are exported directly instead of being wrapped by another manager. Completion is admitted only after trusted code prepares the complete current Closure Target and revalidates the same Work Case revision. The Pi session branch remains the only durability boundary.
 
-## Canonical tools
+## Model-facing tools
 
 ```text
 developer_progress_action_loop_with_sdk
-developer_open_work_case
-developer_open_judgment
-developer_progress_judgment_with_sdk
-developer_assess_capability
-developer_select_references
-developer_load_selected_reference
-developer_accept_contribution
 developer_accept_observation_contribution
-developer_assess_coverage
-developer_close_judgment
-developer_propose_action
-developer_settle_effect
-developer_record_effect_remediation
 developer_pause_work_case
 developer_wait_work_case
 developer_block_work_case
 developer_resume_work_case
-developer_prepare_closure
-developer_complete_work_case
 ```
 
-Every applicable Capability Assignment passes through `developer_select_references`: structured Capabilities disposition every TOC Reference, while unstructured Capabilities submit an empty list and seal `SKILL.md` alone. The former route/question compatibility tools and XState runtime are not part of the package.
+Every applicable Capability Assignment passes through the primary SDK controller's canonical Reference disposition and Context sealing path. Structured Capabilities disposition every declared TOC Reference, while unstructured Capabilities use an empty disposition list and seal `SKILL.md` alone. Lower-level opening, routing, Contribution, Coverage, Conclusion, Action, Effect, remediation, and Completion operations remain SDK-composable but are not separately registered as model-facing tools. The former route/question tools and XState runtime are not part of the package.
 
 ## Replay and boundedness
 

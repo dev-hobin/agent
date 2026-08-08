@@ -556,7 +556,7 @@ Model switch는 Outcome, open Judgment, Closure Requirements, Need Coverage, cle
 ### Hook responsibilities
 
 - `before_agent_start`: current canonical work, unresolved Closure Requirements와 Contribution Needs를 model context에 제공한다.
-- protocol tools: model이 judgment, contribution, action, settlement, completion transition을 명시적으로 제안하게 한다.
+- primary progression tool: bounded proposal session을 위임하고 trusted controller가 judgment, contribution, action, settlement, completion transition을 admit한다. Exact host evidence와 continuity는 별도 Pi-boundary tool에 남는다.
 - `tool_call`: controlled Action이 현재 Cleared Action과 맞는지 확인한다.
 - `tool_result`: 실행 결과를 Effect Observation으로 기록한다.
 - `agent_settled`: completion으로 오인하지 않고 continuation, waiting, blocked, paused candidate를 판단한다.
@@ -580,7 +580,7 @@ before_agent_start.systemPromptOptions.skills
 다음 live slice는 하나의 bounded Work Case를 열고 projection한다.
 
 ```text
-developer_open_work_case proposal
+primary SDK Work Case proposal
   → bounded Outcome, acceptance conditions, Constraints, and basis
   → openWorkCase transition
   → current Pi session branch-owned active Work Case
@@ -592,7 +592,7 @@ Exact duplicate는 stutter하고, 다른 Outcome은 active work를 교체할 수
 그 Work Case 안에서 current upper Judgment 하나를 여는 다음 slice도 live다.
 
 ```text
-developer_open_judgment proposal
+primary SDK Judgment proposal
   → Judgment Category + Subject + Question
   → explicit Closure Requirements + functional Contribution Needs + basis
   → adapter-supplied Work Case identity + separate current Context revision
@@ -603,14 +603,14 @@ developer_open_judgment proposal
 
 Pure Work Case revision은 이제 open Judgment identity를 포함하고 open Judgment는 Closure Target 준비를 막는다. Matching Conclusion은 open inventory에서 Judgment를 제거하고, Category, Subject, Context identity를 바꾸는 Conclusion은 거부된다. Narrow live adapter는 current open Judgment 하나만 admit한다. Exact duplicate는 stutter하고 다른 proposal은 그것을 교체할 수 없다.
 
-`developer_assess_capability`는 그 open Judgment가 없으면 routing을 거부한다. Exact requested `contribution_need_id`를 선택하고, 선택이 모호하지 않은 Need 하나만 있을 때에만 sole Need를 자동 선택한다. Capability name이 Need를 도출하지 않는다.
+Capability inventory controller는 그 open Judgment가 없으면 routing을 거부한다. Exact current Contribution Need를 선택하고, 선택이 모호하지 않은 Need 하나만 있을 때에만 sole Need를 자동 선택한다. Capability name이 Need를 도출하지 않는다.
 
 Capability Applicability slice도 live다.
 
 ```text
 before_agent_start bound Capability projection
   → exact Capability revision + declared when/unless conditions
-developer_assess_capability proposal
+primary SDK applicability proposal
   → applicable | not-applicable | needs-context
   → acceptCapabilityApplicability
   → current assessment

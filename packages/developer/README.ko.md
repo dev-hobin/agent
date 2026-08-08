@@ -124,32 +124,18 @@ openWorkCaseWithSdk
 
 현재 RC는 upper Judgment Conclusion, exact Action Candidate proposal, 별도 host Permission clearance, explicit Effect settlement, revision-revalidated Completion까지 primary SDK progression으로 제공합니다. Capability inventory admission은 하나의 atomic semantic batch로 journal하고, 각 sealed Context, Contribution, Coverage, cleared Action, Effect assessment는 Pi branch에서 독립적으로 replay할 수 있습니다. Exact host execution과 Effect Observation은 Extension bridge에 남으며 model output은 permission을 부여하거나 tool return을 success로 바꿀 수 없습니다. Production Extension 경로는 live evaluation parity와 host integration이 끝날 때까지 유지합니다. Maintainer는 exact packed package와 Pi SDK root에 `pnpm eval:live:sdk:intervention`을 실행해 structured `action-required`/`no-action` provider contract를 분리 검증하고, `pnpm eval:live:sdk:remediation`으로 evidence-backed adverse-to-success binding과 unrelated-success refusal을 대조할 수 있습니다. Exact `DEVELOPER_EVAL_PACKAGE_PATH`, `DEVELOPER_EVAL_SESSION_FILE`, `DEVELOPER_EVAL_WORKSPACE`, `PI_CODING_AGENT_DIR` provenance와 함께 `pnpm eval:live:sdk:resume`을 실행해 transitional protocol-tool fallback을 거부하면서 bounded stock-Pi restart를 검증할 수 있습니다. Fresh session에서 evaluator가 Developer를 활성화해야 할 때만 `DEVELOPER_EVAL_ACTIVATE=1`을 설정하며, provider failure는 canonical progression failure가 아니라 `provider-blocked`로 보고합니다. `DEVELOPER_EVAL_SESSION_OPERATION=clone|fork-latest`와 `DEVELOPER_EVAL_COMPACT=1`은 실제 Pi branch/compaction round를 추가하며, 출력된 session file로 다시 실행해 operation 이후 process restart도 검증합니다. Pi compaction threshold보다 작은 branch에서는 opt-in `DEVELOPER_EVAL_COMPACTION_PADDING_BYTES`가 read-only RPC command output만 추가한 뒤 compaction을 재시도합니다. Canonical pause, wait, block, resume, Effect beginning, Observation admission, remediation command는 다른 manager로 다시 감싸지 않고 직접 export합니다. Completion은 trusted code가 complete current Closure Target을 준비하고 동일한 Work Case revision을 다시 검증한 뒤에만 admit됩니다. Pi session branch는 계속 유일한 durability boundary입니다.
 
-## Canonical tools
+## Model-facing tools
 
 ```text
 developer_progress_action_loop_with_sdk
-developer_open_work_case
-developer_open_judgment
-developer_progress_judgment_with_sdk
-developer_assess_capability
-developer_select_references
-developer_load_selected_reference
-developer_accept_contribution
 developer_accept_observation_contribution
-developer_assess_coverage
-developer_close_judgment
-developer_propose_action
-developer_settle_effect
-developer_record_effect_remediation
 developer_pause_work_case
 developer_wait_work_case
 developer_block_work_case
 developer_resume_work_case
-developer_prepare_closure
-developer_complete_work_case
 ```
 
-모든 applicable Capability Assignment는 `developer_select_references`를 거칩니다. structured Capability는 모든 TOC Reference를 disposition하고, unstructured Capability는 빈 목록을 제출해 `SKILL.md`만 seal합니다. 기존 route/question compatibility tools와 XState runtime은 package surface에 포함되지 않습니다.
+모든 applicable Capability Assignment는 primary SDK controller의 canonical Reference disposition과 Context sealing path를 거칩니다. Structured Capability는 선언된 모든 TOC Reference를 disposition하고, unstructured Capability는 빈 disposition 목록으로 `SKILL.md`만 seal합니다. Lower-level opening, routing, Contribution, Coverage, Conclusion, Action, Effect, remediation, Completion operation은 SDK-composable 상태로 남지만 별도 model-facing tool로 등록되지 않습니다. 기존 route/question tool과 XState runtime은 package surface에 포함되지 않습니다.
 
 ## Replay와 boundedness
 

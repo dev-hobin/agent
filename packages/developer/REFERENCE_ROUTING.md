@@ -25,7 +25,7 @@ inventory, never from a Category-to-Skill table.
 
 ## Canonical Capability TOC
 
-A reference-bearing Skill contains one direct-child `toc.json`:
+A reference-bearing Skill contains one direct-child JSON descriptor identified by the canonical `$schema`. Packaged Developer Skills conventionally name it `toc.json`; filename is a source-bound locator, not the format discriminator:
 
 ```json
 {
@@ -62,9 +62,7 @@ identity, hash, confidence, artifact prose, stop prose, sibling Skill links, or
 runtime state. Those belong to the canonical Work Case, the Skill method, or the
 runtime adapter.
 
-A Skill without `toc.json` is unstructured. It declares no Reference routing and
-seals only its exact admitted `SKILL.md` after applicability creates an
-Assignment.
+A Skill without a direct-child descriptor carrying the supported canonical TOC schema is unstructured. It declares no Reference routing and seals only its exact admitted `SKILL.md` after applicability creates an Assignment. A differently named descriptor using the same current closed schema is not a legacy format; old route-policy shapes are not recognized.
 
 ## Skill and Reference Responsibilities
 
@@ -89,29 +87,15 @@ to summarize unrelated source material.
 
 1. Pi's admitted Skill inventory is canonical. Developer adapts only those
    source-qualified descriptors and never rediscovers excluded Skills.
-2. `developer_assess_capability` dispositions one admitted Capability for one
-   exact current Contribution Need. Applicability creates an Assignment but no
-   Contribution.
-3. Every applicable Assignment passes through
-   `developer_select_references`.
-   - Structured Capability: disposition every declared Reference exactly once
-     as `selected`, `not-needed`, or `needs-context`.
-   - Unstructured Capability: submit an empty disposition list and seal
-     `SKILL.md` alone.
-4. Any `needs-context` disposition leaves structured selection unresolved. It
-   cannot produce a sealed Context or authorize Skill Contribution.
-5. A ready selection acquires and seals exact Skill and selected Reference
-   bytes atomically. Missing, drifting, symlink-escaped, non-regular, invalid,
-   or oversized material produces no partial Context.
-6. `developer_load_selected_reference` returns one exact already-sealed selected
-   Reference. Ordinary file reads are Observations, not canonical structured
-   Reference evidence.
-7. `developer_accept_contribution` must account exactly once for every selected
-   Reference and preserve local limitations, residual Needs, and emergent Needs.
-   Skill-local `resolved` never implies upper Coverage or Conclusion.
-8. Upper Judgment dispositions every current Contribution through
-   `developer_assess_coverage` and synthesizes the Conclusion through
-   `developer_close_judgment`.
+2. The primary SDK controller dispositions one admitted Capability for one exact current Contribution Need. Applicability creates an Assignment but no Contribution.
+3. Every applicable Assignment passes through canonical Reference disposition and Context sealing.
+   - Structured Capability: disposition every declared Reference exactly once as `selected`, `not-needed`, or `needs-context`.
+   - Unstructured Capability: use an empty disposition list and seal `SKILL.md` alone.
+4. Any `needs-context` disposition leaves structured selection unresolved. It cannot produce a sealed Context or authorize Skill Contribution.
+5. A ready selection acquires and seals exact Skill and selected Reference bytes atomically. Missing, drifting, symlink-escaped, non-regular, invalid, or oversized material produces no partial Context.
+6. Selected References are supplied to the bounded Skill Contribution session only from exact sealed bytes. Ordinary file reads are Observations, not canonical structured Reference evidence.
+7. Canonical Contribution admission must account exactly once for every selected Reference and preserve local limitations, residual Needs, and emergent Needs. Skill-local `resolved` never implies upper Coverage or Conclusion.
+8. The upper Coverage and Conclusion controllers disposition every current Contribution and synthesize the category-bound Conclusion. These lower-level operations are SDK-composable and are not separately registered as model-facing tools.
 
 When the same Capability serves several Needs, each Need receives a distinct
 Assignment, sealed Context, Contribution, Coverage assessment, and upper
