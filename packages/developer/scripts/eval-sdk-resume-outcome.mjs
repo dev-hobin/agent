@@ -14,8 +14,7 @@ function textContent(result) {
 		.join("\n");
 }
 
-const PRIMARY_CONTROLLER_TOOL =
-	"developer_progress_action_loop_with_sdk";
+const PRIMARY_CONTROLLER_TOOL = "developer_progress_action_loop_with_sdk";
 
 export function repeatedPrimaryResultWithoutCheckpoint(trace, threshold = 8) {
 	let repeatedStatus;

@@ -222,8 +222,7 @@ async function waitForRun(start) {
 				elapsedMs: Date.now() - startedAt,
 			};
 		}
-		const repeatedPrimaryResult =
-			repeatedPrimaryResultWithoutCheckpoint(trace);
+		const repeatedPrimaryResult = repeatedPrimaryResultWithoutCheckpoint(trace);
 		if (repeatedPrimaryResult) {
 			return {
 				status: "usability-stalled",

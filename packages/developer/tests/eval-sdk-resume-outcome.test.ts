@@ -164,15 +164,16 @@ test("SDK resume evaluation circuit-breaks repeated primary results without chec
 		status: "usability-stalled",
 		reason: "repeated-primary-result:effect-unsettled",
 	});
-	assert.equal(sdkResumeBudgetStop([run], 1), "evaluation-run-budget-exhausted");
+	assert.equal(
+		sdkResumeBudgetStop([run], 1),
+		"evaluation-run-budget-exhausted",
+	);
 	assert.equal(
 		sdkResumeBudgetStop(
 			[
 				{
 					...run,
-					protocolEnds: [
-						{ isError: false, details: { status: "completed" } },
-					],
+					protocolEnds: [{ isError: false, details: { status: "completed" } }],
 				},
 			],
 			1,

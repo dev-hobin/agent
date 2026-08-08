@@ -17,7 +17,7 @@ test("RPC JSONL decoding splits only on LF and accepts a preceding CR", () => {
 
 	decoder.push('{"text":"before\u2028after"}\r');
 	decoder.push('\n{"id":2');
-	decoder.push('}\n');
+	decoder.push("}\n");
 	decoder.end();
 
 	assert.deepEqual(values, [{ text: "before\u2028after" }, { id: 2 }]);

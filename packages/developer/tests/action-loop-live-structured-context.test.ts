@@ -405,8 +405,7 @@ test("ready structured selection seals Skill and selected References atomically"
 												],
 												intendedEffectDispositions: [
 													{
-														intendedEffect:
-															"The bounded artifact is updated.",
+														intendedEffect: "The bounded artifact is updated.",
 														status: "observed",
 														observationIds: [
 															verified.observation.effectObservationId,

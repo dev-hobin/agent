@@ -101,10 +101,7 @@ test("SDK Completion accounts for all current evidence and revalidates the revis
 	const event = sdkWorkCaseCompletedEvent(result);
 	assert.equal(event.kind, "work-case-completed");
 	assert.equal(event.expected.revisionId, result.workCase.revisionId);
-	assert.equal(
-		"status" in event.proposal.obligationDispositions[0],
-		false,
-	);
+	assert.equal("status" in event.proposal.obligationDispositions[0], false);
 	assert.equal(
 		extractReplayEvent({
 			type: "custom",

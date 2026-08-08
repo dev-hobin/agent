@@ -253,7 +253,9 @@ test("Proportionate Intervention disposition survives semantic event replay", as
 				contributionNeeds: ["Current evidence for no-change completion"],
 			},
 		],
-		basis: ["The prior Proportionate Intervention concluded no Action is needed."],
+		basis: [
+			"The prior Proportionate Intervention concluded no Action is needed.",
+		],
 		provenance: { kind: "model" as const, source: "pi:sdk-action-loop" },
 	};
 	const assurance = openLiveJudgment(concluded.state, assuranceProposal);
