@@ -25,6 +25,7 @@ import {
 	resolveEffectRemediationWithSdk,
 	type SdkEffectRemediationResult,
 } from "./effect-remediation-controller.ts";
+import type { SdkActionLoopState } from "./action-loop-state.ts";
 import type { SdkDecisionRunner } from "./decision-controller.ts";
 import {
 	openJudgmentWithSdk,
@@ -35,7 +36,6 @@ import {
 	progressJudgmentWithSdk,
 	type SdkJudgmentCheckpoint,
 	type SdkJudgmentProgressionResult,
-	type SdkJudgmentProgressState,
 } from "./judgment-progression-controller.ts";
 import {
 	openWorkCaseWithSdk,
@@ -84,7 +84,7 @@ export type SdkActionLoopCheckpoint =
 				{ readonly status: "settled" | "unsettled" }
 			>;
 			readonly expectedCurrentAssessmentId?: string;
-			readonly workCase: SdkJudgmentProgressState["workCase"];
+			readonly workCase: SdkActionLoopState["workCase"];
 	  }
 	| {
 			readonly kind: "effect-remediated";
@@ -92,7 +92,7 @@ export type SdkActionLoopCheckpoint =
 				SdkEffectRemediationResult,
 				{ readonly status: "remediated" }
 			>;
-			readonly workCase: SdkJudgmentProgressState["workCase"];
+			readonly workCase: SdkActionLoopState["workCase"];
 	  }
 	| {
 			readonly kind: "action-cleared";
@@ -104,12 +104,12 @@ export type SdkActionLoopCheckpoint =
 				SdkActionClearanceResult,
 				{ readonly status: "cleared" }
 			>;
-			readonly workCase: SdkJudgmentProgressState["workCase"];
+			readonly workCase: SdkActionLoopState["workCase"];
 	  }
 	| SdkJudgmentCheckpoint;
 
 interface ProgressResultBase {
-	readonly state?: SdkJudgmentProgressState;
+	readonly state?: SdkActionLoopState;
 	readonly steps: number;
 	readonly checkpoints: number;
 }
@@ -207,7 +207,7 @@ export type SdkActionLoopProgressionResult =
 
 export interface SdkActionLoopProgressionInput {
 	readonly request: string;
-	readonly state?: SdkJudgmentProgressState;
+	readonly state?: SdkActionLoopState;
 	readonly capabilities: readonly SdkNamedCapability[];
 	readonly effectObservations?: readonly EffectObservation[];
 	readonly complete?: boolean;
@@ -238,7 +238,7 @@ function compactError(error: unknown): string {
 
 function emptyProgressState(
 	result: Extract<SdkWorkCaseOpeningResult, { readonly status: "opened" }>,
-): SdkJudgmentProgressState {
+): SdkActionLoopState {
 	return Object.freeze({
 		workCase: result.workCase,
 		applicabilityAssessments: Object.freeze([]),
@@ -251,12 +251,12 @@ function emptyProgressState(
 }
 
 function withJudgment(
-	state: SdkJudgmentProgressState,
+	state: SdkActionLoopState,
 	result: Extract<
 		SdkJudgmentOpeningResult,
 		{ readonly status: "opened" | "unchanged" }
 	>,
-): SdkJudgmentProgressState {
+): SdkActionLoopState {
 	return Object.freeze({ ...state, workCase: result.workCase });
 }
 
@@ -325,7 +325,7 @@ function mapJudgmentResult(
 }
 
 function currentAssessmentId(
-	assessment: SdkJudgmentProgressState["workCase"]["currentEffectAssessments"][number],
+	assessment: SdkActionLoopState["workCase"]["currentEffectAssessments"][number],
 ): string {
 	return "effectSettlementId" in assessment
 		? assessment.effectSettlementId
@@ -333,7 +333,7 @@ function currentAssessmentId(
 }
 
 function currentEffectSettlements(
-	state: SdkJudgmentProgressState,
+	state: SdkActionLoopState,
 ): readonly EffectSettlement[] {
 	return state.workCase.currentEffectAssessments.flatMap((assessment) =>
 		"effectSettlementId" in assessment ? [assessment] : [],
@@ -341,7 +341,7 @@ function currentEffectSettlements(
 }
 
 function unresolvedAdverseSettlements(
-	state: SdkJudgmentProgressState,
+	state: SdkActionLoopState,
 ): readonly EffectSettlement[] {
 	const remediated = new Set(
 		state.workCase.effectRemediations.map(
@@ -357,7 +357,7 @@ function unresolvedAdverseSettlements(
 }
 
 function successfulEffectSettlements(
-	state: SdkJudgmentProgressState,
+	state: SdkActionLoopState,
 ): readonly EffectSettlement[] {
 	return currentEffectSettlements(state).filter(
 		({ outcome }) => outcome === "observed-success",
@@ -365,7 +365,7 @@ function successfulEffectSettlements(
 }
 
 function consumedConclusionIds(
-	state: SdkJudgmentProgressState,
+	state: SdkActionLoopState,
 ): ReadonlySet<string> {
 	return new Set(
 		state.workCase.actionCandidates.flatMap(
@@ -375,8 +375,8 @@ function consumedConclusionIds(
 }
 
 function pendingRemediationIntervention(
-	state: SdkJudgmentProgressState,
-): SdkJudgmentProgressState["workCase"]["conclusions"][number] | undefined {
+	state: SdkActionLoopState,
+): SdkActionLoopState["workCase"]["conclusions"][number] | undefined {
 	const consumed = consumedConclusionIds(state);
 	return state.workCase.conclusions.find(
 		(conclusion) =>
@@ -387,7 +387,7 @@ function pendingRemediationIntervention(
 
 async function progressCompletion(input: {
 	readonly request: string;
-	readonly state: SdkJudgmentProgressState;
+	readonly state: SdkActionLoopState;
 	readonly runner: SdkDecisionRunner;
 	readonly checkpoint: SdkActionLoopProgressionInput["checkpoint"];
 	readonly maxSteps: number;
@@ -477,7 +477,7 @@ async function progressCompletion(input: {
 
 async function progressEffect(input: {
 	readonly request: string;
-	readonly state: SdkJudgmentProgressState;
+	readonly state: SdkActionLoopState;
 	readonly observations: readonly EffectObservation[];
 	readonly runner: SdkDecisionRunner;
 	readonly checkpoint: SdkActionLoopProgressionInput["checkpoint"];
@@ -644,7 +644,7 @@ async function progressEffect(input: {
 
 async function progressRemediation(input: {
 	readonly request: string;
-	readonly state: SdkJudgmentProgressState;
+	readonly state: SdkActionLoopState;
 	readonly adverseSettlements: readonly EffectSettlement[];
 	readonly successfulSettlements: readonly EffectSettlement[];
 	readonly runner: SdkDecisionRunner;
@@ -762,7 +762,7 @@ async function progressRemediation(input: {
 }
 
 function nextRequiredJudgmentCategory(
-	state: SdkJudgmentProgressState,
+	state: SdkActionLoopState,
 ): SdkJudgmentCategory | undefined {
 	if (state.workCase.conclusions.length === 0) return undefined;
 	const categories = new Set(
@@ -810,7 +810,7 @@ function nextRequiredJudgmentCategory(
 
 async function progressAction(input: {
 	readonly request: string;
-	readonly state: SdkJudgmentProgressState;
+	readonly state: SdkActionLoopState;
 	readonly observations: readonly EffectObservation[];
 	readonly complete: boolean;
 	readonly actions?: readonly SdkControlledActionAdapter[];

@@ -16,7 +16,7 @@ import {
 	progressActionLoopWithSdk,
 	type SdkActionLoopCheckpoint,
 } from "../src/action-loop/sdk/action-loop-progression-controller.ts";
-import type { SdkJudgmentProgressState } from "../src/action-loop/sdk/judgment-progression-controller.ts";
+import type { SdkActionLoopState } from "../src/action-loop/sdk/action-loop-state.ts";
 import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
@@ -62,7 +62,7 @@ function stateFromOpening(
 		SdkActionLoopCheckpoint,
 		{ readonly kind: "work-case-opened" }
 	>,
-): SdkJudgmentProgressState {
+): SdkActionLoopState {
 	return {
 		workCase: checkpoint.result.workCase,
 		applicabilityAssessments: [],
@@ -513,7 +513,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 			};
 		},
 	};
-	const state: SdkJudgmentProgressState = {
+	const state: SdkActionLoopState = {
 		workCase: assured.value,
 		applicabilityAssessments: [],
 		assignments: [],
@@ -580,7 +580,6 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 	const live = applySdkActionLoopCheckpoint(
 		{
 			workCase: state.workCase,
-			contextRevisionId: state.workCase.revisionId,
 			openingBasis: ["The test host opened this bounded Work Case."],
 			applicabilityAssessments: [],
 			capabilityAssignments: [],

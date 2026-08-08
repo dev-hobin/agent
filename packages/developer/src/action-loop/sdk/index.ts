@@ -28,6 +28,7 @@ export * from "../work/resume-waiting-work-case.ts";
 export * from "../work/wait-work-case.ts";
 export * from "./action-controller.ts";
 export * from "./action-loop-progression-controller.ts";
+export * from "./action-loop-state.ts";
 export * from "./capability-inventory-controller.ts";
 export * from "./capability-routing-controller.ts";
 export * from "./completion-controller.ts";

@@ -37,20 +37,11 @@ import {
 	type SdkCoverageContribution,
 	type SdkNeedCoverageResult,
 } from "./coverage-controller.ts";
+import type { SdkActionLoopState } from "./action-loop-state.ts";
 import type {
 	SdkDecisionRunner,
 	SdkDecisionStopReason,
 } from "./decision-controller.ts";
-
-export interface SdkJudgmentProgressState {
-	readonly workCase: ActiveWorkCase;
-	readonly applicabilityAssessments: readonly AcceptedApplicabilityAssessment[];
-	readonly assignments: readonly CapabilityAssignment[];
-	readonly selections: readonly BoundReferenceSelection[];
-	readonly contexts: readonly SkillContributionContext[];
-	readonly contributions: readonly SdkCoverageContribution[];
-	readonly coverages: readonly NeedCoverage[];
-}
 
 type AssessedInventory = Extract<
 	SdkCapabilityInventoryResult,
@@ -102,7 +93,7 @@ export type SdkJudgmentCheckpoint =
 
 export interface SdkJudgmentProgressionInput {
 	readonly request: string;
-	readonly state: SdkJudgmentProgressState;
+	readonly state: SdkActionLoopState;
 	readonly capabilities: readonly SdkNamedCapability[];
 	readonly runner: SdkDecisionRunner;
 	readonly maxSteps: number;
@@ -123,7 +114,7 @@ export type SdkJudgmentProgressionStopReason =
 	| "progression-step-budget";
 
 interface ProgressResultBase {
-	readonly state: SdkJudgmentProgressState;
+	readonly state: SdkActionLoopState;
 	readonly steps: number;
 	readonly checkpoints: number;
 }
@@ -202,7 +193,7 @@ function compactError(error: unknown): string {
 	);
 }
 
-function snapshot(progress: MutableProgress): SdkJudgmentProgressState {
+function snapshot(progress: MutableProgress): SdkActionLoopState {
 	return Object.freeze({
 		workCase: progress.workCase,
 		applicabilityAssessments: Object.freeze([

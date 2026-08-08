@@ -17,7 +17,7 @@ import {
 	progressActionLoopWithSdk,
 	type SdkActionLoopCheckpoint,
 } from "../src/action-loop/sdk/action-loop-progression-controller.ts";
-import type { SdkJudgmentProgressState } from "../src/action-loop/sdk/judgment-progression-controller.ts";
+import type { SdkActionLoopState } from "../src/action-loop/sdk/action-loop-state.ts";
 import { recordWorkCaseActionCandidate } from "../src/action-loop/work/record-work-case-action-candidate.ts";
 import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-work-case-action-clearance.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
@@ -131,7 +131,7 @@ function settlement(
 }
 
 function remediationFixture(includeSuccess: boolean): {
-	readonly state: SdkJudgmentProgressState;
+	readonly state: SdkActionLoopState;
 	readonly adverse: EffectSettlement;
 	readonly successful?: EffectSettlement;
 } {
@@ -314,7 +314,6 @@ test("successful repair is canonically remediated and checkpointed before projec
 	const applied = applySdkActionLoopCheckpoint(
 		{
 			workCase: fixture.state.workCase,
-			contextRevisionId: fixture.state.workCase.revisionId,
 			openingBasis: ["The test owns this bounded Work Case."],
 			applicabilityAssessments: [],
 			capabilityAssignments: [],

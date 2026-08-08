@@ -8,11 +8,11 @@ import { pathToFileURL } from "node:url";
 import { sdkJudgmentCheckpointEvent } from "../extensions/action-loop-sdk-session.ts";
 import { openJudgment } from "../src/action-loop/judgment/open-judgment.ts";
 import { bindUnstructuredCapability } from "../src/action-loop/routing/bind-capability.ts";
+import type { SdkActionLoopState } from "../src/action-loop/sdk/action-loop-state.ts";
 import type { SdkNamedCapability } from "../src/action-loop/sdk/capability-inventory-controller.ts";
 import {
 	progressJudgmentWithSdk,
 	type SdkJudgmentCheckpoint,
-	type SdkJudgmentProgressState,
 } from "../src/action-loop/sdk/judgment-progression-controller.ts";
 import { recordWorkCaseJudgment } from "../src/action-loop/work/record-work-case-judgment.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
@@ -27,7 +27,7 @@ async function progressionFixture(
 	contributionNeeds: readonly string[] = [contributionNeed],
 ): Promise<{
 	readonly capability: SdkNamedCapability;
-	readonly state: SdkJudgmentProgressState;
+	readonly state: SdkActionLoopState;
 }> {
 	const root = await mkdtemp(join(tmpdir(), "developer-sdk-progression-"));
 	t.after(async () => rm(root, { recursive: true, force: true }));
