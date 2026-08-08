@@ -43,7 +43,11 @@ assert.equal(manifest.scripts.eval, undefined);
 assert.equal(manifest.scripts["eval:json"], undefined);
 assert.equal(manifest.scripts["eval:live"], undefined);
 assert.equal(manifest.scripts["eval:live:json"], undefined);
-assert.equal(manifest.scripts["eval:live:sdk"], "node scripts/eval-live.mjs");
+assert.equal(manifest.scripts["eval:live:sdk"], undefined);
+assert.equal(
+	manifest.scripts["eval:live:sdk:routing"],
+	"node scripts/eval-sdk-routing.ts",
+);
 assert.match(manifest.scripts.check, /build-sdk-public-api\.mjs --check/);
 assert.match(manifest.scripts.prepack, /build-sdk-public-api\.mjs --check/);
 assert.deepEqual(manifest.exports["./sdk"], {
@@ -371,73 +375,28 @@ for (const [path, expected] of Object.entries(referenceAnchors)) {
 	);
 }
 
-const evalFixtures = await readJson(join(root, "evals", "fixtures.json"));
-for (const fixture of evalFixtures) {
-	assert.ok(
-		Array.isArray(fixture.admissibleFirstTargets) &&
-			fixture.admissibleFirstTargets.length > 0,
-		`Eval fixture ${fixture.id} must declare admissibleFirstTargets`,
-	);
-	assert.ok(
-		Array.isArray(fixture.preferredFirstTargets) &&
-			fixture.preferredFirstTargets.length > 0,
-		`Eval fixture ${fixture.id} must declare preferredFirstTargets`,
-	);
-	for (const target of fixture.preferredFirstTargets) {
-		assert.ok(
-			fixture.admissibleFirstTargets.includes(target),
-			`Eval fixture ${fixture.id} prefers inadmissible target ${target}`,
-		);
-	}
-	for (const term of fixture.requiredJudgmentTerms ?? []) {
-		assert.ok(
-			typeof term === "string" && term.length > 0,
-			`Eval fixture ${fixture.id} has an invalid required judgment term`,
-		);
-	}
-	for (const alternatives of fixture.requiredJudgmentConcepts ?? []) {
-		assert.ok(
-			Array.isArray(alternatives) &&
-				alternatives.length > 0 &&
-				alternatives.every(
-					(term) => typeof term === "string" && term.length > 0,
-				),
-			`Eval fixture ${fixture.id} has an invalid required judgment concept`,
-		);
-	}
-	for (const referencePath of fixture.expectedReferenceReads ?? []) {
-		assert.ok(
-			requiredReferences.includes(referencePath),
-			`Expected live eval reference to be part of the package contract: ${referencePath}`,
-		);
-		await readFile(join(root, referencePath), "utf8");
-	}
-}
-for (const fixtureId of [
-	"doctor-unscoped-orientation",
-	"doctor-thorough-bounded-codebase",
-	"implementation-stable-landing-paused",
-	"agent-before-implementation-evidence-gate",
+for (const evaluator of [
+	"eval-sdk-routing.ts",
+	"eval-sdk-judgment.ts",
+	"eval-sdk-intervention.ts",
+	"eval-sdk-remediation.ts",
+	"eval-sdk-action-loop-resume.mjs",
 ]) {
-	assert.ok(
-		evalFixtures.some((fixture) => fixture.id === fixtureId),
-		`Missing required live eval fixture: ${fixtureId}`,
-	);
+	await access(join(root, "scripts", evaluator));
 }
-const evalLive = await readFile(join(root, "scripts/eval-live.mjs"), "utf8");
-assert.match(evalLive, /eval-sdk-routing\.ts/);
-assert.match(evalLive, /summarizeTrialObservations/);
-assert.doesNotMatch(evalLive, /eval-rpc\.mjs|eval-json\.mjs|--transport/);
 for (const removedEvaluator of [
 	"eval-assertions.mjs",
 	"eval-budget.mjs",
 	"eval-event-monitor.mjs",
 	"eval-json.mjs",
+	"eval-live.mjs",
+	"eval-probability.mjs",
 	"eval-rpc.mjs",
 	"eval-workspace.mjs",
 ]) {
 	await assert.rejects(access(join(root, "scripts", removedEvaluator)));
 }
+await assert.rejects(access(join(root, "evals", "fixtures.json")));
 
 const scheduleReference = await readFile(
 	join(root, "skills/schedule/references/structural-change-timing.md"),
