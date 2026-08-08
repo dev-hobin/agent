@@ -1,9 +1,9 @@
 import type { OpenJudgment } from "../judgment/open-judgment.ts";
+import type { ActiveWorkCase } from "./work-case.ts";
 import {
-	deriveWorkCaseRevisionId,
-	type ActiveWorkCase,
-	workCaseInventoryIssue,
-} from "./work-case.ts";
+	currentWorkCaseRecordingIssue,
+	sealWorkCaseRevision,
+} from "./work-case-recording.ts";
 
 export type WorkCaseJudgmentRecordErrorCode =
 	| "stale-work-case"
@@ -38,19 +38,9 @@ export function recordWorkCaseJudgment(
 	workCase: ActiveWorkCase,
 	judgment: OpenJudgment,
 ): WorkCaseJudgmentRecordResult {
-	if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-		return invalid(
-			"stale-work-case",
-			"workCase.revisionId",
-			"Work Case revision does not match its closure inventory",
-		);
-	}
-	if (workCaseInventoryIssue(workCase) !== undefined) {
-		return invalid(
-			"invalid-work-case-inventory",
-			"workCase",
-			"Work Case closure inventory is relationally incoherent",
-		);
+	const currentIssue = currentWorkCaseRecordingIssue(workCase);
+	if (currentIssue) {
+		return invalid(currentIssue.code, currentIssue.path, currentIssue.message);
 	}
 	if (judgment.workCaseId !== workCase.workCaseId) {
 		return invalid(
@@ -82,12 +72,13 @@ export function recordWorkCaseJudgment(
 			left.judgmentId.localeCompare(right.judgmentId),
 		),
 	);
-	const nextState = { ...workCase, openJudgments };
-	return {
-		status: "recorded",
-		value: Object.freeze({
-			...nextState,
-			revisionId: deriveWorkCaseRevisionId(nextState),
-		}),
-	};
+	const sealed = sealWorkCaseRevision({ ...workCase, openJudgments });
+	if (sealed.status === "invalid") {
+		return invalid(
+			"invalid-work-case-inventory",
+			sealed.issue.path,
+			sealed.issue.message,
+		);
+	}
+	return { status: "recorded", value: sealed.value };
 }

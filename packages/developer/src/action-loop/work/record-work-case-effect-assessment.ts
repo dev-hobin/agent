@@ -2,7 +2,11 @@ import type {
 	EffectSettlement,
 	UnsettledEffectAssessment,
 } from "../effect/effect-settlement.ts";
-import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
+import type { ActiveWorkCase } from "./work-case.ts";
+import {
+	currentWorkCaseRecordingIssue,
+	sealWorkCaseRevision,
+} from "./work-case-recording.ts";
 
 export type CurrentEffectAssessment =
 	| EffectSettlement
@@ -10,6 +14,7 @@ export type CurrentEffectAssessment =
 
 export type WorkCaseEffectAssessmentRecordErrorCode =
 	| "stale-work-case"
+	| "invalid-work-case-inventory"
 	| "identity-mismatch"
 	| "missing-effect"
 	| "stale-effect-assessment";
@@ -50,12 +55,9 @@ export function recordWorkCaseEffectAssessment(
 	assessment: CurrentEffectAssessment,
 	expectedCurrentAssessmentId: string | null,
 ): WorkCaseEffectAssessmentRecordResult {
-	if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-		return invalid(
-			"stale-work-case",
-			"workCase.revisionId",
-			"Work Case revision does not match its closure inventory",
-		);
+	const currentIssue = currentWorkCaseRecordingIssue(workCase);
+	if (currentIssue) {
+		return invalid(currentIssue.code, currentIssue.path, currentIssue.message);
 	}
 	if (assessment.workCaseId !== workCase.workCaseId) {
 		return invalid(
@@ -116,16 +118,17 @@ export function recordWorkCaseEffectAssessment(
 				remediationEffectId !== assessment.effectId,
 		),
 	);
-	const nextState = {
+	const sealed = sealWorkCaseRevision({
 		...workCase,
 		currentEffectAssessments,
 		effectRemediations,
-	};
-	return {
-		status: "recorded",
-		value: Object.freeze({
-			...nextState,
-			revisionId: deriveWorkCaseRevisionId(nextState),
-		}),
-	};
+	});
+	if (sealed.status === "invalid") {
+		return invalid(
+			"invalid-work-case-inventory",
+			sealed.issue.path,
+			sealed.issue.message,
+		);
+	}
+	return { status: "recorded", value: sealed.value };
 }

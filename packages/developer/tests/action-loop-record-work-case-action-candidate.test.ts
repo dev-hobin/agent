@@ -4,7 +4,10 @@ import {
 	acceptActionCandidate,
 	type ActionCandidate,
 } from "../src/action-loop/action/accept-action-candidate.ts";
-import { acceptActionClearance } from "../src/action-loop/action/action-clearance.ts";
+import {
+	acceptActionClearance,
+	type ActionClearance,
+} from "../src/action-loop/action/action-clearance.ts";
 import { beginEffect } from "../src/action-loop/effect/begin-effect.ts";
 import { settleEffect } from "../src/action-loop/effect/effect-settlement.ts";
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
@@ -13,7 +16,10 @@ import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-wo
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import { recordWorkCaseEffectAssessment } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
-import { openWorkCase } from "../src/action-loop/work/work-case.ts";
+import {
+	deriveWorkCaseRevisionId,
+	openWorkCase,
+} from "../src/action-loop/work/work-case.ts";
 
 function openedWorkCase() {
 	const result = openWorkCase({
@@ -80,6 +86,51 @@ test("Action Candidate is recorded only after every required Conclusion", () => 
 	assert.notEqual(result.value.revisionId, withConclusion.value.revisionId);
 	assert.equal(result.value.actionCandidates.length, 1);
 	assert.equal(Object.isFrozen(result.value.actionCandidates), true);
+});
+
+test("recording rejects a revision-valid but relationally incoherent inventory", () => {
+	const opened = openedWorkCase();
+	const acceptedConclusion = conclusion(opened.workCaseId);
+	const withConclusion = recordWorkCaseConclusion(opened, acceptedConclusion);
+	if (withConclusion.status !== "recorded") return;
+	const orphanClearance: ActionClearance = {
+		actionClearanceId: "clearance-orphan",
+		workCaseId: opened.workCaseId,
+		actionCandidateId: "candidate-missing",
+		controlledAction: {
+			kind: "pi-tool-call",
+			fingerprint: "b".repeat(64),
+		},
+		intendedEffects: ["The orphan clearance is rejected."],
+		conclusionIds: [acceptedConclusion.conclusionId],
+		warrantBasis: ["This malformed fixture has no recorded Candidate."],
+		permission: {
+			actionCandidateId: "candidate-missing",
+			status: "granted",
+			source: "test:malformed-inventory",
+			basis: ["The permission itself is not the tested defect."],
+		},
+		provenance: { kind: "human", source: "test:malformed-inventory" },
+	};
+	const malformedState = {
+		...withConclusion.value,
+		actionClearances: Object.freeze([orphanClearance]),
+	};
+	const revisionValidMalformedState = Object.freeze({
+		...malformedState,
+		revisionId: deriveWorkCaseRevisionId(malformedState),
+	});
+
+	const result = recordWorkCaseActionCandidate(
+		revisionValidMalformedState,
+		candidate(opened.workCaseId),
+	);
+
+	assert.equal(result.status, "invalid");
+	if (result.status === "invalid") {
+		assert.equal(result.error.code, "invalid-work-case-inventory");
+		assert.match(result.error.message, /Candidate/i);
+	}
 });
 
 test("Action Clearance requires its Candidate and Conclusions in the same inventory", () => {

@@ -1,8 +1,13 @@
 import type { PendingEffect } from "../effect/begin-effect.ts";
-import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
+import type { ActiveWorkCase } from "./work-case.ts";
+import {
+	currentWorkCaseRecordingIssue,
+	sealWorkCaseRevision,
+} from "./work-case-recording.ts";
 
 export type WorkCaseEffectRecordErrorCode =
 	| "stale-work-case"
+	| "invalid-work-case-inventory"
 	| "identity-mismatch"
 	| "missing-action-clearance"
 	| "duplicate-occurrence";
@@ -34,12 +39,9 @@ export function recordWorkCaseEffect(
 	workCase: ActiveWorkCase,
 	effect: PendingEffect,
 ): WorkCaseEffectRecordResult {
-	if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-		return invalid(
-			"stale-work-case",
-			"workCase.revisionId",
-			"Work Case revision does not match its closure inventory",
-		);
+	const currentIssue = currentWorkCaseRecordingIssue(workCase);
+	if (currentIssue) {
+		return invalid(currentIssue.code, currentIssue.path, currentIssue.message);
 	}
 	if (effect.workCaseId !== workCase.workCaseId) {
 		return invalid(
@@ -94,12 +96,13 @@ export function recordWorkCaseEffect(
 			left.effectId.localeCompare(right.effectId),
 		),
 	);
-	const nextState = { ...workCase, effects };
-	return {
-		status: "recorded",
-		value: Object.freeze({
-			...nextState,
-			revisionId: deriveWorkCaseRevisionId(nextState),
-		}),
-	};
+	const sealed = sealWorkCaseRevision({ ...workCase, effects });
+	if (sealed.status === "invalid") {
+		return invalid(
+			"invalid-work-case-inventory",
+			sealed.issue.path,
+			sealed.issue.message,
+		);
+	}
+	return { status: "recorded", value: sealed.value };
 }

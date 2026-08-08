@@ -1,9 +1,9 @@
 import type { EffectRemediation } from "../effect/accept-effect-remediation.ts";
+import type { ActiveWorkCase } from "./work-case.ts";
 import {
-	deriveWorkCaseRevisionId,
-	type ActiveWorkCase,
-	workCaseInventoryIssue,
-} from "./work-case.ts";
+	currentWorkCaseRecordingIssue,
+	sealWorkCaseRevision,
+} from "./work-case-recording.ts";
 
 export type WorkCaseEffectRemediationRecordErrorCode =
 	| "stale-work-case"
@@ -48,19 +48,9 @@ export function recordWorkCaseEffectRemediation(
 	workCase: ActiveWorkCase,
 	remediation: EffectRemediation,
 ): WorkCaseEffectRemediationRecordResult {
-	if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-		return invalid(
-			"stale-work-case",
-			"workCase.revisionId",
-			"Work Case revision does not match its closure inventory",
-		);
-	}
-	if (workCaseInventoryIssue(workCase) !== undefined) {
-		return invalid(
-			"invalid-work-case-inventory",
-			"workCase",
-			"Work Case closure inventory is relationally incoherent",
-		);
+	const currentIssue = currentWorkCaseRecordingIssue(workCase);
+	if (currentIssue) {
+		return invalid(currentIssue.code, currentIssue.path, currentIssue.message);
 	}
 	if (remediation.workCaseId !== workCase.workCaseId) {
 		return invalid(
@@ -113,19 +103,13 @@ export function recordWorkCaseEffectRemediation(
 			left.adverseEffectId.localeCompare(right.adverseEffectId),
 		),
 	);
-	const nextState = { ...workCase, effectRemediations };
-	if (workCaseInventoryIssue(nextState) !== undefined) {
+	const sealed = sealWorkCaseRevision({ ...workCase, effectRemediations });
+	if (sealed.status === "invalid") {
 		return invalid(
 			"invalid-work-case-inventory",
-			"remediation",
-			"Effect remediation would create an incoherent Work Case inventory",
+			sealed.issue.path,
+			sealed.issue.message,
 		);
 	}
-	return {
-		status: "recorded",
-		value: Object.freeze({
-			...nextState,
-			revisionId: deriveWorkCaseRevisionId(nextState),
-		}),
-	};
+	return { status: "recorded", value: sealed.value };
 }

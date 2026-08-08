@@ -1,8 +1,13 @@
 import type { JudgmentConclusion } from "../judgment/close-judgment.ts";
-import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
+import type { ActiveWorkCase } from "./work-case.ts";
+import {
+	currentWorkCaseRecordingIssue,
+	sealWorkCaseRevision,
+} from "./work-case-recording.ts";
 
 export type WorkCaseConclusionRecordErrorCode =
 	| "stale-work-case"
+	| "invalid-work-case-inventory"
 	| "identity-mismatch"
 	| "invalid-conclusion";
 
@@ -28,21 +33,14 @@ function invalid(
 	return { status: "invalid", error: { code, path, message } };
 }
 
-function hasCurrentRevision(workCase: ActiveWorkCase): boolean {
-	return workCase.revisionId === deriveWorkCaseRevisionId(workCase);
-}
-
 /** Records one already-accepted Conclusion in its canonical active Work Case. */
 export function recordWorkCaseConclusion(
 	workCase: ActiveWorkCase,
 	conclusion: JudgmentConclusion,
 ): WorkCaseConclusionRecordResult {
-	if (!hasCurrentRevision(workCase)) {
-		return invalid(
-			"stale-work-case",
-			"workCase.revisionId",
-			"Work Case revision does not match its closure inventory",
-		);
+	const currentIssue = currentWorkCaseRecordingIssue(workCase);
+	if (currentIssue) {
+		return invalid(currentIssue.code, currentIssue.path, currentIssue.message);
 	}
 	if (
 		(conclusion.category === "Proportionate Intervention" &&
@@ -96,16 +94,17 @@ export function recordWorkCaseConclusion(
 			({ judgmentId }) => judgmentId !== conclusion.judgmentId,
 		),
 	);
-	const nextState = {
+	const sealed = sealWorkCaseRevision({
 		...workCase,
 		openJudgments,
 		conclusions,
-	};
-	return {
-		status: "recorded",
-		value: Object.freeze({
-			...nextState,
-			revisionId: deriveWorkCaseRevisionId(nextState),
-		}),
-	};
+	});
+	if (sealed.status === "invalid") {
+		return invalid(
+			"invalid-work-case-inventory",
+			sealed.issue.path,
+			sealed.issue.message,
+		);
+	}
+	return { status: "recorded", value: sealed.value };
 }

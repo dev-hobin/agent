@@ -1,8 +1,13 @@
 import type { ActionCandidate } from "../action/accept-action-candidate.ts";
-import { deriveWorkCaseRevisionId, type ActiveWorkCase } from "./work-case.ts";
+import type { ActiveWorkCase } from "./work-case.ts";
+import {
+	currentWorkCaseRecordingIssue,
+	sealWorkCaseRevision,
+} from "./work-case-recording.ts";
 
 export type WorkCaseActionCandidateRecordErrorCode =
 	| "stale-work-case"
+	| "invalid-work-case-inventory"
 	| "identity-mismatch"
 	| "missing-conclusion";
 
@@ -33,12 +38,9 @@ export function recordWorkCaseActionCandidate(
 	workCase: ActiveWorkCase,
 	candidate: ActionCandidate,
 ): WorkCaseActionCandidateRecordResult {
-	if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-		return invalid(
-			"stale-work-case",
-			"workCase.revisionId",
-			"Work Case revision does not match its closure inventory",
-		);
+	const currentIssue = currentWorkCaseRecordingIssue(workCase);
+	if (currentIssue) {
+		return invalid(currentIssue.code, currentIssue.path, currentIssue.message);
 	}
 	if (candidate.workCaseId !== workCase.workCaseId) {
 		return invalid(
@@ -73,12 +75,13 @@ export function recordWorkCaseActionCandidate(
 			left.actionCandidateId.localeCompare(right.actionCandidateId),
 		),
 	);
-	const nextState = { ...workCase, actionCandidates };
-	return {
-		status: "recorded",
-		value: Object.freeze({
-			...nextState,
-			revisionId: deriveWorkCaseRevisionId(nextState),
-		}),
-	};
+	const sealed = sealWorkCaseRevision({ ...workCase, actionCandidates });
+	if (sealed.status === "invalid") {
+		return invalid(
+			"invalid-work-case-inventory",
+			sealed.issue.path,
+			sealed.issue.message,
+		);
+	}
+	return { status: "recorded", value: sealed.value };
 }

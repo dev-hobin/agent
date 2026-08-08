@@ -2339,6 +2339,34 @@ function openWorkCase(proposal) {
   };
 }
 
+// src/action-loop/work/work-case-recording.ts
+function currentWorkCaseRecordingIssue(workCase) {
+  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
+    return {
+      code: "stale-work-case",
+      path: "workCase.revisionId",
+      message: "Work Case revision does not match its closure inventory"
+    };
+  }
+  const inventoryIssue = workCaseInventoryIssue(workCase);
+  return inventoryIssue ? {
+    code: "invalid-work-case-inventory",
+    path: inventoryIssue.path,
+    message: inventoryIssue.message
+  } : void 0;
+}
+function sealWorkCaseRevision(nextState) {
+  const issue = workCaseInventoryIssue(nextState);
+  if (issue) return { status: "invalid", issue };
+  return {
+    status: "sealed",
+    value: Object.freeze({
+      ...nextState,
+      revisionId: deriveWorkCaseRevisionId(nextState)
+    })
+  };
+}
+
 // src/action-loop/work/record-work-case-effect-assessment.ts
 function invalid5(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
@@ -2347,12 +2375,9 @@ function effectAssessmentId(assessment) {
   return "effectSettlementId" in assessment ? assessment.effectSettlementId : assessment.effectAssessmentId;
 }
 function recordWorkCaseEffectAssessment(workCase, assessment, expectedCurrentAssessmentId) {
-  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-    return invalid5(
-      "stale-work-case",
-      "workCase.revisionId",
-      "Work Case revision does not match its closure inventory"
-    );
+  const currentIssue = currentWorkCaseRecordingIssue(workCase);
+  if (currentIssue) {
+    return invalid5(currentIssue.code, currentIssue.path, currentIssue.message);
   }
   if (assessment.workCaseId !== workCase.workCaseId) {
     return invalid5(
@@ -2405,18 +2430,19 @@ function recordWorkCaseEffectAssessment(workCase, assessment, expectedCurrentAss
       ({ adverseEffectId, remediationEffectId }) => adverseEffectId !== assessment.effectId && remediationEffectId !== assessment.effectId
     )
   );
-  const nextState = {
+  const sealed = sealWorkCaseRevision({
     ...workCase,
     currentEffectAssessments,
     effectRemediations
-  };
-  return {
-    status: "recorded",
-    value: Object.freeze({
-      ...nextState,
-      revisionId: deriveWorkCaseRevisionId(nextState)
-    })
-  };
+  });
+  if (sealed.status === "invalid") {
+    return invalid5(
+      "invalid-work-case-inventory",
+      sealed.issue.path,
+      sealed.issue.message
+    );
+  }
+  return { status: "recorded", value: sealed.value };
 }
 
 // src/action-loop/work/prepare-closure-target.ts
@@ -4012,12 +4038,9 @@ function invalid14(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function recordWorkCaseActionCandidate(workCase, candidate) {
-  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-    return invalid14(
-      "stale-work-case",
-      "workCase.revisionId",
-      "Work Case revision does not match its closure inventory"
-    );
+  const currentIssue = currentWorkCaseRecordingIssue(workCase);
+  if (currentIssue) {
+    return invalid14(currentIssue.code, currentIssue.path, currentIssue.message);
   }
   if (candidate.workCaseId !== workCase.workCaseId) {
     return invalid14(
@@ -4049,14 +4072,15 @@ function recordWorkCaseActionCandidate(workCase, candidate) {
       (left, right) => left.actionCandidateId.localeCompare(right.actionCandidateId)
     )
   );
-  const nextState = { ...workCase, actionCandidates };
-  return {
-    status: "recorded",
-    value: Object.freeze({
-      ...nextState,
-      revisionId: deriveWorkCaseRevisionId(nextState)
-    })
-  };
+  const sealed = sealWorkCaseRevision({ ...workCase, actionCandidates });
+  if (sealed.status === "invalid") {
+    return invalid14(
+      "invalid-work-case-inventory",
+      sealed.issue.path,
+      sealed.issue.message
+    );
+  }
+  return { status: "recorded", value: sealed.value };
 }
 
 // src/action-loop/work/record-work-case-action-clearance.ts
@@ -4064,12 +4088,9 @@ function invalid15(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function recordWorkCaseActionClearance(workCase, clearance) {
-  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-    return invalid15(
-      "stale-work-case",
-      "workCase.revisionId",
-      "Work Case revision does not match its closure inventory"
-    );
+  const currentIssue = currentWorkCaseRecordingIssue(workCase);
+  if (currentIssue) {
+    return invalid15(currentIssue.code, currentIssue.path, currentIssue.message);
   }
   if (clearance.workCaseId !== workCase.workCaseId) {
     return invalid15(
@@ -4120,14 +4141,15 @@ function recordWorkCaseActionClearance(workCase, clearance) {
       (left, right) => left.actionClearanceId.localeCompare(right.actionClearanceId)
     )
   );
-  const nextState = { ...workCase, actionClearances };
-  return {
-    status: "recorded",
-    value: Object.freeze({
-      ...nextState,
-      revisionId: deriveWorkCaseRevisionId(nextState)
-    })
-  };
+  const sealed = sealWorkCaseRevision({ ...workCase, actionClearances });
+  if (sealed.status === "invalid") {
+    return invalid15(
+      "invalid-work-case-inventory",
+      sealed.issue.path,
+      sealed.issue.message
+    );
+  }
+  return { status: "recorded", value: sealed.value };
 }
 
 // src/action-loop/work/record-work-case-effect-remediation.ts
@@ -4138,19 +4160,9 @@ function assessmentId(assessment) {
   return "effectSettlementId" in assessment ? assessment.effectSettlementId : assessment.effectAssessmentId;
 }
 function recordWorkCaseEffectRemediation(workCase, remediation) {
-  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-    return invalid16(
-      "stale-work-case",
-      "workCase.revisionId",
-      "Work Case revision does not match its closure inventory"
-    );
-  }
-  if (workCaseInventoryIssue(workCase) !== void 0) {
-    return invalid16(
-      "invalid-work-case-inventory",
-      "workCase",
-      "Work Case closure inventory is relationally incoherent"
-    );
+  const currentIssue = currentWorkCaseRecordingIssue(workCase);
+  if (currentIssue) {
+    return invalid16(currentIssue.code, currentIssue.path, currentIssue.message);
   }
   if (remediation.workCaseId !== workCase.workCaseId) {
     return invalid16(
@@ -4197,21 +4209,15 @@ function recordWorkCaseEffectRemediation(workCase, remediation) {
       (left, right) => left.adverseEffectId.localeCompare(right.adverseEffectId)
     )
   );
-  const nextState = { ...workCase, effectRemediations };
-  if (workCaseInventoryIssue(nextState) !== void 0) {
+  const sealed = sealWorkCaseRevision({ ...workCase, effectRemediations });
+  if (sealed.status === "invalid") {
     return invalid16(
       "invalid-work-case-inventory",
-      "remediation",
-      "Effect remediation would create an incoherent Work Case inventory"
+      sealed.issue.path,
+      sealed.issue.message
     );
   }
-  return {
-    status: "recorded",
-    value: Object.freeze({
-      ...nextState,
-      revisionId: deriveWorkCaseRevisionId(nextState)
-    })
-  };
+  return { status: "recorded", value: sealed.value };
 }
 
 // src/action-loop/sdk/completion-controller.ts
@@ -6096,19 +6102,9 @@ function invalid19(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function recordWorkCaseJudgment(workCase, judgment) {
-  if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
-    return invalid19(
-      "stale-work-case",
-      "workCase.revisionId",
-      "Work Case revision does not match its closure inventory"
-    );
-  }
-  if (workCaseInventoryIssue(workCase) !== void 0) {
-    return invalid19(
-      "invalid-work-case-inventory",
-      "workCase",
-      "Work Case closure inventory is relationally incoherent"
-    );
+  const currentIssue = currentWorkCaseRecordingIssue(workCase);
+  if (currentIssue) {
+    return invalid19(currentIssue.code, currentIssue.path, currentIssue.message);
   }
   if (judgment.workCaseId !== workCase.workCaseId) {
     return invalid19(
@@ -6136,14 +6132,15 @@ function recordWorkCaseJudgment(workCase, judgment) {
       (left, right) => left.judgmentId.localeCompare(right.judgmentId)
     )
   );
-  const nextState = { ...workCase, openJudgments };
-  return {
-    status: "recorded",
-    value: Object.freeze({
-      ...nextState,
-      revisionId: deriveWorkCaseRevisionId(nextState)
-    })
-  };
+  const sealed = sealWorkCaseRevision({ ...workCase, openJudgments });
+  if (sealed.status === "invalid") {
+    return invalid19(
+      "invalid-work-case-inventory",
+      sealed.issue.path,
+      sealed.issue.message
+    );
+  }
+  return { status: "recorded", value: sealed.value };
 }
 
 // src/action-loop/sdk/judgment-controller.ts
@@ -6308,16 +6305,10 @@ async function openJudgmentWithSdk(input) {
 function invalid20(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function hasCurrentRevision(workCase) {
-  return workCase.revisionId === deriveWorkCaseRevisionId(workCase);
-}
 function recordWorkCaseConclusion(workCase, conclusion) {
-  if (!hasCurrentRevision(workCase)) {
-    return invalid20(
-      "stale-work-case",
-      "workCase.revisionId",
-      "Work Case revision does not match its closure inventory"
-    );
+  const currentIssue = currentWorkCaseRecordingIssue(workCase);
+  if (currentIssue) {
+    return invalid20(currentIssue.code, currentIssue.path, currentIssue.message);
   }
   if (conclusion.category === "Proportionate Intervention" && conclusion.interventionDisposition !== "action-required" && conclusion.interventionDisposition !== "no-action" || conclusion.category !== "Proportionate Intervention" && conclusion.interventionDisposition !== void 0) {
     return invalid20(
@@ -6358,18 +6349,19 @@ function recordWorkCaseConclusion(workCase, conclusion) {
       ({ judgmentId }) => judgmentId !== conclusion.judgmentId
     )
   );
-  const nextState = {
+  const sealed = sealWorkCaseRevision({
     ...workCase,
     openJudgments,
     conclusions
-  };
-  return {
-    status: "recorded",
-    value: Object.freeze({
-      ...nextState,
-      revisionId: deriveWorkCaseRevisionId(nextState)
-    })
-  };
+  });
+  if (sealed.status === "invalid") {
+    return invalid20(
+      "invalid-work-case-inventory",
+      sealed.issue.path,
+      sealed.issue.message
+    );
+  }
+  return { status: "recorded", value: sealed.value };
 }
 
 // src/action-loop/sdk/capability-inventory-controller.ts
