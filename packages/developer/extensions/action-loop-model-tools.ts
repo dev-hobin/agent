@@ -28,3 +28,52 @@ export function isModelFacingActionLoopTool(
 ): toolName is ModelFacingActionLoopToolName {
 	return MODEL_FACING_ACTION_LOOP_TOOL_SET.has(toolName);
 }
+
+export function actionLoopModelProtocolPrompt(
+	availableSkillNames: readonly string[],
+): string {
+	return [
+		"",
+		"Developer Action Loop is active. Its canonical Work Case owns Outcome continuity through completion.",
+		`Use ${ACTION_LOOP_PROGRESS_TOOL} for bounded progression and call it again after any exact cleared host Action returns. A bounded stop preserves acknowledged Pi branch checkpoints.`,
+		`Evidence is not automatically truth. Use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} only for exact admitted host evidence that directly answers a current Need; adverse Effect remediation remains explicit.`,
+		"The primary controller owns opening, routing, sequential Judgment, Action proposal, Effect settlement, and revision-revalidated Completion. Do not reproduce these transitions with lower-level SDK operations.",
+		"Never infer permission, Effect success, or completion. Never expose internal IDs, revisions, hashes, fingerprints, or transition identities to the user.",
+		`Pi-admitted Developer Skills: ${availableSkillNames.length > 0 ? availableSkillNames.join(", ") : "none"}. Never rediscover excluded Skills.`,
+	].join("\n");
+}
+
+export interface ActionLoopToolPresentation {
+	readonly title: string;
+	readonly detail?: string;
+}
+
+export function actionLoopToolPresentation(
+	toolName: ModelFacingActionLoopToolName,
+	args: Readonly<Record<string, unknown>>,
+): ActionLoopToolPresentation {
+	const text = (key: string) =>
+		typeof args[key] === "string" ? String(args[key]).trim() : undefined;
+	switch (toolName) {
+		case ACTION_LOOP_PROGRESS_TOOL:
+			return { title: "Progress canonical work" };
+		case ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL:
+			return { title: "Use observed evidence" };
+		case ACTION_LOOP_PAUSE_WORK_CASE_TOOL:
+			return { title: "Pause work", detail: text("reason") };
+		case ACTION_LOOP_WAIT_WORK_CASE_TOOL:
+			return {
+				title: "Wait for an external condition",
+				detail: text("external_condition"),
+			};
+		case ACTION_LOOP_BLOCK_WORK_CASE_TOOL:
+			return { title: "Record blocked work", detail: text("reason") };
+		case ACTION_LOOP_RESUME_WORK_CASE_TOOL:
+			return {
+				title: "Resume held work",
+				detail: text("observed_change") ?? text("continuation"),
+			};
+		default:
+			return toolName satisfies never;
+	}
+}

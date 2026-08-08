@@ -74,7 +74,10 @@ import {
 	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
 	ACTION_LOOP_WAIT_WORK_CASE_TOOL,
 	MODEL_FACING_ACTION_LOOP_TOOLS,
+	actionLoopModelProtocolPrompt,
+	actionLoopToolPresentation,
 	isModelFacingActionLoopTool,
+	type ModelFacingActionLoopToolName,
 } from "./action-loop-model-tools.ts";
 import { bindPiControlledAction } from "./action-loop-pi-action.ts";
 import {
@@ -149,20 +152,6 @@ function compactLine(value: string, maxChars = 160): string {
 	return line.length <= maxChars ? line : `${line.slice(0, maxChars - 1)}…`;
 }
 
-function actionLoopProtocolPrompt(
-	availableSkillNames: readonly string[],
-): string {
-	return [
-		"",
-		"Developer Action Loop is active. Its canonical Work Case owns Outcome continuity through completion.",
-		`Use ${ACTION_LOOP_PROGRESS_TOOL} for bounded progression and call it again after any exact cleared host Action returns. A bounded stop preserves acknowledged Pi branch checkpoints.`,
-		`Evidence is not automatically truth. Use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} only for exact admitted host evidence that directly answers a current Need; adverse Effect remediation remains explicit.`,
-		"The SDK controller owns opening, routing, sequential Judgment, Action proposal, Effect settlement, and revision-revalidated Completion. Do not reproduce these transitions with lower-level tools.",
-		"Never infer permission, Effect success, or completion. Never expose internal IDs, revisions, hashes, fingerprints, or transition identities to the user.",
-		`Pi-admitted Developer Skills: ${availableSkillNames.length > 0 ? availableSkillNames.join(", ") : "none"}. Never rediscover excluded Skills.`,
-	].join("\n");
-}
-
 export default async function developer(pi: ExtensionAPI) {
 	let availableSkills = new Map<string, Skill>();
 	let liveCapabilityInventory: LiveCapabilityInventoryResult | undefined;
@@ -201,42 +190,14 @@ export default async function developer(pi: ExtensionAPI) {
 		});
 	};
 
-	const actionLoopToolPresentation = (
-		toolName: string,
-		args: Readonly<Record<string, unknown>>,
-	): { readonly title: string; readonly detail?: string } => {
-		const text = (key: string) =>
-			typeof args[key] === "string" ? String(args[key]).trim() : undefined;
-		switch (toolName) {
-			case ACTION_LOOP_PROGRESS_TOOL:
-				return { title: "Progress canonical work" };
-			case ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL:
-				return { title: "Use observed evidence" };
-			case ACTION_LOOP_PAUSE_WORK_CASE_TOOL:
-				return { title: "Pause work", detail: text("reason") };
-			case ACTION_LOOP_WAIT_WORK_CASE_TOOL:
-				return {
-					title: "Wait for an external condition",
-					detail: text("external_condition"),
-				};
-			case ACTION_LOOP_BLOCK_WORK_CASE_TOOL:
-				return { title: "Record blocked work", detail: text("reason") };
-			case ACTION_LOOP_RESUME_WORK_CASE_TOOL:
-				return {
-					title: "Resume held work",
-					detail: text("observed_change") ?? text("continuation"),
-				};
-			default:
-				return { title: "Update current work" };
-		}
-	};
-
 	const registerActionLoopTool = <
 		TParams extends TSchema,
 		TDetails = unknown,
 		TState = unknown,
 	>(
-		tool: ToolDefinition<TParams, TDetails, TState>,
+		tool: ToolDefinition<TParams, TDetails, TState> & {
+			readonly name: ModelFacingActionLoopToolName;
+		},
 	) => {
 		pi.registerTool({
 			...tool,
@@ -1787,7 +1748,7 @@ export default async function developer(pi: ExtensionAPI) {
 		return {
 			systemPrompt:
 				event.systemPrompt +
-				actionLoopProtocolPrompt([...availableSkills.keys()]) +
+				actionLoopModelProtocolPrompt([...availableSkills.keys()]) +
 				inventoryPrompt +
 				(actionLoopReplayFailure
 					? `\nAction Loop session replay unavailable (${ACTION_LOOP_SESSION_PROTOCOL}): ${actionLoopReplayFailure}. Do not open replacement work or infer completion.`
