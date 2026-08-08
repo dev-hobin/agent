@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
 	assessLiveCapabilityApplicability,
-	assignedLiveCapability,
+	findCapabilityAssignment,
 } from "../extensions/action-loop-applicability.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
@@ -109,7 +109,7 @@ test("applicable Capability creates one current live assignment", () => {
 	assert.deepEqual(result.state.applicabilityAssessments, [result.assessment]);
 	assert.deepEqual(result.state.assignments, [result.assignment]);
 	assert.equal(
-		assignedLiveCapability(result.state, entry, result.need.contributionNeedId)
+		findCapabilityAssignment(result.state, entry, result.need.contributionNeedId)
 			?.assignmentId,
 		result.assignment?.assignmentId,
 	);

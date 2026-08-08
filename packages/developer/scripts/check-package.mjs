@@ -547,7 +547,7 @@ const liveApplicabilityIntegration = await readFile(
 	"utf8",
 );
 assert.match(liveApplicabilityIntegration, /acceptCapabilityApplicability\(/);
-assert.match(liveApplicabilityIntegration, /assignedLiveCapability\(/);
+assert.match(liveApplicabilityIntegration, /findCapabilityAssignment\(/);
 assert.match(
 	liveApplicabilityIntegration,
 	/already has a different assessment/,

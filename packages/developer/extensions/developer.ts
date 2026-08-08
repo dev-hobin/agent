@@ -128,7 +128,7 @@ const skillsRoot = resolve(extensionRoot, "..", "skills");
 const MAX_EVIDENCE_CHARS = 2_000;
 const MAX_RESULT_CHARS = 12_000;
 const TOOL_POLICY_RESTART_MESSAGE =
-	"Developer detected an in-process package reload from a version without reload-safe tool handoff. Restart the Pi process before enabling Developer; /reload and /developer off/on cannot safely reconstruct the prior built-in tool selection.";
+	"Developer detected an in-process package reload from a version without reload-safe tool handoff. Restart the Pi process before enabling Developer; /reload and /developer off/on cannot safely resetRuntimeFromBranch the prior built-in tool selection.";
 
 function textResult<T>(text: string, details: T) {
 	return {
@@ -228,7 +228,7 @@ export default async function developer(pi: ExtensionAPI) {
 		});
 	};
 
-	const currentHostObservation = (
+	const findHostObservation = (
 		observationId: string,
 		workCase: LiveWorkCaseState | LiveHeldWorkCaseState,
 	): LiveHostObservation | undefined => {
@@ -262,7 +262,7 @@ export default async function developer(pi: ExtensionAPI) {
 		default: false,
 	});
 
-	const syncProtocolTools = () => {
+	const reconcileActionLoopTools = () => {
 		const current = pi.getActiveTools();
 		const next = reconcileProtocolTools({
 			activeTools: current,
@@ -288,7 +288,7 @@ export default async function developer(pi: ExtensionAPI) {
 			pi.setActiveTools(nextActiveTools);
 	};
 
-	const releaseProtocolTools = () => {
+	const releaseActionLoopTools = () => {
 		const current = pi.getActiveTools();
 		const next = reconcileProtocolTools({
 			activeTools: current,
@@ -345,7 +345,7 @@ export default async function developer(pi: ExtensionAPI) {
 		);
 	};
 
-	const reconstruct = (ctx: ExtensionContext) => {
+	const resetRuntimeFromBranch = (ctx: ExtensionContext) => {
 		const branch = ctx.sessionManager.getBranch();
 		actionLoopSessionDurable =
 			ctx.sessionManager.getSessionFile() !== undefined;
@@ -359,11 +359,11 @@ export default async function developer(pi: ExtensionAPI) {
 		developerEnabled = toolPolicyRestartRequired
 			? false
 			: reconstructDeveloperMode(branch);
-		syncProtocolTools();
+		reconcileActionLoopTools();
 		refreshUI(ctx);
 	};
 
-	const setEnabled = (enabled: boolean, ctx: ExtensionContext): boolean => {
+	const setDeveloperEnabled = (enabled: boolean, ctx: ExtensionContext): boolean => {
 		if (enabled && toolPolicyRestartRequired) {
 			ctx.ui.notify(TOOL_POLICY_RESTART_MESSAGE, "error");
 			refreshUI(ctx);
@@ -381,12 +381,12 @@ export default async function developer(pi: ExtensionAPI) {
 			pendingActionLoopBranch = undefined;
 			actionLoopReplayFailure = undefined;
 		}
-		syncProtocolTools();
+		reconcileActionLoopTools();
 		refreshUI(ctx);
 		return true;
 	};
 
-	const piSdkControlledActions = (): readonly SdkControlledActionAdapter[] => {
+	const controlledPiActionAdapters = (): readonly SdkControlledActionAdapter[] => {
 		const descriptions = new Map(
 			pi.getAllTools().map((tool) => [tool.name, tool.description]),
 		);
@@ -470,7 +470,7 @@ export default async function developer(pi: ExtensionAPI) {
 				inventory: liveCapabilityInventory.value,
 				runner: prepared.runner,
 				complete: true,
-				actions: piSdkControlledActions(),
+				actions: controlledPiActionAdapters(),
 				authorizeAction(action) {
 					return {
 						actionCandidateId: action.candidate.actionCandidateId,
@@ -492,7 +492,7 @@ export default async function developer(pi: ExtensionAPI) {
 			}
 			pendingActionLoopBranch = undefined;
 			completedWorkCase = progressed.completedWorkCase;
-			syncProtocolTools();
+			reconcileActionLoopTools();
 			refreshUI(ctx);
 			const result = progressed.result;
 			const failure = actionLoopProgressionFailureMessage(result);
@@ -593,7 +593,7 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("Developer protocol is off. Run /developer on first.");
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const observation = currentHostObservation(
+			const observation = findHostObservation(
 				params.observation_id,
 				activeWorkCase,
 			);
@@ -685,7 +685,7 @@ export default async function developer(pi: ExtensionAPI) {
 				);
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const observation = currentHostObservation(
+			const observation = findHostObservation(
 				params.observation_id,
 				activeWorkCase,
 			);
@@ -709,7 +709,7 @@ export default async function developer(pi: ExtensionAPI) {
 			heldWorkCase = result.state;
 			liveHostObservations = [];
 			completedWorkCase = undefined;
-			syncProtocolTools();
+			reconcileActionLoopTools();
 			return textResult(
 				"Work paused by the current human decision.",
 				withActionLoopReplayEvent(
@@ -770,7 +770,7 @@ export default async function developer(pi: ExtensionAPI) {
 				);
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const observation = currentHostObservation(
+			const observation = findHostObservation(
 				params.observation_id,
 				activeWorkCase,
 			);
@@ -795,7 +795,7 @@ export default async function developer(pi: ExtensionAPI) {
 			heldWorkCase = result.state;
 			liveHostObservations = [];
 			completedWorkCase = undefined;
-			syncProtocolTools();
+			reconcileActionLoopTools();
 			return textResult(
 				"Work is waiting on the observed external condition.",
 				withActionLoopReplayEvent(
@@ -892,7 +892,7 @@ export default async function developer(pi: ExtensionAPI) {
 			heldWorkCase = result.state;
 			liveHostObservations = [];
 			completedWorkCase = undefined;
-			syncProtocolTools();
+			reconcileActionLoopTools();
 			return textResult(
 				"Work is blocked with complete Claim Assurance.",
 				withActionLoopReplayEvent(
@@ -953,7 +953,7 @@ export default async function developer(pi: ExtensionAPI) {
 			if (!heldWorkCase) {
 				fail("No paused, waiting, or blocked Action Loop Work Case.");
 			}
-			const observation = currentHostObservation(
+			const observation = findHostObservation(
 				params.observation_id,
 				heldWorkCase,
 			);
@@ -980,7 +980,7 @@ export default async function developer(pi: ExtensionAPI) {
 				heldWorkCase = undefined;
 				activeWorkCase = result.state;
 				liveHostObservations = [];
-				syncProtocolTools();
+				reconcileActionLoopTools();
 				return textResult(
 					"Paused work resumed from the current human decision.",
 					withActionLoopReplayEvent(
@@ -1017,7 +1017,7 @@ export default async function developer(pi: ExtensionAPI) {
 				heldWorkCase = undefined;
 				activeWorkCase = result.state;
 				liveHostObservations = [];
-				syncProtocolTools();
+				reconcileActionLoopTools();
 				return textResult(
 					"Waiting work resumed from current evidence.",
 					withActionLoopReplayEvent(
@@ -1057,7 +1057,7 @@ export default async function developer(pi: ExtensionAPI) {
 			heldWorkCase = undefined;
 			activeWorkCase = result.state;
 			liveHostObservations = [];
-			syncProtocolTools();
+			reconcileActionLoopTools();
 			return textResult(
 				"Blocked work resumed from the observed change and bounded continuation.",
 				withActionLoopReplayEvent(
@@ -1072,7 +1072,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	});
 
-	const applyLiveCapabilityInventory = (
+	const replaceCapabilityInventory = (
 		result: LiveCapabilityInventoryResult,
 	) => {
 		liveCapabilityInventory = result;
@@ -1082,9 +1082,9 @@ export default async function developer(pi: ExtensionAPI) {
 				: new Map();
 	};
 
-	const refreshAvailableSkills = async (ctx: ExtensionCommandContext) => {
+	const refreshCapabilityInventory = async (ctx: ExtensionCommandContext) => {
 		if (typeof ctx.getSystemPromptOptions !== "function") return;
-		applyLiveCapabilityInventory(
+		replaceCapabilityInventory(
 			await prepareLiveCapabilityInventory(
 				{ systemPromptOptions: ctx.getSystemPromptOptions() },
 				skillsRoot,
@@ -1120,7 +1120,7 @@ export default async function developer(pi: ExtensionAPI) {
 		getArgumentCompletions: completeDeveloperArgs,
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
 			const setAndNotifyEnabled = (enabled: boolean): boolean => {
-				if (!setEnabled(enabled, ctx)) return false;
+				if (!setDeveloperEnabled(enabled, ctx)) return false;
 				ctx.ui.notify(`Developer: ${enabled ? "on" : "off"}`, "info");
 				return true;
 			};
@@ -1220,7 +1220,7 @@ export default async function developer(pi: ExtensionAPI) {
 				activeWorkCase = undefined;
 				heldWorkCase = result.state;
 				completedWorkCase = undefined;
-				syncProtocolTools();
+				reconcileActionLoopTools();
 				refreshUI(ctx);
 				ctx.ui.notify("Developer Action Loop Work Case paused.", "info");
 				return true;
@@ -1316,7 +1316,7 @@ export default async function developer(pi: ExtensionAPI) {
 				activeWorkCase = undefined;
 				heldWorkCase = result.state;
 				completedWorkCase = undefined;
-				syncProtocolTools();
+				reconcileActionLoopTools();
 				refreshUI(ctx);
 				ctx.ui.notify("Developer Action Loop Work Case is waiting.", "info");
 				return true;
@@ -1446,7 +1446,7 @@ export default async function developer(pi: ExtensionAPI) {
 				activeWorkCase = undefined;
 				heldWorkCase = result.state;
 				completedWorkCase = undefined;
-				syncProtocolTools();
+				reconcileActionLoopTools();
 				refreshUI(ctx);
 				ctx.ui.notify("Developer Action Loop Work Case is blocked.", "info");
 				return true;
@@ -1509,7 +1509,7 @@ export default async function developer(pi: ExtensionAPI) {
 					);
 					heldWorkCase = undefined;
 					activeWorkCase = result.state;
-					syncProtocolTools();
+					reconcileActionLoopTools();
 					refreshUI(ctx);
 					ctx.ui.notify("Developer Action Loop Work Case resumed.", "info");
 					return true;
@@ -1549,7 +1549,7 @@ export default async function developer(pi: ExtensionAPI) {
 					);
 					heldWorkCase = undefined;
 					activeWorkCase = result.state;
-					syncProtocolTools();
+					reconcileActionLoopTools();
 					refreshUI(ctx);
 					ctx.ui.notify("Developer Action Loop Work Case resumed.", "info");
 					return true;
@@ -1603,7 +1603,7 @@ export default async function developer(pi: ExtensionAPI) {
 				);
 				heldWorkCase = undefined;
 				activeWorkCase = result.state;
-				syncProtocolTools();
+				reconcileActionLoopTools();
 				refreshUI(ctx);
 				ctx.ui.notify("Developer Action Loop Work Case resumed.", "info");
 				return true;
@@ -1612,7 +1612,7 @@ export default async function developer(pi: ExtensionAPI) {
 			const inspectWorkbench = async (
 				initialSection: "overview" = "overview",
 			): Promise<void> => {
-				await refreshAvailableSkills(ctx);
+				await refreshCapabilityInventory(ctx);
 				await showActionLoopWorkbench(
 					ctx,
 					inspectActionLoopWorkbench({
@@ -1629,7 +1629,7 @@ export default async function developer(pi: ExtensionAPI) {
 			};
 
 			const inspectStatus = async (): Promise<void> => {
-				await refreshAvailableSkills(ctx);
+				await refreshCapabilityInventory(ctx);
 				if (ctx.mode === "tui") {
 					await inspectWorkbench("overview");
 					return;
@@ -1710,7 +1710,7 @@ export default async function developer(pi: ExtensionAPI) {
 
 	pi.on("before_agent_start", async (event) => {
 		const inventory = await prepareLiveCapabilityInventory(event, skillsRoot);
-		applyLiveCapabilityInventory(inventory);
+		replaceCapabilityInventory(inventory);
 		if (pendingActionLoopBranch) {
 			const replayed = await replayActionLoopSession(
 				pendingActionLoopBranch,
@@ -1728,7 +1728,7 @@ export default async function developer(pi: ExtensionAPI) {
 				completedWorkCase = undefined;
 				actionLoopReplayFailure = `entry ${replayed.entryIndex}: ${replayed.message}`;
 			}
-			syncProtocolTools();
+			reconcileActionLoopTools();
 		}
 		if (!developerEnabled) return;
 		currentActionLoopRequest = event.prompt;
@@ -1831,7 +1831,7 @@ export default async function developer(pi: ExtensionAPI) {
 			),
 		);
 		activeWorkCase = effect.state;
-		syncProtocolTools();
+		reconcileActionLoopTools();
 	});
 
 	pi.on("tool_result", async (event) => {
@@ -1872,7 +1872,7 @@ export default async function developer(pi: ExtensionAPI) {
 					);
 				}
 				activeWorkCase = observed.state;
-				const admittedEffect = currentHostObservation(
+				const admittedEffect = findHostObservation(
 					observed.observation.effectObservationId,
 					observed.state,
 				);
@@ -1939,18 +1939,18 @@ export default async function developer(pi: ExtensionAPI) {
 					protocol: TOOL_POLICY_PROTOCOL,
 					protocolTools: MODEL_FACING_ACTION_LOOP_TOOLS,
 				}));
-		reconstruct(ctx);
+		resetRuntimeFromBranch(ctx);
 		if (toolPolicyRestartRequired) {
 			ctx.ui.notify(TOOL_POLICY_RESTART_MESSAGE, "error");
 			return;
 		}
 		const startEnabled = pi.getFlag("developer");
-		if (startEnabled === true && !developerEnabled) setEnabled(true, ctx);
+		if (startEnabled === true && !developerEnabled) setDeveloperEnabled(true, ctx);
 	});
-	pi.on("session_tree", (_event, ctx) => reconstruct(ctx));
+	pi.on("session_tree", (_event, ctx) => resetRuntimeFromBranch(ctx));
 	pi.on("agent_settled", (_event, ctx) => refreshUI(ctx));
 	pi.on("session_shutdown", (_event, ctx) => {
-		releaseProtocolTools();
+		releaseActionLoopTools();
 		if (!toolPolicyRestartRequired) {
 			pi.appendEntry(
 				TOOL_POLICY_LIFECYCLE_ENTRY,

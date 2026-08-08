@@ -5,7 +5,7 @@ import {
 } from "./action-loop-action.ts";
 import {
 	assessLiveCapabilityApplicability,
-	assignedLiveCapability,
+	findCapabilityAssignment,
 } from "./action-loop-applicability.ts";
 import type { LiveCapabilityInventoryResult } from "./action-loop-capability-inventory.ts";
 import { completeLiveWorkCase } from "./action-loop-completion.ts";
@@ -301,7 +301,7 @@ async function replayReferenceSelection(
 			`Structured Capability ${event.skillName}@${event.capabilityRevisionId} is unavailable for exact Reference reacquisition.`,
 		);
 	}
-	const assignment = assignedLiveCapability(
+	const assignment = findCapabilityAssignment(
 		state,
 		capability,
 		event.contributionNeedId,

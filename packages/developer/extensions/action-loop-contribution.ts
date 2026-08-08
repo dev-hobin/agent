@@ -4,7 +4,7 @@ import {
 	type SkillContributionProposal,
 } from "../src/action-loop/contribution/accept-skill-contribution.ts";
 import type { BoundPiCapabilityEntry } from "../src/action-loop/pi/bind-pi-capability-inventory.ts";
-import { assignedLiveCapability } from "./action-loop-applicability.ts";
+import { findCapabilityAssignment } from "./action-loop-applicability.ts";
 import { selectLiveContributionNeed } from "./action-loop-judgment.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
@@ -39,7 +39,7 @@ export function acceptLiveSkillContribution(
 ): LiveSkillContributionResult {
 	const need = selectLiveContributionNeed(state, proposal.contributionNeedId);
 	if (need.status === "invalid") return need;
-	const assignment = assignedLiveCapability(
+	const assignment = findCapabilityAssignment(
 		state,
 		entry,
 		need.value.contributionNeedId,

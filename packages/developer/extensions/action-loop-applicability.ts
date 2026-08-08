@@ -146,7 +146,7 @@ export function assessLiveCapabilityApplicability(
 }
 
 /** Finds the exact current assignment required before routing one Capability. */
-export function assignedLiveCapability(
+export function findCapabilityAssignment(
 	state: LiveWorkCaseState,
 	entry: LiveBoundCapability,
 	contributionNeedId: string,
