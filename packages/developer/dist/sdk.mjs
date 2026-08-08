@@ -5745,8 +5745,16 @@ function remediationParameters(input) {
           input.successfulSettlements.map((_, index) => `success_${index}`)
         )
       ),
-      basis_json: Type4.String({ minLength: 2, maxLength: 32768 }),
-      refusal_reasons_json: Type4.String({ minLength: 2, maxLength: 32768 })
+      basis_json: Type4.String({
+        minLength: 2,
+        maxLength: 32768,
+        description: 'JSON text string encoding a basis array, for example ["Current evidence supports this exact relation."]. Use [] only when refusing.'
+      }),
+      refusal_reasons_json: Type4.String({
+        minLength: 2,
+        maxLength: 32768,
+        description: "JSON text string encoding refusal reasons. Use [] when outcome is remediate; provide one or more strings when outcome is refuse."
+      })
     },
     { additionalProperties: false }
   );
@@ -5899,7 +5907,7 @@ async function resolveEffectRemediationWithSdk(input) {
     systemPrompt: [
       "Assess one exact adverse Effect remediation relation.",
       "Call the supplied decision tool exactly once.",
-      "Select only current indexed settlements and provide a source-bound causal basis, or refuse.",
+      "Select only current indexed settlements and provide a source-bound causal basis, or refuse. Fields ending in _json require JSON encoded as a string, not a native array.",
       "The SDK controller owns identities, outcome eligibility, canonical admission, retries, and stop decisions."
     ].join("\n"),
     prompt: remediationPrompt(input),
