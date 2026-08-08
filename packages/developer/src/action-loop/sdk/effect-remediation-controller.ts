@@ -91,9 +91,8 @@ function remediationParameters(input: SdkEffectRemediationInput): TSchema {
 				minLength: 2,
 				maxLength: 32_768,
 				description:
-					'JSON text string encoding refusal reasons. Use [] when outcome is remediate; provide one or more strings when outcome is refuse.',
+					"JSON text string encoding refusal reasons. Use [] when outcome is remediate; provide one or more strings when outcome is refuse.",
 			}),
-
 		},
 		{ additionalProperties: false },
 	);
@@ -258,7 +257,8 @@ export async function resolveEffectRemediationWithSdk(
 		return {
 			status: "invariant-failure",
 			code: "missing-successful-effect",
-			message: "Effect remediation requires a distinct observed-success settlement.",
+			message:
+				"Effect remediation requires a distinct observed-success settlement.",
 		};
 	}
 	const decision = await input.runner.run({

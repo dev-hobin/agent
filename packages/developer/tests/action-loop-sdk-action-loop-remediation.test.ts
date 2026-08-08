@@ -214,10 +214,16 @@ test("adverse Effect progression opens a fresh remediation intervention Judgment
 	assert.equal(result.status, "bounded-stop");
 	if (result.status !== "bounded-stop") return;
 	assert.equal(result.stage, "inventory");
-	assert.deepEqual(checkpoints.map(({ kind }) => kind), ["judgment-opened"]);
+	assert.deepEqual(
+		checkpoints.map(({ kind }) => kind),
+		["judgment-opened"],
+	);
 	const checkpoint = checkpoints[0];
 	if (checkpoint?.kind !== "judgment-opened") return;
-	assert.equal(checkpoint.result.judgment.category, "Proportionate Intervention");
+	assert.equal(
+		checkpoint.result.judgment.category,
+		"Proportionate Intervention",
+	);
 });
 
 test("only the fresh remediation intervention can warrant the next Action", async () => {
@@ -297,7 +303,10 @@ test("successful repair is canonically remediated and checkpointed before projec
 	if (result.status !== "effect-remediated") return;
 	assert.equal(result.adverseEffectId, fixture.adverse.effectId);
 	assert.equal(result.remediationEffectId, fixture.successful?.effectId);
-	assert.deepEqual(checkpoints.map(({ kind }) => kind), ["effect-remediated"]);
+	assert.deepEqual(
+		checkpoints.map(({ kind }) => kind),
+		["effect-remediated"],
+	);
 	const checkpoint = checkpoints[0];
 	if (checkpoint?.kind !== "effect-remediated") return;
 	const event = sdkActionLoopCheckpointEvent(checkpoint);
@@ -319,10 +328,7 @@ test("successful repair is canonically remediated and checkpointed before projec
 		checkpoint,
 	);
 	assert.equal(applied.workCase.effectRemediations.length, 1);
-	assert.equal(
-		applied.workCase.revisionId,
-		checkpoint.workCase.revisionId,
-	);
+	assert.equal(applied.workCase.revisionId, checkpoint.workCase.revisionId);
 });
 
 test("failed remediation checkpoint leaves the acknowledged projection unchanged", async () => {

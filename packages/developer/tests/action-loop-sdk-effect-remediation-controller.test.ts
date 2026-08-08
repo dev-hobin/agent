@@ -28,9 +28,7 @@ test("SDK Effect remediation binds one exact adverse settlement to observed succ
 		request: "Repair the partially applied configuration change.",
 		workCaseId: "work-case-remediation-sdk",
 		adverseSettlements: [settlement("effect-adverse", "partially-applied")],
-		successfulSettlements: [
-			settlement("effect-repair", "observed-success"),
-		],
+		successfulSettlements: [settlement("effect-repair", "observed-success")],
 		runner: scriptedSdkRunner([
 			{
 				proposals: [
@@ -60,9 +58,7 @@ test("SDK Effect remediation preserves explicit refusal without mutation", async
 		request: "Determine whether current success repairs the failed Effect.",
 		workCaseId: "work-case-remediation-sdk",
 		adverseSettlements: [settlement("effect-adverse", "failed")],
-		successfulSettlements: [
-			settlement("effect-unrelated", "observed-success"),
-		],
+		successfulSettlements: [settlement("effect-unrelated", "observed-success")],
 		runner: scriptedSdkRunner([
 			{
 				proposals: [
@@ -108,7 +104,8 @@ test("SDK Effect remediation retries a non-canonical relation before acceptance"
 						outcome: "remediate",
 						adverse_effect: "adverse_0",
 						remediation_effect: "success_1",
-						basis_json: '["The distinct repair Effect restores the partial state."]',
+						basis_json:
+							'["The distinct repair Effect restores the partial state."]',
 						refusal_reasons_json: "[]",
 					},
 				],

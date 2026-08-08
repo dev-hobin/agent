@@ -344,7 +344,9 @@ function unresolvedAdverseSettlements(
 	state: SdkJudgmentProgressState,
 ): readonly EffectSettlement[] {
 	const remediated = new Set(
-		state.workCase.effectRemediations.map(({ adverseEffectId }) => adverseEffectId),
+		state.workCase.effectRemediations.map(
+			({ adverseEffectId }) => adverseEffectId,
+		),
 	);
 	return currentEffectSettlements(state).filter(
 		(settlement) =>
@@ -703,7 +705,9 @@ async function progressRemediation(input: {
 	if (result.status === "refused") {
 		return {
 			status: "remediation-required",
-			adverseEffectIds: input.adverseSettlements.map(({ effectId }) => effectId),
+			adverseEffectIds: input.adverseSettlements.map(
+				({ effectId }) => effectId,
+			),
 			refusalReasons: result.refusalReasons,
 			state: input.state,
 			steps,
@@ -784,9 +788,7 @@ function nextRequiredJudgmentCategory(
 				? "Proportionate Intervention"
 				: undefined;
 		}
-		return !categories.has("Claim Assurance")
-			? "Claim Assurance"
-			: undefined;
+		return !categories.has("Claim Assurance") ? "Claim Assurance" : undefined;
 	}
 	if (
 		!categories.has("Proportionate Intervention") &&

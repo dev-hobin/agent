@@ -81,9 +81,7 @@ const artifact = {
 				remediationEffectId: result.remediation.remediationEffectId,
 			}
 		: {}),
-	...(result.refusalReasons
-		? { refusalReasons: result.refusalReasons }
-		: {}),
+	...(result.refusalReasons ? { refusalReasons: result.refusalReasons } : {}),
 	...("reason" in result && result.reason ? { reason: result.reason } : {}),
 	...("message" in result && result.message ? { message: result.message } : {}),
 	...(result.decision ? { decision: result.decision } : {}),
