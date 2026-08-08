@@ -39,6 +39,8 @@ const encoder = new TextEncoder();
 const structuredWhen = "A state and time contract remains unresolved.";
 const structuredUnless = "No state or time behavior is consequential.";
 const referencePath = "references/temporal.md";
+const referenceContent =
+	"Temporal retry and stale-response distinctions.\n";
 const request =
 	"Model retry, stale, duplicate, and reordered approval behavior.";
 
@@ -51,10 +53,7 @@ async function capabilityFixture(t: TestContext): Promise<{
 	await mkdir(join(structuredRoot, "references"), { recursive: true });
 	const structuredSkill = "---\nname: model\n---\n# Model\n";
 	await writeFile(join(structuredRoot, "SKILL.md"), structuredSkill);
-	await writeFile(
-		join(structuredRoot, referencePath),
-		"Temporal retry and stale-response distinctions.\n",
-	);
+	await writeFile(join(structuredRoot, referencePath), referenceContent);
 	const tocDocument = {
 		$schema: SKILL_TOC_SCHEMA_URI,
 		when: [structuredWhen],
@@ -141,6 +140,26 @@ async function capabilityFixture(t: TestContext): Promise<{
 				},
 			},
 		],
+	};
+}
+
+function readyInventory(
+	capabilities: readonly SdkNamedCapability[],
+): LiveCapabilityInventoryResult {
+	return {
+		status: "ready",
+		value: {
+			inventory: {
+				status: "inventoried",
+				entries: capabilities.map(({ entry }) => entry),
+				excluded: [],
+			},
+			availablePackageSkills: new Map(),
+			boundCapabilitiesBySkillName: new Map(
+				capabilities.map(({ name, entry }) => [name, entry]),
+			),
+			summary: { bound: capabilities.length, unavailable: 0, excluded: 0 },
+		},
 	};
 }
 
@@ -334,21 +353,7 @@ test("Pi branch events resume the next unsealed SDK Context without a parallel c
 	assert.equal(modelContext.status, "sealed");
 	if (modelContext.status !== "sealed") return;
 
-	const inventory = {
-		status: "ready",
-		value: {
-			inventory: {
-				status: "inventoried",
-				entries: fixture.capabilities.map(({ entry }) => entry),
-				excluded: [],
-			},
-			availablePackageSkills: new Map(),
-			boundCapabilitiesBySkillName: new Map(
-				fixture.capabilities.map(({ name, entry }) => [name, entry]),
-			),
-			summary: { bound: 2, unavailable: 0, excluded: 0 },
-		},
-	} satisfies LiveCapabilityInventoryResult;
+	const inventory = readyInventory(fixture.capabilities);
 	const workCaseEntry = {
 		type: "custom",
 		customType: ACTION_LOOP_SESSION_ENTRY,
@@ -465,4 +470,81 @@ test("Pi branch events resume the next unsealed SDK Context without a parallel c
 	});
 	assert.equal(progress.status, "complete");
 	assert.equal(complete.appliedTransitions, 5);
+
+	const changedDirect = bindUnstructuredCapability(
+		direct.entry.candidate.source,
+		encoder.encode(
+			"---\nname: direct\ndescription: Direct method\n---\n# Changed direct method\n",
+		),
+	);
+	assert.equal(changedDirect.ok, true);
+	if (!changedDirect.ok) return;
+	const changedCapabilities: SdkNamedCapability[] = fixture.capabilities.map(
+		(capability) => {
+			if (capability.name !== "direct") return capability;
+			if (capability.entry.routing !== "unstructured") {
+				throw new Error("Direct fixture unexpectedly became structured.");
+			}
+			return {
+				...capability,
+				entry: {
+					...capability.entry,
+					capability: changedDirect.value,
+				},
+			};
+		},
+	);
+	const staleInventory = await replayActionLoopSession(
+		openingEntries,
+		readyInventory(changedCapabilities),
+	);
+	assert.equal(staleInventory.status, "unavailable");
+	if (staleInventory.status === "unavailable") {
+		assert.equal(staleInventory.entryIndex, 2);
+		assert.match(staleInventory.message, /current Pi-admitted inventory/);
+	}
+
+	await writeFile(
+		join(model.entry.candidate.skillRootPath, referencePath),
+		"Changed temporal reference material.\n",
+	);
+	const staleReference = await replayActionLoopSession(
+		[
+			...openingEntries,
+			firstContextEntry,
+			{
+				type: "custom",
+				customType: ACTION_LOOP_SESSION_ENTRY,
+				data: sdkCapabilityContextEvent({
+					skillName: "model",
+					assignment: modelAssignment,
+					result: modelContext,
+				}),
+			},
+		],
+		inventory,
+	);
+	assert.equal(staleReference.status, "unavailable");
+	if (staleReference.status === "unavailable") {
+		assert.equal(staleReference.entryIndex, 4);
+		assert.match(staleReference.message, /drifted from its exact identity/);
+	}
+	await writeFile(
+		join(model.entry.candidate.skillRootPath, referencePath),
+		referenceContent,
+	);
+
+	await writeFile(
+		direct.entry.candidate.skillMaterialPath,
+		"---\nname: direct\ndescription: Direct method\n---\n# Changed direct method\n",
+	);
+	const staleSkill = await replayActionLoopSession(
+		[...openingEntries, firstContextEntry],
+		inventory,
+	);
+	assert.equal(staleSkill.status, "unavailable");
+	if (staleSkill.status === "unavailable") {
+		assert.equal(staleSkill.entryIndex, 3);
+		assert.match(staleSkill.message, /drifted from their exact sealed identity/);
+	}
 });
