@@ -38,7 +38,7 @@ import {
 	extractReplayEvent,
 	type ActionLoopActionClearedEvent,
 	type ActionLoopBlockedWorkCaseResumedEvent,
-	type ActionLoopCapabilityAssessedEvent,
+	type ActionLoopCapabilityAssessment,
 	type ActionLoopCapabilityInventoryAssessedEvent,
 	type ActionLoopContributionAcceptedEvent,
 	type ActionLoopHostContributionAcceptedEvent,
@@ -193,7 +193,7 @@ function replayJudgmentOpening(
 
 function replayCapabilityAssessment(
 	state: LiveWorkCaseState,
-	event: ActionLoopCapabilityAssessedEvent,
+	event: ActionLoopCapabilityAssessment & { readonly transitionId: string },
 	inventory: LiveCapabilityInventoryResult | undefined,
 ): AppliedEventResult {
 	const capability = currentCapability(
@@ -272,12 +272,7 @@ function replayCapabilityInventoryAssessment(
 			`${assessment.capabilityRevisionId}:${assessment.expected.contributionNeedId}:${assessment.expected.status}`;
 		const replayed = replayCapabilityAssessment(
 			current,
-			{
-				protocol: event.protocol,
-				kind: "capability-assessed",
-				transitionId,
-				...assessment,
-			},
+			{ transitionId, ...assessment },
 			inventory,
 		);
 		if (replayed.status === "unavailable") return replayed;
@@ -757,8 +752,6 @@ async function replayOwnedEvent(
 			return replayWorkCaseBlocked(state, event);
 		case "judgment-opened":
 			return replayJudgmentOpening(state, event);
-		case "capability-assessed":
-			return replayCapabilityAssessment(state, event, inventory);
 		case "capability-inventory-assessed":
 			return replayCapabilityInventoryAssessment(state, event, inventory);
 		case "references-selected":

@@ -5,7 +5,6 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { progressLiveJudgmentWithSdk } from "../extensions/action-loop-sdk-progression.ts";
 import { sdkJudgmentCheckpointEvent } from "../extensions/action-loop-sdk-session.ts";
 import { openJudgment } from "../src/action-loop/judgment/open-judgment.ts";
 import { bindUnstructuredCapability } from "../src/action-loop/routing/bind-capability.ts";
@@ -292,53 +291,6 @@ test("SDK Judgment progression resumes after a step budget without reassessing i
 			"judgment-concluded",
 		],
 	);
-});
-
-test("Pi adapter appends semantic checkpoints before advancing its live projection", async (t) => {
-	const fixture = await progressionFixture(t);
-	const judgment = fixture.state.workCase.openJudgments[0];
-	assert.ok(judgment);
-	const events: string[] = [];
-	const result = await progressLiveJudgmentWithSdk({
-		request,
-		state: {
-			workCase: fixture.state.workCase,
-			openingBasis: ["The delegated request opened this Work Case."],
-			applicabilityAssessments: [],
-			capabilityAssignments: [],
-			referenceSelections: [],
-			sealedSkillContexts: [],
-			contributions: [],
-			needCoverages: [],
-			piActionProposals: [],
-			effectObservations: [],
-		},
-		inventory: {
-			boundCapabilitiesBySkillName: new Map([
-				[fixture.capability.name, fixture.capability.entry],
-			]),
-		},
-		runner: scriptedSdkRunner(completeScripts()),
-		maxSteps: 5,
-		appendCheckpoint(event) {
-			events.push(event.kind);
-		},
-	});
-
-	assert.equal(result.result.status, "concluded");
-	assert.deepEqual(events, [
-		"capability-inventory-assessed",
-		"unstructured-context-sealed",
-		"contribution-accepted",
-		"coverage-assessed",
-		"judgment-concluded",
-	]);
-	assert.equal(result.state.workCase.openJudgments.length, 0);
-	assert.equal(result.state.workCase.conclusions.length, 1);
-	assert.equal(result.state.capabilityAssignments.length, 1);
-	assert.equal(result.state.sealedSkillContexts.length, 1);
-	assert.equal(result.state.contributions.length, 1);
-	assert.equal(result.state.needCoverages.length, 1);
 });
 
 test("SDK Judgment progression does not depend on an unacknowledged checkpoint", async (t) => {

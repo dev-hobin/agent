@@ -339,14 +339,6 @@ const CapabilityAssessmentSchema = Type.Object(
 	},
 	{ additionalProperties: false },
 );
-const CapabilityAssessedEventSchema = Type.Object(
-	{
-		...EventHeaderSchema,
-		kind: Type.Literal("capability-assessed"),
-		...CapabilityAssessmentSchema.properties,
-	},
-	{ additionalProperties: false },
-);
 const CapabilityInventoryAssessedEventSchema = Type.Object(
 	{
 		...EventHeaderSchema,
@@ -823,7 +815,6 @@ const SessionEventSchema = Type.Union([
 	WorkCaseBlockedEventSchema,
 	BlockedWorkCaseResumedEventSchema,
 	JudgmentOpenedEventSchema,
-	CapabilityAssessedEventSchema,
 	CapabilityInventoryAssessedEventSchema,
 	ReferencesSelectedEventSchema,
 	UnstructuredContextSealedEventSchema,
@@ -866,9 +857,6 @@ export type ActionLoopJudgmentOpenedEvent = Static<
 export type ActionLoopCapabilityAssessment = Static<
 	typeof CapabilityAssessmentSchema
 >;
-export type ActionLoopCapabilityAssessedEvent = Static<
-	typeof CapabilityAssessedEventSchema
->;
 export type ActionLoopCapabilityInventoryAssessedEvent = Static<
 	typeof CapabilityInventoryAssessedEventSchema
 >;
@@ -909,7 +897,6 @@ export type ActionLoopWorkCaseCompletedEvent = Static<
 export type ActionLoopSessionEvent = Static<typeof SessionEventSchema>;
 
 type JudgmentProposal = Static<typeof JudgmentProposalSchema>;
-type CapabilityProposal = Static<typeof CapabilityApplicabilityProposalSchema>;
 type ReferenceDisposition = Static<typeof ReferenceDispositionSchema>;
 type ContributionProposal = Static<typeof SkillContributionProposalSchema>;
 type HostContributionProposal = Static<typeof HostContributionProposalSchema>;
@@ -1162,34 +1149,6 @@ export function actionLoopJudgmentOpenedEvent(
 		transitionId: judgmentId,
 		proposal,
 		expected: { judgmentId, revisionId },
-	});
-}
-
-export function actionLoopCapabilityAssessedEvent(
-	skillName: string,
-	proposal: CapabilityProposal,
-	assessment: {
-		readonly capabilityRevisionId: string;
-		readonly contributionNeedId: string;
-		readonly status: CapabilityProposal["status"];
-	},
-	assignmentId?: string,
-): ActionLoopCapabilityAssessedEvent {
-	const transitionId =
-		assignmentId ??
-		`${assessment.capabilityRevisionId}:${assessment.contributionNeedId}:${assessment.status}`;
-	return Object.freeze({
-		protocol: ACTION_LOOP_SESSION_PROTOCOL,
-		kind: "capability-assessed",
-		transitionId,
-		skillName,
-		capabilityRevisionId: assessment.capabilityRevisionId,
-		proposal,
-		expected: {
-			contributionNeedId: assessment.contributionNeedId,
-			status: assessment.status,
-			...(assignmentId ? { assignmentId } : {}),
-		},
 	});
 }
 
