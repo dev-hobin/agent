@@ -8,9 +8,6 @@ import { assignedLiveCapability } from "./action-loop-applicability.ts";
 import { selectLiveContributionNeed } from "./action-loop-judgment.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_ACCEPT_CONTRIBUTION_TOOL =
-	"developer_accept_contribution";
-
 type LiveBoundCapability = Pick<BoundPiCapabilityEntry, "capability">;
 
 export type LiveSkillContributionProposal = Omit<

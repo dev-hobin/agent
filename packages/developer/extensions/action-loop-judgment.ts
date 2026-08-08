@@ -7,8 +7,6 @@ import {
 import { recordWorkCaseJudgment } from "../src/action-loop/work/record-work-case-judgment.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_OPEN_JUDGMENT_TOOL = "developer_open_judgment";
-
 export type LiveJudgmentProposal = Omit<
 	JudgmentOpeningProposal,
 	"workCaseId" | "contextRevisionId" | "provenance"

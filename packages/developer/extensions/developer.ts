@@ -124,7 +124,9 @@ const PRIMARY_PROTOCOL_TOOLS = [
 	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
 	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
 ] as const;
-const RETIRED_PROTOCOL_TOOLS = [
+// Negative denylist only: these names are never registered by this Extension.
+// They are removed from active tool state after an in-process package reload.
+const REMOVED_MODEL_TOOL_NAMES = [
 	"developer_open_work_case",
 	"developer_open_judgment",
 	"developer_progress_judgment_with_sdk",
@@ -140,9 +142,9 @@ const RETIRED_PROTOCOL_TOOLS = [
 	"developer_prepare_closure",
 	"developer_complete_work_case",
 ] as const;
-const PROTOCOL_TOOLS = [
+const ACTION_LOOP_TOOL_POLICY_NAMES = [
 	...PRIMARY_PROTOCOL_TOOLS,
-	...RETIRED_PROTOCOL_TOOLS,
+	...REMOVED_MODEL_TOOL_NAMES,
 ] as const;
 const extensionRoot = dirname(fileURLToPath(import.meta.url));
 const skillsRoot = resolve(extensionRoot, "..", "skills");
@@ -363,7 +365,7 @@ export default async function developer(pi: ExtensionAPI) {
 			memory: toolPolicyMemory,
 		});
 		const nextActive = new Set(next.activeTools);
-		for (const toolName of RETIRED_PROTOCOL_TOOLS) {
+		for (const toolName of REMOVED_MODEL_TOOL_NAMES) {
 			nextActive.delete(toolName);
 		}
 		const nextWithheld = new Set(next.memory.withheldBuiltins);
@@ -383,7 +385,7 @@ export default async function developer(pi: ExtensionAPI) {
 			activeTools: current,
 			allTools: pi.getAllTools(),
 			enabled: false,
-			protocolTools: PROTOCOL_TOOLS,
+			protocolTools: ACTION_LOOP_TOOL_POLICY_NAMES,
 			memory: toolPolicyMemory,
 		});
 		toolPolicyMemory = next.memory;
@@ -1932,7 +1934,12 @@ export default async function developer(pi: ExtensionAPI) {
 
 	pi.on("tool_result", async (event) => {
 		if (!developerEnabled) return;
-		if ((PROTOCOL_TOOLS as readonly string[]).includes(event.toolName)) return;
+		if (
+			(ACTION_LOOP_TOOL_POLICY_NAMES as readonly string[]).includes(
+				event.toolName,
+			)
+		)
+			return;
 		if (
 			await isDirectSkillMaterialRead(
 				event.toolName,
@@ -2004,7 +2011,7 @@ export default async function developer(pi: ExtensionAPI) {
 			toolPolicyReloadRequiresRestart({
 				entries: branch,
 				protocol: TOOL_POLICY_PROTOCOL,
-				protocolTools: PROTOCOL_TOOLS,
+				protocolTools: ACTION_LOOP_TOOL_POLICY_NAMES,
 			});
 		reconstruct(ctx);
 		if (toolPolicyRestartRequired) {

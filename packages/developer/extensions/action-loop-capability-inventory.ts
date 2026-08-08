@@ -105,38 +105,3 @@ export async function prepareLiveCapabilityInventory(
 		}),
 	});
 }
-
-export function liveCapabilityInventoryPrompt(
-	result: LiveCapabilityInventoryResult,
-): string {
-	if (result.status === "rejected") {
-		return `Action Loop capability inventory rejected (${result.error.code}); no Developer Skill is admitted.`;
-	}
-	const { bound, unavailable, excluded } = result.value.summary;
-	const capabilityLines = [
-		...result.value.boundCapabilitiesBySkillName.entries(),
-	]
-		.sort(([left], [right]) => left.localeCompare(right))
-		.flatMap(([name, entry]) => {
-			const capability = entry.capability;
-			return "toc" in capability
-				? [
-						`Capability ${name} · ${capability.capabilityRevisionId} · structured`,
-						`  Capability applicability conditions for matched_when: ${capability.toc.when.join(" | ")}`,
-						`  Capability exclusion conditions for matched_unless: ${capability.toc.unless.join(" | ") || "none"}`,
-						...capability.toc.references.map(
-							(reference) =>
-								`  Reference-only selection condition for ${reference.path}; never use in matched_when or matched_unless: ${reference.when.join(" | ")}`,
-						),
-					]
-				: [
-						`Capability ${name} · ${capability.capabilityRevisionId} · unstructured`,
-						"  when/unless: none; matched_when and matched_unless must be empty",
-						"  references: none; call developer_select_references with an empty dispositions array to seal SKILL.md alone",
-					];
-		});
-	return [
-		`Action Loop capability inventory: ${bound} bound (${unavailable} unavailable, ${excluded} excluded).`,
-		...capabilityLines,
-	].join("\n");
-}

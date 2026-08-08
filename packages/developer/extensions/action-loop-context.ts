@@ -16,10 +16,6 @@ import {
 } from "../src/action-loop/routing/reference-selection.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_SELECT_REFERENCES_TOOL = "developer_select_references";
-export const ACTION_LOOP_LOAD_SELECTED_REFERENCE_TOOL =
-	"developer_load_selected_reference";
-
 interface LiveUnstructuredCapability {
 	readonly candidate: Pick<
 		BoundUnstructuredPiCapabilityEntry["candidate"],

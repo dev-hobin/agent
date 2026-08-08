@@ -7,8 +7,6 @@ import {
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_CLOSE_JUDGMENT_TOOL = "developer_close_judgment";
-
 export type LiveJudgmentClosureProposal = Omit<
 	JudgmentClosureProposal,
 	"workCaseId" | "judgmentId" | "category" | "contextRevisionId"

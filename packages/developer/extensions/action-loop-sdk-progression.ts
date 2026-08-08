@@ -37,8 +37,6 @@ import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
 export const ACTION_LOOP_PROGRESS_ACTION_LOOP_TOOL =
 	"developer_progress_action_loop_with_sdk";
-export const ACTION_LOOP_PROGRESS_JUDGMENT_TOOL =
-	"developer_progress_judgment_with_sdk";
 
 export type SdkActionLoopCheckpointSessionEvent =
 	| ReturnType<typeof sdkWorkCaseOpenedEvent>

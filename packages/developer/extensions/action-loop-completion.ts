@@ -13,10 +13,6 @@ import {
 } from "../src/action-loop/work/prepare-closure-target.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_PREPARE_CLOSURE_TOOL = "developer_prepare_closure";
-export const ACTION_LOOP_COMPLETE_WORK_CASE_TOOL =
-	"developer_complete_work_case";
-
 export type LiveClosurePreparationResult =
 	| { readonly status: "ready"; readonly target: SealedClosureTarget }
 	| {

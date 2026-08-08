@@ -11,8 +11,6 @@ import {
 } from "./action-loop-judgment.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_ASSESS_CAPABILITY_TOOL = "developer_assess_capability";
-
 type LiveBoundCapability = Pick<BoundPiCapabilityEntry, "capability">;
 
 export type LiveCapabilityApplicabilityProposal = Omit<

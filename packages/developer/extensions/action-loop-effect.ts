@@ -24,10 +24,6 @@ import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-e
 import { fingerprintPiToolResult } from "./action-loop-pi-action.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_SETTLE_EFFECT_TOOL = "developer_settle_effect";
-export const ACTION_LOOP_RECORD_REMEDIATION_TOOL =
-	"developer_record_effect_remediation";
-
 export type LiveEffectBeginningResult =
 	| {
 			readonly status: "begun" | "unchanged";

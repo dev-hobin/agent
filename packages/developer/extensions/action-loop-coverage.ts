@@ -6,8 +6,6 @@ import {
 import { selectLiveContributionNeed } from "./action-loop-judgment.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_ASSESS_COVERAGE_TOOL = "developer_assess_coverage";
-
 export type LiveNeedCoverageProposal = Omit<
 	NeedCoverageProposal,
 	"workCaseId" | "judgmentId" | "contributionNeedId"

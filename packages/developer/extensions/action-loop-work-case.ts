@@ -20,7 +20,6 @@ import {
 	type OutcomeProposal,
 } from "../src/action-loop/work/work-case.ts";
 
-export const ACTION_LOOP_OPEN_WORK_CASE_TOOL = "developer_open_work_case";
 export const MAX_LIVE_OUTCOME_TEXT = 4_096;
 export const MAX_LIVE_OUTCOME_ITEMS = 32;
 export const MAX_LIVE_BASIS_ITEMS = 16;

@@ -7,10 +7,7 @@ import type {
 	BeforeAgentStartEvent,
 	Skill,
 } from "@earendil-works/pi-coding-agent";
-import {
-	liveCapabilityInventoryPrompt,
-	prepareLiveCapabilityInventory,
-} from "../extensions/action-loop-capability-inventory.ts";
+import { prepareLiveCapabilityInventory } from "../extensions/action-loop-capability-inventory.ts";
 import { SKILL_TOC_SCHEMA_URI } from "../src/action-loop/routing/parse-toc.ts";
 
 async function workspace(t: TestContext): Promise<string> {
@@ -88,18 +85,6 @@ test("live inventory admits only bound Pi-loaded package Skills", async (t) => {
 			.capabilityRevisionId ?? "",
 		/^caprev_[a-f0-9]{64}$/,
 	);
-	assert.match(
-		liveCapabilityInventoryPrompt(result),
-		/^Action Loop capability inventory: 1 bound \(1 unavailable, 0 excluded\)\./,
-	);
-	assert.match(
-		liveCapabilityInventoryPrompt(result),
-		/Capability ready · caprev_/,
-	);
-	assert.match(
-		liveCapabilityInventoryPrompt(result),
-		/unstructured[\s\S]*matched_when and matched_unless must be empty/,
-	);
 });
 
 test("duplicate Pi source occurrence rejects the live handoff atomically", async (t) => {
@@ -112,9 +97,5 @@ test("duplicate Pi source occurrence rejects the live handoff atomically", async
 
 	assert.equal(result.status, "rejected");
 	if (result.status !== "rejected") return;
-	assert.match(liveCapabilityInventoryPrompt(result), /inventory rejected/);
-	assert.match(
-		liveCapabilityInventoryPrompt(result),
-		/no Developer Skill is admitted/,
-	);
+	assert.equal(result.error.code, "duplicate-occurrence");
 });

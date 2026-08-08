@@ -11,9 +11,9 @@ import {
 } from "../extensions/tool-policy.ts";
 
 const protocolTools = [
-	"developer_open_work_case",
-	"developer_open_judgment",
-	"developer_propose_action",
+	"developer_progress_action_loop_with_sdk",
+	"developer_pause_work_case",
+	"developer_resume_work_case",
 ];
 const allTools = [
 	{ name: "read", sourceInfo: { source: "builtin" } },

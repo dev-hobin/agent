@@ -19,8 +19,6 @@ import {
 } from "./action-loop-pi-action.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
-export const ACTION_LOOP_PROPOSE_ACTION_TOOL = "developer_propose_action";
-
 export type LiveActionCandidateProposal = Omit<
 	ActionCandidateProposal,
 	"workCaseId" | "provenance"
