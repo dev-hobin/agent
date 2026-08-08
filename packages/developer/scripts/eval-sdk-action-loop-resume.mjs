@@ -3,6 +3,10 @@ import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
 import { parseDeveloperStatus } from "./eval-outcome.mjs";
+import {
+	classifySdkResumeRun,
+	summarizeSdkResumeRun,
+} from "./eval-sdk-resume-outcome.mjs";
 import { createJsonlDecoder } from "./jsonl.mjs";
 
 const packageRoot = resolve(
@@ -234,70 +238,6 @@ async function waitForRun(start) {
 	}
 }
 
-function textContent(result) {
-	return (result?.content ?? [])
-		.filter((item) => item.type === "text" && typeof item.text === "string")
-		.map((item) => item.text)
-		.join("\n");
-}
-
-function summarizeRun(index, trace, waitResult) {
-	const toolCalls = trace
-		.filter((event) => event.type === "tool_execution_start")
-		.map((event) => event.toolName);
-	const protocolEnds = trace
-		.filter(
-			(event) =>
-				event.type === "tool_execution_end" &&
-				event.toolName === "developer_progress_action_loop_with_sdk",
-		)
-		.map((event) => ({
-			isError: event.isError,
-			text: textContent(event.result).slice(0, 320),
-			details: event.result?.details,
-		}));
-	const toolErrorSummaries = new Map();
-	for (const event of trace.filter(
-		(candidate) => candidate.type === "tool_execution_end" && candidate.isError,
-	)) {
-		const fullText = textContent(event.result);
-		const contractText =
-			fullText.split("\n\nReceived arguments:")[0] || fullText;
-		const key = `${event.toolName}\n${contractText}`;
-		const current = toolErrorSummaries.get(key);
-		toolErrorSummaries.set(key, {
-			toolName: event.toolName,
-			text: contractText.slice(0, 500),
-			count: (current?.count ?? 0) + 1,
-			flattenedArguments: /"[^"\n]+\[\d+\](?:\.[^"\n]+)?"/.test(fullText),
-		});
-	}
-	const toolErrors = [...toolErrorSummaries.values()];
-	const checkpointKinds = trace
-		.filter((event) => event.type === "entry_appended")
-		.map((event) => event.entry?.data?.kind)
-		.filter(Boolean);
-	const agentErrors = trace
-		.filter(
-			(event) =>
-				event.type === "message_end" &&
-				event.message?.role === "assistant" &&
-				event.message?.stopReason === "error",
-		)
-		.map((event) =>
-			String(event.message.errorMessage || "unknown agent error"),
-		);
-	return {
-		index,
-		wait: waitResult,
-		toolCalls,
-		protocolEnds,
-		checkpointKinds,
-		agentErrors,
-		toolErrors,
-	};
-}
-
 async function currentStatus() {
 	const start = events.length;
 	const response = await send({ type: "prompt", message: "/developer status" });
@@ -433,7 +373,11 @@ try {
 			const aborted = await send({ type: "abort" }, 5_000);
 			assert.equal(aborted.success, true, aborted.error);
 		}
-		const run = summarizeRun(index, events.slice(start), waitResult);
+		const run = summarizeSdkResumeRun(
+			index,
+			events.slice(start),
+			waitResult,
+		);
 		runs.push(run);
 		const usedTransitional = run.toolCalls.filter((name) =>
 			transitionalTools.has(name),
@@ -443,20 +387,13 @@ try {
 			[],
 			`Run ${index} used transitional protocol tools.`,
 		);
-		if (run.agentErrors.length > 0) {
-			providerBlock = run.agentErrors.join(" | ");
+		const classification = classifySdkResumeRun(run);
+		if (classification.status === "provider-blocked") {
+			providerBlock = classification.reason;
 			break;
 		}
-		if (!run.toolCalls.includes("developer_progress_action_loop_with_sdk")) {
-			if (run.toolErrors.some((error) => error.flattenedArguments)) {
-				providerBlock = run.toolErrors
-					.map((error) => `${error.toolName} (${error.count}): ${error.text}`)
-					.join(" | ");
-			} else if (run.toolErrors.length > 0) {
-				usabilityStop = "tool-contract-rejected";
-			} else {
-				usabilityStop = "primary-controller-not-invoked";
-			}
+		if (classification.status === "usability-stalled") {
+			usabilityStop = classification.reason;
 			break;
 		}
 		if (
