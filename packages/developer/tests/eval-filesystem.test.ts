@@ -75,26 +75,29 @@ test("the eval observer rejects artifact changes without clearance and permits e
 			newText: "inside",
 		};
 		await toolResult({
-			toolName: "developer_propose_action",
-			toolCallId: "retired-action:edit",
+			toolName: "developer_progress_action_loop_with_sdk",
+			toolCallId: "candidate-only:edit",
 			isError: false,
-			details: { candidate: { toolName: "edit", toolInput: editInput } },
+			details: {
+				status: "action-candidate",
+				candidate: { toolName: "edit", toolInput: editInput },
+			},
 			content: [],
 		});
 		await toolCall({
 			toolName: "edit",
-			toolCallId: "edit:retired-clearance",
+			toolCallId: "edit:without-clearance",
 			input: editInput,
 		});
-		await writeFile(join(root, "source.ts"), "retired clearance rejected");
-		const retiredViolation = await toolResult({
+		await writeFile(join(root, "source.ts"), "candidate is not clearance");
+		const candidateViolation = await toolResult({
 			toolName: "edit",
-			toolCallId: "edit:retired-clearance",
+			toolCallId: "edit:without-clearance",
 			isError: false,
 			details: {},
 			content: [],
 		});
-		assert.equal(retiredViolation?.isError, true);
+		assert.equal(candidateViolation?.isError, true);
 
 		await toolResult({
 			toolName: "developer_progress_action_loop_with_sdk",

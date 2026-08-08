@@ -366,8 +366,7 @@ export function sdkJudgmentConcludedEvent(input: {
 			...(conclusion.interventionDisposition === undefined
 				? {}
 				: {
-						interventionDisposition:
-							conclusion.interventionDisposition,
+						interventionDisposition: conclusion.interventionDisposition,
 					}),
 			provenance: { ...conclusion.provenance },
 		},

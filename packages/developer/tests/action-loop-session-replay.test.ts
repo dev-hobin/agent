@@ -221,10 +221,7 @@ test("Proportionate Intervention disposition survives semantic event replay", as
 		basis: ["Current relied-on evidence closes the Need."],
 		provenance: { kind: "model" as const, source: "pi:sdk-action-loop" },
 	};
-	const coverage = assessLiveNeedCoverage(
-		contribution.state,
-		coverageProposal,
-	);
+	const coverage = assessLiveNeedCoverage(contribution.state, coverageProposal);
 	assert.equal(coverage.status, "assessed");
 	if (coverage.status !== "assessed") return;
 	const conclusionProposal = {
@@ -300,8 +297,7 @@ test("Proportionate Intervention disposition survives semantic event replay", as
 	if (replayed.status !== "ready") return;
 	assert.equal(replayed.appliedTransitions, 5);
 	assert.equal(
-		replayed.activeWorkCase?.workCase.conclusions[0]
-			?.interventionDisposition,
+		replayed.activeWorkCase?.workCase.conclusions[0]?.interventionDisposition,
 		"no-action",
 	);
 });

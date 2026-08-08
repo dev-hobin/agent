@@ -124,28 +124,9 @@ const PRIMARY_PROTOCOL_TOOLS = [
 	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
 	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
 ] as const;
-// Negative denylist only: these names are never registered by this Extension.
-// They are removed from active tool state after an in-process package reload.
-const REMOVED_MODEL_TOOL_NAMES = [
-	"developer_open_work_case",
-	"developer_open_judgment",
-	"developer_progress_judgment_with_sdk",
-	"developer_assess_capability",
-	"developer_select_references",
-	"developer_load_selected_reference",
-	"developer_accept_contribution",
-	"developer_assess_coverage",
-	"developer_close_judgment",
-	"developer_propose_action",
-	"developer_settle_effect",
-	"developer_record_effect_remediation",
-	"developer_prepare_closure",
-	"developer_complete_work_case",
-] as const;
-const ACTION_LOOP_TOOL_POLICY_NAMES = [
-	...PRIMARY_PROTOCOL_TOOLS,
-	...REMOVED_MODEL_TOOL_NAMES,
-] as const;
+const PRIMARY_PROTOCOL_TOOL_SET = new Set<string>(PRIMARY_PROTOCOL_TOOLS);
+const isDeveloperNamespacedTool = (toolName: string) =>
+	toolName.startsWith("developer_");
 const extensionRoot = dirname(fileURLToPath(import.meta.url));
 const skillsRoot = resolve(extensionRoot, "..", "skills");
 const MAX_EVIDENCE_CHARS = 2_000;
@@ -365,8 +346,10 @@ export default async function developer(pi: ExtensionAPI) {
 			memory: toolPolicyMemory,
 		});
 		const nextActive = new Set(next.activeTools);
-		for (const toolName of REMOVED_MODEL_TOOL_NAMES) {
-			nextActive.delete(toolName);
+		if (toolPolicyRestartRequired) {
+			for (const toolName of nextActive) {
+				if (isDeveloperNamespacedTool(toolName)) nextActive.delete(toolName);
+			}
 		}
 		const nextWithheld = new Set(next.memory.withheldBuiltins);
 		for (const toolName of clearedLivePiToolNames(activeWorkCase)) {
@@ -385,7 +368,7 @@ export default async function developer(pi: ExtensionAPI) {
 			activeTools: current,
 			allTools: pi.getAllTools(),
 			enabled: false,
-			protocolTools: ACTION_LOOP_TOOL_POLICY_NAMES,
+			protocolTools: PRIMARY_PROTOCOL_TOOLS,
 			memory: toolPolicyMemory,
 		});
 		toolPolicyMemory = next.memory;
@@ -1934,12 +1917,7 @@ export default async function developer(pi: ExtensionAPI) {
 
 	pi.on("tool_result", async (event) => {
 		if (!developerEnabled) return;
-		if (
-			(ACTION_LOOP_TOOL_POLICY_NAMES as readonly string[]).includes(
-				event.toolName,
-			)
-		)
-			return;
+		if (PRIMARY_PROTOCOL_TOOL_SET.has(event.toolName)) return;
 		if (
 			await isDirectSkillMaterialRead(
 				event.toolName,
@@ -2006,13 +1984,21 @@ export default async function developer(pi: ExtensionAPI) {
 
 	pi.on("session_start", (event, ctx) => {
 		const branch = ctx.sessionManager.getBranch();
+		const hasUnrecognizedDeveloperTool = pi
+			.getAllTools()
+			.some(
+				(tool) =>
+					isDeveloperNamespacedTool(tool.name) &&
+					!PRIMARY_PROTOCOL_TOOL_SET.has(tool.name),
+			);
 		toolPolicyRestartRequired =
 			event.reason === "reload" &&
-			toolPolicyReloadRequiresRestart({
-				entries: branch,
-				protocol: TOOL_POLICY_PROTOCOL,
-				protocolTools: ACTION_LOOP_TOOL_POLICY_NAMES,
-			});
+			(hasUnrecognizedDeveloperTool ||
+				toolPolicyReloadRequiresRestart({
+					entries: branch,
+					protocol: TOOL_POLICY_PROTOCOL,
+					protocolTools: PRIMARY_PROTOCOL_TOOLS,
+				}));
 		reconstruct(ctx);
 		if (toolPolicyRestartRequired) {
 			ctx.ui.notify(TOOL_POLICY_RESTART_MESSAGE, "error");

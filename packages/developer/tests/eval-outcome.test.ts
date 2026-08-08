@@ -11,12 +11,15 @@ test("Developer status parsing preserves terminal and held protocol states", () 
 		verification: "current",
 		pending: "none",
 	});
-	assert.deepEqual(parseDeveloperStatus("developer · Waiting\nOutcome · Publish"), {
-		protocol: "waiting",
-		active: "none",
-		checkpoint: "owned",
-		verification: "unsettled",
-		pending: "waiting",
-	});
+	assert.deepEqual(
+		parseDeveloperStatus("developer · Waiting\nOutcome · Publish"),
+		{
+			protocol: "waiting",
+			active: "none",
+			checkpoint: "owned",
+			verification: "unsettled",
+			pending: "waiting",
+		},
+	);
 	assert.equal(parseDeveloperStatus("unrecognized").protocol, "unknown");
 });

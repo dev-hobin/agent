@@ -208,8 +208,7 @@ async function waitForRun(start) {
 				isSdkReplayRecoveryRequired(
 					(event.result?.content ?? [])
 						.filter(
-							(item) =>
-								item.type === "text" && typeof item.text === "string",
+							(item) => item.type === "text" && typeof item.text === "string",
 						)
 						.map((item) => item.text)
 						.join("\n"),
@@ -273,22 +272,16 @@ async function currentStatus() {
 	return parseDeveloperStatus(notification.message);
 }
 
-const transitionalTools = new Set([
-	"developer_open_work_case",
-	"developer_open_judgment",
-	"developer_progress_judgment_with_sdk",
-	"developer_assess_capability",
-	"developer_select_references",
-	"developer_load_selected_reference",
-	"developer_accept_contribution",
-	"developer_assess_coverage",
-	"developer_close_judgment",
-	"developer_propose_action",
-	"developer_settle_effect",
-	"developer_record_effect_remediation",
-	"developer_prepare_closure",
-	"developer_complete_work_case",
+const modelFacingDeveloperTools = new Set([
+	"developer_progress_action_loop_with_sdk",
+	"developer_accept_observation_contribution",
+	"developer_pause_work_case",
+	"developer_wait_work_case",
+	"developer_block_work_case",
+	"developer_resume_work_case",
 ]);
+const isUnrecognizedDeveloperTool = (toolName) =>
+	toolName.startsWith("developer_") && !modelFacingDeveloperTools.has(toolName);
 
 const runs = [];
 let providerBlock;
@@ -400,13 +393,13 @@ try {
 		}
 		const run = summarizeSdkResumeRun(index, events.slice(start), waitResult);
 		runs.push(run);
-		const usedTransitional = run.toolCalls.filter((name) =>
-			transitionalTools.has(name),
+		const unrecognizedDeveloperCalls = run.toolCalls.filter(
+			isUnrecognizedDeveloperTool,
 		);
 		assert.deepEqual(
-			usedTransitional,
+			unrecognizedDeveloperCalls,
 			[],
-			`Run ${index} used transitional protocol tools.`,
+			`Run ${index} used tools outside the current Developer surface.`,
 		);
 		const classification = classifySdkResumeRun(run);
 		if (classification.status === "recovery-required") {
@@ -466,9 +459,9 @@ try {
 				.flatMap((run) => run.toolCalls)
 				.filter((name) => name === "developer_progress_action_loop_with_sdk")
 				.length,
-			transitionalCalls: runs
+			unrecognizedDeveloperCalls: runs
 				.flatMap((run) => run.toolCalls)
-				.filter((name) => transitionalTools.has(name)).length,
+				.filter(isUnrecognizedDeveloperTool).length,
 		},
 	};
 	process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

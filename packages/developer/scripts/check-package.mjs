@@ -439,22 +439,7 @@ const modelFacingToolNames = [
 	"developer_block_work_case",
 	"developer_resume_work_case",
 ];
-const removedModelToolNames = [
-	"developer_open_work_case",
-	"developer_open_judgment",
-	"developer_progress_judgment_with_sdk",
-	"developer_assess_capability",
-	"developer_select_references",
-	"developer_load_selected_reference",
-	"developer_accept_contribution",
-	"developer_assess_coverage",
-	"developer_close_judgment",
-	"developer_propose_action",
-	"developer_settle_effect",
-	"developer_record_effect_remediation",
-	"developer_prepare_closure",
-	"developer_complete_work_case",
-];
+const modelFacingToolNameSet = new Set(modelFacingToolNames);
 const publicRuntimeDocuments = [
 	"README.md",
 	"README.ko.md",
@@ -464,11 +449,10 @@ const publicRuntimeDocuments = [
 ];
 for (const documentPath of publicRuntimeDocuments) {
 	const source = await readFile(join(root, documentPath), "utf8");
-	for (const removedName of removedModelToolNames) {
-		assert.doesNotMatch(
-			source,
-			new RegExp(`\\b${removedName}\\b`),
-			`${documentPath} presents removed model tool ${removedName}`,
+	for (const match of source.matchAll(/\bdeveloper_[a-z_]+\b/g)) {
+		assert.ok(
+			modelFacingToolNameSet.has(match[0]),
+			`${documentPath} presents an unrecognized Developer tool ${match[0]}`,
 		);
 	}
 	if (documentPath === "README.md" || documentPath === "README.ko.md") {
@@ -519,15 +503,18 @@ assert.doesNotMatch(
 for (const entry of await readdir(join(root, "extensions"), {
 	withFileTypes: true,
 })) {
-	if (!entry.isFile() || !entry.name.endsWith(".ts") || entry.name === "developer.ts") {
+	if (
+		!entry.isFile() ||
+		!entry.name.endsWith(".ts") ||
+		entry.name === "developer.ts"
+	) {
 		continue;
 	}
 	const source = await readFile(join(root, "extensions", entry.name), "utf8");
-	for (const removedName of removedModelToolNames) {
-		assert.doesNotMatch(
-			source,
-			new RegExp(`\\b${removedName}\\b`),
-			`${entry.name} retains removed model tool ${removedName}`,
+	for (const match of source.matchAll(/\bdeveloper_[a-z_]+\b/g)) {
+		assert.ok(
+			modelFacingToolNameSet.has(match[0]),
+			`${entry.name} defines an unrecognized Developer tool ${match[0]}`,
 		);
 	}
 }
@@ -671,10 +658,6 @@ const mode = await readFile(
 assert.match(mode, /developer\.mode\/v1/);
 assert.match(mode, /reconstructDeveloperMode/);
 
-assert.doesNotMatch(
-	extension,
-	/developer_route_question|developer_load_reference|developer_record_judgment/,
-);
 assert.doesNotMatch(extension, /\.\/state\.ts|\.\/machine\.ts|from "xstate"/);
 for (const legacyPath of [
 	"state.ts",

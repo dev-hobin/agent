@@ -36,6 +36,15 @@ const FULL_SCREEN_SURFACE_OPTIONS = {
 	},
 } as const;
 
+const MODEL_FACING_TOOL_NAMES = [
+	"developer_progress_action_loop_with_sdk",
+	"developer_accept_observation_contribution",
+	"developer_pause_work_case",
+	"developer_wait_work_case",
+	"developer_block_work_case",
+	"developer_resume_work_case",
+].sort();
+
 interface HarnessBranchEntry {
 	type?: string;
 	customType?: string;
@@ -381,28 +390,13 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 	);
 	assert.match(result.systemPrompt, /Evidence is not automatically truth/);
 	assert.match(result.systemPrompt, /exact cleared host Action/);
-	assert.equal(
-		harness.activeTools().includes("developer_progress_action_loop_with_sdk"),
-		true,
+	assert.deepEqual(
+		harness
+			.activeTools()
+			.filter((toolName) => toolName.startsWith("developer_"))
+			.sort(),
+		MODEL_FACING_TOOL_NAMES,
 	);
-	assert.equal(
-		harness.activeTools().includes("developer_open_work_case"),
-		false,
-	);
-	assert.equal(
-		harness.activeTools().includes("developer_assess_coverage"),
-		false,
-	);
-	assert.equal(
-		harness.activeTools().includes("developer_record_effect_remediation"),
-		false,
-	);
-	assert.equal(
-		harness.activeTools().includes("developer_pause_work_case"),
-		true,
-	);
-	assert.doesNotMatch(result.systemPrompt, /developer_route_question/);
-	assert.doesNotMatch(result.systemPrompt, /developer_record_judgment/);
 	assert.doesNotMatch(
 		result.systemPrompt,
 		/Pi-admitted Developer Skills:.*model/,
@@ -798,6 +792,34 @@ test("a released tool delta is claimed safely by the reloaded extension instance
 			/restart the Pi process/i.test(notification.message),
 		),
 		false,
+	);
+});
+
+test("an unrecognized Developer tool makes in-process reload fail closed", async () => {
+	const harness = createHarness();
+	harness.api.registerTool({
+		name: "developer_unrecognized_protocol_tool",
+		description: "Simulates a tool registration from another package revision.",
+		parameters: {},
+		execute: async () => ({ content: [] }),
+	} as never);
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "reload",
+	});
+
+	assert.deepEqual(
+		harness
+			.activeTools()
+			.filter((toolName) => toolName.startsWith("developer_")),
+		[],
+	);
+	assert.equal(
+		harness.notifications.some((notification) =>
+			/restart the Pi process/i.test(notification.message),
+		),
+		true,
 	);
 });
 
