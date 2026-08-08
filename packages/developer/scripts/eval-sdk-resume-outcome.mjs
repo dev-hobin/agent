@@ -101,6 +101,16 @@ export function summarizeSdkResumeRun(index, trace, waitResult) {
 	};
 }
 
+export function sdkResumeBudgetStop(runs, maximumRuns) {
+	if (runs.length < maximumRuns) return undefined;
+	const completed = runs.some((run) =>
+		run.protocolEnds.some(
+			(end) => end.details?.status === "completed" && !end.isError,
+		),
+	);
+	return completed ? undefined : "evaluation-run-budget-exhausted";
+}
+
 export function classifySdkResumeRun(run) {
 	const recoveryErrors = run.toolErrors.filter((error) =>
 		isSdkReplayRecoveryRequired(error.text),

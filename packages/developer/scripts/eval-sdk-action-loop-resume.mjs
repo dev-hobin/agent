@@ -7,6 +7,7 @@ import {
 	classifySdkResumeRun,
 	isSdkReplayRecoveryRequired,
 	repeatedPrimaryResultWithoutCheckpoint,
+	sdkResumeBudgetStop,
 	summarizeSdkResumeRun,
 } from "./eval-sdk-resume-outcome.mjs";
 import { createJsonlDecoder } from "./jsonl.mjs";
@@ -435,6 +436,9 @@ try {
 		if (run.checkpointKinds.length === 0 && index === maximumRuns) break;
 	}
 
+	if (!recoveryStop && !providerBlock && !usabilityStop) {
+		usabilityStop = sdkResumeBudgetStop(runs, maximumRuns);
+	}
 	const status = await currentStatus();
 	const allCheckpoints = runs.flatMap((run) => run.checkpointKinds);
 	assert.ok(

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
 	classifySdkResumeRun,
 	repeatedPrimaryResultWithoutCheckpoint,
+	sdkResumeBudgetStop,
 	summarizeSdkResumeRun,
 } from "../scripts/eval-sdk-resume-outcome.mjs";
 
@@ -163,6 +164,21 @@ test("SDK resume evaluation circuit-breaks repeated primary results without chec
 		status: "usability-stalled",
 		reason: "repeated-primary-result:effect-unsettled",
 	});
+	assert.equal(sdkResumeBudgetStop([run], 1), "evaluation-run-budget-exhausted");
+	assert.equal(
+		sdkResumeBudgetStop(
+			[
+				{
+					...run,
+					protocolEnds: [
+						{ isError: false, details: { status: "completed" } },
+					],
+				},
+			],
+			1,
+		),
+		undefined,
+	);
 });
 
 test("SDK resume evaluation continues only after the primary controller is invoked", () => {
