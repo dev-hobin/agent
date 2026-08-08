@@ -2922,7 +2922,9 @@ function resumeBlockedWorkCase(workCase, proposal) {
     );
   }
   const continuation = canonicalContinuityText(proposal.continuation);
-  const observationId = canonicalContinuityText(proposal.observation.observationId);
+  const observationId = canonicalContinuityText(
+    proposal.observation.observationId
+  );
   const source = canonicalContinuityText(proposal.observation.source);
   const statement = canonicalContinuityText(proposal.observation.statement);
   const basis = canonicalContinuityBasis(proposal.observation.basis);
@@ -3078,7 +3080,9 @@ function waitWorkCase(workCase, proposal) {
   }
   const externalCondition = canonicalContinuityText(proposal.externalCondition);
   const resumePredicate = canonicalContinuityText(proposal.resumePredicate);
-  const observationId = canonicalContinuityText(proposal.observation.observationId);
+  const observationId = canonicalContinuityText(
+    proposal.observation.observationId
+  );
   const source = canonicalContinuityText(proposal.observation.source);
   const basis = canonicalContinuityBasis(proposal.observation.basis);
   if (externalCondition === void 0 || resumePredicate === void 0 || observationId === void 0 || source === void 0 || basis === void 0) {

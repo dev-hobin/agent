@@ -40,14 +40,15 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check": "node scripts/build-sdk-public-api.mjs --check && node scripts/check-package.mjs && node --test tests/*.test.ts",
+    "check": "tsc -p tsconfig.json && node scripts/build-sdk-public-api.mjs --check && node scripts/check-package.mjs && node --test tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json",
     "sdk:build": "node scripts/build-sdk-public-api.mjs",
     "eval:live:sdk:routing": "node scripts/eval-sdk-routing.ts",
     "eval:live:sdk:judgment": "node scripts/eval-sdk-judgment.ts",
     "eval:live:sdk:intervention": "node scripts/eval-sdk-intervention.ts",
     "eval:live:sdk:remediation": "node scripts/eval-sdk-remediation.ts",
     "eval:live:sdk:resume": "node scripts/eval-sdk-action-loop-resume.mjs",
-    "prepack": "node scripts/build-sdk-public-api.mjs --check"
+    "prepack": "tsc -p tsconfig.json && node scripts/build-sdk-public-api.mjs --check"
   },
   "exports": {
     "./sdk": {
@@ -71,6 +72,7 @@
     "typebox": "*"
   },
   "devDependencies": {
-    "esbuild": "0.25.12"
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3"
   }
 }

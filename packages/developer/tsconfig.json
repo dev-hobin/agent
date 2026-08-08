@@ -6,7 +6,6 @@
     "moduleResolution": "NodeNext",
     "types": ["node"],
     "strict": true,
-    "noImplicitAny": false,
     "allowJs": true,
     "checkJs": false,
     "skipLibCheck": true,

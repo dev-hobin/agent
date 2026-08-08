@@ -34,7 +34,6 @@ import {
 import { inspectContributionProgress } from "./contribution-progress.ts";
 import {
 	assessNeedCoverageWithSdk,
-	type SdkCoverageContribution,
 	type SdkNeedCoverageResult,
 } from "./coverage-controller.ts";
 import type { SdkActionLoopState } from "./action-loop-state.ts";
@@ -164,7 +163,7 @@ interface MutableProgress {
 	assignments: CapabilityAssignment[];
 	selections: BoundReferenceSelection[];
 	contexts: SkillContributionContext[];
-	contributions: SdkCoverageContribution[];
+	contributions: SdkActionLoopState["contributions"][number][];
 	coverages: NeedCoverage[];
 	steps: number;
 	checkpoints: number;
@@ -366,7 +365,7 @@ function decisionFailure(
 }
 
 function skillContribution(
-	contribution: SdkCoverageContribution,
+	contribution: SdkActionLoopState["contributions"][number],
 ): contribution is SkillContribution {
 	return "assignmentId" in contribution && "sealedContextId" in contribution;
 }

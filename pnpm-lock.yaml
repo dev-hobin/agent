@@ -30,6 +30,9 @@ importers:
       esbuild:
         specifier: 0.25.12
         version: 0.25.12
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
 
   packages/judgment:
     dependencies:
@@ -801,6 +804,11 @@ packages:
 
   typebox@1.3.6:
     resolution: {integrity: sha512-Sc8RA0NCMEFmApHNU9ZMzqcpQj46She44J8ffpLM/bdhLNUZKq7DJumcLcsFx1gRmDfQPgCgOmFFJ7rcnfWNyA==}
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
 
   undici-types@8.3.0:
     resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
@@ -1634,6 +1642,8 @@ snapshots:
   typebox@1.1.38: {}
 
   typebox@1.3.6: {}
+
+  typescript@5.9.3: {}
 
   undici-types@8.3.0: {}
 
