@@ -1,5 +1,9 @@
 import { hashIdentity } from "../identity/hash-identity.ts";
 import {
+	canonicalContinuityBasis,
+	canonicalContinuityText,
+} from "./canonical-continuity-input.ts";
+import {
 	deriveWorkCaseRevisionId,
 	workCaseInventoryIssue,
 	type ActiveWorkCase,
@@ -63,28 +67,6 @@ function invalid(
 	return { status: "invalid", error: { code, path, message } };
 }
 
-function canonicalText(value: string): string | undefined {
-	if (typeof value !== "string") return undefined;
-	const normalized = value.trim();
-	return normalized.length === 0 ? undefined : normalized;
-}
-
-function canonicalBasis(
-	values: readonly string[],
-): readonly string[] | undefined {
-	if (!Array.isArray(values) || values.length === 0) return undefined;
-	const strings: string[] = [];
-	for (const value of values) {
-		const normalized = canonicalText(value);
-		if (normalized === undefined) return undefined;
-		strings.push(normalized);
-	}
-	if (new Set(strings).size !== strings.length) return undefined;
-	return Object.freeze(
-		strings.sort((left, right) => left.localeCompare(right)),
-	);
-}
-
 /** Pauses one current Work Case only on an explicit human decision. */
 export function pauseWorkCase(
 	workCase: ActiveWorkCase,
@@ -118,10 +100,10 @@ export function pauseWorkCase(
 			"Pausing a Work Case requires an explicit human decision",
 		);
 	}
-	const reason = canonicalText(proposal.reason);
-	const decisionId = canonicalText(proposal.decision.decisionId);
-	const source = canonicalText(proposal.decision.source);
-	const basis = canonicalBasis(proposal.decision.basis);
+	const reason = canonicalContinuityText(proposal.reason);
+	const decisionId = canonicalContinuityText(proposal.decision.decisionId);
+	const source = canonicalContinuityText(proposal.decision.source);
+	const basis = canonicalContinuityBasis(proposal.decision.basis);
 	if (
 		reason === undefined ||
 		decisionId === undefined ||

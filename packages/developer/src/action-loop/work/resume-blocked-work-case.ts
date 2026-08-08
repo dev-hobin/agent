@@ -1,5 +1,9 @@
 import { hashIdentity } from "../identity/hash-identity.ts";
 import {
+	canonicalContinuityBasis,
+	canonicalContinuityText,
+} from "./canonical-continuity-input.ts";
+import {
 	WORK_CASE_BLOCK_VERSION,
 	type BlockedWorkCase,
 } from "./block-work-case.ts";
@@ -53,28 +57,6 @@ function invalid(
 	return { status: "invalid", error: { code, path, message } };
 }
 
-function canonicalText(value: string): string | undefined {
-	if (typeof value !== "string") return undefined;
-	const normalized = value.trim();
-	return normalized.length === 0 ? undefined : normalized;
-}
-
-function canonicalBasis(
-	values: readonly string[],
-): readonly string[] | undefined {
-	if (!Array.isArray(values) || values.length === 0) return undefined;
-	const normalized: string[] = [];
-	for (const value of values) {
-		const text = canonicalText(value);
-		if (text === undefined) return undefined;
-		normalized.push(text);
-	}
-	if (new Set(normalized).size !== normalized.length) return undefined;
-	return Object.freeze(
-		normalized.sort((left, right) => left.localeCompare(right)),
-	);
-}
-
 /** Resumes blocked work only after an observed change creates a continuation. */
 export function resumeBlockedWorkCase(
 	workCase: BlockedWorkCase,
@@ -121,11 +103,11 @@ export function resumeBlockedWorkCase(
 			"Unblocking requires a human, tool, or external Observation",
 		);
 	}
-	const continuation = canonicalText(proposal.continuation);
-	const observationId = canonicalText(proposal.observation.observationId);
-	const source = canonicalText(proposal.observation.source);
-	const statement = canonicalText(proposal.observation.statement);
-	const basis = canonicalBasis(proposal.observation.basis);
+	const continuation = canonicalContinuityText(proposal.continuation);
+	const observationId = canonicalContinuityText(proposal.observation.observationId);
+	const source = canonicalContinuityText(proposal.observation.source);
+	const statement = canonicalContinuityText(proposal.observation.statement);
+	const basis = canonicalContinuityBasis(proposal.observation.basis);
 	if (
 		continuation === undefined ||
 		observationId === undefined ||

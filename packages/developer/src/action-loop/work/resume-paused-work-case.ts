@@ -1,5 +1,9 @@
 import { hashIdentity } from "../identity/hash-identity.ts";
 import {
+	canonicalContinuityBasis,
+	canonicalContinuityText,
+} from "./canonical-continuity-input.ts";
+import {
 	WORK_CASE_PAUSE_VERSION,
 	type PausedWorkCase,
 } from "./pause-work-case.ts";
@@ -51,28 +55,6 @@ function invalid(
 	return { status: "invalid", error: { code, path, message } };
 }
 
-function canonicalText(value: string): string | undefined {
-	if (typeof value !== "string") return undefined;
-	const normalized = value.trim();
-	return normalized.length === 0 ? undefined : normalized;
-}
-
-function canonicalBasis(
-	values: readonly string[],
-): readonly string[] | undefined {
-	if (!Array.isArray(values) || values.length === 0) return undefined;
-	const normalized: string[] = [];
-	for (const value of values) {
-		const text = canonicalText(value);
-		if (text === undefined) return undefined;
-		normalized.push(text);
-	}
-	if (new Set(normalized).size !== normalized.length) return undefined;
-	return Object.freeze(
-		normalized.sort((left, right) => left.localeCompare(right)),
-	);
-}
-
 /** Resumes a paused Work Case with a new continuity-bound active revision. */
 export function resumePausedWorkCase(
 	workCase: PausedWorkCase,
@@ -115,9 +97,9 @@ export function resumePausedWorkCase(
 			"Resuming a paused Work Case requires an explicit human decision",
 		);
 	}
-	const decisionId = canonicalText(proposal.decision.decisionId);
-	const source = canonicalText(proposal.decision.source);
-	const basis = canonicalBasis(proposal.decision.basis);
+	const decisionId = canonicalContinuityText(proposal.decision.decisionId);
+	const source = canonicalContinuityText(proposal.decision.source);
+	const basis = canonicalContinuityBasis(proposal.decision.basis);
 	if (decisionId === undefined || source === undefined || basis === undefined) {
 		return invalid(
 			"invalid-resume-decision",

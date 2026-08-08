@@ -1915,6 +1915,26 @@ function acceptEffectObservation(effect, proposal) {
   };
 }
 
+// src/action-loop/work/canonical-continuity-input.ts
+function canonicalContinuityText(value) {
+  if (typeof value !== "string") return void 0;
+  const normalized = value.trim();
+  return normalized.length === 0 ? void 0 : normalized;
+}
+function canonicalContinuityBasis(values) {
+  if (!Array.isArray(values) || values.length === 0) return void 0;
+  const normalized = [];
+  for (const value of values) {
+    const text = canonicalContinuityText(value);
+    if (text === void 0) return void 0;
+    normalized.push(text);
+  }
+  if (new Set(normalized).size !== normalized.length) return void 0;
+  return Object.freeze(
+    normalized.sort((left, right) => left.localeCompare(right))
+  );
+}
+
 // src/action-loop/work/work-case.ts
 var OUTCOME_VERSION = "developer-outcome/v1";
 var WORK_CASE_VERSION = "developer-work-case/v1";
@@ -2588,24 +2608,6 @@ var WORK_CASE_BLOCK_VERSION = "developer-work-case-block/v1";
 function invalid6(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function canonicalText5(value) {
-  if (typeof value !== "string") return void 0;
-  const normalized = value.trim();
-  return normalized.length === 0 ? void 0 : normalized;
-}
-function canonicalBasis2(values) {
-  if (!Array.isArray(values) || values.length === 0) return void 0;
-  const normalized = [];
-  for (const value of values) {
-    const text = canonicalText5(value);
-    if (text === void 0) return void 0;
-    normalized.push(text);
-  }
-  if (new Set(normalized).size !== normalized.length) return void 0;
-  return Object.freeze(
-    normalized.sort((left, right) => left.localeCompare(right))
-  );
-}
 function blockerKey(code, subjectId) {
   return `${code}\0${subjectId}`;
 }
@@ -2637,7 +2639,7 @@ function canonicalBlockerDispositions(blockers, proposals) {
       };
     }
     const key = blockerKey(disposition.code, disposition.subjectId);
-    const basis = canonicalBasis2(disposition.basis);
+    const basis = canonicalContinuityBasis(disposition.basis);
     if (!expected.has(key) || accounted.has(key) || basis === void 0) {
       return {
         ok: false,
@@ -2735,7 +2737,7 @@ function blockWorkCase(workCase, proposal) {
     proposal.blockerDispositions
   );
   if (!blockerDispositions.ok) return blockerDispositions.result;
-  const reason = canonicalText5(proposal.reason);
+  const reason = canonicalContinuityText(proposal.reason);
   if (reason === void 0) {
     return invalid6(
       "invalid-block-reason",
@@ -2784,24 +2786,6 @@ var WORK_CASE_PAUSE_VERSION = "developer-work-case-pause/v1";
 function invalid7(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function canonicalText6(value) {
-  if (typeof value !== "string") return void 0;
-  const normalized = value.trim();
-  return normalized.length === 0 ? void 0 : normalized;
-}
-function canonicalBasis3(values) {
-  if (!Array.isArray(values) || values.length === 0) return void 0;
-  const strings = [];
-  for (const value of values) {
-    const normalized = canonicalText6(value);
-    if (normalized === void 0) return void 0;
-    strings.push(normalized);
-  }
-  if (new Set(strings).size !== strings.length) return void 0;
-  return Object.freeze(
-    strings.sort((left, right) => left.localeCompare(right))
-  );
-}
 function pauseWorkCase(workCase, proposal) {
   if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
     return invalid7(
@@ -2828,10 +2812,10 @@ function pauseWorkCase(workCase, proposal) {
       "Pausing a Work Case requires an explicit human decision"
     );
   }
-  const reason = canonicalText6(proposal.reason);
-  const decisionId = canonicalText6(proposal.decision.decisionId);
-  const source = canonicalText6(proposal.decision.source);
-  const basis = canonicalBasis3(proposal.decision.basis);
+  const reason = canonicalContinuityText(proposal.reason);
+  const decisionId = canonicalContinuityText(proposal.decision.decisionId);
+  const source = canonicalContinuityText(proposal.decision.source);
+  const basis = canonicalContinuityBasis(proposal.decision.basis);
   if (reason === void 0 || decisionId === void 0 || source === void 0 || basis === void 0) {
     return invalid7(
       "invalid-pause-decision",
@@ -2879,24 +2863,6 @@ var WORK_CASE_UNBLOCK_VERSION = "developer-work-case-unblock/v1";
 function invalid8(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function canonicalText7(value) {
-  if (typeof value !== "string") return void 0;
-  const normalized = value.trim();
-  return normalized.length === 0 ? void 0 : normalized;
-}
-function canonicalBasis4(values) {
-  if (!Array.isArray(values) || values.length === 0) return void 0;
-  const normalized = [];
-  for (const value of values) {
-    const text = canonicalText7(value);
-    if (text === void 0) return void 0;
-    normalized.push(text);
-  }
-  if (new Set(normalized).size !== normalized.length) return void 0;
-  return Object.freeze(
-    normalized.sort((left, right) => left.localeCompare(right))
-  );
-}
 function resumeBlockedWorkCase(workCase, proposal) {
   const inventoryRevisionId = deriveWorkCaseRevisionId(workCase);
   const expectedBlockedRevisionId = hashIdentity(
@@ -2929,11 +2895,11 @@ function resumeBlockedWorkCase(workCase, proposal) {
       "Unblocking requires a human, tool, or external Observation"
     );
   }
-  const continuation = canonicalText7(proposal.continuation);
-  const observationId = canonicalText7(proposal.observation.observationId);
-  const source = canonicalText7(proposal.observation.source);
-  const statement = canonicalText7(proposal.observation.statement);
-  const basis = canonicalBasis4(proposal.observation.basis);
+  const continuation = canonicalContinuityText(proposal.continuation);
+  const observationId = canonicalContinuityText(proposal.observation.observationId);
+  const source = canonicalContinuityText(proposal.observation.source);
+  const statement = canonicalContinuityText(proposal.observation.statement);
+  const basis = canonicalContinuityBasis(proposal.observation.basis);
   if (continuation === void 0 || observationId === void 0 || source === void 0 || statement === void 0 || basis === void 0) {
     return invalid8(
       "invalid-unblock-basis",
@@ -2983,24 +2949,6 @@ var WORK_CASE_RESUME_VERSION = "developer-work-case-resume/v1";
 function invalid9(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function canonicalText8(value) {
-  if (typeof value !== "string") return void 0;
-  const normalized = value.trim();
-  return normalized.length === 0 ? void 0 : normalized;
-}
-function canonicalBasis5(values) {
-  if (!Array.isArray(values) || values.length === 0) return void 0;
-  const normalized = [];
-  for (const value of values) {
-    const text = canonicalText8(value);
-    if (text === void 0) return void 0;
-    normalized.push(text);
-  }
-  if (new Set(normalized).size !== normalized.length) return void 0;
-  return Object.freeze(
-    normalized.sort((left, right) => left.localeCompare(right))
-  );
-}
 function resumePausedWorkCase(workCase, proposal) {
   const inventoryRevisionId = deriveWorkCaseRevisionId(workCase);
   const expectedPausedRevisionId = hashIdentity(
@@ -3033,9 +2981,9 @@ function resumePausedWorkCase(workCase, proposal) {
       "Resuming a paused Work Case requires an explicit human decision"
     );
   }
-  const decisionId = canonicalText8(proposal.decision.decisionId);
-  const source = canonicalText8(proposal.decision.source);
-  const basis = canonicalBasis5(proposal.decision.basis);
+  const decisionId = canonicalContinuityText(proposal.decision.decisionId);
+  const source = canonicalContinuityText(proposal.decision.source);
+  const basis = canonicalContinuityBasis(proposal.decision.basis);
   if (decisionId === void 0 || source === void 0 || basis === void 0) {
     return invalid9(
       "invalid-resume-decision",
@@ -3076,24 +3024,6 @@ var WORK_CASE_WAIT_VERSION = "developer-work-case-wait/v1";
 function invalid10(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function canonicalText9(value) {
-  if (typeof value !== "string") return void 0;
-  const normalized = value.trim();
-  return normalized.length === 0 ? void 0 : normalized;
-}
-function canonicalBasis6(values) {
-  if (!Array.isArray(values) || values.length === 0) return void 0;
-  const normalized = [];
-  for (const value of values) {
-    const text = canonicalText9(value);
-    if (text === void 0) return void 0;
-    normalized.push(text);
-  }
-  if (new Set(normalized).size !== normalized.length) return void 0;
-  return Object.freeze(
-    normalized.sort((left, right) => left.localeCompare(right))
-  );
-}
 function waitWorkCase(workCase, proposal) {
   if (workCase.revisionId !== deriveWorkCaseRevisionId(workCase)) {
     return invalid10(
@@ -3120,11 +3050,11 @@ function waitWorkCase(workCase, proposal) {
       "Waiting requires a human, tool, or external Observation"
     );
   }
-  const externalCondition = canonicalText9(proposal.externalCondition);
-  const resumePredicate = canonicalText9(proposal.resumePredicate);
-  const observationId = canonicalText9(proposal.observation.observationId);
-  const source = canonicalText9(proposal.observation.source);
-  const basis = canonicalBasis6(proposal.observation.basis);
+  const externalCondition = canonicalContinuityText(proposal.externalCondition);
+  const resumePredicate = canonicalContinuityText(proposal.resumePredicate);
+  const observationId = canonicalContinuityText(proposal.observation.observationId);
+  const source = canonicalContinuityText(proposal.observation.source);
+  const basis = canonicalContinuityBasis(proposal.observation.basis);
   if (externalCondition === void 0 || resumePredicate === void 0 || observationId === void 0 || source === void 0 || basis === void 0) {
     return invalid10(
       "invalid-wait-condition",
@@ -3178,26 +3108,8 @@ var WORK_CASE_WAIT_RESUME_VERSION = "developer-work-case-wait-resume/v1";
 function invalid11(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function canonicalText10(value) {
-  if (typeof value !== "string") return void 0;
-  const normalized = value.trim();
-  return normalized.length === 0 ? void 0 : normalized;
-}
-function canonicalBasis7(values) {
-  if (!Array.isArray(values) || values.length === 0) return void 0;
-  const normalized = [];
-  for (const value of values) {
-    const text = canonicalText10(value);
-    if (text === void 0) return void 0;
-    normalized.push(text);
-  }
-  if (new Set(normalized).size !== normalized.length) return void 0;
-  return Object.freeze(
-    normalized.sort((left, right) => left.localeCompare(right))
-  );
-}
 function canonicalAssessment(proposal, expectedPredicate) {
-  if (canonicalText10(proposal.resumePredicate) !== expectedPredicate) {
+  if (canonicalContinuityText(proposal.resumePredicate) !== expectedPredicate) {
     return {
       ok: false,
       result: invalid11(
@@ -3227,9 +3139,9 @@ function canonicalAssessment(proposal, expectedPredicate) {
       )
     };
   }
-  const observationId = canonicalText10(proposal.observationId);
-  const source = canonicalText10(proposal.source);
-  const basis = canonicalBasis7(proposal.basis);
+  const observationId = canonicalContinuityText(proposal.observationId);
+  const source = canonicalContinuityText(proposal.source);
+  const basis = canonicalContinuityBasis(proposal.basis);
   if (observationId === void 0 || source === void 0 || basis === void 0) {
     return {
       ok: false,
@@ -3338,7 +3250,7 @@ function invalid12(code, path, message) {
 function validId(value) {
   return typeof value === "string" && value.length > 0 && value === value.trim() && !value.includes("\0");
 }
-function canonicalText11(value, code, path) {
+function canonicalText5(value, code, path) {
   if (typeof value !== "string" || value.trim().length === 0) {
     return {
       ok: false,
@@ -3400,7 +3312,7 @@ function canonicalProvenance4(provenance) {
       }
     };
   }
-  const source = canonicalText11(
+  const source = canonicalText5(
     provenance.source,
     "invalid-provenance",
     "proposal.provenance.source"
@@ -3426,7 +3338,7 @@ function acceptActionCandidate(proposal) {
       "Expected an exact controlled Action identity"
     );
   }
-  const actionKind = canonicalText11(
+  const actionKind = canonicalText5(
     proposal.controlledAction.kind,
     "invalid-controlled-action",
     "proposal.controlledAction.kind"
@@ -3439,7 +3351,7 @@ function acceptActionCandidate(proposal) {
       "Expected a lowercase SHA-256 fingerprint"
     );
   }
-  const summary = canonicalText11(
+  const summary = canonicalText5(
     proposal.summary,
     "empty-summary",
     "proposal.summary"
@@ -3519,7 +3431,7 @@ function invalid13(code, path, message) {
 function validId2(value) {
   return typeof value === "string" && value.length > 0 && value === value.trim() && !value.includes("\0");
 }
-function canonicalText12(value, code, path) {
+function canonicalText6(value, code, path) {
   if (typeof value !== "string" || value.trim().length === 0) {
     return {
       ok: false,
@@ -3528,7 +3440,7 @@ function canonicalText12(value, code, path) {
   }
   return { ok: true, value: value.trim() };
 }
-function canonicalBasis8(values, path, emptyCode, invalidCode) {
+function canonicalBasis2(values, path, emptyCode, invalidCode) {
   if (!Array.isArray(values) || values.length === 0) {
     return {
       ok: false,
@@ -3577,7 +3489,7 @@ function canonicalProvenance5(provenance) {
       }
     };
   }
-  const source = canonicalText12(
+  const source = canonicalText6(
     provenance.source,
     "invalid-provenance",
     "proposal.provenance.source"
@@ -3711,13 +3623,13 @@ function canonicalPermission(candidate, permission) {
       }
     };
   }
-  const source = canonicalText12(
+  const source = canonicalText6(
     permission.source,
     "invalid-permission-source",
     "permission.source"
   );
   if (!source.ok) return source;
-  const basis = canonicalBasis8(
+  const basis = canonicalBasis2(
     permission.basis,
     "permission.basis",
     "empty-permission-basis",
@@ -3758,7 +3670,7 @@ function acceptActionClearance(candidate, conclusions, permission, proposal) {
   if (!conclusionIds.ok) {
     return { status: "invalid", error: conclusionIds.error };
   }
-  const warrantBasis = canonicalBasis8(
+  const warrantBasis = canonicalBasis2(
     proposal.warrantBasis,
     "proposal.warrantBasis",
     "empty-warrant-basis",
@@ -4356,7 +4268,7 @@ function canonicalStrings(values, path, allowed) {
   normalized.sort((left, right) => left.localeCompare(right));
   return { ok: true, value: Object.freeze(normalized) };
 }
-function canonicalBasis9(values, path) {
+function canonicalBasis3(values, path) {
   const result = canonicalStrings(values, path);
   if (!result.ok) return result;
   if (result.value.length === 0) {
@@ -4407,7 +4319,7 @@ function canonicalDisposition(proposal, index, context) {
       }
     };
   }
-  const basis = canonicalBasis9(proposal.basis, `${path}.basis`);
+  const basis = canonicalBasis3(proposal.basis, `${path}.basis`);
   if (!basis.ok) return basis;
   return {
     ok: true,
@@ -4574,7 +4486,7 @@ function acceptClosureClaim(target, proposal) {
       }
     };
   }
-  const basis = canonicalBasis9(proposal.basis, "proposal.basis");
+  const basis = canonicalBasis3(proposal.basis, "proposal.basis");
   if (!basis.ok) return { status: "invalid", error: basis.error };
   const provenance = canonicalProvenance6(proposal.provenance);
   if (!provenance.ok) return { status: "invalid", error: provenance.error };
@@ -4953,7 +4865,7 @@ var PROVENANCE_KINDS7 = /* @__PURE__ */ new Set([
 function invalid17(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function canonicalBasis10(values, path) {
+function canonicalBasis4(values, path) {
   if (!Array.isArray(values) || values.length === 0) {
     return {
       ok: false,
@@ -5083,7 +4995,7 @@ function canonicalObservationDispositions(inventory, proposals) {
         }
       };
     }
-    const basis = canonicalBasis10(
+    const basis = canonicalBasis4(
       proposal.basis,
       `proposal.observationDispositions[${index}].basis`
     );
@@ -5208,7 +5120,7 @@ function canonicalIntendedEffectDisposition(proposal, index, context) {
       }
     };
   }
-  const basis = canonicalBasis10(proposal.basis, `${path}.basis`);
+  const basis = canonicalBasis4(proposal.basis, `${path}.basis`);
   if (!basis.ok) return basis;
   return {
     ok: true,
@@ -5373,7 +5285,7 @@ function settleEffect(effect, observations, proposal) {
   if (!intendedDispositions.ok) {
     return { status: "invalid", error: intendedDispositions.error };
   }
-  const basis = canonicalBasis10(proposal.basis, "proposal.basis");
+  const basis = canonicalBasis4(proposal.basis, "proposal.basis");
   if (!basis.ok) return { status: "invalid", error: basis.error };
   const provenance = canonicalProvenance7(proposal.provenance);
   if (!provenance.ok) return { status: "invalid", error: provenance.error };
@@ -5965,7 +5877,7 @@ function invalid18(code, path, message) {
 function validId3(value) {
   return typeof value === "string" && value.length > 0 && value === value.trim() && value.length <= MAX_TEXT_LENGTH2 && !value.includes("\0");
 }
-function canonicalText13(value, path) {
+function canonicalText7(value, path) {
   const text = typeof value === "string" ? value.trim() : "";
   if (text.length === 0 || text.length > MAX_TEXT_LENGTH2) {
     return {
@@ -5994,7 +5906,7 @@ function canonicalStrings2(values, path, maximumItems, allowEmpty = false) {
   const normalized = [];
   const seen = /* @__PURE__ */ new Set();
   for (let index = 0; index < values.length; index += 1) {
-    const text = canonicalText13(values[index], `${path}[${index}]`);
+    const text = canonicalText7(values[index], `${path}[${index}]`);
     if (!text.ok) return text;
     if (seen.has(text.value)) {
       return {
@@ -6037,7 +5949,7 @@ function canonicalRequirements(proposals) {
         }
       };
     }
-    const statement = canonicalText13(
+    const statement = canonicalText7(
       proposal.statement,
       `proposal.requirements[${index}].statement`
     );
@@ -6086,9 +5998,9 @@ function openJudgment(proposal) {
       "Unsupported Judgment Category"
     );
   }
-  const subject = canonicalText13(proposal.subject, "proposal.subject");
+  const subject = canonicalText7(proposal.subject, "proposal.subject");
   if (!subject.ok) return { status: "invalid", error: subject.error };
-  const question = canonicalText13(proposal.question, "proposal.question");
+  const question = canonicalText7(proposal.question, "proposal.question");
   if (!question.ok) return { status: "invalid", error: question.error };
   const canonical = canonicalRequirements(proposal.requirements);
   if (!canonical.ok) return { status: "invalid", error: canonical.error };
@@ -7610,7 +7522,7 @@ function invalid22(code, path, message) {
 function validId5(id) {
   return id.length > 0 && id === id.trim() && !id.includes("\0");
 }
-function canonicalText14(value, code, path) {
+function canonicalText8(value, code, path) {
   const normalized = value.trim();
   if (normalized.length === 0 || normalized.includes("\0")) {
     return {
@@ -7624,7 +7536,7 @@ function canonicalList3(values, path, invalidCode) {
   const normalized = [];
   const seen = /* @__PURE__ */ new Set();
   for (let index = 0; index < values.length; index += 1) {
-    const item = canonicalText14(
+    const item = canonicalText8(
       values[index] ?? "",
       invalidCode,
       `${path}[${index}]`
@@ -7672,7 +7584,7 @@ function buildRequirementInventory(contract) {
       }
     };
   }
-  const subject = canonicalText14(
+  const subject = canonicalText8(
     contract.subject,
     "invalid-contract",
     "contract.subject"
@@ -7702,7 +7614,7 @@ function buildRequirementInventory(contract) {
         }
       };
     }
-    const statement = canonicalText14(
+    const statement = canonicalText8(
       requirement.statement,
       "invalid-contract",
       `contract.requirements[${index}].statement`
@@ -7957,7 +7869,7 @@ function canonicalProvenance8(proposal) {
       }
     };
   }
-  const source = canonicalText14(
+  const source = canonicalText8(
     proposal.source,
     "invalid-provenance",
     "proposal.provenance.source"
@@ -8096,7 +8008,7 @@ function validateClosureOutcome(proposal) {
   );
   if (!refusalReasons.ok) return refusalReasons;
   if (proposal.outcome === "conclude") {
-    const answer = canonicalText14(
+    const answer = canonicalText8(
       proposal.answer ?? "",
       "invalid-conclusion-answer",
       "proposal.answer"
@@ -8580,7 +8492,7 @@ var PROVENANCE_KINDS10 = /* @__PURE__ */ new Set([
 function invalid23(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
-function canonicalText15(value, code, path) {
+function canonicalText9(value, code, path) {
   const normalized = value.trim();
   if (normalized.length === 0) {
     return {
@@ -8594,7 +8506,7 @@ function canonicalList4(values, path, invalidCode) {
   const normalized = [];
   const seen = /* @__PURE__ */ new Set();
   for (let index = 0; index < values.length; index += 1) {
-    const item = canonicalText15(
+    const item = canonicalText9(
       values[index] ?? "",
       invalidCode,
       `${path}[${index}]`
@@ -8685,7 +8597,7 @@ function canonicalApplications(selectedPaths, proposals) {
         }
       };
     }
-    const application = canonicalText15(
+    const application = canonicalText9(
       proposal.application,
       "empty-application",
       `proposal.referenceApplications[${index}].application`
@@ -8741,7 +8653,7 @@ function canonicalResidualNeeds(proposals) {
         }
       };
     }
-    const description = canonicalText15(
+    const description = canonicalText9(
       proposal.description,
       "invalid-residual-need",
       `proposal.residualNeeds[${index}].description`
@@ -8795,7 +8707,7 @@ function canonicalProvenance9(proposal) {
       }
     };
   }
-  const source = canonicalText15(
+  const source = canonicalText9(
     proposal.source,
     "invalid-provenance",
     "proposal.provenance.source"
@@ -8844,7 +8756,7 @@ function acceptSkillContribution(assignment, context, proposal) {
       `Unsupported local status ${proposal.localStatus}`
     );
   }
-  const result = canonicalText15(
+  const result = canonicalText9(
     proposal.result,
     "empty-result",
     "proposal.result"

@@ -1,5 +1,9 @@
 import { hashIdentity } from "../identity/hash-identity.ts";
 import {
+	canonicalContinuityBasis,
+	canonicalContinuityText,
+} from "./canonical-continuity-input.ts";
+import {
 	WORK_CASE_WAIT_VERSION,
 	type WaitingWorkCase,
 } from "./wait-work-case.ts";
@@ -55,28 +59,6 @@ function invalid(
 	return { status: "invalid", error: { code, path, message } };
 }
 
-function canonicalText(value: string): string | undefined {
-	if (typeof value !== "string") return undefined;
-	const normalized = value.trim();
-	return normalized.length === 0 ? undefined : normalized;
-}
-
-function canonicalBasis(
-	values: readonly string[],
-): readonly string[] | undefined {
-	if (!Array.isArray(values) || values.length === 0) return undefined;
-	const normalized: string[] = [];
-	for (const value of values) {
-		const text = canonicalText(value);
-		if (text === undefined) return undefined;
-		normalized.push(text);
-	}
-	if (new Set(normalized).size !== normalized.length) return undefined;
-	return Object.freeze(
-		normalized.sort((left, right) => left.localeCompare(right)),
-	);
-}
-
 interface CanonicalResumeAssessment {
 	readonly status: ResumePredicateAssessmentProposal["status"];
 	readonly observationKind: "human" | "tool" | "external";
@@ -96,7 +78,7 @@ function canonicalAssessment(
 	proposal: ResumePredicateAssessmentProposal,
 	expectedPredicate: string,
 ): CanonicalAssessmentResult {
-	if (canonicalText(proposal.resumePredicate) !== expectedPredicate) {
+	if (canonicalContinuityText(proposal.resumePredicate) !== expectedPredicate) {
 		return {
 			ok: false,
 			result: invalid(
@@ -134,9 +116,9 @@ function canonicalAssessment(
 			),
 		};
 	}
-	const observationId = canonicalText(proposal.observationId);
-	const source = canonicalText(proposal.source);
-	const basis = canonicalBasis(proposal.basis);
+	const observationId = canonicalContinuityText(proposal.observationId);
+	const source = canonicalContinuityText(proposal.source);
+	const basis = canonicalContinuityBasis(proposal.basis);
 	if (
 		observationId === undefined ||
 		source === undefined ||

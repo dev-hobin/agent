@@ -1,5 +1,9 @@
 import { hashIdentity } from "../identity/hash-identity.ts";
 import {
+	canonicalContinuityBasis,
+	canonicalContinuityText,
+} from "./canonical-continuity-input.ts";
+import {
 	prepareClosureTarget,
 	type ClosureTargetBlocker,
 } from "./prepare-closure-target.ts";
@@ -70,28 +74,6 @@ function invalid(
 	return { status: "invalid", error: { code, path, message } };
 }
 
-function canonicalText(value: string): string | undefined {
-	if (typeof value !== "string") return undefined;
-	const normalized = value.trim();
-	return normalized.length === 0 ? undefined : normalized;
-}
-
-function canonicalBasis(
-	values: readonly string[],
-): readonly string[] | undefined {
-	if (!Array.isArray(values) || values.length === 0) return undefined;
-	const normalized: string[] = [];
-	for (const value of values) {
-		const text = canonicalText(value);
-		if (text === undefined) return undefined;
-		normalized.push(text);
-	}
-	if (new Set(normalized).size !== normalized.length) return undefined;
-	return Object.freeze(
-		normalized.sort((left, right) => left.localeCompare(right)),
-	);
-}
-
 function blockerKey(code: string, subjectId: string): string {
 	return `${code}\u0000${subjectId}`;
 }
@@ -133,7 +115,7 @@ function canonicalBlockerDispositions(
 			};
 		}
 		const key = blockerKey(disposition.code, disposition.subjectId);
-		const basis = canonicalBasis(disposition.basis);
+		const basis = canonicalContinuityBasis(disposition.basis);
 		if (!expected.has(key) || accounted.has(key) || basis === undefined) {
 			return {
 				ok: false,
@@ -239,7 +221,7 @@ export function blockWorkCase(
 		proposal.blockerDispositions,
 	);
 	if (!blockerDispositions.ok) return blockerDispositions.result;
-	const reason = canonicalText(proposal.reason);
+	const reason = canonicalContinuityText(proposal.reason);
 	if (reason === undefined) {
 		return invalid(
 			"invalid-block-reason",

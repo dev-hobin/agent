@@ -1,5 +1,9 @@
 import { hashIdentity } from "../identity/hash-identity.ts";
 import {
+	canonicalContinuityBasis,
+	canonicalContinuityText,
+} from "./canonical-continuity-input.ts";
+import {
 	deriveWorkCaseRevisionId,
 	workCaseInventoryIssue,
 	type ActiveWorkCase,
@@ -66,28 +70,6 @@ function invalid(
 	return { status: "invalid", error: { code, path, message } };
 }
 
-function canonicalText(value: string): string | undefined {
-	if (typeof value !== "string") return undefined;
-	const normalized = value.trim();
-	return normalized.length === 0 ? undefined : normalized;
-}
-
-function canonicalBasis(
-	values: readonly string[],
-): readonly string[] | undefined {
-	if (!Array.isArray(values) || values.length === 0) return undefined;
-	const normalized: string[] = [];
-	for (const value of values) {
-		const text = canonicalText(value);
-		if (text === undefined) return undefined;
-		normalized.push(text);
-	}
-	if (new Set(normalized).size !== normalized.length) return undefined;
-	return Object.freeze(
-		normalized.sort((left, right) => left.localeCompare(right)),
-	);
-}
-
 /** Waits only on an observed external condition with an observable resume rule. */
 export function waitWorkCase(
 	workCase: ActiveWorkCase,
@@ -125,11 +107,11 @@ export function waitWorkCase(
 			"Waiting requires a human, tool, or external Observation",
 		);
 	}
-	const externalCondition = canonicalText(proposal.externalCondition);
-	const resumePredicate = canonicalText(proposal.resumePredicate);
-	const observationId = canonicalText(proposal.observation.observationId);
-	const source = canonicalText(proposal.observation.source);
-	const basis = canonicalBasis(proposal.observation.basis);
+	const externalCondition = canonicalContinuityText(proposal.externalCondition);
+	const resumePredicate = canonicalContinuityText(proposal.resumePredicate);
+	const observationId = canonicalContinuityText(proposal.observation.observationId);
+	const source = canonicalContinuityText(proposal.observation.source);
+	const basis = canonicalContinuityBasis(proposal.observation.basis);
 	if (
 		externalCondition === undefined ||
 		resumePredicate === undefined ||
