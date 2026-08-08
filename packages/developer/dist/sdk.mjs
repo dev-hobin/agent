@@ -6301,7 +6301,7 @@ async function openJudgmentWithSdk(input) {
     systemPrompt: [
       "Propose one Category-scoped Judgment for the current unresolved Warrant Gap.",
       "Call the supplied tool exactly once.",
-      "Requirements state closure obligations. Contribution Needs state missing input functions, never Skill names or controller protocol mechanics.",
+      "Requirements state closure obligations. Contribution Needs state missing evidence or analysis functions, never Skill names, host tool names or availability, Actions, or controller protocol mechanics.",
       "Every Requirement must be closable from evidence available before this Judgment's Conclusion; never require the future Action, Effect, or later controller response that the Conclusion would enable.",
       "Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance follows settled Effects and cannot authorize an Action.",
       "The SDK controller owns Work Case identity, Context revision, provenance, validation, retries, sequencing, and recording.",

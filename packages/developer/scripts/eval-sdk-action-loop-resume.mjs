@@ -256,6 +256,22 @@ function summarizeRun(index, trace, waitResult) {
 			text: textContent(event.result).slice(0, 320),
 			details: event.result?.details,
 		}));
+	const toolErrorSummaries = new Map();
+	for (const event of trace.filter(
+		(candidate) => candidate.type === "tool_execution_end" && candidate.isError,
+	)) {
+		const fullText = textContent(event.result);
+		const contractText = fullText.split("\n\nReceived arguments:")[0] || fullText;
+		const key = `${event.toolName}\n${contractText}`;
+		const current = toolErrorSummaries.get(key);
+		toolErrorSummaries.set(key, {
+			toolName: event.toolName,
+			text: contractText.slice(0, 500),
+			count: (current?.count ?? 0) + 1,
+			flattenedArguments: /"[^"\n]+\[\d+\](?:\.[^"\n]+)?"/.test(fullText),
+		});
+	}
+	const toolErrors = [...toolErrorSummaries.values()];
 	const checkpointKinds = trace
 		.filter((event) => event.type === "entry_appended")
 		.map((event) => event.entry?.data?.kind)
@@ -277,6 +293,7 @@ function summarizeRun(index, trace, waitResult) {
 		protocolEnds,
 		checkpointKinds,
 		agentErrors,
+		toolErrors,
 	};
 }
 
@@ -313,6 +330,7 @@ const transitionalTools = new Set([
 
 const runs = [];
 let providerBlock;
+let usabilityStop;
 try {
 	const state = await send({ type: "get_state" });
 	assert.equal(state.success, true, state.error);
@@ -428,10 +446,21 @@ try {
 			providerBlock = run.agentErrors.join(" | ");
 			break;
 		}
-		assert.ok(
-			run.toolCalls.includes("developer_progress_action_loop_with_sdk"),
-			`Run ${index} did not invoke the primary SDK controller.`,
-		);
+		if (!run.toolCalls.includes("developer_progress_action_loop_with_sdk")) {
+			if (run.toolErrors.some((error) => error.flattenedArguments)) {
+				providerBlock = run.toolErrors
+					.map(
+						(error) =>
+							`${error.toolName} (${error.count}): ${error.text}`,
+					)
+					.join(" | ");
+			} else if (run.toolErrors.length > 0) {
+				usabilityStop = "tool-contract-rejected";
+			} else {
+				usabilityStop = "primary-controller-not-invoked";
+			}
+			break;
+		}
 		if (
 			run.protocolEnds.some(
 				(end) => end.details?.status === "completed" && !end.isError,
@@ -448,6 +477,9 @@ try {
 		allCheckpoints.filter((kind) => kind === "work-case-opened").length <= 1,
 		"Resume progression reopened canonical Work Case ownership.",
 	);
+	let evaluationStatus = status.protocol;
+	if (providerBlock) evaluationStatus = "provider-blocked";
+	else if (usabilityStop) evaluationStatus = "usability-stalled";
 	const report = {
 		protocol: "developer-sdk-action-loop-resume-eval/v1",
 		piVersion,
@@ -461,8 +493,9 @@ try {
 		activateBeforeResume,
 		...(forkedFromEntryId ? { forkedFromEntryId } : {}),
 		...(compaction ? { compaction } : {}),
-		status: providerBlock ? "provider-blocked" : status.protocol,
+		status: evaluationStatus,
 		...(providerBlock ? { providerBlock } : {}),
+		...(usabilityStop ? { usabilityStop } : {}),
 		runs,
 		totals: {
 			runs: runs.length,
