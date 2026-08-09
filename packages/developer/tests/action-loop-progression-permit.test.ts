@@ -5,6 +5,7 @@ import {
 	consumeActionLoopProgressionPermit,
 	createActionLoopProgressionPermitState,
 	openActionLoopProgressionPermit,
+	progressionResultOpensPermit,
 } from "../extensions/action-loop-progression-permit.ts";
 
 test("progression runs at most once per trusted evidence boundary", () => {
@@ -19,6 +20,18 @@ test("progression runs at most once per trusted evidence boundary", () => {
 	assert.equal(second.status, "accepted");
 	if (second.status !== "accepted") return;
 	assert.equal(consumeActionLoopProgressionPermit(second.state).status, "refused");
+});
+
+test("only a concluded Judgment opens an immediate controller boundary", () => {
+	assert.equal(progressionResultOpensPermit("judgment-concluded"), true);
+	for (const status of [
+		"bounded-stop",
+		"judgment-refused",
+		"ready-for-host-action",
+		"completed",
+	]) {
+		assert.equal(progressionResultOpensPermit(status), false, status);
+	}
 });
 
 test("opening a new boundary does not consume it", () => {

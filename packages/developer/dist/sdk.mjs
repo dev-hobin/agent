@@ -6365,7 +6365,10 @@ async function openJudgmentWithSdk(input) {
         "Outcome, acceptance conditions, and constraints define the target specification, not evidence that the target is attained. Do not create Contribution Needs merely to reinterpret that specification, and never infer completion or no-action from target wording alone. Current Conclusions are trusted current-state facts.",
         "Treat explicit pre-Action facts in delegated_request as human-provenance evidence at their stated granularity. Do not demand unavailable lower-level fields merely to re-prove those facts unless current evidence disputes them; they never establish later Action or Effect success.",
         "Every Contribution Need must be answerable by an assigned sealed Skill Context or an exact Host Observation available before the Conclusion.",
+        "Do not require an evidence function absent from available_pre_conclusion_evidence. In particular, do not turn whole-workspace enumeration, checksum, shell execution, or unavailable byte metadata into a pre-Action Need when the listed evidence boundary cannot supply it.",
+        "A listed exact-target controlled Action contract owns its collateral scope. Treat preservation outside that target as an Action/Effect and Completion obligation; do not require a whole-workspace pre-Action baseline merely to decide whether that exact-target Action is warranted.",
         "Every Requirement must be closable from evidence available before this Judgment's Conclusion; never require the future Action, Effect, or later controller response that the Conclusion would enable.",
+        "For Claim Assurance after a no-action Conclusion, use one aggregate Requirement grounded in trusted current Conclusions and the absence of controlled Effects. Do not reopen previously settled target facts as unrelated new Needs.",
         "Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance opens only when the trusted controller requires it after settled Effects or a no-action Proportionate Intervention Conclusion; it never opens first and cannot authorize an Action.",
         "requirements_json and basis_json contain JSON text without Markdown fences."
       ],
@@ -6378,9 +6381,17 @@ async function openJudgmentWithSdk(input) {
         },
         {
           name: "current_conclusions",
-          content: input.workCase.conclusions.map(
+          content: input.workCase.conclusions.length > 0 ? input.workCase.conclusions.map(
             (conclusion) => `${conclusion.category}: ${conclusion.answer}`
-          ) || "none"
+          ).join("\n") : "none"
+        },
+        {
+          name: "available_pre_conclusion_evidence",
+          content: input.availableEvidenceFunctions?.join("\n") ?? "No adapter-supplied Host Observation function is available."
+        },
+        {
+          name: "controlled_action_contracts",
+          content: input.controlledActionContracts?.join("\n") ?? "No controlled Action contract is available."
         }
       ],
       decision: "Open only one independently closable Judgment needed to advance this Outcome."
@@ -11086,6 +11097,21 @@ async function progressRemediation(input) {
     checkpoints: input.checkpoints + 1
   };
 }
+function trustedClaimAssuranceRequest(request, state) {
+  const judgment = state.workCase.openJudgments[0];
+  if (judgment?.category !== "Claim Assurance") return request;
+  const conclusions = state.workCase.conclusions.map(
+    (conclusion) => `${conclusion.category}: ${conclusion.answer}`
+  );
+  return [
+    request,
+    "Trusted current Work Case facts for Claim Assurance:",
+    ...conclusions.length > 0 ? conclusions : ["Conclusions: none"],
+    `Controlled Actions recorded: ${state.workCase.actionClearances.length}.`,
+    `Controlled Effects recorded: ${state.workCase.effects.length}.`,
+    "These trusted facts may satisfy a Claim Assurance Need directly; do not demand a repeated Host Observation merely to restate them."
+  ].join("\n");
+}
 function nextRequiredJudgmentCategory(state) {
   if (state.workCase.conclusions.length === 0) return void 0;
   const categories2 = new Set(
@@ -11491,6 +11517,12 @@ async function progressActionLoopWithSdk(input) {
       workCase: state.workCase,
       contextRevisionId: state.workCase.revisionId,
       ...requiredCategory ? { requiredCategory } : {},
+      ...input.availableEvidenceFunctions ? { availableEvidenceFunctions: input.availableEvidenceFunctions } : {},
+      ...input.actions ? {
+        controlledActionContracts: input.actions.map(
+          (action) => `${action.name}: ${action.description}`
+        )
+      } : {},
       runner: input.runner
     });
     steps += 1;
@@ -11556,7 +11588,7 @@ async function progressActionLoopWithSdk(input) {
     };
   }
   const progressed = await progressJudgmentWithSdk({
-    request: input.request,
+    request: trustedClaimAssuranceRequest(input.request, state),
     state,
     capabilities: input.capabilities,
     runner: input.runner,

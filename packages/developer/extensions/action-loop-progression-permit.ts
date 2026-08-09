@@ -14,6 +14,10 @@ export function createActionLoopProgressionPermitState(): ActionLoopProgressionP
 	return Object.freeze({ current: 0, lastUsed: -1 });
 }
 
+export function progressionResultOpensPermit(status: string): boolean {
+	return status === "judgment-concluded";
+}
+
 /** Opens one new progression boundary after trusted external state changes. */
 export function openActionLoopProgressionPermit(
 	state: ActionLoopProgressionPermitState,

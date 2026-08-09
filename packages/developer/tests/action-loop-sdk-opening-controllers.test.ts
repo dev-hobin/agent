@@ -117,10 +117,12 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 	if (opened.status !== "opened") return;
 
 	let systemPrompt = "";
+	let decisionPrompt = "";
 	const delegated = scriptedSdkRunner([{ proposals: [judgmentProposal()] }]);
 	const runner = {
 		async run<T>(decision: SdkDecisionRequest<T>) {
 			systemPrompt = decision.systemPrompt;
+			decisionPrompt = decision.prompt;
 			return delegated.run(decision);
 		},
 	};
@@ -128,9 +130,28 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 		request,
 		workCase: opened.workCase,
 		contextRevisionId: opened.workCase.revisionId,
+		availableEvidenceFunctions: [
+			"Read exact text blocks for one known file path; directory enumeration is unavailable.",
+		],
+		controlledActionContracts: [
+			"edit: mutate only the specified path",
+		],
 		runner,
 	});
 	assert.equal(judgment.status, "opened");
+	assert.match(
+		decisionPrompt,
+		/available_pre_conclusion_evidence[\s\S]*directory enumeration is unavailable/,
+	);
+	assert.match(
+		decisionPrompt,
+		/controlled_action_contracts[\s\S]*mutate only the specified path/,
+	);
+	assert.match(systemPrompt, /do not require a whole-workspace pre-Action baseline/i);
+	assert.match(
+		systemPrompt,
+		/Claim Assurance after a no-action Conclusion[\s\S]*one aggregate Requirement/,
+	);
 	assert.match(
 		systemPrompt,
 		/evidence available before this Judgment's Conclusion/,

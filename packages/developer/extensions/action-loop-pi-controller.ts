@@ -48,6 +48,7 @@ export interface PiActionLoopProgressionInput {
 		LiveCapabilityInventory,
 		"boundCapabilitiesBySkillName"
 	>;
+	readonly availableEvidenceFunctions?: readonly string[];
 	readonly runner: SdkDecisionRunner;
 	readonly complete?: boolean;
 	readonly actions?: readonly SdkControlledActionAdapter[];
@@ -377,6 +378,9 @@ export async function progressPiActionLoop(
 		request: input.request,
 		...(current ? { state: current } : {}),
 		capabilities,
+		...(input.availableEvidenceFunctions
+			? { availableEvidenceFunctions: input.availableEvidenceFunctions }
+			: {}),
 		effectObservations: current?.effectObservations ?? [],
 		complete: input.complete ?? false,
 		...(input.actions ? { actions: input.actions } : {}),

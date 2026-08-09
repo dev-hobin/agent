@@ -88,6 +88,7 @@ import {
 	consumeActionLoopProgressionPermit,
 	createActionLoopProgressionPermitState,
 	openActionLoopProgressionPermit,
+	progressionResultOpensPermit,
 } from "./action-loop-progression-permit.ts";
 import {
 	MAX_LIVE_HOST_OBSERVATIONS,
@@ -447,11 +448,15 @@ export default async function developer(pi: ExtensionAPI) {
 			const descriptions = new Map(
 				pi.getAllTools().map((tool) => [tool.name, tool.description]),
 			);
+			const trustedContracts = {
+				bash: "Execute one exact shell command. Its collateral scope must be justified explicitly because shell effects are not path-bounded.",
+				edit: "Apply one exact replacement only within the specified path. The built-in edit contract does not mutate any other path.",
+				write:
+					"Write exact content only to the specified path. The built-in write contract does not mutate any other path.",
+			} as const;
 			return (["bash", "edit", "write"] as const).map((name) => ({
 				name,
-				description:
-					descriptions.get(name) ??
-					`Execute one exact controlled Pi ${name} Action.`,
+				description: `${descriptions.get(name) ?? `Execute one exact controlled Pi ${name} Action.`} Trusted host contract: ${trustedContracts[name]}`,
 				bind(input: Readonly<Record<string, unknown>>) {
 					const bound = bindPiControlledAction(name, input);
 					if (bound.status === "invalid") return bound;
@@ -540,6 +545,11 @@ export default async function developer(pi: ExtensionAPI) {
 						request: currentActionLoopRequest,
 						...(activeWorkCase ? { state: activeWorkCase } : {}),
 						inventory: liveCapabilityInventory.value,
+						availableEvidenceFunctions: [
+							"The current user message supplies human-provenance pre-Action facts at exactly its stated granularity.",
+							"The built-in read Observation returns exact JSON-escaped text blocks for one known file path, including line-ending shape. It cannot enumerate a directory, execute a shell command, compute an independent checksum, or promise unavailable raw-byte metadata.",
+							"Current canonical Conclusions are trusted current-state facts for later Claim Assurance.",
+						],
 						runner: prepared.runner,
 						complete: true,
 						actions: controlledPiActionAdapters(),
@@ -582,6 +592,11 @@ export default async function developer(pi: ExtensionAPI) {
 			reconcileActionLoopTools();
 			refreshUI(ctx);
 			const result = progressed.result;
+			if (progressionResultOpensPermit(result.status)) {
+				actionLoopProgressionPermit = openActionLoopProgressionPermit(
+					actionLoopProgressionPermit,
+				);
+			}
 			const failure = actionLoopProgressionFailureMessage(result);
 			if (failure) fail(failure);
 			const pendingHostAction =

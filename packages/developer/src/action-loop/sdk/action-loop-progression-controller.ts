@@ -209,6 +209,7 @@ export interface SdkActionLoopProgressionInput {
 	readonly request: string;
 	readonly state?: SdkActionLoopState;
 	readonly capabilities: readonly SdkNamedCapability[];
+	readonly availableEvidenceFunctions?: readonly string[];
 	readonly effectObservations?: readonly EffectObservation[];
 	readonly complete?: boolean;
 	readonly actions?: readonly SdkControlledActionAdapter[];
@@ -759,6 +760,25 @@ async function progressRemediation(input: {
 	};
 }
 
+function trustedClaimAssuranceRequest(
+	request: string,
+	state: SdkActionLoopState,
+): string {
+	const judgment = state.workCase.openJudgments[0];
+	if (judgment?.category !== "Claim Assurance") return request;
+	const conclusions = state.workCase.conclusions.map(
+		(conclusion) => `${conclusion.category}: ${conclusion.answer}`,
+	);
+	return [
+		request,
+		"Trusted current Work Case facts for Claim Assurance:",
+		...(conclusions.length > 0 ? conclusions : ["Conclusions: none"]),
+		`Controlled Actions recorded: ${state.workCase.actionClearances.length}.`,
+		`Controlled Effects recorded: ${state.workCase.effects.length}.`,
+		"These trusted facts may satisfy a Claim Assurance Need directly; do not demand a repeated Host Observation merely to restate them.",
+	].join("\n");
+}
+
 function nextRequiredJudgmentCategory(
 	state: SdkActionLoopState,
 ): SdkJudgmentCategory | undefined {
@@ -1211,6 +1231,16 @@ export async function progressActionLoopWithSdk(
 			workCase: state.workCase,
 			contextRevisionId: state.workCase.revisionId,
 			...(requiredCategory ? { requiredCategory } : {}),
+			...(input.availableEvidenceFunctions
+				? { availableEvidenceFunctions: input.availableEvidenceFunctions }
+				: {}),
+			...(input.actions
+				? {
+						controlledActionContracts: input.actions.map(
+							(action) => `${action.name}: ${action.description}`,
+						),
+					}
+				: {}),
 			runner: input.runner,
 		});
 		steps += 1;
@@ -1277,7 +1307,7 @@ export async function progressActionLoopWithSdk(
 		};
 	}
 	const progressed = await progressJudgmentWithSdk({
-		request: input.request,
+		request: trustedClaimAssuranceRequest(input.request, state),
 		state,
 		capabilities: input.capabilities,
 		runner: input.runner,
