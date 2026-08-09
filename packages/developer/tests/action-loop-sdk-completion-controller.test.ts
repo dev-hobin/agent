@@ -24,6 +24,33 @@ function activeWorkCaseWithClaimAssurance() {
 		provenance: { kind: "human", source: "delegating-user" },
 	});
 	if (opened.status !== "opened") throw new Error(opened.error.message);
+	const intervention: JudgmentConclusion = Object.freeze({
+		conclusionId: "conclusion-sdk-completion-no-action",
+		workCaseId: opened.value.workCaseId,
+		judgmentId: "judgment-sdk-completion-no-action",
+		category: "Proportionate Intervention",
+		subject: "Whether the bounded configuration requires mutation",
+		contextRevisionId: "context-sdk-completion-no-action",
+		requirementDispositions: Object.freeze([]),
+		coverageIds: Object.freeze([]),
+		basis: Object.freeze([
+			"Current bounded evidence supports completion without mutation.",
+		]),
+		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
+		answer: "No Action is warranted for the already-satisfied Outcome.",
+		interventionDisposition: "no-action",
+	});
+	const recordedIntervention = recordWorkCaseConclusion(
+		opened.value,
+		intervention,
+	);
+	if (recordedIntervention.status !== "recorded") {
+		throw new Error(
+			recordedIntervention.status === "invalid"
+				? recordedIntervention.error.message
+				: "not recorded",
+		);
+	}
 	const assurance: JudgmentConclusion = Object.freeze({
 		conclusionId: "conclusion-sdk-completion-assurance",
 		workCaseId: opened.value.workCaseId,
@@ -39,7 +66,7 @@ function activeWorkCaseWithClaimAssurance() {
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 		answer: "The bounded configuration claim is supported.",
 	});
-	const recorded = recordWorkCaseConclusion(opened.value, assurance);
+	const recorded = recordWorkCaseConclusion(recordedIntervention.value, assurance);
 	if (recorded.status !== "recorded") {
 		throw new Error(
 			recorded.status === "invalid" ? recorded.error.message : "not recorded",
@@ -76,12 +103,12 @@ test("SDK Completion accounts for all current evidence and revalidates the revis
 						mode: "completed",
 						basis_json:
 							'["Every current closure obligation and evidence item is accounted for."]',
-						obligation_0_conclusion_indices_json: "[0]",
+						obligation_0_conclusion_indices_json: "[0,1]",
 						obligation_0_effect_indices_json: "[]",
 						obligation_0_remediation_indices_json: "[]",
 						obligation_0_basis:
 							"Claim Assurance supports the acceptance condition.",
-						obligation_1_conclusion_indices_json: "[0]",
+						obligation_1_conclusion_indices_json: "[0,1]",
 						obligation_1_effect_indices_json: "[]",
 						obligation_1_remediation_indices_json: "[]",
 						obligation_1_basis:

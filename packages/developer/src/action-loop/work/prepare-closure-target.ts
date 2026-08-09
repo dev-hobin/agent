@@ -31,6 +31,7 @@ export interface SealedClosureTarget {
 export type ClosureTargetBlockerCode =
 	| "open-judgment"
 	| "missing-claim-assurance"
+	| "missing-no-action-intervention"
 	| "missing-effect-assessment"
 	| "unsettled-effect"
 	| "adverse-effect";
@@ -177,14 +178,33 @@ export function prepareClosureTarget(
 		),
 		...effectBlockers(workCase),
 	];
-	if (
-		!workCase.conclusions.some(({ category }) => category === "Claim Assurance")
-	) {
+	const hasClaimAssurance = workCase.conclusions.some(
+		({ category }) => category === "Claim Assurance",
+	);
+	if (!hasClaimAssurance) {
 		blockers.push(
 			Object.freeze({
 				code: "missing-claim-assurance",
 				subjectId: workCase.outcome.outcomeId,
 				message: "Outcome closure requires a Claim Assurance Conclusion",
+			}),
+		);
+	}
+	if (
+		hasClaimAssurance &&
+		workCase.effects.length === 0 &&
+		!workCase.conclusions.some(
+			(conclusion) =>
+				conclusion.category === "Proportionate Intervention" &&
+				conclusion.interventionDisposition === "no-action",
+		)
+	) {
+		blockers.push(
+			Object.freeze({
+				code: "missing-no-action-intervention",
+				subjectId: workCase.outcome.outcomeId,
+				message:
+					"A Work Case with no Effects can close only after a no-action Proportionate Intervention Conclusion",
 			}),
 		);
 	}

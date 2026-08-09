@@ -21,6 +21,27 @@ function target() {
 		provenance: { kind: "human", source: "delegating-user" },
 	});
 	if (opened.status !== "opened") throw new Error(opened.error.message);
+	const intervention: JudgmentConclusion = Object.freeze({
+		conclusionId: "conclusion-no-action",
+		workCaseId: opened.value.workCaseId,
+		judgmentId: "judgment-no-action",
+		category: "Proportionate Intervention",
+		subject: "The existing implementation requires no Action.",
+		contextRevisionId: "context-no-action",
+		requirementDispositions: Object.freeze([]),
+		coverageIds: Object.freeze([]),
+		basis: Object.freeze(["Current verification supports no change."]),
+		answer: "The Outcome is already satisfied without an Action.",
+		interventionDisposition: "no-action",
+		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
+	});
+	const recordedIntervention = recordWorkCaseConclusion(
+		opened.value,
+		intervention,
+	);
+	if (recordedIntervention.status !== "recorded") {
+		throw new Error(recordedIntervention.status);
+	}
 	const conclusion: JudgmentConclusion = Object.freeze({
 		conclusionId: "conclusion-claim-assurance",
 		workCaseId: opened.value.workCaseId,
@@ -34,7 +55,10 @@ function target() {
 		answer: "The Outcome is already satisfied without an Action.",
 		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
 	});
-	const recorded = recordWorkCaseConclusion(opened.value, conclusion);
+	const recorded = recordWorkCaseConclusion(
+		recordedIntervention.value,
+		conclusion,
+	);
 	if (recorded.status !== "recorded") throw new Error(recorded.status);
 	const prepared = prepareClosureTarget(recorded.value);
 	if (prepared.status !== "ready") throw new Error(prepared.status);

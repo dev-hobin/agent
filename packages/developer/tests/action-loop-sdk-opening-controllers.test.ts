@@ -126,7 +126,41 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 		systemPrompt,
 		/Proportionate Intervention decides whether current evidence warrants a next Action/,
 	);
-	assert.match(systemPrompt, /Claim Assurance follows settled Effects/);
+	assert.match(
+		systemPrompt,
+		/Claim Assurance opens only when the trusted controller requires it/,
+	);
+});
+
+test("SDK Judgment opening rejects unsolicited initial Claim Assurance", async () => {
+	const runner = scriptedSdkRunner([
+		{ proposals: [workCaseProposal()] },
+		{
+			proposals: [
+				{
+					...judgmentProposal(),
+					category: "Claim Assurance",
+					question: "Does current evidence support the complete Outcome claim?",
+				},
+				judgmentProposal(),
+			],
+		},
+	]);
+	const opened = await openWorkCaseWithSdk({ request, runner });
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const judgment = await openJudgmentWithSdk({
+		request,
+		workCase: opened.workCase,
+		contextRevisionId: opened.workCase.revisionId,
+		runner,
+	});
+
+	assert.equal(judgment.status, "opened");
+	if (judgment.status !== "opened") return;
+	assert.equal(judgment.judgment.category, "Consequence Integrity");
+	assert.equal(judgment.decision.toolCalls, 2);
+	assert.equal(judgment.decision.toolErrors, 1);
 });
 
 test("SDK Judgment opening enforces a controller-required Category", async () => {

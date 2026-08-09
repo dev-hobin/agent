@@ -146,7 +146,7 @@ export async function openJudgmentWithSdk(
 				"Do not create Contribution Needs to re-prove controller-supplied Outcome, acceptance conditions, constraints, or Current Conclusions; use those trusted current-state facts only as basis for the substantive Warrant Gap.",
 				"Every Contribution Need must be answerable by an assigned sealed Skill Context or an exact Host Observation available before the Conclusion.",
 				"Every Requirement must be closable from evidence available before this Judgment's Conclusion; never require the future Action, Effect, or later controller response that the Conclusion would enable.",
-				"Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance follows settled Effects and cannot authorize an Action.",
+				"Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance opens only when the trusted controller requires it after settled Effects or a no-action Proportionate Intervention Conclusion; it never opens first and cannot authorize an Action.",
 				"requirements_json and basis_json contain JSON text without Markdown fences.",
 			],
 			sections: [
@@ -202,6 +202,15 @@ export async function openJudgmentWithSdk(
 					return rejected(
 						"invalid-arguments",
 						"Judgment requires category, subject, question, requirements_json, and basis_json.",
+					);
+				}
+				if (
+					raw.category === "Claim Assurance" &&
+					input.requiredCategory !== "Claim Assurance"
+				) {
+					return rejected(
+						"claim-assurance-not-eligible",
+						"Claim Assurance can open only when the trusted controller requires it after settled Effects or a no-action Proportionate Intervention Conclusion.",
 					);
 				}
 				const requirements = decodeRequirements(raw.requirements_json);

@@ -216,12 +216,21 @@ test("ready closure, omitted blocker, or non-Assurance Conclusion cannot block",
 		provenance: { kind: "human", source: "delegating-user" },
 	});
 	if (opened.status !== "opened") return;
+	const noAction = Object.freeze({
+		...conclusion(
+			opened.value.workCaseId,
+			"Proportionate Intervention",
+			"conclusion-ready-no-action",
+		),
+		interventionDisposition: "no-action" as const,
+	});
 	const assurance = conclusion(
 		opened.value.workCaseId,
 		"Claim Assurance",
 		"conclusion-ready",
 	);
-	const ready = recordConclusion(opened.value, assurance);
+	const interventionRecorded = recordConclusion(opened.value, noAction);
+	const ready = recordConclusion(interventionRecorded, assurance);
 	const readyBlock = blockWorkCase(ready, {
 		workCaseId: ready.workCaseId,
 		expectedRevisionId: ready.revisionId,

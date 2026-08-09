@@ -2554,12 +2554,26 @@ function prepareClosureTarget(workCase) {
     ),
     ...effectBlockers(workCase)
   ];
-  if (!workCase.conclusions.some(({ category }) => category === "Claim Assurance")) {
+  const hasClaimAssurance = workCase.conclusions.some(
+    ({ category }) => category === "Claim Assurance"
+  );
+  if (!hasClaimAssurance) {
     blockers.push(
       Object.freeze({
         code: "missing-claim-assurance",
         subjectId: workCase.outcome.outcomeId,
         message: "Outcome closure requires a Claim Assurance Conclusion"
+      })
+    );
+  }
+  if (hasClaimAssurance && workCase.effects.length === 0 && !workCase.conclusions.some(
+    (conclusion) => conclusion.category === "Proportionate Intervention" && conclusion.interventionDisposition === "no-action"
+  )) {
+    blockers.push(
+      Object.freeze({
+        code: "missing-no-action-intervention",
+        subjectId: workCase.outcome.outcomeId,
+        message: "A Work Case with no Effects can close only after a no-action Proportionate Intervention Conclusion"
       })
     );
   }
@@ -6286,7 +6300,7 @@ async function openJudgmentWithSdk(input) {
         "Do not create Contribution Needs to re-prove controller-supplied Outcome, acceptance conditions, constraints, or Current Conclusions; use those trusted current-state facts only as basis for the substantive Warrant Gap.",
         "Every Contribution Need must be answerable by an assigned sealed Skill Context or an exact Host Observation available before the Conclusion.",
         "Every Requirement must be closable from evidence available before this Judgment's Conclusion; never require the future Action, Effect, or later controller response that the Conclusion would enable.",
-        "Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance follows settled Effects and cannot authorize an Action.",
+        "Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance opens only when the trusted controller requires it after settled Effects or a no-action Proportionate Intervention Conclusion; it never opens first and cannot authorize an Action.",
         "requirements_json and basis_json contain JSON text without Markdown fences."
       ],
       sections: [
@@ -6329,6 +6343,12 @@ async function openJudgmentWithSdk(input) {
           return rejected5(
             "invalid-arguments",
             "Judgment requires category, subject, question, requirements_json, and basis_json."
+          );
+        }
+        if (raw.category === "Claim Assurance" && input.requiredCategory !== "Claim Assurance") {
+          return rejected5(
+            "claim-assurance-not-eligible",
+            "Claim Assurance can open only when the trusted controller requires it after settled Effects or a no-action Proportionate Intervention Conclusion."
           );
         }
         const requirements = decodeRequirements(raw.requirements_json);

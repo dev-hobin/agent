@@ -35,6 +35,7 @@ function conclusion(
 	workCaseId: string,
 	category: JudgmentConclusion["category"],
 	id: string,
+	interventionDisposition: "action-required" | "no-action" = "action-required",
 ): JudgmentConclusion {
 	return Object.freeze({
 		conclusionId: id,
@@ -50,7 +51,7 @@ function conclusion(
 		]),
 		answer: "The bounded claim is supported.",
 		...(category === "Proportionate Intervention"
-			? { interventionDisposition: "action-required" as const }
+			? { interventionDisposition }
 			: {}),
 		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
 	});
@@ -67,8 +68,17 @@ function recordConclusion(
 
 test("Claim Assurance seals every no-Action closure obligation", () => {
 	const opened = openCase();
-	const current = recordConclusion(
+	const intervention = recordConclusion(
 		opened,
+		conclusion(
+			opened.workCaseId,
+			"Proportionate Intervention",
+			"conclusion-no-action",
+			"no-action",
+		),
+	);
+	const current = recordConclusion(
+		intervention,
 		conclusion(opened.workCaseId, "Claim Assurance", "conclusion-claim"),
 	);
 	const result = prepareClosureTarget(current);
@@ -82,6 +92,23 @@ test("Claim Assurance seals every no-Action closure obligation", () => {
 	]);
 	assert.deepEqual(result.value.effectIds, []);
 	assert.match(result.value.closureTargetId, /^closure_target_[a-f0-9]{64}$/);
+});
+
+test("Claim Assurance alone cannot close a Work Case with no Effects", () => {
+	const opened = openCase();
+	const claimOnly = recordConclusion(
+		opened,
+		conclusion(opened.workCaseId, "Claim Assurance", "conclusion-claim-only"),
+	);
+	const result = prepareClosureTarget(claimOnly);
+
+	assert.equal(result.status, "not-ready");
+	if (result.status === "not-ready") {
+		assert.deepEqual(
+			result.blockers.map(({ code }) => code),
+			["missing-no-action-intervention"],
+		);
+	}
 });
 
 test("missing Claim Assurance and stale Work Case cannot produce a target", () => {
