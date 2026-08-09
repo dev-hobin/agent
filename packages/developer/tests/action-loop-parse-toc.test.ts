@@ -83,17 +83,14 @@ test("oversized, non-UTF-8, and malformed JSON fail before shape checks", () => 
 	});
 });
 
-test("the canonical schema is required and unsupported versions fail", () => {
-	const missing = validToc();
-	delete missing.$schema;
-	assert.deepEqual(parseJson(missing), {
-		ok: false,
-		error: {
-			code: "missing-field",
-			path: "$.$schema",
-			message: "Missing required field $schema",
-		},
-	});
+test("the canonical schema is optional and unsupported versions fail", () => {
+	const withoutSchema = validToc();
+	delete withoutSchema.$schema;
+	const normalized = parseJson(withoutSchema);
+	assert.equal(normalized.ok, true);
+	if (normalized.ok) {
+		assert.equal(normalized.value.schema, SKILL_TOC_SCHEMA_URI);
+	}
 
 	const unsupported = validToc();
 	unsupported.$schema = `${SKILL_TOC_SCHEMA_URI}?version=2`;
@@ -196,12 +193,16 @@ test("duplicate normalized Reference paths fail", () => {
 });
 
 test("the checked-in schema identifies the same closed authoring contract", async () => {
-	const schema = JSON.parse(
-		await readFile(
-			new URL("../schemas/skill-toc-v0.1.schema.json", import.meta.url),
+	let schemaSource: string;
+	try {
+		schemaSource = await readFile(
+			new URL("../../../schemas/skill-toc-v0.1.schema.json", import.meta.url),
 			"utf8",
-		),
-	) as {
+		);
+	} catch (error) {
+		assert.fail(`Canonical Skill TOC schema must be readable: ${String(error)}`);
+	}
+	let schema: {
 		$id: string;
 		additionalProperties: boolean;
 		required: string[];
@@ -210,15 +211,15 @@ test("the checked-in schema identifies the same closed authoring contract", asyn
 			reference: { properties: { path: { pattern: string } } };
 		};
 	};
+	try {
+		schema = JSON.parse(schemaSource) as typeof schema;
+	} catch (error) {
+		assert.fail(`Canonical Skill TOC schema must be valid JSON: ${String(error)}`);
+	}
 
 	assert.equal(schema.$id, SKILL_TOC_SCHEMA_URI);
 	assert.equal(schema.additionalProperties, false);
-	assert.deepEqual(schema.required, [
-		"$schema",
-		"when",
-		"unless",
-		"references",
-	]);
+	assert.deepEqual(schema.required, ["when", "unless", "references"]);
 	assert.deepEqual(Object.keys(schema.properties), [
 		"$schema",
 		"when",

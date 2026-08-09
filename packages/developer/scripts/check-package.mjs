@@ -304,7 +304,7 @@ for (const path of requiredCapabilityTocs) {
 	const toc = await readJson(join(root, path));
 	assert.equal(
 		toc.$schema,
-		"https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+		"https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
 	);
 	assert.ok(Array.isArray(toc.when) && toc.when.length > 0);
 	assert.ok(Array.isArray(toc.unless) && toc.unless.length > 0);

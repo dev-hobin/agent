@@ -1,13 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
-  "title": "Developer Skill TOC v0.1",
+  "$id": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
+  "title": "Skill TOC v0.1",
+  "description": "A framework-independent index of Skill applicability and conditionally relevant supporting materials.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "when", "unless", "references"],
+  "required": ["when", "unless", "references"],
   "properties": {
     "$schema": {
-      "const": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json"
+      "const": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json"
     },
     "when": {
       "$ref": "#/$defs/conditions"

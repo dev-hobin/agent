@@ -18,8 +18,9 @@ import {
 export const MAX_TOC_DISCOVERY_JSON_FILES = 32;
 export const MAX_TOC_DISCOVERY_BYTES = 256 * 1024;
 
+const DEFAULT_TOC_DESCRIPTOR_NAME = "toc.json";
 const TOC_SCHEMA_FAMILY_PREFIX =
-	"https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v";
+	"https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v";
 const TOC_SCHEMA_FAMILY_SUFFIX = ".schema.json";
 
 export interface DiscoveredTocDescriptor {
@@ -295,24 +296,26 @@ function chooseDescriptor(
 		);
 	}
 
-	const supported = files.filter(
-		(file) => file.schemaUri === SKILL_TOC_SCHEMA_URI,
+	const candidates = files.filter(
+		(file) =>
+			file.name === DEFAULT_TOC_DESCRIPTOR_NAME ||
+			file.schemaUri === SKILL_TOC_SCHEMA_URI,
 	);
-	if (supported.length === 0) {
+	if (candidates.length === 0) {
 		return Object.freeze({ status: "unstructured" });
 	}
-	if (supported.length > 1) {
+	if (candidates.length > 1) {
 		return failure(
 			"ambiguous-descriptor",
 			"skillRootPath",
 			"Skill root contains multiple canonical TOC descriptors",
 			{
-				descriptorNames: Object.freeze(supported.map(({ name }) => name)),
+				descriptorNames: Object.freeze(candidates.map(({ name }) => name)),
 			},
 		);
 	}
 
-	const candidate = supported[0];
+	const candidate = candidates[0];
 	if (candidate === undefined)
 		throw new Error("Descriptor selection invariant");
 	const parsed = parseTocBytes(candidate.bytes);
@@ -336,8 +339,9 @@ function chooseDescriptor(
 }
 
 /**
- * Discovers at most one schema-identified TOC inside one Pi-selected Skill root.
- * It never descends, follows direct-child links, or fetches schemas over a network.
+ * Discovers the default toc.json or one schema-identified alternate descriptor
+ * inside a Pi-selected Skill root. It never descends, follows direct-child links,
+ * or fetches schemas over a network.
  */
 export async function discoverTocDescriptor(
 	skillRootPath: string,

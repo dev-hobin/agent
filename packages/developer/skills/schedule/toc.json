@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "A concrete structural change or reviewed abstraction candidate needs a now, after, or never timing decision."
   ],

@@ -1035,7 +1035,7 @@ import {
 import { isAbsolute as isAbsolute3, join, resolve as resolve3 } from "node:path";
 
 // src/action-loop/routing/parse-toc.ts
-var SKILL_TOC_SCHEMA_URI = "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json";
+var SKILL_TOC_SCHEMA_URI = "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json";
 var MAX_TOC_BYTES = 64 * 1024;
 function failure4(code, path, message) {
   return { ok: false, error: { code, path, message } };
@@ -1179,10 +1179,10 @@ function parseRoot(value) {
     value,
     "$",
     ["$schema", "when", "unless", "references"],
-    ["$schema", "when", "unless", "references"]
+    ["when", "unless", "references"]
   );
   if (fieldFailure !== void 0) return fieldFailure;
-  if (value.$schema !== SKILL_TOC_SCHEMA_URI) {
+  if (Object.hasOwn(value, "$schema") && value.$schema !== SKILL_TOC_SCHEMA_URI) {
     return failure4(
       "schema-mismatch",
       "$.$schema",
@@ -1227,7 +1227,8 @@ function parseTocBytes(bytes) {
 // src/action-loop/io/discover-skill-toc.ts
 var MAX_TOC_DISCOVERY_JSON_FILES = 32;
 var MAX_TOC_DISCOVERY_BYTES = 256 * 1024;
-var TOC_SCHEMA_FAMILY_PREFIX = "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v";
+var DEFAULT_TOC_DESCRIPTOR_NAME = "toc.json";
+var TOC_SCHEMA_FAMILY_PREFIX = "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v";
 var TOC_SCHEMA_FAMILY_SUFFIX = ".schema.json";
 function failure5(code, path, message, details = {}) {
   return Object.freeze({
@@ -1404,23 +1405,23 @@ function chooseDescriptor(files) {
       }
     );
   }
-  const supported = files.filter(
-    (file) => file.schemaUri === SKILL_TOC_SCHEMA_URI
+  const candidates = files.filter(
+    (file) => file.name === DEFAULT_TOC_DESCRIPTOR_NAME || file.schemaUri === SKILL_TOC_SCHEMA_URI
   );
-  if (supported.length === 0) {
+  if (candidates.length === 0) {
     return Object.freeze({ status: "unstructured" });
   }
-  if (supported.length > 1) {
+  if (candidates.length > 1) {
     return failure5(
       "ambiguous-descriptor",
       "skillRootPath",
       "Skill root contains multiple canonical TOC descriptors",
       {
-        descriptorNames: Object.freeze(supported.map(({ name }) => name))
+        descriptorNames: Object.freeze(candidates.map(({ name }) => name))
       }
     );
   }
-  const candidate = supported[0];
+  const candidate = candidates[0];
   if (candidate === void 0)
     throw new Error("Descriptor selection invariant");
   const parsed = parseTocBytes(candidate.bytes);
@@ -10460,9 +10461,7 @@ async function openWorkCaseWithSdk(input) {
         "Preserve supplied pre-Action facts in basis_json at their stated granularity and label their temporal scope; never promote them to post-Action evidence.",
         "JSON text fields contain JSON arrays of strings without Markdown fences."
       ],
-      sections: [
-        { name: "delegated_request", content: input.request }
-      ],
+      sections: [{ name: "delegated_request", content: input.request }],
       decision: "State the Outcome, acceptance conditions, current constraints, and explicit opening basis."
     }),
     tool: {

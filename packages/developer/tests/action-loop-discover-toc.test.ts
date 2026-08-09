@@ -15,8 +15,8 @@ import {
 
 const canonicalToc = {
 	$schema: SKILL_TOC_SCHEMA_URI,
-	when: ["A bounded judgment needs this Capability."],
-	unless: ["Another explicit boundary owns the judgment."],
+	when: ["A bounded task needs this Skill."],
+	unless: ["Another explicit method owns the task."],
 	references: [
 		{
 			path: "references/example.md",
@@ -43,6 +43,21 @@ async function writeJson(
 ): Promise<void> {
 	await writeFile(join(skillRoot, name), JSON.stringify(value));
 }
+
+test("discovers the default toc.json without a schema declaration", async (t) => {
+	const { skillRoot } = await createWorkspace(t);
+	const { $schema: _schema, ...withoutSchema } = canonicalToc;
+	await writeJson(skillRoot, "toc.json", withoutSchema);
+	await writeJson(skillRoot, "package.json", { private: true });
+
+	const result = await discoverTocDescriptor(skillRoot);
+
+	assert.equal(result.status, "structured");
+	if (result.status === "structured") {
+		assert.equal(result.descriptor.name, "toc.json");
+		assert.equal(result.descriptor.toc.schema, SKILL_TOC_SCHEMA_URI);
+	}
+});
 
 test("discovers one direct-child descriptor by schema rather than filename", async (t) => {
 	const { skillRoot } = await createWorkspace(t);
@@ -87,8 +102,9 @@ test("does not descend, follow a direct-child symlink, or claim unrelated JSON",
 
 test("rejects multiple canonical descriptors without choosing by filename", async (t) => {
 	const { skillRoot } = await createWorkspace(t);
-	await writeJson(skillRoot, "z.json", canonicalToc);
-	await writeJson(skillRoot, "a.json", canonicalToc);
+	const { $schema: _schema, ...withoutSchema } = canonicalToc;
+	await writeJson(skillRoot, "toc.json", withoutSchema);
+	await writeJson(skillRoot, "alternate.json", canonicalToc);
 
 	const result = await discoverTocDescriptor(skillRoot);
 
@@ -97,7 +113,10 @@ test("rejects multiple canonical descriptors without choosing by filename", asyn
 		assert.equal(Object.isFrozen(result), true);
 		assert.equal(Object.isFrozen(result.error), true);
 		assert.equal(result.error.code, "ambiguous-descriptor");
-		assert.deepEqual(result.error.descriptorNames, ["a.json", "z.json"]);
+		assert.deepEqual(result.error.descriptorNames, [
+			"alternate.json",
+			"toc.json",
+		]);
 	}
 });
 

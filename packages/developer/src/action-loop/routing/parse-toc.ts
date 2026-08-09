@@ -1,5 +1,5 @@
 export const SKILL_TOC_SCHEMA_URI =
-	"https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json";
+	"https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json";
 
 export const MAX_TOC_BYTES = 64 * 1024;
 
@@ -225,10 +225,13 @@ function parseRoot(value: unknown): TocParseResult {
 		value,
 		"$",
 		["$schema", "when", "unless", "references"],
-		["$schema", "when", "unless", "references"],
+		["when", "unless", "references"],
 	);
 	if (fieldFailure !== undefined) return fieldFailure;
-	if (value.$schema !== SKILL_TOC_SCHEMA_URI) {
+	if (
+		Object.hasOwn(value, "$schema") &&
+		value.$schema !== SKILL_TOC_SCHEMA_URI
+	) {
 		return failure(
 			"schema-mismatch",
 			"$.$schema",

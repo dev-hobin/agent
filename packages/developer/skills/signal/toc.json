@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "Requirements, code, diffs, tests, UI states, names, or recent changes need classification for structural movement."
   ],
