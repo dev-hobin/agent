@@ -109,6 +109,18 @@ test("canonical Workbench projects durable history semantically", () => {
 	);
 });
 
+test("canonical Workbench reports durable progression before projection settlement", () => {
+	const snapshot = inspectActionLoopWorkbench({
+		enabled: true,
+		capabilityInventory: readyInventory,
+		progressing: true,
+	});
+	assert.equal(snapshot.status, "active");
+	assert.equal(snapshot.statusLabel, "Progressing");
+	assert.match(snapshot.headline, /checkpointing current work/);
+	assert.match(snapshot.next, /bounded controller/);
+});
+
 test("canonical Workbench distinguishes preparing, ready, active, and unavailable", () => {
 	assert.equal(inspectActionLoopWorkbench({ enabled: false }).status, "off");
 	assert.equal(

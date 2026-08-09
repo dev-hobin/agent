@@ -176,6 +176,7 @@ export default async function developer(pi: ExtensionAPI) {
 		| readonly ActionLoopSessionBranchEntry[]
 		| undefined;
 	let actionLoopReplayFailure: string | undefined;
+	let actionLoopProgressing = false;
 	let actionLoopSessionDurable = false;
 	let liveHostObservations: LiveHostObservation[] = [];
 	let actionLoopHistory: ActionLoopSessionEvent[] = [];
@@ -357,6 +358,7 @@ export default async function developer(pi: ExtensionAPI) {
 			activeWorkCase,
 			heldWorkCase,
 			completedWorkCase,
+			progressing: actionLoopProgressing,
 			replayPending: pendingActionLoopBranch !== undefined,
 			replayUnavailable: isActionLoopReplayUnavailable(),
 		});
@@ -367,9 +369,11 @@ export default async function developer(pi: ExtensionAPI) {
 		}
 		const overview = view.sections.find((section) => section.id === "overview");
 		const overviewLines = (overview?.items ?? [])
-			.filter((item) => item.title !== "Capabilities" || item.tone !== "success")
+			.filter(
+				(item) => item.title !== "Capabilities" || item.tone !== "success",
+			)
 			.flatMap((item) => [
-			`${item.title.toLowerCase()} · ${compactLine(item.summary)}`,
+				`${item.title.toLowerCase()} · ${compactLine(item.summary)}`,
 				...item.details.flatMap((detail) =>
 					detail.lines.map(
 						(line) => `${detail.label.toLowerCase()} · ${compactLine(line)}`,
@@ -465,7 +469,7 @@ export default async function developer(pi: ExtensionAPI) {
 			`Use ${ACTION_LOOP_PROGRESS_TOOL} as the primary Developer entry point and call it again after the exact cleared host Action returns.`,
 			"Do not seek extension tools as substitutes for a canonical bash, edit, or write Action; host tools without a trusted Developer capability declaration are blocked fail-closed.",
 			`Recovery: judgment-refused requires ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} with exact listed evidence for an unresolved Need. If evidence must be observed now, call one observational host tool and end the response; accept its newly listed Observation on the next agent turn. effect-unsettled requires one new observational host tool result. Never repeat progression without that state change.`,
-			"A bounded stop preserves acknowledged branch checkpoints. Do not replace replay-unavailable or held ownership, infer Effect success from a tool return, or bypass complete closure revalidation.",
+			"A bounded stop preserves acknowledged branch checkpoints. End the current response after a bounded stop and continue only on the user's next normal turn. Do not replace replay-unavailable or held ownership, infer Effect success from a tool return, or bypass complete closure revalidation.",
 		],
 		parameters: Type.Object({}, { additionalProperties: false }),
 		executionMode: "sequential",
@@ -512,28 +516,45 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("The current Pi session has no active model for SDK progression.");
 			}
 			const hadActiveWorkCase = activeWorkCase !== undefined;
-			const progressed = await progressPiActionLoop({
-				request: currentActionLoopRequest,
-				...(activeWorkCase ? { state: activeWorkCase } : {}),
-				inventory: liveCapabilityInventory.value,
-				runner: prepared.runner,
-				complete: true,
-				actions: controlledPiActionAdapters(),
-				authorizeAction(action) {
-					return {
-						actionCandidateId: action.candidate.actionCandidateId,
-						status: "granted",
-						source: "pi:default-permission-policy",
-						basis: [
-							"The Pi Extension host adapter inherits Pi's current default permission policy without accepting model-authored authority.",
-						],
-					};
-				},
-				maxSteps: 34,
-				appendCheckpoint(event) {
-					appendActionLoopSessionEvent(event);
-				},
-			});
+			actionLoopProgressing = true;
+			refreshUI(ctx);
+			const progressed = await (async () => {
+				try {
+					return await progressPiActionLoop({
+						request: currentActionLoopRequest,
+						...(activeWorkCase ? { state: activeWorkCase } : {}),
+						inventory: liveCapabilityInventory.value,
+						runner: prepared.runner,
+						complete: true,
+						actions: controlledPiActionAdapters(),
+						authorizeAction(action) {
+							return {
+								actionCandidateId: action.candidate.actionCandidateId,
+								status: "granted",
+								source: "pi:default-permission-policy",
+								basis: [
+									"The Pi Extension host adapter inherits Pi's current default permission policy without accepting model-authored authority.",
+								],
+							};
+						},
+						maxSteps: 4,
+						appendCheckpoint(event) {
+							appendActionLoopSessionEvent(event);
+						},
+					});
+				} catch (error) {
+					pendingActionLoopBranch = actionLoopHistory.map((event) => ({
+						type: "custom",
+						customType: ACTION_LOOP_SESSION_ENTRY,
+						data: event,
+					}));
+					await recoverPendingActionLoopBranch(liveCapabilityInventory);
+					throw error;
+				} finally {
+					actionLoopProgressing = false;
+					refreshUI(ctx);
+				}
+			})();
 			replaceWorkCaseOwnership({
 				active: progressed.state,
 				completed: progressed.completedWorkCase,
@@ -707,17 +728,14 @@ export default async function developer(pi: ExtensionAPI) {
 							basis: [...observation.basis],
 						},
 						{
-							contributionNeedId:
-								accepted.contribution.contributionNeedId,
+							contributionNeedId: accepted.contribution.contributionNeedId,
 							localStatus: proposal.localStatus,
 							result: proposal.result,
 							limitations: [...proposal.limitations],
-							residualNeeds: proposal.residualNeeds.map(
-								(residualNeed) => ({
-									...residualNeed,
-									basis: [...residualNeed.basis],
-								}),
-							),
+							residualNeeds: proposal.residualNeeds.map((residualNeed) => ({
+								...residualNeed,
+								basis: [...residualNeed.basis],
+							})),
 							basis: [...proposal.basis],
 						},
 						accepted.contribution.contributionId,
@@ -1041,10 +1059,7 @@ export default async function developer(pi: ExtensionAPI) {
 			if (!heldWorkCase) {
 				fail("No paused, waiting, or blocked Action Loop Work Case.");
 			}
-			const observation = findHostObservation(
-				params.observation,
-				heldWorkCase,
-			);
+			const observation = findHostObservation(params.observation, heldWorkCase);
 			if (!observation) {
 				fail("Resume requires an exact current host-admitted Observation.");
 			}
@@ -1177,6 +1192,29 @@ export default async function developer(pi: ExtensionAPI) {
 		return result;
 	};
 
+	const recoverPendingActionLoopBranch = async (
+		inventory: LiveCapabilityInventoryResult,
+	): Promise<void> => {
+		if (!pendingActionLoopBranch) return;
+		const replayed = await replayActionLoopSession(
+			pendingActionLoopBranch,
+			inventory,
+		);
+		pendingActionLoopBranch = undefined;
+		if (replayed.status === "ready") {
+			replaceWorkCaseOwnership({
+				active: replayed.activeWorkCase,
+				held: replayed.heldWorkCase,
+				completed: replayed.completedWorkCase,
+			});
+			actionLoopReplayFailure = undefined;
+		} else {
+			replaceWorkCaseOwnership({});
+			actionLoopReplayFailure = `entry ${replayed.entryIndex}: ${replayed.message}`;
+		}
+		reconcileActionLoopTools();
+	};
+
 	const statusMessage = () => {
 		const view = inspectActionLoopWorkbench({
 			enabled: developerEnabled,
@@ -1185,12 +1223,14 @@ export default async function developer(pi: ExtensionAPI) {
 			activeWorkCase,
 			heldWorkCase,
 			completedWorkCase,
+			progressing: actionLoopProgressing,
 			replayPending: pendingActionLoopBranch !== undefined,
 			replayUnavailable: isActionLoopReplayUnavailable(),
 		});
 		const visibleItems = view.sections.flatMap((section) =>
 			section.items.map(
-				(item) => `${section.label} · ${item.title}: ${item.summary}`,
+				(item) =>
+					`${section.label} · ${item.title}: ${compactLine(item.summary)}`,
 			),
 		);
 		return [
@@ -1206,7 +1246,7 @@ export default async function developer(pi: ExtensionAPI) {
 			"Inspect the canonical Action Loop Workbench or run a focused continuity action",
 		getArgumentCompletions: completeDeveloperArgs,
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
-				const setAndNotifyEnabled = async (
+			const setAndNotifyEnabled = async (
 				enabled: boolean,
 			): Promise<boolean> => {
 				if (enabled) {
@@ -1222,6 +1262,7 @@ export default async function developer(pi: ExtensionAPI) {
 						refreshUI(ctx);
 						return false;
 					}
+					await recoverPendingActionLoopBranch(inventory);
 				}
 				if (!setDeveloperEnabled(enabled, ctx)) return false;
 				ctx.ui.notify(`Developer: ${enabled ? "on" : "off"}`, "info");
@@ -1706,7 +1747,9 @@ export default async function developer(pi: ExtensionAPI) {
 			const inspectWorkbench = async (
 				initialSection: "overview" = "overview",
 			): Promise<void> => {
-				await refreshCapabilityInventory(ctx);
+				const inventory = await refreshCapabilityInventory(ctx);
+				if (inventory) await recoverPendingActionLoopBranch(inventory);
+				refreshUI(ctx);
 				await showActionLoopWorkbench(
 					ctx,
 					inspectActionLoopWorkbench({
@@ -1716,6 +1759,7 @@ export default async function developer(pi: ExtensionAPI) {
 						activeWorkCase,
 						heldWorkCase,
 						completedWorkCase,
+						progressing: actionLoopProgressing,
 						replayPending: pendingActionLoopBranch !== undefined,
 						replayUnavailable: isActionLoopReplayUnavailable(),
 					}),
@@ -1724,11 +1768,13 @@ export default async function developer(pi: ExtensionAPI) {
 			};
 
 			const inspectStatus = async (): Promise<void> => {
-				await refreshCapabilityInventory(ctx);
 				if (ctx.mode === "tui") {
 					await inspectWorkbench("overview");
 					return;
 				}
+				const inventory = await refreshCapabilityInventory(ctx);
+				if (inventory) await recoverPendingActionLoopBranch(inventory);
+				refreshUI(ctx);
 				ctx.ui.notify(
 					toolPolicyRestartRequired
 						? `${TOOL_POLICY_RESTART_MESSAGE}\n${statusMessage()}`
@@ -1806,25 +1852,7 @@ export default async function developer(pi: ExtensionAPI) {
 	pi.on("before_agent_start", async (event, ctx) => {
 		const inventory = await prepareLiveCapabilityInventory(event, skillsRoot);
 		replaceCapabilityInventory(inventory);
-		if (pendingActionLoopBranch) {
-			const replayed = await replayActionLoopSession(
-				pendingActionLoopBranch,
-				inventory,
-			);
-			pendingActionLoopBranch = undefined;
-			if (replayed.status === "ready") {
-				replaceWorkCaseOwnership({
-					active: replayed.activeWorkCase,
-					held: replayed.heldWorkCase,
-					completed: replayed.completedWorkCase,
-				});
-				actionLoopReplayFailure = undefined;
-			} else {
-				replaceWorkCaseOwnership({});
-				actionLoopReplayFailure = `entry ${replayed.entryIndex}: ${replayed.message}`;
-			}
-			reconcileActionLoopTools();
-		}
+		await recoverPendingActionLoopBranch(inventory);
 		refreshUI(ctx);
 		if (!developerEnabled) return;
 		currentActionLoopRequest = event.prompt;
@@ -1869,7 +1897,8 @@ export default async function developer(pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_call", (event) => {
-		if (!developerEnabled || isModelFacingActionLoopTool(event.toolName)) return;
+		if (!developerEnabled || isModelFacingActionLoopTool(event.toolName))
+			return;
 		const disposition = classifyDeveloperHostToolInvocation({
 			toolName: event.toolName,
 			toolInput: event.input,

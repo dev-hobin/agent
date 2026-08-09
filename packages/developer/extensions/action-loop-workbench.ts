@@ -63,6 +63,7 @@ export interface ActionLoopWorkbenchRuntime {
 	readonly completedWorkCase?: CompletedWorkCase;
 	readonly capabilityInventory?: LiveCapabilityInventoryResult;
 	readonly history?: readonly ActionLoopSessionEvent[];
+	readonly progressing?: boolean;
 	readonly replayPending?: boolean;
 	readonly replayUnavailable?: boolean;
 }
@@ -146,6 +147,12 @@ function status(runtime: ActionLoopWorkbenchRuntime): {
 			value: "unavailable",
 			label: "Capability unavailable",
 			next: `Resolve ${runtime.capabilityInventory.error.code}: ${runtime.capabilityInventory.error.message}`,
+		};
+	if (runtime.progressing)
+		return {
+			value: "active",
+			label: "Progressing",
+			next: "The bounded controller is checkpointing the current canonical work.",
 		};
 	if (runtime.heldWorkCase) {
 		if (isLivePausedWorkCaseState(runtime.heldWorkCase))
@@ -296,7 +303,9 @@ export function inspectActionLoopWorkbench(
 	const workCase = ownership?.workCase ?? runtime.completedWorkCase;
 	let headline = "No current work";
 	if (workCase) headline = workCase.outcome.statement;
-	else if (runtime.replayPending) {
+	else if (runtime.progressing) {
+		headline = "Canonical progression is checkpointing current work.";
+	} else if (runtime.replayPending) {
 		headline = "Current branch ownership awaits inventory-bound recovery.";
 	} else if (runtime.capabilityInventory?.status === "rejected") {
 		headline = `Capability readiness failed: ${runtime.capabilityInventory.error.code}`;

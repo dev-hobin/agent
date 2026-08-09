@@ -565,7 +565,7 @@ test("Developer allows stable built-in observations and blocks undeclared extens
 	assert.match(unknown.reason, /no trusted Developer host capability declaration/);
 });
 
-test("status fails closed while a session branch awaits inventory-bound replay", async () => {
+test("status binds inventory and replays pending branch ownership", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
 	await harness.emit("session_start", {
@@ -577,9 +577,9 @@ test("status fails closed while a session branch awaits inventory-bound replay",
 
 	await harness.commands.get("developer").handler("status", harness.ctx);
 	const message = harness.notifications.at(-1)?.message ?? "";
-	assert.match(message, /developer · Recovery pending/);
-	assert.match(message, /awaits inventory-bound recovery/);
-	assert.doesNotMatch(message, /Outcome · No current work/);
+	assert.match(message, /developer · Active/);
+	assert.match(message, /Outcome · The pending-replay test Work Case/);
+	assert.doesNotMatch(message, /Recovery pending|Outcome · No current work/);
 });
 
 test("structured Capability routing stays inside the primary SDK controller prompt boundary", async () => {
