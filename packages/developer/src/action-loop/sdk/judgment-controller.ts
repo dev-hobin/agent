@@ -143,7 +143,8 @@ export async function openJudgmentWithSdk(
 				"Propose one Category-scoped Judgment for the current unresolved Warrant Gap.",
 			rules: [
 				"Requirements state closure obligations. Contribution Needs state missing evidence or analysis functions, never Skill names, host tool names or availability, Actions, or controller protocol mechanics.",
-				"Do not create Contribution Needs to re-prove controller-supplied Outcome, acceptance conditions, constraints, or Current Conclusions; use those trusted current-state facts only as basis for the substantive Warrant Gap.",
+				"Outcome, acceptance conditions, and constraints define the target specification, not evidence that the target is attained. Do not create Contribution Needs merely to reinterpret that specification, and never infer completion or no-action from target wording alone. Current Conclusions are trusted current-state facts.",
+				"Treat explicit pre-Action facts in delegated_request as human-provenance evidence at their stated granularity. Do not demand unavailable lower-level fields merely to re-prove those facts unless current evidence disputes them; they never establish later Action or Effect success.",
 				"Every Contribution Need must be answerable by an assigned sealed Skill Context or an exact Host Observation available before the Conclusion.",
 				"Every Requirement must be closable from evidence available before this Judgment's Conclusion; never require the future Action, Effect, or later controller response that the Conclusion would enable.",
 				"Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance opens only when the trusted controller requires it after settled Effects or a no-action Proportionate Intervention Conclusion; it never opens first and cannot authorize an Action.",
