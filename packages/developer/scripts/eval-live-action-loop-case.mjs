@@ -24,6 +24,7 @@ import {
 } from "../extensions/action-loop-model-tools.ts";
 import { parseDeveloperStatus } from "./developer-status-classification.mjs";
 import { createJsonlDecoder } from "./jsonl.mjs";
+import { collectActionLoopEventKinds } from "./action-loop-event-kinds.mjs";
 import {
 	classifySdkResumeRun,
 	isSdkReplayRecoveryRequired,
@@ -389,22 +390,10 @@ async function deterministicReplay(activeSessionFile) {
 		workspace,
 	);
 	const branch = manager.getBranch();
-	const eventKinds = [];
-	const eventErrors = [];
-	for (const entry of branch) {
-		if (
-			entry.type !== "custom" ||
-			entry.customType !== targetSessionModule.ACTION_LOOP_SESSION_ENTRY
-		) {
-			continue;
-		}
-		try {
-			targetSessionModule.assertPersistableActionLoopSessionEvent(entry.data);
-			eventKinds.push(entry.data.kind);
-		} catch (error) {
-			eventErrors.push(error instanceof Error ? error.message : String(error));
-		}
-	}
+	const { eventKinds, eventErrors } = collectActionLoopEventKinds(
+		branch,
+		targetSessionModule.extractReplayEvent,
+	);
 	const replay = await targetSessionModule.replayActionLoopSession(
 		branch,
 		inventory,
