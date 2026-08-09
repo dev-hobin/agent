@@ -65,9 +65,8 @@ Unsupported and round-trip checks:
 Stop when every legal path has an explicit preserved observer and loss note, and
 unsupported or ambiguous paths are rejected or owned by policy.
 
-Return to `model/contract-replacement` when preserved meaning itself is disputed.
-Use `generic-dispatch-systems` when additive operation selection is independently
-required.
+When preserved meaning itself is disputed, no conversion conclusion follows.
+Additive operation selection is a separate question.
 
 ## Source Trace
 

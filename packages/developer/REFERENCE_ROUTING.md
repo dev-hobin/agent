@@ -140,11 +140,17 @@ replay unavailable rather than silently degrading to absence.
 | Skill | Routing shape |
 | --- | --- |
 | `abstraction-review` | structured; review calibration References |
+| `convention-judgment` | structured; enforcement-strength and operational-convention References |
+| `information-loss-judgment` | structured; transformation and equivalence References |
 | `model` | structured; condition, contract, relation, temporal, proof, solver, logic, and planning References |
+| `module-judgment` | structured; environment, assumption, drift, and boundary-pressure References |
 | `naming-judgment` | structured; domain-sense naming Reference |
+| `process-judgment` | structured; process, phase, execution-model, and effect-data References |
 | `schedule` | structured; structural timing Reference |
 | `signal` | structured; structural movement Reference |
 | `sketch` | structured; data, composition, representation, process, state, dispatch, conversion, runtime, responsibility, and variation References |
+| `task-protocol-judgment` | structured; topology, acknowledgment, and retry-protocol References |
+| `variation-judgment` | structured; conditional, table, registration, and dispatch References |
 | `verify` | structured; verifier selection and pass-but-wrong Reference |
 | `adversarial-eval` | unstructured |
 | `doctor` | unstructured; self-contained bounded code diagnosis |

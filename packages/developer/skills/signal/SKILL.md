@@ -63,12 +63,11 @@ task, return:
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: observed structural movement and confidence
 Basis: selected artifacts, differences, callers, and model evidence
-Open questions: stabilizing or rejecting evidence still needed, or none
+Open questions: concrete unanswered questions in the caller's language, or none
 Artifacts: horizontal movement or concrete review candidate
 ```
 
-Return only this skill's judgment for the question at hand; leave subsequent
-routing to the caller.
+Return only this skill's judgment for the question at hand.
 
 ## Completion
 

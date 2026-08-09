@@ -88,10 +88,9 @@ Responsibility and collaboration checks:
 Stop when the representative change becomes local to one coherent owner and
 callers use meaningful messages without unrelated context or participant leaks.
 
-Use `variation-roles-and-transitions` when several implementations must share a
-caller contract, and `selection-and-creation` when choosing or constructing a
-variant is independently unresolved. Route a concrete candidate to
-`abstraction-review`; do not approve it here.
+A shared caller contract across implementations, variant selection or creation,
+and approval of a concrete candidate are separate questions. This document does
+not answer them.
 
 ## Source Trace
 

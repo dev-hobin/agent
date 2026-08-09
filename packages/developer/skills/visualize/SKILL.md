@@ -31,12 +31,11 @@ it must not imply. When used inside a larger task, return:
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: recommended visual form or a decision to use prose
 Basis: structure of the decision and source evidence
-Open questions: missing facts or uncertain relationships, or none
+Open questions: concrete unanswered questions in the caller's language, or none
 Artifacts: visual specification or completed visual
 ```
 
-Return only this skill's judgment for the question at hand; leave subsequent
-routing to the caller.
+Return only this skill's judgment for the question at hand.
 
 ## Completion
 

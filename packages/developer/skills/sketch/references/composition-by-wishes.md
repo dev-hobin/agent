@@ -63,9 +63,9 @@ Stop when each wished operation can be designed and checked independently and th
 top-level composition reads in product language without hiding an incompatible
 process boundary.
 
-Use `earned-abstraction` only after several completed correct designs expose
-stable shared roles. Use process/state routes when the unresolved issue is
-execution or history rather than decomposition.
+Shared roles require several completed correct designs. Execution and history
+remain separate questions when they are consequential rather than decomposition
+details.
 
 ## Source Trace
 

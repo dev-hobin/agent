@@ -24,7 +24,7 @@ requested target and change horizon
 → narrow, deep follow-up investigations where evidence triggers them
 → evidence-backed mechanisms and treatment candidates
 → treat-now | prepare-next | observe | leave-alone | needs-decision
-→ first concrete handoff
+→ first concrete treatment step
 ```
 
 Doctor is broad in diagnostic coverage and bounded in code coverage. It is not
@@ -144,8 +144,8 @@ smallest observation that could change the disposition.
 
 Doctor may perform a focused investigation when its method and evidence are
 available within the selected scope. When a question requires specialized
-expertise or a decision owner, state that handoff instead of fabricating the
-missing judgment. Supporting material is never a mandatory reading list. For
+expertise or a decision owner, state the concrete unanswered question instead of
+fabricating the missing judgment. Supporting material is never a mandatory reading list. For
 every `triggered` lens:
 
 1. write one bounded investigation question and its concrete trigger evidence;
@@ -211,9 +211,9 @@ Decide:
 - `needs-decision`: product, operational, or risk ownership cannot be inferred.
 
 Do not turn the treatment plan into a predetermined multi-step implementation
-queue. Provide one first handoff with preserved behavior, the smallest stable
-landing, a narrow verifier, and explicitly deferred work. Reobserve after that
-landing.
+queue. Provide one first treatment step with preserved behavior, the smallest
+stable landing, a narrow verifier, and explicitly deferred work. Reobserve after
+that landing.
 
 ## Output
 
@@ -226,7 +226,7 @@ resolved Doctor report contains:
 4. investigation ledger with questions, selected material, results, and citations;
 5. diagnosis table;
 6. treatment plan;
-7. first concrete handoff and residual unknowns;
+7. first concrete treatment step and unanswered questions;
 8. an ASCII flow, ownership, state, or dependency map when relationships are
    materially consequential.
 
@@ -236,8 +236,8 @@ When used inside a larger task, return:
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: scope-bound diagnosis and treatment order, or the investigation plan still required
 Basis: inspected code, behavior, callers, tests, traces, history, and focused findings
-Open questions: unresolved investigations, scope choices, product decisions, or none
-Artifacts: scope map, preservation baseline, lens matrix, investigation ledger, findings, treatment plan, and first handoff
+Open questions: concrete unanswered questions in the caller's language, or none
+Artifacts: scope map, preservation baseline, lens matrix, investigation ledger, findings, treatment plan, and first treatment step
 ```
 
 ## Completion

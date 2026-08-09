@@ -143,9 +143,9 @@ Failure, retry, duplicate, cancellation, and residual risk:
 Stop when work, control, wait, capacity, lifetime, failure, and completion are
 owned and bounded enough to make the first implementation step honest.
 
-Use `state-history-and-order` when previous interactions or event ordering define
-meaning, and `runtime-and-compilation` when these obligations belong to an
-interpreter/compiler convention rather than an ordinary process.
+Product history and interpreter or compiler conventions are separate questions
+when they determine the meaning of these obligations. This document does not
+answer them.
 
 ## Source Trace
 

@@ -66,10 +66,8 @@ Simpler conditional alternative:
 Stop when both axes and all dispatch policies are visible and the chosen mechanism
 is no more powerful than current extension pressure requires.
 
-Use `meaning-preserving-conversions` only when operations cross representation
-worlds, the variation-role or selection-creation route when domain role/creation
-ownership is primary, and `language-semantics` when registered data becomes
-executable notation.
+Cross-representation meaning, domain-role or creation ownership, and executable
+notation are separate questions. This document does not answer them.
 
 ## Source Trace
 

@@ -112,10 +112,9 @@ Public wrapper and checks:
 Stop when the invariant mechanically determines initialization, update, and
 result, and the semantic/resource delta is explicit.
 
-Use `generative-recursion` when next problems are algorithmically produced,
-`state-history-and-order` when accumulated knowledge is persistent product
-history, and `abstraction-review` only after a concrete accumulator interface or
-cached representation exists to judge.
+Algorithmically generated next problems, persistent product history, and approval
+of a concrete accumulator interface or cached representation remain separate
+questions. This document does not answer them.
 
 ## Source Trace
 

@@ -5,9 +5,9 @@ misleading, effect-hiding, or disputed across callers. This capability judges
 the word and the sense readers may rely on; it does not redesign the surrounding
 module or process.
 
-It extends `naming-judgment` at the sense step: distinguish sign, current
-referent, relied-upon sense, audience, and expected evolution, then produce one
-bounded rename map. An unstable responsibility is a handoff, not a naming task.
+Distinguish sign, current referent, relied-upon sense, audience, and expected
+evolution, then produce one bounded rename map. An unstable responsibility does
+not become stable through renaming.
 
 ## Narrow And Consistent
 
@@ -93,8 +93,8 @@ network calls, retries, and persistence must not hide behind a name that reads a
 a pure calculation.
 
 When a function truly combines phases, an honest composite name may be better
-than a false pure name. Whether the phases should be split is a `sketch` or
-`abstraction-review` question, not a rename performed here.
+than a false pure name. Whether the phases should be split remains a residual
+design or candidate-review need, not a rename performed here.
 
 ## Audience And Context
 
@@ -124,8 +124,8 @@ For a type or role, ask:
 - which change would belong inside it;
 - which current mechanism callers should not learn.
 
-A rich-sounding name does not make an extracted class or interface valid. Return
-that candidate to `abstraction-review` when its responsibility is still disputed.
+A rich-sounding name does not make an extracted class or interface valid. When
+its responsibility is still disputed, report that candidate-review gap and stop.
 
 ## Worked Review
 
@@ -160,8 +160,8 @@ saveScheduleContent(content)    // separately exposes the effect
 
 If inspection instead reveals defaults selected from account settings, the
 rename cannot erase that policy. Use an honest name such as
-`resolveScheduleContent` only after the precedence contract is stated, or return
-the mixed operation to `sketch`.
+`resolveScheduleContent` only after the precedence contract is stated; otherwise
+report the mixed-operation design need.
 
 Second contrast:
 
@@ -208,9 +208,8 @@ Naming judgment is weak when:
   and macros; Idioms pp. 40-45 and 58-61 for dynamic-scope/effect and absence
   boundaries; Indirection pp. 64-95 for context and interface sense; and
   Composition pp. 98-119 for process effects. Architectural decisions remain
-  owned by `sketch` and `abstraction-review`;
-  recorded source defects and Clojure-specific naming syntax are not universal
-  rules.
+  outside naming judgment; recorded source defects and Clojure-specific naming
+  syntax are not universal rules.
 - Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
   Edition, version 2.2.2, 2024: Chapter 1, pp. 12-13; Chapter 2, pp. 37-43;
   Chapter 3, pp. 63-64; Chapter 4, pp. 75-99; Chapter 5, pp. 112-113;

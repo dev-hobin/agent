@@ -101,10 +101,9 @@ Guarantee owners and verification targets:
 Stop when the model distinguishes all consequential histories and every safety or
 progress claim has assumptions and a counterexample trace.
 
-Hand off to `sketch` when state ownership or event APIs must be designed, to
-`verify` when the model exists but traces are unexercised, and to
-`planning-models` when the main question is finding one goal-directed action
-sequence rather than admitting all valid behaviors.
+Do not design state ownership or event APIs, treat unexercised traces as executed
+evidence, or replace admitted-behavior modeling with one preferred plan. State
+the concrete missing design, evidence, or planning question and stop.
 
 ## Source Trace
 

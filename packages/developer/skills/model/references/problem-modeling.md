@@ -1,9 +1,9 @@
 # Problem Modeling
 
 Use this reference when prose and isolated examples no longer expose the whole
-condition space under judgment. It extends `model` at the point where dimensions,
-rules, and forbidden cases must become explicit. It does not select an API,
-implementation, verifier, or specialized formal tool.
+condition space under judgment and dimensions, rules, and forbidden cases must
+become explicit. It does not select an API, implementation, verifier, or
+specialized formal tool.
 
 ## Judgment Spine
 
@@ -29,7 +29,7 @@ Translate requirement language before choosing notation:
 4. conditional words become implications;
 5. `P => Q` exposes the forbidden counterexample `P && !Q`;
 6. finite combinations become partitions or decision tables;
-7. time words identify a possible temporal handoff;
+7. time words identify temporal behavior that may need its own bounded question;
 8. preferences remain separate from hard constraints;
 9. stakeholder choices remain visible rather than being guessed.
 
@@ -49,22 +49,22 @@ rewrite. Record the observers that can distinguish it:
 - numeric range, exactness, rounding, overflow, and underflow;
 - time, storage, and resource behavior when they are part of the claim.
 
-Use logic to state intended relations. A later sketch or verification must still
-show that the implementation model preserves them.
+Use logic to state intended relations. Implementation shape and executed evidence
+remain outside this model and must not be inferred from logical equivalence.
 
 ## Choose The Smallest Sufficient Model
 
-| Uncertainty | Model view | Handoff when it becomes consequential |
+| Uncertainty | Smallest sufficient view | Boundary when independently consequential |
 | --- | --- | --- |
 | finite roles, flags, statuses, or defaults | predicates and a partition table | remain here while the complete finite surface is visible |
-| caller/callee obligations or compatibility | contract and replacement relation | [Contract And Replacement Models](contract-and-replacement-models.md) |
-| entities, intervals, and cross-record facts | relational constraints | [Relational Constraint Models](relational-constraint-models.md) |
-| retry, lifecycle, concurrency, or allowed histories | transition and temporal behavior | [Temporal Behavior Models](temporal-behavior-models.md) |
-| deductive implementation-conformance claim | proof obligations | [Proof Obligations](proof-obligations.md) |
-| bounded counterexample, satisfiability, feasibility, or optimization status | solver-result boundary | [Solver Result Boundaries](solver-result-boundaries.md) |
-| inference, answer multiplicity, negation, or query search | logic-query semantics | [Logic Query Semantics](logic-query-semantics.md) |
-| legal action sequence toward a goal | planning model | [Planning Models](planning-models.md) |
-| product-owned choice | human decision surface | return an explicit open question |
+| caller/callee obligations or compatibility | contract and replacement relation | state the unresolved caller or compatibility question |
+| entities, intervals, and cross-record facts | relational constraints | state the unresolved relation, identity, or multiplicity question |
+| retry, lifecycle, concurrency, or allowed histories | transition and temporal behavior | state the unresolved history or progress question |
+| deductive implementation-conformance claim | proof obligations | state the exact specification-relative proof question |
+| bounded counterexample, satisfiability, feasibility, or optimization status | solver-result boundary | state the exact bounded-result question and scope |
+| inference, answer multiplicity, negation, or query search | logic-query semantics | state the unresolved answer or search question |
+| legal action sequence toward a goal | planning model | state the unresolved legal-plan or objective question |
+| product-owned choice | human decision surface | return an explicit question in product language |
 
 Use more than one view only when each answers a different unresolved question.
 Do not model the whole product because one rule is difficult.
@@ -150,7 +150,7 @@ An unchecked statement may guide design, but it is not evidence. Validation that
 returns only success, `Unit`, or `Bool` cannot by itself place a guarantee at a
 stronger type, and an assertion, cast, non-null claim, ignored conversion result,
 or typed deserialization target does not repair that gap. Record the required
-raw-to-refined transition and hand its concrete caller surface to `sketch`.
+raw-to-refined transition without inventing its concrete caller surface.
 
 ## Model Artifact
 
@@ -165,7 +165,7 @@ Ability gained and lost:
 Guarantee owner and evidence target:
 Counterexamples:
 Human-owned unknowns:
-Specialized handoff, if any:
+Open questions in domain language:
 ```
 
 ## Stop And Separation
@@ -175,18 +175,21 @@ counterexamples are explicit enough to constrain a later design.
 
 Separate rather than expanding this reference when:
 
-- a public operation, ownership map, or caller shape must be invented (`sketch`);
-- an existing structural candidate must be approved (`abstraction-review`);
-- an implementation claim needs evidence (`verify`);
-- a specialized contract, temporal, relational, proof, solver, logic, or planning
-  obligation has its own artifact and stop check (use the routed reference above).
+- a public operation, ownership map, or caller shape must be invented;
+- an existing structural candidate must be judged;
+- an implementation claim needs executed evidence;
+- a contract, temporal, relational, proof, solver, logic, or planning obligation
+  has an independently consequential question and stop check.
+
+State the concrete unanswered question and stop. Do not choose how it will be
+resolved.
 
 ## Source Trace
 
 - Alexis King, “Parse, don’t validate,” published November 5, 2019, for the
   distinction between checks that discard learned information and fallible
   transitions that return a refined representation. Concrete parser and
-  smart-constructor surfaces remain owned by `sketch`.
+  smart-constructor surfaces remain outside this modeling reference.
 - Hillel Wayne, *Logic for Programmers*, v0.14.0, 2026-05-04:
   Chapters 2-4, pp. 5-46, for predicates, quantifiers, ability/guarantee,
   specifications, and logic/runtime boundaries. Recorded beta defects are

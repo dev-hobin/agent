@@ -68,9 +68,9 @@ Residual and verification target:
 Stop when initialization, preservation, conclusion, and any termination argument
 support exactly the stated specification and every omitted observer is explicit.
 
-Use `solver-result-boundaries` for bounded model or optimization status. Hand off
-to `verify` when execution, source/tool provenance, or relevance of proof evidence
-must be judged.
+Do not treat bounded model or optimization status as deductive implementation
+conformance, and do not infer execution relevance or source/tool provenance from
+the proof artifact. State those unanswered result or evidence questions and stop.
 
 ## Source Trace
 

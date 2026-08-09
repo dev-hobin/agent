@@ -32,8 +32,8 @@ Separate independently falsifiable claims:
 - source/version compatibility;
 - operational properties such as order, effects, time, space, and idempotency.
 
-If the intended claim cannot be stated, return to `specify` or `model`. Do not
-choose a convenient command first.
+If the intended claim cannot be stated, verifier relevance cannot be judged. Do
+not choose a convenient command first.
 
 ## Evidence Map
 

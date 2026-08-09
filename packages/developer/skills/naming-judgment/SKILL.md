@@ -22,8 +22,9 @@ callers and audience
 -> bounded rename map + unchanged checks
 ```
 
-If the sense cannot stabilize without redesigning responsibility or policy, hand
-off instead of hiding that work in a rename.
+If the sense cannot stabilize without redesigning responsibility or policy,
+report the unresolved responsibility or meaning and stop instead of hiding that
+work in a rename.
 
 ## Inputs
 
@@ -66,12 +67,11 @@ deferred names. When used inside a larger task, return:
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: the proposed name or boundary move and the sense it preserves
 Basis: callers, behavior, domain vocabulary, and conventions
-Open questions: unresolved domain meaning or boundary pressure, or none
+Open questions: concrete unanswered questions in the caller's language, or none
 Artifacts: rename map and affected scope
 ```
 
-Return only this skill's judgment for the question at hand; leave subsequent
-routing to the caller.
+Return only this skill's judgment for the question at hand.
 
 ## Completion
 

@@ -59,9 +59,9 @@ Stop when selection has one owner, conflicts and failures are visible, and the
 creation mechanism is no more open or operationally powerful than accepted
 pressure requires.
 
-Use `variation-roles-and-transitions` when the caller role itself is unresolved,
-`generic-dispatch-systems` for a full representation-operation matrix, and
-`abstraction-review` for promotion of a concrete factory/registry boundary.
+An unresolved caller role, a full representation-operation matrix, and approval
+of a concrete factory or registry boundary remain separate questions. This
+document does not answer them.
 
 ## Source Trace
 

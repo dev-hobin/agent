@@ -72,10 +72,8 @@ Stop when one valid and one invalid sequence are distinguishable, every
 intermediate state is checked, and preferred/no-plan claims are relative to the
 encoded objective and search completeness.
 
-Use `temporal-behavior-models` when the question is all allowed histories rather
-than one goal-directed sequence, `logic-query-semantics` for relational answer
-semantics, and `solver-result-boundaries` for proven optimal or unsatisfiable
-status.
+All allowed histories, relational answer semantics, and conclusive optimal or
+unsatisfiable status are separate questions. This document does not answer them.
 
 ## Source Trace
 

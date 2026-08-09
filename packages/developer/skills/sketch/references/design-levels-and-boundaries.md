@@ -72,25 +72,26 @@ environment from changing. Public boundaries calcify, so mature them locally whe
 participants co-evolve. Independent participants, purposes, deployment cycles, or
 replacement pressure justify stronger interfaces.
 
-## Select One Specialized Judgment
+## Keep Specialized Questions Separate
 
-| Unresolved question | Reference | Output |
-| --- | --- | --- |
-| representation independence and public laws | [Representation Barriers](representation-barriers.md) | public operations/laws, two representations, caller rewrite, and leak check |
-| closed composition or conventional interfaces | [Closure And Conventional Interfaces](closure-and-conventional-interfaces.md) | unit, closed operations, finalizers, and operational interface contract |
-| generated work, control, waits, capacity, resources, or effects | [Process Shape And Resources](process-shape-and-resources.md) | process trace, bounds, phase and completion ownership |
-| history, identity, mutation, state transition, event order, or logs | [State, History, And Order](state-history-and-order.md) | history owner, transition/order law, stale/duplicate policy |
-| additive representations and operation dispatch | [Generic Dispatch Systems](generic-dispatch-systems.md) | variant-operation matrix and conflict policy |
-| cross-representation operation and semantic loss | [Meaning-Preserving Conversions](meaning-preserving-conversions.md) | conversion graph and preserved/lost observers |
-| notation, grammar, evaluator, and language results | [Language Semantics](language-semantics.md) | expression boundary and evaluator/result contract |
-| interpreter/compiler lowering and optimization | [Runtime And Compilation](runtime-and-compilation.md) | execution convention, effects, guards, roots, and interoperation |
-| knowledge and participant ownership | [Responsibility And Collaboration](responsibility-and-collaboration.md) | responsibility and collaboration map |
-| shared caller roles across implementations | [Variation Roles](variation-roles.md) | role and substitution contract |
-| one domain type becoming another | [Type Transitions](type-transitions.md) | source/event/target and preserved-meaning contract |
-| variant selection and construction | [Selection And Creation](selection-and-creation.md) | selection owner and least-powerful creation boundary |
+| Independently consequential question | Distinct artifact |
+| --- | --- |
+| representation independence and public laws | public operations and laws, two representations, caller rewrite, and leak check |
+| closed composition or conventional interfaces | unit, closed operations, finalizers, and operational interface contract |
+| generated work, control, waits, capacity, resources, or effects | process trace, bounds, phase and completion ownership |
+| history, identity, mutation, state transition, event order, or logs | history owner, transition and order law, stale and duplicate policy |
+| additive representations and operation dispatch | variant-operation matrix and conflict policy |
+| cross-representation operation and semantic loss | conversion graph and preserved or lost observers |
+| notation, grammar, evaluator, and language results | expression boundary and evaluator/result contract |
+| interpreter/compiler lowering and optimization | execution convention, effects, guards, roots, and interoperation |
+| knowledge and participant ownership | responsibility and collaboration map |
+| shared caller roles across implementations | role and substitution contract |
+| one domain type becoming another | source, event, target, and preserved-meaning contract |
+| variant selection and construction | selection owner and least-powerful creation boundary |
 
-Select several only when they answer independent questions. Do not load this
-common kernel as permission to absorb the specialized judgment.
+Do not absorb one of these questions merely because it shares a boundary topic.
+When it has its own artifact and stop, state the concrete unanswered question and
+keep the current boundary judgment bounded.
 
 ## Artifact
 
@@ -103,7 +104,7 @@ Owner:
 Hidden choice:
 Environment, ignored facts, assumptions, and drift:
 Alternate implementation or falsifier:
-Specialized handoff:
+Open questions in caller language:
 ```
 
 ## Stop And Separation
@@ -113,8 +114,8 @@ one owner, and a lower-level choice can be varied or falsified without rewriting
 unrelated callers.
 
 Separate when the unresolved issue has its own output and stop check in the table
-above. Return to `model` when admitted meaning is disputed, and to
-`abstraction-review` only after the candidate surface exists.
+above. When admitted meaning is disputed, no boundary conclusion follows. This
+document does not approve a candidate boundary.
 
 ## Source Trace
 

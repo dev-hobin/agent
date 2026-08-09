@@ -78,9 +78,9 @@ Residual and verification target:
 Stop when the reported claim is no broader than the encoded model, bound, witness,
 and exact result status.
 
-Use `proof-obligations` for deductive implementation conformance,
-`logic-query-semantics` for answer enumeration/search semantics, and `verify` for
-tool execution relevance.
+Do not treat the result as deductive implementation conformance, answer-enumeration
+semantics, or evidence that tool execution is relevant to a broader claim. State
+each concrete unanswered proof, search, or evidence question and stop.
 
 ## Source Trace
 

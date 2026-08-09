@@ -11,8 +11,8 @@ representative checks, declared process observers, and one transfer case. Syntax
 similarity without completed behavior is not admitted evidence.
 
 This member contributes aligned common movement, a variation-role table,
-candidate caller surface, migration boundary, transfer check, and the explicit
-handoff for promotion judgment.
+candidate caller surface, migration boundary, transfer check, and the concrete
+open question that remains before promotion.
 
 ## Align Completed Designs
 
@@ -44,7 +44,8 @@ Check:
 - the data interpretation is stable enough that difference is understood.
 
 An abstraction is not a single point of control until intended clients migrate.
-Stop at a candidate and route `abstraction-review` for promotion.
+Stop at a candidate without approving it. Record the exact promise and falsifier
+that remain open.
 
 ## Artifact
 
@@ -65,9 +66,10 @@ Stop when completed designs align under stable roles, migrated clients are
 simple, and one transfer case fits without semantic drift. The result is a
 candidate, not approval.
 
-Return to `signal` when only horizontal similarity is visible, to `model` when
-data meaning is unstable, and to `abstraction-review` for keep/revise/split/
-reject/defer.
+When only horizontal similarity is visible, no abstraction candidate follows
+from this comparison. When data meaning is not established, stable variation
+roles cannot be derived from the supplied cases. This document stops at a
+candidate and does not approve it.
 
 ## Source Trace
 

@@ -68,12 +68,11 @@ verification targets. When used inside a larger task, return:
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: the condition model and its main consequences
 Basis: requirement, invariant, code, tests, and explicit assumptions
-Open questions: unresolved policy or evidence gaps, or none
+Open questions: concrete unanswered questions in the caller's language, or none
 Artifacts: case table, rules, transitions, or verification targets
 ```
 
-Return only this skill's judgment for the question at hand; leave subsequent
-routing to the caller.
+Return only this skill's judgment for the question at hand.
 
 ## Completion
 
@@ -114,7 +113,7 @@ Keep provisional rules visibly provisional.
 
 Do not decide product scope, design the implementation surface, schedule
 structural work, mutate artifacts, or make the final evidence judgment. Words
-such as “law,” “invariant,” or “replacement” do not require a model route when
-the requirement already fixes their meaning and asks only for public operations,
-ownership, collaborators, or caller shape; route that original surface to
-`sketch`.
+such as “law,” “invariant,” or “replacement” do not make this capability
+applicable when the requirement already fixes their meaning and asks only for
+public operations, ownership, collaborators, or caller shape; return
+`not-applicable` and state that unresolved surface.

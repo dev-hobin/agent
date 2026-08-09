@@ -61,12 +61,11 @@ When used inside a larger task, return:
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: now, after, or never with the decisive reason
 Basis: candidate, evidence, current pressure, reversibility, and delay cost
-Open questions: missing timing evidence, or none
+Open questions: concrete unanswered questions in the caller's language, or none
 Artifacts: timing decision and reopen condition
 ```
 
-Return only this skill's judgment for the question at hand; leave subsequent
-routing to the caller.
+Return only this skill's judgment for the question at hand.
 
 ## Completion
 

@@ -107,10 +107,9 @@ Search order and visited scope, if relevant:
 Stop when every recursive branch has a generated-instance explanation, a
 preservation argument, and a progress or explicit divergence boundary.
 
-Use `accumulator-invariant` when the main issue is remembered traversal knowledge,
-the `model` logic-query route when answer/search policy is unresolved, and
-`process-shape-and-resources` when the algorithm is accepted but stack, work, or
-storage behavior needs a design surface.
+Remembered traversal knowledge, unresolved answer or search policy, and accepted
+algorithms whose stack, work, or storage behavior needs design are separate
+questions. This document does not answer them.
 
 ## Source Trace
 

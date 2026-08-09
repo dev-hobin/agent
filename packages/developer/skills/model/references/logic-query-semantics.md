@@ -84,9 +84,9 @@ Known answer, duplicate, cycle, divergence, and no-answer cases:
 Stop when every observed empty/non-empty result has one defined interpretation
 relative to search completion, duplicates, negation, and termination.
 
-Use `planning-models` for legal action sequences toward a goal,
-`solver-result-boundaries` for conclusive bounded status, and the `sketch`
-language-semantics route when the query runtime must be designed.
+Do not absorb goal-directed planning, conclusive bounded solver status, or query
+runtime design. State the concrete unanswered plan, result, or runtime question
+and stop.
 
 ## Source Trace
 

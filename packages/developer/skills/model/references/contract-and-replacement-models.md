@@ -13,8 +13,8 @@ assumptions, and at least one replacement counterexample. Unknown product policy
 remains explicit rather than being invented here.
 
 This member contributes the contract implications, refinement mapping, excluded
-abilities, compatibility decision, and verification targets. Its stop and
-handoffs below own any context still missing.
+abilities, compatibility decision, verification targets, and concrete open
+questions for any context still missing.
 
 ## Contract Relation
 
@@ -106,9 +106,9 @@ Verification targets:
 Stop when every implication is supported, contradicted, or left as an explicit
 compatibility question, and the observer set is named.
 
-Hand off to `sketch` when adapters or a new boundary must be designed, to
-`schedule` when migration timing is the question, and to `verify` when the model
-exists but evidence for compatibility is missing.
+Do not design adapters or a new boundary, decide migration timing, or claim
+compatibility without evidence. State each missing design, timing, or evidence
+fact as a concrete open question and stop.
 
 ## Source Trace
 

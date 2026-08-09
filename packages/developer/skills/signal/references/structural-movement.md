@@ -4,9 +4,9 @@ Use this reference when duplication, parallel branches, repeated tests, code
 smells, or a model-code mismatch suggests movement but does not yet justify an
 abstraction or implementation plan.
 
-It extends `signal` at comparison and falsification: choose one pair, expose one
-difference with one behavior-preserving observation move, then classify. It does
-not promote the resulting candidate or continue a refactoring sequence.
+Choose one pair, expose one difference with one behavior-preserving observation
+move, then classify. This document does not promote the resulting candidate or
+continue a refactoring sequence.
 
 ## Central Question
 
@@ -73,8 +73,8 @@ Relevant check: evidence that could detect behavior drift
 Revealing result: what would support or reject the suspected structure
 ```
 
-If the relevant evidence is missing, return `needs-evidence`. Do not rewrite
-tests merely so a proposed refactor can remain green. “Behavior-preserving” must
+If the relevant evidence is missing, the proposed movement remains unsupported.
+Do not rewrite tests merely so a proposed refactor can remain green. “Behavior-preserving” must
 name the relevant semantics: reassociation, traversal order, effects, failure
 versus divergence, or a new complexity class can make an apparently structural
 alignment observable.
@@ -131,9 +131,9 @@ alignment, such as:
 - a conversion or type transition with a caller contract.
 
 Return the concrete candidate, pressure, hidden detail, callers, invariant risk,
-and missing evidence. `abstraction-review` decides whether the candidate is
-stable. Similarity alone does not justify a helper, class, strategy, factory, or
-public interface.
+and missing evidence. This classification does not establish that the candidate
+is stable. Similarity alone does not justify a helper, class, strategy, factory,
+or public interface.
 
 ## Ambiguous Movement
 
@@ -231,7 +231,7 @@ Observation move: smallest behavior-preserving experiment
 Evidence: check and current gap
 Classification: no-signal | horizontal | vertical | ambiguous
 Candidate: only for vertical or ambiguous movement
-Handoff: implementation, abstraction-review, schedule, naming-judgment, or none
+Limitations: conclusions not established by this observation
 ```
 
 ## Failure Checks

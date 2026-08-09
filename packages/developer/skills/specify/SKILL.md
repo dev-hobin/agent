@@ -37,12 +37,11 @@ inside a larger task, return:
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: the clarified product contract
 Basis: request, behavior, examples, and explicit assumptions
-Open questions: unresolved product decisions, or none
+Open questions: concrete unanswered questions in the caller's language, or none
 Artifacts: invariant, scope, constraints, and counterexamples
 ```
 
-Return only this skill's judgment for the question at hand; leave subsequent
-routing to the caller.
+Return only this skill's judgment for the question at hand.
 
 ## Completion
 

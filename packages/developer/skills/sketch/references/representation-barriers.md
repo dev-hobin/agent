@@ -65,8 +65,8 @@ adapters, one real caller uses only domain vocabulary, and leak search finds no
 raw primitives.
 
 Reject when no choice is hidden, callers still require layout, or operations are
-only field aliases with no stable law. Use `closure-and-conventional-interfaces`
-when composition of values is the independent question.
+only field aliases with no stable law. Composition of values is a separate
+question when it has an independent contract and stop.
 
 ## Source Trace
 

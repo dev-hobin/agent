@@ -8,8 +8,8 @@ another reference and do not supply a missing candidate surface.
 
 Supply the candidate, current pressure, caller-visible promise, hidden detail,
 representative case, counterexample, observable stop, and evidence gap. If these
-facts cannot be stated locally, hand off rather than treating an example as the
-missing design.
+facts cannot be stated locally, report the missing surface rather than treating
+an example as the design.
 
 This member contributes one promise-matched calibration case and its falsifier.
 It assumes the supplied surface is concrete, not that a particular field-card
@@ -50,7 +50,7 @@ Decision:
 
 The helper is reviewable because its caller shape and three concrete sources
 already exist. If only duplication exists and the interface must still be
-invented, return to `signal` and `sketch`.
+invented, no abstraction review follows from this calibration case.
 
 ## Provider Registry
 
@@ -131,8 +131,8 @@ Decision:
 ## Calibration Boundary
 
 Do not select the example whose surface looks most similar. Select the one whose
-**promise and falsifier** match. If no case matches, use the field card directly
-or hand off; do not expand this file into another design catalog.
+**promise and falsifier** match. If no case matches, no calibrated conclusion
+follows; do not expand this file into another design catalog.
 
 ## Source Trace
 

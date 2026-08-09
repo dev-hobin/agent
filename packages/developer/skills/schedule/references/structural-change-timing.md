@@ -4,7 +4,7 @@ Use this reference when a concrete refactor or abstraction candidate competes
 with a behavior change, and timing depends on reversibility, optionality,
 invariant pressure, or the cost of delay.
 
-It extends `schedule` only at the tradeoff step: derive one `now | after | never`
+At the tradeoff step, derive one `now | after | never`
 decision, its observer-relative reversibility, and its reopen condition. If the
 candidate surface is still unstable, hand it back rather than timing a wish.
 

@@ -82,9 +82,9 @@ Stop when closed operations can build every required larger value of the same
 unit, finalizers are explicit, and conventional stages agree on operational
 semantics.
 
-Use `representation-barriers` when raw layout rather than composability is the
-question, and `process-shape-and-resources` when eager/lazy/order/resource
-assumptions need their own execution design.
+Raw-layout independence and execution behavior under eager, lazy, ordered, or
+resource-sensitive operation are separate questions. This document does not
+answer them.
 
 ## Source Trace
 

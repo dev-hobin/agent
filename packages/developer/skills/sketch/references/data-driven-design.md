@@ -1,9 +1,8 @@
 # Data-Driven Design
 
 Use this reference when product information should determine the program shape.
-It extends `sketch` from accepted meaning through data, examples, template, and
-first executable item. Specialized references refine one later step; they do not
-replace this derivation.
+Follow accepted meaning through data, examples, template, and the first executable
+item. Later design questions do not replace this derivation.
 
 The central insight is concrete: **a data definition states how valid values are
 constructed and what they mean, and that construction rule determines the first
@@ -32,10 +31,9 @@ ingredients but the result is wrong, repair the completed body. If no template
 ingredient can express the purpose, design an auxiliary with its own recipe.
 
 In an existing repository, recover equivalent evidence from schemas, types,
-fixtures, callers, UI states, persistence, and tests. This guide extends the
-method for production repositories; it does not claim that HtDP replaces its
-pedagogical artifacts with those sources. Do not copy recipe comments into
-production merely to imitate the teaching form.
+fixtures, callers, UI states, persistence, and tests. These repository evidence
+sources adapt the teaching artifacts without requiring pedagogical comments in
+production code.
 
 ## Function Recipe Versus Program Recipe
 
@@ -137,27 +135,25 @@ Run all three examples. Then try a fake fourth variant. A compiler failure or
 explicit missing branch reveals the exact extension point; a catch-all returning
 an empty string would hide it.
 
-## Select One Design Extension
+## Keep Later Questions Separate
 
-Read only the extension that answers the unresolved question:
+| Independently consequential question | Distinct artifact |
+| --- | --- |
+| Which branches, selectors, recursive positions, or delegations follow from this data shape? | a data-corresponding template |
+| Which independently meaningful operations compose the result? | wished-operation contracts and one composable slice |
+| Which stable roles appear across several completed designs? | completed-design alignment, variation-role table, and an unapproved candidate |
+| How are new problem instances generated, preserved, and proven to progress? | generation, preservation, combination, and progress artifacts |
+| What lost knowledge or repeated work should traversal carry? | an original/current/accumulated invariant with ownership and semantic-delta checks |
 
-| Question after the base recipe | Read | Expected artifact |
-| --- | --- | --- |
-| Which branches, selectors, recursive positions, or delegations follow from this data shape? | [Data-Shape Template Catalog](data-shape-template-catalog.md) | a data-corresponding template |
-| Which independently meaningful operations compose the result? | [Composition By Wished Operations](composition-by-wishes.md) | wished-operation contracts and one composable slice |
-| Which stable roles appear across several completed designs? | [Earned Abstraction](earned-abstraction.md) | completed-design alignment, variation-role table, and candidate handoff |
-| How are new problem instances generated, preserved, and proven to progress? | [Generative Recursion](generative-recursion.md) | generation, preservation, combination, and progress artifacts |
-| What lost knowledge or repeated work should traversal carry? | [Accumulator Invariants](accumulator-invariants.md) | an original/current/accumulated invariant with ownership and semantic-delta checks |
-
-Each extension refines a different design step. Select several only when their
-questions are independently consequential; do not treat them as a progression or
-one bundled recursion topic.
+These questions refine different design steps. Keep each separate when it has an
+independent artifact and stop; do not treat them as a progression or one bundled
+recursion topic.
 
 ## Existing-Code Recovery Extension
 
 Use this recovery table rather than assuming the declared type is complete. The
-evidence sources and compatibility obligations below adapt HtDP's artifacts to
-an existing repository; they are operational guidance authored by this guide.
+evidence sources and compatibility obligations adapt the design artifacts to an
+existing repository.
 
 <!-- markdownlint-disable MD013 -->
 
@@ -172,9 +168,8 @@ an existing repository; they are operational guidance authored by this guide.
 
 <!-- markdownlint-enable MD013 -->
 
-When evidence conflicts, keep the contradiction visible. `model` owns disputed
-validity or policy; this reference shapes the implementable surface once the
-meaning is accepted.
+When evidence conflicts, keep the contradiction visible. This document shapes an
+implementable surface only after validity and policy are accepted.
 
 ## Propagate Model Refinement
 

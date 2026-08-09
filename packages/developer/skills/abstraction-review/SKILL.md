@@ -1,6 +1,6 @@
 ---
 name: abstraction-review
-description: "Judge whether an already-shaped wished interface, helper, API, workflow rule, boundary, or structural candidate is stable enough to keep, revise, split, reject, or defer. Use when concrete caller-facing shape and pressure can be inspected, even if evidence is incomplete. A desired representation or requested property list without an interface shape belongs to sketch, not abstraction review."
+description: "Judge whether an already-shaped wished interface, helper, API, workflow rule, boundary, or structural candidate is stable enough to keep, revise, split, reject, or defer. Use when concrete caller-facing shape and pressure can be inspected, even if evidence is incomplete. Return not-applicable when the original operations, ownership, or interface shape still have to be invented."
 ---
 
 # Abstraction Review
@@ -23,7 +23,8 @@ existing candidate + current pressure
 ```
 
 Review only promises the candidate already makes. When operations, ownership, or
-rules still need to be invented, hand off instead of constructing them here.
+rules still need to be invented, report the missing design surface and stop
+instead of constructing it here.
 
 ## Inputs
 
@@ -62,18 +63,17 @@ End with one prominent decision: `keep`, `revise-surface`, `revise-model`,
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: review decision and its concrete failure mode
 Basis: candidate source, callers, cases, code, tests, and assumptions
-Open questions: missing contract or evidence, or none
+Open questions: concrete unanswered questions in the caller's language, or none
 Artifacts: boundary, invariant, table, graph, trace, or repair rule
 ```
 
-Return only this skill's judgment for the question at hand; leave subsequent
-routing to the caller.
+Return only this skill's judgment for the question at hand.
 
 ## Completion
 
 Finish when each declared candidate promise is supported, contradicted, or left
 as an explicit gap, and one observable stop can fail the candidate. A failed stop
-produces a decision and owning-skill handoff, not an in-leaf redesign.
+produces a decision and concrete unanswered questions, not an in-leaf redesign.
 
 Revisit when new callers, cases, implementation evidence, or failures change
 the contract or stop check.
@@ -90,8 +90,8 @@ the contract or stop check.
 5. Construct the smallest plausible counterexample to one promise.
 6. Define an observable stop using cases, properties, tests, diffs, traces, cost,
    or command output.
-7. Decide and name the owning handoff for any missing model, design, timing,
-   naming, or verification artifact.
+7. State any missing meaning, design, timing, naming, or evidence artifact as a
+   concrete unanswered question in the caller's language.
 8. Do not convert missing evidence into polished approval or a shadow design.
 
 ## Missing Evidence
@@ -107,4 +107,4 @@ Do not discover structural movement, create the original design surface, decide
 timing, implement the change, or perform final completion review. A desire such
 as “replace this array with an object” is pressure, not yet a reviewable
 abstraction, when public operations, caller shape, ownership, and hidden detail
-still have to be invented; route that work to `sketch`.
+still have to be invented; return `not-applicable` and state that missing surface.

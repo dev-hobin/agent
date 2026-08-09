@@ -33,7 +33,7 @@ rule, and residual risks. When used inside a larger task, return:
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: evidence for or against the exact evaluated claim
 Basis: fixtures, commands, transcripts, provenance, and observations
-Open questions: untested failure modes or source gaps, or none
+Open questions: concrete unanswered questions in the caller's language, or none
 Artifacts: fixtures, execution matrix, feedback, and stop decision
 ```
 
@@ -43,10 +43,9 @@ When reporting multiple claims or rounds, keep the local evidence auditable:
 | --- | --- | --- | --- | --- |
 
 Use only the failure classes defined below. This table records evaluation
-evidence; it does not choose another capability.
+evidence and no broader judgment.
 
-Return only this skill's judgment for the question at hand; leave subsequent
-routing to the caller.
+Return only this skill's judgment for the question at hand.
 
 ## Completion
 

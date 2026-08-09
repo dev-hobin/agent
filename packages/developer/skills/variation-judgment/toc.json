@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
+  "when": [
+    "Concrete variants and operations require a proportional choice among direct use, references, conditionals, tables, registration, or dispatch."
+  ],
+  "unless": [
+    "Product variants or public operations still have to be invented, or no consequential variation mechanism is under judgment."
+  ],
+  "references": [
+    {
+      "path": "references/reference-conditional-table.md",
+      "when": [
+        "The distinction between conveying a choice, deciding among cases, and looking up an externally keyed case determines the mechanism."
+      ]
+    },
+    {
+      "path": "references/dispatch-and-registration.md",
+      "when": [
+        "The mechanism claims additive extension or registration and must own variant-operation growth, conflicts, duplicates, precedence, load order, visibility, or unsupported cases."
+      ]
+    }
+  ]
+}

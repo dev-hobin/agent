@@ -79,8 +79,8 @@ Stop when a representative nested call and optimized fragment preserve the
 accepted language observers under explicit guards, and roots/release/interoperation
 are complete enough to falsify runtime claims.
 
-Return to `language-semantics` when program meaning remains unsettled. Use
-`process-shape-and-resources` for ordinary non-language process boundaries.
+When program meaning is unsettled, no runtime design follows. Ordinary
+non-language process boundaries are outside this document.
 
 ## Source Trace
 

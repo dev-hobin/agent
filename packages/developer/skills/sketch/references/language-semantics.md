@@ -76,9 +76,9 @@ Stop when a representative and invalid program have explainable syntax, meaning,
 result shape, effects, and failure, and the ordinary-data alternative was
 considered.
 
-Use `runtime-and-compilation` only when lowering, calling convention, generated
-code, roots, or optimization guards are independently consequential. Return to
-`model/logic-query-semantics` when search meaning is not yet accepted.
+Lowering, calling convention, generated code, roots, optimization guards, and
+unaccepted search meaning are separate questions. This document does not answer
+them.
 
 ## Source Trace
 

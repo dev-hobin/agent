@@ -19,7 +19,7 @@ accepted intent and cases
 -> one unresolved design question
 -> wishful caller-visible surface
 -> contract, owner, hidden detail, and falsifier
--> first executable item + explicit handoffs
+-> first executable item + concrete unanswered questions
 ```
 
 A reference extends one arrow in this spine. It must not contribute unrelated
@@ -76,12 +76,11 @@ make a visual an output requirement. When used inside a larger task, return:
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: the smallest implementable design surface
 Basis: accepted intent, model, code, cases, and assumptions
-Open questions: unresolved design consequences, or none
+Open questions: concrete unanswered questions in the caller's language, or none
 Artifacts: wished interfaces, checks, and implementation queue
 ```
 
-Return only this skill's judgment for the question at hand; leave subsequent
-routing to the caller.
+Return only this skill's judgment for the question at hand.
 
 ## Completion
 
@@ -105,8 +104,9 @@ data-flow assumptions.
    boundaries instead of widening it merely to check it again; less trusted does
    not imply less typed. Treat unchecked narrowing as no evidence.
 4. List representative cases before choosing code shape.
-5. Name each independently unresolved design question and select only its routed
-   extension; keep disputed meaning in `model`.
+5. Name each independently unresolved design question and select only the
+   supporting material that directly addresses it; preserve disputed meaning as
+   a concrete unanswered question.
 6. Derive the needed template, composition, generation, invariant, level,
    process, state, dispatch, language, or responsibility artifact.
 7. Write wishful top-level code, pseudocode, or interaction flow in a fenced
@@ -132,7 +132,7 @@ assumptions.
 Do not own product scope, decide model correctness, promote an abstraction,
 schedule structural timing, implement the change, or verify completion. Creating
 an original public operation set, representation boundary, ownership map, or
-caller shape belongs here even when replacement pressure motivates it. Route
-`abstraction-review` only after a concrete caller-facing candidate exists; route
-`model` first only when unresolved cases or rules can materially change the
-surface.
+caller shape belongs here even when replacement pressure motivates it. Return
+`not-applicable` when only an already-shaped candidate judgment remains. Return
+`blocked` when unresolved cases or rules can materially change the surface, and
+state the concrete unanswered meaning in the caller's language.

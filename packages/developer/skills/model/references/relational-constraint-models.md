@@ -106,9 +106,9 @@ Guarantee owner and verification target:
 Stop when known valid and invalid instances differ for the stated reason and the
 runtime translation obligations are explicit.
 
-Hand off to `temporal-behavior-models` when histories rather than static instances
-carry meaning, to `solver-result-boundaries` when bounded exhaustive status is
-the claim, and to `sketch` when an enforcement surface must be designed.
+Do not absorb history-sensitive behavior, bounded exhaustive status, or
+implementation-surface design. State the concrete unanswered history, result, or
+enforcement question and stop.
 
 ## Source Trace
 

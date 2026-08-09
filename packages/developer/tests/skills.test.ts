@@ -13,13 +13,19 @@ const skillsRoot = join(packageRoot, "skills");
 const expected = [
 	"abstraction-review",
 	"adversarial-eval",
+	"convention-judgment",
 	"doctor",
+	"information-loss-judgment",
 	"model",
+	"module-judgment",
 	"naming-judgment",
+	"process-judgment",
 	"schedule",
 	"signal",
 	"sketch",
 	"specify",
+	"task-protocol-judgment",
+	"variation-judgment",
 	"verify",
 	"visualize",
 ];
@@ -48,15 +54,21 @@ test("every skill defines an inspection surface suited to its judgment", async (
 	const expectedSurfaces: Record<string, RegExp> = {
 		"abstraction-review": /review card or table/,
 		"adversarial-eval": /escalation ladder as an ordered matrix/,
+		"convention-judgment": /Produce a[\s\S]*convention card/,
 		doctor:
 			/Doctor scope and actual coverage[\s\S]*investigation ledger[\s\S]*treatment plan/,
+		"information-loss-judgment": /Produce an information-flow table/,
 		model: /case, decision, or truth table/,
+		"module-judgment": /Produce a module card/,
 		"naming-judgment": /rename map as the primary inspection surface/,
+		"process-judgment": /Produce a process card/,
 		schedule: /compact timing matrix/,
 		signal: /Make the comparison visible/,
 		sketch:
 			/compact case\/check table[\s\S]*wished-interface table[\s\S]*small ordered implementation queue/,
 		specify: /scope table separating in scope/,
+		"task-protocol-judgment": /Produce a protocol card/,
+		"variation-judgment": /Show the accepted surface/,
 		verify: /evidence matrix as the primary surface/,
 		visualize: /render the completed table, ASCII\/Mermaid diagram/,
 	};

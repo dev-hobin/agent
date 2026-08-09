@@ -66,12 +66,11 @@ larger task, return:
 Status: resolved | needs-evidence | not-applicable | blocked
 Result: the strongest claim justified by the evidence
 Basis: checks, inspections, provenance, and accepted assumptions
-Open questions: unverified claims or human-owned acceptance, or none
+Open questions: concrete unanswered questions in the caller's language, or none
 Artifacts: evidence map and residual risks
 ```
 
-Return only this skill's judgment for the question at hand; leave subsequent
-routing to the caller.
+Return only this skill's judgment for the question at hand.
 
 ## Completion
 

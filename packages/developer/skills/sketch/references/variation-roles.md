@@ -45,10 +45,9 @@ Stop when every admitted implementation substitutes for all declared observers
 and one transfer implementation fits without adding a type test or flag to the
 caller contract.
 
-Use `type-transitions` when one domain type becomes another,
-`selection-and-creation` when choosing/constructing a variant is independent,
-and `model/contract-replacement` when role compatibility itself is disputed.
-Route a shaped role candidate to `abstraction-review` for promotion.
+Domain type transitions, variant selection or creation, disputed compatibility,
+and approval of a shaped role candidate are separate questions. This document
+does not answer them.
 
 ## Source Trace
 

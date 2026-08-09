@@ -39,9 +39,8 @@ Transition examples and checks:
 Stop when every accepted source state has one explicit target/failure meaning and
 preserved facts can be checked without relying on representation coincidence.
 
-Use `variation-roles` when several implementations share one protocol,
-`selection-and-creation` when target selection is independently unresolved, and
-`model/temporal-behavior` when order among transitions remains product policy.
+A shared protocol across implementations, target selection, and temporal order
+policy are separate questions. This document does not answer them.
 
 ## Source Trace
 

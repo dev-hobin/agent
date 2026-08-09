@@ -251,8 +251,8 @@ Saving("a", 7) --Saved(6)--> Saving("a", 7)   // stale response ignored
 ```
 
 The handlers derive branches from both the world and event definitions. If
-correctness depends on history beyond `World`, refine the state or hand the
-temporal rule to `model`.
+correctness depends on history beyond `World`, refine the state; this template
+does not invent the missing temporal rule.
 
 ## Diagnosis
 

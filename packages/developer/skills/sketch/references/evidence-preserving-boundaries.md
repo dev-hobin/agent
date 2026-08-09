@@ -113,8 +113,8 @@ reasonably support:
   directly encode the invariant.
 
 Do not call a narrower representation better until the excluded ability is known
-to be unnecessary. The accepted domain comes from `model`; this route owns the
-boundary that constructs it.
+to be unnecessary. The accepted domain is an input to this document; the
+construction boundary does not invent it.
 
 ## Wished Interface
 
@@ -224,11 +224,10 @@ rejected before the domain effect that depends on it, no unchecked narrowing or
 public raw constructor claims the invariant, and the parser input preserves every
 representation guarantee established by prior boundaries.
 
-Return to `model` when the admitted values or failure policy are disputed. Use
-`representation-barrier` when alternate internal representations and public laws
-are independently consequential, `type-transition` when an accepted domain
-event transforms one valid domain type into another, and `contract-replacement`
-when old and new boundary compatibility remains unsettled.
+When admitted values or failure policy are disputed, no construction boundary
+follows. Alternate internal representations, domain-event transitions, and old
+versus new compatibility remain separate when they have independent artifacts
+and stop conditions.
 
 ## Source Trace
 

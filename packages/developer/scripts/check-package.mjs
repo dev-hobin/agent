@@ -25,13 +25,19 @@ async function readJson(path) {
 const expectedSkills = [
 	"abstraction-review",
 	"adversarial-eval",
+	"convention-judgment",
 	"doctor",
+	"information-loss-judgment",
 	"model",
+	"module-judgment",
 	"naming-judgment",
+	"process-judgment",
 	"schedule",
 	"signal",
 	"sketch",
 	"specify",
+	"task-protocol-judgment",
+	"variation-judgment",
 	"verify",
 	"visualize",
 ];
@@ -142,6 +148,12 @@ assert.deepEqual(
 	expectedSkills,
 );
 
+const orchestrationLanguage =
+	/residual need|hand[ -]?off|next capability|another capability|sibling capability|subsequent routing/i;
+const sourceTitleLanguage =
+	/99 Bottles|SICP|HtDP|Logic for Programmers|Elements of Clojure|Tidy First|Parse, don['’]t validate/i;
+const technologyStackLanguage = /\b(?:React|TypeScript|JavaScript)\b/i;
+
 for (const name of skills) {
 	const source = await readFile(join(root, "skills", name, "SKILL.md"), "utf8");
 	assert.match(source, new RegExp(`^---\\nname: ${name}\\n`, "m"));
@@ -156,6 +168,24 @@ for (const name of skills) {
 		source,
 		/^Status: resolved \| needs-evidence \| not-applicable \| blocked$/m,
 	);
+	assert.match(
+		source,
+		/^Open questions: concrete unanswered questions in the caller's language, or none$/m,
+	);
+	const operationalBody = source.split("## Source Trace", 2)[0];
+	assert.doesNotMatch(
+		operationalBody,
+		orchestrationLanguage,
+		`${name} must report only its own judgment, not external orchestration`,
+	);
+	for (const siblingName of skills) {
+		if (siblingName === name) continue;
+		assert.doesNotMatch(
+			operationalBody,
+			new RegExp("`" + siblingName + "(?:/[^`]+)?`"),
+			`${name} must not select sibling Skill ${siblingName}`,
+		);
+	}
 	assert.doesNotMatch(source, /Codex|developer-toolbox|openai\.yaml/);
 	const skillSourceTrace = source.split("## Source Trace", 2)[1];
 	if (skillSourceTrace !== undefined) {
@@ -171,6 +201,10 @@ const requiredReferences = [
 	"skills/abstraction-review/references/field-card.md",
 	"skills/abstraction-review/references/repair-table.md",
 	"skills/abstraction-review/references/worked-examples.md",
+	"skills/convention-judgment/references/enforcement-strength.md",
+	"skills/convention-judgment/references/scope-state-and-effects.md",
+	"skills/information-loss-judgment/references/accrete-reduce-reshape.md",
+	"skills/information-loss-judgment/references/equivalence-and-information-loss.md",
 	"skills/model/references/problem-modeling.md",
 	"skills/model/references/contract-and-replacement-models.md",
 	"skills/model/references/relational-constraint-models.md",
@@ -179,7 +213,14 @@ const requiredReferences = [
 	"skills/model/references/solver-result-boundaries.md",
 	"skills/model/references/logic-query-semantics.md",
 	"skills/model/references/planning-models.md",
+	"skills/module-judgment/references/model-interface-environment.md",
+	"skills/module-judgment/references/invariant-assumption-drift.md",
+	"skills/module-judgment/references/principled-adaptable-boundaries.md",
 	"skills/naming-judgment/references/domain-naming.md",
+	"skills/process-judgment/references/process-boundary.md",
+	"skills/process-judgment/references/pull-transform-push.md",
+	"skills/process-judgment/references/execution-model.md",
+	"skills/process-judgment/references/effect-data-boundary.md",
 	"skills/schedule/references/structural-change-timing.md",
 	"skills/signal/references/structural-movement.md",
 	"skills/sketch/references/data-driven-design.md",
@@ -202,16 +243,27 @@ const requiredReferences = [
 	"skills/sketch/references/variation-roles.md",
 	"skills/sketch/references/type-transitions.md",
 	"skills/sketch/references/selection-and-creation.md",
+	"skills/task-protocol-judgment/references/topology-resolution-routing.md",
+	"skills/task-protocol-judgment/references/task-and-acknowledgement.md",
+	"skills/task-protocol-judgment/references/retry-idempotency-cancellation.md",
+	"skills/variation-judgment/references/reference-conditional-table.md",
+	"skills/variation-judgment/references/dispatch-and-registration.md",
 	"skills/verify/references/verifier-selection-and-pass-but-wrong.md",
 ];
 
 const requiredCapabilityTocs = [
 	"skills/abstraction-review/toc.json",
+	"skills/convention-judgment/toc.json",
+	"skills/information-loss-judgment/toc.json",
 	"skills/model/toc.json",
+	"skills/module-judgment/toc.json",
 	"skills/naming-judgment/toc.json",
+	"skills/process-judgment/toc.json",
 	"skills/schedule/toc.json",
 	"skills/signal/toc.json",
 	"skills/sketch/toc.json",
+	"skills/task-protocol-judgment/toc.json",
+	"skills/variation-judgment/toc.json",
 	"skills/verify/toc.json",
 ];
 
@@ -220,6 +272,14 @@ const referenceCatalog = {
 		"references/field-card.md",
 		"references/repair-table.md",
 		"references/worked-examples.md",
+	],
+	"convention-judgment": [
+		"references/enforcement-strength.md",
+		"references/scope-state-and-effects.md",
+	],
+	"information-loss-judgment": [
+		"references/accrete-reduce-reshape.md",
+		"references/equivalence-and-information-loss.md",
 	],
 	model: [
 		"references/problem-modeling.md",
@@ -231,7 +291,18 @@ const referenceCatalog = {
 		"references/logic-query-semantics.md",
 		"references/planning-models.md",
 	],
+	"module-judgment": [
+		"references/model-interface-environment.md",
+		"references/invariant-assumption-drift.md",
+		"references/principled-adaptable-boundaries.md",
+	],
 	"naming-judgment": ["references/domain-naming.md"],
+	"process-judgment": [
+		"references/process-boundary.md",
+		"references/pull-transform-push.md",
+		"references/execution-model.md",
+		"references/effect-data-boundary.md",
+	],
 	schedule: ["references/structural-change-timing.md"],
 	signal: ["references/structural-movement.md"],
 	sketch: [
@@ -256,17 +327,35 @@ const referenceCatalog = {
 		"references/type-transitions.md",
 		"references/selection-and-creation.md",
 	],
+	"task-protocol-judgment": [
+		"references/topology-resolution-routing.md",
+		"references/task-and-acknowledgement.md",
+		"references/retry-idempotency-cancellation.md",
+	],
+	"variation-judgment": [
+		"references/reference-conditional-table.md",
+		"references/dispatch-and-registration.md",
+	],
 	verify: ["references/verifier-selection-and-pass-but-wrong.md"],
 };
 
 const descriptionTriggers = {
+	"convention-judgment":
+		/coding convention.*static enforcement.*runtime enforcement/i,
 	doctor: /bounded existing codebase scope.*improvement plan/i,
+	"information-loss-judgment": /data transformation.*accrete.*reduce.*reshape/i,
 	model: /condition space.*contracts.*replacement/i,
+	"module-judgment": /module.*environment.*model.*interface.*assumptions/i,
 	"naming-judgment": /domain meaning.*effect-hiding/i,
+	"process-judgment": /runtime flow.*data sharing.*waiting.*capacity.*failure/i,
 	schedule: /behavior-versus-structure separation/i,
 	signal: /structural movement.*model-code mismatch/i,
 	sketch:
 		/data flow.*recursion.*state.*composition.*responsibility.*variation/i,
+	"task-protocol-judgment":
+		/task protocol.*business completion.*outstanding-work.*retry/i,
+	"variation-judgment":
+		/indirection mechanism.*references.*conditionals.*tables.*dispatch/i,
 	verify: /verifier selection/i,
 };
 
@@ -306,14 +395,79 @@ for (const name of Object.keys(referenceCatalog)) {
 	await assert.rejects(access(join(root, "skills", name, "judgment.json")));
 }
 
+const referenceIdentifiers = requiredReferences.map(
+	(path) => path.split("/").at(-1)?.replace(/\.md$/, "") ?? "",
+);
 for (const path of requiredReferences) {
 	const source = await readFile(join(root, path), "utf8");
+	const operationalBody = source.split("## Source Trace", 2)[0];
 	assert.ok(source.length > 0, `Expected non-empty reference: ${path}`);
 	assert.doesNotMatch(source, /\bDeveloper\b/);
 	assert.doesNotMatch(
 		source,
 		/Upper Judgment|Capability TOC|Skill Contribution|sealed Context|Developer protocol|Action Loop/,
 	);
+	assert.doesNotMatch(
+		operationalBody,
+		orchestrationLanguage,
+		`${path} must not own external orchestration`,
+	);
+	assert.doesNotMatch(
+		operationalBody,
+		/^Status:|`(?:resolved|needs-evidence|not-applicable|blocked)`/m,
+		`${path} must not produce Skill status`,
+	);
+	assert.doesNotMatch(
+		operationalBody,
+		/^Open questions:/m,
+		`${path} must return local findings and limitations, not Skill output`,
+	);
+	assert.doesNotMatch(
+		operationalBody,
+		/\]\([^)]*\.md\)/,
+		`${path} must be usable without another Reference document`,
+	);
+	assert.doesNotMatch(
+		operationalBody,
+		sourceTitleLanguage,
+		`${path} operational guidance must be source-independent`,
+	);
+	assert.doesNotMatch(
+		operationalBody,
+		technologyStackLanguage,
+		`${path} operational guidance must be technology-stack-independent`,
+	);
+	assert.doesNotMatch(
+		operationalBody,
+		/\b(?:toc\.json|SKILL\.md)\b/,
+		`${path} must not depend on Skill packaging files`,
+	);
+	for (const identifier of [...skills, ...referenceIdentifiers]) {
+		assert.doesNotMatch(
+			operationalBody,
+			new RegExp("`" + identifier + "(?:/[^`]+)?`"),
+			`${path} must not select Skill or Reference ${identifier}`,
+		);
+	}
+}
+
+const standaloneReferenceSkills = new Set([
+	"convention-judgment",
+	"information-loss-judgment",
+	"module-judgment",
+	"process-judgment",
+	"task-protocol-judgment",
+	"variation-judgment",
+]);
+for (const path of requiredReferences) {
+	const skillName = path.split("/")[1];
+	if (!standaloneReferenceSkills.has(skillName)) continue;
+	const source = await readFile(join(root, path), "utf8");
+	assert.match(source, /## Accepted Judgment Context/);
+	assert.match(source, /## Worked Case/);
+	assert.match(source, /## Artifact/);
+	assert.match(source, /## Stop And Separation/);
+	assert.match(source, /## Source Trace/);
 }
 
 for (const path of requiredCapabilityTocs) {
@@ -353,7 +507,7 @@ for (const path of requiredCapabilityTocs) {
 
 const referenceAnchors = {
 	"skills/abstraction-review/references/field-card.md":
-		/## Judgment Spine[\s\S]*## Review Promises[\s\S]*## Separation Router/,
+		/## Judgment Spine[\s\S]*## Review Promises[\s\S]*## Separation Boundary/,
 	"skills/model/references/problem-modeling.md":
 		/## Judgment Spine[\s\S]*## Choose The Smallest Sufficient Model[\s\S]*## Stop And Separation/,
 	"skills/model/references/contract-and-replacement-models.md":
@@ -381,7 +535,7 @@ const referenceAnchors = {
 	"skills/sketch/references/evidence-preserving-boundaries.md":
 		/## Information Must Survive The Check[\s\S]*## Construction And Escape Audit[\s\S]*## Stop And Separation/,
 	"skills/sketch/references/design-levels-and-boundaries.md":
-		/## Boundary Spine[\s\S]*## Select One Specialized Judgment[\s\S]*## Stop And Separation/,
+		/## Boundary Spine[\s\S]*## Keep Specialized Questions Separate[\s\S]*## Stop And Separation/,
 	"skills/sketch/references/process-shape-and-resources.md":
 		/## Procedure Is Not Process[\s\S]*## Task Completion And Acknowledgment[\s\S]*## Stop And Separation/,
 	"skills/sketch/references/state-history-and-order.md":
@@ -470,6 +624,7 @@ const markdownDocuments = [
 	"REFERENCE_ROUTING.md",
 	"SOURCES.md",
 	"source-audits/cross-source-judgment-integration-2026-07-24.md",
+	"source-audits/elements-of-clojure-independent-judgment-split-2026-08-05.md",
 	"source-audits/parse-dont-validate-2019-11-05.md",
 	"README.md",
 	"docs/ko/terminal-judgment-workbench-study-v0.1.md",
@@ -568,6 +723,10 @@ const sourceTrace = await readFile(join(root, "SOURCES.md"), "utf8");
 assert.match(sourceTrace, /## Capability Matrix/);
 assert.match(sourceTrace, /## Runtime Reference Quality/);
 assert.match(sourceTrace, /cross-source-judgment-integration-2026-07-24\.md/);
+assert.match(
+	sourceTrace,
+	/elements-of-clojure-independent-judgment-split-2026-08-05\.md/,
+);
 assert.match(sourceTrace, /## Intentionally Not Imported As Universal Rules/);
 
 const workbench = await readFile(

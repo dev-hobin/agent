@@ -52,7 +52,7 @@ State events, guards, next states, unchanged fields, invalid events, and
 idempotency. A correct enum without transitions is not a correct history model.
 
 Cover stale, duplicate, reordered, retried, and concurrent events. If those rules
-are still product policy, return to `model` rather than choosing a mechanism.
+are not established, no state mechanism follows from this document.
 
 ## Identity, Aliases, And Mutation Graphs
 
@@ -117,10 +117,10 @@ Checks and residual policy:
 Stop when the state representation explains every admitted history, one owner
 controls each transition, and order/identity/log observers are explicit.
 
-Use `process-shape-and-resources` for wait, capacity, stack, or lifetime without
-product history; return to `model/temporal-behavior-models` when allowed histories
-or fairness remain unresolved; use `verify` when the design exists but traces are
-not exercised.
+Do not absorb process-only wait, capacity, stack, or lifetime questions; do not
+invent allowed histories or fairness; and do not treat unexercised traces as
+evidence. State each concrete unanswered process, history, or evidence question
+and stop.
 
 ## Source Trace
 
@@ -133,5 +133,5 @@ not exercised.
   for history, identity, mutation graphs, concurrency, streams, demand, and
   memoization.
 - Hillel Wayne, *Logic for Programmers*, v0.14.0, Chapters 9-10, calibrates
-  state/action, stale event, safety/progress, and refinement distinctions; the
-  accepted temporal policy itself remains owned by `model`.
+  state/action, stale event, safety/progress, and refinement distinctions;
+  accepted temporal policy remains outside this design reference.
