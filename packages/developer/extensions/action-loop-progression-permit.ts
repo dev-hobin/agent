@@ -15,7 +15,7 @@ export function createActionLoopProgressionPermitState(): ActionLoopProgressionP
 }
 
 export function progressionResultOpensPermit(status: string): boolean {
-	return status === "judgment-concluded";
+	return status === "judgment-concluded" || status === "effect-settled";
 }
 
 /** Opens one new progression boundary after trusted external state changes. */

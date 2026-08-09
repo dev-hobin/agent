@@ -22,8 +22,9 @@ test("progression runs at most once per trusted evidence boundary", () => {
 	assert.equal(consumeActionLoopProgressionPermit(second.state).status, "refused");
 });
 
-test("only a concluded Judgment opens an immediate controller boundary", () => {
+test("settled canonical stages open an immediate controller boundary", () => {
 	assert.equal(progressionResultOpensPermit("judgment-concluded"), true);
+	assert.equal(progressionResultOpensPermit("effect-settled"), true);
 	for (const status of [
 		"bounded-stop",
 		"judgment-refused",

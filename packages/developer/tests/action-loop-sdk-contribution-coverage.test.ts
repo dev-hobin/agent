@@ -399,6 +399,9 @@ test("SDK Coverage synthesis is not capped by its weakest Contribution", async (
 			localStatus: "resolved",
 			result: "Current runtime evidence fully establishes the bounded Need.",
 			limitations: [],
+			basis: ["Pi admitted the exact finalized read Observation."],
+			observationKind: "tool" as const,
+			observationSource: "read:target.txt",
 		},
 		{
 			...target,
@@ -409,6 +412,7 @@ test("SDK Coverage synthesis is not capped by its weakest Contribution", async (
 		},
 	];
 	let systemPrompt = "";
+	let decisionPrompt = "";
 	const delegated = scriptedSdkRunner([
 		{
 			proposals: [
@@ -430,6 +434,7 @@ test("SDK Coverage synthesis is not capped by its weakest Contribution", async (
 	const runner = {
 		async run<T>(decision: SdkDecisionRequest<T>) {
 			systemPrompt = decision.systemPrompt;
+			decisionPrompt = decision.prompt;
 			return delegated.run(decision);
 		},
 	};
@@ -450,5 +455,8 @@ test("SDK Coverage synthesis is not capped by its weakest Contribution", async (
 	assert.match(systemPrompt, /not from the weakest individual Contribution/);
 	assert.match(systemPrompt, /no weaker Contribution caps aggregate Coverage/);
 	assert.match(systemPrompt, /complete current canonical inventory/);
+	assert.match(systemPrompt, /Host-observed Contributions carry admitted Observation provenance/);
 	assert.match(systemPrompt, /Do not count downstream Action, Effect/);
+	assert.match(decisionPrompt, /Observed evidence: tool from read:target\.txt/);
+	assert.match(decisionPrompt, /Pi admitted the exact finalized read Observation/);
 });
