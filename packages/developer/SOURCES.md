@@ -122,8 +122,10 @@ record attests only the document set and source addition it names.
 | *Tidy First?* | First Edition, Second Release, 2025-12-12, ISBN 978-1-098-15124-9, 125 physical PDF pages; official [O'Reilly catalog](https://www.oreilly.com/library/view/tidy-first/9781098151232/) and [errata](https://www.oreilly.com/catalog/errata.csp?isbn=9781098151249) | [`source-audits/tidy-first-first-edition-second-release-2025-12-12.md`](./source-audits/tidy-first-first-edition-second-release-2025-12-12.md), all 125 pages read in order and visually inspected; authorized 13-page first-release retail preview and three corrected errata cross-checked | references retain source-independent observation, timing, and mutation artifacts with printed chapter/page provenance; option pricing, absolute safety, integration/deployment equivalence, universal clustering, Constantine's Equivalence, and unqualified reversibility/coupling claims are excluded or narrowed; production telemetry, migration, rollout, and recovery remain Developer adaptations; local PDFs are not packaged |
 | “Parse, don’t validate” | canonical article by Alexis King, published 2019-11-05, [official page](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) | [`source-audits/parse-dont-validate-2019-11-05.md`](./source-audits/parse-dont-validate-2019-11-05.md), canonical article read in full including footnotes; retrieved HTML hash and source qualifications recorded | runtime guidance retains the source-independent evidence-preserving-boundary method and ordinary bibliographic provenance; Haskell APIs, maximal type machinery, blanket cast bans, and unaudited secondary-source claims are excluded; construction-path, trusted-compiler-gap, effect-order, compatibility, and adversarial-evaluation surfaces are Developer adaptations |
 
-A source pin is provenance, not a runtime route. The canonical Capability TOC
-selects only the Reference set needed for the observable question.
+A source pin is provenance, not a runtime route. Each canonical Skill TOC
+describes Skill applicability and local Reference relevance. Developer consumes
+that metadata to select only the Reference set needed for the current
+Contribution Need.
 
 ## Capability Matrix
 
