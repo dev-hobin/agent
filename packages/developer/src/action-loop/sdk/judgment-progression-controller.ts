@@ -245,6 +245,18 @@ function capabilityByRevision(
 	);
 }
 
+function scopedContributionFunction(
+	judgment: OpenJudgment,
+	need: ContributionNeed,
+): string {
+	const requirement = judgment.requirements.find(
+		(candidate) => candidate.requirementId === need.requirementId,
+	);
+	return requirement
+		? `Requirement: ${requirement.statement}\nAdmitted evidence operation: ${need.function}`
+		: need.function;
+}
+
 function currentNeedAssessments(
 	progress: MutableProgress,
 	judgmentId: string,
@@ -425,7 +437,7 @@ async function progressNeedInventory(
 				workCaseId: runtime.progress.workCase.workCaseId,
 				judgmentId: runtime.judgment.judgmentId,
 				contributionNeedId: need.contributionNeedId,
-				contributionNeed: need.function,
+				contributionNeed: scopedContributionFunction(runtime.judgment, need),
 				capabilities: runtime.input.capabilities,
 				runner: runtime.input.runner,
 			});
@@ -572,7 +584,7 @@ async function acceptContextContribution(
 	if (stopped) return stopped;
 	const result = await contributeSkillWithSdk({
 		request: runtime.input.request,
-		contributionNeed: need.function,
+		contributionNeed: scopedContributionFunction(runtime.judgment, need),
 		assignment,
 		context,
 		runner: runtime.input.runner,
@@ -641,7 +653,7 @@ async function progressNeedCoverage(
 	if (stopped) return stopped;
 	const result = await assessNeedCoverageWithSdk({
 		request: runtime.input.request,
-		contributionNeed: need.function,
+		contributionNeed: scopedContributionFunction(runtime.judgment, need),
 		target: {
 			workCaseId: runtime.progress.workCase.workCaseId,
 			judgmentId: runtime.judgment.judgmentId,

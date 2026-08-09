@@ -10223,6 +10223,13 @@ function capabilityByRevision(capabilities, capabilityRevisionId) {
     (candidate) => candidate.entry.capability.capabilityRevisionId === capabilityRevisionId
   );
 }
+function scopedContributionFunction(judgment, need) {
+  const requirement = judgment.requirements.find(
+    (candidate) => candidate.requirementId === need.requirementId
+  );
+  return requirement ? `Requirement: ${requirement.statement}
+Admitted evidence operation: ${need.function}` : need.function;
+}
 function currentNeedAssessments(progress, judgmentId, contributionNeedId) {
   return progress.applicabilityAssessments.filter(
     (assessment) => assessment.workCaseId === progress.workCase.workCaseId && assessment.judgmentId === judgmentId && assessment.contributionNeedId === contributionNeedId
@@ -10351,7 +10358,7 @@ async function progressNeedInventory(runtime, need) {
     workCaseId: runtime.progress.workCase.workCaseId,
     judgmentId: runtime.judgment.judgmentId,
     contributionNeedId: need.contributionNeedId,
-    contributionNeed: need.function,
+    contributionNeed: scopedContributionFunction(runtime.judgment, need),
     capabilities: runtime.input.capabilities,
     runner: runtime.input.runner
   });
@@ -10463,7 +10470,7 @@ async function acceptContextContribution(runtime, need, context) {
   if (stopped) return stopped;
   const result = await contributeSkillWithSdk({
     request: runtime.input.request,
-    contributionNeed: need.function,
+    contributionNeed: scopedContributionFunction(runtime.judgment, need),
     assignment,
     context,
     runner: runtime.input.runner
@@ -10514,7 +10521,7 @@ async function progressNeedCoverage(runtime, need) {
   if (stopped) return stopped;
   const result = await assessNeedCoverageWithSdk({
     request: runtime.input.request,
-    contributionNeed: need.function,
+    contributionNeed: scopedContributionFunction(runtime.judgment, need),
     target: {
       workCaseId: runtime.progress.workCase.workCaseId,
       judgmentId: runtime.judgment.judgmentId,

@@ -10,6 +10,7 @@ import { openJudgment } from "../src/action-loop/judgment/open-judgment.ts";
 import { bindUnstructuredCapability } from "../src/action-loop/routing/bind-capability.ts";
 import type { SdkActionLoopState } from "../src/action-loop/sdk/action-loop-state.ts";
 import type { SdkNamedCapability } from "../src/action-loop/sdk/capability-inventory-controller.ts";
+import type { SdkDecisionRequest } from "../src/action-loop/sdk/decision-controller.ts";
 import {
 	progressJudgmentWithSdk,
 	type SdkJudgmentCheckpoint,
@@ -174,11 +175,19 @@ function completeScripts() {
 test("SDK Judgment progression checkpoints every accepted dependency before Conclusion", async (t) => {
 	const fixture = await progressionFixture(t);
 	const checkpoints: SdkJudgmentCheckpoint[] = [];
+	const prompts: string[] = [];
+	const delegated = scriptedSdkRunner(completeScripts());
+	const runner = {
+		async run<T>(decision: SdkDecisionRequest<T>) {
+			prompts.push(decision.prompt);
+			return delegated.run(decision);
+		},
+	};
 	const result = await progressJudgmentWithSdk({
 		request,
 		state: fixture.state,
 		capabilities: [fixture.capability],
-		runner: scriptedSdkRunner(completeScripts()),
+		runner,
 		maxSteps: 5,
 		checkpoint(checkpoint) {
 			checkpoints.push(checkpoint);
@@ -217,6 +226,16 @@ test("SDK Judgment progression checkpoints every accepted dependency before Conc
 	assert.equal(result.state.coverages.length, 1);
 	assert.equal(result.state.workCase.openJudgments.length, 0);
 	assert.equal(result.state.workCase.conclusions.length, 1);
+	assert.equal(
+		prompts.some(
+			(prompt) =>
+				prompt.includes(
+					"Requirement: Retry behavior preserves one terminal approval.",
+				) &&
+				prompt.includes(`Admitted evidence operation: ${contributionNeed}`),
+		),
+		true,
+	);
 });
 
 test("SDK Judgment progression isolates prior Contributions while advancing a later Need", async (t) => {
