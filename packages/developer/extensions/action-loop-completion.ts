@@ -94,9 +94,9 @@ export function liveCompletedWorkCasePrompt(
 ): string {
 	if (completed === undefined) return "Completed Action Loop Work Case: none";
 	return [
-		`Completed Action Loop Work Case: ${completed.workCaseId}`,
-		`Completed revision: ${completed.revisionId}`,
-		`Closure Target: ${completed.closureTarget.closureTargetId}`,
-		`Closure Claim: ${completed.closureClaim.closureClaimId} · ${completed.closureClaim.mode}`,
+		"Completed Action Loop Work Case",
+		`Outcome: ${completed.outcome.statement}`,
+		`Closure mode: ${completed.closureClaim.mode}`,
+		`Satisfied closure obligations: ${completed.closureClaim.obligationDispositions.length}`,
 	].join("\n");
 }

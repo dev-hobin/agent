@@ -11,6 +11,7 @@ import {
 	isDirectSkillMaterialRead,
 	liveHostObservationPrompt,
 	matchingLiveHostObservation,
+	selectLiveHostObservation,
 	MAX_LIVE_HOST_OBSERVATION_STATEMENT_CHARS,
 } from "../extensions/action-loop-host-observation.ts";
 
@@ -104,18 +105,19 @@ test("pre-opening evidence binds to one Work Case and cannot cross ownership", (
 	if (admitted.status !== "admitted") return;
 	const bound = bindLiveHostObservation(admitted.observation, "work-case-1");
 	assert.ok(bound);
+	if (!bound) return;
 	assert.equal(
 		matchingLiveHostObservation(
-			bound ? [bound] : [],
+			[bound],
 			admitted.observation.observationId,
 			"work-case-1",
 		)?.observationId,
 		admitted.observation.observationId,
 	);
-	assert.equal(bindLiveHostObservation(bound!, "work-case-2"), undefined);
+	assert.equal(bindLiveHostObservation(bound, "work-case-2"), undefined);
 	assert.equal(
 		matchingLiveHostObservation(
-			bound ? [bound] : [],
+			[bound],
 			admitted.observation.observationId,
 			"work-case-2",
 		),
@@ -123,7 +125,7 @@ test("pre-opening evidence binds to one Work Case and cannot cross ownership", (
 	);
 });
 
-test("observation prompts expose exact IDs without promoting evidence to conclusions", () => {
+test("observation prompts expose semantic selection without internal identity", () => {
 	const admitted = admitLiveUserPromptObservation(
 		"The operator says deployment may resume.",
 		"work-case-1",
@@ -131,8 +133,21 @@ test("observation prompts expose exact IDs without promoting evidence to conclus
 	assert.equal(admitted.status, "admitted");
 	if (admitted.status !== "admitted") return;
 	const prompt = liveHostObservationPrompt([admitted.observation]);
-	assert.match(prompt, new RegExp(admitted.observation.observationId));
+	assert.doesNotMatch(prompt, /observation_[a-f0-9]+/);
+	assert.match(prompt, /"kind":"human"/);
+	assert.match(prompt, /"source":"pi:user-prompt"/);
+	assert.match(prompt, /deployment may resume/);
 	assert.match(prompt, /evidence, not conclusions/);
+	const selected = selectLiveHostObservation(
+		[admitted.observation],
+		{
+			kind: "human",
+			source: "pi:user-prompt",
+			statement: admitted.observation.statement,
+		},
+		"work-case-1",
+	);
+	assert.equal(selected.status, "selected");
 });
 
 test("blank prompts and non-canonical tool evidence fail before admission", () => {

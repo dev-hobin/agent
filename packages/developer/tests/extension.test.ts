@@ -263,6 +263,39 @@ function resultText(result: {
 		.join("\n");
 }
 
+function observationSelector(content: string): {
+	readonly kind: "human" | "tool";
+	readonly source: string;
+	readonly statement: string;
+} {
+	for (const line of content.split("\n").toReversed()) {
+		if (!line.startsWith("- {")) continue;
+		let value: unknown;
+		try {
+			value = JSON.parse(line.slice(2));
+		} catch {
+			continue;
+		}
+		if (
+			typeof value === "object" &&
+			value !== null &&
+			"kind" in value &&
+			(value.kind === "human" || value.kind === "tool") &&
+			"source" in value &&
+			typeof value.source === "string" &&
+			"statement" in value &&
+			typeof value.statement === "string"
+		) {
+			return {
+				kind: value.kind,
+				source: value.source,
+				statement: value.statement,
+			};
+		}
+	}
+	throw new Error("Expected one semantic host Observation selector");
+}
+
 function renderedText(component: { render(width: number): string[] }): string {
 	return component.render(10_000).join("\n");
 }
@@ -480,7 +513,7 @@ test("activation failure preserves built-in tools and does not record enabled mo
 	);
 });
 
-test("Developer blocks alternate mutation surfaces without blocking observations", async () => {
+test("Developer allows stable built-in observations and blocks undeclared extension tools", async () => {
 	const harness = createHarness();
 	await developer(harness.api);
 	await harness.emit("session_start", {
@@ -498,15 +531,14 @@ test("Developer blocks alternate mutation surfaces without blocking observations
 		}),
 		undefined,
 	);
-	assert.equal(
-		await harness.emit("tool_call", {
-			type: "tool_call",
-			toolName: "mcp",
-			toolCallId: "mcp-search",
-			input: { search: "read tools" },
-		}),
-		undefined,
-	);
+	const mcpSearch = await harness.emit("tool_call", {
+		type: "tool_call",
+		toolName: "mcp",
+		toolCallId: "mcp-search",
+		input: { search: "read tools" },
+	});
+	assert.equal(mcpSearch.block, true);
+	assert.match(mcpSearch.reason, /no trusted Developer host capability declaration/);
 	const astMutation = await harness.emit("tool_call", {
 		type: "tool_call",
 		toolName: "ast_grep_replace",
@@ -514,7 +546,7 @@ test("Developer blocks alternate mutation surfaces without blocking observations
 		input: { pattern: "const $A = $B", rewrite: "const $A = $C", apply: true },
 	});
 	assert.equal(astMutation.block, true);
-	assert.match(astMutation.reason, /workspace mutation without a Developer Action adapter/);
+	assert.match(astMutation.reason, /no trusted Developer host capability declaration/);
 	const mcpCall = await harness.emit("tool_call", {
 		type: "tool_call",
 		toolName: "mcp",
@@ -522,7 +554,7 @@ test("Developer blocks alternate mutation surfaces without blocking observations
 		input: { tool: "external_write", args: { value: "changed" } },
 	});
 	assert.equal(mcpCall.block, true);
-	assert.match(mcpCall.reason, /may change external state/);
+	assert.match(mcpCall.reason, /no trusted Developer host capability declaration/);
 	const unknown = await harness.emit("tool_call", {
 		type: "tool_call",
 		toolName: "future_mutator",
@@ -530,7 +562,7 @@ test("Developer blocks alternate mutation surfaces without blocking observations
 		input: {},
 	});
 	assert.equal(unknown.block, true);
-	assert.match(unknown.reason, /no Developer observation or Action classification/);
+	assert.match(unknown.reason, /no trusted Developer host capability declaration/);
 });
 
 test("status fails closed while a session branch awaits inventory-bound replay", async () => {
@@ -593,14 +625,11 @@ test("natural human decisions durably pause and resume without protocol commands
 		systemPrompt: "base",
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
-	const pauseObservationId = pauseTurn.systemPrompt.match(
-		/- (observation_[a-f0-9]+) ·/,
-	)?.[1];
-	assert.ok(pauseObservationId);
+	const pauseObservation = observationSelector(pauseTurn.systemPrompt);
 	const paused = await harness.tools
 		.get("developer_pause_work_case")
 		.execute("pause-from-user-observation", {
-			observation_id: pauseObservationId,
+			observation: pauseObservation,
 			reason: "The delegating human is inspecting the current result.",
 			basis: ["The exact current human message explicitly requests pause."],
 		});
@@ -612,14 +641,11 @@ test("natural human decisions durably pause and resume without protocol commands
 		systemPrompt: "base",
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
-	const resumeObservationId = resumeTurn.systemPrompt.match(
-		/- (observation_[a-f0-9]+) ·/,
-	)?.[1];
-	assert.ok(resumeObservationId);
+	const resumeObservation = observationSelector(resumeTurn.systemPrompt);
 	const resumed = await harness.tools
 		.get("developer_resume_work_case")
 		.execute("resume-paused-from-user-observation", {
-			observation_id: resumeObservationId,
+			observation: resumeObservation,
 			basis: [
 				"The exact current human message explicitly requests continuation.",
 			],
@@ -643,17 +669,14 @@ test("natural user answers become exact Need-bound Contributions without a Skill
 		systemPrompt: "base",
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
-	const observationId = answerTurn.systemPrompt.match(
-		/- (observation_[a-f0-9]+) ·/,
-	)?.[1];
-	assert.ok(observationId);
+	const observation = observationSelector(answerTurn.systemPrompt);
 	const directAnswerBasis = [
 		"The exact current human message directly answers the current functional Need.",
 	];
 	const contribution = await harness.tools
 		.get("developer_accept_observation_contribution")
 		.execute("contribute-from-user-observation", {
-			observation_id: observationId,
+			observation,
 			local_status: "resolved",
 			result: "Use strict compatibility and reject unknown values.",
 			limitations: [],
@@ -694,14 +717,11 @@ test("natural user Observations durably wait and resume without protocol command
 		systemPrompt: "base",
 		systemPromptOptions: { cwd: packageRoot, skills: loadedLeaves },
 	});
-	const waitingObservationId = waitingPrompt.systemPrompt.match(
-		/- (observation_[a-f0-9]+) ·/,
-	)?.[1];
-	assert.ok(waitingObservationId);
+	const waitingObservation = observationSelector(waitingPrompt.systemPrompt);
 	const waited = await harness.tools
 		.get("developer_wait_work_case")
 		.execute("wait-from-user-observation", {
-			observation_id: waitingObservationId,
+			observation: waitingObservation,
 			external_condition: "The external package registry is unavailable.",
 			resume_predicate: "A bounded package registry probe succeeds.",
 			basis: [
@@ -744,14 +764,11 @@ test("natural user Observations durably wait and resume without protocol command
 		resumePrompt.systemPrompt,
 		/Resume predicate: A bounded package registry probe succeeds\./,
 	);
-	const resumeObservationId = resumePrompt.systemPrompt.match(
-		/- (observation_[a-f0-9]+) ·/,
-	)?.[1];
-	assert.ok(resumeObservationId);
+	const resumeObservation = observationSelector(resumePrompt.systemPrompt);
 	const resumed = await harness.tools
 		.get("developer_resume_work_case")
 		.execute("resume-from-user-observation", {
-			observation_id: resumeObservationId,
+			observation: resumeObservation,
 			basis: [
 				"The exact current user message reports that the stored predicate is now satisfied.",
 			],
@@ -798,14 +815,11 @@ test("finalized tool evidence reaches the model without exposing internal IDs in
 	assert.equal(internal.role, "custom");
 	assert.equal(internal.display, false);
 	assert.match(String(internal.content), /registry status: unavailable/);
-	const observationId = String(internal.content).match(
-		/- (observation_[a-f0-9]+) ·/,
-	)?.[1];
-	assert.ok(observationId);
+	const observation = observationSelector(String(internal.content));
 	const waited = await harness.tools
 		.get("developer_wait_work_case")
 		.execute("wait-from-tool-observation", {
-			observation_id: observationId,
+			observation,
 			external_condition: "The package registry is unavailable.",
 			resume_predicate: "A finalized registry probe reports available.",
 			basis: [
@@ -880,7 +894,11 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 	);
 	await assert.rejects(
 		harness.tools.get("developer_pause_work_case").execute("pause-no-session", {
-			observation_id: "observation_missing",
+			observation: {
+				kind: "human",
+				source: "pi:user-prompt",
+				statement: "This must not become a process-local pause.",
+			},
 			reason: "This must not become a process-local pause.",
 			basis: ["This must fail before process-local ownership is retained."],
 		}),
@@ -888,7 +906,11 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 	);
 	await assert.rejects(
 		harness.tools.get("developer_wait_work_case").execute("wait-no-session", {
-			observation_id: "observation_missing",
+			observation: {
+				kind: "tool",
+				source: "test",
+				statement: "An external condition is observed.",
+			},
 			external_condition: "An external condition is observed.",
 			resume_predicate: "The external condition changes.",
 			basis: ["This must fail before process-local ownership is retained."],
@@ -897,7 +919,10 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 	);
 	await assert.rejects(
 		harness.tools.get("developer_block_work_case").execute("block-no-session", {
-			claim_assurance_conclusion_id: "conclusion_missing",
+			claim_assurance: {
+				subject: "The current closure blockers",
+				answer: "No continuation exists.",
+			},
 			reason: "No continuation exists.",
 			basis: ["This must fail before process-local ownership is retained."],
 		}),
@@ -907,7 +932,11 @@ test("Pi --no-session mode refuses live nonterminal ownership", async () => {
 		harness.tools
 			.get("developer_resume_work_case")
 			.execute("resume-no-session", {
-				observation_id: "observation_missing",
+				observation: {
+					kind: "human",
+					source: "pi:user-prompt",
+					statement: "Continue.",
+				},
 				basis: ["This must fail before a process-local resume is accepted."],
 			}),
 		/--no-session/,
@@ -1139,9 +1168,15 @@ test("canonical tool rows never expose internal Action Loop identities", async (
 		assert.ok(tool, toolName);
 		assert.equal(tool.renderShell, "self");
 		const args = {
-			observation_id: internalId,
-			work_case_id: "work_case_bbbbbbbbbbbbbbbb",
-			revision_id: "revision_cccccccccccccccc",
+			observation: {
+				kind: "human",
+				source: "pi:user-prompt",
+				statement: "An external decision is pending.",
+			},
+			claim_assurance: {
+				subject: "Current closure blockers",
+				answer: "One blocker remains.",
+			},
 			reason: "An external decision is pending.",
 		};
 		const call = renderedText(tool.renderCall(args, theme, { args }));
@@ -1159,5 +1194,8 @@ test("canonical tool rows never expose internal Action Loop identities", async (
 		assert.match(call, /Developer/);
 		assert.doesNotMatch(call, /(?:observation|work_case|revision)_[a-f0-9]+/);
 		assert.doesNotMatch(result, /(?:observation|work_case|revision)_[a-f0-9]+/);
+		const schemaProperties = tool.parameters.properties ?? {};
+		assert.equal(schemaProperties.observation_id, undefined);
+		assert.equal(schemaProperties.claim_assurance_conclusion_id, undefined);
 	}
 });

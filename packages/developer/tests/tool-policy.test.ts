@@ -146,30 +146,24 @@ test("an extension override named edit is not classified as a Pi built-in", () =
 	);
 });
 
-test("host invocation classification separates observation from unsupported mutation", () => {
+test("only stable Pi built-ins have default Developer host capabilities", () => {
 	const classify = (toolName: string, toolInput: unknown) =>
 		classifyDeveloperHostToolInvocation({ toolName, toolInput, allTools });
 	assert.deepEqual(classify("read", { path: "src/index.ts" }), {
 		kind: "observation",
 	});
-	assert.deepEqual(classify("ast_grep_replace", { apply: false }), {
-		kind: "observation",
-	});
-	assert.equal(
-		classify("ast_grep_replace", { apply: true }).kind,
-		"unsupported-action",
-	);
-	assert.deepEqual(classify("mcp", { search: "read tools" }), {
-		kind: "observation",
-	});
-	assert.equal(
-		classify("mcp", { tool: "external_write", args: {} }).kind,
-		"unsupported-action",
-	);
-	assert.equal(classify("mcpScript", { code: "emit('x')" }).kind, "unsupported-action");
-	assert.equal(classify("external_search", {}).kind, "unclassified");
 	assert.deepEqual(classify("edit", { path: "src/index.ts" }), {
 		kind: "controlled-action",
 		capability: "artifact",
 	});
+	for (const [toolName, toolInput] of [
+		["ast_grep_replace", { apply: false }],
+		["ast_grep_replace", { apply: true }],
+		["mcp", { search: "read tools" }],
+		["mcp", { tool: "external_write", args: {} }],
+		["mcpScript", { code: "emit('x')" }],
+		["external_search", {}],
+	] as const) {
+		assert.equal(classify(toolName, toolInput).kind, "unclassified");
+	}
 });

@@ -62,7 +62,11 @@ test("live Judgment records against the exact current Context revision", () => {
 		modelProjection,
 		/"function":"accepted behavior observation"/,
 	);
-	assert.doesNotMatch(modelProjection, /contribution_need_[a-f0-9]+/);
+	assert.doesNotMatch(
+		modelProjection,
+		/(?:work_case|revision|judgment|contribution_need|conclusion|action_candidate|action_clearance|effect|selection|sealed|assignment)_[a-f0-9]+/,
+	);
+	assert.doesNotMatch(modelProjection, /fingerprint/i);
 });
 
 test("exact duplicate stutters without advancing Work Case revision", () => {

@@ -198,31 +198,30 @@ export function liveWorkCasePrompt(
 	const actionLines = [
 		...state.piActionProposals.map(
 			(proposal) =>
-				`Cleared Pi Action input: ${proposal.actionCandidateId} · ${proposal.toolName} ${JSON.stringify(proposal.toolInput)}`,
+				`Cleared Pi Action input: ${proposal.toolName} ${JSON.stringify(proposal.toolInput)}`,
 		),
 		...workCase.actionCandidates.map(
 			(candidate) =>
-				`Action Candidate: ${candidate.actionCandidateId} · ${candidate.controlledAction.kind}@${candidate.controlledAction.fingerprint} · clearance not implied`,
+				`Action Candidate: ${candidate.summary} · ${candidate.controlledAction.kind} · intended ${candidate.intendedEffects.join(" | ")} · clearance not implied`,
 		),
 		...workCase.actionClearances.map(
 			(clearance) =>
-				`Action Clearance: ${clearance.actionClearanceId} · ${clearance.controlledAction.kind}@${clearance.controlledAction.fingerprint}`,
+				`Action Clearance: ${clearance.controlledAction.kind} · intended ${clearance.intendedEffects.join(" | ")}`,
 		),
 		...workCase.effects.map(
 			(effect) =>
-				`Effect: ${effect.effectId} · ${effect.status} · occurrence ${effect.occurrenceId}`,
+				`Effect: ${effect.status} · ${effect.controlledAction.kind} · intended ${effect.intendedEffects.join(" | ")}`,
 		),
 		...state.effectObservations.map(
 			(observation) =>
-				`Effect Observation: ${observation.effectObservationId} · ${observation.evidence.kind} · settlement not implied`,
+				`Effect Observation: ${observation.evidence.kind} · ${observation.statement} · settlement not implied`,
 		),
 		...workCase.currentEffectAssessments.map(
-			(assessment) =>
-				`Effect Assessment: ${"effectSettlementId" in assessment ? assessment.effectSettlementId : assessment.effectAssessmentId} · ${assessment.outcome}`,
+			(assessment) => `Effect Assessment: ${assessment.outcome}`,
 		),
 		...workCase.effectRemediations.map(
 			(remediation) =>
-				`Effect Remediation: ${remediation.effectRemediationId} · ${remediation.adverseEffectId} → ${remediation.remediationEffectId}`,
+				`Effect Remediation: observed successful remediation · ${remediation.basis.join(" | ")}`,
 		),
 	];
 	if (actionLines.length === 0) actionLines.push("Actions: none");
@@ -256,7 +255,7 @@ export function liveWorkCasePrompt(
 			? ["Judgment Conclusions: none"]
 			: workCase.conclusions.map(
 					(conclusion) =>
-						`Judgment Conclusion: ${conclusion.conclusionId} · ${conclusion.category} · ${conclusion.answer}`,
+						`Judgment Conclusion: ${JSON.stringify({ category: conclusion.category, subject: conclusion.subject, answer: conclusion.answer })}`,
 				);
 	const applicabilityLines =
 		state.applicabilityAssessments.length === 0
@@ -276,7 +275,7 @@ export function liveWorkCasePrompt(
 			? ["Reference selections: none"]
 			: state.selections.map(
 					(selection) =>
-						`Reference selection: ${selection.selectionId} · ${selection.status} · selected=${selection.selectedPaths.join(", ") || "none"}`,
+						`Reference selection: ${selection.status} · selected=${selection.selectedPaths.join(", ") || "none"}`,
 				);
 	const contextLines =
 		state.contexts.length === 0
@@ -284,7 +283,7 @@ export function liveWorkCasePrompt(
 			: state.contexts.map((context) => {
 					let routing = "structured";
 					if ("routing" in context) routing = context.routing;
-					return `Sealed Skill context: ${context.sealedContextId} · ${routing} · ${context.assignmentId}`;
+					return `Sealed Skill context: ${routing}`;
 				});
 	const contributionLines =
 		state.contributions.length === 0
@@ -299,26 +298,25 @@ export function liveWorkCasePrompt(
 			: state.coverages.map(
 					(coverage) => `Need Coverage for a current Need: ${coverage.status}`,
 				);
-	const continuityLines =
-		workCase.status === "paused"
-			? [
-					`Pause: ${workCase.pause.workCasePauseId} · ${workCase.pause.reason}`,
-					"Resume requires an explicit human /developer resume decision on this durable Pi session branch.",
-				]
-			: workCase.status === "waiting"
-				? [
-						`Wait: ${workCase.wait.workCaseWaitId} · ${workCase.wait.externalCondition}`,
-						`Resume predicate: ${workCase.wait.resumePredicate}`,
-						"Resume requires a current Observation that satisfies this exact predicate.",
-					]
-				: workCase.status === "blocked"
-					? [
-							`Block: ${workCase.block.workCaseBlockId} · ${workCase.block.reason}`,
-							`Claim Assurance: ${workCase.block.claimAssuranceConclusionId}`,
-							`Accounted blockers: ${workCase.block.blockerDispositions.map(({ code, subjectId }) => `${code}@${subjectId}`).join(" | ")}`,
-							"Resume requires an observed change and concrete continuation.",
-						]
-					: [];
+	let continuityLines: string[] = [];
+	if (workCase.status === "paused") {
+		continuityLines = [
+			`Pause: ${workCase.pause.reason}`,
+			"Resume requires an explicit current human decision on this durable Pi session branch.",
+		];
+	} else if (workCase.status === "waiting") {
+		continuityLines = [
+			`Wait: ${workCase.wait.externalCondition}`,
+			`Resume predicate: ${workCase.wait.resumePredicate}`,
+			"Resume requires a current Observation that satisfies this exact predicate.",
+		];
+	} else if (workCase.status === "blocked") {
+		continuityLines = [
+			`Block: ${workCase.block.reason}`,
+			`Accounted blockers: ${workCase.block.blockerDispositions.map(({ code, basis }) => `${code} · ${basis.join(" ")}`).join(" | ")}`,
+			"Resume requires an observed change and concrete continuation.",
+		];
+	}
 	const statusLabel =
 		workCase.status === "active"
 			? "Active"
@@ -328,9 +326,8 @@ export function liveWorkCasePrompt(
 					? "Waiting"
 					: "Blocked";
 	return [
-		`${statusLabel} Action Loop Work Case: ${workCase.workCaseId}@${workCase.revisionId}`,
+		`${statusLabel} Action Loop Work Case:`,
 		`Outcome: ${workCase.outcome.statement}`,
-		`Current revision: ${workCase.revisionId}`,
 		`Acceptance conditions: ${workCase.outcome.acceptanceConditions.join(" | ")}`,
 		`Constraints: ${workCase.outcome.constraints.join(" | ") || "none"}`,
 		`Opening basis: ${openingBasis.join(" | ")}`,

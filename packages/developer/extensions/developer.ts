@@ -91,8 +91,10 @@ import {
 	bindLiveHostObservation,
 	isDirectSkillMaterialRead,
 	liveHostObservationPrompt,
-	matchingLiveHostObservation,
+	sameLiveHostObservationMeaning,
+	selectLiveHostObservation,
 	type LiveHostObservation,
+	type LiveHostObservationSelector,
 } from "./action-loop-host-observation.ts";
 import {
 	MAX_LIVE_BASIS_ITEMS,
@@ -129,6 +131,14 @@ const isDeveloperNamespacedTool = (toolName: string) =>
 	toolName.startsWith("developer_");
 const extensionRoot = dirname(fileURLToPath(import.meta.url));
 const skillsRoot = resolve(extensionRoot, "..", "skills");
+const LiveHostObservationSelectorSchema = Type.Object(
+	{
+		kind: StringEnum(["human", "tool"] as const),
+		source: Type.String({ minLength: 1, maxLength: 512 }),
+		statement: Type.String({ minLength: 1, maxLength: 16_384 }),
+	},
+	{ additionalProperties: false },
+);
 const MAX_EVIDENCE_CHARS = 2_000;
 const MAX_RESULT_CHARS = 12_000;
 const TOOL_POLICY_RESTART_MESSAGE =
@@ -202,7 +212,9 @@ export default async function developer(pi: ExtensionAPI) {
 	const rememberHostObservation = (observation: LiveHostObservation) => {
 		liveHostObservations = [
 			...liveHostObservations.filter(
-				(current) => current.observationId !== observation.observationId,
+				(current) =>
+					current.observationId !== observation.observationId &&
+					!sameLiveHostObservationMeaning(current, observation),
 			),
 			observation,
 		].slice(-MAX_LIVE_HOST_OBSERVATIONS);
@@ -254,31 +266,25 @@ export default async function developer(pi: ExtensionAPI) {
 	};
 
 	const findHostObservation = (
-		observationId: string,
+		selector: {
+			readonly kind: unknown;
+			readonly source: string;
+			readonly statement: string;
+		},
 		workCase: LiveWorkCaseState | LiveHeldWorkCaseState,
 	): LiveHostObservation | undefined => {
-		const admitted = matchingLiveHostObservation(
+		if (selector.kind !== "human" && selector.kind !== "tool") return undefined;
+		const semanticSelector: LiveHostObservationSelector = {
+			kind: selector.kind,
+			source: selector.source,
+			statement: selector.statement,
+		};
+		const selected = selectLiveHostObservation(
 			liveHostObservations,
-			observationId,
+			semanticSelector,
 			workCase.workCase.workCaseId,
 		);
-		if (admitted) return admitted;
-		if (!("effectObservations" in workCase)) return undefined;
-		const effectObservation = workCase.effectObservations.find(
-			(candidate) => candidate.effectObservationId === observationId,
-		);
-		if (!effectObservation) return undefined;
-		return Object.freeze({
-			observationId: effectObservation.effectObservationId,
-			kind: "tool" as const,
-			source: effectObservation.provenance.source,
-			statement: effectObservation.statement,
-			evidenceFingerprint: effectObservation.evidence.fingerprint,
-			workCaseId: effectObservation.workCaseId,
-			basis: Object.freeze([
-				`Current Effect Observation ${effectObservation.effectObservationId} binds exact host evidence ${effectObservation.evidence.locator} (${effectObservation.evidence.fingerprint}).`,
-			]),
-		});
+		return selected.status === "selected" ? selected.observation : undefined;
 	};
 
 	pi.registerFlag("developer", {
@@ -450,7 +456,7 @@ export default async function developer(pi: ExtensionAPI) {
 		promptSnippet: "Progress canonical work with the SDK controller",
 		promptGuidelines: [
 			`Use ${ACTION_LOOP_PROGRESS_TOOL} as the primary Developer entry point and call it again after the exact cleared host Action returns.`,
-			"Do not seek MCP, AST replacement, rename, or unknown mutation tools as substitutes for a canonical bash, edit, or write Action; unsupported host Actions are blocked fail-closed.",
+			"Do not seek extension tools as substitutes for a canonical bash, edit, or write Action; host tools without a trusted Developer capability declaration are blocked fail-closed.",
 			`Recovery: judgment-refused requires ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} with exact listed evidence for an unresolved Need. If evidence must be observed now, call one observational host tool and end the response; accept its newly listed Observation on the next agent turn. effect-unsettled requires one new observational host tool result. Never repeat progression without that state change.`,
 			"A bounded stop preserves acknowledged branch checkpoints. Do not replace replay-unavailable or held ownership, infer Effect success from a tool return, or bypass complete closure revalidation.",
 		],
@@ -588,13 +594,13 @@ export default async function developer(pi: ExtensionAPI) {
 		promptSnippet: "Use exact observed evidence for one current Need",
 		promptGuidelines: [
 			`Use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} when an exact host-admitted Observation directly contributes to a current Need without Skill interpretation.`,
-			"Use only an Observation ID listed in model-only host context. When several current Needs exist, copy one exact semantic contribution_need selector listed by progression; never guess or emit an internal identity.",
+			"Copy one exact semantic observation selector from model-only host context. When several current Needs exist, also copy one exact semantic contribution_need selector listed by progression; never guess or emit an internal identity.",
 			"Scope local_status, limitations, and residual_needs to that exact Need; downstream Action, Effect, or completion work outside the Need does not make the Contribution partial.",
 			"State material limitations and residual Needs explicitly; do not infer Coverage or Conclusion.",
 		],
 		parameters: Type.Object(
 			{
-				observation_id: Type.String({ minLength: 1, maxLength: 512 }),
+				observation: LiveHostObservationSelectorSchema,
 				contribution_need: Type.Optional(
 					Type.Object(
 						{
@@ -651,12 +657,12 @@ export default async function developer(pi: ExtensionAPI) {
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
 			const observation = findHostObservation(
-				params.observation_id,
+				params.observation,
 				activeWorkCase,
 			);
 			if (!observation) {
 				fail(
-					"Observation is unavailable, stale, or belongs to another Work Case.",
+					"Observation is unavailable, ambiguous, stale, or belongs to another Work Case.",
 				);
 			}
 			const proposal = {
@@ -726,7 +732,7 @@ export default async function developer(pi: ExtensionAPI) {
 		],
 		parameters: Type.Object(
 			{
-				observation_id: Type.String({ minLength: 1, maxLength: 512 }),
+				observation: LiveHostObservationSelectorSchema,
 				reason: Type.String({
 					minLength: 1,
 					maxLength: MAX_LIVE_CONTINUITY_TEXT,
@@ -756,7 +762,7 @@ export default async function developer(pi: ExtensionAPI) {
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
 			const observation = findHostObservation(
-				params.observation_id,
+				params.observation,
 				activeWorkCase,
 			);
 			if (!observation || observation.kind !== "human") {
@@ -805,7 +811,7 @@ export default async function developer(pi: ExtensionAPI) {
 		],
 		parameters: Type.Object(
 			{
-				observation_id: Type.String({ minLength: 1, maxLength: 512 }),
+				observation: LiveHostObservationSelectorSchema,
 				external_condition: Type.String({
 					minLength: 1,
 					maxLength: MAX_LIVE_CONTINUITY_TEXT,
@@ -839,7 +845,7 @@ export default async function developer(pi: ExtensionAPI) {
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
 			const observation = findHostObservation(
-				params.observation_id,
+				params.observation,
 				activeWorkCase,
 			);
 			if (!observation) {
@@ -889,10 +895,19 @@ export default async function developer(pi: ExtensionAPI) {
 		],
 		parameters: Type.Object(
 			{
-				claim_assurance_conclusion_id: Type.String({
-					minLength: 1,
-					maxLength: 512,
-				}),
+				claim_assurance: Type.Object(
+					{
+						subject: Type.String({
+							minLength: 1,
+							maxLength: MAX_EVIDENCE_CHARS,
+						}),
+						answer: Type.String({
+							minLength: 1,
+							maxLength: MAX_RESULT_CHARS,
+						}),
+					},
+					{ additionalProperties: false },
+				),
 				reason: Type.String({
 					minLength: 1,
 					maxLength: MAX_LIVE_CONTINUITY_TEXT,
@@ -921,14 +936,16 @@ export default async function developer(pi: ExtensionAPI) {
 				);
 			}
 			if (!activeWorkCase) fail("No active Action Loop Work Case.");
-			const assurance = activeWorkCase.workCase.conclusions.find(
+			const assurances = activeWorkCase.workCase.conclusions.filter(
 				(conclusion) =>
-					conclusion.conclusionId === params.claim_assurance_conclusion_id &&
-					conclusion.category === "Claim Assurance",
+					conclusion.category === "Claim Assurance" &&
+					conclusion.subject === params.claim_assurance.subject.trim() &&
+					conclusion.answer === params.claim_assurance.answer.trim(),
 			);
-			if (!assurance) {
+			const assurance = assurances[0];
+			if (!assurance || assurances.length !== 1) {
 				fail(
-					"Blocking requires the exact ID of a current Claim Assurance Conclusion.",
+					"Blocking requires one exact semantic Claim Assurance selector from the current Work Case.",
 				);
 			}
 			const prepared = prepareLiveWorkCaseClosure(activeWorkCase);
@@ -984,7 +1001,7 @@ export default async function developer(pi: ExtensionAPI) {
 		],
 		parameters: Type.Object(
 			{
-				observation_id: Type.String({ minLength: 1, maxLength: 512 }),
+				observation: LiveHostObservationSelectorSchema,
 				observed_change: Type.Optional(
 					Type.String({ minLength: 1, maxLength: MAX_LIVE_CONTINUITY_TEXT }),
 				),
@@ -1018,7 +1035,7 @@ export default async function developer(pi: ExtensionAPI) {
 				fail("No paused, waiting, or blocked Action Loop Work Case.");
 			}
 			const observation = findHostObservation(
-				params.observation_id,
+				params.observation,
 				heldWorkCase,
 			);
 			if (!observation) {
@@ -1856,7 +1873,7 @@ export default async function developer(pi: ExtensionAPI) {
 		) {
 			return {
 				block: true,
-				reason: `Developer blocked ${event.toolName}: ${disposition.reason} Use canonical progression to obtain an exact bash, edit, or write Action Clearance, or turn Developer off before using an unsupported host Action.`,
+				reason: `Developer blocked ${event.toolName}: ${disposition.reason} Use canonical progression to obtain an exact bash, edit, or write Action Clearance, or turn Developer off before using an unclassified host tool.`,
 			};
 		}
 		if (heldWorkCase) {
@@ -1953,11 +1970,19 @@ export default async function developer(pi: ExtensionAPI) {
 					);
 				}
 				activeWorkCase = observed.state;
-				const admittedEffect = findHostObservation(
-					observed.observation.effectObservationId,
-					observed.state,
+				rememberHostObservation(
+					Object.freeze({
+						observationId: observed.observation.effectObservationId,
+						kind: "tool" as const,
+						source: observed.observation.provenance.source,
+						statement: observed.observation.statement,
+						evidenceFingerprint: observed.observation.evidence.fingerprint,
+						workCaseId: observed.observation.workCaseId,
+						basis: Object.freeze([
+							`The current Effect Observation binds exact host evidence from ${observed.observation.evidence.locator}.`,
+						]),
+					}),
 				);
-				if (admittedEffect) rememberHostObservation(admittedEffect);
 			};
 			const actionEffect = activeWorkCase.workCase.effects.find(
 				(current) => current.occurrenceId === event.toolCallId,

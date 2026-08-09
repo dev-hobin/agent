@@ -7,6 +7,12 @@ import { fingerprintPiToolResult } from "./action-loop-pi-action.ts";
 export const MAX_LIVE_HOST_OBSERVATION_STATEMENT_CHARS = 2_048;
 export const MAX_LIVE_HOST_OBSERVATIONS = 32;
 
+export interface LiveHostObservationSelector {
+	readonly kind: LiveHostObservation["kind"];
+	readonly source: string;
+	readonly statement: string;
+}
+
 export interface LiveHostObservation {
 	readonly observationId: string;
 	readonly kind: "human" | "tool";
@@ -184,17 +190,50 @@ export function matchingLiveHostObservation(
 	);
 }
 
+export function sameLiveHostObservationMeaning(
+	observation: LiveHostObservation,
+	selector: LiveHostObservationSelector,
+): boolean {
+	return (
+		observation.kind === selector.kind &&
+		observation.source === selector.source.trim() &&
+		observation.statement === selector.statement.trim()
+	);
+}
+
+export function selectLiveHostObservation(
+	observations: readonly LiveHostObservation[],
+	selector: LiveHostObservationSelector,
+	workCaseId: string,
+):
+	| { readonly status: "selected"; readonly observation: LiveHostObservation }
+	| { readonly status: "unavailable" | "ambiguous" } {
+	const matches = observations.filter(
+		(observation) =>
+			observation.workCaseId === workCaseId &&
+			sameLiveHostObservationMeaning(observation, selector),
+	);
+	const selected = matches[0];
+	if (selected === undefined) return { status: "unavailable" };
+	if (matches.length > 1) return { status: "ambiguous" };
+	return { status: "selected", observation: selected };
+}
+
 export function liveHostObservationPrompt(
 	observations: readonly LiveHostObservation[],
 ): string {
 	if (observations.length === 0) return "Host-admitted observations: none.";
 	return [
-		"Host-admitted observations are evidence, not conclusions. Use only an exact listed observation ID when recording a direct observed Contribution or proposing pause, waiting, or resume:",
+		"Host-admitted observations are evidence, not conclusions. Use one exact semantic observation selector when recording a direct observed Contribution or proposing pause, waiting, or resume:",
 		...observations
 			.slice(-MAX_LIVE_HOST_OBSERVATIONS)
 			.map(
 				(observation) =>
-					`- ${observation.observationId} · ${observation.kind} · ${observation.source} · ${observation.statement}`,
+					`- ${JSON.stringify({
+						kind: observation.kind,
+						source: observation.source,
+						statement: observation.statement,
+					})}`,
 			),
 	].join("\n");
 }
