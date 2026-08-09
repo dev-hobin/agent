@@ -92,7 +92,7 @@ export function actionLoopProgressionSummary(
 		case "effect-settled":
 			return `The current Effect was canonically settled as ${result.outcome}.`;
 		case "effect-unsettled":
-			return `The current Effect remains ${result.outcome}. Gather one new exact finalized host Observation with an observational tool before progressing again; repeating without new Effect evidence cannot advance.`;
+			return `The current Effect remains ${result.outcome}. Do not record a Contribution unless a Judgment is open. Gather one new exact finalized host Observation with an observational tool, then call progression once; repeating without new Effect evidence cannot advance.`;
 		case "effect-remediated":
 			return "One current adverse Effect was bound to an exact observed-success remediation.";
 		case "remediation-required":

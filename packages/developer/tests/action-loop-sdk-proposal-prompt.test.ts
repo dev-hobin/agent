@@ -23,7 +23,8 @@ test("SDK proposal prompts separate authority from generated stage data", () => 
 
 	assert.match(rendered.systemPrompt, /proposal_stage: need-coverage/);
 	assert.match(rendered.systemPrompt, /authority: proposal-only/);
-	assert.match(rendered.systemPrompt, /cannot grant permission/);
+	assert.match(rendered.systemPrompt, /controller alone grants permission/);
+	assert.doesNotMatch(rendered.systemPrompt, /proposal-only; cannot/);
 	assert.match(rendered.systemPrompt, /packet_sections: current data only/);
 	assert.match(rendered.systemPrompt, /complete supplied Contribution inventory/);
 	assert.equal(

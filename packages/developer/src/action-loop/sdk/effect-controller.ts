@@ -327,6 +327,7 @@ function effectProposalPrompt(input: SdkEffectSettlementInput) {
 		rules: [
 			"Disposition every Observation and every intended Effect.",
 			"A tool return is not implicit success; preserve pending, unknown, failure, and adverse evidence.",
+			"A tool-result Observation that directly records an independent exact verifier may support observed-success; evaluate its evidence rather than rejecting it merely because a tool returned it.",
 		],
 		sections: [
 			{ name: "delegated_request", content: input.request },
