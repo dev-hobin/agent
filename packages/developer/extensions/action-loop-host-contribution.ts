@@ -124,7 +124,7 @@ export function liveHostContributionRecoveryPrompt(
 		"Current uncovered Contribution Needs use semantic selectors; trusted identities are intentionally omitted:",
 		...needs.map((need) => `- ${JSON.stringify(need)}`),
 		needs.length === 1
-			? "developer_accept_observation_contribution may omit contribution_need for this sole Need, or copy the listed semantic selector exactly."
+			? "Exactly one Need is uncovered. Omit contribution_need; the controller binds this sole Need without a model-authored selector. Do not copy or paraphrase it."
 			: "developer_accept_observation_contribution must set contribution_need to exactly one listed semantic selector.",
 	].join("\n");
 }

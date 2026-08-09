@@ -6,7 +6,7 @@ export const ACTION_LOOP_WAIT_WORK_CASE_TOOL = "developer_wait_work_case";
 export const ACTION_LOOP_BLOCK_WORK_CASE_TOOL = "developer_block_work_case";
 export const ACTION_LOOP_RESUME_WORK_CASE_TOOL = "developer_resume_work_case";
 
-export const ACTION_LOOP_EVIDENCE_RECOVERY_GUIDANCE = `After a Judgment refusal, do not repeat ${ACTION_LOOP_PROGRESS_TOOL}. For every unresolved Need that requires host, tool-result, Effect, or post-Action evidence, use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} with an exact listed tool or Effect Observation and, when several Needs are listed, one exact semantic contribution_need selector from below; never guess an internal identity or substitute a human-prompt Observation. If no matching Observation exists, call one fitting observational host tool and end the current response. On the next agent turn, accept the newly listed Observation before progression.`;
+export const ACTION_LOOP_EVIDENCE_RECOVERY_GUIDANCE = `After a Judgment refusal, do not repeat ${ACTION_LOOP_PROGRESS_TOOL}. For every unresolved Need that requires host, tool-result, Effect, or post-Action evidence, use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} with an exact listed tool or Effect Observation. Omit contribution_need when exactly one Need is listed; when several are listed, copy one exact semantic selector from below. Never guess an internal identity or substitute a human-prompt Observation. If no matching Observation exists, call one fitting observational host tool and end the current response. On the next agent turn, accept the newly listed Observation before progression.`;
 
 /** The complete Developer tool protocol admitted to model output. */
 export const MODEL_FACING_ACTION_LOOP_TOOLS = Object.freeze([
@@ -38,8 +38,8 @@ export function actionLoopModelProtocolPrompt(
 		"",
 		"[action_loop_protocol]",
 		"state_owner: canonical Work Case",
-		`primary_tool: ${ACTION_LOOP_PROGRESS_TOOL}; call again after an exact cleared host Action returns`,
-		`observed_contribution_tool: ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL}; exact admitted evidence only`,
+		`primary_tool: ${ACTION_LOOP_PROGRESS_TOOL}; call first and again after an exact cleared host Action returns`,
+		`observed_contribution_tool: ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL}; listed Need and exact admitted evidence only`,
 		"model_authority: proposal-only; evidence is not truth; never infer permission, Effect success, or completion",
 		"trusted_controller: owns opening, routing, Judgment, Action proposal, Effect settlement, durable checkpoints, and revision-revalidated Completion",
 		`admitted_skills: ${availableSkillNames.length > 0 ? availableSkillNames.join(", ") : "none"}; excluded Skills remain unavailable`,

@@ -43,6 +43,10 @@ function judgmentFixture(
 
 test("one admitted human Observation contributes to a Need through canonical Coverage", () => {
 	const state = judgmentFixture();
+	const recovery = liveHostContributionRecoveryPrompt(state);
+	assert.match(recovery, /Exactly one Need is uncovered/);
+	assert.match(recovery, /Omit contribution_need/);
+	assert.match(recovery, /Do not copy or paraphrase it/);
 	const admitted = admitLiveUserPromptObservation(
 		"Use strict compatibility and reject unknown values.",
 		state.workCase.workCaseId,

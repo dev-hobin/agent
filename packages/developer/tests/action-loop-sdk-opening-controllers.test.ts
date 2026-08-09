@@ -219,6 +219,10 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 	);
 	assert.match(
 		systemPrompt,
+		/smallest sufficient Requirement set[\s\S]*Do not add a Skill Requirement merely to restate, compare, verify, or interpret the same Observation/,
+	);
+	assert.match(
+		systemPrompt,
 		/define the target specification, not evidence that the target is attained/,
 	);
 	assert.match(
