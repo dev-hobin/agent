@@ -800,7 +800,6 @@ test("finalized tool evidence reaches the model without exposing internal IDs in
 		input: {},
 		isError: false,
 		content: [{ type: "text", text: "registry status: unavailable" }],
-		details: { status: "unavailable" },
 	};
 	const resultPatch = await harness.emit("tool_result", originalResult);
 	const receipt = (resultPatch.content as Array<{ readonly text: string }>)

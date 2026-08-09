@@ -37,7 +37,7 @@ export type LiveEffectBeginningResult =
 export interface LivePiToolResult {
 	readonly isError: boolean;
 	readonly content: readonly unknown[];
-	readonly details: unknown;
+	readonly details?: unknown;
 }
 
 export interface LivePiToolEffectEvidence {

@@ -1987,7 +1987,7 @@ export default async function developer(pi: ExtensionAPI) {
 			const toolResult = {
 				isError: event.isError,
 				content: event.content,
-				details: event.details,
+				...(event.details === undefined ? {} : { details: event.details }),
 			};
 			const persistEffectObservation = (
 				observed: ReturnType<typeof observeLivePiToolResult>,
@@ -2059,7 +2059,7 @@ export default async function developer(pi: ExtensionAPI) {
 				input: event.input,
 				isError: event.isError,
 				content: event.content,
-				details: event.details,
+				...(event.details === undefined ? {} : { details: event.details }),
 			},
 			ownership?.workCase.workCaseId,
 		);
