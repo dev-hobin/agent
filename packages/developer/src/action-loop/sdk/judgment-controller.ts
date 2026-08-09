@@ -17,6 +17,7 @@ import type {
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 
 const categories = [
 	"Contextual Adequacy",
@@ -136,24 +137,39 @@ export async function openJudgmentWithSdk(
 		return { status: "active-judgment-exists", judgment: existing };
 	}
 	const decision = await input.runner.run<JudgmentDecision>({
-		systemPrompt: [
-			"Propose one Category-scoped Judgment for the current unresolved Warrant Gap.",
-			"Call the supplied tool exactly once.",
-			"Requirements state closure obligations. Contribution Needs state missing evidence or analysis functions, never Skill names, host tool names or availability, Actions, or controller protocol mechanics.",
-			"Do not create Contribution Needs to re-prove controller-supplied Outcome, acceptance conditions, constraints, or Current Conclusions; use those trusted current-state facts only as basis for the substantive Warrant Gap.",
-			"Every Contribution Need must be answerable by an assigned sealed Skill Context or an exact Host Observation available before the Conclusion.",
-			"Every Requirement must be closable from evidence available before this Judgment's Conclusion; never require the future Action, Effect, or later controller response that the Conclusion would enable.",
-			"Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance follows settled Effects and cannot authorize an Action.",
-			"The SDK controller owns Work Case identity, Context revision, provenance, validation, retries, sequencing, and recording.",
-			"requirements_json and basis_json must be JSON text without Markdown fences.",
-		].join("\n"),
-		prompt: [
-			`Delegated request: ${input.request}`,
-			`Current Outcome: ${input.workCase.outcome.statement}`,
-			`Required Category: ${input.requiredCategory ?? "choose the current unresolved Warrant Gap"}`,
-			`Current Conclusions: ${input.workCase.conclusions.map((conclusion) => `${conclusion.category}: ${conclusion.answer}`).join(" | ") || "none"}`,
-			"Open only one independently closable Judgment needed to advance this Outcome.",
-		].join("\n"),
+		...renderSdkProposalPrompt({
+			stage: "judgment-opening",
+			objective:
+				"Propose one Category-scoped Judgment for the current unresolved Warrant Gap.",
+			rules: [
+				"Requirements state closure obligations. Contribution Needs state missing evidence or analysis functions, never Skill names, host tool names or availability, Actions, or controller protocol mechanics.",
+				"Do not create Contribution Needs to re-prove controller-supplied Outcome, acceptance conditions, constraints, or Current Conclusions; use those trusted current-state facts only as basis for the substantive Warrant Gap.",
+				"Every Contribution Need must be answerable by an assigned sealed Skill Context or an exact Host Observation available before the Conclusion.",
+				"Every Requirement must be closable from evidence available before this Judgment's Conclusion; never require the future Action, Effect, or later controller response that the Conclusion would enable.",
+				"Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance follows settled Effects and cannot authorize an Action.",
+				"requirements_json and basis_json contain JSON text without Markdown fences.",
+			],
+			sections: [
+				{ name: "delegated_request", content: input.request },
+				{ name: "current_outcome", content: input.workCase.outcome.statement },
+				{
+					name: "required_category",
+					content:
+						input.requiredCategory ??
+						"choose the current unresolved Warrant Gap",
+				},
+				{
+					name: "current_conclusions",
+					content:
+						input.workCase.conclusions.map(
+							(conclusion) =>
+								`${conclusion.category}: ${conclusion.answer}`,
+						) || "none",
+				},
+			],
+			decision:
+				"Open only one independently closable Judgment needed to advance this Outcome.",
+		}),
 		tool: {
 			name: "submit_judgment",
 			label: "Submit Judgment",

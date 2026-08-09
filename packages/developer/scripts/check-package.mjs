@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 
 import { MODEL_FACING_ACTION_LOOP_TOOLS } from "../extensions/action-loop-model-tools.ts";
+import { SDK_PROPOSAL_STAGES } from "../src/action-loop/sdk/proposal-prompt.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -89,6 +90,39 @@ for (const dependency of [
 }
 assert.equal(manifest.devDependencies.esbuild, "0.25.12");
 await access(join(root, "dist", "sdk.mjs"));
+
+const sdkRoot = join(root, "src", "action-loop", "sdk");
+const proposalPromptSource = await readFile(
+	join(sdkRoot, "proposal-prompt.ts"),
+	"utf8",
+);
+assert.match(proposalPromptSource, /authority: proposal-only/);
+assert.match(proposalPromptSource, /packet_sections: current data only/);
+const sdkControllerSources = [];
+for (const entry of await readdir(sdkRoot, { withFileTypes: true })) {
+	if (
+		!entry.isFile() ||
+		!entry.name.endsWith(".ts") ||
+		entry.name === "proposal-prompt.ts"
+	) {
+		continue;
+	}
+	const source = await readFile(join(sdkRoot, entry.name), "utf8");
+	sdkControllerSources.push(source);
+	assert.doesNotMatch(
+		source,
+		/\b(?:systemPrompt|prompt):\s*\[/,
+		`${entry.name} bypasses the generated proposal prompt boundary`,
+	);
+}
+const sdkControllerSource = sdkControllerSources.join("\n");
+for (const stage of SDK_PROPOSAL_STAGES) {
+	assert.match(
+		sdkControllerSource,
+		new RegExp(`stage: ["']${stage}["']`),
+		`No SDK controller uses the canonical ${stage} proposal stage`,
+	);
+}
 
 const entries = await readdir(join(root, "skills"), { withFileTypes: true });
 const skills = entries

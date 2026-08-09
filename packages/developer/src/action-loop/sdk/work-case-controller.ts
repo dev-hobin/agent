@@ -9,6 +9,7 @@ import type {
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
 import { decodeSdkStringList } from "./proposal-json.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 
 const MAX_OUTCOME_ITEMS = 32;
 const MAX_BASIS_ITEMS = 16;
@@ -50,16 +51,18 @@ export async function openWorkCaseWithSdk(
 	input: SdkWorkCaseOpeningInput,
 ): Promise<SdkWorkCaseOpeningResult> {
 	const decision = await input.runner.run<WorkCaseDecision>({
-		systemPrompt: [
-			"Propose one bounded Outcome for the delegated request.",
-			"Call the supplied tool exactly once.",
-			"The SDK controller owns provenance, validation, identity, retries, and canonical opening.",
-			"JSON text fields must contain JSON arrays of strings without Markdown fences.",
-		].join("\n"),
-		prompt: [
-			`Delegated request: ${input.request}`,
-			"State the desired observable Outcome, acceptance conditions, current constraints, and explicit opening basis.",
-		].join("\n"),
+		...renderSdkProposalPrompt({
+			stage: "work-case-opening",
+			objective: "Propose one bounded observable Outcome.",
+			rules: [
+				"JSON text fields contain JSON arrays of strings without Markdown fences.",
+			],
+			sections: [
+				{ name: "delegated_request", content: input.request },
+			],
+			decision:
+				"State the Outcome, acceptance conditions, current constraints, and explicit opening basis.",
+		}),
 		tool: {
 			name: "submit_work_case_outcome",
 			label: "Submit Work Case Outcome",

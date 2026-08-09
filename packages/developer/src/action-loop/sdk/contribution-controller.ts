@@ -18,6 +18,7 @@ import type {
 	SdkProposalTool,
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
 
 const localStatuses = ["resolved", "partial"] as const;
@@ -268,20 +269,30 @@ function contributionTool(input: {
 	};
 }
 
-function contributionPrompt(input: SdkSkillContributionInput): string {
+function contributionProposalPrompt(input: SdkSkillContributionInput) {
 	const materials = input.context.materials
 		.map(
 			(material) =>
 				`--- ${material.kind}: ${material.path} ---\n${material.content}`,
 		)
 		.join("\n\n");
-	return [
-		`Delegated request:\n${input.request}`,
-		`Contribution Need:\n${input.contributionNeed}`,
-		"Exact sealed Skill Context:",
-		materials,
-		"Produce only the local Contribution. Do not claim cross-Skill Coverage, permission, Effect success, or completion.",
-	].join("\n\n");
+	return renderSdkProposalPrompt({
+		stage: "skill-contribution",
+		objective:
+			"Produce one source-bound local Skill Contribution for one exact Need.",
+		rules: [
+			"Apply every selected Reference explicitly, preserve limitations, and expose residual or emergent Needs.",
+			"Scope localStatus, limitations, and residual Needs to the exact assigned Contribution Need. A downstream Action, Effect, completion claim, or unrelated claim does not make this local Contribution partial.",
+			"Use partial only when the sealed Context leaves a material gap in serving this exact Need.",
+		],
+		sections: [
+			{ name: "delegated_request", content: input.request },
+			{ name: "contribution_need", content: input.contributionNeed },
+			{ name: "sealed_skill_context", content: materials },
+		],
+		decision:
+			"Produce only the local Contribution. Do not claim cross-Skill Coverage, permission, Effect success, or completion.",
+	});
 }
 
 /** Produces and canonically admits one local Contribution from one sealed Context. */
@@ -289,15 +300,7 @@ export async function contributeSkillWithSdk(
 	input: SdkSkillContributionInput,
 ): Promise<SdkSkillContributionResult> {
 	const decision = await input.runner.run({
-		systemPrompt: [
-			"Produce one source-bound local Skill Contribution.",
-			"Call the supplied decision tool exactly once.",
-			"Apply every selected Reference explicitly, preserve limitations, and expose residual or emergent Needs.",
-			"Scope localStatus, limitations, and residual Needs to the exact assigned Contribution Need. A downstream Action, Effect, completion claim, or unrelated claim does not make this local Contribution partial.",
-			"Use partial only when the sealed Context leaves a material gap in serving this exact Need.",
-			"The SDK controller owns identity, sealed bytes, canonical admission, retries, and stop decisions.",
-		].join("\n"),
-		prompt: contributionPrompt(input),
+		...contributionProposalPrompt(input),
 		tool: contributionTool(input),
 	});
 	if (decision.status === "bounded-stop") {

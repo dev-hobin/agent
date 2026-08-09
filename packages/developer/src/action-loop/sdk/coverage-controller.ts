@@ -18,6 +18,7 @@ import type {
 	SdkProposalTool,
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
 
 const coverageStatuses = [
@@ -323,7 +324,7 @@ function coverageTool(input: {
 	};
 }
 
-function coveragePrompt(input: SdkNeedCoverageInput): string {
+function coverageProposalPrompt(input: SdkNeedCoverageInput) {
 	const contributions = input.contributions
 		.map((contribution, index) =>
 			[
@@ -333,14 +334,26 @@ function coveragePrompt(input: SdkNeedCoverageInput): string {
 			].join("\n"),
 		)
 		.join("\n\n");
-	return [
-		`Delegated request:\n${input.request}`,
-		`Contribution Need:\n${input.contributionNeed}`,
-		contributions.length > 0
-			? `Current Contributions:\n${contributions}`
-			: "Current Contributions: none",
-		"Disposition every current Contribution. Coverage is cross-Contribution synthesis, not a final Judgment Conclusion.",
-	].join("\n\n");
+	return renderSdkProposalPrompt({
+		stage: "need-coverage",
+		objective:
+			"Assess one current Contribution Need from the complete current Contribution inventory.",
+		rules: [
+			"Disposition every current Contribution.",
+			"Set aggregate Coverage from whether the combined relied-on evidence answers this exact Need, not from the weakest individual Contribution or an average of local statuses; no weaker Contribution caps aggregate Coverage when other current evidence fully closes this Need.",
+			"Preserve only limitations material to this Need in each disposition and in the aggregate basis.",
+			"The supplied Contributions are the complete current canonical inventory. Do not invent unsealed, parallel, or hidden Contributions or Context layers.",
+			"Do not count downstream Action, Effect, or unrelated-claim uncertainty as a residual gap for this Need.",
+			"Expose material limitations and conflicts; do not create a final Judgment Conclusion.",
+		],
+		sections: [
+			{ name: "delegated_request", content: input.request },
+			{ name: "contribution_need", content: input.contributionNeed },
+			{ name: "current_contributions", content: contributions },
+		],
+		decision:
+			"Synthesize cross-Contribution Coverage without producing a Judgment Conclusion.",
+	});
 }
 
 /** Assesses one Need from the complete current Contribution inventory. */
@@ -348,18 +361,7 @@ export async function assessNeedCoverageWithSdk(
 	input: SdkNeedCoverageInput,
 ): Promise<SdkNeedCoverageResult> {
 	const decision = await input.runner.run({
-		systemPrompt: [
-			"Assess one current Contribution Need comparatively.",
-			"Call the supplied decision tool exactly once and disposition every current Contribution.",
-			"Set aggregate Coverage from whether the combined relied-on evidence answers this exact Need, not from the weakest individual Contribution or an average of local statuses.",
-			"A Contribution localStatus remains its canonical Need-local assessment, but no weaker Contribution caps aggregate Coverage when other current evidence fully closes this Need.",
-			"Preserve only limitations material to this Need in each disposition and in the aggregate basis.",
-			"The supplied Contributions are the complete current canonical inventory. Do not invent unsealed, parallel, or hidden Contributions or Context layers.",
-			"Do not count downstream Action, Effect, or unrelated-claim uncertainty as a residual gap for this Need.",
-			"Expose material limitations and conflicts; do not create a final Judgment Conclusion.",
-			"The SDK controller owns Contribution identities, complete accounting, canonical admission, retries, and stop decisions.",
-		].join("\n"),
-		prompt: coveragePrompt(input),
+		...coverageProposalPrompt(input),
 		tool: coverageTool(input),
 	});
 	if (decision.status === "bounded-stop") {

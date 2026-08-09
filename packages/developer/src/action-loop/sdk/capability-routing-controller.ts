@@ -26,6 +26,7 @@ import type {
 	SdkProposalTool,
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 
 type AssignedApplicability = Extract<
 	ApplicabilityAcceptanceResult,
@@ -286,16 +287,26 @@ function referenceTool(toc: ParsedToc): SdkProposalTool<ReferenceDecision> {
 	};
 }
 
-function routingPrompt(request: string, toc: ParsedToc): string {
-	return [
-		`User request: ${request}`,
-		"Compare all declared Reference conditions before deciding:",
-		...toc.references.map(
-			(reference, index) =>
-				`[${index}] ${reference.path} — ${reference.when.join(" | ")}`,
-		),
-		"For every index, submit status_N and basis_N. Select only materially necessary References.",
-	].join("\n");
+function referenceSelectionProposalPrompt(request: string, toc: ParsedToc) {
+	return renderSdkProposalPrompt({
+		stage: "reference-selection",
+		objective: "Disposition every declared Reference for one assigned Capability.",
+		rules: [
+			"Choose the smallest set whose declared conditions materially apply; adjacent subject matter alone is not enough.",
+			"For every index, submit status_N and basis_N.",
+		],
+		sections: [
+			{ name: "delegated_request", content: request },
+			{
+				name: "declared_references",
+				content: toc.references.map(
+					(reference, index) =>
+						`[${index}] ${reference.path} — ${reference.when.join(" | ")}`,
+				),
+			},
+		],
+		decision: "Select only materially necessary References.",
+	});
 }
 
 function stoppedResult(
@@ -324,13 +335,7 @@ export async function selectStructuredReferencesWithSdk(
 	input: SdkStructuredReferenceSelectionInput,
 ): Promise<SdkStructuredReferenceSelectionResult> {
 	const decision = await input.runner.run({
-		systemPrompt: [
-			"Make one comparative local Reference routing proposal.",
-			"Call the supplied decision tool exactly once and disposition every declared Reference.",
-			"Choose the smallest set whose declared conditions materially apply; adjacent subject matter alone is not enough.",
-			"The SDK controller owns exact paths, complete inventory, validation, retry limits, and canonical binding.",
-		].join("\n"),
-		prompt: routingPrompt(input.request, input.toc),
+		...referenceSelectionProposalPrompt(input.request, input.toc),
 		tool: referenceTool(input.toc),
 	});
 	if (decision.status === "bounded-stop") {
@@ -389,17 +394,21 @@ export async function routeStructuredCapabilityWithSdk(
 ): Promise<SdkCapabilityRoutingResult> {
 	const decisions: SdkRoutingDecisionMetric[] = [];
 	const applicability = await input.runner.run({
-		systemPrompt: [
-			"Make one bounded semantic applicability proposal.",
-			"Call the supplied decision tool exactly once. Do not copy condition text into tool arguments.",
-			"The SDK controller owns identities, exact conditions, validation, retry limits, and state transitions.",
-		].join("\n"),
-		prompt: [
-			`User request: ${input.request}`,
-			`Capability when: ${input.toc.when.join(" | ")}`,
-			`Capability unless: ${input.toc.unless.join(" | ") || "none"}`,
-			"Decide only whether the Capability applies to this request.",
-		].join("\n"),
+		...renderSdkProposalPrompt({
+			stage: "capability-applicability",
+			objective:
+				"Decide whether one structured Capability applies to the delegated request.",
+			rules: ["Do not copy condition text into tool arguments."],
+			sections: [
+				{ name: "delegated_request", content: input.request },
+				{ name: "capability_when", content: input.toc.when },
+				{
+					name: "capability_unless",
+					content: input.toc.unless,
+				},
+			],
+			decision: "Decide only whether this Capability applies.",
+		}),
 		tool: applicabilityTool(input.target, input.toc),
 	});
 	decisions.push({ stage: "applicability", metrics: applicability.metrics });

@@ -162,10 +162,10 @@ test("Pi SDK bounded retry carries canonical rejection feedback", async () => {
 		/proposal-not-accepted: accepted must be true/,
 	);
 	assert.equal(host.prompts.length, 2);
-	assert.doesNotMatch(host.prompts[0] ?? "", /Previous proposal rejection/);
+	assert.doesNotMatch(host.prompts[0] ?? "", /\[retry\]/);
 	assert.match(
 		host.prompts[1] ?? "",
-		/Previous proposal rejection.*proposal-not-accepted/s,
+		/\[retry\].*Canonical admission rejected.*proposal-not-accepted/s,
 	);
 });
 

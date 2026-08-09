@@ -14,6 +14,7 @@ import type {
 	SdkProposalAdmission,
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 
 const applicabilityStatuses = [
 	"applicable",
@@ -276,22 +277,33 @@ function inventoryTool(input: {
 	};
 }
 
-function inventoryPrompt(input: {
+function inventoryProposalPrompt(input: {
 	readonly request: string;
 	readonly contributionNeed: string;
 	readonly capabilities: readonly SdkNamedCapability[];
-}): string {
-	return [
-		`Delegated request: ${input.request}`,
-		`Contribution Need: ${input.contributionNeed}`,
-		"Disposition every admitted Capability against this Need:",
-		...input.capabilities.map(({ name, entry }, index) =>
-			entry.routing === "structured"
-				? `[${index}] ${name}; when: ${entry.capability.toc.when.join(" | ")}; unless: ${entry.capability.toc.unless.join(" | ") || "none"}`
-				: `[${index}] ${name}; unstructured Capability`,
-		),
-		"Use needs-context rather than guessing. Adjacent subject matter is not applicability.",
-	].join("\n");
+}) {
+	return renderSdkProposalPrompt({
+		stage: "capability-inventory",
+		objective:
+			"Disposition every admitted Capability against one current Contribution Need.",
+		rules: [
+			"Account for every admitted Capability.",
+			"Use needs-context rather than guessing. Adjacent subject matter is not applicability.",
+		],
+		sections: [
+			{ name: "delegated_request", content: input.request },
+			{ name: "contribution_need", content: input.contributionNeed },
+			{
+				name: "admitted_capabilities",
+				content: input.capabilities.map(({ name, entry }, index) =>
+					entry.routing === "structured"
+						? `[${index}] ${name}; when: ${entry.capability.toc.when.join(" | ")}; unless: ${entry.capability.toc.unless.join(" | ") || "none"}`
+						: `[${index}] ${name}; unstructured Capability`,
+				),
+			},
+		],
+		decision: "Submit one complete comparative applicability proposal.",
+	});
 }
 
 /** Assesses every admitted Capability atomically for one current Need. */
@@ -310,12 +322,7 @@ export async function assessCapabilityInventoryWithSdk(
 		};
 	}
 	const decision = await input.runner.run({
-		systemPrompt: [
-			"Make one complete comparative Capability applicability proposal.",
-			"Call the supplied tool exactly once and account for every Capability.",
-			"The SDK controller owns inventory, exact conditions, identities, validation, retries, and atomic admission.",
-		].join("\n"),
-		prompt: inventoryPrompt({
+		...inventoryProposalPrompt({
 			request: input.request,
 			contributionNeed: input.contributionNeed,
 			capabilities: inventory.value,

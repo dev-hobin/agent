@@ -14,6 +14,7 @@ import type {
 	SdkProposalTool,
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 import { decodeSdkStringList } from "./proposal-json.ts";
 
 const remediationOutcomes = ["remediate", "refuse"] as const;
@@ -218,25 +219,32 @@ function remediationTool(
 	};
 }
 
-function remediationPrompt(input: SdkEffectRemediationInput): string {
-	const adverse = input.adverseSettlements
-		.map(
-			(settlement, index) =>
-				`adverse_${index}: ${settlement.outcome}; ${settlement.basis.join(" ")}`,
-		)
-		.join("\n");
-	const successful = input.successfulSettlements
-		.map(
-			(settlement, index) =>
-				`success_${index}: ${settlement.outcome}; ${settlement.basis.join(" ")}`,
-		)
-		.join("\n");
-	return [
-		`Delegated request:\n${input.request}`,
-		`Current unresolved adverse Effects:\n${adverse}`,
-		`Current observed-success Effects:\n${successful}`,
-		"Bind exactly one causal repair only when current evidence supports it. Otherwise refuse; do not accept an adverse Effect as completion.",
-	].join("\n\n");
+function remediationProposalPrompt(input: SdkEffectRemediationInput) {
+	const adverse = input.adverseSettlements.map(
+		(settlement, index) =>
+			`adverse_${index}: ${settlement.outcome}; ${settlement.basis.join(" ")}`,
+	);
+	const successful = input.successfulSettlements.map(
+		(settlement, index) =>
+			`success_${index}: ${settlement.outcome}; ${settlement.basis.join(" ")}`,
+	);
+	return renderSdkProposalPrompt({
+		stage: "effect-remediation",
+		objective:
+			"Assess one exact causal remediation relation from adverse Effect to observed success.",
+		rules: [
+			"Select only current indexed settlements and provide a source-bound causal basis, or refuse.",
+			"Fields ending in _json contain JSON encoded as a string, not a native array.",
+			"Do not accept an adverse Effect as completion.",
+		],
+		sections: [
+			{ name: "delegated_request", content: input.request },
+			{ name: "unresolved_adverse_effects", content: adverse },
+			{ name: "observed_success_effects", content: successful },
+		],
+		decision:
+			"Bind exactly one causal repair only when current evidence supports it; otherwise refuse.",
+	});
 }
 
 /** Proposes and canonically admits one current adverse-to-success remediation. */
@@ -259,13 +267,7 @@ export async function resolveEffectRemediationWithSdk(
 		};
 	}
 	const decision = await input.runner.run({
-		systemPrompt: [
-			"Assess one exact adverse Effect remediation relation.",
-			"Call the supplied decision tool exactly once.",
-			"Select only current indexed settlements and provide a source-bound causal basis, or refuse. Fields ending in _json require JSON encoded as a string, not a native array.",
-			"The SDK controller owns identities, outcome eligibility, canonical admission, retries, and stop decisions.",
-		].join("\n"),
-		prompt: remediationPrompt(input),
+		...remediationProposalPrompt(input),
 		tool: remediationTool(input),
 	});
 	if (decision.status === "bounded-stop") {

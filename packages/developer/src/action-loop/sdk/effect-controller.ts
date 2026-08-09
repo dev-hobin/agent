@@ -20,6 +20,7 @@ import type {
 	SdkProposalTool,
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 import { decodeSdkStringList } from "./proposal-json.ts";
 
 const effectOutcomes = [
@@ -315,21 +316,31 @@ function effectTool(
 	};
 }
 
-function effectPrompt(input: SdkEffectSettlementInput): string {
-	const observations = input.observations
-		.map(
-			(observation, index) =>
-				`Observation ${index}: ${observation.statement}\nLimitations: ${observation.limitations.join(" | ") || "none declared"}`,
-		)
-		.join("\n\n");
-	return [
-		`Delegated request:\n${input.request}`,
-		`Intended Effects:\n${input.effect.intendedEffects.map((effect, index) => `${index}: ${effect}`).join("\n")}`,
-		observations.length > 0
-			? `Exact current Effect Observations:\n${observations}`
-			: "Exact current Effect Observations: none",
-		"Tool return and exit status are evidence only. Derive settlement from complete explicit accounting.",
-	].join("\n\n");
+function effectProposalPrompt(input: SdkEffectSettlementInput) {
+	const observations = input.observations.map(
+		(observation, index) =>
+			`Observation ${index}: ${observation.statement}\nLimitations: ${observation.limitations.join(" | ") || "none declared"}`,
+	);
+	return renderSdkProposalPrompt({
+		stage: "effect-settlement",
+		objective: "Assess one current Effect from exact host Observations.",
+		rules: [
+			"Disposition every Observation and every intended Effect.",
+			"A tool return is not implicit success; preserve pending, unknown, failure, and adverse evidence.",
+		],
+		sections: [
+			{ name: "delegated_request", content: input.request },
+			{
+				name: "intended_effects",
+				content: input.effect.intendedEffects.map(
+					(effect, index) => `${index}: ${effect}`,
+				),
+			},
+			{ name: "effect_observations", content: observations },
+		],
+		decision:
+			"Derive settlement from complete explicit accounting; tool return and exit status remain evidence only.",
+	});
 }
 
 /** Produces complete canonical Effect accounting from current exact Observations. */
@@ -337,14 +348,7 @@ export async function settleEffectWithSdk(
 	input: SdkEffectSettlementInput,
 ): Promise<SdkEffectSettlementResult> {
 	const decision = await input.runner.run({
-		systemPrompt: [
-			"Assess one current Effect from exact host Observations.",
-			"Call the supplied decision tool exactly once.",
-			"Disposition every Observation and every intended Effect.",
-			"A tool return is not implicit success; preserve pending, unknown, failure, and adverse evidence.",
-			"The SDK controller owns identities, complete accounting, canonical admission, retries, and stop decisions.",
-		].join("\n"),
-		prompt: effectPrompt(input),
+		...effectProposalPrompt(input),
 		tool: effectTool(input),
 	});
 	if (decision.status === "bounded-stop") {

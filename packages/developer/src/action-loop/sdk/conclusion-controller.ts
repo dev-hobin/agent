@@ -19,6 +19,7 @@ import type {
 	SdkProposalTool,
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 import { decodeSdkStringList } from "./proposal-json.ts";
 
 const closureOutcomes = ["conclude", "refuse"] as const;
@@ -280,7 +281,7 @@ function conclusionTool(input: {
 	};
 }
 
-function conclusionPrompt(input: SdkJudgmentConclusionInput): string {
+function conclusionProposalPrompt(input: SdkJudgmentConclusionInput) {
 	const coverageByNeed = new Map(
 		input.coverages.map((coverage) => [coverage.contributionNeedId, coverage]),
 	);
@@ -298,18 +299,28 @@ function conclusionPrompt(input: SdkJudgmentConclusionInput): string {
 			].join("\n");
 		})
 		.join("\n\n");
-	return [
-		`Delegated request:\n${input.request}`,
-		`Judgment subject:\n${input.contract.subject}`,
-		`Category: ${input.contract.category}`,
-		`Current Requirements and Need Coverage:\n${requirements}`,
-		...(input.contract.category === "Proportionate Intervention"
-			? [
-					"When outcome is conclude, set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when the proportionate decision is to preserve current state. When outcome is refuse, omit intervention_disposition entirely.",
-				]
-			: []),
-		"Conclude only when every Requirement is supported by complete current Coverage. Otherwise return an explicit refusal and preserve blockers.",
-	].join("\n\n");
+	return renderSdkProposalPrompt({
+		stage: "judgment-conclusion",
+		objective:
+			"Synthesize one upper Judgment from complete current Need Coverage.",
+		rules: [
+			"Disposition every Closure Requirement.",
+			"Do not manufacture Coverage identities, permission, Effect success, or Work Case completion.",
+			...(input.contract.category === "Proportionate Intervention"
+				? [
+						"When outcome is conclude, set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when the proportionate decision is to preserve current state. When outcome is refuse, omit intervention_disposition entirely.",
+					]
+				: []),
+		],
+		sections: [
+			{ name: "delegated_request", content: input.request },
+			{ name: "judgment_subject", content: input.contract.subject },
+			{ name: "judgment_category", content: input.contract.category },
+			{ name: "requirements_and_coverage", content: requirements },
+		],
+		decision:
+			"Conclude only when every Requirement is supported by complete current Coverage. Otherwise return an explicit refusal and preserve blockers.",
+	});
 }
 
 /** Synthesizes current Need Coverage into one Conclusion or explicit refusal. */
@@ -317,13 +328,7 @@ export async function concludeJudgmentWithSdk(
 	input: SdkJudgmentConclusionInput,
 ): Promise<SdkJudgmentConclusionResult> {
 	const decision = await input.runner.run({
-		systemPrompt: [
-			"Make one upper Judgment synthesis from complete current Need Coverage.",
-			"Call the supplied decision tool exactly once and disposition every Closure Requirement.",
-			"Do not manufacture Coverage identities, permission, Effect success, or Work Case completion.",
-			"The SDK controller owns exact Coverage citations, canonical admission, retries, and stop decisions.",
-		].join("\n"),
-		prompt: conclusionPrompt(input),
+		...conclusionProposalPrompt(input),
 		tool: conclusionTool(input),
 	});
 	if (decision.status === "bounded-stop") {

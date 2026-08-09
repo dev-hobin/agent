@@ -1,6 +1,8 @@
 import type { ResourceLoader } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 
+import { withSdkProposalRejectionFeedback } from "./proposal-prompt.ts";
+
 type PiSdkModule = typeof import("@earendil-works/pi-coding-agent");
 
 export type PiSdkModelRuntime = Awaited<
@@ -338,16 +340,12 @@ async function runDecisionAttempt<T>(input: {
 				);
 				void session?.abort();
 			}, input.maximumRunMs);
-			const prompt =
-				input.retryFeedback.length === 0
-					? input.request.prompt
-					: [
-							input.request.prompt,
-							"Previous proposal rejection(s) from canonical admission:",
-							...input.retryFeedback.map((feedback) => `- ${feedback}`),
-							"Submit a corrected proposal and do not repeat these rejected states.",
-						].join("\n");
-			await session.prompt(prompt);
+			await session.prompt(
+				withSdkProposalRejectionFeedback(
+					input.request.prompt,
+					input.retryFeedback,
+				),
+			);
 			input.counters.nonRuntimeRuns += 1;
 		}
 	} catch (error) {

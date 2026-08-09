@@ -24,6 +24,7 @@ import type {
 	SdkProposalTool,
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
 
 const completionModes = ["completed", "no-change"] as const;
@@ -286,44 +287,46 @@ function completionTool(input: {
 	};
 }
 
-function completionPrompt(input: {
+function completionProposalPrompt(input: {
 	readonly request: string;
 	readonly workCase: ActiveWorkCase;
 	readonly target: SealedClosureTarget;
-}): string {
-	const obligations = input.target.obligations
-		.map(
-			(obligation, index) =>
-				`Obligation ${index} (${obligation.kind}): ${obligation.statement}`,
-		)
-		.join("\n");
-	const conclusions = input.workCase.conclusions
-		.map(
-			(conclusion, index) =>
-				`Conclusion ${index} (${conclusion.category}): ${conclusion.answer}`,
-		)
-		.join("\n");
-	const effects = input.workCase.currentEffectAssessments
-		.map(
-			(assessment, index) =>
-				`Effect assessment ${index}: ${assessment.outcome} — ${assessment.basis.join(" | ")}`,
-		)
-		.join("\n");
-	const remediations = input.workCase.effectRemediations
-		.map(
-			(remediation, index) =>
-				`Effect remediation ${index}: ${remediation.basis.join(" | ")}`,
-		)
-		.join("\n");
-	return [
-		`Delegated request:\n${input.request}`,
-		`Outcome:\n${input.workCase.outcome.statement}`,
-		`Current closure obligations:\n${obligations}`,
-		`Current Conclusions:\n${conclusions || "none"}`,
-		`Current Effect assessments:\n${effects || "none"}`,
-		`Current Effect remediations:\n${remediations || "none"}`,
-		"Map every current evidence item to one or more obligations where it materially applies. The SDK will reject omitted, stale, duplicate, or caller-selected subsets and revalidate the complete current revision.",
-	].join("\n\n");
+}) {
+	const obligations = input.target.obligations.map(
+		(obligation, index) =>
+			`Obligation ${index} (${obligation.kind}): ${obligation.statement}`,
+	);
+	const conclusions = input.workCase.conclusions.map(
+		(conclusion, index) =>
+			`Conclusion ${index} (${conclusion.category}): ${conclusion.answer}`,
+	);
+	const effects = input.workCase.currentEffectAssessments.map(
+		(assessment, index) =>
+			`Effect assessment ${index}: ${assessment.outcome} — ${assessment.basis.join(" | ")}`,
+	);
+	const remediations = input.workCase.effectRemediations.map(
+		(remediation, index) =>
+			`Effect remediation ${index}: ${remediation.basis.join(" | ")}`,
+	);
+	return renderSdkProposalPrompt({
+		stage: "work-case-completion",
+		objective: "Account for one complete current Work Case closure target.",
+		rules: [
+			"Disposition every closure obligation.",
+			"Apply every current Conclusion, Effect assessment, and remediation without inventing identities.",
+			"Map every current evidence item to one or more obligations where it materially applies.",
+		],
+		sections: [
+			{ name: "delegated_request", content: input.request },
+			{ name: "outcome", content: input.workCase.outcome.statement },
+			{ name: "closure_obligations", content: obligations },
+			{ name: "current_conclusions", content: conclusions },
+			{ name: "effect_assessments", content: effects },
+			{ name: "effect_remediations", content: remediations },
+		],
+		decision:
+			"Account for the complete current inventory. The controller will reject omitted, stale, duplicate, or caller-selected subsets and revalidate the current revision.",
+	});
 }
 
 /** Prepares, accounts for, and atomically revalidates one current Work Case completion. */
@@ -342,13 +345,7 @@ export async function completeWorkCaseWithSdk(
 		return { status: "not-ready", blockers: prepared.blockers };
 	}
 	const decision = await input.runner.run({
-		systemPrompt: [
-			"Account for one complete current Work Case closure target.",
-			"Call the supplied decision tool exactly once and disposition every closure obligation.",
-			"Apply every current Conclusion, Effect assessment, and remediation without inventing identities.",
-			"The SDK controller owns the complete inventory, canonical admission, current-revision revalidation, retries, and stop decisions.",
-		].join("\n"),
-		prompt: completionPrompt({ ...input, target: prepared.value }),
+		...completionProposalPrompt({ ...input, target: prepared.value }),
 		tool: completionTool({
 			workCase: input.workCase,
 			target: prepared.value,

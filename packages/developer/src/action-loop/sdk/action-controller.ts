@@ -23,6 +23,7 @@ import type {
 	SdkProposalTool,
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
+import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
 import { decodeSdkProposalJson, decodeSdkStringList } from "./proposal-json.ts";
 
 export interface SdkControlledActionBinding {
@@ -238,18 +239,25 @@ function actionTool(
 	};
 }
 
-function actionPrompt(input: SdkActionCandidateInput): string {
-	const conclusions = input.conclusions
-		.map(
-			(conclusion, index) =>
-				`Conclusion ${index} (${conclusion.category}): ${conclusion.answer}`,
-		)
-		.join("\n");
-	return [
-		`Delegated request:\n${input.request}`,
-		`Current Conclusions:\n${conclusions}`,
-		"Propose one exact controlled Action only when it advances the delegated Outcome. This proposal grants no permission and executes nothing.",
-	].join("\n\n");
+function actionProposalPrompt(input: SdkActionCandidateInput) {
+	const conclusions = input.conclusions.map(
+		(conclusion, index) =>
+			`Conclusion ${index} (${conclusion.category}): ${conclusion.answer}`,
+	);
+	return renderSdkProposalPrompt({
+		stage: "action-candidate",
+		objective: "Propose one exact controlled host Action Candidate.",
+		rules: [
+			"Select current required Conclusions and state intended Effects.",
+			"Do not claim permission, execution, Effect success, or Work Case completion.",
+		],
+		sections: [
+			{ name: "delegated_request", content: input.request },
+			{ name: "current_conclusions", content: conclusions },
+		],
+		decision:
+			"Propose one exact controlled Action only when it advances the delegated Outcome.",
+	});
 }
 
 /** Proposes and canonically admits one exact Action Candidate without permission. */
@@ -279,14 +287,7 @@ export async function proposeActionWithSdk(
 		};
 	}
 	const decision = await input.runner.run({
-		systemPrompt: [
-			"Propose one exact controlled host Action Candidate.",
-			"Call the supplied decision tool exactly once.",
-			"Select current required Conclusions and state intended Effects.",
-			"Do not claim permission, execution, Effect success, or Work Case completion.",
-			"The SDK controller owns exact input binding, canonical identity, retries, and stop decisions.",
-		].join("\n"),
-		prompt: actionPrompt(input),
+		...actionProposalPrompt(input),
 		tool: actionTool(input),
 	});
 	if (decision.status === "bounded-stop") {

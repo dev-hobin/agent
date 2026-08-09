@@ -11,7 +11,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
-import { MODEL_FACING_ACTION_LOOP_TOOLS } from "../extensions/action-loop-model-tools.ts";
+import {
+	MODEL_FACING_ACTION_LOOP_TOOLS,
+	actionLoopModelProtocolPrompt,
+} from "../extensions/action-loop-model-tools.ts";
 import { ACTION_LOOP_SESSION_ENTRY } from "../extensions/action-loop-session.ts";
 import {
 	actionLoopJudgmentOpenedEvent,
@@ -372,7 +375,7 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 		systemPromptOptions: { cwd: packageRoot, skills: [specify] },
 	});
 
-	assert.match(result.systemPrompt, /Pi-admitted Developer Skills: specify\./);
+	assert.match(result.systemPrompt, /admitted_skills: specify;/);
 	assert.match(
 		result.systemPrompt,
 		/Developer Capability inventory: 1 admitted by Pi\./,
@@ -382,12 +385,13 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 		result.systemPrompt,
 		/developer_accept_observation_contribution/,
 	);
-	assert.match(result.systemPrompt, /Evidence is not automatically truth/);
-	assert.match(result.systemPrompt, /exact cleared host Action/);
 	assert.match(
 		result.systemPrompt,
-		/never substitute a human-prompt Observation/,
+		/model_authority: proposal-only; evidence is not truth/,
 	);
+	assert.match(result.systemPrompt, /exact cleared host Action/);
+	assert.doesNotMatch(result.systemPrompt, /After a Judgment refusal/);
+	assert.ok(actionLoopModelProtocolPrompt(["specify"]).length <= 700);
 	assert.deepEqual(
 		harness
 			.activeTools()
@@ -397,7 +401,7 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 	);
 	assert.doesNotMatch(
 		result.systemPrompt,
-		/Pi-admitted Developer Skills:.*model/,
+		/admitted_skills:.*model/,
 	);
 });
 
