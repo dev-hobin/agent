@@ -150,6 +150,14 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 	assert.match(systemPrompt, /do not require a whole-workspace pre-Action baseline/i);
 	assert.match(
 		systemPrompt,
+		/Never create a Contribution Need that asks[\s\S]*re-prove a supplied controlled Action contract/,
+	);
+	assert.match(
+		systemPrompt,
+		/external condition is unavailable[\s\S]*one aggregate Requirement with one Contribution Need/,
+	);
+	assert.match(
+		systemPrompt,
 		/Claim Assurance after a no-action Conclusion[\s\S]*one aggregate Requirement/,
 	);
 	assert.match(
