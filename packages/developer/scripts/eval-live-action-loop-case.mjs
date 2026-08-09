@@ -45,7 +45,7 @@ const sessionFile = join(sessionDir, "session.jsonl");
 const piBin = process.env.PI_BIN || "pi";
 const model = process.env.DEVELOPER_EVAL_MODEL || "github-copilot/claude-sonnet-4.6";
 const thinking = process.env.DEVELOPER_EVAL_THINKING || "medium";
-const maximumRuns = boundedInteger("DEVELOPER_EVAL_MAX_RUNS", 4, 1, 12);
+const maximumRuns = boundedInteger("DEVELOPER_EVAL_MAX_RUNS", 5, 1, 12);
 const runTimeoutMs = boundedInteger(
 	"DEVELOPER_EVAL_TIMEOUT_MS",
 	180_000,
