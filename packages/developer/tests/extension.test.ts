@@ -384,6 +384,10 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 	);
 	assert.match(result.systemPrompt, /Evidence is not automatically truth/);
 	assert.match(result.systemPrompt, /exact cleared host Action/);
+	assert.match(
+		result.systemPrompt,
+		/never substitute a human-prompt Observation/,
+	);
 	assert.deepEqual(
 		harness
 			.activeTools()

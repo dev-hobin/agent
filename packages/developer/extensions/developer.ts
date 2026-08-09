@@ -69,6 +69,7 @@ import {
 import {
 	ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL,
 	ACTION_LOOP_BLOCK_WORK_CASE_TOOL,
+	ACTION_LOOP_EVIDENCE_RECOVERY_GUIDANCE,
 	ACTION_LOOP_PAUSE_WORK_CASE_TOOL,
 	ACTION_LOOP_PROGRESS_TOOL,
 	ACTION_LOOP_RESUME_WORK_CASE_TOOL,
@@ -435,6 +436,7 @@ export default async function developer(pi: ExtensionAPI) {
 		promptSnippet: "Progress canonical work with the SDK controller",
 		promptGuidelines: [
 			`Use ${ACTION_LOOP_PROGRESS_TOOL} as the primary Developer entry point and call it again after the exact cleared host Action returns.`,
+			ACTION_LOOP_EVIDENCE_RECOVERY_GUIDANCE,
 			"A bounded stop preserves acknowledged branch checkpoints. Do not replace replay-unavailable or held ownership, infer Effect success from a tool return, or bypass complete closure revalidation.",
 		],
 		parameters: Type.Object({}, { additionalProperties: false }),

@@ -19,6 +19,7 @@ import {
 	assessLiveActionClearance,
 } from "./action-loop-action.ts";
 import type { LiveCapabilityInventory } from "./action-loop-capability-inventory.ts";
+import { ACTION_LOOP_EVIDENCE_RECOVERY_GUIDANCE } from "./action-loop-model-tools.ts";
 import {
 	sdkActionClearedEvent,
 	sdkEffectRemediatedEvent,
@@ -112,7 +113,7 @@ export function actionLoopProgressionSummary(
 			const blockerCodes = [
 				...new Set(result.refusal.blockers.map((blocker) => blocker.code)),
 			];
-			return `The current evidence canonically refused Judgment closure (${blockerCodes.join(", ")}). Repeating progression without new accepted evidence cannot advance.`;
+			return `The current evidence canonically refused Judgment closure (${blockerCodes.join(", ")}). ${ACTION_LOOP_EVIDENCE_RECOVERY_GUIDANCE}`;
 		}
 		case "bounded-stop":
 			return `SDK Action Loop progression reached a bounded stop at ${result.stage}; acknowledged checkpoints are preserved.`;
