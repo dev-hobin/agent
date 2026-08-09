@@ -535,6 +535,9 @@ test("natural user answers become exact Need-bound Contributions without a Skill
 		/- (observation_[a-f0-9]+) ·/,
 	)?.[1];
 	assert.ok(observationId);
+	const directAnswerBasis = [
+		"The exact current human message directly answers the current functional Need.",
+	];
 	const contribution = await harness.tools
 		.get("developer_accept_observation_contribution")
 		.execute("contribute-from-user-observation", {
@@ -543,17 +546,24 @@ test("natural user answers become exact Need-bound Contributions without a Skill
 			result: "Use strict compatibility and reject unknown values.",
 			limitations: [],
 			residual_needs: [],
-			basis: [
-				"The exact current human message directly answers the current functional Need.",
-			],
+			basis: directAnswerBasis,
 		});
 	assert.equal(contribution.details.kind, "accepted");
 	assert.equal(contribution.details.result, contribution.details.result.trim());
-	assert.doesNotMatch(resultText(contribution), /observation_[a-f0-9]+/);
-	assert.equal(
-		(contribution.details.replayEvent as { kind?: string }).kind,
-		"host-contribution-accepted",
+	assert.doesNotMatch(
+		resultText(contribution),
+		/(?:observation|contribution)_[a-f0-9]+/,
 	);
+	const replayEvent = contribution.details.replayEvent as {
+		readonly kind?: string;
+		readonly proposal?: {
+			readonly contributionNeedId?: string;
+			readonly basis?: readonly string[];
+		};
+	};
+	assert.equal(replayEvent.kind, "host-contribution-accepted");
+	assert.match(replayEvent.proposal?.contributionNeedId ?? "", /^contribution_need_/);
+	assert.deepEqual(replayEvent.proposal?.basis, directAnswerBasis);
 });
 
 test("natural user Observations durably wait and resume without protocol commands", async () => {

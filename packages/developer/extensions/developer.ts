@@ -687,16 +687,16 @@ export default async function developer(pi: ExtensionAPI) {
 						{
 							contributionNeedId:
 								accepted.contribution.contributionNeedId,
-							localStatus: accepted.contribution.localStatus,
-							result: accepted.contribution.result,
-							limitations: [...accepted.contribution.limitations],
-							residualNeeds: accepted.contribution.residualNeeds.map(
+							localStatus: proposal.localStatus,
+							result: proposal.result,
+							limitations: [...proposal.limitations],
+							residualNeeds: proposal.residualNeeds.map(
 								(residualNeed) => ({
 									...residualNeed,
 									basis: [...residualNeed.basis],
 								}),
 							),
-							basis: [...accepted.contribution.basis],
+							basis: [...proposal.basis],
 						},
 						accepted.contribution.contributionId,
 					),
