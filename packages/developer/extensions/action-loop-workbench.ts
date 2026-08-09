@@ -55,6 +55,7 @@ export interface ActionLoopWorkbenchRuntime {
 	readonly activeWorkCase?: LiveWorkCaseState;
 	readonly heldWorkCase?: LiveHeldWorkCaseState;
 	readonly completedWorkCase?: CompletedWorkCase;
+	readonly replayPending?: boolean;
 	readonly replayUnavailable?: boolean;
 }
 
@@ -95,6 +96,12 @@ function status(runtime: ActionLoopWorkbenchRuntime): {
 } {
 	if (!runtime.enabled)
 		return { value: "off", label: "Off", next: "Turn Developer on to begin." };
+	if (runtime.replayPending)
+		return {
+			value: "unavailable",
+			label: "Recovery pending",
+			next: "Send a normal message to bind the current Skill inventory and recover branch ownership.",
+		};
 	if (runtime.replayUnavailable)
 		return {
 			value: "unavailable",
@@ -146,7 +153,11 @@ export function inspectActionLoopWorkbench(
 	const currentStatus = status(runtime);
 	const ownership = runtime.activeWorkCase ?? runtime.heldWorkCase;
 	const workCase = ownership?.workCase ?? runtime.completedWorkCase;
-	const headline = workCase?.outcome.statement ?? "No current work";
+	const headline =
+		workCase?.outcome.statement ??
+		(runtime.replayPending
+			? "Current branch ownership awaits inventory-bound recovery."
+			: "No current work");
 	const overviewItems: ActionLoopWorkbenchItem[] = [
 		item(
 			"Status",

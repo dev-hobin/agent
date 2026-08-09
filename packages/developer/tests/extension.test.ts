@@ -401,6 +401,23 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 	);
 });
 
+test("status fails closed while a session branch awaits inventory-bound replay", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	await openTestWorkCase(harness, "pending-replay");
+
+	await harness.commands.get("developer").handler("status", harness.ctx);
+	const message = harness.notifications.at(-1)?.message ?? "";
+	assert.match(message, /developer · Recovery pending/);
+	assert.match(message, /awaits inventory-bound recovery/);
+	assert.doesNotMatch(message, /Outcome · No current work/);
+});
+
 test("structured Capability routing stays inside the primary SDK controller prompt boundary", async () => {
 	const model = loadedLeaves.find((skill) => skill.name === "model")!;
 	const harness = createHarness();

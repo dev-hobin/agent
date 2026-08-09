@@ -175,6 +175,9 @@ export default async function developer(pi: ExtensionAPI) {
 		pi.appendEntry(ACTION_LOOP_SESSION_ENTRY, event);
 	};
 
+	const isActionLoopReplayUnavailable = () =>
+		toolPolicyRestartRequired || actionLoopReplayFailure !== undefined;
+
 	const replaceWorkCaseOwnership = (next: {
 		readonly active?: LiveWorkCaseState;
 		readonly held?: LiveHeldWorkCaseState;
@@ -341,7 +344,8 @@ export default async function developer(pi: ExtensionAPI) {
 			activeWorkCase,
 			heldWorkCase,
 			completedWorkCase,
-			replayUnavailable: actionLoopReplayFailure !== undefined,
+			replayPending: pendingActionLoopBranch !== undefined,
+			replayUnavailable: isActionLoopReplayUnavailable(),
 		});
 		ctx.ui.setStatus("developer", `developer · ${view.status}`);
 		if (view.status === "idle") {
@@ -1111,8 +1115,8 @@ export default async function developer(pi: ExtensionAPI) {
 			activeWorkCase,
 			heldWorkCase,
 			completedWorkCase,
-			replayUnavailable:
-				toolPolicyRestartRequired || actionLoopReplayFailure !== undefined,
+			replayPending: pendingActionLoopBranch !== undefined,
+			replayUnavailable: isActionLoopReplayUnavailable(),
 		});
 		const visibleItems = view.sections.flatMap((section) =>
 			section.items.map(
@@ -1624,9 +1628,8 @@ export default async function developer(pi: ExtensionAPI) {
 						activeWorkCase,
 						heldWorkCase,
 						completedWorkCase,
-						replayUnavailable:
-							toolPolicyRestartRequired ||
-							actionLoopReplayFailure !== undefined,
+						replayPending: pendingActionLoopBranch !== undefined,
+						replayUnavailable: isActionLoopReplayUnavailable(),
 					}),
 					initialSection,
 				);

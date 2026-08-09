@@ -79,4 +79,12 @@ test("canonical Workbench distinguishes off, ready, active, and unavailable", ()
 			.status,
 		"unavailable",
 	);
+	const pending = inspectActionLoopWorkbench({
+		enabled: true,
+		replayPending: true,
+	});
+	assert.equal(pending.status, "unavailable");
+	assert.equal(pending.statusLabel, "Recovery pending");
+	assert.match(pending.headline, /awaits inventory-bound recovery/);
+	assert.match(pending.next, /normal message/);
 });
