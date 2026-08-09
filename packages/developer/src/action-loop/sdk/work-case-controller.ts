@@ -55,6 +55,10 @@ export async function openWorkCaseWithSdk(
 			stage: "work-case-opening",
 			objective: "Propose one bounded observable Outcome.",
 			rules: [
+				"The Outcome is a desired observable target, not a claim that the target is already attained.",
+				"Acceptance conditions include only success properties explicitly requested by delegated_request and the minimum observations that distinguish success from failure.",
+				"Constraints include only explicit delegated limits or current trusted host boundaries. Do not invent stronger atomicity, metadata, collateral-change, action-count, or verifier-shape policies.",
+				"Preserve supplied pre-Action facts in basis_json at their stated granularity and label their temporal scope; never promote them to post-Action evidence.",
 				"JSON text fields contain JSON arrays of strings without Markdown fences.",
 			],
 			sections: [

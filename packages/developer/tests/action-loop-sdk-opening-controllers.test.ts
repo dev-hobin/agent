@@ -90,6 +90,24 @@ test("SDK opening pipeline refines text proposals into one Work Case and Judgmen
 	assert.equal(judgment.decision.toolCalls, 1);
 });
 
+test("SDK Work Case opening keeps target and scope bounded to the delegation", async () => {
+	let systemPrompt = "";
+	const delegated = scriptedSdkRunner([{ proposals: [workCaseProposal()] }]);
+	const runner = {
+		async run<T>(decision: SdkDecisionRequest<T>) {
+			systemPrompt = decision.systemPrompt;
+			return delegated.run(decision);
+		},
+	};
+	const opened = await openWorkCaseWithSdk({ request, runner });
+
+	assert.equal(opened.status, "opened");
+	assert.match(systemPrompt, /desired observable target, not a claim/);
+	assert.match(systemPrompt, /success properties explicitly requested/);
+	assert.match(systemPrompt, /Do not invent stronger atomicity, metadata/);
+	assert.match(systemPrompt, /never promote them to post-Action evidence/);
+});
+
 test("SDK Judgment opening keeps sequential Warrant Gaps independently closable", async () => {
 	const openingRunner = scriptedSdkRunner([
 		{ proposals: [workCaseProposal()] },
