@@ -815,11 +815,13 @@ function validateClosureOutcome(
 				};
 			}
 			if (
-				proposal.noActionDisposition !== undefined &&
-				(proposal.interventionDisposition !== "no-action" ||
-					!(["outcome-attained", "blocked", "waiting"] as const).includes(
-						proposal.noActionDisposition,
-					))
+				(proposal.interventionDisposition === "no-action" &&
+					(proposal.noActionDisposition === undefined ||
+						!(["outcome-attained", "blocked", "waiting"] as const).includes(
+							proposal.noActionDisposition,
+						))) ||
+				(proposal.interventionDisposition === "action-required" &&
+					proposal.noActionDisposition !== undefined)
 			) {
 				return {
 					ok: false,
@@ -827,7 +829,7 @@ function validateClosureOutcome(
 						code: "invalid-intervention-disposition",
 						path: "proposal.noActionDisposition",
 						message:
-							"A no-Action reason is valid only for no-action and must be outcome-attained, blocked, or waiting",
+							"no-action requires outcome-attained, blocked, or waiting; action-required cannot carry a no-Action disposition",
 					},
 				};
 			}

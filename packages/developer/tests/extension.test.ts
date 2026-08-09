@@ -352,7 +352,7 @@ async function openTestWorkCase(
 	];
 	if (withJudgment) {
 		const judgmentProposal = {
-			category: "Contextual Adequacy" as const,
+			category: "Proportionate Intervention" as const,
 			subject: `The ${label} test route.`,
 			question: `Which Contribution serves the ${label} test route?`,
 			requirements: [

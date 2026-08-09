@@ -2062,9 +2062,14 @@ export default async function developer(pi: ExtensionAPI) {
 					}),
 				);
 			};
-			const actionEffect = activeWorkCase.workCase.effects.find(
-				(current) => current.occurrenceId === event.toolCallId,
-			);
+			const currentEffect =
+				activeWorkCase.phase.kind === "effect-assessment"
+					? activeWorkCase.phase.effect
+					: undefined;
+			const actionEffect =
+				currentEffect?.occurrenceId === event.toolCallId
+					? currentEffect
+					: undefined;
 			if (actionEffect !== undefined) {
 				return persistEffectObservation(
 					observeLivePiToolResult(
@@ -2075,14 +2080,17 @@ export default async function developer(pi: ExtensionAPI) {
 					),
 				);
 			}
-			const unsettledAssessments =
-				activeWorkCase.workCase.currentEffectAssessments.filter(
-					(assessment) => "effectAssessmentId" in assessment,
-				);
-			if (unsettledAssessments.length === 1) {
+			const unsettledAssessment = currentEffect
+				? activeWorkCase.workCase.currentEffectAssessments.find(
+						(assessment) =>
+							"effectAssessmentId" in assessment &&
+							assessment.effectId === currentEffect.effectId,
+					)
+				: undefined;
+			if (unsettledAssessment) {
 				return persistEffectObservation(
 					observeLivePiToolResultForEffect(activeWorkCase, {
-						effectId: unsettledAssessments[0].effectId,
+						effectId: unsettledAssessment.effectId,
 						toolName: event.toolName,
 						toolCallId: event.toolCallId,
 						result: toolResult,

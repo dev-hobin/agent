@@ -223,6 +223,7 @@ test("ready closure, omitted blocker, or non-Assurance Conclusion cannot block",
 			"conclusion-ready-no-action",
 		),
 		interventionDisposition: "no-action" as const,
+		noActionDisposition: "outcome-attained" as const,
 	});
 	const assurance = conclusion(
 		opened.value.workCaseId,

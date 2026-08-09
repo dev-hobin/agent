@@ -21,6 +21,11 @@ import {
 } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
 import { recordWorkCaseEffectRemediation } from "../src/action-loop/work/record-work-case-effect-remediation.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
+import {
+	beginActionLoopEffect,
+	remediateActionLoopEffect,
+	settleActionLoopEffect,
+} from "../src/action-loop/work/action-loop-phase.ts";
 import { fingerprintPiToolResult } from "./action-loop-pi-action.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
@@ -100,13 +105,21 @@ export function beginLiveActionEffect(
 	if (recorded.status === "invalid") {
 		return { status: "invalid", message: recorded.error.message };
 	}
+	if (recorded.status === "unchanged") {
+		return { status: "unchanged", state, effect: begun.value };
+	}
+	const transitioned = beginActionLoopEffect(state.phase, begun.value);
+	if (transitioned.status === "invalid") {
+		return { status: "invalid", message: transitioned.error.message };
+	}
 	const piActionProposals = state.piActionProposals.filter(
 		(proposal) => proposal.actionCandidateId !== clearance.actionCandidateId,
 	);
 	return {
-		status: recorded.status === "recorded" ? "begun" : "unchanged",
+		status: "begun",
 		state: Object.freeze({
 			...state,
+			phase: transitioned.value,
 			workCase: recorded.value,
 			piActionProposals: Object.freeze(piActionProposals),
 		}),
@@ -119,11 +132,12 @@ export function acceptLiveEffectObservation(
 	state: LiveWorkCaseState,
 	proposal: LiveEffectObservationProposal,
 ): LiveEffectObservationResult {
-	const effect = state.workCase.effects.find(
-		(current) =>
-			current.effectId === proposal.effectId &&
-			current.occurrenceId === proposal.occurrenceId,
-	);
+	const effect =
+		state.phase.kind === "effect-assessment" &&
+		state.phase.effect.effectId === proposal.effectId &&
+		state.phase.effect.occurrenceId === proposal.occurrenceId
+			? state.phase.effect
+			: undefined;
 	if (effect === undefined) {
 		return {
 			status: "invalid",
@@ -175,9 +189,11 @@ export function observeLivePiToolResultForEffect(
 	state: LiveWorkCaseState,
 	input: LivePiToolEffectEvidence,
 ): LiveEffectObservationResult {
-	const effect = state.workCase.effects.find(
-		(current) => current.effectId === input.effectId,
-	);
+	const effect =
+		state.phase.kind === "effect-assessment" &&
+		state.phase.effect.effectId === input.effectId
+			? state.phase.effect
+			: undefined;
 	if (effect === undefined) {
 		return { status: "invalid", message: `Unknown Effect: ${input.effectId}` };
 	}
@@ -213,9 +229,11 @@ export function observeLivePiToolResult(
 	occurrenceId: string,
 	result: LivePiToolResult,
 ): LiveEffectObservationResult {
-	const effect = state.workCase.effects.find(
-		(current) => current.occurrenceId === occurrenceId,
-	);
+	const effect =
+		state.phase.kind === "effect-assessment" &&
+		state.phase.effect.occurrenceId === occurrenceId
+			? state.phase.effect
+			: undefined;
 	if (effect === undefined) {
 		return {
 			status: "invalid",
@@ -242,9 +260,11 @@ export function settleLiveEffect(
 	effectId: string,
 	proposal: LiveEffectSettlementProposal,
 ): LiveEffectSettlementResult {
-	const effect = state.workCase.effects.find(
-		(current) => current.effectId === effectId,
-	);
+	const effect =
+		state.phase.kind === "effect-assessment" &&
+		state.phase.effect.effectId === effectId
+			? state.phase.effect
+			: undefined;
 	if (effect === undefined) {
 		return {
 			status: "invalid",
@@ -290,16 +310,25 @@ export function settleLiveEffect(
 	if (recorded.status === "invalid") {
 		return { status: "invalid", message: recorded.error.message };
 	}
+	if (recorded.status === "unchanged") {
+		return {
+			status: "unchanged",
+			state,
+			assessment: current ?? settled.value,
+		};
+	}
+	const transitioned = settleActionLoopEffect(state.phase, settled.value);
+	if (transitioned.status === "invalid") {
+		return { status: "invalid", message: transitioned.error.message };
+	}
 	return {
-		status: recorded.status === "unchanged" ? "unchanged" : settled.status,
-		state:
-			recorded.status === "recorded"
-				? Object.freeze({ ...state, workCase: recorded.value })
-				: state,
-		assessment:
-			recorded.status === "unchanged" && current !== undefined
-				? current
-				: settled.value,
+		status: settled.status,
+		state: Object.freeze({
+			...state,
+			phase: transitioned.value,
+			workCase: recorded.value,
+		}),
+		assessment: settled.value,
 	};
 }
 
@@ -310,18 +339,19 @@ export function recordLiveEffectRemediation(
 	remediationEffectId: string,
 	basis: readonly string[],
 ): LiveEffectRemediationResult {
-	const adverse = state.workCase.currentEffectAssessments.find(
-		(assessment) => assessment.effectId === adverseEffectId,
-	);
-	const remediation = state.workCase.currentEffectAssessments.find(
-		(assessment) => assessment.effectId === remediationEffectId,
-	);
-	if (
-		adverse === undefined ||
-		remediation === undefined ||
-		!("effectSettlementId" in adverse) ||
-		!("effectSettlementId" in remediation)
-	) {
+	const adverse =
+		state.phase.kind === "effect-remediation"
+			? state.phase.adverseSettlements.find(
+					(settlement) => settlement.effectId === adverseEffectId,
+				)
+			: undefined;
+	const remediation =
+		state.phase.kind === "effect-remediation"
+			? state.phase.successfulSettlements.find(
+					(settlement) => settlement.effectId === remediationEffectId,
+				)
+			: undefined;
+	if (adverse === undefined || remediation === undefined) {
 		return {
 			status: "invalid",
 			message:
@@ -347,12 +377,27 @@ export function recordLiveEffectRemediation(
 	if (recorded.status === "invalid") {
 		return { status: "invalid", message: recorded.error.message };
 	}
+	if (recorded.status === "unchanged") {
+		return {
+			status: "unchanged",
+			state,
+			remediationId: accepted.value.effectRemediationId,
+		};
+	}
+	const transitioned = remediateActionLoopEffect(
+		state.phase,
+		accepted.value,
+	);
+	if (transitioned.status === "invalid") {
+		return { status: "invalid", message: transitioned.error.message };
+	}
 	return {
-		status: recorded.status,
-		state:
-			recorded.status === "recorded"
-				? Object.freeze({ ...state, workCase: recorded.value })
-				: state,
+		status: "recorded",
+		state: Object.freeze({
+			...state,
+			phase: transitioned.value,
+			workCase: recorded.value,
+		}),
 		remediationId: accepted.value.effectRemediationId,
 	};
 }

@@ -6,6 +6,7 @@ import {
 	type CapabilityAssignment,
 } from "../src/action-loop/routing/accept-applicability.ts";
 import {
+	currentLiveJudgment,
 	selectLiveContributionNeed,
 	type LiveContributionNeedSelection,
 } from "./action-loop-judgment.ts";
@@ -72,7 +73,7 @@ export function assessLiveCapabilityApplicability(
 ): LiveCapabilityApplicabilityResult {
 	const need = selectLiveContributionNeed(state, proposal.contributionNeedId);
 	if (need.status === "invalid") return need;
-	const judgment = state.workCase.openJudgments[0];
+	const judgment = currentLiveJudgment(state);
 	if (judgment === undefined) {
 		return { status: "invalid", message: "No current open Judgment" };
 	}

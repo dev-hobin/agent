@@ -49,11 +49,13 @@ export function recordWorkCaseConclusion(
 		(conclusion.category !== "Proportionate Intervention" &&
 			(conclusion.interventionDisposition !== undefined ||
 				conclusion.noActionDisposition !== undefined)) ||
-		(conclusion.noActionDisposition !== undefined &&
-			(conclusion.interventionDisposition !== "no-action" ||
+		(conclusion.interventionDisposition === "no-action" &&
+			(conclusion.noActionDisposition === undefined ||
 				!(["outcome-attained", "blocked", "waiting"] as const).includes(
 					conclusion.noActionDisposition,
-				)))
+				))) ||
+		(conclusion.interventionDisposition === "action-required" &&
+			conclusion.noActionDisposition !== undefined)
 	) {
 		return invalid(
 			"invalid-conclusion",

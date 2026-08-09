@@ -4,9 +4,34 @@
 
 ## 질문
 
-모든 모델 proposal과 canonical 상태에 대해 Developer는 proposal을 거부하거나, 모델 텍스트를 host 권한이나 외부 세계의 참값으로 취급하지 않으면서 구조적으로 유효한 다음 route 하나를 선택하는가?
+모든 모델 proposal과 canonical 상태에 대해 Developer는 proposal을 거부하거나, 모델 텍스트를 host 권한이나 외부 세계의 참값으로 취급하지 않으면서 구조적으로 유효한 다음 상태 하나를 구성하는가?
 
 이 모델은 canonical 전이 안전성을 다룬다. 완료된 Work Case가 사용자의 현실 문제를 객관적으로 해결했다고 주장하지 않는다. 사용자는 그 외부 관계의 observer이자 최종 판단자로 남는다.
+
+## Canonical Phase 상태
+
+Canonical control ownership은 다음 discriminated union이다.
+
+```text
+ActionLoopPhase =
+  JudgmentOpening(purpose)
+  | JudgmentActive(purpose, judgment)
+  | ActionProposal(intervention, adverseSettlements)
+  | HostActionPending(intervention, candidate, clearance, adverseSettlements)
+  | EffectAssessment(effect, adverseSettlements)
+  | EffectRemediation(adverseSettlements, successfulSettlements)
+  | EffectRemediationRequired(intervention, adverseSettlements)
+  | Continuity(blocked | waiting, intervention, adverseSettlements)
+  | CompletionReady(intervention, claimAssurance)
+```
+
+이전의 독립 축—open Judgment 수, pending Clearance 수, Effect 상태, Intervention disposition, Assurance 수—은 canonical control type에 존재하지 않는다. 따라서 1,890칸 Cartesian product는 더 이상 runtime 표현이 아니다.
+
+각 phase는 허용된 다음 전이에 필요한 정확한 canonical object를 직접 가진다. 예를 들어 `ActionProposal`은 현재 `action-required` Intervention 하나를 가지며, `HostActionPending`은 정확한 Candidate와 Clearance를 가진다. Controller는 Work Case history를 scan하여 권한을 다시 추론하지 않는다.
+
+`ActionLoopPhase`는 branded type이며 phase constructor와 transition function만 구성할 수 있다. Work Case collection은 durable ledger와 evidence history로 남지만 다음 route를 선택하지 않는다.
+
+Broad aggregate-state 호환 adapter는 유지하지 않는다. Ledger collection만 있고 canonical phase ownership이 없는 state snapshot은 Action Loop state가 아니다. Semantic event replay는 동일한 전이를 적용하여 phase를 재구성하며, 호환되지 않는 history는 fail closed한다.
 
 ## Admission 경계
 
@@ -15,93 +40,69 @@ raw model proposal
 -> closed-shape parsing
 -> exact inventory and identity binding
 -> canonical admission or rejection
--> finite control facts
--> one transition decision
+-> phase-specific transition
+-> next ActionLoopPhase
 ```
 
 안전성 주장은 다음과 같다.
 
 ```text
-모든 canonical state s와 raw proposal p에 대해:
+모든 canonical phase s와 raw proposal p에 대해:
   admit(s, p) = reject
   또는
-  decide(facts(admit(s, p)))가 모든 canonical invariant를 만족한다
+  transition(s, admit(s, p))이 ActionLoopPhase 하나를 구성한다
 ```
 
-자유로운 모델 작성 텍스트는 유한 control facts에 나타나지 않는다. `outcome-attained` 같은 의미 값은 admitted Judgment disposition이지, 관찰자와 무관한 진리 주장이 아니다.
-
-## 유한 Control Domain
-
-```text
-hasConclusions          = false | true
-openJudgments           = 0 | 1 | many
-pendingActionClearances = 0 | 1 | many
-effectPhase             = none
-                        | incomplete
-                        | settled-nonadverse
-                        | settled-adverse
-                        | settled-mixed
-intervention            = absent
-                        | action-required
-                        | outcome-attained
-                        | blocked
-                        | waiting
-                        | invalid
-                        | multiple
-claimAssurances         = 0 | 1 | many
-```
-
-Cartesian control domain에는 `2 × 3 × 3 × 5 × 7 × 3 = 1,890`개 조합이 있다. 유효하지 않은 조합도 domain에 포함되며 명시적 invariant failure로 route되어야 한다. 현재 정책에서 non-invariant 조합은 37개뿐이고, 1,853개 조합(98.04%)은 fail closed한다. 이는 유용한 exhaustive pressure인 동시에 representation residual이다. 후속 discriminated phase 모델은 이 invalid 조합 대부분을 거부하는 대신 표현 불가능하게 만들어야 한다. 그 representation 변경은 현재 safety correction과 의도적으로 분리한다.
-
-`intervention`은 아직 Action Candidate가 소비하지 않은 Proportionate Intervention Conclusion이다. 이전에 소비된 Intervention은 history이지 현재 Action 권한이 아니다.
+자유로운 모델 작성 텍스트는 phase discriminant에 나타나지 않는다. `outcome-attained` 같은 의미 값은 admitted Judgment disposition이지, 관찰자와 무관한 진리 주장이 아니다.
 
 ## 전이표
 
-위쪽 행이 우선한다.
+| 현재 phase | admitted transition | 다음 phase |
+| --- | --- | --- |
+| `JudgmentOpening` | 정확한 필수 Judgment가 열림 | `JudgmentActive` |
+| `JudgmentActive` | action-required Intervention 결론 | `ActionProposal` |
+| `JudgmentActive` | blocked/waiting no-Action 결론 | `Continuity` |
+| `JudgmentActive` | adverse Effect가 없는 attained no-Action | `JudgmentOpening(Claim Assurance)` |
+| `JudgmentActive` | adverse Effect가 있는 attained no-Action | `EffectRemediationRequired` |
+| `JudgmentActive` | Claim Assurance 결론 | `CompletionReady` |
+| `ActionProposal` | 정확한 Candidate와 host Clearance admission | `HostActionPending` |
+| `HostActionPending` | 정확한 host occurrence가 Effect accounting을 시작 | `EffectAssessment` |
+| `EffectAssessment` | incomplete assessment admission | `EffectAssessment` |
+| `EffectAssessment` | settled nonadverse Effect | `JudgmentOpening(Proportionate Intervention)` |
+| `EffectAssessment` | settled adverse Effect | adverse settlement를 가진 `JudgmentOpening(Proportionate Intervention)` |
+| `EffectAssessment` | 이전 adverse settlement에 대한 성공 repair | `EffectRemediation` |
+| `EffectRemediation` | 정확한 remediation relation admission | `EffectRemediation` 또는 `JudgmentOpening(Proportionate Intervention)` |
+| `CompletionReady` | complete current Closure Target 재검증 | terminal Completion |
 
-| Guard | 필수 route |
-| --- | --- |
-| control owner가 multiple 또는 invalid | `invariant-failure` |
-| 일관된 open Judgment 하나 | `progress-open-judgment` |
-| 일관된 pending Clearance 하나 | `ready-for-host-action` |
-| Conclusion이 없고 나머지 상태가 비어 있음 | initial Proportionate Intervention 열기 |
-| incomplete Effect | `progress-effect` |
-| settled adverse와 성공한 repair evidence가 함께 있음 | `progress-remediation` |
-| settled adverse, 현재 Intervention 없음 | Proportionate Intervention 열기 |
-| settled adverse, action-required | repair Action 제안 |
-| settled adverse, blocked/waiting | nonterminal continuity |
-| settled adverse, outcome-attained | `remediation-required` |
-| settled nonadverse, 현재 Intervention 없음 | Proportionate Intervention 열기 |
-| settled nonadverse, action-required | 다음 Action 제안 |
-| settled nonadverse, blocked/waiting | nonterminal continuity |
-| settled nonadverse, outcome-attained, Assurance 없음 | Claim Assurance 열기 |
-| settled nonadverse, outcome-attained, Assurance 하나 | completion-ready |
-| Effect 없음, 현재 Intervention 없음 | Proportionate Intervention 열기 |
-| Effect 없음, action-required | Action 제안 |
-| Effect 없음, blocked/waiting | nonterminal continuity |
-| Effect 없음, outcome-attained, Assurance 없음 | Claim Assurance 열기 |
-| Effect 없음, outcome-attained, Assurance 하나 | completion-ready |
+Action 전이는 `ActionProposal`이 가진 Intervention만 소비할 수 있다. Ledger의 이전 Conclusion을 선택하여 post-Effect 재평가를 건너뛸 수 없다.
 
-Action route는 현재 `action-required` Intervention만 Action proposal에 노출한다. 모델은 다른 Conclusion을 대신 소비하여 필수 post-Effect 재평가를 건너뛸 수 없다.
+## 표현 불가능한 상태와 금지 History
 
-## 금지 상태와 History
+Type은 다음 조합을 제거한다.
 
 ```text
-blocked 또는 waiting -> Action, Claim Assurance, 또는 Completion
-incomplete Effect -> Claim Assurance 또는 Completion
-remediation되지 않은 adverse Effect -> Claim Assurance 또는 Completion
-fresh Intervention 없는 settled Effect -> Completion
-현재 outcome-attained Intervention 없는 Claim Assurance
-여러 open Judgment, pending Clearance, current Intervention, 또는 Assurance
-현재 action-required Intervention을 소비하지 않는 Action Candidate
-model text 또는 unavailable capability가 control authority가 되는 경우
+CompletionReady와 blocked/waiting의 공존
+CompletionReady와 incomplete 또는 remediation되지 않은 adverse Effect의 공존
+정확한 action-required Intervention이 없는 ActionProposal
+정확한 Candidate와 Clearance가 없는 HostActionPending
+정확한 host occurrence가 없는 EffectAssessment
+보증해야 할 attained Intervention이 없는 Claim Assurance opening
+독립 count로 표현된 여러 current control owner
 ```
 
-stale, duplicate, malformed, unavailable proposal은 거부를 통해 stutter한다. canonical 상태는 바뀌지 않는다. Checkpoint failure도 acknowledged projection을 바꾸지 않는다.
+Transition은 잘못된 Work Case identity, 잘못된 phase 순서, 잘못된 Judgment purpose, stale Candidate 또는 Clearance identity, cross-Effect settlement, 무관한 remediation도 거부한다.
+
+Stale, duplicate, malformed, unavailable proposal은 거부를 통해 stutter한다. Canonical phase는 바뀌지 않는다.
+
+## Checkpoint와 Replay 경계
+
+전이는 checkpoint를 host에 제공하기 전에 계산되고 검증된다. 현재 in-memory phase는 checkpoint가 성공한 뒤에만 바뀐다. Pi adapter는 append 전에 동일한 전이를 재현하고, semantic event를 append한 뒤 acknowledged projection을 교체한다.
+
+Replay는 semantic event를 동일한 phase constructor와 transition function에 fold한다. 최종 ledger count에서 control ownership을 추론하지 않는다.
 
 ## Progress와 Fairness 경계
 
-Safety는 admitted control facts에 대해 무조건적이다. Progress에는 조건이 있다.
+Safety는 canonical phase에 대해 무조건적이다. Progress에는 조건이 있다.
 
 - 모델이나 사용자가 결국 admissible proposal을 제공한다.
 - 필요한 host evidence 또는 permission이 결국 도착한다.
@@ -129,10 +130,11 @@ Safety는 admitted control facts에 대해 무조건적이다. Progress에는 �
 | --- | --- | --- |
 | closed proposal shape | SDK proposal tool | malformed-proposal tests |
 | exact evidence authority | Judgment admission controller | unavailable-operation rejection tests |
-| 유한한 다음 route 하나 | transition policy | exhaustive 1,890-state test |
-| blocked/waiting Completion 금지 | transition policy와 closure target | exhaustive property와 closure tests |
-| incomplete/adverse Completion 금지 | transition policy와 closure target | exhaustive property와 Effect tests |
-| 현재 Intervention의 Action 소비 | progression controller | Action checkpoint integration test |
-| dependent mutation 전 checkpoint | Pi adapter | checkpoint-failure tests |
-| 결정론적 durable replay | session event replay | saved-session replay tests |
+| canonical control variant 아홉 개만 존재 | `ActionLoopPhase` | phase type과 constructor tests |
+| 순서가 잘못된 전이 거부 | phase transition functions | wrong-phase tests |
+| blocked/waiting Completion 금지 | phase transition functions와 closure target | continuity와 closure tests |
+| incomplete/adverse Completion 금지 | phase transition functions와 closure target | Effect와 remediation tests |
+| 현재 Intervention의 Action 소비 | phase transition functions와 progression controller | Action checkpoint integration test |
+| dependent mutation 전 checkpoint | SDK controller와 Pi adapter | checkpoint-failure tests |
+| 결정론적 durable replay | semantic event reducer | session replay tests |
 | 현실 세계 acceptance | 최종 사용자 | canonical safety claim 밖 |

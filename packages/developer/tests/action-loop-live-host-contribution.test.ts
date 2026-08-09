@@ -24,7 +24,7 @@ function judgmentFixture(
 	});
 	if (opened.status !== "opened") throw new Error("Expected Work Case fixture");
 	const judgment = openLiveJudgment(opened.value, {
-		category: "Contextual Adequacy",
+		category: "Proportionate Intervention",
 		subject: "Compatibility policy",
 		question: "Which compatibility policy did the product owner choose?",
 		requirements: [

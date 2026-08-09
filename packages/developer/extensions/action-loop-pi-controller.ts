@@ -9,6 +9,13 @@ import {
 } from "../src/action-loop/sdk/action-loop-progression-controller.ts";
 import type { PermissionDecision } from "../src/action-loop/action/action-clearance.ts";
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
+import {
+	concludeActionLoopJudgment,
+	initialActionLoopPhase,
+	openActionLoopJudgment,
+	remediateActionLoopEffect,
+	settleActionLoopEffect,
+} from "../src/action-loop/work/action-loop-phase.ts";
 import { recordWorkCaseEffectAssessment } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
 import { recordWorkCaseEffectRemediation } from "../src/action-loop/work/record-work-case-effect-remediation.ts";
 import type { SdkNamedCapability } from "../src/action-loop/sdk/capability-inventory-controller.ts";
@@ -193,6 +200,7 @@ export function reproduceSdkActionLoopCheckpoint(
 			if (state)
 				throw new Error("SDK Work Case opening cannot replace active work.");
 			return Object.freeze({
+				phase: initialActionLoopPhase(checkpoint.result.workCase.workCaseId),
 				workCase: checkpoint.result.workCase,
 				openingBasis: checkpoint.result.basis,
 				applicabilityAssessments: Object.freeze([]),
@@ -204,9 +212,21 @@ export function reproduceSdkActionLoopCheckpoint(
 				piActionProposals: Object.freeze([]),
 				effectObservations: Object.freeze([]),
 			});
-		case "judgment-opened":
+		case "judgment-opened": {
 			if (!state) throw new Error("SDK Judgment opening requires active work.");
-			return Object.freeze({ ...state, workCase: checkpoint.result.workCase });
+			const transitioned = openActionLoopJudgment(
+				state.phase,
+				checkpoint.result.judgment,
+			);
+			if (transitioned.status === "invalid") {
+				throw new Error(transitioned.error.message);
+			}
+			return Object.freeze({
+				...state,
+				phase: transitioned.value,
+				workCase: checkpoint.result.workCase,
+			});
+		}
 		case "effect-settled": {
 			if (!state)
 				throw new Error("SDK Effect settlement requires active work.");
@@ -225,7 +245,15 @@ export function reproduceSdkActionLoopCheckpoint(
 			if (recorded.value.revisionId !== checkpoint.workCase.revisionId) {
 				throw new Error("SDK Effect checkpoint identity drifted.");
 			}
-			return Object.freeze({ ...state, workCase: recorded.value });
+			const transitioned = settleActionLoopEffect(state.phase, assessment);
+			if (transitioned.status === "invalid") {
+				throw new Error(transitioned.error.message);
+			}
+			return Object.freeze({
+				...state,
+				phase: transitioned.value,
+				workCase: recorded.value,
+			});
 		}
 		case "effect-remediated": {
 			if (!state)
@@ -240,7 +268,18 @@ export function reproduceSdkActionLoopCheckpoint(
 			if (recorded.value.revisionId !== checkpoint.workCase.revisionId) {
 				throw new Error("SDK Effect remediation checkpoint identity drifted.");
 			}
-			return Object.freeze({ ...state, workCase: recorded.value });
+			const transitioned = remediateActionLoopEffect(
+				state.phase,
+				checkpoint.result.remediation,
+			);
+			if (transitioned.status === "invalid") {
+				throw new Error(transitioned.error.message);
+			}
+			return Object.freeze({
+				...state,
+				phase: transitioned.value,
+				workCase: recorded.value,
+			});
 		}
 		case "action-cleared": {
 			if (!state) throw new Error("SDK Action clearance requires active work.");
@@ -361,8 +400,20 @@ function reproduceSdkJudgmentCheckpoint(
 					(coverage) => coverage.coverageId,
 				),
 			});
-		case "judgment-concluded":
-			return Object.freeze({ ...state, workCase: checkpoint.workCase });
+		case "judgment-concluded": {
+			const transitioned = concludeActionLoopJudgment(
+				state.phase,
+				checkpoint.result.conclusion,
+			);
+			if (transitioned.status === "invalid") {
+				throw new Error(transitioned.error.message);
+			}
+			return Object.freeze({
+				...state,
+				phase: transitioned.value,
+				workCase: checkpoint.workCase,
+			});
+		}
 		default:
 			return checkpoint satisfies never;
 	}

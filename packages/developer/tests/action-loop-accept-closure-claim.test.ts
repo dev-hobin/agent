@@ -33,6 +33,7 @@ function target() {
 		basis: Object.freeze(["Current verification supports no change."]),
 		answer: "The Outcome is already satisfied without an Action.",
 		interventionDisposition: "no-action",
+		noActionDisposition: "outcome-attained",
 		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
 	});
 	const recordedIntervention = recordWorkCaseConclusion(

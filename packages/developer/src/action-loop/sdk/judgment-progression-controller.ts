@@ -13,6 +13,7 @@ import type {
 } from "../routing/accept-applicability.ts";
 import type { BoundReferenceSelection } from "../routing/bind-reference-selection.ts";
 import { recordWorkCaseConclusion } from "../work/record-work-case-conclusion.ts";
+import { concludeActionLoopJudgment } from "../work/action-loop-phase.ts";
 import type { ActiveWorkCase } from "../work/work-case.ts";
 import {
 	assessCapabilityInventoryDeterministically,
@@ -164,6 +165,7 @@ export type SdkJudgmentProgressionResult =
 	  });
 
 interface MutableProgress {
+	phase: SdkActionLoopState["phase"];
 	workCase: ActiveWorkCase;
 	applicabilityAssessments: AcceptedApplicabilityAssessment[];
 	assignments: CapabilityAssignment[];
@@ -200,6 +202,7 @@ function compactError(error: unknown): string {
 
 function snapshot(progress: MutableProgress): SdkActionLoopState {
 	return Object.freeze({
+		phase: progress.phase,
 		workCase: progress.workCase,
 		applicabilityAssessments: Object.freeze([
 			...progress.applicabilityAssessments,
@@ -755,6 +758,18 @@ async function progressConclusion(
 			recorded.error.message,
 		);
 	}
+	const transitioned = concludeActionLoopJudgment(
+		runtime.progress.phase,
+		conclusion.conclusion,
+	);
+	if (transitioned.status === "invalid") {
+		return invariantFailure(
+			runtime.progress,
+			"conclusion",
+			transitioned.error.code,
+			transitioned.error.message,
+		);
+	}
 	const checkpoint: SdkJudgmentCheckpoint = {
 		kind: "judgment-concluded",
 		result: conclusion,
@@ -762,6 +777,7 @@ async function progressConclusion(
 	};
 	const failed = await commitCheckpoint(runtime, "conclusion", checkpoint);
 	if (failed) return failed;
+	runtime.progress.phase = transitioned.value;
 	runtime.progress.workCase = recorded.value;
 	return {
 		status: "concluded",
@@ -775,6 +791,7 @@ function initializeRuntime(
 ): ProgressionRuntime | SdkJudgmentProgressionResult {
 	const maximumSteps = positiveInteger(input.maxSteps, "maxSteps");
 	const progress: MutableProgress = {
+		phase: input.state.phase,
 		workCase: input.state.workCase,
 		applicabilityAssessments: [...input.state.applicabilityAssessments],
 		assignments: [...input.state.assignments],
@@ -810,17 +827,25 @@ function initializeRuntime(
 			"Pi-admitted Capability names and revisions must be unique.",
 		);
 	}
-	if (progress.workCase.openJudgments.length !== 1) {
+	if (progress.phase.kind !== "judgment-active") {
 		return invariantFailure(
 			progress,
 			"inventory",
-			"single-open-judgment-required",
-			"Judgment progression requires exactly one current open Judgment.",
+			"judgment-active-phase-required",
+			"Judgment progression requires the canonical judgment-active phase.",
 		);
 	}
-	const judgment = progress.workCase.openJudgments[0];
-	if (judgment === undefined) {
-		throw new Error("unreachable open Judgment state");
+	const judgment = progress.phase.judgment;
+	if (
+		progress.workCase.openJudgments.length !== 1 ||
+		progress.workCase.openJudgments[0]?.judgmentId !== judgment.judgmentId
+	) {
+		return invariantFailure(
+			progress,
+			"inventory",
+			"phase-ledger-judgment-mismatch",
+			"The phase-owned Judgment does not match the Work Case ledger.",
+		);
 	}
 	return { input, progress, maximumSteps, judgment };
 }

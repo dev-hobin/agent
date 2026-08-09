@@ -122,6 +122,15 @@ test("Proportionate Intervention requires a canonical intervention disposition",
 	if (missing.status === "invalid") {
 		assert.equal(missing.error.code, "invalid-intervention-disposition");
 	}
+	const missingNoActionMeaning = closeJudgment(
+		interventionContract,
+		[behaviorCoverage, riskCoverage],
+		proposal({
+			category: "Proportionate Intervention",
+			interventionDisposition: "no-action",
+		}),
+	);
+	assert.equal(missingNoActionMeaning.status, "invalid");
 
 	const concluded = closeJudgment(
 		interventionContract,

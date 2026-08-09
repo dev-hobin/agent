@@ -13,6 +13,7 @@ import {
 } from "../src/action-loop/action/action-clearance.ts";
 import { recordWorkCaseActionCandidate } from "../src/action-loop/work/record-work-case-action-candidate.ts";
 import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-work-case-action-clearance.ts";
+import { clearActionLoopAction } from "../src/action-loop/work/action-loop-phase.ts";
 import {
 	bindPiControlledAction,
 	type ControlledPiToolName,
@@ -141,39 +142,29 @@ export function matchingLiveActionClearance(
 	toolName: string,
 	toolInput: Readonly<Record<string, unknown>>,
 ): ActionClearance | undefined {
+	if (state.phase.kind !== "host-action-pending") return undefined;
 	const controlledAction = bindPiControlledAction(toolName, toolInput);
 	if (controlledAction.status === "invalid") return undefined;
-	return state.workCase.actionClearances.find(
-		(clearance) =>
-			!state.workCase.effects.some(
-				(effect) => effect.actionClearanceId === clearance.actionClearanceId,
-			) &&
-			clearance.controlledAction.kind === controlledAction.value.kind &&
-			clearance.controlledAction.fingerprint ===
-				controlledAction.value.fingerprint,
-	);
+	const clearance = state.phase.actionClearance;
+	return clearance.controlledAction.kind === controlledAction.value.kind &&
+		clearance.controlledAction.fingerprint ===
+			controlledAction.value.fingerprint
+		? clearance
+		: undefined;
 }
 
-/** Lists only Pi built-ins with a current unconsumed Clearance. */
+/** Lists only the Pi built-in owned by the current host-Action phase. */
 export function clearedLivePiToolNames(
 	state: LiveWorkCaseState | undefined,
 ): readonly ControlledPiToolName[] {
-	if (state === undefined) return [];
-	const names = new Set<ControlledPiToolName>();
-	for (const clearance of state.workCase.actionClearances) {
-		if (
-			state.workCase.effects.some(
-				(effect) => effect.actionClearanceId === clearance.actionClearanceId,
-			)
-		) {
-			continue;
-		}
-		const name = clearance.controlledAction.kind.replace("pi-tool-call:", "");
-		if (name === "bash" || name === "edit" || name === "write") names.add(name);
-	}
-	return Object.freeze(
-		[...names].sort((left, right) => left.localeCompare(right)),
+	if (state?.phase.kind !== "host-action-pending") return [];
+	const name = state.phase.actionClearance.controlledAction.kind.replace(
+		"pi-tool-call:",
+		"",
 	);
+	return name === "bash" || name === "edit" || name === "write"
+		? Object.freeze([name])
+		: [];
 }
 
 /** Applies an adapter-owned host Permission Decision to one recorded Candidate. */
@@ -221,12 +212,24 @@ export function assessLiveActionClearance(
 	if (recorded.status === "invalid") {
 		return { status: "invalid", message: recorded.error.message };
 	}
+	if (recorded.status === "unchanged") {
+		return { status: "unchanged", state, clearance: accepted.value };
+	}
+	const transitioned = clearActionLoopAction(
+		state.phase,
+		candidate,
+		accepted.value,
+	);
+	if (transitioned.status === "invalid") {
+		return { status: "invalid", message: transitioned.error.message };
+	}
 	return {
-		status: recorded.status === "recorded" ? "cleared" : "unchanged",
-		state:
-			recorded.status === "recorded"
-				? Object.freeze({ ...state, workCase: recorded.value })
-				: state,
+		status: "cleared",
+		state: Object.freeze({
+			...state,
+			phase: transitioned.value,
+			workCase: recorded.value,
+		}),
 		clearance: accepted.value,
 	};
 }

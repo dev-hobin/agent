@@ -21,7 +21,9 @@ import type { EffectObservation } from "../src/action-loop/effect/effect-observa
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
 import { DELEGATED_REQUEST_EVIDENCE_FUNCTION } from "../src/action-loop/sdk/judgment-evidence-operation.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
+import { initialActionLoopPhase } from "../src/action-loop/work/action-loop-phase.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
+import { phaseAfterConclusions } from "./fixtures/action-loop-phase.ts";
 import { scriptedSdkRunner } from "./fixtures/scripted-sdk-runner.ts";
 
 const request =
@@ -63,6 +65,7 @@ function stateFromOpening(
 	>,
 ): SdkActionLoopState {
 	return {
+		phase: initialActionLoopPhase(checkpoint.result.workCase.workCaseId),
 		workCase: checkpoint.result.workCase,
 		applicabilityAssessments: [],
 		assignments: [],
@@ -188,6 +191,7 @@ test("SDK Action Loop progression does not open a replacement Judgment after Con
 	const result = await progressActionLoopWithSdk({
 		request,
 		state: {
+			phase: phaseAfterConclusions(opened.value.workCaseId, [conclusion]),
 			workCase: recorded.value,
 			applicabilityAssessments: [],
 			assignments: [],
@@ -244,6 +248,7 @@ test("SDK Action Loop progression opens the next required intervention Judgment"
 	const result = await progressActionLoopWithSdk({
 		request,
 		state: {
+			phase: initialActionLoopPhase(opened.value.workCaseId),
 			workCase: recorded.value,
 			applicabilityAssessments: [],
 			assignments: [],
@@ -318,6 +323,7 @@ test("SDK Action Loop progression routes no-action intervention to Claim Assuran
 	const result = await progressActionLoopWithSdk({
 		request: "Complete the bounded analysis without changing files.",
 		state: {
+			phase: phaseAfterConclusions(opened.value.workCaseId, [intervention]),
 			workCase: recorded.value,
 			applicabilityAssessments: [],
 			assignments: [],
@@ -389,6 +395,7 @@ test("SDK Action Loop progression cannot complete a blocked no-action dispositio
 	const result = await progressActionLoopWithSdk({
 		request: "Do not claim completion while the contradiction remains.",
 		state: {
+			phase: phaseAfterConclusions(opened.value.workCaseId, [intervention]),
 			workCase: recorded.value,
 			applicabilityAssessments: [],
 			assignments: [],
@@ -455,6 +462,10 @@ test("SDK Action Loop progression completes a Claim-Assured no-change Outcome be
 	const result = await progressActionLoopWithSdk({
 		request: "Complete the analysis without changing workspace files.",
 		state: {
+			phase: phaseAfterConclusions(opened.value.workCaseId, [
+				intervention,
+				assurance,
+			]),
 			workCase: recorded.value,
 			applicabilityAssessments: [],
 			assignments: [],
@@ -556,6 +567,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 		},
 	};
 	const state: SdkActionLoopState = {
+		phase: phaseAfterConclusions(opened.value.workCaseId, [conclusion]),
 		workCase: recorded.value,
 		applicabilityAssessments: [],
 		assignments: [],
@@ -624,6 +636,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 	);
 	const live = reproduceSdkActionLoopCheckpoint(
 		{
+			phase: state.phase,
 			workCase: state.workCase,
 			openingBasis: ["The test host opened this bounded Work Case."],
 			applicabilityAssessments: [],
@@ -727,10 +740,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 	const effectCheckpoints: SdkActionLoopCheckpoint[] = [];
 	const settled = await progressActionLoopWithSdk({
 		request: "Settle the exact observed write Effect.",
-		state: {
-			...state,
-			workCase: begun.state.workCase,
-		},
+		state: begun.state,
 		capabilities: [],
 		effectObservations: [observation],
 		actions: [writeAction],

@@ -70,7 +70,7 @@ function liveState() {
 	});
 	if (work.status !== "opened") throw new Error("Work Case did not open");
 	const judgment = openLiveJudgment(work.value, {
-		category: "Claim Assurance",
+		category: "Proportionate Intervention",
 		subject: "The current completion Claim.",
 		question: "What does current evidence support?",
 		requirements: [

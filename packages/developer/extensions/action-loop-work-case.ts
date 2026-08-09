@@ -1,6 +1,7 @@
 import type { ActionCandidateProvenance } from "../src/action-loop/action/accept-action-candidate.ts";
 import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
 import type { ActionLoopState } from "../src/action-loop/work/action-loop-state.ts";
+import { initialActionLoopPhase } from "../src/action-loop/work/action-loop-phase.ts";
 import type { BlockedWorkCase } from "../src/action-loop/work/block-work-case.ts";
 import type { PausedWorkCase } from "../src/action-loop/work/pause-work-case.ts";
 import type { WaitingWorkCase } from "../src/action-loop/work/wait-work-case.ts";
@@ -173,6 +174,7 @@ export function openLiveWorkCase(
 	return {
 		status: "opened",
 		value: Object.freeze({
+			phase: initialActionLoopPhase(opened.value.workCaseId),
 			workCase: opened.value,
 			openingBasis: basis,
 			applicabilityAssessments: Object.freeze([]),

@@ -16,6 +16,10 @@ import {
 	type SdkJudgmentCheckpoint,
 } from "../src/action-loop/sdk/judgment-progression-controller.ts";
 import { recordWorkCaseJudgment } from "../src/action-loop/work/record-work-case-judgment.ts";
+import {
+	initialActionLoopPhase,
+	openActionLoopJudgment,
+} from "../src/action-loop/work/action-loop-phase.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
 import { scriptedSdkRunner } from "./fixtures/scripted-sdk-runner.ts";
 
@@ -86,7 +90,7 @@ async function progressionFixture(
 	const openedJudgment = openJudgment({
 		workCaseId: openedWorkCase.value.workCaseId,
 		contextRevisionId: openedWorkCase.value.revisionId,
-		category: "Consequence Integrity",
+		category: "Proportionate Intervention",
 		subject: "Terminal approval retry behavior",
 		question: "How must stale, duplicate, and reordered replies behave?",
 		requirements: [
@@ -106,9 +110,17 @@ async function progressionFixture(
 		openedJudgment.value,
 	);
 	if (recorded.status === "invalid") throw new Error(recorded.error.message);
+	const activePhase = openActionLoopJudgment(
+		initialActionLoopPhase(openedWorkCase.value.workCaseId),
+		openedJudgment.value,
+	);
+	if (activePhase.status === "invalid") {
+		throw new Error(activePhase.error.message);
+	}
 	return {
 		capability,
 		state: {
+			phase: activePhase.value,
 			workCase: recorded.value,
 			applicabilityAssessments: [],
 			assignments: [],
@@ -160,6 +172,7 @@ function completeScripts() {
 					outcome: "conclude",
 					answer:
 						"Accept the first terminal approval and retain later stale responses only as observations.",
+					intervention_disposition: "action-required",
 					refusal_reasons_json: "[]",
 					basis_json:
 						'["Current Need Coverage is complete and conflict-free."]',

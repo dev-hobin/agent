@@ -5,6 +5,7 @@ import {
 	type OpenJudgment,
 } from "../src/action-loop/judgment/open-judgment.ts";
 import { recordWorkCaseJudgment } from "../src/action-loop/work/record-work-case-judgment.ts";
+import { openActionLoopJudgment } from "../src/action-loop/work/action-loop-phase.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
 export type LiveJudgmentProposal = Omit<
@@ -34,12 +35,20 @@ export type LiveJudgmentOpeningResult =
 	  }
 	| { readonly status: "invalid"; readonly message: string };
 
+export function currentLiveJudgment(
+	state: LiveWorkCaseState,
+): OpenJudgment | undefined {
+	return state.phase.kind === "judgment-active"
+		? state.phase.judgment
+		: undefined;
+}
+
 /** Selects one current functional Need without deriving it from a Capability name. */
 export function selectLiveContributionNeed(
 	state: LiveWorkCaseState,
 	contributionNeedId?: string,
 ): LiveContributionNeedSelectionResult {
-	const judgment = state.workCase.openJudgments[0];
+	const judgment = currentLiveJudgment(state);
 	if (judgment === undefined) {
 		return {
 			status: "invalid",
@@ -75,7 +84,7 @@ export function openLiveJudgment(
 	state: LiveWorkCaseState,
 	proposal: LiveJudgmentProposal,
 ): LiveJudgmentOpeningResult {
-	const currentOpenJudgment = state.workCase.openJudgments[0];
+	const currentOpenJudgment = currentLiveJudgment(state);
 	const judgment = openJudgment({
 		...proposal,
 		workCaseId: state.workCase.workCaseId,
@@ -101,12 +110,20 @@ export function openLiveJudgment(
 	if (recorded.status === "invalid") {
 		return { status: "invalid", message: recorded.error.message };
 	}
+	if (recorded.status === "unchanged") {
+		return { status: "unchanged", state, judgment: judgment.value };
+	}
+	const transitioned = openActionLoopJudgment(state.phase, judgment.value);
+	if (transitioned.status === "invalid") {
+		return { status: "invalid", message: transitioned.error.message };
+	}
 	return {
-		status: recorded.status === "recorded" ? "opened" : "unchanged",
-		state:
-			recorded.status === "recorded"
-				? Object.freeze({ ...state, workCase: recorded.value })
-				: state,
+		status: "opened",
+		state: Object.freeze({
+			...state,
+			phase: transitioned.value,
+			workCase: recorded.value,
+		}),
 		judgment: judgment.value,
 	};
 }

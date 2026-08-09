@@ -80,7 +80,7 @@ async function fixture(t: TestContext) {
 	});
 	if (work.status !== "opened") throw new Error("Work Case did not open");
 	const judgment = openLiveJudgment(work.value, {
-		category: "Claim Assurance",
+		category: "Proportionate Intervention",
 		subject: "The current bounded Claim.",
 		question: "Which verifier material is needed?",
 		requirements: [
@@ -204,6 +204,7 @@ test("ready structured selection seals Skill and selected References atomically"
 			const closed = closeLiveJudgment(coverage.state, {
 				outcome: "conclude",
 				answer: "The selected verifier Contribution supports the Claim.",
+				interventionDisposition: "action-required",
 				refusalReasons: [],
 				requirementDispositions: [
 					{

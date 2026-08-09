@@ -39,6 +39,7 @@ function activeWorkCaseWithClaimAssurance() {
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 		answer: "No Action is warranted for the already-satisfied Outcome.",
 		interventionDisposition: "no-action",
+		noActionDisposition: "outcome-attained",
 	});
 	const recordedIntervention = recordWorkCaseConclusion(
 		opened.value,

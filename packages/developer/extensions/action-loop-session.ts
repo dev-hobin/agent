@@ -499,9 +499,11 @@ function replayEffectBeginning(
 	state: LiveWorkCaseState,
 	event: ActionLoopEffectBegunEvent,
 ): AppliedEventResult {
-	const clearance = state.workCase.actionClearances.find(
-		(candidate) => candidate.actionClearanceId === event.actionClearanceId,
-	);
+	const clearance =
+		state.phase.kind === "host-action-pending" &&
+		state.phase.actionClearance.actionClearanceId === event.actionClearanceId
+			? state.phase.actionClearance
+			: undefined;
 	if (!clearance) {
 		return eventUnavailable(
 			"Persisted Effect beginning has no exact Action Clearance.",

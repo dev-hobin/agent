@@ -5,7 +5,10 @@ import {
 } from "../src/action-loop/contribution/accept-skill-contribution.ts";
 import type { BoundPiCapabilityEntry } from "../src/action-loop/pi/bind-pi-capability-inventory.ts";
 import { findCapabilityAssignment } from "./action-loop-applicability.ts";
-import { selectLiveContributionNeed } from "./action-loop-judgment.ts";
+import {
+	currentLiveJudgment,
+	selectLiveContributionNeed,
+} from "./action-loop-judgment.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
 type LiveBoundCapability = Pick<BoundPiCapabilityEntry, "capability">;
@@ -59,7 +62,7 @@ export function acceptLiveSkillContribution(
 			message: "Contribution requires one current sealed Skill context",
 		};
 	}
-	const judgment = state.workCase.openJudgments[0];
+	const judgment = currentLiveJudgment(state);
 	if (judgment === undefined) {
 		return { status: "invalid", message: "No current open Judgment" };
 	}

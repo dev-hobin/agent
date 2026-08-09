@@ -5,6 +5,8 @@ import {
 	type JudgmentConclusion,
 } from "../src/action-loop/judgment/close-judgment.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
+import { concludeActionLoopJudgment } from "../src/action-loop/work/action-loop-phase.ts";
+import { currentLiveJudgment } from "./action-loop-judgment.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
 export type LiveJudgmentClosureProposal = Omit<
@@ -30,7 +32,7 @@ export function closeLiveJudgment(
 	state: LiveWorkCaseState,
 	proposal: LiveJudgmentClosureProposal,
 ): LiveJudgmentClosureResult {
-	const judgment = state.workCase.openJudgments[0];
+	const judgment = currentLiveJudgment(state);
 	if (judgment === undefined) {
 		return { status: "invalid", message: "No current open Judgment" };
 	}
@@ -59,12 +61,20 @@ export function closeLiveJudgment(
 	if (recorded.status === "invalid") {
 		return { status: "invalid", message: recorded.error.message };
 	}
+	if (recorded.status === "unchanged") {
+		return { status: "concluded", state, conclusion: closed.value };
+	}
+	const transitioned = concludeActionLoopJudgment(state.phase, closed.value);
+	if (transitioned.status === "invalid") {
+		return { status: "invalid", message: transitioned.error.message };
+	}
 	return {
 		status: "concluded",
-		state:
-			recorded.status === "recorded"
-				? Object.freeze({ ...state, workCase: recorded.value })
-				: state,
+		state: Object.freeze({
+			...state,
+			phase: transitioned.value,
+			workCase: recorded.value,
+		}),
 		conclusion: closed.value,
 	};
 }

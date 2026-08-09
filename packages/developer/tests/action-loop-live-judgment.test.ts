@@ -27,7 +27,7 @@ function workCase() {
 
 function proposal() {
 	return {
-		category: "Contextual Adequacy" as const,
+		category: "Proportionate Intervention" as const,
 		subject: "The live Outcome interpretation.",
 		question: "Does this interpretation fit the current context?",
 		requirements: [

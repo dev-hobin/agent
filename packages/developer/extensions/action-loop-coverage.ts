@@ -3,7 +3,10 @@ import {
 	type NeedCoverage,
 	type NeedCoverageProposal,
 } from "../src/action-loop/need-coverage/assess-need-coverage.ts";
-import { selectLiveContributionNeed } from "./action-loop-judgment.ts";
+import {
+	currentLiveJudgment,
+	selectLiveContributionNeed,
+} from "./action-loop-judgment.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
 export type LiveNeedCoverageProposal = Omit<
@@ -28,7 +31,7 @@ export function assessLiveNeedCoverage(
 ): LiveNeedCoverageResult {
 	const need = selectLiveContributionNeed(state, proposal.contributionNeedId);
 	if (need.status === "invalid") return need;
-	const judgment = state.workCase.openJudgments[0];
+	const judgment = currentLiveJudgment(state);
 	if (judgment === undefined) {
 		return { status: "invalid", message: "No current open Judgment" };
 	}

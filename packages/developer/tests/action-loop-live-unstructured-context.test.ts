@@ -39,7 +39,7 @@ async function fixture(t: TestContext) {
 	});
 	if (work.status !== "opened") throw new Error("Work Case did not open");
 	const judgment = openLiveJudgment(work.value, {
-		category: "Contextual Adequacy",
+		category: "Proportionate Intervention",
 		subject: "The exact direct-file method.",
 		question: "Which admitted method fits the current Need?",
 		requirements: [

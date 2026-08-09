@@ -2222,13 +2222,13 @@ function conclusionInventoryIssue(workCase) {
   };
 }
 function candidateInventoryIssue(workCase, conclusions) {
-  const invalid28 = workCase.actionCandidates.find(
+  const invalid29 = workCase.actionCandidates.find(
     (candidate) => candidate.workCaseId !== workCase.workCaseId || candidate.requiredConclusionIds.some((id) => !conclusions.has(id))
   );
-  return invalid28 === void 0 ? void 0 : {
+  return invalid29 === void 0 ? void 0 : {
     code: "missing-dependency",
     path: "workCase.actionCandidates",
-    message: `Action Candidate has a missing Work Case dependency: ${invalid28.actionCandidateId}`
+    message: `Action Candidate has a missing Work Case dependency: ${invalid29.actionCandidateId}`
   };
 }
 function clearanceInventoryIssue(workCase, conclusions, candidates) {
@@ -4389,6 +4389,347 @@ function recordWorkCaseEffectRemediation(workCase, remediation) {
   return { status: "recorded", value: sealed.value };
 }
 
+// src/action-loop/work/action-loop-phase.ts
+var ACTION_LOOP_PHASE = Symbol("developer.action-loop.phase");
+function invalid17(code, message) {
+  return Object.freeze({
+    status: "invalid",
+    error: Object.freeze({ code, message })
+  });
+}
+function phase(workCaseId, value) {
+  const branded = { ...value, workCaseId };
+  Object.defineProperty(branded, ACTION_LOOP_PHASE, {
+    value: true,
+    enumerable: false,
+    writable: false,
+    configurable: false
+  });
+  return Object.freeze(branded);
+}
+function frozenSettlements(settlements) {
+  return Object.freeze([...settlements]);
+}
+function interventionPurpose(adverseSettlements) {
+  return Object.freeze({
+    kind: "proportionate-intervention",
+    adverseSettlements: frozenSettlements(adverseSettlements)
+  });
+}
+function claimAssurancePurpose(intervention) {
+  return Object.freeze({ kind: "claim-assurance", intervention });
+}
+function judgmentOpening(workCaseId, purpose) {
+  return phase(workCaseId, { kind: "judgment-opening", purpose });
+}
+function uniqueSettlements(settlements) {
+  const byEffectId = /* @__PURE__ */ new Map();
+  for (const settlement of settlements) {
+    byEffectId.set(settlement.effectId, settlement);
+  }
+  return frozenSettlements([...byEffectId.values()]);
+}
+function nonEmptySettlements(settlements) {
+  const unique = uniqueSettlements(settlements);
+  const [first, ...rest] = unique;
+  return first ? Object.freeze([first, ...rest]) : void 0;
+}
+function initialActionLoopPhase(workCaseId) {
+  return judgmentOpening(workCaseId, interventionPurpose([]));
+}
+function requiredActionLoopJudgmentCategory(value) {
+  return value.purpose.kind === "proportionate-intervention" ? "Proportionate Intervention" : "Claim Assurance";
+}
+function activateJudgment(current, purpose, judgment) {
+  return Object.freeze({
+    status: "transitioned",
+    value: phase(current.workCaseId, {
+      kind: "judgment-active",
+      purpose,
+      judgment
+    })
+  });
+}
+function openActionLoopJudgment(current, judgment) {
+  if (current.kind !== "judgment-opening") {
+    return invalid17(
+      "phase-mismatch",
+      `Judgment opening requires judgment-opening, received ${current.kind}.`
+    );
+  }
+  if (judgment.workCaseId !== current.workCaseId) {
+    return invalid17(
+      "work-case-mismatch",
+      "Opened Judgment does not belong to the current Work Case."
+    );
+  }
+  if (judgment.category !== requiredActionLoopJudgmentCategory(current)) {
+    return invalid17(
+      "judgment-purpose-mismatch",
+      "Opened Judgment category does not match canonical phase purpose."
+    );
+  }
+  return activateJudgment(current, current.purpose, judgment);
+}
+function concludeActionLoopJudgment(current, conclusion) {
+  if (current.kind !== "judgment-active") {
+    return invalid17(
+      "phase-mismatch",
+      `Judgment conclusion requires judgment-active, received ${current.kind}.`
+    );
+  }
+  if (conclusion.workCaseId !== current.workCaseId) {
+    return invalid17(
+      "work-case-mismatch",
+      "Judgment Conclusion does not belong to the current Work Case."
+    );
+  }
+  if (conclusion.judgmentId !== current.judgment.judgmentId || conclusion.category !== current.judgment.category) {
+    return invalid17(
+      "judgment-identity-mismatch",
+      "Judgment Conclusion does not close the phase-owned Judgment."
+    );
+  }
+  if (current.purpose.kind === "claim-assurance") {
+    if (conclusion.category !== "Claim Assurance" || conclusion.interventionDisposition !== void 0 || conclusion.noActionDisposition !== void 0) {
+      return invalid17(
+        "judgment-purpose-mismatch",
+        "Claim Assurance purpose requires a Claim Assurance Conclusion."
+      );
+    }
+    return Object.freeze({
+      status: "transitioned",
+      value: phase(current.workCaseId, {
+        kind: "completion-ready",
+        intervention: current.purpose.intervention,
+        claimAssurance: conclusion
+      })
+    });
+  }
+  if (conclusion.category !== "Proportionate Intervention" || conclusion.interventionDisposition === void 0) {
+    return invalid17(
+      "judgment-purpose-mismatch",
+      "Intervention purpose requires a Proportionate Intervention Conclusion."
+    );
+  }
+  const adverseSettlements = current.purpose.adverseSettlements;
+  if (conclusion.interventionDisposition === "action-required") {
+    if (conclusion.noActionDisposition !== void 0) {
+      return invalid17(
+        "intervention-disposition-mismatch",
+        "An action-required Intervention cannot carry a no-Action disposition."
+      );
+    }
+    return Object.freeze({
+      status: "transitioned",
+      value: phase(current.workCaseId, {
+        kind: "action-proposal",
+        intervention: conclusion,
+        adverseSettlements: frozenSettlements(adverseSettlements)
+      })
+    });
+  }
+  const noActionDisposition = conclusion.noActionDisposition;
+  if (noActionDisposition === void 0) {
+    return invalid17(
+      "intervention-disposition-mismatch",
+      "A no-Action Intervention requires an explicit disposition."
+    );
+  }
+  if (noActionDisposition === "blocked" || noActionDisposition === "waiting") {
+    return Object.freeze({
+      status: "transitioned",
+      value: phase(current.workCaseId, {
+        kind: "continuity",
+        disposition: noActionDisposition,
+        intervention: conclusion,
+        adverseSettlements: frozenSettlements(adverseSettlements)
+      })
+    });
+  }
+  const adverse = nonEmptySettlements(adverseSettlements);
+  if (adverse) {
+    return Object.freeze({
+      status: "transitioned",
+      value: phase(current.workCaseId, {
+        kind: "effect-remediation-required",
+        intervention: conclusion,
+        adverseSettlements: adverse
+      })
+    });
+  }
+  return Object.freeze({
+    status: "transitioned",
+    value: judgmentOpening(
+      current.workCaseId,
+      claimAssurancePurpose(conclusion)
+    )
+  });
+}
+function clearActionLoopAction(current, actionCandidate, actionClearance) {
+  if (current.kind !== "action-proposal") {
+    return invalid17(
+      "phase-mismatch",
+      `Action clearance requires action-proposal, received ${current.kind}.`
+    );
+  }
+  if (actionCandidate.workCaseId !== current.workCaseId || actionClearance.workCaseId !== current.workCaseId) {
+    return invalid17(
+      "work-case-mismatch",
+      "Action Candidate or Clearance does not belong to the current Work Case."
+    );
+  }
+  if (!actionCandidate.requiredConclusionIds.includes(
+    current.intervention.conclusionId
+  )) {
+    return invalid17(
+      "action-candidate-mismatch",
+      "Action Candidate does not consume the phase-owned Intervention."
+    );
+  }
+  if (actionClearance.actionCandidateId !== actionCandidate.actionCandidateId || !actionClearance.conclusionIds.includes(current.intervention.conclusionId)) {
+    return invalid17(
+      "action-clearance-mismatch",
+      "Action Clearance does not authorize the phase-owned Candidate and Intervention."
+    );
+  }
+  return Object.freeze({
+    status: "transitioned",
+    value: phase(current.workCaseId, {
+      kind: "host-action-pending",
+      intervention: current.intervention,
+      actionCandidate,
+      actionClearance,
+      adverseSettlements: frozenSettlements(current.adverseSettlements)
+    })
+  });
+}
+function beginActionLoopEffect(current, effect) {
+  if (current.kind !== "host-action-pending") {
+    return invalid17(
+      "phase-mismatch",
+      `Effect beginning requires host-action-pending, received ${current.kind}.`
+    );
+  }
+  if (effect.workCaseId !== current.workCaseId) {
+    return invalid17(
+      "work-case-mismatch",
+      "Effect does not belong to the current Work Case."
+    );
+  }
+  if (effect.actionCandidateId !== current.actionCandidate.actionCandidateId || effect.actionClearanceId !== current.actionClearance.actionClearanceId) {
+    return invalid17(
+      "effect-identity-mismatch",
+      "Effect does not account for the phase-owned host Action."
+    );
+  }
+  return Object.freeze({
+    status: "transitioned",
+    value: phase(current.workCaseId, {
+      kind: "effect-assessment",
+      effect,
+      adverseSettlements: frozenSettlements(current.adverseSettlements)
+    })
+  });
+}
+function settleActionLoopEffect(current, assessment) {
+  if (current.kind !== "effect-assessment") {
+    return invalid17(
+      "phase-mismatch",
+      `Effect settlement requires effect-assessment, received ${current.kind}.`
+    );
+  }
+  if (assessment.workCaseId !== current.workCaseId || assessment.effectId !== current.effect.effectId) {
+    return invalid17(
+      "effect-identity-mismatch",
+      "Effect assessment does not account for the phase-owned Effect."
+    );
+  }
+  if (!("effectSettlementId" in assessment)) {
+    return Object.freeze({ status: "transitioned", value: current });
+  }
+  if (assessment.outcome === "failed" || assessment.outcome === "partially-applied") {
+    return Object.freeze({
+      status: "transitioned",
+      value: judgmentOpening(
+        current.workCaseId,
+        interventionPurpose(
+          uniqueSettlements([...current.adverseSettlements, assessment])
+        )
+      )
+    });
+  }
+  const adverse = nonEmptySettlements(current.adverseSettlements);
+  if (assessment.outcome === "observed-success" && adverse) {
+    return Object.freeze({
+      status: "transitioned",
+      value: phase(current.workCaseId, {
+        kind: "effect-remediation",
+        adverseSettlements: adverse,
+        successfulSettlements: Object.freeze([assessment])
+      })
+    });
+  }
+  return Object.freeze({
+    status: "transitioned",
+    value: judgmentOpening(
+      current.workCaseId,
+      interventionPurpose(current.adverseSettlements)
+    )
+  });
+}
+function remediateActionLoopEffect(current, remediation) {
+  if (current.kind !== "effect-remediation") {
+    return invalid17(
+      "phase-mismatch",
+      `Effect remediation requires effect-remediation, received ${current.kind}.`
+    );
+  }
+  if (remediation.workCaseId !== current.workCaseId) {
+    return invalid17(
+      "work-case-mismatch",
+      "Effect Remediation does not belong to the current Work Case."
+    );
+  }
+  const adverse = current.adverseSettlements.find(
+    (settlement) => settlement.effectId === remediation.adverseEffectId && settlement.effectSettlementId === remediation.adverseEffectSettlementId
+  );
+  const successful = current.successfulSettlements.find(
+    (settlement) => settlement.effectId === remediation.remediationEffectId && settlement.effectSettlementId === remediation.remediationEffectSettlementId
+  );
+  if (!adverse || !successful) {
+    return invalid17(
+      "effect-remediation-mismatch",
+      "Effect Remediation does not bind phase-owned adverse and successful settlements."
+    );
+  }
+  const remainingAdverse = current.adverseSettlements.filter(
+    (settlement) => settlement.effectId !== adverse.effectId
+  );
+  const remainingSuccessful = current.successfulSettlements.filter(
+    (settlement) => settlement.effectId !== successful.effectId
+  );
+  const adverseTuple = nonEmptySettlements(remainingAdverse);
+  const successfulTuple = nonEmptySettlements(remainingSuccessful);
+  if (adverseTuple && successfulTuple) {
+    return Object.freeze({
+      status: "transitioned",
+      value: phase(current.workCaseId, {
+        kind: "effect-remediation",
+        adverseSettlements: adverseTuple,
+        successfulSettlements: successfulTuple
+      })
+    });
+  }
+  return Object.freeze({
+    status: "transitioned",
+    value: judgmentOpening(
+      current.workCaseId,
+      interventionPurpose(remainingAdverse)
+    )
+  });
+}
+
 // src/action-loop/sdk/completion-controller.ts
 import { StringEnum as StringEnum2 } from "@earendil-works/pi-ai";
 import { Type as Type2 } from "typebox";
@@ -5034,7 +5375,7 @@ var PROVENANCE_KINDS7 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid17(code, path, message) {
+function invalid18(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function canonicalBasis4(values, path) {
@@ -5426,14 +5767,14 @@ function accountingIdentityParts(input) {
 }
 function settleEffect(effect, observations, proposal) {
   if (proposal.workCaseId !== effect.workCaseId || proposal.effectId !== effect.effectId) {
-    return invalid17(
+    return invalid18(
       "identity-mismatch",
       "proposal",
       "Settlement proposal targets another Work Case or Effect"
     );
   }
   if (!OUTCOMES.has(proposal.outcome)) {
-    return invalid17(
+    return invalid18(
       "unsupported-outcome",
       "proposal.outcome",
       `Unsupported Effect outcome ${proposal.outcome}`
@@ -5466,7 +5807,7 @@ function settleEffect(effect, observations, proposal) {
     intendedDispositions.value
   );
   if (proposal.outcome !== derived) {
-    return invalid17(
+    return invalid18(
       "outcome-mismatch",
       "proposal.outcome",
       `Current accounting derives ${derived}, not ${proposal.outcome}`
@@ -6030,107 +6371,6 @@ async function resolveEffectRemediationWithSdk(input) {
   };
 }
 
-// src/action-loop/sdk/action-loop-transition-policy.ts
-function invariant(code) {
-  return Object.freeze({ kind: "invariant-failure", code });
-}
-function ownershipFailure(facts) {
-  if (facts.openJudgments === "many") {
-    return invariant("multiple-open-judgments");
-  }
-  if (facts.pendingActionClearances === "many") {
-    return invariant("multiple-pending-action-clearances");
-  }
-  if (facts.claimAssurances === "many") {
-    return invariant("multiple-claim-assurances");
-  }
-  if (facts.intervention === "multiple") {
-    return invariant("multiple-current-interventions");
-  }
-  if (facts.intervention === "invalid") {
-    return invariant("invalid-intervention-disposition");
-  }
-  if (facts.claimAssurances === 1 && facts.intervention !== "outcome-attained") {
-    return invariant("incoherent-control-state");
-  }
-  return void 0;
-}
-function openJudgmentDecision(facts) {
-  const adverseAttainment = facts.intervention === "outcome-attained" && (facts.effectPhase === "settled-adverse" || facts.effectPhase === "settled-mixed");
-  if (facts.pendingActionClearances !== 0 || facts.effectPhase === "incomplete" || facts.claimAssurances !== 0 || facts.intervention === "action-required" || facts.intervention === "blocked" || facts.intervention === "waiting" || adverseAttainment) {
-    return invariant("incoherent-control-state");
-  }
-  return Object.freeze({ kind: "progress-open-judgment" });
-}
-function pendingActionDecision(facts) {
-  if (!facts.hasConclusions || facts.effectPhase === "incomplete" || facts.intervention !== "absent" || facts.claimAssurances !== 0) {
-    return invariant("incoherent-control-state");
-  }
-  return Object.freeze({ kind: "ready-for-host-action" });
-}
-function initialDecision(facts) {
-  if (facts.effectPhase !== "none" || facts.intervention !== "absent" || facts.claimAssurances !== 0) {
-    return invariant("incoherent-control-state");
-  }
-  return Object.freeze({
-    kind: "open-judgment",
-    requiredCategory: "Proportionate Intervention"
-  });
-}
-function incompleteEffectDecision(facts) {
-  if (facts.intervention !== "absent" || facts.claimAssurances !== 0) {
-    return invariant("incoherent-control-state");
-  }
-  return Object.freeze({ kind: "progress-effect" });
-}
-function mixedEffectDecision(facts) {
-  if (facts.intervention !== "absent" || facts.claimAssurances !== 0) {
-    return invariant("incoherent-control-state");
-  }
-  return Object.freeze({ kind: "progress-remediation" });
-}
-function interventionDecision(facts, adverse) {
-  switch (facts.intervention) {
-    case "absent":
-      return Object.freeze({
-        kind: "open-judgment",
-        requiredCategory: "Proportionate Intervention"
-      });
-    case "action-required":
-      return Object.freeze({ kind: "propose-action" });
-    case "blocked":
-    case "waiting":
-      return Object.freeze({
-        kind: "continuity-required",
-        disposition: facts.intervention
-      });
-    case "outcome-attained":
-      if (adverse) return Object.freeze({ kind: "remediation-required" });
-      return facts.claimAssurances === 0 ? Object.freeze({
-        kind: "open-judgment",
-        requiredCategory: "Claim Assurance"
-      }) : Object.freeze({ kind: "ready-for-completion" });
-    default:
-      return invariant("incoherent-control-state");
-  }
-}
-function decideActionLoopTransition(facts) {
-  const invalid28 = ownershipFailure(facts);
-  if (invalid28) return invalid28;
-  if (facts.openJudgments === 1) return openJudgmentDecision(facts);
-  if (facts.pendingActionClearances === 1) {
-    return pendingActionDecision(facts);
-  }
-  if (!facts.hasConclusions) return initialDecision(facts);
-  if (facts.effectPhase === "incomplete") {
-    return incompleteEffectDecision(facts);
-  }
-  if (facts.effectPhase === "settled-mixed") {
-    return mixedEffectDecision(facts);
-  }
-  return interventionDecision(facts, facts.effectPhase === "settled-adverse");
-}
-
 // src/action-loop/sdk/judgment-controller.ts
 import { StringEnum as StringEnum5 } from "@earendil-works/pi-ai";
 import { Type as Type5 } from "typebox";
@@ -6148,7 +6388,7 @@ var MAX_TEXT_LENGTH2 = 4096;
 var MAX_REQUIREMENTS = 32;
 var MAX_NEEDS_PER_REQUIREMENT = 32;
 var MAX_BASIS_ITEMS2 = 16;
-function invalid18(code, path, message) {
+function invalid19(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId3(value) {
@@ -6262,14 +6502,14 @@ function canonicalRequirements(proposals) {
 }
 function openJudgment(proposal) {
   if (!validId3(proposal.workCaseId) || !validId3(proposal.contextRevisionId)) {
-    return invalid18(
+    return invalid19(
       "invalid-id",
       "proposal",
       "Expected canonical Work Case and Context revision IDs"
     );
   }
   if (!CATEGORIES.has(proposal.category)) {
-    return invalid18(
+    return invalid19(
       "unsupported-category",
       "proposal.category",
       "Unsupported Judgment Category"
@@ -6288,7 +6528,7 @@ function openJudgment(proposal) {
   );
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (typeof proposal.provenance !== "object" || proposal.provenance === null || !PROVENANCE_KINDS8.has(proposal.provenance.kind) || !validId3(proposal.provenance.source)) {
-    return invalid18(
+    return invalid19(
       "invalid-provenance",
       "proposal.provenance",
       "Expected bounded supported proposal provenance"
@@ -6369,16 +6609,16 @@ function openJudgment(proposal) {
 }
 
 // src/action-loop/work/record-work-case-judgment.ts
-function invalid19(code, path, message) {
+function invalid20(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function recordWorkCaseJudgment(workCase, judgment) {
   const currentIssue = currentWorkCaseRecordingIssue(workCase);
   if (currentIssue) {
-    return invalid19(currentIssue.code, currentIssue.path, currentIssue.message);
+    return invalid20(currentIssue.code, currentIssue.path, currentIssue.message);
   }
   if (judgment.workCaseId !== workCase.workCaseId) {
-    return invalid19(
+    return invalid20(
       "identity-mismatch",
       "judgment.workCaseId",
       "Judgment belongs to another Work Case"
@@ -6387,7 +6627,7 @@ function recordWorkCaseJudgment(workCase, judgment) {
   if (workCase.conclusions.some(
     ({ judgmentId }) => judgmentId === judgment.judgmentId
   )) {
-    return invalid19(
+    return invalid20(
       "judgment-already-concluded",
       "judgment.judgmentId",
       "A Conclusion already closes this Judgment"
@@ -6405,7 +6645,7 @@ function recordWorkCaseJudgment(workCase, judgment) {
   );
   const sealed = sealWorkCaseRevision({ ...workCase, openJudgments });
   if (sealed.status === "invalid") {
-    return invalid19(
+    return invalid20(
       "invalid-work-case-inventory",
       sealed.issue.path,
       sealed.issue.message
@@ -6687,25 +6927,25 @@ function selectSdkJudgmentEvidenceOperation(operations, contributionFunction) {
 }
 
 // src/action-loop/work/record-work-case-conclusion.ts
-function invalid20(code, path, message) {
+function invalid21(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function recordWorkCaseConclusion(workCase, conclusion) {
   const currentIssue = currentWorkCaseRecordingIssue(workCase);
   if (currentIssue) {
-    return invalid20(currentIssue.code, currentIssue.path, currentIssue.message);
+    return invalid21(currentIssue.code, currentIssue.path, currentIssue.message);
   }
-  if (conclusion.category === "Proportionate Intervention" && conclusion.interventionDisposition !== "action-required" && conclusion.interventionDisposition !== "no-action" || conclusion.category !== "Proportionate Intervention" && (conclusion.interventionDisposition !== void 0 || conclusion.noActionDisposition !== void 0) || conclusion.noActionDisposition !== void 0 && (conclusion.interventionDisposition !== "no-action" || !["outcome-attained", "blocked", "waiting"].includes(
+  if (conclusion.category === "Proportionate Intervention" && conclusion.interventionDisposition !== "action-required" && conclusion.interventionDisposition !== "no-action" || conclusion.category !== "Proportionate Intervention" && (conclusion.interventionDisposition !== void 0 || conclusion.noActionDisposition !== void 0) || conclusion.interventionDisposition === "no-action" && (conclusion.noActionDisposition === void 0 || !["outcome-attained", "blocked", "waiting"].includes(
     conclusion.noActionDisposition
-  ))) {
-    return invalid20(
+  )) || conclusion.interventionDisposition === "action-required" && conclusion.noActionDisposition !== void 0) {
+    return invalid21(
       "invalid-conclusion",
       "conclusion.interventionDisposition",
       "Conclusion intervention or no-Action disposition does not match its Judgment Category"
     );
   }
   if (conclusion.workCaseId !== workCase.workCaseId) {
-    return invalid20(
+    return invalid21(
       "identity-mismatch",
       "conclusion.workCaseId",
       "Conclusion belongs to another Work Case"
@@ -6720,7 +6960,7 @@ function recordWorkCaseConclusion(workCase, conclusion) {
     ({ judgmentId }) => judgmentId === conclusion.judgmentId
   );
   if (openJudgment2 !== void 0 && (openJudgment2.category !== conclusion.category || openJudgment2.subject !== conclusion.subject || openJudgment2.contextRevisionId !== conclusion.contextRevisionId)) {
-    return invalid20(
+    return invalid21(
       "identity-mismatch",
       "conclusion",
       "Conclusion changes the identity of its open Judgment"
@@ -6742,7 +6982,7 @@ function recordWorkCaseConclusion(workCase, conclusion) {
     conclusions
   });
   if (sealed.status === "invalid") {
-    return invalid20(
+    return invalid21(
       "invalid-work-case-inventory",
       sealed.issue.path,
       sealed.issue.message
@@ -6762,7 +7002,7 @@ var APPLICABILITY_STATUSES = /* @__PURE__ */ new Set([
   "not-applicable",
   "needs-context"
 ]);
-function invalid21(code, path, message) {
+function invalid22(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId4(id) {
@@ -6833,7 +7073,7 @@ function checkTarget(target) {
     ["target.contributionNeedId", target.contributionNeedId]
   ]) {
     if (!validId4(id)) {
-      return invalid21(
+      return invalid22(
         "invalid-target-id",
         path,
         "Expected a canonical target ID"
@@ -6858,7 +7098,7 @@ function checkIdentity(target, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid21(
+      return invalid22(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -6869,14 +7109,14 @@ function checkIdentity(target, proposal) {
 }
 function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requiresWhenMatch) {
   if (!APPLICABILITY_STATUSES.has(proposal.status)) {
-    return invalid21(
+    return invalid22(
       "unsupported-status",
       "proposal.status",
       `Unsupported applicability status ${proposal.status}`
     );
   }
   if (proposal.status !== "needs-context" && missingContext.length > 0) {
-    return invalid21(
+    return invalid22(
       "unexpected-missing-context",
       "proposal.missingContext",
       "Only needs-context may carry missing context"
@@ -6884,14 +7124,14 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
   }
   if (proposal.status === "applicable") {
     if (requiresWhenMatch && matchedWhen.length === 0) {
-      return invalid21(
+      return invalid22(
         "applicable-without-when",
         "proposal.matchedWhen",
         "Structured applicability requires at least one declared when match"
       );
     }
     if (matchedUnless.length > 0) {
-      return invalid21(
+      return invalid22(
         "excluded-by-unless",
         "proposal.matchedUnless",
         "A matched unless condition overrides applicability"
@@ -6901,7 +7141,7 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
   }
   if (proposal.status === "not-applicable") {
     if (matchedWhen.length > 0 && matchedUnless.length === 0) {
-      return invalid21(
+      return invalid22(
         "not-applicable-with-positive-match",
         "proposal.status",
         "A positive when match requires an excluding unless match"
@@ -6910,14 +7150,14 @@ function assessStatus(proposal, matchedWhen, matchedUnless, missingContext, requ
     return void 0;
   }
   if (matchedUnless.length > 0) {
-    return invalid21(
+    return invalid22(
       "decisive-unless-cannot-wait",
       "proposal.matchedUnless",
       "A matched unless condition is already not-applicable"
     );
   }
   if (missingContext.length === 0) {
-    return invalid21(
+    return invalid22(
       "missing-context-required",
       "proposal.missingContext",
       "Needs-context requires at least one missing context item"
@@ -6981,7 +7221,7 @@ function acceptCapabilityApplicability(target, proposal) {
   const basis = normalizeList(proposal.basis, "proposal.basis", "empty-basis");
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (basis.value.length === 0) {
-    return invalid21(
+    return invalid22(
       "empty-basis",
       "proposal.basis",
       "Applicability assessment requires explicit basis"
@@ -7967,7 +8207,7 @@ var PROVENANCE_KINDS9 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid22(code, path, message) {
+function invalid23(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId5(id) {
@@ -8120,7 +8360,7 @@ function checkProposalIdentity(contract, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid22(
+      return invalid23(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -8486,15 +8726,15 @@ function validateClosureOutcome(proposal) {
           }
         };
       }
-      if (proposal.noActionDisposition !== void 0 && (proposal.interventionDisposition !== "no-action" || !["outcome-attained", "blocked", "waiting"].includes(
+      if (proposal.interventionDisposition === "no-action" && (proposal.noActionDisposition === void 0 || !["outcome-attained", "blocked", "waiting"].includes(
         proposal.noActionDisposition
-      ))) {
+      )) || proposal.interventionDisposition === "action-required" && proposal.noActionDisposition !== void 0) {
         return {
           ok: false,
           error: {
             code: "invalid-intervention-disposition",
             path: "proposal.noActionDisposition",
-            message: "A no-Action reason is valid only for no-action and must be outcome-attained, blocked, or waiting"
+            message: "no-action requires outcome-attained, blocked, or waiting; action-required cannot carry a no-Action disposition"
           }
         };
       }
@@ -8971,7 +9211,7 @@ var PROVENANCE_KINDS10 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid23(code, path, message) {
+function invalid24(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function canonicalText9(value, code, path) {
@@ -9046,7 +9286,7 @@ function checkIdentity2(assignment, context, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid23(
+      return invalid24(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -9232,7 +9472,7 @@ function acceptSkillContribution(assignment, context, proposal) {
   const identityFailure = checkIdentity2(assignment, context, proposal);
   if (identityFailure !== void 0) return identityFailure;
   if (!LOCAL_STATUSES.has(proposal.localStatus)) {
-    return invalid23(
+    return invalid24(
       "unsupported-local-status",
       "proposal.localStatus",
       `Unsupported local status ${proposal.localStatus}`
@@ -9266,14 +9506,14 @@ function acceptSkillContribution(assignment, context, proposal) {
     (application) => application.status === "limited"
   );
   if (proposal.localStatus === "partial" && limitations.value.length === 0 && !residual && !limitedApplication) {
-    return invalid23(
+    return invalid24(
       "partial-without-limitation",
       "proposal.localStatus",
       "Partial Contribution requires a limitation or residual Need"
     );
   }
   if (proposal.localStatus === "resolved" && residual) {
-    return invalid23(
+    return invalid24(
       "resolved-with-residual",
       "proposal.localStatus",
       "Resolved local status cannot retain a residual local Need"
@@ -9546,20 +9786,20 @@ async function contributeSkillWithSdk(input) {
 }
 
 // src/action-loop/sdk/contribution-progress.ts
-function invalid24(code, message) {
+function invalid25(code, message) {
   return { status: "invalid", code, message };
 }
 function inspectContributionProgress(input) {
   const contextsByAssignment = /* @__PURE__ */ new Map();
   for (const context of input.contexts) {
     if (context.workCaseId !== input.workCaseId || context.judgmentId !== input.judgmentId) {
-      return invalid24(
+      return invalid25(
         "context-mismatch",
         `Sealed Context ${context.sealedContextId} does not belong to the current Work Case and Judgment.`
       );
     }
     if (contextsByAssignment.has(context.assignmentId)) {
-      return invalid24(
+      return invalid25(
         "duplicate-context",
         `Assignment ${context.assignmentId} has more than one sealed Context.`
       );
@@ -9570,13 +9810,13 @@ function inspectContributionProgress(input) {
   for (const contribution of input.contributions) {
     const context = contextsByAssignment.get(contribution.assignmentId);
     if (context === void 0 || contribution.workCaseId !== input.workCaseId || contribution.judgmentId !== input.judgmentId || contribution.contributionNeedId !== context.contributionNeedId || contribution.capabilityRevisionId !== context.capabilityRevisionId || contribution.sealedContextId !== context.sealedContextId) {
-      return invalid24(
+      return invalid25(
         "contribution-mismatch",
         `Contribution ${contribution.contributionId} has no exact current sealed Context.`
       );
     }
     if (contributionsByAssignment.has(contribution.assignmentId)) {
-      return invalid24(
+      return invalid25(
         "duplicate-contribution",
         `Assignment ${contribution.assignmentId} has more than one Contribution.`
       );
@@ -9624,7 +9864,7 @@ var PROVENANCE_KINDS11 = /* @__PURE__ */ new Set([
   "tool",
   "external"
 ]);
-function invalid25(code, path, message) {
+function invalid26(code, path, message) {
   return { status: "invalid", error: { code, path, message } };
 }
 function validId6(id) {
@@ -9667,7 +9907,7 @@ function checkTarget2(target, proposal) {
     ["target.contributionNeedId", target.contributionNeedId]
   ]) {
     if (!validId6(id)) {
-      return invalid25(
+      return invalid26(
         "invalid-target-id",
         path,
         "Expected a canonical target ID"
@@ -9684,7 +9924,7 @@ function checkTarget2(target, proposal) {
     ]
   ]) {
     if (actual !== expected) {
-      return invalid25(
+      return invalid26(
         "identity-mismatch",
         path,
         `Expected ${expected}, received ${actual}`
@@ -9998,7 +10238,7 @@ function assessNeedCoverage(target, contributions, proposal) {
   const targetFailure = checkTarget2(target, proposal);
   if (targetFailure !== void 0) return targetFailure;
   if (!COVERAGE_STATUSES.has(proposal.status)) {
-    return invalid25(
+    return invalid26(
       "unsupported-coverage-status",
       "proposal.status",
       `Unsupported Coverage status ${proposal.status}`
@@ -10022,7 +10262,7 @@ function assessNeedCoverage(target, contributions, proposal) {
   const basis = canonicalList5(proposal.basis, "proposal.basis");
   if (!basis.ok) return { status: "invalid", error: basis.error };
   if (basis.value.length === 0) {
-    return invalid25(
+    return invalid26(
       "empty-basis",
       "proposal.basis",
       "Need Coverage requires explicit basis"
@@ -10032,7 +10272,7 @@ function assessNeedCoverage(target, contributions, proposal) {
   if (!provenance.ok) return { status: "invalid", error: provenance.error };
   const derivedStatus = deriveStatus(dispositions.value, conflicts.value);
   if (proposal.status !== derivedStatus) {
-    return invalid25(
+    return invalid26(
       "status-mismatch",
       "proposal.status",
       `Coverage evidence derives ${derivedStatus}, not ${proposal.status}`
@@ -10344,6 +10584,7 @@ function compactError(error) {
 }
 function snapshot(progress) {
   return Object.freeze({
+    phase: progress.phase,
     workCase: progress.workCase,
     applicabilityAssessments: Object.freeze([
       ...progress.applicabilityAssessments
@@ -10762,6 +11003,18 @@ async function progressConclusion(runtime) {
       recorded.error.message
     );
   }
+  const transitioned = concludeActionLoopJudgment(
+    runtime.progress.phase,
+    conclusion.conclusion
+  );
+  if (transitioned.status === "invalid") {
+    return invariantFailure(
+      runtime.progress,
+      "conclusion",
+      transitioned.error.code,
+      transitioned.error.message
+    );
+  }
   const checkpoint = {
     kind: "judgment-concluded",
     result: conclusion,
@@ -10769,6 +11022,7 @@ async function progressConclusion(runtime) {
   };
   const failed = await commitCheckpoint(runtime, "conclusion", checkpoint);
   if (failed) return failed;
+  runtime.progress.phase = transitioned.value;
   runtime.progress.workCase = recorded.value;
   return {
     status: "concluded",
@@ -10779,6 +11033,7 @@ async function progressConclusion(runtime) {
 function initializeRuntime(input) {
   const maximumSteps = positiveInteger(input.maxSteps, "maxSteps");
   const progress = {
+    phase: input.state.phase,
     workCase: input.state.workCase,
     applicabilityAssessments: [...input.state.applicabilityAssessments],
     assignments: [...input.state.assignments],
@@ -10811,17 +11066,22 @@ function initializeRuntime(input) {
       "Pi-admitted Capability names and revisions must be unique."
     );
   }
-  if (progress.workCase.openJudgments.length !== 1) {
+  if (progress.phase.kind !== "judgment-active") {
     return invariantFailure(
       progress,
       "inventory",
-      "single-open-judgment-required",
-      "Judgment progression requires exactly one current open Judgment."
+      "judgment-active-phase-required",
+      "Judgment progression requires the canonical judgment-active phase."
     );
   }
-  const judgment = progress.workCase.openJudgments[0];
-  if (judgment === void 0) {
-    throw new Error("unreachable open Judgment state");
+  const judgment = progress.phase.judgment;
+  if (progress.workCase.openJudgments.length !== 1 || progress.workCase.openJudgments[0]?.judgmentId !== judgment.judgmentId) {
+    return invariantFailure(
+      progress,
+      "inventory",
+      "phase-ledger-judgment-mismatch",
+      "The phase-owned Judgment does not match the Work Case ledger."
+    );
   }
   return { input, progress, maximumSteps, judgment };
 }
@@ -10968,6 +11228,7 @@ function compactError2(error) {
 }
 function emptyProgressState(result) {
   return Object.freeze({
+    phase: initialActionLoopPhase(result.workCase.workCaseId),
     workCase: result.workCase,
     applicabilityAssessments: Object.freeze([]),
     assignments: Object.freeze([]),
@@ -10977,8 +11238,8 @@ function emptyProgressState(result) {
     coverages: Object.freeze([])
   });
 }
-function withJudgment(state, result) {
-  return Object.freeze({ ...state, workCase: result.workCase });
+function withJudgment(state, result, phase2) {
+  return Object.freeze({ ...state, phase: phase2, workCase: result.workCase });
 }
 function mapJudgmentResult(result, baseSteps, baseCheckpoints) {
   const common = {
@@ -11041,97 +11302,6 @@ function mapJudgmentResult(result, baseSteps, baseCheckpoints) {
 }
 function currentAssessmentId(assessment) {
   return "effectSettlementId" in assessment ? assessment.effectSettlementId : assessment.effectAssessmentId;
-}
-function currentEffectSettlements(state) {
-  return state.workCase.currentEffectAssessments.flatMap(
-    (assessment) => "effectSettlementId" in assessment ? [assessment] : []
-  );
-}
-function unresolvedAdverseSettlements(state) {
-  const remediated = new Set(
-    state.workCase.effectRemediations.map(
-      ({ adverseEffectId }) => adverseEffectId
-    )
-  );
-  return currentEffectSettlements(state).filter(
-    (settlement) => (settlement.outcome === "failed" || settlement.outcome === "partially-applied") && !remediated.has(settlement.effectId)
-  );
-}
-function successfulEffectSettlements(state) {
-  return currentEffectSettlements(state).filter(
-    ({ outcome }) => outcome === "observed-success"
-  );
-}
-function consumedConclusionIds(state) {
-  return new Set(
-    state.workCase.actionCandidates.flatMap(
-      ({ requiredConclusionIds }) => requiredConclusionIds
-    )
-  );
-}
-function boundedCount(value) {
-  if (value === 0) return 0;
-  return value === 1 ? 1 : "many";
-}
-function interventionState(interventions) {
-  if (interventions.length === 0) return "absent";
-  if (interventions.length > 1) return "multiple";
-  const [intervention] = interventions;
-  if (!intervention) return "invalid";
-  if (intervention.interventionDisposition === "action-required") {
-    return "action-required";
-  }
-  if (intervention.interventionDisposition !== "no-action") return "invalid";
-  return intervention.noActionDisposition ?? "outcome-attained";
-}
-function actionLoopEffectPhase(state, adverse, successful) {
-  if (state.workCase.effects.length === 0) return "none";
-  const settledEffectIds = new Set(
-    currentEffectSettlements(state).map(({ effectId }) => effectId)
-  );
-  if (!state.workCase.effects.every(
-    ({ effectId }) => settledEffectIds.has(effectId)
-  )) {
-    return "incomplete";
-  }
-  if (adverse.length > 0 && successful.length > 0) return "settled-mixed";
-  return adverse.length > 0 ? "settled-adverse" : "settled-nonadverse";
-}
-function canonicalActionLoopTransition(state) {
-  const consumed = consumedConclusionIds(state);
-  const currentInterventions = state.workCase.conclusions.filter(
-    (conclusion) => conclusion.category === "Proportionate Intervention" && !consumed.has(conclusion.conclusionId)
-  );
-  const pendingActionClearances = state.workCase.actionClearances.filter(
-    (clearance) => !state.workCase.effects.some(
-      (effect) => effect.actionClearanceId === clearance.actionClearanceId
-    )
-  );
-  const adverseSettlements = unresolvedAdverseSettlements(state);
-  const successfulSettlements = successfulEffectSettlements(state);
-  const decision = decideActionLoopTransition({
-    hasConclusions: state.workCase.conclusions.length > 0,
-    openJudgments: boundedCount(state.workCase.openJudgments.length),
-    pendingActionClearances: boundedCount(pendingActionClearances.length),
-    effectPhase: actionLoopEffectPhase(
-      state,
-      adverseSettlements,
-      successfulSettlements
-    ),
-    intervention: interventionState(currentInterventions),
-    claimAssurances: boundedCount(
-      state.workCase.conclusions.filter(
-        ({ category }) => category === "Claim Assurance"
-      ).length
-    )
-  });
-  return Object.freeze({
-    decision,
-    ...currentInterventions.length === 1 ? { currentIntervention: currentInterventions[0] } : {},
-    ...pendingActionClearances.length === 1 ? { pendingActionClearance: pendingActionClearances[0] } : {},
-    adverseSettlements: Object.freeze([...adverseSettlements]),
-    successfulSettlements: Object.freeze([...successfulSettlements])
-  });
 }
 async function progressCompletion(input) {
   if (input.steps >= input.maxSteps) {
@@ -11215,41 +11385,16 @@ async function progressCompletion(input) {
   };
 }
 async function progressEffect(input) {
-  const assessments = new Map(
-    input.state.workCase.currentEffectAssessments.map((assessment2) => [
-      assessment2.effectId,
-      assessment2
-    ])
+  const effect = input.phase.effect;
+  const current = input.state.workCase.currentEffectAssessments.find(
+    (assessment2) => assessment2.effectId === effect.effectId
   );
-  const effect = input.state.workCase.effects.find((candidate) => {
-    const current2 = assessments.get(candidate.effectId);
-    if (!current2) return true;
-    if ("effectSettlementId" in current2) return false;
-    const accounted = new Set(
-      current2.observationDispositions.map(
-        (disposition) => disposition.effectObservationId
-      )
-    );
-    return input.observations.some(
-      (observation) => observation.effectId === candidate.effectId && !accounted.has(observation.effectObservationId)
-    );
-  });
-  if (!effect) {
-    const unsettled = input.state.workCase.currentEffectAssessments.find(
-      (assessment2) => "effectAssessmentId" in assessment2
-    );
-    if (unsettled) {
-      return {
-        status: "effect-unsettled",
-        outcome: unsettled.outcome,
-        state: input.state,
-        steps: input.steps,
-        checkpoints: input.checkpoints
-      };
-    }
+  if (current && "effectSettlementId" in current) {
     return {
-      status: "ready-for-completion",
-      effectAssessmentIds: input.state.workCase.currentEffectAssessments.map(currentAssessmentId),
+      status: "invariant-failure",
+      stage: "effect",
+      code: "phase-ledger-effect-mismatch",
+      message: "The phase-owned Effect is already settled in the ledger.",
       state: input.state,
       steps: input.steps,
       checkpoints: input.checkpoints
@@ -11259,6 +11404,15 @@ async function progressEffect(input) {
     (observation) => observation.effectId === effect.effectId
   );
   if (observations.length === 0) {
+    if (current) {
+      return {
+        status: "effect-unsettled",
+        outcome: current.outcome,
+        state: input.state,
+        steps: input.steps,
+        checkpoints: input.checkpoints
+      };
+    }
     return {
       status: "effect-pending",
       effectIds: [effect.effectId],
@@ -11315,7 +11469,6 @@ async function progressEffect(input) {
       checkpoints: input.checkpoints
     };
   }
-  const current = assessments.get(effect.effectId);
   const expectedCurrentAssessmentId = current ? currentAssessmentId(current) : void 0;
   const assessment = result.status === "settled" ? result.settlement : result.assessment;
   const recorded = recordWorkCaseEffectAssessment(
@@ -11334,8 +11487,21 @@ async function progressEffect(input) {
       checkpoints: input.checkpoints
     };
   }
+  const transitioned = settleActionLoopEffect(input.phase, assessment);
+  if (transitioned.status === "invalid") {
+    return {
+      status: "invariant-failure",
+      stage: "effect",
+      code: transitioned.error.code,
+      message: transitioned.error.message,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
   const nextState = Object.freeze({
     ...input.state,
+    phase: transitioned.value,
     workCase: recorded.value
   });
   const checkpoint = {
@@ -11379,8 +11545,8 @@ async function progressRemediation(input) {
   const result = await resolveEffectRemediationWithSdk({
     request: input.request,
     workCaseId: input.state.workCase.workCaseId,
-    adverseSettlements: input.adverseSettlements,
-    successfulSettlements: input.successfulSettlements,
+    adverseSettlements: input.phase.adverseSettlements,
+    successfulSettlements: input.phase.successfulSettlements,
     runner: input.runner
   });
   const steps = input.steps + 1;
@@ -11418,7 +11584,7 @@ async function progressRemediation(input) {
   if (result.status === "refused") {
     return {
       status: "remediation-required",
-      adverseEffectIds: input.adverseSettlements.map(
+      adverseEffectIds: input.phase.adverseSettlements.map(
         ({ effectId }) => effectId
       ),
       refusalReasons: result.refusalReasons,
@@ -11442,8 +11608,24 @@ async function progressRemediation(input) {
       checkpoints: input.checkpoints
     };
   }
+  const transitioned = remediateActionLoopEffect(
+    input.phase,
+    result.remediation
+  );
+  if (transitioned.status === "invalid") {
+    return {
+      status: "invariant-failure",
+      stage: "remediation",
+      code: transitioned.error.code,
+      message: transitioned.error.message,
+      state: input.state,
+      steps,
+      checkpoints: input.checkpoints
+    };
+  }
   const nextState = Object.freeze({
     ...input.state,
+    phase: transitioned.value,
     workCase: recorded.value
   });
   const checkpoint = {
@@ -11474,7 +11656,7 @@ async function progressRemediation(input) {
   };
 }
 function trustedClaimAssuranceRequest(request, state) {
-  const judgment = state.workCase.openJudgments[0];
+  const judgment = state.phase.kind === "judgment-active" ? state.phase.judgment : void 0;
   if (judgment?.category !== "Claim Assurance") return request;
   const conclusions = state.workCase.conclusions.map(
     (conclusion) => `${conclusion.category}: ${conclusion.answer}`
@@ -11488,132 +11670,241 @@ function trustedClaimAssuranceRequest(request, state) {
     "These trusted facts may satisfy a Claim Assurance Need directly; do not demand a repeated Host Observation merely to restate them."
   ].join("\n");
 }
+async function routeActionProgression(input) {
+  const { phase: phase2 } = input;
+  switch (phase2.kind) {
+    case "action-proposal":
+      return { status: "action-proposal", phase: phase2 };
+    case "host-action-pending":
+      return {
+        status: "settled",
+        result: {
+          status: "ready-for-host-action",
+          actionCandidateId: phase2.actionCandidate.actionCandidateId,
+          actionClearanceId: phase2.actionClearance.actionClearanceId,
+          state: input.state,
+          steps: input.steps,
+          checkpoints: input.checkpoints
+        }
+      };
+    case "effect-assessment":
+      return {
+        status: "settled",
+        result: await progressEffect({
+          request: input.request,
+          state: input.state,
+          phase: phase2,
+          observations: input.observations,
+          runner: input.runner,
+          checkpoint: input.checkpoint,
+          maxSteps: input.maxSteps,
+          steps: input.steps,
+          checkpoints: input.checkpoints
+        })
+      };
+    case "effect-remediation":
+      return {
+        status: "settled",
+        result: await progressRemediation({
+          request: input.request,
+          state: input.state,
+          phase: phase2,
+          runner: input.runner,
+          checkpoint: input.checkpoint,
+          maxSteps: input.maxSteps,
+          steps: input.steps,
+          checkpoints: input.checkpoints
+        })
+      };
+    case "effect-remediation-required":
+      return {
+        status: "settled",
+        result: {
+          status: "remediation-required",
+          adverseEffectIds: phase2.adverseSettlements.map(
+            ({ effectId }) => effectId
+          ),
+          state: input.state,
+          steps: input.steps,
+          checkpoints: input.checkpoints
+        }
+      };
+    case "continuity":
+      return {
+        status: "settled",
+        result: {
+          status: "continuity-required",
+          disposition: phase2.disposition,
+          state: input.state,
+          steps: input.steps,
+          checkpoints: input.checkpoints
+        }
+      };
+    case "completion-ready":
+      return {
+        status: "settled",
+        result: input.complete ? await progressCompletion({
+          request: input.request,
+          state: input.state,
+          runner: input.runner,
+          checkpoint: input.checkpoint,
+          maxSteps: input.maxSteps,
+          steps: input.steps,
+          checkpoints: input.checkpoints
+        }) : {
+          status: "ready-for-completion",
+          effectAssessmentIds: input.state.workCase.currentEffectAssessments.map(
+            currentAssessmentId
+          ),
+          state: input.state,
+          steps: input.steps,
+          checkpoints: input.checkpoints
+        }
+      };
+    default:
+      return phase2;
+  }
+}
+async function progressAcceptedAction(input) {
+  const { progression, phase: phase2, action, steps } = input;
+  const { workCase } = progression.state;
+  let permission;
+  try {
+    permission = await input.authorizeAction(action);
+  } catch (error) {
+    return {
+      status: "runtime-failure",
+      stage: "action",
+      message: compactError2(error),
+      state: progression.state,
+      steps,
+      checkpoints: progression.checkpoints
+    };
+  }
+  const clearance = clearActionWithHostPermission({
+    candidate: action.candidate,
+    conclusions: workCase.conclusions,
+    permission
+  });
+  if (clearance.status === "not-cleared") {
+    return {
+      status: "action-not-cleared",
+      blockerCodes: clearance.blockers.map((blocker) => blocker.code),
+      state: progression.state,
+      steps,
+      checkpoints: progression.checkpoints
+    };
+  }
+  if (clearance.status === "invariant-failure") {
+    return {
+      status: "invariant-failure",
+      stage: "action",
+      code: clearance.code,
+      message: clearance.message,
+      state: progression.state,
+      steps,
+      checkpoints: progression.checkpoints
+    };
+  }
+  const candidateRecord = recordWorkCaseActionCandidate(
+    workCase,
+    action.candidate
+  );
+  if (candidateRecord.status === "invalid") {
+    return {
+      status: "invariant-failure",
+      stage: "action",
+      code: candidateRecord.error.code,
+      message: candidateRecord.error.message,
+      state: progression.state,
+      steps,
+      checkpoints: progression.checkpoints
+    };
+  }
+  const clearanceRecord = recordWorkCaseActionClearance(
+    candidateRecord.value,
+    clearance.clearance
+  );
+  if (clearanceRecord.status === "invalid") {
+    return {
+      status: "invariant-failure",
+      stage: "action",
+      code: clearanceRecord.error.code,
+      message: clearanceRecord.error.message,
+      state: progression.state,
+      steps,
+      checkpoints: progression.checkpoints
+    };
+  }
+  const transitioned = clearActionLoopAction(
+    phase2,
+    action.candidate,
+    clearance.clearance
+  );
+  if (transitioned.status === "invalid") {
+    return {
+      status: "invariant-failure",
+      stage: "action",
+      code: transitioned.error.code,
+      message: transitioned.error.message,
+      state: progression.state,
+      steps,
+      checkpoints: progression.checkpoints
+    };
+  }
+  const nextState = Object.freeze({
+    ...progression.state,
+    phase: transitioned.value,
+    workCase: clearanceRecord.value
+  });
+  const checkpoint = {
+    kind: "action-cleared",
+    action,
+    clearance,
+    workCase: clearanceRecord.value
+  };
+  try {
+    await progression.checkpoint(checkpoint);
+  } catch (error) {
+    return {
+      status: "checkpoint-failure",
+      stage: "action",
+      message: compactError2(error),
+      pendingCheckpoint: checkpoint,
+      state: progression.state,
+      steps,
+      checkpoints: progression.checkpoints
+    };
+  }
+  return {
+    status: "ready-for-host-action",
+    actionCandidateId: action.candidate.actionCandidateId,
+    actionClearanceId: clearance.clearance.actionClearanceId,
+    toolName: action.toolName,
+    toolInput: action.toolInput,
+    state: nextState,
+    steps,
+    checkpoints: progression.checkpoints + 1
+  };
+}
 async function progressAction(input) {
   const { workCase } = input.state;
-  const transition = canonicalActionLoopTransition(input.state);
-  const { decision } = transition;
-  if (decision.kind === "invariant-failure") {
+  const { phase: phase2 } = input;
+  if (phase2.workCaseId !== workCase.workCaseId) {
     return {
       status: "invariant-failure",
       stage: "action",
-      code: decision.code,
-      message: `Canonical Action Loop control state is incoherent: ${decision.code}.`,
+      code: "phase-work-case-mismatch",
+      message: "Canonical phase ownership does not match the Work Case ledger.",
       state: input.state,
       steps: input.steps,
       checkpoints: input.checkpoints
     };
   }
-  if (decision.kind === "ready-for-host-action") {
-    const pendingClearance = transition.pendingActionClearance;
-    if (!pendingClearance) {
-      return {
-        status: "invariant-failure",
-        stage: "action",
-        code: "missing-pending-action-clearance",
-        message: "The route requires one pending Action Clearance.",
-        state: input.state,
-        steps: input.steps,
-        checkpoints: input.checkpoints
-      };
-    }
-    return {
-      status: "ready-for-host-action",
-      actionCandidateId: pendingClearance.actionCandidateId,
-      actionClearanceId: pendingClearance.actionClearanceId,
-      state: input.state,
-      steps: input.steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  if (decision.kind === "progress-effect") {
-    return progressEffect({
-      request: input.request,
-      state: input.state,
-      observations: input.observations,
-      runner: input.runner,
-      checkpoint: input.checkpoint,
-      maxSteps: input.maxSteps,
-      steps: input.steps,
-      checkpoints: input.checkpoints
-    });
-  }
-  if (decision.kind === "progress-remediation") {
-    return progressRemediation({
-      request: input.request,
-      state: input.state,
-      adverseSettlements: transition.adverseSettlements,
-      successfulSettlements: transition.successfulSettlements,
-      runner: input.runner,
-      checkpoint: input.checkpoint,
-      maxSteps: input.maxSteps,
-      steps: input.steps,
-      checkpoints: input.checkpoints
-    });
-  }
-  if (decision.kind === "remediation-required") {
-    return {
-      status: "remediation-required",
-      adverseEffectIds: transition.adverseSettlements.map(
-        ({ effectId }) => effectId
-      ),
-      state: input.state,
-      steps: input.steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  if (decision.kind === "continuity-required") {
-    return {
-      status: "continuity-required",
-      disposition: decision.disposition,
-      state: input.state,
-      steps: input.steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  if (decision.kind === "ready-for-completion") {
-    if (!input.complete) {
-      return {
-        status: "ready-for-completion",
-        effectAssessmentIds: workCase.currentEffectAssessments.map(currentAssessmentId),
-        state: input.state,
-        steps: input.steps,
-        checkpoints: input.checkpoints
-      };
-    }
-    return progressCompletion({
-      request: input.request,
-      state: input.state,
-      runner: input.runner,
-      checkpoint: input.checkpoint,
-      maxSteps: input.maxSteps,
-      steps: input.steps,
-      checkpoints: input.checkpoints
-    });
-  }
-  if (decision.kind !== "propose-action") {
-    return {
-      status: "invariant-failure",
-      stage: "action",
-      code: "misrouted-control-state",
-      message: `Judgment route ${decision.kind} reached Action progression.`,
-      state: input.state,
-      steps: input.steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  const intervention = transition.currentIntervention;
-  if (!intervention || intervention.interventionDisposition !== "action-required") {
-    return {
-      status: "invariant-failure",
-      stage: "action",
-      code: "missing-action-intervention",
-      message: "An Action route requires one current action-required Intervention.",
-      state: input.state,
-      steps: input.steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  const actionConclusions = [intervention];
+  const routed = await routeActionProgression(input);
+  if (routed.status === "settled") return routed.result;
+  const { phase: actionPhase } = routed;
+  const actionConclusions = [actionPhase.intervention];
   if (!input.actions || !input.authorizeAction) {
     return {
       status: "ready-for-action",
@@ -11674,107 +11965,13 @@ async function progressAction(input) {
       checkpoints: input.checkpoints
     };
   }
-  let permission;
-  try {
-    permission = await input.authorizeAction(action);
-  } catch (error) {
-    return {
-      status: "runtime-failure",
-      stage: "action",
-      message: compactError2(error),
-      state: input.state,
-      steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  const clearance = clearActionWithHostPermission({
-    candidate: action.candidate,
-    conclusions: workCase.conclusions,
-    permission
-  });
-  if (clearance.status === "not-cleared") {
-    return {
-      status: "action-not-cleared",
-      blockerCodes: clearance.blockers.map((blocker) => blocker.code),
-      state: input.state,
-      steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  if (clearance.status === "invariant-failure") {
-    return {
-      status: "invariant-failure",
-      stage: "action",
-      code: clearance.code,
-      message: clearance.message,
-      state: input.state,
-      steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  const candidateRecord = recordWorkCaseActionCandidate(
-    workCase,
-    action.candidate
-  );
-  if (candidateRecord.status === "invalid") {
-    return {
-      status: "invariant-failure",
-      stage: "action",
-      code: candidateRecord.error.code,
-      message: candidateRecord.error.message,
-      state: input.state,
-      steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  const clearanceRecord = recordWorkCaseActionClearance(
-    candidateRecord.value,
-    clearance.clearance
-  );
-  if (clearanceRecord.status === "invalid") {
-    return {
-      status: "invariant-failure",
-      stage: "action",
-      code: clearanceRecord.error.code,
-      message: clearanceRecord.error.message,
-      state: input.state,
-      steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  const nextState = Object.freeze({
-    ...input.state,
-    workCase: clearanceRecord.value
-  });
-  const checkpoint = {
-    kind: "action-cleared",
+  return progressAcceptedAction({
+    progression: input,
+    phase: actionPhase,
     action,
-    clearance,
-    workCase: clearanceRecord.value
-  };
-  try {
-    await input.checkpoint(checkpoint);
-  } catch (error) {
-    return {
-      status: "checkpoint-failure",
-      stage: "action",
-      message: compactError2(error),
-      pendingCheckpoint: checkpoint,
-      state: input.state,
-      steps,
-      checkpoints: input.checkpoints
-    };
-  }
-  return {
-    status: "ready-for-host-action",
-    actionCandidateId: action.candidate.actionCandidateId,
-    actionClearanceId: clearance.clearance.actionClearanceId,
-    toolName: action.toolName,
-    toolInput: action.toolInput,
-    state: nextState,
-    steps,
-    checkpoints: input.checkpoints + 1
-  };
+    authorizeAction: input.authorizeAction,
+    steps
+  });
 }
 async function progressActionLoopWithSdk(input) {
   const maxSteps = positiveInteger2(input.maxSteps, "maxSteps");
@@ -11824,22 +12021,22 @@ async function progressActionLoopWithSdk(input) {
     state = emptyProgressState(opened);
     checkpoints += 1;
   }
-  const transition = canonicalActionLoopTransition(state);
-  if (transition.decision.kind === "invariant-failure") {
+  if (state.phase.workCaseId !== state.workCase.workCaseId) {
     return {
       status: "invariant-failure",
       stage: "judgment",
-      code: transition.decision.code,
-      message: `Canonical Action Loop control state is incoherent: ${transition.decision.code}.`,
+      code: "phase-work-case-mismatch",
+      message: "Canonical phase ownership does not match the Work Case ledger.",
       state,
       steps,
       checkpoints
     };
   }
-  if (transition.decision.kind !== "open-judgment" && transition.decision.kind !== "progress-open-judgment") {
+  if (state.phase.kind !== "judgment-opening" && state.phase.kind !== "judgment-active") {
     return progressAction({
       request: input.request,
       state,
+      phase: state.phase,
       observations: input.effectObservations ?? [],
       complete: input.complete ?? false,
       actions: input.actions,
@@ -11851,8 +12048,8 @@ async function progressActionLoopWithSdk(input) {
       checkpoints
     });
   }
-  const requiredCategory = transition.decision.kind === "open-judgment" ? transition.decision.requiredCategory : void 0;
-  if (transition.decision.kind === "open-judgment") {
+  const requiredCategory = state.phase.kind === "judgment-opening" ? requiredActionLoopJudgmentCategory(state.phase) : void 0;
+  if (state.phase.kind === "judgment-opening") {
     if (steps >= maxSteps) {
       return {
         status: "bounded-stop",
@@ -11910,6 +12107,18 @@ async function progressActionLoopWithSdk(input) {
         checkpoints
       };
     }
+    const transitioned = openActionLoopJudgment(state.phase, opened.judgment);
+    if (transitioned.status === "invalid") {
+      return {
+        status: "invariant-failure",
+        stage: "judgment",
+        code: transitioned.error.code,
+        message: transitioned.error.message,
+        state,
+        steps,
+        checkpoints
+      };
+    }
     const checkpoint = {
       kind: "judgment-opened",
       result: opened
@@ -11927,7 +12136,7 @@ async function progressActionLoopWithSdk(input) {
         checkpoints
       };
     }
-    state = withJudgment(state, opened);
+    state = withJudgment(state, opened, transitioned.value);
     checkpoints += 1;
   }
   if (steps >= maxSteps) {
@@ -11953,7 +12162,7 @@ async function progressActionLoopWithSdk(input) {
 }
 
 // src/action-loop/sdk/context-progress.ts
-function invalid26(code, message) {
+function invalid27(code, message) {
   return { status: "invalid", code, message };
 }
 function indexAssignments(input) {
@@ -11962,7 +12171,7 @@ function indexAssignments(input) {
     if (assignment.workCaseId !== input.workCaseId || assignment.judgmentId !== input.judgmentId || assignment.contributionNeedId !== input.contributionNeedId) {
       return {
         ok: false,
-        error: invalid26(
+        error: invalid27(
           "assignment-mismatch",
           `Assignment ${assignment.assignmentId} does not belong to the requested Work Case, Judgment, and Contribution Need.`
         )
@@ -11971,7 +12180,7 @@ function indexAssignments(input) {
     if (assignments.has(assignment.assignmentId)) {
       return {
         ok: false,
-        error: invalid26(
+        error: invalid27(
           "duplicate-assignment",
           `Assignment ${assignment.assignmentId} occurs more than once.`
         )
@@ -11988,7 +12197,7 @@ function indexSelections(selections, assignments) {
     if (assignment === void 0 || selection.capabilityRevisionId !== assignment.capabilityRevisionId) {
       return {
         ok: false,
-        error: invalid26(
+        error: invalid27(
           "selection-mismatch",
           `Reference Selection ${selection.selectionId} has no exact current Assignment.`
         )
@@ -11997,7 +12206,7 @@ function indexSelections(selections, assignments) {
     if (indexed.has(selection.assignmentId)) {
       return {
         ok: false,
-        error: invalid26(
+        error: invalid27(
           "duplicate-selection",
           `Assignment ${selection.assignmentId} has more than one Reference Selection.`
         )
@@ -12020,7 +12229,7 @@ function indexContexts(input, assignments, selections) {
     if (!matchingContext(input, context, assignments.get(context.assignmentId))) {
       return {
         ok: false,
-        error: invalid26(
+        error: invalid27(
           "context-mismatch",
           `Sealed Context ${context.sealedContextId} has no exact current Assignment.`
         )
@@ -12029,7 +12238,7 @@ function indexContexts(input, assignments, selections) {
     if (indexed.has(context.assignmentId)) {
       return {
         ok: false,
-        error: invalid26(
+        error: invalid27(
           "duplicate-context",
           `Assignment ${context.assignmentId} has more than one sealed Context.`
         )
@@ -12038,7 +12247,7 @@ function indexContexts(input, assignments, selections) {
     if (!matchingContextMode(context, selections.get(context.assignmentId))) {
       return {
         ok: false,
-        error: invalid26(
+        error: invalid27(
           "inconsistent-context",
           `Sealed Context ${context.sealedContextId} does not match its routing mode and Reference Selection.`
         )
@@ -12052,13 +12261,13 @@ function validateSelections(selections, contexts) {
   for (const selection of selections) {
     const hasContext = contexts.has(selection.assignmentId);
     if (selection.status === "ready" && !hasContext) {
-      return invalid26(
+      return invalid27(
         "inconsistent-context",
         `Ready Reference Selection ${selection.selectionId} has no sealed Context.`
       );
     }
     if (selection.status === "needs-context" && hasContext) {
-      return invalid26(
+      return invalid27(
         "inconsistent-context",
         `Unresolved Reference Selection ${selection.selectionId} cannot have a sealed Context.`
       );
@@ -12118,14 +12327,14 @@ function inspectCapabilityContextProgress(input) {
 }
 
 // src/action-loop/sdk/coverage-progress.ts
-function invalid27(code, message) {
+function invalid28(code, message) {
   return { status: "invalid", code, message };
 }
 function inspectCoverageProgress(input) {
   const needsById = /* @__PURE__ */ new Map();
   for (const need of input.contributionNeeds) {
     if (needsById.has(need.contributionNeedId)) {
-      return invalid27(
+      return invalid28(
         "duplicate-need",
         `Contribution Need ${need.contributionNeedId} occurs more than once.`
       );
@@ -12135,13 +12344,13 @@ function inspectCoverageProgress(input) {
   const coveragesByNeed = /* @__PURE__ */ new Map();
   for (const coverage of input.coverages) {
     if (coverage.workCaseId !== input.workCaseId || coverage.judgmentId !== input.judgmentId || !needsById.has(coverage.contributionNeedId)) {
-      return invalid27(
+      return invalid28(
         "coverage-mismatch",
         `Need Coverage ${coverage.coverageId} has no exact current Contribution Need.`
       );
     }
     if (coveragesByNeed.has(coverage.contributionNeedId)) {
-      return invalid27(
+      return invalid28(
         "duplicate-coverage",
         `Contribution Need ${coverage.contributionNeedId} has more than one current Coverage assessment.`
       );
@@ -12449,22 +12658,27 @@ export {
   assessCapabilityInventoryDeterministically,
   assessCapabilityInventoryWithSdk,
   assessNeedCoverageWithSdk,
+  beginActionLoopEffect,
   beginEffect,
   bindCapability,
   bindPiCapabilityInventory,
   blockWorkCase,
   buildSdkJudgmentEvidenceOperations,
   catalogBeforeAgentStartSkills,
+  clearActionLoopAction,
   clearActionWithHostPermission,
   completeWorkCaseWithSdk,
+  concludeActionLoopJudgment,
   concludeJudgmentWithSdk,
   contributeSkillWithSdk,
   createPiSdkDecisionRunner,
   decodeSdkProposalJson,
   decodeSdkStringList,
+  initialActionLoopPhase,
   inspectCapabilityContextProgress,
   inspectContributionProgress,
   inspectCoverageProgress,
+  openActionLoopJudgment,
   openJudgmentWithSdk,
   openWorkCaseWithSdk,
   parseTocBytes,
@@ -12472,6 +12686,8 @@ export {
   progressActionLoopWithSdk,
   progressJudgmentWithSdk,
   proposeActionWithSdk,
+  remediateActionLoopEffect,
+  requiredActionLoopJudgmentCategory,
   resolveEffectRemediationWithSdk,
   resumeBlockedWorkCase,
   resumePausedWorkCase,
@@ -12480,6 +12696,7 @@ export {
   sealCapabilityContextWithSdk,
   selectSdkJudgmentEvidenceOperation,
   selectStructuredReferencesWithSdk,
+  settleActionLoopEffect,
   settleEffectWithSdk,
   waitWorkCase
 };

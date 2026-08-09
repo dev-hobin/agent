@@ -312,7 +312,7 @@ test("Pi branch events resume the next unsealed SDK Context without a parallel c
 	assert.equal(opened.status, "opened");
 	if (opened.status !== "opened") return;
 	const judgmentProposal = {
-		category: "Consequence Integrity" as const,
+		category: "Proportionate Intervention" as const,
 		subject: "Approval retry behavior",
 		question: "Which state and time behavior preserves one terminal decision?",
 		requirements: [

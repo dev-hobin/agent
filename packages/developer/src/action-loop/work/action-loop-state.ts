@@ -9,12 +9,15 @@ import type {
 	CapabilityAssignment,
 } from "../routing/accept-applicability.ts";
 import type { BoundReferenceSelection } from "../routing/bind-reference-selection.ts";
+import type { ActionLoopPhase } from "./action-loop-phase.ts";
 import type { ActiveWorkCase } from "./work-case.ts";
 
 export type ActionLoopContribution = SkillContribution | HostContribution;
 
-/** Domain-neutral progression state shared by controllers and host projections. */
+/** Domain-neutral canonical state shared by controllers and host projections. */
 export interface ActionLoopState {
+	/** Sole control owner; ledger collections below are evidence and history. */
+	readonly phase: ActionLoopPhase;
 	readonly workCase: ActiveWorkCase;
 	readonly applicabilityAssessments: readonly AcceptedApplicabilityAssessment[];
 	readonly assignments: readonly CapabilityAssignment[];

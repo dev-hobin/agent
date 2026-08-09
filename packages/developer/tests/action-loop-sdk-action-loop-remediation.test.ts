@@ -25,9 +25,19 @@ import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-ca
 import { recordWorkCaseEffectAssessment } from "../src/action-loop/work/record-work-case-effect-assessment.ts";
 import { recordWorkCaseEffect } from "../src/action-loop/work/record-work-case-effect.ts";
 import {
+	beginActionLoopEffect,
+	clearActionLoopAction,
+	settleActionLoopEffect,
+	type ActionLoopPhase,
+} from "../src/action-loop/work/action-loop-phase.ts";
+import {
 	openWorkCase,
 	type ActiveWorkCase,
 } from "../src/action-loop/work/work-case.ts";
+import {
+	advancePhaseWithConclusion,
+	phaseAfterConclusions,
+} from "./fixtures/action-loop-phase.ts";
 import { scriptedSdkRunner } from "./fixtures/scripted-sdk-runner.ts";
 
 function intervention(
@@ -50,15 +60,23 @@ function intervention(
 				? `Apply the ${name} intervention.`
 				: `No ${name} Action is proportionate.`,
 		interventionDisposition: disposition,
+		...(disposition === "no-action"
+			? { noActionDisposition: "outcome-attained" as const }
+			: {}),
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 	});
 }
 
 function addEffect(
 	workCase: ActiveWorkCase,
+	phase: ActionLoopPhase,
 	warrant: JudgmentConclusion,
 	label: string,
-): { readonly workCase: ActiveWorkCase; readonly effect: PendingEffect } {
+): {
+	readonly workCase: ActiveWorkCase;
+	readonly phase: ActionLoopPhase;
+	readonly effect: PendingEffect;
+} {
 	const candidate = acceptActionCandidate({
 		workCaseId: workCase.workCaseId,
 		controlledAction: {
@@ -101,6 +119,14 @@ function addEffect(
 	);
 	if (withClearance.status !== "recorded")
 		throw new Error(withClearance.status);
+	const clearedPhase = clearActionLoopAction(
+		phase,
+		candidate.value,
+		clearance.value,
+	);
+	if (clearedPhase.status === "invalid") {
+		throw new Error(clearedPhase.error.message);
+	}
 	const effect = beginEffect(clearance.value, {
 		occurrenceId: `occurrence-${label}`,
 		actionClearanceId: clearance.value.actionClearanceId,
@@ -110,7 +136,15 @@ function addEffect(
 	if (effect.status !== "begun") throw new Error(effect.error.message);
 	const recorded = recordWorkCaseEffect(withClearance.value, effect.value);
 	if (recorded.status !== "recorded") throw new Error(recorded.status);
-	return { workCase: recorded.value, effect: effect.value };
+	const effectPhase = beginActionLoopEffect(clearedPhase.value, effect.value);
+	if (effectPhase.status === "invalid") {
+		throw new Error(effectPhase.error.message);
+	}
+	return {
+		workCase: recorded.value,
+		phase: effectPhase.value,
+		effect: effect.value,
+	};
 }
 
 function settlement(
@@ -148,7 +182,13 @@ function remediationFixture(includeSuccess: boolean): {
 	const original = intervention(opened.value.workCaseId, "original");
 	const concluded = recordWorkCaseConclusion(opened.value, original);
 	if (concluded.status !== "recorded") throw new Error(concluded.status);
-	const adverseEffect = addEffect(concluded.value, original, "adverse");
+	let phase = phaseAfterConclusions(opened.value.workCaseId, [original]);
+	const adverseEffect = addEffect(
+		concluded.value,
+		phase,
+		original,
+		"adverse",
+	);
 	const adverse = settlement(adverseEffect.effect, "partially-applied");
 	const withAdverse = recordWorkCaseEffectAssessment(
 		adverseEffect.workCase,
@@ -156,10 +196,26 @@ function remediationFixture(includeSuccess: boolean): {
 		null,
 	);
 	if (withAdverse.status !== "recorded") throw new Error(withAdverse.status);
+	const adversePhase = settleActionLoopEffect(adverseEffect.phase, adverse);
+	if (adversePhase.status === "invalid") {
+		throw new Error(adversePhase.error.message);
+	}
+	phase = adversePhase.value;
 	let workCase = withAdverse.value;
 	let successful: EffectSettlement | undefined;
 	if (includeSuccess) {
-		const repairEffect = addEffect(workCase, original, "repair");
+		const repair = intervention(opened.value.workCaseId, "repair");
+		const repairConclusion = recordWorkCaseConclusion(workCase, repair);
+		if (repairConclusion.status !== "recorded") {
+			throw new Error(repairConclusion.status);
+		}
+		phase = advancePhaseWithConclusion(phase, repair);
+		const repairEffect = addEffect(
+			repairConclusion.value,
+			phase,
+			repair,
+			"repair",
+		);
 		successful = settlement(repairEffect.effect, "observed-success");
 		const withSuccess = recordWorkCaseEffectAssessment(
 			repairEffect.workCase,
@@ -167,10 +223,19 @@ function remediationFixture(includeSuccess: boolean): {
 			null,
 		);
 		if (withSuccess.status !== "recorded") throw new Error(withSuccess.status);
+		const successPhase = settleActionLoopEffect(
+			repairEffect.phase,
+			successful,
+		);
+		if (successPhase.status === "invalid") {
+			throw new Error(successPhase.error.message);
+		}
+		phase = successPhase.value;
 		workCase = withSuccess.value;
 	}
 	return {
 		state: {
+			phase,
 			workCase,
 			applicabilityAssessments: [],
 			assignments: [],
@@ -242,7 +307,11 @@ test("only the fresh remediation intervention can warrant the next Action", asyn
 	if (recorded.status !== "recorded") throw new Error(recorded.status);
 	const result = await progressActionLoopWithSdk({
 		request: "Apply the bounded repair.",
-		state: { ...fixture.state, workCase: recorded.value },
+		state: {
+			...fixture.state,
+			phase: advancePhaseWithConclusion(fixture.state.phase, fresh),
+			workCase: recorded.value,
+		},
 		capabilities: [],
 		runner: scriptedSdkRunner([]),
 		maxSteps: 1,
@@ -267,7 +336,11 @@ test("no-action remediation disposition preserves a nonterminal adverse blocker"
 	if (recorded.status !== "recorded") throw new Error(recorded.status);
 	const result = await progressActionLoopWithSdk({
 		request: "Do not accept the adverse state as completion.",
-		state: { ...fixture.state, workCase: recorded.value },
+		state: {
+			...fixture.state,
+			phase: advancePhaseWithConclusion(fixture.state.phase, noAction),
+			workCase: recorded.value,
+		},
 		capabilities: [],
 		runner: scriptedSdkRunner([]),
 		maxSteps: 1,
@@ -322,6 +395,7 @@ test("successful repair is canonically remediated and checkpointed before projec
 	assert.equal(event.kind, "effect-remediated");
 	const applied = reproduceSdkActionLoopCheckpoint(
 		{
+			phase: fixture.state.phase,
 			workCase: fixture.state.workCase,
 			openingBasis: ["The test owns this bounded Work Case."],
 			applicabilityAssessments: [],

@@ -5,6 +5,7 @@ import {
 } from "../src/action-loop/contribution/accept-host-contribution.ts";
 import type { ResidualNeedProposal } from "../src/action-loop/contribution/accept-skill-contribution.ts";
 import {
+	currentLiveJudgment,
 	selectLiveContributionNeed,
 	type LiveContributionNeedSelectionResult,
 } from "./action-loop-judgment.ts";
@@ -60,7 +61,7 @@ function selectHostContributionNeed(
 				"contribution_need requires nonblank requirement and function text",
 		};
 	}
-	const judgment = state.workCase.openJudgments[0];
+	const judgment = currentLiveJudgment(state);
 	if (judgment === undefined) {
 		return { status: "invalid", message: "No current open Judgment" };
 	}
@@ -95,7 +96,7 @@ function selectHostContributionNeed(
 export function liveHostContributionRecoveryPrompt(
 	state: LiveWorkCaseState,
 ): string {
-	const judgment = state.workCase.openJudgments[0];
+	const judgment = currentLiveJudgment(state);
 	if (judgment === undefined) return "Current open Judgment: none.";
 	const coveredNeedIds = new Set(
 		state.coverages
@@ -146,7 +147,7 @@ export function acceptLiveHostContribution(
 		proposal.contributionNeedId,
 	);
 	if (need.status === "invalid") return need;
-	const judgment = state.workCase.openJudgments[0];
+	const judgment = currentLiveJudgment(state);
 	if (!judgment)
 		return { status: "invalid", message: "No current open Judgment" };
 	const acceptedProposal: HostContributionProposal = {

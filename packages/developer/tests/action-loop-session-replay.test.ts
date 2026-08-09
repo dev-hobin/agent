@@ -86,7 +86,7 @@ test("an exact host Contribution replays without Skill material", async () => {
 	assert.equal(opened.status, "opened");
 	if (opened.status !== "opened") return;
 	const judgmentProposal = {
-		category: "Contextual Adequacy" as const,
+		category: "Proportionate Intervention" as const,
 		subject: "Compatibility policy",
 		question: "Which compatibility policy did the product owner choose?",
 		requirements: [
@@ -229,6 +229,7 @@ test("Proportionate Intervention disposition survives semantic event replay", as
 		outcome: "conclude" as const,
 		answer: "Preserve the current state without a host Action.",
 		interventionDisposition: "no-action" as const,
+		noActionDisposition: "outcome-attained" as const,
 		refusalReasons: [],
 		requirementDispositions: [
 			{
