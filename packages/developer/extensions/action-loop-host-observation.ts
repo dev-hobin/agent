@@ -52,6 +52,49 @@ function observationIdentity(
 	]);
 }
 
+function semanticToolSource(
+	toolName: string,
+	result: Readonly<Record<string, unknown>>,
+): string {
+	const input = result.input;
+	if (typeof input !== "object" || input === null || Array.isArray(input)) {
+		return `pi:tool-result:${toolName}`;
+	}
+	const fields = input as Readonly<Record<string, unknown>>;
+	const path = typeof fields.path === "string" ? fields.path.trim() : "";
+	const pattern = typeof fields.pattern === "string" ? fields.pattern.trim() : "";
+	if (toolName === "read" && path) return `read:${path}`;
+	if ((toolName === "find" || toolName === "grep") && pattern) {
+		return `${toolName}:${pattern}${path ? ` in ${path}` : ""}`;
+	}
+	if (toolName === "ls") return `ls:${path || "."}`;
+	return `pi:tool-result:${toolName}`;
+}
+
+function readableToolStatement(
+	toolName: string,
+	result: Readonly<Record<string, unknown>>,
+	canonicalResult: string,
+): string {
+	const content = result.content;
+	if (Array.isArray(content)) {
+		const text = content
+			.flatMap((item) => {
+				if (typeof item !== "object" || item === null || Array.isArray(item)) {
+					return [];
+				}
+				const candidate = item as Readonly<Record<string, unknown>>;
+				return candidate.type === "text" && typeof candidate.text === "string"
+					? [candidate.text]
+					: [];
+			})
+			.join("\n")
+			.trim();
+		if (text) return compactStatement(`${toolName} returned: ${text}`);
+	}
+	return compactStatement(`${toolName} finalized with result ${canonicalResult}`);
+}
+
 /** Admits the exact current user prompt as human evidence without interpreting it. */
 export function admitLiveUserPromptObservation(
 	prompt: string,
@@ -136,7 +179,7 @@ export function admitLiveToolResultObservation(
 	}
 	const fingerprinted = fingerprintPiToolResult(canonicalToolName, result);
 	if (fingerprinted.status === "invalid") return fingerprinted;
-	const source = `pi:tool-result:${canonicalToolName}:${canonicalToolCallId}`;
+	const source = semanticToolSource(canonicalToolName, result);
 	const observationId = observationIdentity(
 		"tool",
 		source,
@@ -148,14 +191,16 @@ export function admitLiveToolResultObservation(
 			observationId,
 			kind: "tool",
 			source,
-			statement: compactStatement(
-				`${canonicalToolName} finalized with canonical result ${fingerprinted.canonicalResult}`,
+			statement: readableToolStatement(
+				canonicalToolName,
+				result,
+				fingerprinted.canonicalResult,
 			),
 			evidenceFingerprint: fingerprinted.fingerprint,
 			...(workCaseId ? { workCaseId } : {}),
 			basis: Object.freeze([
-				`Pi finalized ${canonicalToolName} call ${canonicalToolCallId} with exact result fingerprint ${fingerprinted.fingerprint}.`,
-				"The readable statement is bounded; the fingerprint remains bound to the complete exact result.",
+				`Pi finalized ${canonicalToolName} evidence from ${source}.`,
+				"The readable statement is bounded; trusted state remains bound to the complete exact result.",
 				"Receipt records evidence only; canonical Judgment or Effect settlement must determine what the result warrants.",
 			]),
 		}),
@@ -219,6 +264,16 @@ export function selectLiveHostObservation(
 	return { status: "selected", observation: selected };
 }
 
+export function liveHostObservationSelectorJson(
+	observation: LiveHostObservation,
+): string {
+	return JSON.stringify({
+		kind: observation.kind,
+		source: observation.source,
+		statement: observation.statement,
+	});
+}
+
 export function liveHostObservationPrompt(
 	observations: readonly LiveHostObservation[],
 ): string {
@@ -228,12 +283,7 @@ export function liveHostObservationPrompt(
 		...observations
 			.slice(-MAX_LIVE_HOST_OBSERVATIONS)
 			.map(
-				(observation) =>
-					`- ${JSON.stringify({
-						kind: observation.kind,
-						source: observation.source,
-						statement: observation.statement,
-					})}`,
+				(observation) => `- ${liveHostObservationSelectorJson(observation)}`,
 			),
 	].join("\n");
 }

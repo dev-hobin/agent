@@ -88,7 +88,8 @@ test("one exact finalized tool result becomes provenance-bound evidence", () => 
 		changed.observation.observationId,
 	);
 	assert.equal(first.observation.kind, "tool");
-	assert.match(first.observation.source, /check_ci:call-1/);
+	assert.equal(first.observation.source, "pi:tool-result:check_ci");
+	assert.doesNotMatch(first.observation.source, /call-1/);
 	assert.match(first.observation.statement, /pending/);
 	assert.doesNotMatch(first.observation.statement, /success/);
 	assert.match(
@@ -123,6 +124,25 @@ test("pre-opening evidence binds to one Work Case and cannot cross ownership", (
 		),
 		undefined,
 	);
+});
+
+test("tool observations expose a semantic source without call identity", () => {
+	const admitted = admitLiveToolResultObservation(
+		"read",
+		"call-internal-1",
+		{
+			input: { path: "src/release-policy.mjs" },
+			isError: false,
+			content: [{ type: "text", text: "export const ready = false;" }],
+		},
+		"work-case-1",
+	);
+	assert.equal(admitted.status, "admitted");
+	if (admitted.status !== "admitted") return;
+	const prompt = liveHostObservationPrompt([admitted.observation]);
+	assert.match(prompt, /"source":"read:src\/release-policy\.mjs"/);
+	assert.match(prompt, /read returned: export const ready = false/);
+	assert.doesNotMatch(prompt, /call-internal-1|observation_[a-f0-9]+/);
 });
 
 test("observation prompts expose semantic selection without internal identity", () => {

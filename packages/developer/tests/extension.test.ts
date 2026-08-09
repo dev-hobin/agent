@@ -797,12 +797,18 @@ test("finalized tool evidence reaches the model without exposing internal IDs in
 		type: "tool_result",
 		toolName: "registry_status",
 		toolCallId: "registry-status-1",
+		input: {},
 		isError: false,
 		content: [{ type: "text", text: "registry status: unavailable" }],
 		details: { status: "unavailable" },
 	};
 	const resultPatch = await harness.emit("tool_result", originalResult);
-	assert.equal(resultPatch, undefined);
+	const receipt = (resultPatch.content as Array<{ readonly text: string }>)
+		.map((item) => item.text)
+		.join("\n");
+	assert.match(receipt, /Developer Observation receipt/);
+	assert.match(receipt, /"source":"pi:tool-result:registry_status"/);
+	assert.doesNotMatch(receipt, /registry-status-1|observation_[a-f0-9]+/);
 	assert.doesNotMatch(
 		originalResult.content.map((item) => item.text).join("\n"),
 		/observation_[a-f0-9]+/,

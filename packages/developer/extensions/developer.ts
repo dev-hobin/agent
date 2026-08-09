@@ -91,6 +91,7 @@ import {
 	bindLiveHostObservation,
 	isDirectSkillMaterialRead,
 	liveHostObservationPrompt,
+	liveHostObservationSelectorJson,
 	sameLiveHostObservationMeaning,
 	selectLiveHostObservation,
 	type LiveHostObservation,
@@ -2055,6 +2056,7 @@ export default async function developer(pi: ExtensionAPI) {
 			event.toolName,
 			event.toolCallId,
 			{
+				input: event.input,
 				isError: event.isError,
 				content: event.content,
 				details: event.details,
@@ -2063,6 +2065,19 @@ export default async function developer(pi: ExtensionAPI) {
 		);
 		if (admitted.status === "admitted") {
 			rememberHostObservation(admitted.observation);
+			return {
+				content: [
+					...event.content,
+					{
+						type: "text" as const,
+						text: [
+							"Developer Observation receipt (evidence only; not Effect success):",
+							liveHostObservationSelectorJson(admitted.observation),
+							"Use this exact observation object with one exact listed contribution_need and all required Contribution fields. Do not substitute a human prompt Observation.",
+						].join("\n"),
+					},
+				],
+			};
 		}
 	});
 
