@@ -55,7 +55,8 @@ export function selectLiveContributionNeed(
 		return selected === undefined
 			? {
 					status: "invalid",
-					message: `Contribution Need does not belong to the current open Judgment: ${requestedId}`,
+					message:
+						"Selected Contribution Need does not belong to the current open Judgment",
 				}
 			: { status: "selected", value: selected };
 	}
@@ -63,7 +64,7 @@ export function selectLiveContributionNeed(
 		return {
 			status: "invalid",
 			message:
-				"contribution_need_id is required when the current open Judgment has several Contribution Needs",
+				"A Contribution Need selection is required when the current open Judgment has several Contribution Needs",
 		};
 	}
 	return { status: "selected", value: judgment.contributionNeeds[0] };

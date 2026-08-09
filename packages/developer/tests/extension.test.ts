@@ -400,6 +400,14 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 		/judgment-refused requires developer_accept_observation_contribution/,
 	);
 	assert.match(progressGuidelines, /end the response/);
+	const observedContributionSchema = harness.tools.get(
+		"developer_accept_observation_contribution",
+	).parameters as { readonly properties?: Readonly<Record<string, unknown>> };
+	assert.ok(observedContributionSchema.properties?.contribution_need);
+	assert.equal(
+		observedContributionSchema.properties?.contribution_need_id,
+		undefined,
+	);
 	assert.deepEqual(
 		harness
 			.activeTools()

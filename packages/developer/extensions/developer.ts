@@ -37,7 +37,10 @@ import {
 	liveCompletedWorkCasePrompt,
 	prepareLiveWorkCaseClosure,
 } from "./action-loop-completion.ts";
-import { acceptLiveHostContribution } from "./action-loop-host-contribution.ts";
+import {
+	acceptLiveHostContribution,
+	liveHostContributionRecoveryPrompt,
+} from "./action-loop-host-contribution.ts";
 import {
 	ACTION_LOOP_SESSION_ENTRY,
 	ACTION_LOOP_SESSION_PROTOCOL,
@@ -529,9 +532,16 @@ export default async function developer(pi: ExtensionAPI) {
 								proposal.actionCandidateId === result.actionCandidateId,
 						)
 					: undefined;
+			const progressionSummary = actionLoopProgressionSummary(result);
+			const recoveryPrompt =
+				result.status === "judgment-refused" && activeWorkCase
+					? liveHostContributionRecoveryPrompt(activeWorkCase)
+					: undefined;
 			const summary = pendingHostAction
-				? `${actionLoopProgressionSummary(result)} Execute ${pendingHostAction.toolName} with exactly this input: ${JSON.stringify(pendingHostAction.toolInput)}`
-				: actionLoopProgressionSummary(result);
+				? `${progressionSummary} Execute ${pendingHostAction.toolName} with exactly this input: ${JSON.stringify(pendingHostAction.toolInput)}`
+				: recoveryPrompt
+					? `${progressionSummary}\n${recoveryPrompt}`
+					: progressionSummary;
 			return textResult(summary, {
 				protocol: "developer-action-loop/sdk-action-loop-progression/v1",
 				kind: "sdk-action-loop-progression",
@@ -569,14 +579,27 @@ export default async function developer(pi: ExtensionAPI) {
 		promptSnippet: "Use exact observed evidence for one current Need",
 		promptGuidelines: [
 			`Use ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} when an exact host-admitted Observation directly contributes to a current Need without Skill interpretation.`,
-			"Use only an Observation ID listed in model-only host context. Scope local_status, limitations, and residual_needs to that exact Need; downstream Action, Effect, or completion work outside the Need does not make the Contribution partial.",
+			"Use only an Observation ID listed in model-only host context. When several current Needs exist, copy one exact semantic contribution_need selector listed by progression; never guess or emit an internal identity.",
+			"Scope local_status, limitations, and residual_needs to that exact Need; downstream Action, Effect, or completion work outside the Need does not make the Contribution partial.",
 			"State material limitations and residual Needs explicitly; do not infer Coverage or Conclusion.",
 		],
 		parameters: Type.Object(
 			{
 				observation_id: Type.String({ minLength: 1, maxLength: 512 }),
-				contribution_need_id: Type.Optional(
-					Type.String({ minLength: 1, maxLength: 512 }),
+				contribution_need: Type.Optional(
+					Type.Object(
+						{
+							requirement: Type.String({
+								minLength: 1,
+								maxLength: MAX_EVIDENCE_CHARS,
+							}),
+							function: Type.String({
+								minLength: 1,
+								maxLength: MAX_EVIDENCE_CHARS,
+							}),
+						},
+						{ additionalProperties: false },
+					),
 				),
 				local_status: StringEnum(["resolved", "partial"] as const),
 				result: Type.String({ minLength: 1, maxLength: MAX_RESULT_CHARS }),
@@ -628,7 +651,7 @@ export default async function developer(pi: ExtensionAPI) {
 				);
 			}
 			const proposal = {
-				contributionNeedId: params.contribution_need_id,
+				contributionNeed: params.contribution_need,
 				localStatus: params.local_status,
 				result: params.result,
 				limitations: params.limitations,
@@ -643,7 +666,7 @@ export default async function developer(pi: ExtensionAPI) {
 			if (accepted.status === "invalid") fail(accepted.message);
 			activeWorkCase = accepted.state;
 			return textResult(
-				`Observed contribution ${accepted.status}: ${accepted.contribution.contributionId}`,
+				`Observed contribution ${accepted.status} for the selected current Need.`,
 				withActionLoopReplayEvent(
 					{
 						protocol: "developer-action-loop/v1",
@@ -661,7 +684,20 @@ export default async function developer(pi: ExtensionAPI) {
 							evidenceFingerprint: observation.evidenceFingerprint,
 							basis: [...observation.basis],
 						},
-						proposal,
+						{
+							contributionNeedId:
+								accepted.contribution.contributionNeedId,
+							localStatus: accepted.contribution.localStatus,
+							result: accepted.contribution.result,
+							limitations: [...accepted.contribution.limitations],
+							residualNeeds: accepted.contribution.residualNeeds.map(
+								(residualNeed) => ({
+									...residualNeed,
+									basis: [...residualNeed.basis],
+								}),
+							),
+							basis: [...accepted.contribution.basis],
+						},
 						accepted.contribution.contributionId,
 					),
 				),

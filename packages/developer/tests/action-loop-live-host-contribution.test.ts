@@ -2,12 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { assessLiveNeedCoverage } from "../extensions/action-loop-coverage.ts";
-import { acceptLiveHostContribution } from "../extensions/action-loop-host-contribution.ts";
+import {
+	acceptLiveHostContribution,
+	liveHostContributionRecoveryPrompt,
+} from "../extensions/action-loop-host-contribution.ts";
 import { admitLiveUserPromptObservation } from "../extensions/action-loop-host-observation.ts";
 import { openLiveJudgment } from "../extensions/action-loop-judgment.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
 
-function judgmentFixture() {
+function judgmentFixture(
+	contributionNeeds: readonly string[] = ["An exact product-owner decision"],
+) {
 	const opened = openLiveWorkCase(undefined, {
 		outcome: {
 			statement: "Apply the product owner's compatibility decision.",
@@ -25,7 +30,7 @@ function judgmentFixture() {
 		requirements: [
 			{
 				statement: "The product owner's decision is represented exactly.",
-				contributionNeeds: ["An exact product-owner decision"],
+				contributionNeeds,
 			},
 		],
 		basis: ["Implementation cannot choose product policy."],
@@ -72,6 +77,63 @@ test("one admitted human Observation contributes to a Need through canonical Cov
 	assert.equal(coverage.status, "assessed");
 	if (coverage.status === "assessed")
 		assert.equal(coverage.coverage.status, "covered");
+});
+
+test("semantic Need selection binds trusted identity without exposing it", () => {
+	const state = judgmentFixture([
+		"An exact product-owner decision",
+		"An exact compatibility constraint",
+	]);
+	const prompt = liveHostContributionRecoveryPrompt(state);
+	assert.match(prompt, /semantic selectors/);
+	assert.match(prompt, /An exact product-owner decision/);
+	assert.match(prompt, /An exact compatibility constraint/);
+	for (const need of state.workCase.openJudgments[0]?.contributionNeeds ?? []) {
+		assert.doesNotMatch(prompt, new RegExp(need.contributionNeedId));
+	}
+	const admitted = admitLiveUserPromptObservation(
+		"Unknown values must be rejected.",
+		state.workCase.workCaseId,
+	);
+	assert.equal(admitted.status, "admitted");
+	if (admitted.status !== "admitted") return;
+	const accepted = acceptLiveHostContribution(state, admitted.observation, {
+		contributionNeed: {
+			requirement:
+				"The product owner's decision is represented exactly.",
+			function: "An exact compatibility constraint",
+		},
+		localStatus: "resolved",
+		result: "Unknown values must be rejected.",
+		limitations: [],
+		residualNeeds: [],
+		basis: ["The exact human Observation supplies the selected constraint."],
+	});
+	assert.equal(accepted.status, "accepted");
+	if (accepted.status === "accepted") {
+		const selectedNeed = state.workCase.openJudgments[0]?.contributionNeeds.find(
+			(need) => need.function === "An exact compatibility constraint",
+		);
+		assert.equal(
+			accepted.contribution.contributionNeedId,
+			selectedNeed?.contributionNeedId,
+		);
+	}
+	assert.equal(
+		acceptLiveHostContribution(state, admitted.observation, {
+			contributionNeed: {
+				requirement:
+					"The product owner's decision is represented exactly.",
+				function: "A guessed Need",
+			},
+			localStatus: "resolved",
+			result: "Unknown values must be rejected.",
+			limitations: [],
+			residualNeeds: [],
+			basis: ["A guessed selector must not bind trusted identity."],
+		}).status,
+		"invalid",
+	);
 });
 
 test("host Contribution rejects cross-Work-Case evidence and invalidates prior Coverage", () => {
