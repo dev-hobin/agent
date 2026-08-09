@@ -26,10 +26,15 @@ import {
 	type SdkEffectRemediationResult,
 } from "./effect-remediation-controller.ts";
 import type { SdkActionLoopState } from "./action-loop-state.ts";
+import {
+	decideActionLoopTransition,
+	type ActionLoopEffectPhase,
+	type ActionLoopInterventionState,
+	type ActionLoopTransitionDecision,
+} from "./action-loop-transition-policy.ts";
 import type { SdkDecisionRunner } from "./decision-controller.ts";
 import {
 	openJudgmentWithSdk,
-	type SdkJudgmentCategory,
 	type SdkJudgmentOpeningResult,
 } from "./judgment-controller.ts";
 import { buildSdkJudgmentEvidenceOperations } from "./judgment-evidence-operation.ts";
@@ -378,15 +383,103 @@ function consumedConclusionIds(state: SdkActionLoopState): ReadonlySet<string> {
 	);
 }
 
-function pendingRemediationIntervention(
+type CanonicalConclusion =
+	SdkActionLoopState["workCase"]["conclusions"][number];
+type CanonicalActionClearance =
+	SdkActionLoopState["workCase"]["actionClearances"][number];
+
+interface CanonicalActionLoopTransition {
+	readonly decision: ActionLoopTransitionDecision;
+	readonly currentIntervention?: CanonicalConclusion;
+	readonly pendingActionClearance?: CanonicalActionClearance;
+	readonly adverseSettlements: readonly EffectSettlement[];
+	readonly successfulSettlements: readonly EffectSettlement[];
+}
+
+function boundedCount(value: number): 0 | 1 | "many" {
+	if (value === 0) return 0;
+	return value === 1 ? 1 : "many";
+}
+
+function interventionState(
+	interventions: readonly CanonicalConclusion[],
+): ActionLoopInterventionState {
+	if (interventions.length === 0) return "absent";
+	if (interventions.length > 1) return "multiple";
+	const [intervention] = interventions;
+	if (!intervention) return "invalid";
+	if (intervention.interventionDisposition === "action-required") {
+		return "action-required";
+	}
+	if (intervention.interventionDisposition !== "no-action") return "invalid";
+	return intervention.noActionDisposition ?? "outcome-attained";
+}
+
+function actionLoopEffectPhase(
 	state: SdkActionLoopState,
-): SdkActionLoopState["workCase"]["conclusions"][number] | undefined {
+	adverse: readonly EffectSettlement[],
+	successful: readonly EffectSettlement[],
+): ActionLoopEffectPhase {
+	if (state.workCase.effects.length === 0) return "none";
+	const settledEffectIds = new Set(
+		currentEffectSettlements(state).map(({ effectId }) => effectId),
+	);
+	if (
+		!state.workCase.effects.every(({ effectId }) =>
+			settledEffectIds.has(effectId),
+		)
+	) {
+		return "incomplete";
+	}
+	if (adverse.length > 0 && successful.length > 0) return "settled-mixed";
+	return adverse.length > 0 ? "settled-adverse" : "settled-nonadverse";
+}
+
+function canonicalActionLoopTransition(
+	state: SdkActionLoopState,
+): CanonicalActionLoopTransition {
 	const consumed = consumedConclusionIds(state);
-	return state.workCase.conclusions.find(
+	const currentInterventions = state.workCase.conclusions.filter(
 		(conclusion) =>
 			conclusion.category === "Proportionate Intervention" &&
 			!consumed.has(conclusion.conclusionId),
 	);
+	const pendingActionClearances = state.workCase.actionClearances.filter(
+		(clearance) =>
+			!state.workCase.effects.some(
+				(effect) =>
+					effect.actionClearanceId === clearance.actionClearanceId,
+			),
+	);
+	const adverseSettlements = unresolvedAdverseSettlements(state);
+	const successfulSettlements = successfulEffectSettlements(state);
+	const decision = decideActionLoopTransition({
+		hasConclusions: state.workCase.conclusions.length > 0,
+		openJudgments: boundedCount(state.workCase.openJudgments.length),
+		pendingActionClearances: boundedCount(pendingActionClearances.length),
+		effectPhase: actionLoopEffectPhase(
+			state,
+			adverseSettlements,
+			successfulSettlements,
+		),
+		intervention: interventionState(currentInterventions),
+		claimAssurances: boundedCount(
+			state.workCase.conclusions.filter(
+				({ category }) => category === "Claim Assurance",
+			).length,
+		),
+	});
+	return Object.freeze({
+		decision,
+		...(currentInterventions.length === 1
+			? { currentIntervention: currentInterventions[0] }
+			: {}),
+		...(pendingActionClearances.length === 1
+			? { pendingActionClearance: pendingActionClearances[0] }
+			: {}),
+		adverseSettlements: Object.freeze([...adverseSettlements]),
+		successfulSettlements: Object.freeze([...successfulSettlements]),
+	});
 }
 
 async function progressCompletion(input: {
@@ -784,71 +877,6 @@ function trustedClaimAssuranceRequest(
 	].join("\n");
 }
 
-function nextRequiredJudgmentCategory(
-	state: SdkActionLoopState,
-): SdkJudgmentCategory | undefined {
-	if (state.workCase.conclusions.length === 0) return undefined;
-	const categories = new Set(
-		state.workCase.conclusions.map((conclusion) => conclusion.category),
-	);
-	if (state.workCase.effects.length > 0) {
-		const settledEffectIds = new Set(
-			state.workCase.currentEffectAssessments.flatMap((assessment) =>
-				"effectSettlementId" in assessment ? [assessment.effectId] : [],
-			),
-		);
-		if (
-			!state.workCase.effects.every((effect) =>
-				settledEffectIds.has(effect.effectId),
-			)
-		) {
-			return undefined;
-		}
-		const adverse = unresolvedAdverseSettlements(state);
-		if (adverse.length > 0) {
-			if (successfulEffectSettlements(state).length > 0) return undefined;
-			return pendingRemediationIntervention(state) === undefined
-				? "Proportionate Intervention"
-				: undefined;
-		}
-		const consumed = consumedConclusionIds(state);
-		const postEffectIntervention = state.workCase.conclusions.find(
-			(conclusion) =>
-				conclusion.category === "Proportionate Intervention" &&
-				!consumed.has(conclusion.conclusionId),
-		);
-		if (!postEffectIntervention) return "Proportionate Intervention";
-		if (
-			postEffectIntervention.interventionDisposition === "no-action" &&
-			(postEffectIntervention.noActionDisposition === undefined ||
-				postEffectIntervention.noActionDisposition === "outcome-attained")
-		) {
-			return !categories.has("Claim Assurance")
-				? "Claim Assurance"
-				: undefined;
-		}
-		return undefined;
-	}
-	if (
-		!categories.has("Proportionate Intervention") &&
-		!categories.has("Claim Assurance")
-	) {
-		return "Proportionate Intervention";
-	}
-	const intervention = state.workCase.conclusions.find(
-		(conclusion) => conclusion.category === "Proportionate Intervention",
-	);
-	if (
-		intervention?.interventionDisposition === "no-action" &&
-		(intervention.noActionDisposition === undefined ||
-			intervention.noActionDisposition === "outcome-attained") &&
-		!categories.has("Claim Assurance")
-	) {
-		return "Claim Assurance";
-	}
-	return undefined;
-}
-
 async function progressAction(input: {
 	readonly request: string;
 	readonly state: SdkActionLoopState;
@@ -863,14 +891,32 @@ async function progressAction(input: {
 	readonly checkpoints: number;
 }): Promise<SdkActionLoopProgressionResult> {
 	const { workCase } = input.state;
-	let actionConclusions = workCase.conclusions;
-	const pendingClearance = workCase.actionClearances.find(
-		(clearance) =>
-			!workCase.effects.some(
-				(effect) => effect.actionClearanceId === clearance.actionClearanceId,
-			),
-	);
-	if (pendingClearance) {
+	const transition = canonicalActionLoopTransition(input.state);
+	const { decision } = transition;
+	if (decision.kind === "invariant-failure") {
+		return {
+			status: "invariant-failure",
+			stage: "action",
+			code: decision.code,
+			message: `Canonical Action Loop control state is incoherent: ${decision.code}.`,
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	if (decision.kind === "ready-for-host-action") {
+		const pendingClearance = transition.pendingActionClearance;
+		if (!pendingClearance) {
+			return {
+				status: "invariant-failure",
+				stage: "action",
+				code: "missing-pending-action-clearance",
+				message: "The route requires one pending Action Clearance.",
+				state: input.state,
+				steps: input.steps,
+				checkpoints: input.checkpoints,
+			};
+		}
 		return {
 			status: "ready-for-host-action",
 			actionCandidateId: pendingClearance.actionCandidateId,
@@ -880,8 +926,8 @@ async function progressAction(input: {
 			checkpoints: input.checkpoints,
 		};
 	}
-	if (workCase.effects.length > 0) {
-		const progressed = await progressEffect({
+	if (decision.kind === "progress-effect") {
+		return progressEffect({
 			request: input.request,
 			state: input.state,
 			observations: input.observations,
@@ -891,132 +937,51 @@ async function progressAction(input: {
 			steps: input.steps,
 			checkpoints: input.checkpoints,
 		});
-		if (progressed.status !== "ready-for-completion") return progressed;
-		const adverse = unresolvedAdverseSettlements(input.state);
-		if (adverse.length > 0) {
-			const successful = successfulEffectSettlements(input.state);
-			if (successful.length > 0) {
-				return progressRemediation({
-					request: input.request,
-					state: input.state,
-					adverseSettlements: adverse,
-					successfulSettlements: successful,
-					runner: input.runner,
-					checkpoint: input.checkpoint,
-					maxSteps: input.maxSteps,
-					steps: progressed.steps,
-					checkpoints: progressed.checkpoints,
-				});
-			}
-			const intervention = pendingRemediationIntervention(input.state);
-			if (
-				intervention === undefined ||
-				intervention.interventionDisposition !== "action-required"
-			) {
-				return {
-					status: "remediation-required",
-					adverseEffectIds: adverse.map(({ effectId }) => effectId),
-					state: input.state,
-					steps: progressed.steps,
-					checkpoints: progressed.checkpoints,
-				};
-			}
-			actionConclusions = [intervention];
-		} else {
-			const consumed = consumedConclusionIds(input.state);
-			const postEffectIntervention =
-				input.state.workCase.conclusions.find(
-					(conclusion) =>
-						conclusion.category === "Proportionate Intervention" &&
-						!consumed.has(conclusion.conclusionId),
-				);
-			if (
-				postEffectIntervention?.interventionDisposition === "action-required"
-			) {
-				actionConclusions = [postEffectIntervention];
-			} else if (
-				postEffectIntervention?.interventionDisposition === "no-action" &&
-				(postEffectIntervention.noActionDisposition === "blocked" ||
-					postEffectIntervention.noActionDisposition === "waiting")
-			) {
-				return {
-					status: "continuity-required",
-					disposition: postEffectIntervention.noActionDisposition,
-					state: input.state,
-					steps: progressed.steps,
-					checkpoints: progressed.checkpoints,
-				};
-			} else {
-				if (!input.complete) return progressed;
-				if (!progressed.state) {
-					return {
-						status: "invariant-failure",
-						stage: "completion",
-						code: "missing-active-work-case",
-						message: "Completion progression lost the active Work Case.",
-						steps: progressed.steps,
-						checkpoints: progressed.checkpoints,
-					};
-				}
-				return progressCompletion({
-					request: input.request,
-					state: progressed.state,
-					runner: input.runner,
-					checkpoint: input.checkpoint,
-					maxSteps: input.maxSteps,
-					steps: progressed.steps,
-					checkpoints: progressed.checkpoints,
-				});
-			}
-		}
 	}
-	const categories = new Set(
-		workCase.conclusions.map((conclusion) => conclusion.category),
-	);
-	const intervention = workCase.conclusions.find(
-		(conclusion) => conclusion.category === "Proportionate Intervention",
-	);
-	if (intervention && intervention.interventionDisposition === undefined) {
+	if (decision.kind === "progress-remediation") {
+		return progressRemediation({
+			request: input.request,
+			state: input.state,
+			adverseSettlements: transition.adverseSettlements,
+			successfulSettlements: transition.successfulSettlements,
+			runner: input.runner,
+			checkpoint: input.checkpoint,
+			maxSteps: input.maxSteps,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		});
+	}
+	if (decision.kind === "remediation-required") {
 		return {
-			status: "invariant-failure",
-			stage: "action",
-			code: "missing-intervention-disposition",
-			message:
-				"Proportionate Intervention Conclusion has no canonical intervention disposition.",
+			status: "remediation-required",
+			adverseEffectIds: transition.adverseSettlements.map(
+				({ effectId }) => effectId,
+			),
 			state: input.state,
 			steps: input.steps,
 			checkpoints: input.checkpoints,
 		};
 	}
-	if (
-		intervention?.interventionDisposition === "no-action" &&
-		(intervention.noActionDisposition === "blocked" ||
-			intervention.noActionDisposition === "waiting")
-	) {
+	if (decision.kind === "continuity-required") {
 		return {
 			status: "continuity-required",
-			disposition: intervention.noActionDisposition,
+			disposition: decision.disposition,
 			state: input.state,
 			steps: input.steps,
 			checkpoints: input.checkpoints,
 		};
 	}
-	const noActionCompletion =
-		categories.has("Claim Assurance") &&
-		((intervention?.interventionDisposition === "no-action" &&
-			(intervention.noActionDisposition === undefined ||
-				intervention.noActionDisposition === "outcome-attained")) ||
-			!intervention);
-	if (noActionCompletion && !input.complete) {
-		return {
-			status: "ready-for-completion",
-			effectAssessmentIds: [],
-			state: input.state,
-			steps: input.steps,
-			checkpoints: input.checkpoints,
-		};
-	}
-	if (noActionCompletion) {
+	if (decision.kind === "ready-for-completion") {
+		if (!input.complete) {
+			return {
+				status: "ready-for-completion",
+				effectAssessmentIds:
+					workCase.currentEffectAssessments.map(currentAssessmentId),
+				state: input.state,
+				steps: input.steps,
+				checkpoints: input.checkpoints,
+			};
+		}
 		return progressCompletion({
 			request: input.request,
 			state: input.state,
@@ -1027,6 +992,34 @@ async function progressAction(input: {
 			checkpoints: input.checkpoints,
 		});
 	}
+	if (decision.kind !== "propose-action") {
+		return {
+			status: "invariant-failure",
+			stage: "action",
+			code: "misrouted-control-state",
+			message: `Judgment route ${decision.kind} reached Action progression.`,
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const intervention = transition.currentIntervention;
+	if (
+		!intervention ||
+		intervention.interventionDisposition !== "action-required"
+	) {
+		return {
+			status: "invariant-failure",
+			stage: "action",
+			code: "missing-action-intervention",
+			message:
+				"An Action route requires one current action-required Intervention.",
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
+	const actionConclusions = [intervention];
 	if (!input.actions || !input.authorizeAction) {
 		return {
 			status: "ready-for-action",
@@ -1248,11 +1241,21 @@ export async function progressActionLoopWithSdk(
 		checkpoints += 1;
 	}
 
-	const requiredCategory = nextRequiredJudgmentCategory(state);
+	const transition = canonicalActionLoopTransition(state);
+	if (transition.decision.kind === "invariant-failure") {
+		return {
+			status: "invariant-failure",
+			stage: "judgment",
+			code: transition.decision.code,
+			message: `Canonical Action Loop control state is incoherent: ${transition.decision.code}.`,
+			state,
+			steps,
+			checkpoints,
+		};
+	}
 	if (
-		state.workCase.openJudgments.length === 0 &&
-		state.workCase.conclusions.length > 0 &&
-		requiredCategory === undefined
+		transition.decision.kind !== "open-judgment" &&
+		transition.decision.kind !== "progress-open-judgment"
 	) {
 		return progressAction({
 			request: input.request,
@@ -1268,18 +1271,11 @@ export async function progressActionLoopWithSdk(
 			checkpoints,
 		});
 	}
-	if (state.workCase.openJudgments.length > 1) {
-		return {
-			status: "invariant-failure",
-			stage: "judgment",
-			code: "multiple-open-judgments",
-			message: "SDK progression requires at most one open Judgment.",
-			state,
-			steps,
-			checkpoints,
-		};
-	}
-	if (state.workCase.openJudgments.length === 0) {
+	const requiredCategory =
+		transition.decision.kind === "open-judgment"
+			? transition.decision.requiredCategory
+			: undefined;
+	if (transition.decision.kind === "open-judgment") {
 		if (steps >= maxSteps) {
 			return {
 				status: "bounded-stop",

@@ -360,7 +360,9 @@ test("SDK Action Loop progression cannot complete a blocked no-action dispositio
 	const opened = openWorkCase({
 		outcome: {
 			statement: "A contradictory target remains unresolved.",
-			acceptanceConditions: ["The contradiction is resolved before completion."],
+			acceptanceConditions: [
+				"The contradiction is resolved before completion.",
+			],
 			constraints: ["Do not claim completion while blocked."],
 		},
 		provenance: { kind: "human", source: "sdk:test" },
@@ -382,7 +384,8 @@ test("SDK Action Loop progression cannot complete a blocked no-action dispositio
 		noActionDisposition: "blocked",
 	});
 	const recorded = recordWorkCaseConclusion(opened.value, intervention);
-	if (recorded.status !== "recorded") throw new Error("Conclusion not recorded");
+	if (recorded.status !== "recorded")
+		throw new Error("Conclusion not recorded");
 	const result = await progressActionLoopWithSdk({
 		request: "Do not claim completion while the contradiction remains.",
 		state: {
@@ -537,17 +540,6 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 	const recorded = recordWorkCaseConclusion(opened.value, conclusion);
 	if (recorded.status !== "recorded")
 		throw new Error("Conclusion not recorded");
-	const assurance: JudgmentConclusion = Object.freeze({
-		...conclusion,
-		conclusionId: "conclusion-action-loop-assurance",
-		judgmentId: "judgment-action-loop-assurance",
-		category: "Claim Assurance",
-		interventionDisposition: undefined,
-		subject: "The exact bounded write and its completion evidence",
-		answer: "Current exact evidence can support bounded completion.",
-	});
-	const assured = recordWorkCaseConclusion(recorded.value, assurance);
-	if (assured.status !== "recorded") throw new Error("Assurance not recorded");
 	const writeAction: SdkControlledActionAdapter = {
 		name: "write",
 		description: "Write exact content to one path.",
@@ -564,7 +556,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 		},
 	};
 	const state: SdkActionLoopState = {
-		workCase: assured.value,
+		workCase: recorded.value,
 		applicabilityAssessments: [],
 		assignments: [],
 		selections: [],
@@ -596,8 +588,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 						summary: "Write the accepted bounded configuration.",
 						intended_effects_json:
 							'["config.json contains the accepted enabled value."]',
-						requires_conclusion_0: false,
-						requires_conclusion_1: true,
+						requires_conclusion_0: true,
 					},
 				],
 			},
@@ -620,6 +611,10 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 		["action-cleared"],
 	);
 	assert.equal(result.state?.workCase.actionCandidates.length, 1);
+	assert.deepEqual(
+		result.state?.workCase.actionCandidates[0]?.requiredConclusionIds,
+		[conclusion.conclusionId],
+	);
 	assert.equal(result.state?.workCase.actionClearances.length, 1);
 	const actionCheckpoint = checkpoints[0];
 	if (actionCheckpoint?.kind !== "action-cleared") return;
@@ -691,8 +686,7 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 						summary: "Write the accepted bounded configuration.",
 						intended_effects_json:
 							'["config.json contains the accepted enabled value."]',
-						requires_conclusion_0: false,
-						requires_conclusion_1: true,
+						requires_conclusion_0: true,
 					},
 				],
 			},
