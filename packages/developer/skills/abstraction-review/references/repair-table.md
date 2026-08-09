@@ -5,7 +5,7 @@ observable review stop. Its job is to locate the broken promise and choose a
 handoff. It does not require another reference to establish its local contract,
 and it does not repair the design inside `abstraction-review`.
 
-## Accepted Input And Contribution
+## Accepted Input And Result
 
 Supply the candidate surface, caller contract, promise under review, failed stop,
 exact observation, and available evidence. If any of those is absent, the result
@@ -24,7 +24,7 @@ failed stop
 -> candidate promise contradicted
 -> broken layer or missing owner
 -> smallest revision class
--> owning skill handoff
+-> focused-method handoff
 -> re-run the same stop after later work
 ```
 
@@ -73,7 +73,7 @@ When several failures appear, localize the earliest broken promise:
 6. relevant evidence before approval.
 
 Do not combine all repairs into one redesign. The same failed stop should be
-re-run after the owning leaf produces a new candidate.
+re-run after the focused method produces a new candidate.
 
 ## Exit Check
 

@@ -122,7 +122,7 @@ test("every reference-bearing Skill has one canonical complete TOC", async () =>
 			method.includes("](toc.json)"),
 			`${skill.name} must link its colocated Skill TOC`,
 		);
-		assert.match(method, /If no Reference condition applies, proceed with/);
+		assert.match(method, /If no Reference applies, proceed with/);
 		assert.doesNotMatch(method, /## Reference Routing/);
 		assert.doesNotMatch(
 			method,

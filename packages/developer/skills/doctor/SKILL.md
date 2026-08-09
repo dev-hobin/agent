@@ -142,11 +142,15 @@ smallest observation that could change the disposition.
 
 ## Follow-up Investigations
 
-Doctor does not impersonate focused expertise or turn supporting material into a
-mandatory reading list. For every `triggered` lens:
+Doctor may perform a focused investigation when its method and evidence are
+available within the selected scope. When a question requires specialized
+expertise or a decision owner, state that handoff instead of fabricating the
+missing judgment. Supporting material is never a mandatory reading list. For
+every `triggered` lens:
 
 1. write one bounded investigation question and its concrete trigger evidence;
-2. name the expertise or decision owner needed to answer it;
+2. decide whether the current review can answer it or must name the expertise or
+   decision owner needed;
 3. select only code, behavior, history, or source material that can change the
    answer;
 4. record the result, contradicting evidence, limitations, and smallest

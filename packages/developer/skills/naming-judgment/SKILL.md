@@ -32,6 +32,23 @@ off instead of hiding that work in a rename.
 - Product vocabulary, invariant, or model when available
 - Audience: local helper, cross-module API, UI domain code, or integration
 
+## Supporting Materials
+
+The core method is complete without supporting material. Supporting material may
+refine the current question; it is guidance, not authority.
+
+If the host has supplied a bounded selection for this invocation, use it as the
+current selection. Apply each material only to the question it actually
+addresses and preserve any visible mismatch as a limitation. Do not rediscover
+alternatives unless the selection is explicitly incomplete.
+
+Otherwise, inspect the colocated [Skill TOC](toc.json). Use its root `when` and
+`unless` conditions to confirm that this method applies; exclusions win. If an
+exclusion applies, return `not-applicable` rather than forcing the method. Then
+evaluate every Reference's `when` conditions and read the smallest materially
+applicable set before producing the result. Broad topic similarity alone is not
+sufficient. If no Reference applies, proceed with the core method alone.
+
 ## Output
 
 Lead with the user's product language; keep naming theory secondary. Use a
@@ -89,14 +106,3 @@ problem.
 Do not implement the rename, promote a new abstraction, invent product meaning,
 rename external conventions, or replace every short name with a longer one.
 Reuse does not prove that a generic name is sound.
-
-## Supporting Materials
-
-If the host has supplied a bounded set of supporting materials for this
-invocation, use that selection without rediscovering alternatives unless it is
-explicitly incomplete.
-
-Otherwise, inspect the colocated [Skill TOC](toc.json). Evaluate each declared
-Reference condition against the current task and read the smallest materially
-applicable set before producing the result. Broad topic similarity alone is not
-sufficient. If no Reference condition applies, proceed with `SKILL.md` alone.

@@ -157,7 +157,7 @@ one bundled recursion topic.
 
 Use this recovery table rather than assuming the declared type is complete. The
 evidence sources and compatibility obligations below adapt HtDP's artifacts to
-an existing repository; they are package-owned operational guidance.
+an existing repository; they are operational guidance authored by this guide.
 
 <!-- markdownlint-disable MD013 -->
 

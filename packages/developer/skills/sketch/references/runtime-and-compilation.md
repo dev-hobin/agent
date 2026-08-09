@@ -92,5 +92,6 @@ Return to `language-semantics` when program meaning remains unsettled. Use
   and Section 5.5
   for calling conventions, explicit control, effect/liveness summaries, roots,
   tail calls, compilation guards, and mixed execution.
-- Validation taxonomies, migrations, production capacity, and rollout protocols
-  are extensions defined in this guide, not SICP claims.
+- The explicit accepted-context inventory, conservative optimization guards,
+  capacity and release checks, and interoperation adapter are extensions defined
+  in this guide, not SICP claims.

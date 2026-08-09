@@ -112,9 +112,8 @@ word/sense is the issue -> naming-judgment
 implementation claim needs evidence -> verify
 ```
 
-Applicable conditional context inside this skill may deepen review, failure
-localization, or calibration. Selected context must not reproduce the
-construction methods owned by those leaves.
+Supporting material may deepen review, failure localization, or calibration. It
+must not reproduce the construction methods owned by the focused methods above.
 
 ## Minimal Output
 
@@ -131,8 +130,8 @@ Handoff or open consequence:
 
 ## Source Trace
 
-This self-contained review spine synthesizes the following bounded source
-capabilities:
+This self-contained review spine synthesizes the following bounded
+source-derived concepts:
 
 - Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
   Edition, v2.2.2:

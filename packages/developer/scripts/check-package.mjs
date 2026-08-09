@@ -296,7 +296,7 @@ for (const name of Object.keys(referenceCatalog)) {
 		source.includes("](toc.json)"),
 		`Expected ${name} to link its colocated Skill TOC`,
 	);
-	assert.match(source, /If no Reference condition applies, proceed with/);
+	assert.match(source, /If no Reference applies, proceed with/);
 	assert.doesNotMatch(source, /## Reference Routing/);
 	assert.doesNotMatch(
 		source,

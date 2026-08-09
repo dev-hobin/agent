@@ -4,7 +4,7 @@ Use one case when a concrete candidate surface and caller contract exist but the
 decision remains ambiguous. These examples calibrate review; they do not require
 another reference and do not supply a missing candidate surface.
 
-## Accepted Input And Contribution
+## Accepted Input And Result
 
 Supply the candidate, current pressure, caller-visible promise, hidden detail,
 representative case, counterexample, observable stop, and evidence gap. If these
