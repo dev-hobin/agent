@@ -480,6 +480,59 @@ test("activation failure preserves built-in tools and does not record enabled mo
 	);
 });
 
+test("Developer blocks alternate mutation surfaces without blocking observations", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+
+	assert.equal(
+		await harness.emit("tool_call", {
+			type: "tool_call",
+			toolName: "read",
+			toolCallId: "read-only",
+			input: { path: "package.json" },
+		}),
+		undefined,
+	);
+	assert.equal(
+		await harness.emit("tool_call", {
+			type: "tool_call",
+			toolName: "mcp",
+			toolCallId: "mcp-search",
+			input: { search: "read tools" },
+		}),
+		undefined,
+	);
+	const astMutation = await harness.emit("tool_call", {
+		type: "tool_call",
+		toolName: "ast_grep_replace",
+		toolCallId: "ast-mutation",
+		input: { pattern: "const $A = $B", rewrite: "const $A = $C", apply: true },
+	});
+	assert.equal(astMutation.block, true);
+	assert.match(astMutation.reason, /workspace mutation without a Developer Action adapter/);
+	const mcpCall = await harness.emit("tool_call", {
+		type: "tool_call",
+		toolName: "mcp",
+		toolCallId: "mcp-call",
+		input: { tool: "external_write", args: { value: "changed" } },
+	});
+	assert.equal(mcpCall.block, true);
+	assert.match(mcpCall.reason, /may change external state/);
+	const unknown = await harness.emit("tool_call", {
+		type: "tool_call",
+		toolName: "future_mutator",
+		toolCallId: "unknown-action",
+		input: {},
+	});
+	assert.equal(unknown.block, true);
+	assert.match(unknown.reason, /no Developer observation or Action classification/);
+});
+
 test("status fails closed while a session branch awaits inventory-bound replay", async () => {
 	const harness = createHarness();
 	await developer(harness.api);

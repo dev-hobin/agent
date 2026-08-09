@@ -117,7 +117,7 @@ import { showActionLoopWorkbench } from "./action-loop-workbench-tui.ts";
 import { inspectActionLoopWorkbench } from "./action-loop-workbench.ts";
 import {
 	TOOL_POLICY_LIFECYCLE_ENTRY,
-	builtinControlledToolCapabilities,
+	classifyDeveloperHostToolInvocation,
 	reconcileProtocolTools,
 	reloadSafeToolPolicyMarker,
 	toolPolicyReloadRequiresRestart,
@@ -450,6 +450,7 @@ export default async function developer(pi: ExtensionAPI) {
 		promptSnippet: "Progress canonical work with the SDK controller",
 		promptGuidelines: [
 			`Use ${ACTION_LOOP_PROGRESS_TOOL} as the primary Developer entry point and call it again after the exact cleared host Action returns.`,
+			"Do not seek MCP, AST replacement, rename, or unknown mutation tools as substitutes for a canonical bash, edit, or write Action; unsupported host Actions are blocked fail-closed.",
 			`Recovery: judgment-refused requires ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} with exact listed evidence for an unresolved Need. If evidence must be observed now, call one observational host tool and end the response; accept its newly listed Observation on the next agent turn. effect-unsettled requires one new observational host tool result. Never repeat progression without that state change.`,
 			"A bounded stop preserves acknowledged branch checkpoints. Do not replace replay-unavailable or held ownership, infer Effect success from a tool return, or bypass complete closure revalidation.",
 		],
@@ -1842,11 +1843,22 @@ export default async function developer(pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_call", (event) => {
-		if (!developerEnabled) return;
-		const capability = builtinControlledToolCapabilities(pi.getAllTools()).get(
-			event.toolName,
-		);
-		if (!capability) return;
+		if (!developerEnabled || isModelFacingActionLoopTool(event.toolName)) return;
+		const disposition = classifyDeveloperHostToolInvocation({
+			toolName: event.toolName,
+			toolInput: event.input,
+			allTools: pi.getAllTools(),
+		});
+		if (disposition.kind === "observation") return;
+		if (
+			disposition.kind === "unsupported-action" ||
+			disposition.kind === "unclassified"
+		) {
+			return {
+				block: true,
+				reason: `Developer blocked ${event.toolName}: ${disposition.reason} Use canonical progression to obtain an exact bash, edit, or write Action Clearance, or turn Developer off before using an unsupported host Action.`,
+			};
+		}
 		if (heldWorkCase) {
 			return {
 				block: true,
