@@ -133,7 +133,7 @@ test("tool observations expose a semantic source without call identity", () => {
 		{
 			input: { path: "src/release-policy.mjs" },
 			isError: false,
-			content: [{ type: "text", text: "export const ready = false;" }],
+			content: [{ type: "text", text: "export const ready = false;\n" }],
 		},
 		"work-case-1",
 	);
@@ -141,7 +141,9 @@ test("tool observations expose a semantic source without call identity", () => {
 	if (admitted.status !== "admitted") return;
 	const prompt = liveHostObservationPrompt([admitted.observation]);
 	assert.match(prompt, /"source":"read:src\/release-policy\.mjs"/);
-	assert.match(prompt, /read returned: export const ready = false/);
+	assert.match(prompt, /read returned exact text blocks/);
+	assert.match(prompt, /export const ready = false/);
+	assert.match(prompt, /\\\\n/);
 	assert.doesNotMatch(prompt, /call-internal-1|observation_[a-f0-9]+/);
 });
 

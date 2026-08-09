@@ -78,19 +78,20 @@ function readableToolStatement(
 ): string {
 	const content = result.content;
 	if (Array.isArray(content)) {
-		const text = content
-			.flatMap((item) => {
-				if (typeof item !== "object" || item === null || Array.isArray(item)) {
-					return [];
-				}
-				const candidate = item as Readonly<Record<string, unknown>>;
-				return candidate.type === "text" && typeof candidate.text === "string"
-					? [candidate.text]
-					: [];
-			})
-			.join("\n")
-			.trim();
-		if (text) return compactStatement(`${toolName} returned: ${text}`);
+		const textBlocks = content.flatMap((item) => {
+			if (typeof item !== "object" || item === null || Array.isArray(item)) {
+				return [];
+			}
+			const candidate = item as Readonly<Record<string, unknown>>;
+			return candidate.type === "text" && typeof candidate.text === "string"
+				? [candidate.text]
+				: [];
+		});
+		if (textBlocks.length > 0) {
+			return compactStatement(
+				`${toolName} returned exact text blocks ${JSON.stringify(textBlocks)}`,
+			);
+		}
 	}
 	return compactStatement(`${toolName} finalized with result ${canonicalResult}`);
 }
