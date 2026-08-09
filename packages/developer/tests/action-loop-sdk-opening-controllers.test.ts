@@ -110,8 +110,17 @@ test("SDK Judgment opening rejects unadmitted contribution functions before cano
 			},
 		]),
 	};
+	const multiplyComposed = {
+		...judgmentProposal(),
+		requirements_json: JSON.stringify([
+			{
+				statement: "One Requirement ambiguously combines two operations.",
+				contribution_needs: [admitted, admitted],
+			},
+		]),
+	};
 	const runner = scriptedSdkRunner([
-		{ proposals: [invalid, judgmentProposal()] },
+		{ proposals: [invalid, multiplyComposed, judgmentProposal()] },
 	]);
 	const judgment = await openJudgmentWithSdk({
 		request,
@@ -122,8 +131,8 @@ test("SDK Judgment opening rejects unadmitted contribution functions before cano
 	});
 	assert.equal(judgment.status, "opened");
 	if (judgment.status !== "opened") return;
-	assert.equal(judgment.decision.toolCalls, 2);
-	assert.equal(judgment.decision.toolErrors, 1);
+	assert.equal(judgment.decision.toolCalls, 3);
+	assert.equal(judgment.decision.toolErrors, 2);
 	assert.deepEqual(
 		judgment.judgment.contributionNeeds.map(({ function: value }) => value),
 		[admitted],
@@ -187,7 +196,10 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 		decisionPrompt,
 		/admissible_contribution_functions[\s\S]*A condition model of state, retry, identity, and temporal behavior/,
 	);
-	assert.match(systemPrompt, /controller rejects every unlisted function/);
+	assert.match(
+		systemPrompt,
+		/controller rejects unlisted or multiply composed functions/,
+	);
 	assert.match(systemPrompt, /whole-workspace pre-Action baseline/i);
 	assert.match(
 		systemPrompt,

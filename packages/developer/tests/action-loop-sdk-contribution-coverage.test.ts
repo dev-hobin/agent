@@ -257,18 +257,40 @@ test("SDK Contribution remains local and Coverage separately owns synthesis", as
 						requirement_basis_0:
 							"The current covered Need supports no host Action.",
 					},
+					{
+						outcome: "conclude",
+						answer: "Current state should remain unchanged.",
+						intervention_disposition: "no-action",
+						no_action_disposition: "outcome-attained",
+						refusal_reasons_json: "[]",
+						basis_json:
+							'["Current Need Coverage supports preserving current state."]',
+						requirement_status_0: "satisfied",
+						requirement_basis_0:
+							"The current covered Need supports no host Action.",
+					},
 				],
 			},
 		]),
 	});
 	assert.equal(intervention.status, "concluded");
 	if (intervention.status !== "concluded") return;
+	assert.equal(intervention.decision.toolCalls, 2);
+	assert.equal(intervention.decision.toolErrors, 1);
 	assert.equal(intervention.conclusion.interventionDisposition, "no-action");
+	assert.equal(
+		intervention.conclusion.noActionDisposition,
+		"outcome-attained",
+	);
 	const interventionEvent = sdkJudgmentConcludedEvent({
 		result: intervention,
 		revisionId: "revision-after-intervention",
 	});
 	assert.equal(interventionEvent.proposal.interventionDisposition, "no-action");
+	assert.equal(
+		interventionEvent.proposal.noActionDisposition,
+		"outcome-attained",
+	);
 });
 
 test("SDK Contribution status stays scoped to its exact assigned Need", async () => {

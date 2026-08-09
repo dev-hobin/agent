@@ -568,6 +568,13 @@ const JudgmentClosureProposalSchema = Type.Object(
 		interventionDisposition: Type.Optional(
 			Type.Union([Type.Literal("action-required"), Type.Literal("no-action")]),
 		),
+		noActionDisposition: Type.Optional(
+			Type.Union([
+				Type.Literal("outcome-attained"),
+				Type.Literal("blocked"),
+				Type.Literal("waiting"),
+			]),
+		),
 		refusalReasons: Type.Array(ShortTextSchema, { maxItems: 32 }),
 		requirementDispositions: Type.Array(
 			Type.Object(

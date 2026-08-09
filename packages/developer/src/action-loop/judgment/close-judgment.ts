@@ -38,6 +38,7 @@ export type ClosureRequirementStatus =
 	| "needs-context";
 
 export type InterventionDisposition = "action-required" | "no-action";
+export type NoActionDisposition = "outcome-attained" | "blocked" | "waiting";
 
 export interface ClosureRequirement {
 	readonly requirementId: string;
@@ -74,6 +75,7 @@ export interface JudgmentClosureProposal {
 	readonly outcome: "conclude" | "refuse";
 	readonly answer?: string;
 	readonly interventionDisposition?: InterventionDisposition;
+	readonly noActionDisposition?: NoActionDisposition;
 	readonly refusalReasons: readonly string[];
 	readonly requirementDispositions: readonly ClosureRequirementDispositionProposal[];
 	readonly basis: readonly string[];
@@ -129,6 +131,7 @@ export interface JudgmentConclusion extends ClosureArtifactBase {
 	readonly conclusionId: string;
 	readonly answer: string;
 	readonly interventionDisposition?: InterventionDisposition;
+	readonly noActionDisposition?: NoActionDisposition;
 }
 
 export interface JudgmentClosureRefusal extends ClosureArtifactBase {
@@ -749,12 +752,14 @@ interface ValidatedClosureInput {
 	readonly provenance: ClosureProposalProvenance;
 	readonly answer?: string;
 	readonly interventionDisposition?: InterventionDisposition;
+	readonly noActionDisposition?: NoActionDisposition;
 	readonly refusalReasons: readonly string[];
 }
 
 interface ValidatedClosureOutcome {
 	readonly answer?: string;
 	readonly interventionDisposition?: InterventionDisposition;
+	readonly noActionDisposition?: NoActionDisposition;
 	readonly refusalReasons: readonly string[];
 }
 
@@ -809,16 +814,39 @@ function validateClosureOutcome(
 					},
 				};
 			}
+			if (
+				proposal.noActionDisposition !== undefined &&
+				(proposal.interventionDisposition !== "no-action" ||
+					!(["outcome-attained", "blocked", "waiting"] as const).includes(
+						proposal.noActionDisposition,
+					))
+			) {
+				return {
+					ok: false,
+					error: {
+						code: "invalid-intervention-disposition",
+						path: "proposal.noActionDisposition",
+						message:
+							"A no-Action reason is valid only for no-action and must be outcome-attained, blocked, or waiting",
+					},
+				};
+			}
 			return {
 				ok: true,
 				value: {
 					answer: answer.value,
 					interventionDisposition: proposal.interventionDisposition,
+					...(proposal.noActionDisposition
+						? { noActionDisposition: proposal.noActionDisposition }
+						: {}),
 					refusalReasons: [],
 				},
 			};
 		}
-		if (proposal.interventionDisposition !== undefined) {
+		if (
+			proposal.interventionDisposition !== undefined ||
+			proposal.noActionDisposition !== undefined
+		) {
 			return {
 				ok: false,
 				error: {
@@ -834,6 +862,7 @@ function validateClosureOutcome(
 	if (
 		proposal.answer !== undefined ||
 		proposal.interventionDisposition !== undefined ||
+		proposal.noActionDisposition !== undefined ||
 		refusalReasons.value.length === 0
 	) {
 		return {
@@ -897,6 +926,7 @@ function validateClosureInput(
 			provenance: provenance.value,
 			answer: outcome.value.answer,
 			interventionDisposition: outcome.value.interventionDisposition,
+			noActionDisposition: outcome.value.noActionDisposition,
 			refusalReasons: outcome.value.refusalReasons,
 		},
 	};
@@ -912,6 +942,7 @@ function conclusionResult(
 		...dispositionIdentityParts(validated.dispositions),
 		validated.answer,
 		validated.interventionDisposition ?? "no-intervention-disposition",
+		...(validated.noActionDisposition ? [validated.noActionDisposition] : []),
 		String(validated.basis.length),
 		...validated.basis,
 	]);
@@ -927,6 +958,9 @@ function conclusionResult(
 			answer: validated.answer,
 			...(validated.interventionDisposition
 				? { interventionDisposition: validated.interventionDisposition }
+				: {}),
+			...(validated.noActionDisposition
+				? { noActionDisposition: validated.noActionDisposition }
 				: {}),
 			requirementDispositions: validated.dispositions,
 			coverageIds,

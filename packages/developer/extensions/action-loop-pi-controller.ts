@@ -100,6 +100,10 @@ export function actionLoopProgressionSummary(
 			return "A current adverse Effect still requires a proportionate remediation or an explicit hold.";
 		case "ready-for-completion":
 			return "Every current Effect has a settled assessment; the Work Case is ready for completion progression.";
+		case "continuity-required":
+			return result.disposition === "blocked"
+				? "The canonical no-Action Conclusion forbids Completion while this Work Case remains blocked. Preserve active ownership or record an exact human-grounded block; do not open Claim Assurance."
+				: "The canonical no-Action Conclusion forbids Completion while an external condition remains waiting. Record waiting only from an exact observed condition and predicate; do not open Claim Assurance.";
 		case "completion-not-ready":
 			return "The complete current Closure Target remains blocked.";
 		case "completed":

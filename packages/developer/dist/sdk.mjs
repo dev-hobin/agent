@@ -2631,9 +2631,19 @@ function prepareClosureTarget(workCase) {
       })
     );
   }
-  if (hasClaimAssurance && workCase.effects.length === 0 && !workCase.conclusions.some(
+  const noActionIntervention = workCase.conclusions.find(
     (conclusion) => conclusion.category === "Proportionate Intervention" && conclusion.interventionDisposition === "no-action"
-  )) {
+  );
+  if (noActionIntervention?.noActionDisposition === "blocked" || noActionIntervention?.noActionDisposition === "waiting") {
+    blockers.push(
+      Object.freeze({
+        code: "noncompletion-disposition",
+        subjectId: noActionIntervention.conclusionId,
+        message: "A blocked or waiting no-Action disposition cannot become Completion"
+      })
+    );
+  }
+  if (hasClaimAssurance && workCase.effects.length === 0 && noActionIntervention === void 0) {
     blockers.push(
       Object.freeze({
         code: "missing-no-action-intervention",
@@ -6361,7 +6371,7 @@ async function openJudgmentWithSdk(input) {
       stage: "judgment-opening",
       objective: "Propose one Category-scoped Judgment for the current unresolved Warrant Gap.",
       rules: [
-        "Requirements state closure obligations. Contribution Needs select missing evidence or analysis functions, never Actions or controller protocol mechanics. When admissible_contribution_functions is present, copy one or more exact listed strings without paraphrase; the controller rejects every unlisted function before canonical admission.",
+        "Requirements state independently closable obligations. Each Requirement selects exactly one missing evidence or analysis function, never Actions or controller protocol mechanics. When admissible_contribution_functions is present, copy one exact listed string without paraphrase; the controller rejects unlisted or multiply composed functions before canonical admission. Put an independent obligation in another Requirement rather than inventing an implicit AND/OR relation.",
         "Outcome, acceptance conditions, and constraints define the target specification, not evidence that the target is attained. Do not create Contribution Needs merely to reinterpret that specification, and never infer completion or no-action from target wording alone. Current Conclusions are trusted current-state facts.",
         "Treat explicit pre-Action facts in delegated_request as human-provenance evidence at their stated granularity. Do not demand unavailable lower-level fields merely to re-prove those facts unless current evidence disputes them; they never establish later Action or Effect success.",
         "When explicit delegated pre-Action facts already state that one external condition is unavailable and mutation is forbidden, use one aggregate Requirement with one Contribution Need interpreting that exact admitted human evidence. Do not split it into negative Needs that separately re-prove empty Action history, empty Conclusion history, or the same delegated wording.",
@@ -6434,6 +6444,14 @@ async function openJudgmentWithSdk(input) {
           return rejected5("invalid-requirements", requirements.message);
         }
         if (input.admissibleContributionFunctions) {
+          if (requirements.value.some(
+            (requirement) => requirement.contributionNeeds.length !== 1
+          )) {
+            return rejected5(
+              "ambiguous-contribution-composition",
+              "Each Requirement must select exactly one admitted contribution function; independent obligations require separate Requirements."
+            );
+          }
           const admitted = new Set(input.admissibleContributionFunctions);
           const unadmitted = requirements.value.flatMap(
             (requirement) => requirement.contributionNeeds.filter(
@@ -6576,11 +6594,13 @@ function recordWorkCaseConclusion(workCase, conclusion) {
   if (currentIssue) {
     return invalid20(currentIssue.code, currentIssue.path, currentIssue.message);
   }
-  if (conclusion.category === "Proportionate Intervention" && conclusion.interventionDisposition !== "action-required" && conclusion.interventionDisposition !== "no-action" || conclusion.category !== "Proportionate Intervention" && conclusion.interventionDisposition !== void 0) {
+  if (conclusion.category === "Proportionate Intervention" && conclusion.interventionDisposition !== "action-required" && conclusion.interventionDisposition !== "no-action" || conclusion.category !== "Proportionate Intervention" && (conclusion.interventionDisposition !== void 0 || conclusion.noActionDisposition !== void 0) || conclusion.noActionDisposition !== void 0 && (conclusion.interventionDisposition !== "no-action" || !["outcome-attained", "blocked", "waiting"].includes(
+    conclusion.noActionDisposition
+  ))) {
     return invalid20(
       "invalid-conclusion",
       "conclusion.interventionDisposition",
-      "Conclusion intervention disposition does not match its Judgment Category"
+      "Conclusion intervention or no-Action disposition does not match its Judgment Category"
     );
   }
   if (conclusion.workCaseId !== workCase.workCaseId) {
@@ -8365,16 +8385,29 @@ function validateClosureOutcome(proposal) {
           }
         };
       }
+      if (proposal.noActionDisposition !== void 0 && (proposal.interventionDisposition !== "no-action" || !["outcome-attained", "blocked", "waiting"].includes(
+        proposal.noActionDisposition
+      ))) {
+        return {
+          ok: false,
+          error: {
+            code: "invalid-intervention-disposition",
+            path: "proposal.noActionDisposition",
+            message: "A no-Action reason is valid only for no-action and must be outcome-attained, blocked, or waiting"
+          }
+        };
+      }
       return {
         ok: true,
         value: {
           answer: answer.value,
           interventionDisposition: proposal.interventionDisposition,
+          ...proposal.noActionDisposition ? { noActionDisposition: proposal.noActionDisposition } : {},
           refusalReasons: []
         }
       };
     }
-    if (proposal.interventionDisposition !== void 0) {
+    if (proposal.interventionDisposition !== void 0 || proposal.noActionDisposition !== void 0) {
       return {
         ok: false,
         error: {
@@ -8386,7 +8419,7 @@ function validateClosureOutcome(proposal) {
     }
     return { ok: true, value: { answer: answer.value, refusalReasons: [] } };
   }
-  if (proposal.answer !== void 0 || proposal.interventionDisposition !== void 0 || refusalReasons.value.length === 0) {
+  if (proposal.answer !== void 0 || proposal.interventionDisposition !== void 0 || proposal.noActionDisposition !== void 0 || refusalReasons.value.length === 0) {
     return {
       ok: false,
       error: {
@@ -8443,6 +8476,7 @@ function validateClosureInput(contract, coverages, proposal) {
       provenance: provenance.value,
       answer: outcome.value.answer,
       interventionDisposition: outcome.value.interventionDisposition,
+      noActionDisposition: outcome.value.noActionDisposition,
       refusalReasons: outcome.value.refusalReasons
     }
   };
@@ -8454,6 +8488,7 @@ function conclusionResult(contract, validated) {
     ...dispositionIdentityParts(validated.dispositions),
     validated.answer,
     validated.interventionDisposition ?? "no-intervention-disposition",
+    ...validated.noActionDisposition ? [validated.noActionDisposition] : [],
     String(validated.basis.length),
     ...validated.basis
   ]);
@@ -8468,6 +8503,7 @@ function conclusionResult(contract, validated) {
       contextRevisionId: contract.contextRevisionId,
       answer: validated.answer,
       ...validated.interventionDisposition ? { interventionDisposition: validated.interventionDisposition } : {},
+      ...validated.noActionDisposition ? { noActionDisposition: validated.noActionDisposition } : {},
       requirementDispositions: validated.dispositions,
       coverageIds,
       basis: validated.basis,
@@ -8543,6 +8579,14 @@ function conclusionParameters(contract) {
         StringEnum8(["action-required", "no-action"], {
           description: "Required only when outcome is conclude. Omit this field when outcome is refuse."
         })
+      ),
+      no_action_disposition: Type8.Optional(
+        StringEnum8(
+          ["outcome-attained", "blocked", "waiting"],
+          {
+            description: "Required with no-action: distinguish attained Outcome from blocked or waiting continuity."
+          }
+        )
       )
     } : {},
     refusal_reasons_json: Type8.String({
@@ -8611,6 +8655,13 @@ function canonicalProposal2(input) {
       message: "answer must be text when supplied."
     };
   }
+  if (input.contract.category === "Proportionate Intervention" && outcome === "conclude" && input.raw.intervention_disposition === "no-action" && input.raw.no_action_disposition !== "outcome-attained" && input.raw.no_action_disposition !== "blocked" && input.raw.no_action_disposition !== "waiting") {
+    return {
+      ok: false,
+      code: "missing-no-action-disposition",
+      message: "no-action requires outcome-attained, blocked, or waiting continuity."
+    };
+  }
   const refusalReasons = decodeSdkStringList({
     value: input.raw.refusal_reasons_json,
     label: "refusal_reasons_json",
@@ -8655,6 +8706,7 @@ function canonicalProposal2(input) {
       outcome,
       ...typeof input.raw.answer === "string" ? { answer: input.raw.answer } : {},
       ...input.raw.intervention_disposition === "action-required" || input.raw.intervention_disposition === "no-action" ? { interventionDisposition: input.raw.intervention_disposition } : {},
+      ...input.raw.no_action_disposition === "outcome-attained" || input.raw.no_action_disposition === "blocked" || input.raw.no_action_disposition === "waiting" ? { noActionDisposition: input.raw.no_action_disposition } : {},
       refusalReasons: refusalReasons.value,
       requirementDispositions: dispositions.value,
       basis: basis.value,
@@ -8715,7 +8767,7 @@ function conclusionProposalPrompt(input) {
       "Disposition every Closure Requirement.",
       "Do not manufacture Coverage identities, permission, Effect success, or Work Case completion.",
       ...input.contract.category === "Proportionate Intervention" ? [
-        "When outcome is conclude, set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when the proportionate decision is to preserve current state. When outcome is refuse, omit intervention_disposition entirely."
+        "When outcome is conclude, set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when no Action is warranted. With no-action, no_action_disposition is required: outcome-attained permits later Claim Assurance, blocked preserves unresolved conflict or impossibility, and waiting preserves an observed external condition. When outcome is refuse, omit both disposition fields."
       ] : []
     ],
     sections: [
@@ -11306,7 +11358,7 @@ function nextRequiredJudgmentCategory(state) {
   const intervention = state.workCase.conclusions.find(
     (conclusion) => conclusion.category === "Proportionate Intervention"
   );
-  if (intervention?.interventionDisposition === "no-action" && !categories2.has("Claim Assurance")) {
+  if (intervention?.interventionDisposition === "no-action" && (intervention.noActionDisposition === void 0 || intervention.noActionDisposition === "outcome-attained") && !categories2.has("Claim Assurance")) {
     return "Claim Assurance";
   }
   return void 0;
@@ -11408,7 +11460,16 @@ async function progressAction(input) {
       checkpoints: input.checkpoints
     };
   }
-  const noActionCompletion = categories2.has("Claim Assurance") && (intervention?.interventionDisposition === "no-action" || !intervention);
+  if (intervention?.interventionDisposition === "no-action" && (intervention.noActionDisposition === "blocked" || intervention.noActionDisposition === "waiting")) {
+    return {
+      status: "continuity-required",
+      disposition: intervention.noActionDisposition,
+      state: input.state,
+      steps: input.steps,
+      checkpoints: input.checkpoints
+    };
+  }
+  const noActionCompletion = categories2.has("Claim Assurance") && (intervention?.interventionDisposition === "no-action" && (intervention.noActionDisposition === void 0 || intervention.noActionDisposition === "outcome-attained") || !intervention);
   if (noActionCompletion && !input.complete) {
     return {
       status: "ready-for-completion",

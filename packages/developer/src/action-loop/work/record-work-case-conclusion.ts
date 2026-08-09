@@ -47,12 +47,18 @@ export function recordWorkCaseConclusion(
 			conclusion.interventionDisposition !== "action-required" &&
 			conclusion.interventionDisposition !== "no-action") ||
 		(conclusion.category !== "Proportionate Intervention" &&
-			conclusion.interventionDisposition !== undefined)
+			(conclusion.interventionDisposition !== undefined ||
+				conclusion.noActionDisposition !== undefined)) ||
+		(conclusion.noActionDisposition !== undefined &&
+			(conclusion.interventionDisposition !== "no-action" ||
+				!(["outcome-attained", "blocked", "waiting"] as const).includes(
+					conclusion.noActionDisposition,
+				)))
 	) {
 		return invalid(
 			"invalid-conclusion",
 			"conclusion.interventionDisposition",
-			"Conclusion intervention disposition does not match its Judgment Category",
+			"Conclusion intervention or no-Action disposition does not match its Judgment Category",
 		);
 	}
 	if (conclusion.workCaseId !== workCase.workCaseId) {

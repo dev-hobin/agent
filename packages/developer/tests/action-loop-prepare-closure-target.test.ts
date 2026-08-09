@@ -36,6 +36,8 @@ function conclusion(
 	category: JudgmentConclusion["category"],
 	id: string,
 	interventionDisposition: "action-required" | "no-action" = "action-required",
+	noActionDisposition: "outcome-attained" | "blocked" | "waiting" =
+		"outcome-attained",
 ): JudgmentConclusion {
 	return Object.freeze({
 		conclusionId: id,
@@ -51,7 +53,12 @@ function conclusion(
 		]),
 		answer: "The bounded claim is supported.",
 		...(category === "Proportionate Intervention"
-			? { interventionDisposition }
+			? {
+					interventionDisposition,
+					...(interventionDisposition === "no-action"
+						? { noActionDisposition }
+						: {}),
+				}
 			: {}),
 		provenance: Object.freeze({ kind: "model", source: "test-evaluator" }),
 	});
@@ -92,6 +99,32 @@ test("Claim Assurance seals every no-Action closure obligation", () => {
 	]);
 	assert.deepEqual(result.value.effectIds, []);
 	assert.match(result.value.closureTargetId, /^closure_target_[a-f0-9]{64}$/);
+});
+
+test("blocked no-Action disposition remains ineligible even with Claim Assurance", () => {
+	const opened = openCase();
+	const intervention = recordConclusion(
+		opened,
+		conclusion(
+			opened.workCaseId,
+			"Proportionate Intervention",
+			"conclusion-blocked",
+			"no-action",
+			"blocked",
+		),
+	);
+	const current = recordConclusion(
+		intervention,
+		conclusion(opened.workCaseId, "Claim Assurance", "conclusion-claim"),
+	);
+	const result = prepareClosureTarget(current);
+
+	assert.equal(result.status, "not-ready");
+	if (result.status !== "not-ready") return;
+	assert.equal(
+		result.blockers.some(({ code }) => code === "noncompletion-disposition"),
+		true,
+	);
 });
 
 test("Claim Assurance alone cannot close a Work Case with no Effects", () => {

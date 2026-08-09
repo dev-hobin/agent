@@ -32,6 +32,7 @@ export type ClosureTargetBlockerCode =
 	| "open-judgment"
 	| "missing-claim-assurance"
 	| "missing-no-action-intervention"
+	| "noncompletion-disposition"
 	| "missing-effect-assessment"
 	| "unsettled-effect"
 	| "adverse-effect";
@@ -190,14 +191,28 @@ export function prepareClosureTarget(
 			}),
 		);
 	}
+	const noActionIntervention = workCase.conclusions.find(
+		(conclusion) =>
+			conclusion.category === "Proportionate Intervention" &&
+			conclusion.interventionDisposition === "no-action",
+	);
+	if (
+		noActionIntervention?.noActionDisposition === "blocked" ||
+		noActionIntervention?.noActionDisposition === "waiting"
+	) {
+		blockers.push(
+			Object.freeze({
+				code: "noncompletion-disposition" as const,
+				subjectId: noActionIntervention.conclusionId,
+				message:
+					"A blocked or waiting no-Action disposition cannot become Completion",
+			}),
+		);
+	}
 	if (
 		hasClaimAssurance &&
 		workCase.effects.length === 0 &&
-		!workCase.conclusions.some(
-			(conclusion) =>
-				conclusion.category === "Proportionate Intervention" &&
-				conclusion.interventionDisposition === "no-action",
-		)
+		noActionIntervention === undefined
 	) {
 		blockers.push(
 			Object.freeze({

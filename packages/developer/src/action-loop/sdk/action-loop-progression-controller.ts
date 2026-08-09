@@ -154,6 +154,10 @@ export type SdkActionLoopProgressionResult =
 			readonly effectAssessmentIds: readonly string[];
 	  })
 	| (ProgressResultBase & {
+			readonly status: "continuity-required";
+			readonly disposition: "blocked" | "waiting";
+	  })
+	| (ProgressResultBase & {
 			readonly status: "completion-not-ready";
 			readonly blockerCodes: readonly string[];
 	  })
@@ -820,6 +824,8 @@ function nextRequiredJudgmentCategory(
 	);
 	if (
 		intervention?.interventionDisposition === "no-action" &&
+		(intervention.noActionDisposition === undefined ||
+			intervention.noActionDisposition === "outcome-attained") &&
 		!categories.has("Claim Assurance")
 	) {
 		return "Claim Assurance";
@@ -941,9 +947,25 @@ async function progressAction(input: {
 			checkpoints: input.checkpoints,
 		};
 	}
+	if (
+		intervention?.interventionDisposition === "no-action" &&
+		(intervention.noActionDisposition === "blocked" ||
+			intervention.noActionDisposition === "waiting")
+	) {
+		return {
+			status: "continuity-required",
+			disposition: intervention.noActionDisposition,
+			state: input.state,
+			steps: input.steps,
+			checkpoints: input.checkpoints,
+		};
+	}
 	const noActionCompletion =
 		categories.has("Claim Assurance") &&
-		(intervention?.interventionDisposition === "no-action" || !intervention);
+		((intervention?.interventionDisposition === "no-action" &&
+			(intervention.noActionDisposition === undefined ||
+				intervention.noActionDisposition === "outcome-attained")) ||
+			!intervention);
 	if (noActionCompletion && !input.complete) {
 		return {
 			status: "ready-for-completion",

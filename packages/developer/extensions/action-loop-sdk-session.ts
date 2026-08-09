@@ -368,6 +368,9 @@ export function sdkJudgmentConcludedEvent(input: {
 				: {
 						interventionDisposition: conclusion.interventionDisposition,
 					}),
+			...(conclusion.noActionDisposition === undefined
+				? {}
+				: { noActionDisposition: conclusion.noActionDisposition }),
 			provenance: { ...conclusion.provenance },
 		},
 		conclusion.conclusionId,

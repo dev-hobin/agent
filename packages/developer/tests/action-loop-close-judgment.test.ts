@@ -129,11 +129,27 @@ test("Proportionate Intervention requires a canonical intervention disposition",
 		proposal({
 			category: "Proportionate Intervention",
 			interventionDisposition: "no-action",
+			noActionDisposition: "blocked",
 		}),
 	);
 	assert.equal(concluded.status, "concluded");
 	if (concluded.status !== "concluded") return;
 	assert.equal(concluded.value.interventionDisposition, "no-action");
+	assert.equal(concluded.value.noActionDisposition, "blocked");
+
+	const incoherent = closeJudgment(
+		interventionContract,
+		[behaviorCoverage, riskCoverage],
+		proposal({
+			category: "Proportionate Intervention",
+			interventionDisposition: "action-required",
+			noActionDisposition: "outcome-attained",
+		}),
+	);
+	assert.equal(incoherent.status, "invalid");
+	if (incoherent.status === "invalid") {
+		assert.equal(incoherent.error.code, "invalid-intervention-disposition");
+	}
 });
 
 test("non-intervention Conclusions reject an intervention disposition", () => {

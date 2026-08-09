@@ -144,7 +144,7 @@ export async function openJudgmentWithSdk(
 			objective:
 				"Propose one Category-scoped Judgment for the current unresolved Warrant Gap.",
 			rules: [
-				"Requirements state closure obligations. Contribution Needs select missing evidence or analysis functions, never Actions or controller protocol mechanics. When admissible_contribution_functions is present, copy one or more exact listed strings without paraphrase; the controller rejects every unlisted function before canonical admission.",
+				"Requirements state independently closable obligations. Each Requirement selects exactly one missing evidence or analysis function, never Actions or controller protocol mechanics. When admissible_contribution_functions is present, copy one exact listed string without paraphrase; the controller rejects unlisted or multiply composed functions before canonical admission. Put an independent obligation in another Requirement rather than inventing an implicit AND/OR relation.",
 				"Outcome, acceptance conditions, and constraints define the target specification, not evidence that the target is attained. Do not create Contribution Needs merely to reinterpret that specification, and never infer completion or no-action from target wording alone. Current Conclusions are trusted current-state facts.",
 				"Treat explicit pre-Action facts in delegated_request as human-provenance evidence at their stated granularity. Do not demand unavailable lower-level fields merely to re-prove those facts unless current evidence disputes them; they never establish later Action or Effect success.",
 				"When explicit delegated pre-Action facts already state that one external condition is unavailable and mutation is forbidden, use one aggregate Requirement with one Contribution Need interpreting that exact admitted human evidence. Do not split it into negative Needs that separately re-prove empty Action history, empty Conclusion history, or the same delegated wording.",
@@ -243,6 +243,16 @@ export async function openJudgmentWithSdk(
 					return rejected("invalid-requirements", requirements.message);
 				}
 				if (input.admissibleContributionFunctions) {
+					if (
+						requirements.value.some(
+							(requirement) => requirement.contributionNeeds.length !== 1,
+						)
+					) {
+						return rejected(
+							"ambiguous-contribution-composition",
+							"Each Requirement must select exactly one admitted contribution function; independent obligations require separate Requirements.",
+						);
+					}
 					const admitted = new Set(input.admissibleContributionFunctions);
 					const unadmitted = requirements.value.flatMap((requirement) =>
 						requirement.contributionNeeds.filter(

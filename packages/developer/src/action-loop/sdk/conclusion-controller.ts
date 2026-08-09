@@ -87,6 +87,15 @@ function conclusionParameters(contract: JudgmentClosureContract): TSchema {
 								"Required only when outcome is conclude. Omit this field when outcome is refuse.",
 						}),
 					),
+					no_action_disposition: Type.Optional(
+						StringEnum(
+							["outcome-attained", "blocked", "waiting"] as const,
+							{
+								description:
+									"Required with no-action: distinguish attained Outcome from blocked or waiting continuity.",
+							},
+						),
+					),
 				}
 			: {}),
 		refusal_reasons_json: Type.String({
@@ -184,6 +193,21 @@ function canonicalProposal(input: {
 			message: "answer must be text when supplied.",
 		};
 	}
+	if (
+		input.contract.category === "Proportionate Intervention" &&
+		outcome === "conclude" &&
+		input.raw.intervention_disposition === "no-action" &&
+		input.raw.no_action_disposition !== "outcome-attained" &&
+		input.raw.no_action_disposition !== "blocked" &&
+		input.raw.no_action_disposition !== "waiting"
+	) {
+		return {
+			ok: false,
+			code: "missing-no-action-disposition",
+			message:
+				"no-action requires outcome-attained, blocked, or waiting continuity.",
+		};
+	}
 	const refusalReasons = decodeSdkStringList({
 		value: input.raw.refusal_reasons_json,
 		label: "refusal_reasons_json",
@@ -232,6 +256,11 @@ function canonicalProposal(input: {
 			...(input.raw.intervention_disposition === "action-required" ||
 			input.raw.intervention_disposition === "no-action"
 				? { interventionDisposition: input.raw.intervention_disposition }
+				: {}),
+			...(input.raw.no_action_disposition === "outcome-attained" ||
+			input.raw.no_action_disposition === "blocked" ||
+			input.raw.no_action_disposition === "waiting"
+				? { noActionDisposition: input.raw.no_action_disposition }
 				: {}),
 			refusalReasons: refusalReasons.value,
 			requirementDispositions: dispositions.value,
@@ -308,7 +337,7 @@ function conclusionProposalPrompt(input: SdkJudgmentConclusionInput) {
 			"Do not manufacture Coverage identities, permission, Effect success, or Work Case completion.",
 			...(input.contract.category === "Proportionate Intervention"
 				? [
-						"When outcome is conclude, set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when the proportionate decision is to preserve current state. When outcome is refuse, omit intervention_disposition entirely.",
+						"When outcome is conclude, set intervention_disposition to action-required only when a controlled host Action is warranted; use no-action when no Action is warranted. With no-action, no_action_disposition is required: outcome-attained permits later Claim Assurance, blocked preserves unresolved conflict or impossibility, and waiting preserves an observed external condition. When outcome is refuse, omit both disposition fields.",
 					]
 				: []),
 		],

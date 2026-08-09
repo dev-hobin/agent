@@ -309,6 +309,7 @@ test("SDK Action Loop progression routes no-action intervention to Claim Assuran
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 		answer: "No host Action is proportionate.",
 		interventionDisposition: "no-action",
+		noActionDisposition: "outcome-attained",
 	});
 	const recorded = recordWorkCaseConclusion(opened.value, intervention);
 	if (recorded.status !== "recorded")
@@ -355,6 +356,55 @@ test("SDK Action Loop progression routes no-action intervention to Claim Assuran
 	assert.equal(checkpoint.result.judgment.category, "Claim Assurance");
 });
 
+test("SDK Action Loop progression cannot complete a blocked no-action disposition", async () => {
+	const opened = openWorkCase({
+		outcome: {
+			statement: "A contradictory target remains unresolved.",
+			acceptanceConditions: ["The contradiction is resolved before completion."],
+			constraints: ["Do not claim completion while blocked."],
+		},
+		provenance: { kind: "human", source: "sdk:test" },
+	});
+	if (opened.status !== "opened") throw new Error(opened.error.message);
+	const intervention: JudgmentConclusion = Object.freeze({
+		conclusionId: "conclusion-action-loop-blocked-no-action",
+		workCaseId: opened.value.workCaseId,
+		judgmentId: "judgment-action-loop-blocked-no-action",
+		category: "Proportionate Intervention",
+		subject: "Whether contradiction permits intervention",
+		contextRevisionId: opened.value.revisionId,
+		requirementDispositions: Object.freeze([]),
+		coverageIds: Object.freeze([]),
+		basis: Object.freeze(["The current target is contradictory."]),
+		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
+		answer: "No Action can resolve the contradiction; preserve the blocker.",
+		interventionDisposition: "no-action",
+		noActionDisposition: "blocked",
+	});
+	const recorded = recordWorkCaseConclusion(opened.value, intervention);
+	if (recorded.status !== "recorded") throw new Error("Conclusion not recorded");
+	const result = await progressActionLoopWithSdk({
+		request: "Do not claim completion while the contradiction remains.",
+		state: {
+			workCase: recorded.value,
+			applicabilityAssessments: [],
+			assignments: [],
+			selections: [],
+			contexts: [],
+			contributions: [],
+			coverages: [],
+		},
+		capabilities: [],
+		runner: scriptedSdkRunner([]),
+		complete: true,
+		maxSteps: 1,
+		checkpoint() {},
+	});
+	assert.equal(result.status, "continuity-required");
+	if (result.status !== "continuity-required") return;
+	assert.equal(result.disposition, "blocked");
+});
+
 test("SDK Action Loop progression completes a Claim-Assured no-change Outcome before Action", async () => {
 	const opened = openWorkCase({
 		outcome: {
@@ -378,6 +428,7 @@ test("SDK Action Loop progression completes a Claim-Assured no-change Outcome be
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 		answer: "Preserve current workspace state.",
 		interventionDisposition: "no-action",
+		noActionDisposition: "outcome-attained",
 	});
 	const intervened = recordWorkCaseConclusion(opened.value, intervention);
 	if (intervened.status !== "recorded")
