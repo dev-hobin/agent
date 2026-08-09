@@ -21,6 +21,7 @@ import {
 import {
 	actionLoopProgressionFailureMessage,
 	actionLoopProgressionSummary,
+	piActionLoopEvidenceFunctions,
 	progressPiActionLoop,
 } from "./action-loop-pi-controller.ts";
 import { createPiExtensionSdkRunner } from "./action-loop-sdk-runner.ts";
@@ -545,11 +546,8 @@ export default async function developer(pi: ExtensionAPI) {
 						request: currentActionLoopRequest,
 						...(activeWorkCase ? { state: activeWorkCase } : {}),
 						inventory: liveCapabilityInventory.value,
-						availableEvidenceFunctions: [
-							"The current user message supplies human-provenance pre-Action facts at exactly its stated granularity.",
-							"The built-in read Observation returns exact JSON-escaped text blocks for one known file path, including line-ending shape. It cannot enumerate a directory, execute a shell command, compute an independent checksum, or promise unavailable raw-byte metadata.",
-							"Current canonical Conclusions are trusted current-state facts for later Claim Assurance.",
-						],
+						availableEvidenceFunctions:
+							piActionLoopEvidenceFunctions(activeWorkCase),
 						runner: prepared.runner,
 						complete: true,
 						actions: controlledPiActionAdapters(),

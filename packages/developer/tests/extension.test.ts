@@ -427,7 +427,10 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 		/model_authority: proposal-only; evidence is not truth/,
 	);
 	assert.match(result.systemPrompt, /call first and again after/);
-	assert.match(result.systemPrompt, /listed Need and exact admitted evidence only/);
+	assert.match(
+		result.systemPrompt,
+		/listed Need and exact admitted evidence only/,
+	);
 	assert.match(result.systemPrompt, /exact cleared host Action/);
 	assert.doesNotMatch(result.systemPrompt, /After a Judgment refusal/);
 	assert.ok(actionLoopModelProtocolPrompt(["specify"]).length <= 700);

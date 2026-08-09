@@ -227,6 +227,10 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 	);
 	assert.match(
 		systemPrompt,
+		/trusted at their recorded revision, not timeless facts[\s\S]*Proportionate Intervention must not treat a pre-Effect Conclusion as evidence of current mutable state/,
+	);
+	assert.match(
+		systemPrompt,
 		/Treat explicit pre-Action facts in delegated_request as human-provenance evidence at their stated granularity/,
 	);
 	assert.match(

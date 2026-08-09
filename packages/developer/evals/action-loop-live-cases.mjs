@@ -16,6 +16,7 @@ export const ACTION_LOOP_LIVE_CASES = Object.freeze([
 			"guard.txt": "guard\n",
 		},
 		allowedChangedPaths: ["target.txt"],
+		maximumActionClearances: 1,
 		requiredEventKinds: [
 			"action-cleared",
 			"effect-begun",
@@ -141,6 +142,7 @@ export const ACTION_LOOP_LIVE_CASES = Object.freeze([
 			"nested/notes.md": "unchanged\n",
 		},
 		allowedChangedPaths: ["target.txt"],
+		maximumActionClearances: 1,
 		requiredEventKinds: ["effect-settled", "work-case-completed"],
 	},
 ]);

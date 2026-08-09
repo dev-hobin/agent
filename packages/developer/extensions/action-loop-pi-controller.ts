@@ -39,6 +39,28 @@ import {
 } from "./action-loop-sdk-session.ts";
 import type { LiveWorkCaseState } from "./action-loop-work-case.ts";
 
+const PI_PRE_ACTION_EVIDENCE_FUNCTIONS = Object.freeze([
+	"The current user message supplies human-provenance pre-Action facts at exactly its stated granularity.",
+	"The built-in read Observation returns exact JSON-escaped text blocks for one known file path, including line-ending shape. It cannot enumerate a directory, execute a shell command, compute an independent checksum, or promise unavailable raw-byte metadata.",
+]);
+const PI_CLAIM_ASSURANCE_EVIDENCE_FUNCTION =
+	"Only for Claim Assurance, current canonical Conclusions are trusted current-state facts.";
+
+/** Scopes trusted ledger facts to the only Judgment Category that may reuse them. */
+export function piActionLoopEvidenceFunctions(
+	state?: Pick<LiveWorkCaseState, "phase">,
+): readonly string[] {
+	const claimAssurance =
+		state?.phase.kind === "judgment-opening"
+			? state.phase.purpose.kind === "claim-assurance"
+			: state?.phase.kind === "judgment-active" &&
+				state.phase.judgment.category === "Claim Assurance";
+	return Object.freeze([
+		...PI_PRE_ACTION_EVIDENCE_FUNCTIONS,
+		...(claimAssurance ? [PI_CLAIM_ASSURANCE_EVIDENCE_FUNCTION] : []),
+	]);
+}
+
 export type PiActionLoopCheckpointEvent =
 	| ReturnType<typeof sdkWorkCaseOpenedEvent>
 	| ReturnType<typeof sdkJudgmentOpenedEvent>
