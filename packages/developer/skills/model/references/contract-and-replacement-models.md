@@ -82,9 +82,9 @@ Actual systems may depend on behavior never written into the contract. Inspect:
 - telemetry only as bounded evidence, never proof of absence;
 - public documentation and known bugs that became de facto behavior.
 
-Migration, rollout, coexistence, telemetry, and rollback protocols are Developer
-adaptations. This model names their obligations but does not claim a source book
-supplies a production procedure.
+Migration, rollout, coexistence, telemetry, and rollback protocols are
+production extensions defined in this guide. This model names their obligations
+but does not claim a source book supplies a production procedure.
 
 ## Artifact
 
@@ -120,5 +120,5 @@ exists but evidence for compatibility is missing.
   Section 2.1
   for abstraction mappings, representation laws, and observer-relative data
   meaning.
-- The explicit production compatibility inventory is a Developer adaptation of
-  those semantic obligations.
+- The explicit production compatibility inventory is a production extension
+  defined here from those semantic obligations.

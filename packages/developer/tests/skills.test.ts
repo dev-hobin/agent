@@ -49,7 +49,7 @@ test("every skill defines an inspection surface suited to its judgment", async (
 		"abstraction-review": /review card or table/,
 		"adversarial-eval": /escalation ladder as an ordered matrix/,
 		doctor:
-			/Doctor scope and actual coverage[\s\S]*consultation ledger[\s\S]*treatment plan/,
+			/Doctor scope and actual coverage[\s\S]*investigation ledger[\s\S]*treatment plan/,
 		model: /case, decision, or truth table/,
 		"naming-judgment": /rename map as the primary inspection surface/,
 		schedule: /compact timing matrix/,
@@ -71,29 +71,24 @@ test("every skill defines an inspection surface suited to its judgment", async (
 	}
 });
 
-test("Doctor bounds claims, dispositions every owner skill, and delegates Reference routing", async () => {
+test("Doctor remains a self-contained diagnostic method", async () => {
 	const source = await readFile(join(skillsRoot, "doctor", "SKILL.md"), "utf8");
-	for (const owner of expected.filter((name) => name !== "doctor")) {
-		assert.ok(
-			source.includes(`| \`${owner}\` |`),
-			`Doctor must disposition ${owner}`,
-		);
-	}
 	assert.match(source, /requested \/ inspected \/ claim scope/i);
 	assert.match(source, /thorough-within-scope/);
-	assert.match(
-		source,
-		/route\s+every triggered distinct consultation[\s\S]*every declared TOC Reference[\s\S]*every selected Reference/i,
-	);
-	assert.match(source, /must not read sibling skill\s+references/i);
-	assert.match(
-		source,
-		/TOC conditions[\s\S]*disposition every declared[\s\S]*selected Reference/i,
-	);
+	assert.match(source, /## Diagnostic Lens Sweep/);
+	assert.match(source, /## Follow-up Investigations/);
 	assert.match(
 		source,
 		/treat-now[\s\S]*prepare-next[\s\S]*observe[\s\S]*leave-alone/,
 	);
+	assert.doesNotMatch(source, /\bDeveloper\b|Capability TOC|sealed Context/);
+	for (const sibling of expected.filter((name) => name !== "doctor")) {
+		assert.equal(
+			source.includes(`| \`${sibling}\` |`),
+			false,
+			`Doctor must not hard-code sibling Skill ${sibling}`,
+		);
+	}
 });
 
 test("every reference-bearing Skill has one canonical complete TOC", async () => {
@@ -122,9 +117,16 @@ test("every reference-bearing Skill has one canonical complete TOC", async () =>
 			`${skill.name} TOC must account for every packaged Reference`,
 		);
 		const method = await readFile(skill.filePath, "utf8");
+		assert.match(method, /## Supporting Materials/);
 		assert.ok(
 			method.includes("](toc.json)"),
-			`${skill.name} must link its canonical Capability TOC`,
+			`${skill.name} must link its colocated Skill TOC`,
+		);
+		assert.match(method, /If no Reference condition applies, proceed with/);
+		assert.doesNotMatch(method, /## Reference Routing/);
+		assert.doesNotMatch(
+			method,
+			/Upper Judgment|Capability TOC|Skill Contribution|sealed Context|Developer protocol|Action Loop/,
 		);
 		await assert.rejects(access(join(skill.baseDir, "reference-policy.json")));
 	}

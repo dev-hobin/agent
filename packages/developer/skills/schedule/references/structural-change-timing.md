@@ -259,7 +259,7 @@ The timing judgment is weak when:
   The package treats option pricing, Pareto/power-law claims, absolute safety,
   integration-equals-deployment, and Constantine's Equivalence as heuristics or
   excluded overclaims, not universal laws. Production migration, telemetry,
-  rollout, and rollback protocols remain Developer adaptations.
+  rollout, and rollback protocols are extensions defined in this guide.
 - Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
   Edition, version 2.2.2, 2024: Chapter 1, pp. 2-22; Chapters 3-4,
   pp. 51-101; and Chapter 8, pp. 188-192 and 223-225, on waiting for real
@@ -272,9 +272,9 @@ The timing judgment is weak when:
   Indirection, public-manuscript pp. 81-95, for environment-relative
   over-engineering, model growth, replacement cost, interface calcification,
   and maturing externally visible boundaries. Production migration, telemetry,
-  rollout, and rollback protocols remain Developer adaptations.
+  rollout, and rollback protocols are extensions defined in this guide.
 - Hillel Wayne, *Logic for Programmers*, version 0.14.0, May 4, 2026:
   Chapter 2, pp. 16-17, for the bidirectional ability-guarantee tradeoff and
   Chapter 5, pp. 55-60, for replacement obligations and observable accidental
-  contracts. Production migration, telemetry, and rollback economics remain
-  Developer adaptations.
+  contracts. Production migration, telemetry, and rollback economics are
+  extensions defined in this guide.

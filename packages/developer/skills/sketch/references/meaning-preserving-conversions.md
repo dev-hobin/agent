@@ -76,5 +76,5 @@ required.
   Section 2.5
   for coercion, type towers, ambiguity, and representation interactions.
 - Hillel Wayne, *Logic for Programmers*, v0.14.0, Chapter 5, pp. 47-60,
-  calibrates observer-relative replacement; conversion-graph and production
-  compatibility artifacts are Developer synthesis.
+  calibrates observer-relative replacement; the conversion graph and production
+  compatibility artifacts are self-contained synthesis defined in this guide.

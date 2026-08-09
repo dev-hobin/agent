@@ -95,7 +95,7 @@ reject:
 
 ## Source Trace
 
-This diagnostic table is Developer synthesis. Its promise boundaries are
-calibrated by the exact sources listed in
-Abstraction Candidate Review; it introduces no additional
+This diagnostic table is self-contained synthesis defined in this guide. Its
+promise boundaries are calibrated by the exact sources listed in Abstraction
+Candidate Review; it introduces no additional
 source claim or construction method.

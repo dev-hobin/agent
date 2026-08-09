@@ -78,5 +78,5 @@ when composition of values is the independent question.
 - Matthias Felleisen et al., *How to Design Programs*, living build 9.2.0.3,
   Chapter 22
   for accessors over alternate positional encodings.
-- Replacement and repository leak-search artifacts are Developer adaptations of
-  those barriers.
+- Replacement and repository leak-search artifacts are repository-level
+  extensions defined here from those barriers.

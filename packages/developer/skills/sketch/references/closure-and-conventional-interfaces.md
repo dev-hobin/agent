@@ -94,5 +94,5 @@ assumptions need their own execution design.
   for procedures as values and
   Section 2.2
   for closure and conventional interfaces.
-- Operational interface assumptions and finalizer failure checks are Developer
-  adaptations of those composition boundaries.
+- Operational interface assumptions and finalizer failure checks are extensions
+  defined in this guide from those composition boundaries.

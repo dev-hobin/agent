@@ -239,5 +239,5 @@ when old and new boundary compatibility remains unsettled.
   denormalization, abstract datatypes, and bounded exceptions.
 - The prior-representation evidence rule, construction-path audit,
   trusted-compiler-gap record, effect-order check, repository compatibility
-  paths, and language-neutral assertion taxonomy are Developer adaptations of
-  that source's type-driven design argument.
+  paths, and language-neutral assertion taxonomy are production extensions
+  defined in this guide from that source's type-driven design argument.

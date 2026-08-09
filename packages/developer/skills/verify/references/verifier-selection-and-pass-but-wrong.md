@@ -175,7 +175,8 @@ Unverified claims and residual risk:
 - Alexis King, “Parse, don’t validate,” published November 5, 2019, for the
   distinction between a check that discards information and a parser that
   returns a refined value, plus the parsing-before-execution boundary. The
-  construction-path and effect-order verifier rows are Developer adaptations.
+  construction-path and effect-order verifier rows are production extensions
+  defined in this guide.
 - Hillel Wayne, *Logic for Programmers*, v0.14.0:
   Chapters 3-6 and 9-11, pp. 23-155, for logical/runtime preservation, partial
   specifications, generated properties, proof limits, bounded models, and solver

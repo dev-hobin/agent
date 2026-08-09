@@ -83,4 +83,5 @@ status.
   Chapters 11-12, pp. 139-168, for constraint planning, action sequences,
   objective functions, and result boundaries. Recorded beta defects are excluded.
 - The production rolling-upgrade example and operational risk objectives are
-  Developer adaptations; the source supplies the planning and search distinctions.
+  self-contained extensions in this guide; the source supplies the planning and
+  search distinctions.

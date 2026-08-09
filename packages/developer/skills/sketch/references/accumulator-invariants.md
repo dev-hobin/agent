@@ -133,4 +133,5 @@ cached representation exists to judge.
   and Section 5.4.2
   for process shape, continuation placement, and tail-space behavior.
 - Machine-resource gates, visited-scope taxonomy, and production cache checks are
-  Developer adaptations of those invariant and process boundaries.
+  production extensions defined here from those invariant and process
+  boundaries.

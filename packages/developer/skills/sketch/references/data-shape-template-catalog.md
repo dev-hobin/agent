@@ -79,9 +79,9 @@ decision, or when it groups unmodeled external values with a domain default.
 
 A record groups a fixed natural whole. The canonical structural template first
 lists the record's selectors so the complete inventory is visible. A production
-sketch may destructure only purpose-relevant fields, but that is a Developer
-adaptation: explain why omitted fields cannot affect the stated result instead of
-silently treating them as nonexistent.
+sketch may destructure only purpose-relevant fields; this guide extends the
+source method by requiring an explanation of why omitted fields cannot affect
+the stated result instead of silently treating them as nonexistent.
 
 ```text
 Schedule = Schedule(start, end, timezone)
@@ -285,5 +285,6 @@ temporal rule to `model`.
   plus Chapter 24
   for controlling, lockstep, and Cartesian multi-input design.
 - Purpose-only destructuring, product-language examples, explicit invariant
-  violation behavior, and repository diagnostics are Developer adaptations. The
-  source's initial structure templates inventory the full selector set.
+  violation behavior, and repository diagnostics are extensions defined in this
+  guide. The source's initial structure templates inventory the full selector
+  set.

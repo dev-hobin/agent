@@ -93,4 +93,4 @@ Return to `language-semantics` when program meaning remains unsettled. Use
   for calling conventions, explicit control, effect/liveness summaries, roots,
   tail calls, compilation guards, and mixed execution.
 - Validation taxonomies, migrations, production capacity, and rollout protocols
-  are Developer adaptations, not SICP claims.
+  are extensions defined in this guide, not SICP claims.

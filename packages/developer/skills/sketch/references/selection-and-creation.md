@@ -72,5 +72,5 @@ Use `variation-roles-and-transitions` when the caller role itself is unresolved,
 - Zachary Tellman, *Elements of Clojure*, Leanpub 2019-02-11, Indirection,
   public-manuscript pp. 64-69 and 90-95, for ordered dispatch conflicts,
   openness cost, participant pressure, and interface calcification.
-- Automatic discovery, startup visibility, and deployment checks are Developer
-  adaptations of those boundaries.
+- Automatic discovery, startup visibility, and deployment checks are
+  operational extensions defined in this guide from those boundaries.

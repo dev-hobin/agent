@@ -287,9 +287,20 @@ for (const name of Object.keys(referenceCatalog)) {
 		/## Judgment Spine/,
 		`Expected ${name} to own one source-independent judgment spine`,
 	);
+	assert.match(
+		source,
+		/## Supporting Materials/,
+		`Expected ${name} to explain standalone supporting-material discovery`,
+	);
 	assert.ok(
 		source.includes("](toc.json)"),
-		`Expected ${name} to link its canonical Capability TOC`,
+		`Expected ${name} to link its colocated Skill TOC`,
+	);
+	assert.match(source, /If no Reference condition applies, proceed with/);
+	assert.doesNotMatch(source, /## Reference Routing/);
+	assert.doesNotMatch(
+		source,
+		/Upper Judgment|Capability TOC|Skill Contribution|sealed Context|Developer protocol|Action Loop/,
 	);
 	assert.doesNotMatch(source, /^## Context Directions$/mu);
 	await assert.rejects(access(join(root, "skills", name, "judgment.json")));
@@ -298,6 +309,11 @@ for (const name of Object.keys(referenceCatalog)) {
 for (const path of requiredReferences) {
 	const source = await readFile(join(root, path), "utf8");
 	assert.ok(source.length > 0, `Expected non-empty reference: ${path}`);
+	assert.doesNotMatch(source, /\bDeveloper\b/);
+	assert.doesNotMatch(
+		source,
+		/Upper Judgment|Capability TOC|Skill Contribution|sealed Context|Developer protocol|Action Loop/,
+	);
 }
 
 for (const path of requiredCapabilityTocs) {

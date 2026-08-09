@@ -90,10 +90,13 @@ Do not implement the rename, promote a new abstraction, invent product meaning,
 rename external conventions, or replace every short name with a longer one.
 Reuse does not prove that a generic name is sound.
 
-## Reference Routing
+## Supporting Materials
 
-The machine-readable [Capability TOC](toc.json) is the canonical routing
-authority. Its `when` and `unless` conditions determine applicability; each
-Reference path declares the local condition under which it contributes. After
-Upper Judgment assigns this Capability to one Need, disposition every declared
-Reference path and load every selected Reference before accepting the Skill Contribution.
+If the host has supplied a bounded set of supporting materials for this
+invocation, use that selection without rediscovering alternatives unless it is
+explicitly incomplete.
+
+Otherwise, inspect the colocated [Skill TOC](toc.json). Evaluate each declared
+Reference condition against the current task and read the smallest materially
+applicable set before producing the result. Broad topic similarity alone is not
+sufficient. If no Reference condition applies, proceed with `SKILL.md` alone.

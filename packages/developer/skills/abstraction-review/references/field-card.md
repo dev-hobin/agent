@@ -131,7 +131,8 @@ Handoff or open consequence:
 
 ## Source Trace
 
-This review spine is Developer synthesis over these bounded capabilities:
+This self-contained review spine synthesizes the following bounded source
+capabilities:
 
 - Sandi Metz, Katrina Owen, and TJ Stankus, *99 Bottles of OOP*, Second
   Edition, v2.2.2:

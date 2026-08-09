@@ -32,9 +32,9 @@ ingredients but the result is wrong, repair the completed body. If no template
 ingredient can express the purpose, design an auxiliary with its own recipe.
 
 In an existing repository, recover equivalent evidence from schemas, types,
-fixtures, callers, UI states, persistence, and tests. This recovery is a
-Developer adaptation for production repositories, not a claim that HtDP replaces
-its pedagogical artifacts with those sources. Do not copy recipe comments into
+fixtures, callers, UI states, persistence, and tests. This guide extends the
+method for production repositories; it does not claim that HtDP replaces its
+pedagogical artifacts with those sources. Do not copy recipe comments into
 production merely to imitate the teaching form.
 
 ## Function Recipe Versus Program Recipe
@@ -153,7 +153,7 @@ Each extension refines a different design step. Select several only when their
 questions are independently consequential; do not treat them as a progression or
 one bundled recursion topic.
 
-## Existing-Code Recovery (Developer Adaptation)
+## Existing-Code Recovery Extension
 
 Use this recovery table rather than assuming the declared type is complete. The
 evidence sources and compatibility obligations below adapt HtDP's artifacts to
@@ -241,14 +241,14 @@ Deferred: abstractions or policies not yet earned
   for top-down work lists, bottom-up construction, feedback, and maintenance
   communication.
 - The repository-recovery table, compatibility surfaces, and production artifact
-  substitutions are Developer adaptations derived from the source method; they
-  are not canonical HtDP artifacts.
+  substitutions are extensions defined in this guide from the source method;
+  they are not canonical HtDP artifacts.
 - Harold Abelson and Gerald Jay Sussman with Julie Sussman, *Structure and
   Interpretation of Computer Programs*, Second Edition, MIT Press, 1996:
   Section 2.1
   for wishful decomposition and
   Section 1.2
   for the distinction between procedure text and the process it generates. Data
-  interpretation, templates, ordered recipe steps, repository recovery, and
-  compatibility artifacts remain HtDP-derived or Developer adaptations as
-  identified above.
+  interpretation, templates, and ordered recipe steps remain HtDP-derived;
+  repository recovery and compatibility artifacts are the guide-authored
+  extensions identified above.

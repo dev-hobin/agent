@@ -136,6 +136,6 @@ or hand off; do not expand this file into another design catalog.
 
 ## Source Trace
 
-These are source-independent Developer calibration cases. Their review promises
-and counterexamples are derived from the sources traced in
+These source-independent calibration cases are defined in this guide. Their
+review promises and counterexamples are derived from the sources traced in
 Abstraction Candidate Review. No example is a copied source API.

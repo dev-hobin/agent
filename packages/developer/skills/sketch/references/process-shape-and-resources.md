@@ -166,4 +166,5 @@ interpreter/compiler convention rather than an ordinary process.
   waiting, overload, pull-transform-push, effectful lazy input, topology, and task
   acknowledgment.
 - Complete production cancellation, recovery, capacity, and delivery protocols
-  remain Developer adaptations.
+  are extensions defined in this guide rather than claims from the cited
+  sources.
