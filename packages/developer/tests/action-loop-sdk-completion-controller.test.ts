@@ -66,7 +66,10 @@ function activeWorkCaseWithClaimAssurance() {
 		provenance: Object.freeze({ kind: "model", source: "sdk:test" }),
 		answer: "The bounded configuration claim is supported.",
 	});
-	const recorded = recordWorkCaseConclusion(recordedIntervention.value, assurance);
+	const recorded = recordWorkCaseConclusion(
+		recordedIntervention.value,
+		assurance,
+	);
 	if (recorded.status !== "recorded") {
 		throw new Error(
 			recorded.status === "invalid" ? recorded.error.message : "not recorded",

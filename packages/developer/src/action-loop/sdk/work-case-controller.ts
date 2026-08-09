@@ -61,9 +61,7 @@ export async function openWorkCaseWithSdk(
 				"Preserve supplied pre-Action facts in basis_json at their stated granularity and label their temporal scope; never promote them to post-Action evidence.",
 				"JSON text fields contain JSON arrays of strings without Markdown fences.",
 			],
-			sections: [
-				{ name: "delegated_request", content: input.request },
-			],
+			sections: [{ name: "delegated_request", content: input.request }],
 			decision:
 				"State the Outcome, acceptance conditions, current constraints, and explicit opening basis.",
 		}),

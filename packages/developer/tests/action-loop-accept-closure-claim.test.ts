@@ -97,7 +97,7 @@ test("complete target accounting creates one immutable Closure Claim", () => {
 				closureObligationId: obligation.closureObligationId,
 				conclusionIds: fixture.target.conclusionIds,
 				effectAssessmentIds: [],
-			effectRemediationIds: [],
+				effectRemediationIds: [],
 				basis: [`Evidence satisfies: ${obligation.statement}`],
 			})),
 		}),

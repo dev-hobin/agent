@@ -163,8 +163,7 @@ export async function openJudgmentWithSdk(
 					name: "current_conclusions",
 					content:
 						input.workCase.conclusions.map(
-							(conclusion) =>
-								`${conclusion.category}: ${conclusion.answer}`,
+							(conclusion) => `${conclusion.category}: ${conclusion.answer}`,
 						) || "none",
 				},
 			],

@@ -143,7 +143,10 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 		systemPrompt,
 		/Treat explicit pre-Action facts in delegated_request as human-provenance evidence at their stated granularity/,
 	);
-	assert.match(systemPrompt, /they never establish later Action or Effect success/);
+	assert.match(
+		systemPrompt,
+		/they never establish later Action or Effect success/,
+	);
 	assert.match(
 		systemPrompt,
 		/assigned sealed Skill Context or an exact Host Observation/,
