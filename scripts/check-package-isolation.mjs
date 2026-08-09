@@ -15,6 +15,7 @@ const packagePolicies = [
 	{
 		directory: "developer",
 		forbidden: [
+			"@hobin/judgment",
 			"@hobin/learning",
 			"@hobin/observer",
 			"observer_sidecar",

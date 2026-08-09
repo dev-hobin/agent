@@ -84,10 +84,10 @@ for (const dependency of [
 	"@earendil-works/pi-ai",
 	"@earendil-works/pi-coding-agent",
 	"@earendil-works/pi-tui",
-	"typebox",
 ]) {
-	assert.equal(manifest.peerDependencies[dependency], "*");
+	assert.equal(manifest.peerDependencies[dependency], ">=0.80.10");
 }
+assert.equal(manifest.peerDependencies.typebox, "*");
 assert.equal(manifest.devDependencies.esbuild, "0.25.12");
 await access(join(root, "dist", "sdk.mjs"));
 

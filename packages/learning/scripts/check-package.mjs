@@ -51,8 +51,8 @@ assert.deepEqual(manifest.devDependencies, {
 assert.equal(manifest.dependencies, undefined);
 assert.equal(manifest.bundledDependencies, undefined);
 assert.deepEqual(manifest.peerDependencies, {
-	"@earendil-works/pi-coding-agent": "*",
-	"@earendil-works/pi-tui": "*",
+	"@earendil-works/pi-coding-agent": ">=0.80.10",
+	"@earendil-works/pi-tui": ">=0.80.10",
 });
 assert.equal(
 	manifest.pi.extensions.includes("../judgment/extensions/judgment.ts"),

@@ -53,8 +53,8 @@ assert.deepEqual(manifest.pi, {
 	extensions: ["./extensions/observer.ts"],
 });
 assert.deepEqual(manifest.peerDependencies, {
-	"@earendil-works/pi-coding-agent": ">=0.80.10 <0.84.0",
-	"@earendil-works/pi-tui": ">=0.80.10 <0.84.0",
+	"@earendil-works/pi-coding-agent": ">=0.80.10",
+	"@earendil-works/pi-tui": ">=0.80.10",
 	typebox: "^1.3.6",
 });
 
