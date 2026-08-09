@@ -589,6 +589,16 @@ assert.match(workbenchTui, /ActionLoopWorkbenchSurface/);
 assert.match(workbenchTui, /←→ sections · ↑↓\/jk move/);
 assert.match(workbenchTui, /overlay:\s*true/);
 
+const installedResourceSmoke = await readFile(
+	join(root, "scripts", "smoke-installed-action-loop.mjs"),
+	"utf8",
+);
+assert.match(installedResourceSmoke, /Project packages:/);
+assert.match(installedResourceSmoke, /--require-package/);
+assert.match(installedResourceSmoke, /Required installed resource is absent/);
+assert.match(installedResourceSmoke, /work-case-opened/);
+assert.match(installedResourceSmoke, /No durable work-case-opened checkpoint/);
+
 const command = await readFile(
 	join(root, "extensions", "developer-command.ts"),
 	"utf8",
