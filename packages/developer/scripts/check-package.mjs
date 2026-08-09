@@ -577,7 +577,7 @@ const workbench = await readFile(
 assert.match(workbench, /inspectActionLoopWorkbench/);
 assert.match(
 	workbench,
-	/Overview[\s\S]*Decisions[\s\S]*Evidence[\s\S]*Effects[\s\S]*History/,
+	/Overview[\s\S]*Judgments[\s\S]*Evidence[\s\S]*Actions & Effects[\s\S]*Continuity[\s\S]*History[\s\S]*Settings/,
 );
 assert.doesNotMatch(workbench, /workCaseId|revisionId|contributionId/);
 
@@ -586,7 +586,7 @@ const workbenchTui = await readFile(
 	"utf8",
 );
 assert.match(workbenchTui, /ActionLoopWorkbenchSurface/);
-assert.match(workbenchTui, /←→ sections · ↑↓ items/);
+assert.match(workbenchTui, /←→ sections · ↑↓\/jk move/);
 assert.match(workbenchTui, /overlay:\s*true/);
 
 const command = await readFile(

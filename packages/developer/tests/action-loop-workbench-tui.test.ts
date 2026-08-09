@@ -26,6 +26,7 @@ const snapshot: ActionLoopWorkbenchSnapshot = {
 		{
 			id: "overview",
 			label: "Overview",
+			value: "Waiting",
 			items: [
 				{
 					title: "Waiting for",
@@ -40,10 +41,12 @@ const snapshot: ActionLoopWorkbenchSnapshot = {
 				},
 			],
 		},
-		{ id: "decisions", label: "Decisions", items: [] },
-		{ id: "evidence", label: "Evidence", items: [] },
-		{ id: "effects", label: "Effects", items: [] },
-		{ id: "history", label: "History", items: [] },
+		{ id: "judgments", label: "Judgments", value: "0", items: [] },
+		{ id: "evidence", label: "Evidence", value: "0", items: [] },
+		{ id: "actions", label: "Actions & Effects", value: "0", items: [] },
+		{ id: "continuity", label: "Continuity", value: "1", items: [] },
+		{ id: "history", label: "History", value: "0", items: [] },
+		{ id: "settings", label: "Settings", value: "On", items: [] },
 	],
 };
 
@@ -71,7 +74,7 @@ test("canonical Workbench is bounded, semantic, and identity-free", () => {
 	const compact = rendered(surface, 48, 12);
 	assert.ok(compact.length <= 12);
 	assert.ok(compact.every((line) => visibleWidth(line) <= 48));
-	assert.match(compact.join("\n"), /Waiting for/);
+	assert.match(compact.join("\n"), /Overview|Continuity/);
 	assert.doesNotMatch(
 		compact.join("\n"),
 		/(?:observation|work_case|revision|conclusion|transition)_[a-z0-9]+/,
@@ -99,7 +102,11 @@ test("canonical Workbench section navigation stays read-only", () => {
 		},
 	});
 	surface.handleInput("\x1b[C");
-	assert.match(rendered(surface, 80, 20).join("\n"), /No current items/);
+	surface.handleInput("\r");
+	assert.match(
+		rendered(surface, 80, 20).join("\n"),
+		/No canonical record|No canonical records/,
+	);
 	assert.equal(
 		snapshot.sections[0]?.items[0]?.summary,
 		"External security approval is pending.",

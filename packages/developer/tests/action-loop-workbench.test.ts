@@ -7,6 +7,7 @@ import {
 	type ActionLoopWorkbenchSnapshot,
 } from "../extensions/action-loop-workbench.ts";
 import type { LiveCapabilityInventoryResult } from "../extensions/action-loop-capability-inventory.ts";
+import { actionLoopWorkCaseOpenedEvent } from "../extensions/action-loop-session-event.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
 
 const readyInventory: LiveCapabilityInventoryResult = {
@@ -81,6 +82,33 @@ test("canonical Workbench shows waiting meaning without internal identity", () =
 	);
 });
 
+test("canonical Workbench projects durable history semantically", () => {
+	const proposal = {
+		outcome: {
+			statement: "Record the current release decision.",
+			acceptanceConditions: ["The durable checkpoint is inspectable."],
+			constraints: ["Do not expose internal identity."],
+		},
+		basis: ["The user delegated the bounded release decision."],
+		provenance: { kind: "model" as const, source: "test" },
+	};
+	const opened = openLiveWorkCase(undefined, proposal);
+	if (opened.status !== "opened") throw new Error("Expected opened Work Case");
+	const snapshot = inspectActionLoopWorkbench({
+		enabled: true,
+		capabilityInventory: readyInventory,
+		activeWorkCase: opened.value,
+		history: [actionLoopWorkCaseOpenedEvent(proposal, opened.value)],
+	});
+	const history = snapshot.sections.find((section) => section.id === "history");
+	assert.equal(history?.value, "1");
+	assert.equal(history?.items[0]?.title, "Work Case opened");
+	assert.doesNotMatch(
+		JSON.stringify(snapshot),
+		/(?:work_case|revision|transition)_[a-f0-9]+|\b[a-f0-9]{64}\b/,
+	);
+});
+
 test("canonical Workbench distinguishes preparing, ready, active, and unavailable", () => {
 	assert.equal(inspectActionLoopWorkbench({ enabled: false }).status, "off");
 	assert.equal(
@@ -114,5 +142,5 @@ test("canonical Workbench distinguishes preparing, ready, active, and unavailabl
 	assert.equal(pending.status, "unavailable");
 	assert.equal(pending.statusLabel, "Recovery pending");
 	assert.match(pending.headline, /awaits inventory-bound recovery/);
-	assert.match(pending.next, /normal message/);
+	assert.match(pending.next, /Bind the current Skill inventory/);
 });

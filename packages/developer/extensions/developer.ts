@@ -178,6 +178,7 @@ export default async function developer(pi: ExtensionAPI) {
 	let actionLoopReplayFailure: string | undefined;
 	let actionLoopSessionDurable = false;
 	let liveHostObservations: LiveHostObservation[] = [];
+	let actionLoopHistory: ActionLoopSessionEvent[] = [];
 	let currentActionLoopRequest: string | undefined;
 	let developerEnabled = false;
 	let toolPolicyMemory: ToolPolicyMemory = { withheldBuiltins: new Set() };
@@ -186,6 +187,7 @@ export default async function developer(pi: ExtensionAPI) {
 	const appendActionLoopSessionEvent = (event: ActionLoopSessionEvent) => {
 		assertPersistableActionLoopSessionEvent(event);
 		pi.appendEntry(ACTION_LOOP_SESSION_ENTRY, event);
+		actionLoopHistory = [...actionLoopHistory, event];
 	};
 
 	const isActionLoopReplayUnavailable = () =>
@@ -351,6 +353,7 @@ export default async function developer(pi: ExtensionAPI) {
 		const view = inspectActionLoopWorkbench({
 			enabled: developerEnabled,
 			capabilityInventory: liveCapabilityInventory,
+			history: actionLoopHistory,
 			activeWorkCase,
 			heldWorkCase,
 			completedWorkCase,
@@ -386,6 +389,10 @@ export default async function developer(pi: ExtensionAPI) {
 			ctx.sessionManager.getSessionFile() !== undefined;
 		replaceWorkCaseOwnership({});
 		liveHostObservations = [];
+		actionLoopHistory = branch.flatMap((entry) => {
+			const extracted = extractReplayEvent(entry);
+			return extracted.status === "event" ? [extracted.event] : [];
+		});
 		currentActionLoopRequest = undefined;
 		pendingActionLoopBranch =
 			!toolPolicyRestartRequired &&
@@ -1174,6 +1181,7 @@ export default async function developer(pi: ExtensionAPI) {
 		const view = inspectActionLoopWorkbench({
 			enabled: developerEnabled,
 			capabilityInventory: liveCapabilityInventory,
+			history: actionLoopHistory,
 			activeWorkCase,
 			heldWorkCase,
 			completedWorkCase,
@@ -1704,6 +1712,7 @@ export default async function developer(pi: ExtensionAPI) {
 					inspectActionLoopWorkbench({
 						enabled: developerEnabled,
 						capabilityInventory: liveCapabilityInventory,
+						history: actionLoopHistory,
 						activeWorkCase,
 						heldWorkCase,
 						completedWorkCase,

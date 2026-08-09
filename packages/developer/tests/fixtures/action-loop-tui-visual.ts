@@ -12,6 +12,7 @@ const snapshot = {
 		{
 			id: "overview",
 			label: "Overview",
+			value: "Waiting",
 			items: Object.freeze([
 				{
 					title: "Status",
@@ -35,8 +36,9 @@ const snapshot = {
 			]),
 		},
 		{
-			id: "decisions",
-			label: "Decisions",
+			id: "judgments",
+			label: "Judgments",
+			value: "1",
 			items: Object.freeze([
 				{
 					title: "Claim Assurance · open",
@@ -57,6 +59,7 @@ const snapshot = {
 		{
 			id: "evidence",
 			label: "Evidence",
+			value: "1",
 			items: Object.freeze([
 				{
 					title: "Contribution",
@@ -67,8 +70,9 @@ const snapshot = {
 			]),
 		},
 		{
-			id: "effects",
-			label: "Effects",
+			id: "actions",
+			label: "Actions & Effects",
+			value: "1",
 			items: Object.freeze([
 				{
 					title: "Effect assessment",
@@ -79,13 +83,40 @@ const snapshot = {
 			]),
 		},
 		{
-			id: "history",
-			label: "History",
+			id: "continuity",
+			label: "Continuity",
+			value: "1",
 			items: Object.freeze([
 				{
-					title: "Continuity",
-					summary: "1 waiting transition",
-					tone: "muted",
+					title: "Waiting for",
+					summary: "패키지 registry가 expected release를 반환함",
+					tone: "warning",
+					details: Object.freeze([]),
+				},
+			]),
+		},
+		{
+			id: "history",
+			label: "History",
+			value: "4",
+			items: Object.freeze([
+				{
+					title: "Work Case waiting",
+					summary: "Durably accepted canonical checkpoint",
+					tone: "warning",
+					details: Object.freeze([]),
+				},
+			]),
+		},
+		{
+			id: "settings",
+			label: "Settings",
+			value: "On",
+			items: Object.freeze([
+				{
+					title: "Activation",
+					summary: "Developer is on",
+					tone: "success",
 					details: Object.freeze([]),
 				},
 			]),
