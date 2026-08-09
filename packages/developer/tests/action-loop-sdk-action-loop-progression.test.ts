@@ -40,19 +40,19 @@ const workCaseProposal = {
 };
 
 const judgmentProposal = {
-	category: "Consequence Integrity",
+	category: "Proportionate Intervention",
 	subject: "Retryable payment authorization lifecycle",
 	question:
-		"Which state and time rules are required for safe and progressing authorization?",
+		"What bounded next Action or no-Action disposition is warranted for the authorization model?",
 	requirements_json: JSON.stringify([
 		{
 			statement:
-				"The model distinguishes consequential lifecycle and response-order cases.",
+				"The next intervention accounts for consequential lifecycle and response-order cases.",
 			contribution_needs: [DELEGATED_REQUEST_EVIDENCE_FUNCTION],
 		},
 	]),
 	basis_json: JSON.stringify([
-		"The Outcome depends on explicit consequences and forbidden transitions.",
+		"The Action Loop must decide a bounded intervention before any controlled Action.",
 	]),
 };
 

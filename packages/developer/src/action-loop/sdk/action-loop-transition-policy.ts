@@ -133,7 +133,10 @@ function initialDecision(
 	) {
 		return invariant("incoherent-control-state");
 	}
-	return Object.freeze({ kind: "open-judgment" });
+	return Object.freeze({
+		kind: "open-judgment",
+		requiredCategory: "Proportionate Intervention",
+	});
 }
 
 function incompleteEffectDecision(
@@ -206,8 +209,5 @@ export function decideActionLoopTransition(
 	if (facts.effectPhase === "settled-mixed") {
 		return mixedEffectDecision(facts);
 	}
-	return interventionDecision(
-		facts,
-		facts.effectPhase === "settled-adverse",
-	);
+	return interventionDecision(facts, facts.effectPhase === "settled-adverse");
 }

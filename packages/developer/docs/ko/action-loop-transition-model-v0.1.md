@@ -64,7 +64,7 @@ Cartesian control domain에는 `2 × 3 × 3 × 5 × 7 × 3 = 1,890`개 조합이
 | control owner가 multiple 또는 invalid | `invariant-failure` |
 | 일관된 open Judgment 하나 | `progress-open-judgment` |
 | 일관된 pending Clearance 하나 | `ready-for-host-action` |
-| Conclusion이 없고 나머지 상태가 비어 있음 | initial Judgment 열기 |
+| Conclusion이 없고 나머지 상태가 비어 있음 | initial Proportionate Intervention 열기 |
 | incomplete Effect | `progress-effect` |
 | settled adverse와 성공한 repair evidence가 함께 있음 | `progress-remediation` |
 | settled adverse, 현재 Intervention 없음 | Proportionate Intervention 열기 |

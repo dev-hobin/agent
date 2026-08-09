@@ -79,7 +79,7 @@ Higher rows have priority.
 | multiple or invalid control owner | `invariant-failure` |
 | one coherent open Judgment | `progress-open-judgment` |
 | one coherent pending Clearance | `ready-for-host-action` |
-| no Conclusions and otherwise empty state | open initial Judgment |
+| no Conclusions and otherwise empty state | open initial Proportionate Intervention |
 | incomplete Effect | `progress-effect` |
 | settled adverse plus successful repair evidence | `progress-remediation` |
 | settled adverse, no current Intervention | open Proportionate Intervention |

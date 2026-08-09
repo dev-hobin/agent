@@ -6072,7 +6072,10 @@ function initialDecision(facts) {
   if (facts.effectPhase !== "none" || facts.intervention !== "absent" || facts.claimAssurances !== 0) {
     return invariant("incoherent-control-state");
   }
-  return Object.freeze({ kind: "open-judgment" });
+  return Object.freeze({
+    kind: "open-judgment",
+    requiredCategory: "Proportionate Intervention"
+  });
 }
 function incompleteEffectDecision(facts) {
   if (facts.intervention !== "absent" || facts.claimAssurances !== 0) {
@@ -6125,10 +6128,7 @@ function decideActionLoopTransition(facts) {
   if (facts.effectPhase === "settled-mixed") {
     return mixedEffectDecision(facts);
   }
-  return interventionDecision(
-    facts,
-    facts.effectPhase === "settled-adverse"
-  );
+  return interventionDecision(facts, facts.effectPhase === "settled-adverse");
 }
 
 // src/action-loop/sdk/judgment-controller.ts

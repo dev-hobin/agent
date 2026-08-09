@@ -29,9 +29,12 @@ const cases: readonly {
 	readonly expected: ActionLoopTransitionDecision;
 }[] = [
 	{
-		name: "initial ownership opens an unrestricted first Judgment",
+		name: "initial ownership requires an Intervention Judgment",
 		facts: { hasConclusions: false },
-		expected: { kind: "open-judgment" },
+		expected: {
+			kind: "open-judgment",
+			requiredCategory: "Proportionate Intervention",
+		},
 	},
 	{
 		name: "prior non-intervention Conclusion requires Intervention",
