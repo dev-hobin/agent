@@ -23,15 +23,18 @@ Categories describe Warrant Gaps. They do not contain Skill names. Capability
 applicability is evaluated from the current Need and the admitted Capability
 inventory, never from a Category-to-Skill table.
 
-## Canonical Capability TOC
+## Framework-independent Skill TOC
 
-A reference-bearing Skill contains one direct-child JSON descriptor identified by the canonical `$schema`. Packaged Developer Skills conventionally name it `toc.json`; filename is a source-bound locator, not the format discriminator:
+A Skill TOC describes when a Skill applies and when its colocated supporting
+materials are relevant. The contract does not depend on Developer. Developer
+consumes it as routing input but does not own its meaning.
+
+The default descriptor is direct-child `toc.json`; `$schema` is optional there:
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
   "when": [
-    "A condition under which this Capability contributes."
+    "A condition under which this Skill materially applies."
   ],
   "unless": [
     "A condition that overrides applicability."
@@ -40,29 +43,45 @@ A reference-bearing Skill contains one direct-child JSON descriptor identified b
     {
       "path": "references/example.md",
       "when": [
-        "A local condition under which this Reference contributes."
+        "A condition under which this material adds a needed distinction."
       ]
     }
   ]
 }
 ```
 
+An alternate direct-child filename is recognized only when it declares the
+canonical generic schema:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
+  "when": ["..."],
+  "unless": ["..."],
+  "references": []
+}
+```
+
 The schema is closed. Unknown fields, duplicate normalized conditions, duplicate
 paths, path escape, malformed UTF-8, unsupported schema identity, oversized
-input, and unbounded discovery all fail closed.
+input, and unbounded discovery all fail closed. A default `toc.json` and an
+alternate schema-identified descriptor together are ambiguous rather than
+silently prioritized.
 
 The TOC owns only:
 
-- Capability-level `when` and `unless` conditions;
+- Skill-level `when` and `unless` conditions;
 - the complete direct Reference catalog for that Skill;
-- local conditions for each Reference path.
+- local relevance conditions for each Reference path.
 
 It does not author Category, Requirement, Need, Assignment, Coverage, Conclusion,
 identity, hash, confidence, artifact prose, stop prose, sibling Skill links, or
-runtime state. Those belong to the canonical Work Case, the Skill method, or the
-runtime adapter.
+runtime state. Those belong to a consuming runtime or the Skill method itself.
 
-A Skill without a direct-child descriptor carrying the supported canonical TOC schema is unstructured. It declares no Reference routing and seals only its exact admitted `SKILL.md` after applicability creates an Assignment. A differently named descriptor using the same current closed schema is not a legacy format; old route-policy shapes are not recognized.
+A Skill with neither default `toc.json` nor a schema-identified alternate is
+unstructured. Developer gives it no authored Reference route and seals only its
+exact admitted `SKILL.md` after applicability creates an Assignment. Retired
+route-policy shapes are not recognized.
 
 ## Skill and Reference Responsibilities
 
@@ -74,10 +93,16 @@ A Skill without a direct-child descriptor carrying the supported canonical TOC s
 - residual and emergent Need behavior;
 - neighboring Capability boundaries.
 
-`toc.json` owns conditional local routing. `references/*.md` owns deeper,
-source-independent derivation for one local condition. Repository source audits
-own bibliographic provenance, source comparison, defects, and edition history;
-they are maintainer evidence and are not published runtime material.
+The Skill TOC owns conditional local routing. `references/*.md` owns deeper,
+source-independent derivation for one local condition. `SKILL.md` tells a
+standalone user to inspect the TOC and read the smallest materially applicable
+set when no host selection is supplied. A host-supplied bounded selection is
+used as the current selection while visible mismatches remain explicit
+limitations.
+
+Repository source audits own bibliographic provenance, source comparison,
+defects, and edition history; they are maintainer evidence and are not published
+runtime material.
 
 A Reference must refine the assigned Skill's method. It must not become a topic
 shelf, a second upper ontology, a hidden Category-to-Skill mapping, or an excuse
@@ -122,13 +147,14 @@ replay unavailable rather than silently degrading to absence.
 | `sketch` | structured; data, composition, representation, process, state, dispatch, conversion, runtime, responsibility, and variation References |
 | `verify` | structured; verifier selection and pass-but-wrong Reference |
 | `adversarial-eval` | unstructured |
-| `doctor` | unstructured; delegates selected owner-Skill routing |
+| `doctor` | unstructured; self-contained bounded code diagnosis |
 | `specify` | unstructured |
 | `visualize` | unstructured |
 
-Doctor does not aggregate sibling Reference catalogs. It dispositions available
-Capabilities at the upper level and leaves each selected owner Skill to seal and
-apply its own Context.
+Doctor does not know Developer's Skill inventory or orchestration protocol. It
+emits bounded follow-up investigation questions. When Developer is active, the
+ordinary Action Loop may route those questions through the admitted Capability
+inventory without changing Doctor's standalone method.
 
 ## Evaluation Contract
 

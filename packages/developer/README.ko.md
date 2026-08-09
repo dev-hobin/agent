@@ -62,7 +62,7 @@ Category는 Skill name을 hard-code하지 않습니다. Upper Judgment가 functi
 - `doctor`
 - `visualize`
 
-Structured Skill은 declared Reference를 선택하고 exact bytes/hash를 seal하며 drift가 생기면 fail closed합니다. Unstructured Skill은 admit된 정확한 `SKILL.md`를 seal합니다. Skill-local resolution은 upper Need Coverage를 부여하거나 Judgment를 닫지 않습니다.
+Structured Skill은 declared Reference를 선택하고 exact bytes/hash를 seal하며 drift가 생기면 fail closed합니다. Unstructured Skill은 admit된 정확한 `SKILL.md`를 seal합니다. Developer가 꺼져 있을 때는 각 Reference-bearing Skill의 framework-independent `Supporting Materials` 절이 colocated Skill TOC와 materially applicable한 최소 Reference set을 직접 읽도록 안내합니다. Skill-local resolution은 upper Need Coverage를 부여하거나 Judgment를 닫지 않습니다.
 
 ## Exact Action과 Effect
 

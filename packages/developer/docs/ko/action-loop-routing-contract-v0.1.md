@@ -10,7 +10,7 @@
 >
 > 기준선: `@hobin/developer@0.1.19`
 >
-> Runtime note: `@hobin/developer@0.2.0-rc.1`은 이 schema-identified TOC boundary를 구현한다. 이전 route-policy 파일은 제거되었으며 dual-format compatibility loader는 없다.
+> Runtime note: `@hobin/developer@0.2.0-rc.1`은 default-or-schema-identified Skill TOC boundary를 구현한다. 이전 route-policy 파일은 제거되었으며 그 retired shape를 위한 compatibility loader는 없다.
 >
 > 작성 시점: 2026-08-06
 
@@ -34,7 +34,7 @@ material application
 
 > Author는 applicability와 local material relevance만 작성한다. Content contract는 Markdown이 소유하고, identity·selection·provenance·coverage의 복잡성은 compiler와 runtime이 생성한다.
 
-따라서 TOC descriptor는 기존 `judgment.json`과 비슷한 작은 shape를 유지한다. `toc.json`은 권장 filename일 뿐 identity가 아니다.
+따라서 Skill TOC는 작고 framework-independent한 shape를 유지한다. 기본 `toc.json`에는 schema declaration이 필요 없고, 다른 direct-child filename은 canonical `$schema` 선언으로 opt in한다.
 
 ## 2. 해결할 linking 구조
 
@@ -82,9 +82,9 @@ Stable question과 Closure Requirements를 소유한다. Skill 또는 Reference 
 
 Skill family의 Core Question, Judgment Spine, Output, Completion, Missing Evidence, Boundary를 소유한다.
 
-### Schema-identified TOC descriptor
+### Skill TOC descriptor
 
-Skill family applicability와 Skill-local Reference relevance만 소유한다. Pi가 발견한 Skill root의 direct-child JSON 가운데 canonical `$schema`를 선언한 문서로 식별한다.
+Skill applicability와 local supporting-material relevance만 소유한다. Colocated `toc.json`이 기본 descriptor다. 다른 direct-child JSON은 canonical `$schema`를 선언할 때만 descriptor가 된다. 이 contract는 framework-independent하며 Developer는 하나의 consumer다.
 
 ### Reference Markdown
 
@@ -98,7 +98,6 @@ Owner binding, IDs, hashes, selection state, exact content, applied-material rel
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "An observable situation in which this Skill can materially address the current Contribution Need."
   ],
@@ -116,7 +115,7 @@ Owner binding, IDs, hashes, selection state, exact content, applied-material rel
 }
 ```
 
-이것이 전체 authoring shape다. `toc.json`을 권장하지만 filename은 계약이 아니다.
+이것이 기본 `toc.json`의 전체 authoring shape다. 이 filename에서는 `$schema`가 optional이다. 다른 direct-child filename을 쓰려면 checked-in generic Skill TOC schema의 canonical `$schema`를 추가한다.
 
 No route IDs, artifact declarations, stop strings, sibling Skill links, hashes, Coverage fields, or runtime state are authored here.
 
@@ -132,23 +131,24 @@ Developer는 임의의 filesystem을 검색하지 않는다. 먼저 Pi가 packag
 Pi-discovered Skill root
   → direct-child regular `*.json` files only
   → bounded file count and bytes
-  → top-level `$schema` exact match
+  → optional canonical `$schema`를 가진 기본 `toc.json`
+     또는 exact canonical `$schema`를 가진 alternate filename
   → one recognized TOC descriptor
 ```
 
-- matching descriptor 0개: unstructured Capability다.
-- matching descriptor 1개: parse, validate, and bind한다.
-- matching descriptor 2개 이상: ambiguous TOC failure다.
+- recognized descriptor 0개: unstructured Capability다.
+- recognized descriptor 1개: parse, validate, bind한다.
+- recognized descriptor 2개 이상: ambiguous TOC failure다.
 - known TOC schema family의 unsupported version: unsupported-version failure다.
 - nested JSON과 Skill root 밖의 JSON은 후보가 아니다.
 - runtime은 schema URI를 network fetch하지 않고 bundled validator에 exact mapping한다.
-- `toc.json`은 authoring convention일 뿐 다른 direct-child filename도 같은 schema URI로 식별할 수 있다.
+- canonical schema가 없는 unrelated direct-child JSON은 descriptor가 아니다.
 
 ### `$schema`
 
-Required document-kind and authoring-version discriminator다. 값은 schema가 `const`로 요구하고 compiler가 지원하는 canonical URI와 exact match해야 한다. Editor association, discovery, validation selection을 한 field가 담당한다.
+기본 `toc.json`에서는 optional이고, 다른 filename에서는 document-kind와 authoring-version discriminator로 required다. 존재할 때는 schema의 `const`와 compiler가 지원하는 canonical URI에 exact match해야 한다.
 
-Schema URI는 package version과 runtime event version과 독립적이며 normalized TOC identity에 포함된다.
+Parser는 두 형태를 같은 canonical schema identity로 normalize한다. 따라서 그 밖의 내용이 같은 `toc.json`에 optional declaration을 추가하거나 제거해도 normalized TOC는 바뀌지 않는다. Schema URI는 package version과 runtime event version과 독립적이다.
 
 ### Human name and runtime identity
 
@@ -217,7 +217,7 @@ Evidence가 부족한 상태는 `unless`가 아니라 runtime `needs-context`다
 
 Skill-local prepared materials다. Empty array는 self-contained Skill을 표현할 수 있다.
 
-Matching TOC schema descriptor가 없는 Skill도 정상적인 unstructured Capability로 발견될 수 있다.
+기본 `toc.json`과 schema-identified alternate가 모두 없는 Skill도 정상적인 unstructured Capability로 발견될 수 있다.
 
 ### `references[].path`
 
@@ -244,7 +244,7 @@ Useful:
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged."
   ],
@@ -284,7 +284,7 @@ If the Reference condition does not match, `SKILL.md` alone may produce the Cont
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "Consequential conditions, rules, contracts, histories, or proof boundaries must be modeled."
   ],
@@ -352,7 +352,7 @@ references[0]
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "The Skill's bounded judgment is applicable."
   ],
@@ -367,13 +367,13 @@ Root applicability is machine-visible, but `SKILL.md` owns the entire method.
 
 ### Unstructured Skill
 
-No matching TOC schema descriptor is present. Pi-admitted metadata and Skill description remain available for open-world matching, but the Capability advertises no authored applicability predicate or structured Reference inventory.
+기본 `toc.json`과 schema-identified alternate가 모두 없다. Pi-admitted metadata와 Skill description은 open-world matching에 계속 사용할 수 있지만, Capability는 authored applicability predicate나 structured Reference inventory를 advertise하지 않는다.
 
 Unstructured applicability uses the same proposal protocol as structured applicability. `matchedWhen` and `matchedUnless` must both be empty, an explicit nonblank basis is still required, and `applicable | not-applicable | needs-context` retain their ordinary meaning. Runtime does not invent a synthetic `when` merely to permit assignment.
 
 ### Invalid or ambiguous descriptor
 
-A parseable direct-child JSON that declares the recognized schema but fails validation is not treated as absence. Multiple matching descriptors are also invalid. Developer rejects the structured routing advertisement instead of choosing silently.
+Validation에 실패한 기본 `toc.json`, 또는 recognized schema를 선언했지만 validation에 실패한 alternate descriptor는 absence로 취급하지 않는다. 여러 recognized descriptor도 invalid다. Developer는 조용히 하나를 선택하지 않고 structured routing advertisement를 거부한다.
 
 Pi may still expose the underlying Skill independently of Developer.
 
@@ -403,7 +403,7 @@ Strong enforcement comes from generated refined values, not a large authoring sc
 ```text
 Pi-admitted Skill material
   → exact bounded Skill bytes
-  → structured: schema-identified TOC bytes → Parsed TOC
+  → structured: default-or-schema-identified TOC bytes → Parsed TOC
     | unstructured: explicit versioned no-TOC state
   → source-bound Capability revision
   → Capability Applicability
@@ -417,7 +417,7 @@ Pi-admitted Skill material
 
 ### Parsed TOC
 
-Normalized `$schema`, `when`, `unless`, Reference paths, Reference conditions, and authoring identity. It contains no self-declared owner or Capability ID.
+Normalized canonical schema identity, `when`, `unless`, Reference paths, Reference conditions를 가진다. Optional `$schema` 선언이 있거나 없는 기본 descriptor는 같은 value로 refine된다. Self-declared owner나 Capability ID는 포함하지 않는다.
 
 ### Skill-bound TOC
 
@@ -473,7 +473,7 @@ Upper Judgment classifies the Need as `covered`, `partially-covered`, `conflicte
 Schema and package checks enforce only what authors actually write.
 
 ```text
-canonical `$schema` required and const
+canonical `$schema` optional in `toc.json`, required and const in alternates
 unknown fields rejected
 when/unless arrays non-empty and duplicate-free
 Reference paths unique
@@ -716,7 +716,7 @@ provider/model response
 
 | Failure | Required outcome |
 | --- | --- |
-| Matching TOC schema absent | Capability remains unstructured. |
+| Default와 schema-identified TOC가 모두 absent | Capability remains unstructured. |
 | Pi excludes a same-name candidate | Developer follows the Pi-selected catalog and does not reconstruct the excluded source. |
 | Recognized TOC fails validation | Structured routing advertisement rejected; no silent fallback. |
 | Multiple matching descriptors | Ambiguous TOC failure; none selected. |
@@ -789,7 +789,7 @@ Co-required grouping, explicit route IDs, artifact declarations, custom read ord
 각 item은 독립 module, focused failing check, green commit을 가진다. 다음 item은 이전 module을 수정하지 않고 explicit output을 조합해야 한다.
 
 1. Complete Reference Selection: every declared Reference is dispositioned exactly once, uncertainty is preserved, and selected paths follow declaration order.
-2. Parse one schema-identified TOC: raw bytes either become one immutable Parsed TOC or fail before owner binding and file acquisition.
+2. Parse one default-or-schema-identified TOC: raw bytes either become one immutable Parsed TOC or fail before owner binding and file acquisition.
 3. Bind one Capability: Pi source provenance and Skill-relative root generate Capability identity; exact Skill plus normalized TOC or an explicit versioned no-TOC marker generate revision identity.
 4. Accept one applicability proposal: `applicable | not-applicable | needs-context` requires model-neutral basis and binds exactly one Need and Capability revision.
 5. Seal one selected context: selected paths are acquired atomically with containment, exact bytes, hashes, and provenance.
@@ -808,8 +808,8 @@ Do not begin with TUI, XState, automatic migration generation, a generalized rou
 ### Authoring
 
 - simple TOC can be written without repeating Skill or Reference bodies;
-- filename-independent exact schema discovery works only inside Pi-discovered Skill roots;
-- duplicate descriptors and unsupported schema versions fail clearly;
+- 기본 `toc.json`은 `$schema` 없이 동작하고 alternate filename은 Pi-discovered Skill root 안에서 exact schema를 요구한다;
+- default와 alternate의 동시 존재, duplicate alternate, unsupported schema version은 명확히 실패한다;
 - same names from different source descriptors cannot collapse to one runtime identity;
 - Capability revision changes with SKILL or TOC content but not unselected Reference body drift;
 - Pi-excluded same-name candidates are not recovered by an independent Developer scan;
@@ -817,7 +817,7 @@ Do not begin with TUI, XState, automatic migration generation, a generalized rou
 - path traversal and symlink escape fail;
 - every declared file exists;
 - every first-party route material is declared;
-- absent matching schema remains normal and recognized invalid presence remains visible.
+- 두 descriptor 형태가 모두 없는 것은 정상이며 invalid default 또는 recognized alternate presence는 계속 visible하다.
 
 ### Selection
 
@@ -853,7 +853,6 @@ The following remain provisional and should be decided through fixtures rather t
 - Whether declaration order is sufficient for all real co-required Reference cases.
 - Whether every Reference must be dispositioned or a bounded candidate shortlist can preserve omission safety at lower context cost.
 - How stronger evaluator and user assurance attach to Contributions.
-- Which independent package, if any, owns the reusable schema; Developer must not regain a runtime dependency on Judgment merely for parsing.
 - Whether Pi will expose trust-filtered pre-dedup source descriptors and a disambiguated command surface for same-name coexistence.
 - Whether one Skill Contribution may address several Needs or batching remains a projection over one-Need assignments.
 

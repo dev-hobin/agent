@@ -554,7 +554,7 @@ Owns Work Case transitions and invariants. It does not own Pi hooks, TUI, or Ski
 
 ### Contribution Router
 
-Selects an available Capability based on the Contribution Need and Context. For a structured Skill-backed Capability, it applies root applicability from the schema-identified TOC and Skill-local Reference relevance. For an unstructured Capability, it does not synthesize an authored predicate or Reference route and permits only open-world applicability using Pi-admitted metadata and an explicit basis. It does not produce Conclusions or Need Coverage and does not enforce a fixed Skill order.
+Selects an available Capability based on the Contribution Need and Context. For a structured Skill-backed Capability, it applies root applicability from the default-or-schema-identified TOC and Skill-local Reference relevance. For an unstructured Capability, it does not synthesize an authored predicate or Reference route and permits only open-world applicability using Pi-admitted metadata and an explicit basis. It does not produce Conclusions or Need Coverage and does not enforce a fixed Skill order.
 
 ### Model Protocol
 
@@ -564,7 +564,7 @@ Provider-specific response envelopes, tool-call dialects, structured-output limi
 
 ### Pi Adapter
 
-Translates between Pi hooks and Work Core transitions. It combines Pi-selected Skill provenance, exact Skill content, and a schema-identified TOC or explicit no-TOC state into a refined Capability inventory, and generates source-bound Capability IDs and content-and-routing-bound revision IDs. A recognized invalid descriptor is not reduced to a no-TOC state. It normalizes provider/model-specific responses into Model Protocol proposals. It does not cause the Work Core to own the raw filesystem, Pi discovery policy, or provider SDK types.
+Translates between Pi hooks and Work Core transitions. It combines Pi-selected Skill provenance, exact Skill content, and a default-or-schema-identified TOC or explicit no-TOC state into a refined Capability inventory, and generates source-bound Capability IDs and content-and-routing-bound revision IDs. A recognized invalid descriptor is not reduced to a no-TOC state. It normalizes provider/model-specific responses into Model Protocol proposals. It does not cause the Work Core to own the raw filesystem, Pi discovery policy, or provider SDK types.
 
 ### Work Record
 

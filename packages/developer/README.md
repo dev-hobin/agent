@@ -62,7 +62,7 @@ Included Skills:
 - `doctor`
 - `visualize`
 
-Structured Skills select declared References, seal exact bytes and hashes, and fail closed on drift. Unstructured Skills seal the exact admitted `SKILL.md`. Skill-local resolution never grants upper Need Coverage or closes Judgment.
+Structured Skills select declared References, seal exact bytes and hashes, and fail closed on drift. Unstructured Skills seal the exact admitted `SKILL.md`. When Developer is off, each reference-bearing Skill's framework-independent `Supporting Materials` section directs the agent to its colocated Skill TOC and the smallest materially applicable Reference set. Skill-local resolution never grants upper Need Coverage or closes Judgment.
 
 ## Exact Actions and Effects
 

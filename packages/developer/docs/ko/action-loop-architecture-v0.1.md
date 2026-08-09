@@ -721,7 +721,7 @@ one accepted invariant
 첫 slice는 architecture 전체가 아니라 가장 불확실했던 Upper Judgment–Skill–Reference linking을 끝까지 통과한다.
 
 ```text
-raw schema-identified TOC
+raw default-or-schema-identified TOC
   → Parsed TOC
   → source-bound Capability
   → accepted applicability proposal

@@ -553,7 +553,7 @@ Work Case transition과 invariant를 소유한다. Pi hook, TUI, Skill discovery
 
 ### Contribution Router
 
-Contribution Need와 Context를 보고 사용할 Capability를 선택한다. Structured Skill-backed Capability에는 schema-identified TOC의 root applicability와 Skill-local Reference relevance를 적용한다. Unstructured Capability에는 authored predicate나 Reference route를 합성하지 않고 Pi-admitted metadata와 explicit basis를 사용한 open-world applicability만 허용한다. Conclusion이나 Need Coverage를 만들지 않고 fixed Skill order를 강제하지 않는다.
+Contribution Need와 Context를 보고 사용할 Capability를 선택한다. Structured Skill-backed Capability에는 default-or-schema-identified TOC의 root applicability와 Skill-local Reference relevance를 적용한다. Unstructured Capability에는 authored predicate나 Reference route를 합성하지 않고 Pi-admitted metadata와 explicit basis를 사용한 open-world applicability만 허용한다. Conclusion이나 Need Coverage를 만들지 않고 fixed Skill order를 강제하지 않는다.
 
 ### Model Protocol
 
@@ -563,7 +563,7 @@ Provider-specific response envelopes, tool-call dialects, structured-output limi
 
 ### Pi Adapter
 
-Pi hook과 Work Core transition 사이를 번역한다. Pi-selected Skill provenance, exact Skill content, schema-identified TOC 또는 explicit no-TOC state를 refined Capability inventory로 결합하고 source-bound Capability ID와 content-and-routing-bound revision ID를 생성한다. Recognized invalid descriptor는 no-TOC state로 축소하지 않는다. Provider/model-specific responses를 Model Protocol proposal로 정규화한다. Work Core가 raw filesystem, Pi discovery policy, provider SDK type을 소유하게 하지 않는다.
+Pi hook과 Work Core transition 사이를 번역한다. Pi-selected Skill provenance, exact Skill content, default-or-schema-identified TOC 또는 explicit no-TOC state를 refined Capability inventory로 결합하고 source-bound Capability ID와 content-and-routing-bound revision ID를 생성한다. Recognized invalid descriptor는 no-TOC state로 축소하지 않는다. Provider/model-specific responses를 Model Protocol proposal로 정규화한다. Work Core가 raw filesystem, Pi discovery policy, provider SDK type을 소유하게 하지 않는다.
 
 ### Work Record
 

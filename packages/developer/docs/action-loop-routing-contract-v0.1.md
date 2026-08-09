@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-routing-contract-v0.1.md)
 >
 > Baseline: `@hobin/developer@0.1.19`
 >
-> Runtime note: `@hobin/developer@0.2.0-rc.1` implements this schema-identified TOC boundary. The old route-policy files are removed; there is no dual-format compatibility loader.
+> Runtime note: `@hobin/developer@0.2.0-rc.1` implements this default-or-schema-identified Skill TOC boundary. The old route-policy files are removed; there is no compatibility loader for that retired shape.
 >
 > Authored: 2026-08-06
 
@@ -34,7 +34,7 @@ The new principle is:
 
 > Authors write only applicability and local material relevance. Markdown owns the content contract, while the compiler and runtime generate the complexity of identity, selection, provenance, and coverage.
 
-The TOC descriptor therefore retains a small shape similar to the existing `judgment.json`. `toc.json` is only the recommended filename, not its identity.
+The Skill TOC therefore retains a small, framework-independent shape. The default `toc.json` needs no schema declaration; an alternate direct-child filename opts in by declaring the canonical `$schema`.
 
 ## 2. Linking structure to resolve
 
@@ -82,9 +82,9 @@ Expresses an input missing from the evaluation of the current Closure Requiremen
 
 Owns the Skill family’s Core Question, Judgment Spine, Output, Completion, Missing Evidence, and Boundary.
 
-### Schema-identified TOC descriptor
+### Skill TOC descriptor
 
-Owns only Skill family applicability and Skill-local Reference relevance. It is identified among direct-child JSON documents in a Pi-discovered Skill root by declaring the canonical `$schema`.
+Owns only Skill applicability and local supporting-material relevance. The colocated `toc.json` is the default descriptor. An alternate direct-child JSON document is a descriptor only when it declares the canonical `$schema`. This contract is framework-independent; Developer is one consumer.
 
 ### Reference Markdown
 
@@ -98,7 +98,6 @@ Own owner binding, IDs, hashes, selection state, exact content, applied-material
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "An observable situation in which this Skill can materially address the current Contribution Need."
   ],
@@ -116,7 +115,7 @@ Own owner binding, IDs, hashes, selection state, exact content, applied-material
 }
 ```
 
-This is the entire authoring shape. `toc.json` is recommended, but the filename is not part of the contract.
+This is the entire default `toc.json` authoring shape. `$schema` is optional at that filename. To use another direct-child filename, add the canonical `$schema` shown by the checked-in generic Skill TOC schema.
 
 No route IDs, artifact declarations, stop strings, sibling Skill links, hashes, Coverage fields, or runtime state are authored here.
 
@@ -132,23 +131,24 @@ Bounded discovery is performed only within each discovered Skill root.
 Pi-discovered Skill root
   → direct-child regular `*.json` files only
   → bounded file count and bytes
-  → top-level `$schema` exact match
+  → default `toc.json`, with optional canonical `$schema`
+     or alternate filename with exact canonical `$schema`
   → one recognized TOC descriptor
 ```
 
-- 0 matching descriptors: it is an unstructured Capability.
-- 1 matching descriptor: parse, validate, and bind it.
-- 2 or more matching descriptors: ambiguous TOC failure.
+- 0 recognized descriptors: it is an unstructured Capability.
+- 1 recognized descriptor: parse, validate, and bind it.
+- 2 or more recognized descriptors: ambiguous TOC failure.
 - Unsupported version from the known TOC schema family: unsupported-version failure.
 - Nested JSON and JSON outside the Skill root are not candidates.
 - The runtime does not fetch the schema URI over the network; it maps it exactly to a bundled validator.
-- `toc.json` is only an authoring convention; another direct-child filename can be identified by the same schema URI.
+- An unrelated direct-child JSON file without the canonical schema is not a descriptor.
 
 ### `$schema`
 
-A required document-kind and authoring-version discriminator. Its value must exactly match the canonical URI required by the schema’s `const` and supported by the compiler. One field handles editor association, discovery, and validation selection.
+Optional in the default `toc.json`; required as the document-kind and authoring-version discriminator for any alternate filename. When present, its value must exactly match the canonical URI required by the schema’s `const` and supported by the compiler.
 
-The schema URI is independent of package versions and runtime event versions, and it is included in normalized TOC identity.
+Parsing normalizes both forms to the same canonical schema identity, so adding or removing the optional declaration from an otherwise identical `toc.json` does not change the normalized TOC. The schema URI remains independent of package and runtime event versions.
 
 ### Human name and runtime identity
 
@@ -217,7 +217,7 @@ Insufficient evidence is not an `unless`; it is runtime `needs-context`.
 
 Skill-local prepared materials. An empty array can represent a self-contained Skill.
 
-A Skill without a matching TOC schema descriptor can also be discovered normally as an unstructured Capability.
+A Skill with neither default `toc.json` nor a schema-identified alternate can also be discovered normally as an unstructured Capability.
 
 ### `references[].path`
 
@@ -244,7 +244,7 @@ This example uses the recommended filename `toc.json`.
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "A concrete completion, correctness, compatibility, coverage, or evidence claim must be judged."
   ],
@@ -284,7 +284,7 @@ An abbreviated portion of `model` looks like this.
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "Consequential conditions, rules, contracts, histories, or proof boundaries must be modeled."
   ],
@@ -352,7 +352,7 @@ This order is a deterministic acquisition order, not a global importance rank. C
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/developer/schemas/skill-toc-v0.1.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-toc-v0.1.schema.json",
   "when": [
     "The Skill's bounded judgment is applicable."
   ],
@@ -367,13 +367,13 @@ Root applicability is machine-visible, but `SKILL.md` owns the entire method.
 
 ### Unstructured Skill
 
-No matching TOC schema descriptor is present. Pi-admitted metadata and the Skill description remain available for open-world matching, but the Capability advertises no authored applicability predicate or structured Reference inventory.
+No default `toc.json` or schema-identified alternate is present. Pi-admitted metadata and the Skill description remain available for open-world matching, but the Capability advertises no authored applicability predicate or structured Reference inventory.
 
 Unstructured applicability uses the same proposal protocol as structured applicability. `matchedWhen` and `matchedUnless` must both be empty, an explicit nonblank basis is still required, and `applicable | not-applicable | needs-context` retain their ordinary meaning. The runtime does not invent a synthetic `when` merely to permit assignment.
 
 ### Invalid or ambiguous descriptor
 
-A parseable direct-child JSON document that declares the recognized schema but fails validation is not treated as absent. Multiple matching descriptors are also invalid. Developer rejects the structured routing advertisement rather than choosing silently.
+A default `toc.json` that fails validation, or an alternate descriptor that declares the recognized schema but fails validation, is not treated as absent. Multiple recognized descriptors are also invalid. Developer rejects the structured routing advertisement rather than choosing silently.
 
 Pi may still expose the underlying Skill independently of Developer.
 
@@ -403,7 +403,7 @@ Strong enforcement comes from generated refined values, not from a large authori
 ```text
 Pi-admitted Skill material
   → exact bounded Skill bytes
-  → structured: schema-identified TOC bytes → Parsed TOC
+  → structured: default-or-schema-identified TOC bytes → Parsed TOC
     | unstructured: explicit versioned no-TOC state
   → source-bound Capability revision
   → Capability Applicability
@@ -417,7 +417,7 @@ Pi-admitted Skill material
 
 ### Parsed TOC
 
-Normalized `$schema`, `when`, `unless`, Reference paths, Reference conditions, and authoring identity. It contains no self-declared owner or Capability ID.
+Normalized canonical schema identity, `when`, `unless`, Reference paths, and Reference conditions. A default descriptor with or without its optional `$schema` declaration refines to the same value. It contains no self-declared owner or Capability ID.
 
 ### Skill-bound TOC
 
@@ -473,7 +473,7 @@ Upper Judgment classifies the Need as `covered`, `partially-covered`, `conflicte
 Schema and package checks enforce only what authors actually write.
 
 ```text
-canonical `$schema` required and const
+canonical `$schema` optional in `toc.json`, required and const in alternates
 unknown fields rejected
 when/unless arrays non-empty and duplicate-free
 Reference paths unique
@@ -716,7 +716,7 @@ provider/model response
 
 | Failure | Required outcome |
 | --- | --- |
-| Matching TOC schema absent | Capability remains unstructured. |
+| Default and schema-identified TOC both absent | Capability remains unstructured. |
 | Pi excludes a same-name candidate | Developer follows the Pi-selected catalog and does not reconstruct the excluded source. |
 | Recognized TOC fails validation | Structured routing advertisement rejected; no silent fallback. |
 | Multiple matching descriptors | Ambiguous TOC failure; none selected. |
@@ -789,7 +789,7 @@ Co-required grouping, explicit route IDs, artifact declarations, custom read ord
 Each item has an independent module, focused failing check, and green commit. The next item must compose the previous module’s explicit output without modifying that module.
 
 1. Complete Reference Selection: every declared Reference is dispositioned exactly once, uncertainty is preserved, and selected paths follow declaration order.
-2. Parse one schema-identified TOC: raw bytes either become one immutable Parsed TOC or fail before owner binding and file acquisition.
+2. Parse one default-or-schema-identified TOC: raw bytes either become one immutable Parsed TOC or fail before owner binding and file acquisition.
 3. Bind one Capability: Pi source provenance and Skill-relative root generate Capability identity; exact Skill plus normalized TOC or an explicit versioned no-TOC marker generate revision identity.
 4. Accept one applicability proposal: `applicable | not-applicable | needs-context` requires model-neutral basis and binds exactly one Need and Capability revision.
 5. Seal one selected context: selected paths are acquired atomically with containment, exact bytes, hashes, and provenance.
@@ -808,8 +808,8 @@ Do not begin with TUI, XState, automatic migration generation, a generalized rou
 ### Authoring
 
 - a simple TOC can be written without repeating Skill or Reference bodies;
-- filename-independent exact schema discovery works only inside Pi-discovered Skill roots;
-- duplicate descriptors and unsupported schema versions fail clearly;
+- default `toc.json` works without `$schema`, while alternate filenames require the exact schema inside Pi-discovered Skill roots;
+- a default plus an alternate, duplicate alternates, and unsupported schema versions fail clearly;
 - same names from different source descriptors cannot collapse into one runtime identity;
 - Capability revision changes with SKILL or TOC content, but not with unselected Reference body drift;
 - Pi-excluded same-name candidates are not recovered by an independent Developer scan;
@@ -817,7 +817,7 @@ Do not begin with TUI, XState, automatic migration generation, a generalized rou
 - path traversal and symlink escape fail;
 - every declared file exists;
 - every first-party route material is declared;
-- an absent matching schema remains normal, while recognized invalid presence remains visible.
+- absence of both descriptor forms remains normal, while an invalid default or recognized alternate remains visible.
 
 ### Selection
 
@@ -853,7 +853,6 @@ The following remain provisional and should be decided through fixtures rather t
 - Whether declaration order is sufficient for all real co-required Reference cases.
 - Whether every Reference must be dispositioned or a bounded candidate shortlist can preserve omission safety at lower context cost.
 - How stronger evaluator and user assurance attach to Contributions.
-- Which independent package, if any, owns the reusable schema; Developer must not regain a runtime dependency on Judgment merely for parsing.
 - Whether Pi will expose trust-filtered pre-dedup source descriptors and a disambiguated command surface for same-name coexistence.
 - Whether one Skill Contribution may address several Needs or batching remains a projection over one-Need assignments.
 
