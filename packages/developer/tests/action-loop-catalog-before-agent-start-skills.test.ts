@@ -171,6 +171,7 @@ test("catalogues every Pi-provided Skill into a source-bound discovery outcome",
 				reason: "model-invocation-disabled",
 			},
 		]);
+		assert.deepEqual(result.unavailable, []);
 		assert.equal(
 			result.entries.some((entry) => entry.candidate.label === "unlisted"),
 			false,
@@ -195,11 +196,12 @@ test("an empty Pi catalog does not rediscover Skills beneath cwd", async (t) => 
 		status: "catalogued",
 		entries: [],
 		excluded: [],
+		unavailable: [],
 	});
 	assert.equal(Object.isFrozen(result), true);
 });
 
-test("catalog adaptation failure rejects the handoff without partial entries", async (t) => {
+test("duplicate Pi occurrences are unavailable without hiding the rest of the catalog", async (t) => {
 	const workspace = await createWorkspace(t);
 	const skillRoot = join(workspace, "skills", "duplicate");
 	const skillFile = join(skillRoot, "SKILL.md");
@@ -211,14 +213,37 @@ test("catalog adaptation failure rejects the handoff without partial entries", a
 		sourceBaseDir: workspace,
 	});
 
+	const otherRoot = join(workspace, "skills", "other");
+	const otherFile = join(otherRoot, "SKILL.md");
+	await writeSkill(otherFile, "other");
+	const other = loadedSkill({
+		name: "other",
+		filePath: otherFile,
+		skillRootPath: otherRoot,
+		sourceBaseDir: workspace,
+	});
 	const result = await catalogBeforeAgentStartSkills(
-		hookInput(workspace, [skill, skill]),
+		hookInput(workspace, [skill, other, skill]),
 	);
 
-	assert.equal(result.status, "rejected");
-	if (result.status === "rejected") {
-		assert.equal(result.error.code, "duplicate-occurrence");
-		assert.equal("entries" in result, false);
+	assert.equal(result.status, "catalogued");
+	if (result.status === "catalogued") {
+		assert.deepEqual(
+			result.entries.map((entry) => entry.candidate.label),
+			["other"],
+		);
+		assert.deepEqual(
+			result.unavailable.map((entry) => [
+				entry.label,
+				entry.error.code,
+				entry.error.index,
+			]),
+			[
+				["duplicate", "duplicate-occurrence", 0],
+				["duplicate", "duplicate-occurrence", 2],
+			],
+		);
 		assert.equal(Object.isFrozen(result), true);
+		assert.equal(Object.isFrozen(result.unavailable), true);
 	}
 });

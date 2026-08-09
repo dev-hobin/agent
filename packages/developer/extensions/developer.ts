@@ -55,6 +55,7 @@ import {
 	actionLoopWorkCasePausedEvent,
 	actionLoopWorkCaseWaitingEvent,
 	assertPersistableActionLoopSessionEvent,
+	extractReplayEvent,
 	replayActionLoopSession,
 	withActionLoopReplayEvent,
 	type ActionLoopSessionBranchEntry,
@@ -343,6 +344,7 @@ export default async function developer(pi: ExtensionAPI) {
 		}
 		const view = inspectActionLoopWorkbench({
 			enabled: developerEnabled,
+			capabilityInventory: liveCapabilityInventory,
 			activeWorkCase,
 			heldWorkCase,
 			completedWorkCase,
@@ -355,14 +357,16 @@ export default async function developer(pi: ExtensionAPI) {
 			return;
 		}
 		const overview = view.sections.find((section) => section.id === "overview");
-		const overviewLines = (overview?.items ?? []).flatMap((item) => [
+		const overviewLines = (overview?.items ?? [])
+			.filter((item) => item.title !== "Capabilities" || item.tone !== "success")
+			.flatMap((item) => [
 			`${item.title.toLowerCase()} · ${compactLine(item.summary)}`,
-			...item.details.flatMap((detail) =>
-				detail.lines.map(
-					(line) => `${detail.label.toLowerCase()} · ${compactLine(line)}`,
+				...item.details.flatMap((detail) =>
+					detail.lines.map(
+						(line) => `${detail.label.toLowerCase()} · ${compactLine(line)}`,
+					),
 				),
-			),
-		]);
+			]);
 		ctx.ui.setWidget(
 			"developer",
 			[...overviewLines, `next · ${compactLine(view.next)}`].slice(0, 6),
@@ -377,7 +381,11 @@ export default async function developer(pi: ExtensionAPI) {
 		replaceWorkCaseOwnership({});
 		liveHostObservations = [];
 		currentActionLoopRequest = undefined;
-		pendingActionLoopBranch = toolPolicyRestartRequired ? undefined : branch;
+		pendingActionLoopBranch =
+			!toolPolicyRestartRequired &&
+			branch.some((entry) => extractReplayEvent(entry).status !== "absent")
+				? branch
+				: undefined;
 		actionLoopReplayFailure = undefined;
 		developerEnabled = toolPolicyRestartRequired
 			? false
@@ -1135,18 +1143,19 @@ export default async function developer(pi: ExtensionAPI) {
 	};
 
 	const refreshCapabilityInventory = async (ctx: ExtensionCommandContext) => {
-		if (typeof ctx.getSystemPromptOptions !== "function") return;
-		replaceCapabilityInventory(
-			await prepareLiveCapabilityInventory(
-				{ systemPromptOptions: ctx.getSystemPromptOptions() },
-				skillsRoot,
-			),
+		if (typeof ctx.getSystemPromptOptions !== "function") return undefined;
+		const result = await prepareLiveCapabilityInventory(
+			{ systemPromptOptions: ctx.getSystemPromptOptions() },
+			skillsRoot,
 		);
+		replaceCapabilityInventory(result);
+		return result;
 	};
 
 	const statusMessage = () => {
 		const view = inspectActionLoopWorkbench({
 			enabled: developerEnabled,
+			capabilityInventory: liveCapabilityInventory,
 			activeWorkCase,
 			heldWorkCase,
 			completedWorkCase,
@@ -1171,7 +1180,23 @@ export default async function developer(pi: ExtensionAPI) {
 			"Inspect the canonical Action Loop Workbench or run a focused continuity action",
 		getArgumentCompletions: completeDeveloperArgs,
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
-			const setAndNotifyEnabled = (enabled: boolean): boolean => {
+				const setAndNotifyEnabled = async (
+				enabled: boolean,
+			): Promise<boolean> => {
+				if (enabled) {
+					const inventory = await refreshCapabilityInventory(ctx);
+					if (inventory?.status !== "ready") {
+						const reason = inventory
+							? `${inventory.error.code}: ${inventory.error.message}`
+							: "Pi did not expose the current Skill inventory";
+						ctx.ui.notify(
+							`Developer was not enabled because Capability readiness failed (${reason}).`,
+							"error",
+						);
+						refreshUI(ctx);
+						return false;
+					}
+				}
 				if (!setDeveloperEnabled(enabled, ctx)) return false;
 				ctx.ui.notify(`Developer: ${enabled ? "on" : "off"}`, "info");
 				return true;
@@ -1188,7 +1213,7 @@ export default async function developer(pi: ExtensionAPI) {
 					);
 					if (!confirmed) return false;
 				}
-				setAndNotifyEnabled(false);
+				await setAndNotifyEnabled(false);
 				return true;
 			};
 
@@ -1660,6 +1685,7 @@ export default async function developer(pi: ExtensionAPI) {
 					ctx,
 					inspectActionLoopWorkbench({
 						enabled: developerEnabled,
+						capabilityInventory: liveCapabilityInventory,
 						activeWorkCase,
 						heldWorkCase,
 						completedWorkCase,
@@ -1726,7 +1752,7 @@ export default async function developer(pi: ExtensionAPI) {
 				return;
 			}
 			if (action === "on") {
-				setAndNotifyEnabled(true);
+				await setAndNotifyEnabled(true);
 				return;
 			}
 			if (action === "off") await turnOff();
@@ -1750,7 +1776,7 @@ export default async function developer(pi: ExtensionAPI) {
 		},
 	);
 
-	pi.on("before_agent_start", async (event) => {
+	pi.on("before_agent_start", async (event, ctx) => {
 		const inventory = await prepareLiveCapabilityInventory(event, skillsRoot);
 		replaceCapabilityInventory(inventory);
 		if (pendingActionLoopBranch) {
@@ -1772,6 +1798,7 @@ export default async function developer(pi: ExtensionAPI) {
 			}
 			reconcileActionLoopTools();
 		}
+		refreshUI(ctx);
 		if (!developerEnabled) return;
 		currentActionLoopRequest = event.prompt;
 		liveHostObservations = [];

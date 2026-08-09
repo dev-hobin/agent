@@ -46,7 +46,7 @@ function statusTone(
 	status: ActionLoopWorkbenchSnapshot["status"],
 ): WorkbenchTone {
 	if (status === "blocked" || status === "unavailable") return "error";
-	if (status === "waiting") return "warning";
+	if (status === "waiting" || status === "preparing") return "warning";
 	if (status === "completed") return "success";
 	return "normal";
 }

@@ -1,4 +1,5 @@
 import type { CompletedWorkCase } from "../src/action-loop/work/complete-work-case.ts";
+import type { LiveCapabilityInventoryResult } from "./action-loop-capability-inventory.ts";
 import {
 	isLiveBlockedWorkCaseState,
 	isLivePausedWorkCaseState,
@@ -9,6 +10,7 @@ import {
 
 export type ActionLoopWorkbenchStatus =
 	| "off"
+	| "preparing"
 	| "idle"
 	| "active"
 	| "paused"
@@ -55,6 +57,7 @@ export interface ActionLoopWorkbenchRuntime {
 	readonly activeWorkCase?: LiveWorkCaseState;
 	readonly heldWorkCase?: LiveHeldWorkCaseState;
 	readonly completedWorkCase?: CompletedWorkCase;
+	readonly capabilityInventory?: LiveCapabilityInventoryResult;
 	readonly replayPending?: boolean;
 	readonly replayUnavailable?: boolean;
 }
@@ -89,6 +92,15 @@ function details(
 	return Object.freeze(values.filter((value) => value !== undefined));
 }
 
+function workbenchStatusTone(
+	status: ActionLoopWorkbenchStatus,
+): ActionLoopWorkbenchItem["tone"] {
+	if (status === "blocked" || status === "unavailable") return "error";
+	if (status === "waiting" || status === "preparing") return "warning";
+	if (status === "completed") return "success";
+	return "normal";
+}
+
 function status(runtime: ActionLoopWorkbenchRuntime): {
 	readonly value: ActionLoopWorkbenchStatus;
 	readonly label: string;
@@ -107,6 +119,18 @@ function status(runtime: ActionLoopWorkbenchRuntime): {
 			value: "unavailable",
 			label: "Recovery required",
 			next: "Turn Developer off to discard unavailable branch ownership.",
+		};
+	if (runtime.capabilityInventory === undefined)
+		return {
+			value: "preparing",
+			label: "Preparing",
+			next: "Prepare the current Pi Skill inventory before starting work.",
+		};
+	if (runtime.capabilityInventory.status === "rejected")
+		return {
+			value: "unavailable",
+			label: "Capability unavailable",
+			next: `Resolve ${runtime.capabilityInventory.error.code}: ${runtime.capabilityInventory.error.message}`,
 		};
 	if (runtime.heldWorkCase) {
 		if (isLivePausedWorkCaseState(runtime.heldWorkCase))
@@ -153,24 +177,42 @@ export function inspectActionLoopWorkbench(
 	const currentStatus = status(runtime);
 	const ownership = runtime.activeWorkCase ?? runtime.heldWorkCase;
 	const workCase = ownership?.workCase ?? runtime.completedWorkCase;
-	const headline =
-		workCase?.outcome.statement ??
-		(runtime.replayPending
-			? "Current branch ownership awaits inventory-bound recovery."
-			: "No current work");
+	let headline = "No current work";
+	if (workCase) headline = workCase.outcome.statement;
+	else if (runtime.replayPending) {
+		headline = "Current branch ownership awaits inventory-bound recovery.";
+	} else if (runtime.capabilityInventory?.status === "rejected") {
+		headline = `Capability readiness failed: ${runtime.capabilityInventory.error.code}`;
+	}
 	const overviewItems: ActionLoopWorkbenchItem[] = [
-		item(
-			"Status",
-			currentStatus.label,
-			currentStatus.value === "blocked" || currentStatus.value === "unavailable"
-				? "error"
-				: currentStatus.value === "waiting"
-					? "warning"
-					: currentStatus.value === "completed"
-						? "success"
-						: "normal",
-		),
+		item("Status", currentStatus.label, workbenchStatusTone(currentStatus.value)),
 	];
+	if (runtime.capabilityInventory) {
+		const inventory = runtime.capabilityInventory;
+		overviewItems.push(
+			inventory.status === "ready"
+				? item(
+						"Capabilities",
+						`${inventory.value.summary.bound} bound · ${inventory.value.summary.unavailable} unavailable · ${inventory.value.summary.excluded} excluded`,
+						inventory.value.summary.unavailable > 0 ? "warning" : "success",
+						details(
+							detail(
+								"Unavailable",
+								inventory.value.inventory.unavailable.map(
+									(entry) =>
+										`${entry.label}: ${entry.error.code} · ${entry.error.message}`,
+								),
+							),
+						),
+					)
+				: item(
+						"Capability readiness",
+						`${inventory.error.code}: ${inventory.error.message}`,
+						"error",
+						details(detail("Source", [inventory.error.path])),
+					),
+		);
+	}
 	if (workCase) {
 		overviewItems.push(
 			item(

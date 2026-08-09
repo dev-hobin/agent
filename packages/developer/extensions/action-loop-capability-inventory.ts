@@ -56,6 +56,16 @@ export async function prepareLiveCapabilityInventory(
 	skillsRoot: string,
 ): Promise<LiveCapabilityInventoryResult> {
 	const catalog = await catalogBeforeAgentStartSkills(event);
+	if (catalog.status === "rejected") return catalog;
+	const unavailablePackageSkill = catalog.unavailable.find((entry) =>
+		isWithinRoot(skillsRoot, entry.skillFilePath),
+	);
+	if (unavailablePackageSkill) {
+		return Object.freeze({
+			status: "rejected" as const,
+			error: unavailablePackageSkill.error,
+		});
+	}
 	const inventory = await bindPiCapabilityInventory(catalog);
 	if (inventory.status === "rejected") return inventory;
 
@@ -99,7 +109,8 @@ export async function prepareLiveCapabilityInventory(
 			boundCapabilitiesBySkillName: admittedCapabilities,
 			summary: Object.freeze({
 				bound,
-				unavailable: inventory.entries.length - bound,
+				unavailable:
+					inventory.entries.length - bound + inventory.unavailable.length,
 				excluded: inventory.excluded.length,
 			}),
 		}),

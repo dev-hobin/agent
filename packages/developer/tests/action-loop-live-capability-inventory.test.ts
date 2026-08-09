@@ -87,6 +87,51 @@ test("live inventory admits only bound Pi-loaded package Skills", async (t) => {
 	);
 });
 
+test("an unavailable external Skill does not disable bound Developer Skills", async (t) => {
+	const root = await workspace(t);
+	const developerRoot = join(root, "developer-skills");
+	const ready = await skill(developerRoot, "ready");
+	const externalRoot = join(root, "external", "skills", "dynamic");
+	const externalFile = join(externalRoot, "SKILL.md");
+	const externalSourceRoot = join(root, "external", "dist");
+	await mkdir(externalRoot, { recursive: true });
+	await mkdir(externalSourceRoot, { recursive: true });
+	await writeFile(externalFile, "# Dynamic external Skill\n");
+	const external: Skill = {
+		name: "dynamic-external",
+		description: "An externally admitted Skill with inconsistent provenance.",
+		filePath: externalFile,
+		baseDir: externalRoot,
+		disableModelInvocation: false,
+		sourceInfo: {
+			path: externalFile,
+			source: "extension:index",
+			scope: "temporary",
+			origin: "top-level",
+			baseDir: externalSourceRoot,
+		},
+	};
+
+	const result = await prepareLiveCapabilityInventory(
+		event(root, [ready, external]),
+		developerRoot,
+	);
+
+	assert.equal(result.status, "ready");
+	if (result.status !== "ready") return;
+	assert.deepEqual(result.value.summary, {
+		bound: 1,
+		unavailable: 1,
+		excluded: 0,
+	});
+	assert.deepEqual([...result.value.availablePackageSkills.keys()], ["ready"]);
+	assert.equal(result.value.inventory.unavailable[0]?.label, "dynamic-external");
+	assert.equal(
+		result.value.inventory.unavailable[0]?.error.code,
+		"source-root-escape",
+	);
+});
+
 test("duplicate Pi source occurrence rejects the live handoff atomically", async (t) => {
 	const root = await workspace(t);
 	const ready = await skill(root, "ready");

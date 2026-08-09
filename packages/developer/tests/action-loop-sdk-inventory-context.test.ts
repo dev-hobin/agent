@@ -152,6 +152,7 @@ function readyInventory(
 				status: "inventoried",
 				entries: capabilities.map(({ entry }) => entry),
 				excluded: [],
+				unavailable: [],
 			},
 			availablePackageSkills: new Map(),
 			boundCapabilitiesBySkillName: new Map(

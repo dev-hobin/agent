@@ -53,7 +53,7 @@ interface HarnessBranchEntry {
 	};
 }
 
-function createHarness() {
+function createHarness(commandSkills: Skill[] = loadedLeaves) {
 	const handlers = new Map<string, Array<(event: any, ctx: any) => any>>();
 	const tools = new Map<string, any>();
 	const commands = new Map<string, any>();
@@ -178,6 +178,10 @@ function createHarness() {
 		hasUI: true,
 		ui,
 		isIdle: () => true,
+		getSystemPromptOptions: () => ({
+			cwd: packageRoot,
+			skills: commandSkills,
+		}),
 		sessionManager: {
 			getBranch: () => [...branchEntries],
 			getSessionFile: () => sessionFile,
@@ -418,6 +422,61 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 	assert.doesNotMatch(
 		result.systemPrompt,
 		/admitted_skills:.*model/,
+	);
+});
+
+test("a new branch becomes ready without claiming recovery work", async () => {
+	const harness = createHarness();
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+	await harness.commands.get("developer").handler("status", harness.ctx);
+
+	const message = harness.notifications.at(-1)?.message ?? "";
+	assert.match(message, /developer · Ready/);
+	assert.match(message, /Overview · Capabilities:/);
+	assert.doesNotMatch(message, /Recovery pending|awaits inventory-bound recovery/);
+});
+
+test("activation failure preserves built-in tools and does not record enabled mode", async () => {
+	const base = loadedLeaves[0];
+	if (!base) throw new Error("Expected one Developer Skill fixture");
+	const malformed: Skill = {
+		...base,
+		sourceInfo: {
+			...base.sourceInfo,
+			baseDir: join(packageRoot, "dist"),
+		},
+	};
+	const harness = createHarness([malformed]);
+	await developer(harness.api);
+	await harness.emit("session_start", {
+		type: "session_start",
+		reason: "startup",
+	});
+	await harness.commands.get("developer").handler("on", harness.ctx);
+
+	assert.match(
+		harness.notifications.at(-1)?.message ?? "",
+		/Developer was not enabled because Capability readiness failed/,
+	);
+	assert.deepEqual(
+		new Set(
+			harness
+				.activeTools()
+				.filter((name) => ["bash", "edit", "write"].includes(name)),
+		),
+		new Set(["bash", "edit", "write"]),
+	);
+	assert.equal(
+		harness.entries.some(
+			(entry) =>
+				entry.customType === "developer.mode" && entryEnabled(entry) === true,
+		),
+		false,
 	);
 });
 

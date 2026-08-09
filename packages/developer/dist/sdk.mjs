@@ -707,7 +707,8 @@ async function bindPiCapabilityInventory(catalog) {
   return Object.freeze({
     status: "inventoried",
     entries: Object.freeze(entries),
-    excluded: catalog.excluded
+    excluded: catalog.excluded,
+    unavailable: catalog.unavailable
   });
 }
 
@@ -1524,23 +1525,86 @@ async function discoverAdaptedSkillToc(candidate) {
 
 // src/action-loop/pi/catalog-pi-loaded-skills.ts
 async function catalogBeforeAgentStartSkills(event) {
-  const adapted = await adaptPiSkillCatalog(
-    event.systemPromptOptions.skills ?? []
-  );
-  if (!adapted.ok) {
-    return Object.freeze({
-      status: "rejected",
-      error: adapted.error
-    });
+  const candidates = [];
+  const excluded = [];
+  const unavailable = [];
+  const skills = event.systemPromptOptions.skills ?? [];
+  for (let index = 0; index < skills.length; index += 1) {
+    const skill = skills[index];
+    if (skill === void 0) {
+      return Object.freeze({
+        status: "rejected",
+        error: Object.freeze({
+          code: "invalid-skill",
+          index,
+          path: `skills[${index}]`,
+          message: "Pi Skill catalog contains an empty entry"
+        })
+      });
+    }
+    const adapted = await adaptPiSkillCatalog([skill]);
+    if (!adapted.ok) {
+      unavailable.push(
+        Object.freeze({
+          label: skill.name,
+          skillFilePath: skill.filePath,
+          error: Object.freeze({
+            ...adapted.error,
+            index,
+            path: adapted.error.path.replace("skills[0]", `skills[${index}]`)
+          })
+        })
+      );
+      continue;
+    }
+    excluded.push(...adapted.excluded);
+    const candidate = adapted.inventory[0];
+    if (candidate) candidates.push({ index, candidate });
+  }
+  const occurrences = /* @__PURE__ */ new Map();
+  for (const current of candidates) {
+    const key = [
+      current.candidate.source.kind,
+      current.candidate.source.locator,
+      current.candidate.source.skillRoot
+    ].join("\0");
+    occurrences.set(key, [...occurrences.get(key) ?? [], current]);
+  }
+  const uniqueCandidates = [];
+  for (const occurrence of occurrences.values()) {
+    const first = occurrence[0];
+    if (occurrence.length === 1 && first !== void 0) {
+      uniqueCandidates.push(first);
+      continue;
+    }
+    for (const duplicate of occurrence) {
+      unavailable.push(
+        Object.freeze({
+          label: duplicate.candidate.label,
+          skillFilePath: duplicate.candidate.skillFilePath,
+          error: Object.freeze({
+            code: "duplicate-occurrence",
+            index: duplicate.index,
+            path: `skills[${duplicate.index}]`,
+            message: "Pi Skill catalog repeats one source-bound occurrence"
+          })
+        })
+      );
+    }
   }
   const entries = [];
-  for (const candidate of adapted.inventory) {
+  for (const { candidate } of uniqueCandidates.sort(
+    (left, right) => left.index - right.index
+  )) {
     entries.push(await discoverAdaptedSkillToc(candidate));
   }
   return Object.freeze({
     status: "catalogued",
     entries: Object.freeze(entries),
-    excluded: adapted.excluded
+    excluded: Object.freeze(excluded),
+    unavailable: Object.freeze(
+      unavailable.sort((left, right) => left.error.index - right.error.index)
+    )
   });
 }
 

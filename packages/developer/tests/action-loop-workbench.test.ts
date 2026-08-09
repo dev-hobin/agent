@@ -6,7 +6,23 @@ import {
 	inspectActionLoopWorkbench,
 	type ActionLoopWorkbenchSnapshot,
 } from "../extensions/action-loop-workbench.ts";
+import type { LiveCapabilityInventoryResult } from "../extensions/action-loop-capability-inventory.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
+
+const readyInventory: LiveCapabilityInventoryResult = {
+	status: "ready",
+	value: {
+		inventory: {
+			status: "inventoried",
+			entries: [],
+			excluded: [],
+			unavailable: [],
+		},
+		availablePackageSkills: new Map(),
+		boundCapabilitiesBySkillName: new Map(),
+		summary: { bound: 0, unavailable: 0, excluded: 0 },
+	},
+};
 
 function openedWorkCase() {
 	const opened = openLiveWorkCase(undefined, {
@@ -48,6 +64,7 @@ test("canonical Workbench shows waiting meaning without internal identity", () =
 	if (waiting.status !== "waiting") return;
 	const snapshot = inspectActionLoopWorkbench({
 		enabled: true,
+		capabilityInventory: readyInventory,
 		heldWorkCase: waiting.state,
 	});
 	assert.equal(snapshot.status, "waiting");
@@ -64,12 +81,23 @@ test("canonical Workbench shows waiting meaning without internal identity", () =
 	);
 });
 
-test("canonical Workbench distinguishes off, ready, active, and unavailable", () => {
+test("canonical Workbench distinguishes preparing, ready, active, and unavailable", () => {
 	assert.equal(inspectActionLoopWorkbench({ enabled: false }).status, "off");
-	assert.equal(inspectActionLoopWorkbench({ enabled: true }).status, "idle");
+	assert.equal(
+		inspectActionLoopWorkbench({ enabled: true }).status,
+		"preparing",
+	);
 	assert.equal(
 		inspectActionLoopWorkbench({
 			enabled: true,
+			capabilityInventory: readyInventory,
+		}).status,
+		"idle",
+	);
+	assert.equal(
+		inspectActionLoopWorkbench({
+			enabled: true,
+			capabilityInventory: readyInventory,
 			activeWorkCase: openedWorkCase(),
 		}).status,
 		"active",

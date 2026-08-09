@@ -475,6 +475,7 @@ test("Capability binding rejection remains explicit after successful acquisition
 			},
 		],
 		excluded: [],
+		unavailable: [],
 	} satisfies BeforeAgentStartSkillCatalogResult;
 
 	const result = await bindPiCapabilityInventory(malformed);
@@ -492,7 +493,7 @@ test("Capability binding rejection remains explicit after successful acquisition
 	}
 });
 
-test("a rejected hook catalog cannot produce a Capability inventory", async (t) => {
+test("unavailable duplicate occurrences cannot produce bound Capabilities", async (t) => {
 	const workspace = await createWorkspace(t);
 	const skillRoot = join(workspace, "skills", "duplicate");
 	const skillFile = join(skillRoot, "SKILL.md");
@@ -511,10 +512,13 @@ test("a rejected hook catalog cannot produce a Capability inventory", async (t) 
 
 	const result = await bindPiCapabilityInventory(loaded);
 
-	assert.equal(result.status, "rejected");
-	if (result.status === "rejected") {
-		assert.equal(result.error.code, "duplicate-occurrence");
-		assert.equal("entries" in result, false);
+	assert.equal(result.status, "inventoried");
+	if (result.status === "inventoried") {
+		assert.deepEqual(result.entries, []);
+		assert.deepEqual(
+			result.unavailable.map((entry) => entry.error.code),
+			["duplicate-occurrence", "duplicate-occurrence"],
+		);
 		assert.equal(Object.isFrozen(result), true);
 	}
 });

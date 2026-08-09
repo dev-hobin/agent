@@ -13,6 +13,7 @@ import type {
 	BeforeAgentStartSkillCatalogResult,
 	CataloguedPiSkillEntry,
 	StructuredCataloguedPiSkillEntry,
+	UnavailablePiSkillEntry,
 } from "./catalog-pi-loaded-skills.ts";
 
 export const MAX_CAPABILITY_SKILL_BYTES = MAX_SEALED_MATERIAL_BYTES;
@@ -103,6 +104,7 @@ export type PiCapabilityInventoryResult =
 			readonly status: "inventoried";
 			readonly entries: readonly PiCapabilityInventoryEntry[];
 			readonly excluded: readonly PiSkillCatalogExclusion[];
+			readonly unavailable: readonly UnavailablePiSkillEntry[];
 	  }
 	| Extract<
 			BeforeAgentStartSkillCatalogResult,
@@ -327,5 +329,6 @@ export async function bindPiCapabilityInventory(
 		status: "inventoried",
 		entries: Object.freeze(entries),
 		excluded: catalog.excluded,
+		unavailable: catalog.unavailable,
 	});
 }
