@@ -90,6 +90,46 @@ test("SDK opening pipeline refines text proposals into one Work Case and Judgmen
 	assert.equal(judgment.decision.toolCalls, 1);
 });
 
+test("SDK Judgment opening rejects unadmitted contribution functions before canonical state", async () => {
+	const openingRunner = scriptedSdkRunner([
+		{ proposals: [workCaseProposal()] },
+	]);
+	const opened = await openWorkCaseWithSdk({ request, runner: openingRunner });
+	assert.equal(opened.status, "opened");
+	if (opened.status !== "opened") return;
+	const admitted =
+		"A condition model of state, retry, identity, and temporal behavior";
+	const invalid = {
+		...judgmentProposal(),
+		requirements_json: JSON.stringify([
+			{
+				statement: "The contract must be re-proved before any Action.",
+				contribution_needs: [
+					"Invent a parallel proof of the trusted host Action contract",
+				],
+			},
+		]),
+	};
+	const runner = scriptedSdkRunner([
+		{ proposals: [invalid, judgmentProposal()] },
+	]);
+	const judgment = await openJudgmentWithSdk({
+		request,
+		workCase: opened.workCase,
+		contextRevisionId: opened.workCase.revisionId,
+		admissibleContributionFunctions: [admitted],
+		runner,
+	});
+	assert.equal(judgment.status, "opened");
+	if (judgment.status !== "opened") return;
+	assert.equal(judgment.decision.toolCalls, 2);
+	assert.equal(judgment.decision.toolErrors, 1);
+	assert.deepEqual(
+		judgment.judgment.contributionNeeds.map(({ function: value }) => value),
+		[admitted],
+	);
+});
+
 test("SDK Work Case opening keeps target and scope bounded to the delegation", async () => {
 	let systemPrompt = "";
 	const delegated = scriptedSdkRunner([{ proposals: [workCaseProposal()] }]);
@@ -133,8 +173,8 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 		availableEvidenceFunctions: [
 			"Read exact text blocks for one known file path; directory enumeration is unavailable.",
 		],
-		controlledActionContracts: [
-			"edit: mutate only the specified path",
+		admissibleContributionFunctions: [
+			"A condition model of state, retry, identity, and temporal behavior",
 		],
 		runner,
 	});
@@ -145,12 +185,13 @@ test("SDK Judgment opening keeps sequential Warrant Gaps independently closable"
 	);
 	assert.match(
 		decisionPrompt,
-		/controlled_action_contracts[\s\S]*mutate only the specified path/,
+		/admissible_contribution_functions[\s\S]*A condition model of state, retry, identity, and temporal behavior/,
 	);
-	assert.match(systemPrompt, /do not require a whole-workspace pre-Action baseline/i);
+	assert.match(systemPrompt, /controller rejects every unlisted function/);
+	assert.match(systemPrompt, /whole-workspace pre-Action baseline/i);
 	assert.match(
 		systemPrompt,
-		/Never create a Contribution Need that asks[\s\S]*re-prove a supplied controlled Action contract/,
+		/Controlled Action contracts are deliberately absent from the admitted evidence-operation domain/,
 	);
 	assert.match(
 		systemPrompt,

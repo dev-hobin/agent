@@ -18,6 +18,7 @@ import {
 	type SdkActionLoopCheckpoint,
 } from "../src/action-loop/sdk/action-loop-progression-controller.ts";
 import type { SdkActionLoopState } from "../src/action-loop/sdk/action-loop-state.ts";
+import { DELEGATED_REQUEST_EVIDENCE_FUNCTION } from "../src/action-loop/sdk/judgment-evidence-operation.ts";
 import { recordWorkCaseActionCandidate } from "../src/action-loop/work/record-work-case-action-candidate.ts";
 import { recordWorkCaseActionClearance } from "../src/action-loop/work/record-work-case-action-clearance.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
@@ -198,7 +199,15 @@ test("adverse Effect progression opens a fresh remediation intervention Judgment
 						subject: "The unresolved partially applied Effect",
 						question: "Which bounded remediation is proportionate?",
 						requirements_json:
-							'[{"statement":"The remediation addresses the exact adverse consequence.","contribution_needs":["A bounded repair candidate and its risks"]}]',
+							JSON.stringify([
+								{
+									statement:
+										"The remediation addresses the exact adverse consequence.",
+									contribution_needs: [
+										DELEGATED_REQUEST_EVIDENCE_FUNCTION,
+									],
+								},
+							]),
 						basis_json:
 							'["The current failed or partially-applied Effect blocks completion."]',
 					},

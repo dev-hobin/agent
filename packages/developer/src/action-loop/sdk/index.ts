@@ -43,6 +43,7 @@ export * from "./decision-controller.ts";
 export * from "./effect-controller.ts";
 export * from "./effect-remediation-controller.ts";
 export * from "./judgment-controller.ts";
+export * from "./judgment-evidence-operation.ts";
 export * from "./judgment-progression-controller.ts";
 export * from "./proposal-json.ts";
 export * from "./work-case-controller.ts";

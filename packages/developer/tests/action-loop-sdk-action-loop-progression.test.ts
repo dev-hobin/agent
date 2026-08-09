@@ -19,6 +19,7 @@ import {
 import type { SdkActionLoopState } from "../src/action-loop/sdk/action-loop-state.ts";
 import type { EffectObservation } from "../src/action-loop/effect/effect-observation.ts";
 import type { JudgmentConclusion } from "../src/action-loop/judgment/close-judgment.ts";
+import { DELEGATED_REQUEST_EVIDENCE_FUNCTION } from "../src/action-loop/sdk/judgment-evidence-operation.ts";
 import { recordWorkCaseConclusion } from "../src/action-loop/work/record-work-case-conclusion.ts";
 import { openWorkCase } from "../src/action-loop/work/work-case.ts";
 import { scriptedSdkRunner } from "./fixtures/scripted-sdk-runner.ts";
@@ -47,9 +48,7 @@ const judgmentProposal = {
 		{
 			statement:
 				"The model distinguishes consequential lifecycle and response-order cases.",
-			contribution_needs: [
-				"A condition model of state, retry, identity, and temporal behavior",
-			],
+			contribution_needs: [DELEGATED_REQUEST_EVIDENCE_FUNCTION],
 		},
 	]),
 	basis_json: JSON.stringify([

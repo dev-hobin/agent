@@ -63,7 +63,7 @@ export interface SdkJudgmentOpeningInput {
 	readonly contextRevisionId: string;
 	readonly requiredCategory?: SdkJudgmentCategory;
 	readonly availableEvidenceFunctions?: readonly string[];
-	readonly controlledActionContracts?: readonly string[];
+	readonly admissibleContributionFunctions?: readonly string[];
 	readonly runner: SdkDecisionRunner;
 }
 
@@ -144,13 +144,13 @@ export async function openJudgmentWithSdk(
 			objective:
 				"Propose one Category-scoped Judgment for the current unresolved Warrant Gap.",
 			rules: [
-				"Requirements state closure obligations. Contribution Needs state missing evidence or analysis functions, never Skill names, host tool names or availability, Actions, or controller protocol mechanics.",
+				"Requirements state closure obligations. Contribution Needs select missing evidence or analysis functions, never Actions or controller protocol mechanics. When admissible_contribution_functions is present, copy one or more exact listed strings without paraphrase; the controller rejects every unlisted function before canonical admission.",
 				"Outcome, acceptance conditions, and constraints define the target specification, not evidence that the target is attained. Do not create Contribution Needs merely to reinterpret that specification, and never infer completion or no-action from target wording alone. Current Conclusions are trusted current-state facts.",
 				"Treat explicit pre-Action facts in delegated_request as human-provenance evidence at their stated granularity. Do not demand unavailable lower-level fields merely to re-prove those facts unless current evidence disputes them; they never establish later Action or Effect success.",
 				"When explicit delegated pre-Action facts already state that one external condition is unavailable and mutation is forbidden, use one aggregate Requirement with one Contribution Need interpreting that exact admitted human evidence. Do not split it into negative Needs that separately re-prove empty Action history, empty Conclusion history, or the same delegated wording.",
 				"Every Contribution Need must be answerable by an assigned sealed Skill Context or an exact Host Observation available before the Conclusion.",
 				"Do not require an evidence function absent from available_pre_conclusion_evidence. In particular, do not turn whole-workspace enumeration, checksum, shell execution, or unavailable byte metadata into a pre-Action Need when the listed evidence boundary cannot supply it.",
-				"A listed exact-target controlled Action contract owns its collateral scope and is trusted controller evidence, not missing evidence. Never create a Contribution Need that asks a Skill, model, or Host Observation to restate or re-prove a supplied controlled Action contract. Fold contract-guaranteed collateral preservation into the target-specific Requirement, and ask only for target facts not guaranteed by that contract; do not require a whole-workspace pre-Action baseline merely to decide whether that exact-target Action is warranted.",
+				"Controlled Action contracts are deliberately absent from the admitted evidence-operation domain because Action Clearance, Effect settlement, and Completion own those guarantees. Do not recreate an Action contract as a Requirement or ask for a whole-workspace pre-Action baseline.",
 				"Every Requirement must be closable from evidence available before this Judgment's Conclusion; never require the future Action, Effect, or later controller response that the Conclusion would enable.",
 				"For Claim Assurance after a no-action Conclusion, use one aggregate Requirement grounded in trusted current Conclusions and the absence of controlled Effects. Do not reopen previously settled target facts as unrelated new Needs.",
 				"Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance opens only when the trusted controller requires it after settled Effects or a no-action Proportionate Intervention Conclusion; it never opens first and cannot authorize an Action.",
@@ -184,10 +184,12 @@ export async function openJudgmentWithSdk(
 						"No adapter-supplied Host Observation function is available.",
 				},
 				{
-					name: "controlled_action_contracts",
+					name: "admissible_contribution_functions",
 					content:
-						input.controlledActionContracts?.join("\n") ??
-						"No controlled Action contract is available.",
+						input.admissibleContributionFunctions
+							?.map((entry) => JSON.stringify(entry))
+							.join("\n") ??
+						"Legacy caller supplied no closed contribution-function domain.",
 				},
 			],
 			decision:
@@ -239,6 +241,20 @@ export async function openJudgmentWithSdk(
 				const requirements = decodeRequirements(raw.requirements_json);
 				if (!requirements.ok) {
 					return rejected("invalid-requirements", requirements.message);
+				}
+				if (input.admissibleContributionFunctions) {
+					const admitted = new Set(input.admissibleContributionFunctions);
+					const unadmitted = requirements.value.flatMap((requirement) =>
+						requirement.contributionNeeds.filter(
+							(contributionFunction) => !admitted.has(contributionFunction),
+						),
+					);
+					if (unadmitted.length > 0) {
+						return rejected(
+							"unadmitted-contribution-function",
+							"Every Contribution Need must copy one exact admitted contribution function.",
+						);
+					}
 				}
 				const basis = decodeSdkStringList({
 					value: raw.basis_json,

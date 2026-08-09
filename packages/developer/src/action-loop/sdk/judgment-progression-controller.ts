@@ -15,6 +15,7 @@ import type { BoundReferenceSelection } from "../routing/bind-reference-selectio
 import { recordWorkCaseConclusion } from "../work/record-work-case-conclusion.ts";
 import type { ActiveWorkCase } from "../work/work-case.ts";
 import {
+	assessCapabilityInventoryDeterministically,
 	assessCapabilityInventoryWithSdk,
 	type SdkCapabilityInventoryResult,
 	type SdkNamedCapability,
@@ -41,6 +42,10 @@ import type {
 	SdkDecisionRunner,
 	SdkDecisionStopReason,
 } from "./decision-controller.ts";
+import {
+	buildSdkJudgmentEvidenceOperations,
+	selectSdkJudgmentEvidenceOperation,
+} from "./judgment-evidence-operation.ts";
 
 type AssessedInventory = Extract<
 	SdkCapabilityInventoryResult,
@@ -94,6 +99,7 @@ export interface SdkJudgmentProgressionInput {
 	readonly request: string;
 	readonly state: SdkActionLoopState;
 	readonly capabilities: readonly SdkNamedCapability[];
+	readonly availableEvidenceFunctions?: readonly string[];
 	readonly runner: SdkDecisionRunner;
 	readonly maxSteps: number;
 	readonly checkpoint: (
@@ -394,15 +400,35 @@ async function progressNeedInventory(
 	if (inventory.status === "complete") return undefined;
 	const stopped = consumeStep(runtime, "inventory");
 	if (stopped) return stopped;
-	const result = await assessCapabilityInventoryWithSdk({
-		request: runtime.input.request,
-		workCaseId: runtime.progress.workCase.workCaseId,
-		judgmentId: runtime.judgment.judgmentId,
-		contributionNeedId: need.contributionNeedId,
-		contributionNeed: need.function,
-		capabilities: runtime.input.capabilities,
-		runner: runtime.input.runner,
-	});
+	const operation = selectSdkJudgmentEvidenceOperation(
+		buildSdkJudgmentEvidenceOperations({
+			capabilities: runtime.input.capabilities,
+			...(runtime.input.availableEvidenceFunctions
+				? {
+						availableEvidenceFunctions:
+							runtime.input.availableEvidenceFunctions,
+					}
+				: {}),
+		}),
+		need.function,
+	);
+	const result = operation
+		? assessCapabilityInventoryDeterministically({
+				workCaseId: runtime.progress.workCase.workCaseId,
+				judgmentId: runtime.judgment.judgmentId,
+				contributionNeedId: need.contributionNeedId,
+				capabilities: runtime.input.capabilities,
+				operation,
+			})
+		: await assessCapabilityInventoryWithSdk({
+				request: runtime.input.request,
+				workCaseId: runtime.progress.workCase.workCaseId,
+				judgmentId: runtime.judgment.judgmentId,
+				contributionNeedId: need.contributionNeedId,
+				contributionNeed: need.function,
+				capabilities: runtime.input.capabilities,
+				runner: runtime.input.runner,
+			});
 	if (result.status !== "assessed") {
 		return decisionFailure(runtime.progress, "inventory", result);
 	}

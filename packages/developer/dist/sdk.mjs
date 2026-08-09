@@ -6361,13 +6361,13 @@ async function openJudgmentWithSdk(input) {
       stage: "judgment-opening",
       objective: "Propose one Category-scoped Judgment for the current unresolved Warrant Gap.",
       rules: [
-        "Requirements state closure obligations. Contribution Needs state missing evidence or analysis functions, never Skill names, host tool names or availability, Actions, or controller protocol mechanics.",
+        "Requirements state closure obligations. Contribution Needs select missing evidence or analysis functions, never Actions or controller protocol mechanics. When admissible_contribution_functions is present, copy one or more exact listed strings without paraphrase; the controller rejects every unlisted function before canonical admission.",
         "Outcome, acceptance conditions, and constraints define the target specification, not evidence that the target is attained. Do not create Contribution Needs merely to reinterpret that specification, and never infer completion or no-action from target wording alone. Current Conclusions are trusted current-state facts.",
         "Treat explicit pre-Action facts in delegated_request as human-provenance evidence at their stated granularity. Do not demand unavailable lower-level fields merely to re-prove those facts unless current evidence disputes them; they never establish later Action or Effect success.",
         "When explicit delegated pre-Action facts already state that one external condition is unavailable and mutation is forbidden, use one aggregate Requirement with one Contribution Need interpreting that exact admitted human evidence. Do not split it into negative Needs that separately re-prove empty Action history, empty Conclusion history, or the same delegated wording.",
         "Every Contribution Need must be answerable by an assigned sealed Skill Context or an exact Host Observation available before the Conclusion.",
         "Do not require an evidence function absent from available_pre_conclusion_evidence. In particular, do not turn whole-workspace enumeration, checksum, shell execution, or unavailable byte metadata into a pre-Action Need when the listed evidence boundary cannot supply it.",
-        "A listed exact-target controlled Action contract owns its collateral scope and is trusted controller evidence, not missing evidence. Never create a Contribution Need that asks a Skill, model, or Host Observation to restate or re-prove a supplied controlled Action contract. Fold contract-guaranteed collateral preservation into the target-specific Requirement, and ask only for target facts not guaranteed by that contract; do not require a whole-workspace pre-Action baseline merely to decide whether that exact-target Action is warranted.",
+        "Controlled Action contracts are deliberately absent from the admitted evidence-operation domain because Action Clearance, Effect settlement, and Completion own those guarantees. Do not recreate an Action contract as a Requirement or ask for a whole-workspace pre-Action baseline.",
         "Every Requirement must be closable from evidence available before this Judgment's Conclusion; never require the future Action, Effect, or later controller response that the Conclusion would enable.",
         "For Claim Assurance after a no-action Conclusion, use one aggregate Requirement grounded in trusted current Conclusions and the absence of controlled Effects. Do not reopen previously settled target facts as unrelated new Needs.",
         "Proportionate Intervention decides whether current evidence warrants a next Action; it cannot require execution or observation of that same Action. Claim Assurance opens only when the trusted controller requires it after settled Effects or a no-action Proportionate Intervention Conclusion; it never opens first and cannot authorize an Action.",
@@ -6391,8 +6391,8 @@ async function openJudgmentWithSdk(input) {
           content: input.availableEvidenceFunctions?.join("\n") ?? "No adapter-supplied Host Observation function is available."
         },
         {
-          name: "controlled_action_contracts",
-          content: input.controlledActionContracts?.join("\n") ?? "No controlled Action contract is available."
+          name: "admissible_contribution_functions",
+          content: input.admissibleContributionFunctions?.map((entry) => JSON.stringify(entry)).join("\n") ?? "Legacy caller supplied no closed contribution-function domain."
         }
       ],
       decision: "Open only one independently closable Judgment needed to advance this Outcome."
@@ -6432,6 +6432,20 @@ async function openJudgmentWithSdk(input) {
         const requirements = decodeRequirements(raw.requirements_json);
         if (!requirements.ok) {
           return rejected5("invalid-requirements", requirements.message);
+        }
+        if (input.admissibleContributionFunctions) {
+          const admitted = new Set(input.admissibleContributionFunctions);
+          const unadmitted = requirements.value.flatMap(
+            (requirement) => requirement.contributionNeeds.filter(
+              (contributionFunction) => !admitted.has(contributionFunction)
+            )
+          );
+          if (unadmitted.length > 0) {
+            return rejected5(
+              "unadmitted-contribution-function",
+              "Every Contribution Need must copy one exact admitted contribution function."
+            );
+          }
         }
         const basis = decodeSdkStringList({
           value: raw.basis_json,
@@ -6487,6 +6501,70 @@ async function openJudgmentWithSdk(input) {
     message: decision.message,
     decision: decision.metrics
   };
+}
+
+// src/action-loop/sdk/judgment-evidence-operation.ts
+var DELEGATED_REQUEST_EVIDENCE_FUNCTION = "Use the delegated request's admitted human-provenance pre-Action facts for this Requirement.";
+function hostObservationFunction(hostFunction) {
+  return `Use admitted Host evidence function ${JSON.stringify(hostFunction)} for this Requirement.`;
+}
+function unstructuredSkillFunction(capabilityName) {
+  return `Use admitted Skill ${JSON.stringify(capabilityName)} with its sealed Context for this Requirement.`;
+}
+function structuredSkillFunction(capabilityName, when) {
+  return `Use admitted Skill ${JSON.stringify(capabilityName)} under its declared condition ${JSON.stringify(when)} with sealed Context for this Requirement.`;
+}
+function buildSdkJudgmentEvidenceOperations(input) {
+  const operations = [
+    {
+      kind: "delegated-request",
+      function: DELEGATED_REQUEST_EVIDENCE_FUNCTION
+    }
+  ];
+  for (const hostFunction of input.availableEvidenceFunctions ?? []) {
+    const normalized = hostFunction.trim();
+    if (!normalized) continue;
+    operations.push({
+      kind: "host-observation",
+      function: hostObservationFunction(normalized),
+      hostFunction: normalized
+    });
+  }
+  for (const { name, entry } of input.capabilities) {
+    if (entry.routing === "structured") {
+      for (const when of entry.capability.toc.when) {
+        operations.push({
+          kind: "skill",
+          function: structuredSkillFunction(name, when),
+          capabilityName: name,
+          matchedWhen: Object.freeze([when])
+        });
+      }
+      continue;
+    }
+    operations.push({
+      kind: "skill",
+      function: unstructuredSkillFunction(name),
+      capabilityName: name,
+      matchedWhen: Object.freeze([])
+    });
+  }
+  const byFunction = /* @__PURE__ */ new Map();
+  for (const operation of operations) {
+    if (!byFunction.has(operation.function)) {
+      byFunction.set(operation.function, operation);
+    }
+  }
+  return Object.freeze(
+    [...byFunction.values()].sort(
+      (left, right) => left.function.localeCompare(right.function)
+    )
+  );
+}
+function selectSdkJudgmentEvidenceOperation(operations, contributionFunction) {
+  return operations.find(
+    (operation) => operation.function === contributionFunction
+  );
 }
 
 // src/action-loop/work/record-work-case-conclusion.ts
@@ -6857,6 +6935,66 @@ function canonicalInventory(capabilities) {
   }
   canonical.sort((left, right) => left.name.localeCompare(right.name));
   return { ok: true, value: Object.freeze(canonical) };
+}
+function assessCapabilityInventoryDeterministically(input) {
+  const inventory = canonicalInventory(input.capabilities);
+  if (!inventory.ok) {
+    return { status: "invalid-inventory", message: inventory.message };
+  }
+  const selectedCapabilityName = input.operation.kind === "skill" ? input.operation.capabilityName : void 0;
+  if (selectedCapabilityName !== void 0 && !inventory.value.some(
+    (capability) => capability.name === selectedCapabilityName
+  )) {
+    return {
+      status: "invalid-inventory",
+      message: "Admitted evidence operation selects an unavailable Capability."
+    };
+  }
+  const dispositions = [];
+  for (const { name, entry } of inventory.value) {
+    const selected = selectedCapabilityName === name;
+    const accepted = acceptCapabilityApplicability(
+      {
+        workCaseId: input.workCaseId,
+        judgmentId: input.judgmentId,
+        contributionNeedId: input.contributionNeedId,
+        capability: entry.capability
+      },
+      {
+        workCaseId: input.workCaseId,
+        judgmentId: input.judgmentId,
+        contributionNeedId: input.contributionNeedId,
+        capabilityRevisionId: entry.capability.capabilityRevisionId,
+        status: selected ? "applicable" : "not-applicable",
+        matchedWhen: selected && input.operation.kind === "skill" ? input.operation.matchedWhen : [],
+        matchedUnless: [],
+        basis: [
+          selected ? "The exact admitted contribution function selects this Capability and declared condition." : "The exact admitted contribution function selects host evidence or another Capability."
+        ],
+        missingContext: []
+      }
+    );
+    if (accepted.status === "invalid") {
+      return {
+        status: "invalid-inventory",
+        message: `${name}: ${accepted.error.message}`
+      };
+    }
+    dispositions.push({
+      name,
+      assessment: accepted.assessment,
+      ...accepted.status === "assigned" ? { assignment: accepted.assignment } : {}
+    });
+  }
+  return {
+    status: "assessed",
+    dispositions: Object.freeze(dispositions),
+    assignments: Object.freeze(
+      dispositions.flatMap(
+        ({ assignment }) => assignment === void 0 ? [] : [assignment]
+      )
+    )
+  };
 }
 function inventoryParameters(capabilities) {
   const fields = {};
@@ -10193,7 +10331,22 @@ async function progressNeedInventory(runtime, need) {
   if (inventory.status === "complete") return void 0;
   const stopped = consumeStep(runtime, "inventory");
   if (stopped) return stopped;
-  const result = await assessCapabilityInventoryWithSdk({
+  const operation = selectSdkJudgmentEvidenceOperation(
+    buildSdkJudgmentEvidenceOperations({
+      capabilities: runtime.input.capabilities,
+      ...runtime.input.availableEvidenceFunctions ? {
+        availableEvidenceFunctions: runtime.input.availableEvidenceFunctions
+      } : {}
+    }),
+    need.function
+  );
+  const result = operation ? assessCapabilityInventoryDeterministically({
+    workCaseId: runtime.progress.workCase.workCaseId,
+    judgmentId: runtime.judgment.judgmentId,
+    contributionNeedId: need.contributionNeedId,
+    capabilities: runtime.input.capabilities,
+    operation
+  }) : await assessCapabilityInventoryWithSdk({
     request: runtime.input.request,
     workCaseId: runtime.progress.workCase.workCaseId,
     judgmentId: runtime.judgment.judgmentId,
@@ -11517,17 +11670,19 @@ async function progressActionLoopWithSdk(input) {
         checkpoints
       };
     }
+    const evidenceOperations = buildSdkJudgmentEvidenceOperations({
+      capabilities: input.capabilities,
+      ...input.availableEvidenceFunctions ? { availableEvidenceFunctions: input.availableEvidenceFunctions } : {}
+    });
     const opened = await openJudgmentWithSdk({
       request: input.request,
       workCase: state.workCase,
       contextRevisionId: state.workCase.revisionId,
+      admissibleContributionFunctions: evidenceOperations.map(
+        (operation) => operation.function
+      ),
       ...requiredCategory ? { requiredCategory } : {},
       ...input.availableEvidenceFunctions ? { availableEvidenceFunctions: input.availableEvidenceFunctions } : {},
-      ...input.actions ? {
-        controlledActionContracts: input.actions.map(
-          (action) => `${action.name}: ${action.description}`
-        )
-      } : {},
       runner: input.runner
     });
     steps += 1;
@@ -11596,6 +11751,7 @@ async function progressActionLoopWithSdk(input) {
     request: trustedClaimAssuranceRequest(input.request, state),
     state,
     capabilities: input.capabilities,
+    ...input.availableEvidenceFunctions ? { availableEvidenceFunctions: input.availableEvidenceFunctions } : {},
     runner: input.runner,
     maxSteps: maxSteps - steps,
     checkpoint: input.checkpoint
@@ -12083,6 +12239,7 @@ function createPiSdkDecisionRunner(options) {
   });
 }
 export {
+  DELEGATED_REQUEST_EVIDENCE_FUNCTION,
   EFFECT_OBSERVATION_VERSION,
   EFFECT_REMEDIATION_VERSION,
   EFFECT_VERSION,
@@ -12096,12 +12253,14 @@ export {
   WORK_CASE_WAIT_VERSION,
   acceptEffectObservation,
   acceptEffectRemediation,
+  assessCapabilityInventoryDeterministically,
   assessCapabilityInventoryWithSdk,
   assessNeedCoverageWithSdk,
   beginEffect,
   bindCapability,
   bindPiCapabilityInventory,
   blockWorkCase,
+  buildSdkJudgmentEvidenceOperations,
   catalogBeforeAgentStartSkills,
   clearActionWithHostPermission,
   completeWorkCaseWithSdk,
@@ -12126,6 +12285,7 @@ export {
   resumeWaitingWorkCase,
   routeStructuredCapabilityWithSdk,
   sealCapabilityContextWithSdk,
+  selectSdkJudgmentEvidenceOperation,
   selectStructuredReferencesWithSdk,
   settleEffectWithSdk,
   waitWorkCase

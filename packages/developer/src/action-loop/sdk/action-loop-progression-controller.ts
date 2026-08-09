@@ -32,6 +32,7 @@ import {
 	type SdkJudgmentCategory,
 	type SdkJudgmentOpeningResult,
 } from "./judgment-controller.ts";
+import { buildSdkJudgmentEvidenceOperations } from "./judgment-evidence-operation.ts";
 import {
 	progressJudgmentWithSdk,
 	type SdkJudgmentCheckpoint,
@@ -1226,20 +1227,22 @@ export async function progressActionLoopWithSdk(
 				checkpoints,
 			};
 		}
+		const evidenceOperations = buildSdkJudgmentEvidenceOperations({
+			capabilities: input.capabilities,
+			...(input.availableEvidenceFunctions
+				? { availableEvidenceFunctions: input.availableEvidenceFunctions }
+				: {}),
+		});
 		const opened = await openJudgmentWithSdk({
 			request: input.request,
 			workCase: state.workCase,
 			contextRevisionId: state.workCase.revisionId,
+			admissibleContributionFunctions: evidenceOperations.map(
+				(operation) => operation.function,
+			),
 			...(requiredCategory ? { requiredCategory } : {}),
 			...(input.availableEvidenceFunctions
 				? { availableEvidenceFunctions: input.availableEvidenceFunctions }
-				: {}),
-			...(input.actions
-				? {
-						controlledActionContracts: input.actions.map(
-							(action) => `${action.name}: ${action.description}`,
-						),
-					}
 				: {}),
 			runner: input.runner,
 		});
@@ -1310,6 +1313,9 @@ export async function progressActionLoopWithSdk(
 		request: trustedClaimAssuranceRequest(input.request, state),
 		state,
 		capabilities: input.capabilities,
+		...(input.availableEvidenceFunctions
+			? { availableEvidenceFunctions: input.availableEvidenceFunctions }
+			: {}),
 		runner: input.runner,
 		maxSteps: maxSteps - steps,
 		checkpoint: input.checkpoint,

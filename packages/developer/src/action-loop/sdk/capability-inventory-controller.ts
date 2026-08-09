@@ -15,6 +15,7 @@ import type {
 } from "./decision-controller.ts";
 import { isSdkProposalObject } from "./proposal-object.ts";
 import { renderSdkProposalPrompt } from "./proposal-prompt.ts";
+import type { SdkJudgmentEvidenceOperation } from "./judgment-evidence-operation.ts";
 
 const applicabilityStatuses = [
 	"applicable",
@@ -69,6 +70,14 @@ export interface SdkCapabilityInventoryInput {
 	readonly runner: SdkDecisionRunner;
 }
 
+export interface SdkDeterministicCapabilityInventoryInput {
+	readonly workCaseId: string;
+	readonly judgmentId: string;
+	readonly contributionNeedId: string;
+	readonly capabilities: readonly SdkNamedCapability[];
+	readonly operation: SdkJudgmentEvidenceOperation;
+}
+
 function isApplicabilityStatus(
 	value: unknown,
 ): value is (typeof applicabilityStatuses)[number] {
@@ -108,6 +117,86 @@ function canonicalInventory(
 	}
 	canonical.sort((left, right) => left.name.localeCompare(right.name));
 	return { ok: true, value: Object.freeze(canonical) };
+}
+
+/**
+ * Dispositions the complete inventory from one exact admitted evidence
+ * operation without asking a model to reinterpret Capability ownership.
+ */
+export function assessCapabilityInventoryDeterministically(
+	input: SdkDeterministicCapabilityInventoryInput,
+): SdkCapabilityInventoryResult {
+	const inventory = canonicalInventory(input.capabilities);
+	if (!inventory.ok) {
+		return { status: "invalid-inventory", message: inventory.message };
+	}
+	const selectedCapabilityName =
+		input.operation.kind === "skill"
+			? input.operation.capabilityName
+			: undefined;
+	if (
+		selectedCapabilityName !== undefined &&
+		!inventory.value.some(
+			(capability) => capability.name === selectedCapabilityName,
+		)
+	) {
+		return {
+			status: "invalid-inventory",
+			message: "Admitted evidence operation selects an unavailable Capability.",
+		};
+	}
+	const dispositions: SdkCapabilityInventoryDisposition[] = [];
+	for (const { name, entry } of inventory.value) {
+		const selected = selectedCapabilityName === name;
+		const accepted = acceptCapabilityApplicability(
+			{
+				workCaseId: input.workCaseId,
+				judgmentId: input.judgmentId,
+				contributionNeedId: input.contributionNeedId,
+				capability: entry.capability,
+			},
+			{
+				workCaseId: input.workCaseId,
+				judgmentId: input.judgmentId,
+				contributionNeedId: input.contributionNeedId,
+				capabilityRevisionId: entry.capability.capabilityRevisionId,
+				status: selected ? "applicable" : "not-applicable",
+				matchedWhen:
+					selected && input.operation.kind === "skill"
+						? input.operation.matchedWhen
+						: [],
+				matchedUnless: [],
+				basis: [
+					selected
+						? "The exact admitted contribution function selects this Capability and declared condition."
+						: "The exact admitted contribution function selects host evidence or another Capability.",
+				],
+				missingContext: [],
+			},
+		);
+		if (accepted.status === "invalid") {
+			return {
+				status: "invalid-inventory",
+				message: `${name}: ${accepted.error.message}`,
+			};
+		}
+		dispositions.push({
+			name,
+			assessment: accepted.assessment,
+			...(accepted.status === "assigned"
+				? { assignment: accepted.assignment }
+				: {}),
+		});
+	}
+	return {
+		status: "assessed",
+		dispositions: Object.freeze(dispositions),
+		assignments: Object.freeze(
+			dispositions.flatMap(({ assignment }) =>
+				assignment === undefined ? [] : [assignment],
+			),
+		),
+	};
 }
 
 function inventoryParameters(

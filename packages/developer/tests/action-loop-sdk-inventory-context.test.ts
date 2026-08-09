@@ -20,9 +20,11 @@ import {
 } from "../extensions/action-loop-session.ts";
 import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
 import {
+	assessCapabilityInventoryDeterministically,
 	assessCapabilityInventoryWithSdk,
 	type SdkNamedCapability,
 } from "../src/action-loop/sdk/capability-inventory-controller.ts";
+import { buildSdkJudgmentEvidenceOperations } from "../src/action-loop/sdk/judgment-evidence-operation.ts";
 import { inspectCapabilityContextProgress } from "../src/action-loop/sdk/context-progress.ts";
 import { sealCapabilityContextWithSdk } from "../src/action-loop/sdk/context-sealing-controller.ts";
 import {
@@ -162,6 +164,40 @@ function readyInventory(
 		},
 	};
 }
+
+test("admitted evidence operation deterministically owns complete Capability inventory", async (t) => {
+	const fixture = await capabilityFixture(t);
+	const operations = buildSdkJudgmentEvidenceOperations({
+		capabilities: fixture.capabilities,
+		availableEvidenceFunctions: ["Read one exact known path."],
+	});
+	const selected = operations.find(
+		(operation) =>
+			operation.kind === "skill" && operation.capabilityName === "model",
+	);
+	assert.ok(selected);
+	const assessed = assessCapabilityInventoryDeterministically({
+		workCaseId: "work-sdk-deterministic",
+		judgmentId: "judgment-sdk-deterministic",
+		contributionNeedId: "need-sdk-deterministic",
+		capabilities: fixture.capabilities,
+		operation: selected,
+	});
+	assert.equal(assessed.status, "assessed");
+	if (assessed.status !== "assessed") return;
+	assert.equal(assessed.decision, undefined);
+	assert.deepEqual(
+		assessed.dispositions.map(({ name, assessment }) => ({
+			name,
+			status: assessment.status,
+		})),
+		[
+			{ name: "direct", status: "not-applicable" },
+			{ name: "model", status: "applicable" },
+		],
+	);
+	assert.equal(assessed.assignments.length, 1);
+});
 
 test("SDK inventory assessment is complete and Context sealing stays one Assignment at a time", async (t) => {
 	const fixture = await capabilityFixture(t);
