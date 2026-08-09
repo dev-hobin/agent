@@ -384,10 +384,7 @@ export function recordLiveEffectRemediation(
 			remediationId: accepted.value.effectRemediationId,
 		};
 	}
-	const transitioned = remediateActionLoopEffect(
-		state.phase,
-		accepted.value,
-	);
+	const transitioned = remediateActionLoopEffect(state.phase, accepted.value);
 	if (transitioned.status === "invalid") {
 		return { status: "invalid", message: transitioned.error.message };
 	}

@@ -151,10 +151,7 @@ function invalid<T extends ActionLoopPhase>(
 	});
 }
 
-function phase<const T extends object>(
-	workCaseId: string,
-	value: T,
-): Phase<T> {
+function phase<const T extends object>(workCaseId: string, value: T): Phase<T> {
 	const branded = { ...value, workCaseId } as T &
 		Record<typeof ACTION_LOOP_PHASE, true> & { readonly workCaseId: string };
 	Object.defineProperty(branded, ACTION_LOOP_PHASE, {
@@ -536,8 +533,7 @@ export function remediateActionLoopEffect(
 	const adverse = current.adverseSettlements.find(
 		(settlement) =>
 			settlement.effectId === remediation.adverseEffectId &&
-			settlement.effectSettlementId ===
-				remediation.adverseEffectSettlementId,
+			settlement.effectSettlementId === remediation.adverseEffectSettlementId,
 	);
 	const successful = current.successfulSettlements.find(
 		(settlement) =>

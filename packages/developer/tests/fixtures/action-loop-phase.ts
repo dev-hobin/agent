@@ -27,10 +27,7 @@ export function advancePhaseWithConclusion(
 	current: ActionLoopPhase,
 	conclusion: JudgmentConclusion,
 ): ActionLoopPhase {
-	const opened = openActionLoopJudgment(
-		current,
-		openedJudgmentFor(conclusion),
-	);
+	const opened = openActionLoopJudgment(current, openedJudgmentFor(conclusion));
 	if (opened.status === "invalid") throw new Error(opened.error.message);
 	const concluded = concludeActionLoopJudgment(opened.value, conclusion);
 	if (concluded.status === "invalid") throw new Error(concluded.error.message);

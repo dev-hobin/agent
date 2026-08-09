@@ -183,12 +183,7 @@ function remediationFixture(includeSuccess: boolean): {
 	const concluded = recordWorkCaseConclusion(opened.value, original);
 	if (concluded.status !== "recorded") throw new Error(concluded.status);
 	let phase = phaseAfterConclusions(opened.value.workCaseId, [original]);
-	const adverseEffect = addEffect(
-		concluded.value,
-		phase,
-		original,
-		"adverse",
-	);
+	const adverseEffect = addEffect(concluded.value, phase, original, "adverse");
 	const adverse = settlement(adverseEffect.effect, "partially-applied");
 	const withAdverse = recordWorkCaseEffectAssessment(
 		adverseEffect.workCase,
@@ -223,10 +218,7 @@ function remediationFixture(includeSuccess: boolean): {
 			null,
 		);
 		if (withSuccess.status !== "recorded") throw new Error(withSuccess.status);
-		const successPhase = settleActionLoopEffect(
-			repairEffect.phase,
-			successful,
-		);
+		const successPhase = settleActionLoopEffect(repairEffect.phase, successful);
 		if (successPhase.status === "invalid") {
 			throw new Error(successPhase.error.message);
 		}
@@ -263,16 +255,13 @@ test("adverse Effect progression opens a fresh remediation intervention Judgment
 						category: "Proportionate Intervention",
 						subject: "The unresolved partially applied Effect",
 						question: "Which bounded remediation is proportionate?",
-						requirements_json:
-							JSON.stringify([
-								{
-									statement:
-										"The remediation addresses the exact adverse consequence.",
-									contribution_needs: [
-										DELEGATED_REQUEST_EVIDENCE_FUNCTION,
-									],
-								},
-							]),
+						requirements_json: JSON.stringify([
+							{
+								statement:
+									"The remediation addresses the exact adverse consequence.",
+								contribution_needs: [DELEGATED_REQUEST_EVIDENCE_FUNCTION],
+							},
+						]),
 						basis_json:
 							'["The current failed or partially-applied Effect blocks completion."]',
 					},

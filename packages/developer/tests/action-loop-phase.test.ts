@@ -65,7 +65,10 @@ function claimAssurance(name: string): JudgmentConclusion {
 function actionArtifacts(
 	warrant: JudgmentConclusion,
 	name: string,
-): { readonly candidate: ActionCandidate; readonly clearance: ActionClearance } {
+): {
+	readonly candidate: ActionCandidate;
+	readonly clearance: ActionClearance;
+} {
 	const controlledAction = Object.freeze({
 		kind: `pi-tool-call:${name}`,
 		fingerprint: name.slice(0, 1).repeat(64),
@@ -207,7 +210,10 @@ test("no-Action meaning selects only Assurance, continuity, or remediation", () 
 		intervention("blocked", "no-action", "blocked"),
 	]);
 	assert.deepEqual(
-		{ kind: blocked.kind, disposition: "disposition" in blocked ? blocked.disposition : undefined },
+		{
+			kind: blocked.kind,
+			disposition: "disposition" in blocked ? blocked.disposition : undefined,
+		},
 		{ kind: "continuity", disposition: "blocked" },
 	);
 
@@ -215,7 +221,10 @@ test("no-Action meaning selects only Assurance, continuity, or remediation", () 
 		intervention("waiting", "no-action", "waiting"),
 	]);
 	assert.deepEqual(
-		{ kind: waiting.kind, disposition: "disposition" in waiting ? waiting.disposition : undefined },
+		{
+			kind: waiting.kind,
+			disposition: "disposition" in waiting ? waiting.disposition : undefined,
+		},
 		{ kind: "continuity", disposition: "waiting" },
 	);
 });

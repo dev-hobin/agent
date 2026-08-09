@@ -99,8 +99,7 @@ test("semantic Need selection binds trusted identity without exposing it", () =>
 	if (admitted.status !== "admitted") return;
 	const accepted = acceptLiveHostContribution(state, admitted.observation, {
 		contributionNeed: {
-			requirement:
-				"The product owner's decision is represented exactly.",
+			requirement: "The product owner's decision is represented exactly.",
 			function: "An exact compatibility constraint",
 		},
 		localStatus: "resolved",
@@ -111,9 +110,10 @@ test("semantic Need selection binds trusted identity without exposing it", () =>
 	});
 	assert.equal(accepted.status, "accepted");
 	if (accepted.status === "accepted") {
-		const selectedNeed = state.workCase.openJudgments[0]?.contributionNeeds.find(
-			(need) => need.function === "An exact compatibility constraint",
-		);
+		const selectedNeed =
+			state.workCase.openJudgments[0]?.contributionNeeds.find(
+				(need) => need.function === "An exact compatibility constraint",
+			);
 		assert.equal(
 			accepted.contribution.contributionNeedId,
 			selectedNeed?.contributionNeedId,
@@ -122,8 +122,7 @@ test("semantic Need selection binds trusted identity without exposing it", () =>
 	assert.equal(
 		acceptLiveHostContribution(state, admitted.observation, {
 			contributionNeed: {
-				requirement:
-					"The product owner's decision is represented exactly.",
+				requirement: "The product owner's decision is represented exactly.",
 				function: "A guessed Need",
 			},
 			localStatus: "resolved",

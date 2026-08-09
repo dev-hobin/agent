@@ -125,9 +125,8 @@ export function assessLiveCapabilityApplicability(
 	const assignments =
 		accepted.status === "assigned"
 			? Object.freeze(
-					[...state.assignments, accepted.assignment].sort(
-						(left, right) =>
-							left.assignmentId.localeCompare(right.assignmentId),
+					[...state.assignments, accepted.assignment].sort((left, right) =>
+						left.assignmentId.localeCompare(right.assignmentId),
 					),
 				)
 			: state.assignments;

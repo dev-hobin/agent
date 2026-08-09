@@ -452,10 +452,7 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 			.sort(),
 		MODEL_FACING_TOOL_NAMES,
 	);
-	assert.doesNotMatch(
-		result.systemPrompt,
-		/admitted_skills:.*model/,
-	);
+	assert.doesNotMatch(result.systemPrompt, /admitted_skills:.*model/);
 });
 
 test("a new branch becomes ready without claiming recovery work", async () => {
@@ -471,7 +468,10 @@ test("a new branch becomes ready without claiming recovery work", async () => {
 	const message = harness.notifications.at(-1)?.message ?? "";
 	assert.match(message, /developer · Ready/);
 	assert.match(message, /Overview · Capabilities:/);
-	assert.doesNotMatch(message, /Recovery pending|awaits inventory-bound recovery/);
+	assert.doesNotMatch(
+		message,
+		/Recovery pending|awaits inventory-bound recovery/,
+	);
 });
 
 test("activation failure preserves built-in tools and does not record enabled mode", async () => {
@@ -538,7 +538,10 @@ test("Developer allows stable built-in observations and blocks undeclared extens
 		input: { search: "read tools" },
 	});
 	assert.equal(mcpSearch.block, true);
-	assert.match(mcpSearch.reason, /no trusted Developer host capability declaration/);
+	assert.match(
+		mcpSearch.reason,
+		/no trusted Developer host capability declaration/,
+	);
 	const astMutation = await harness.emit("tool_call", {
 		type: "tool_call",
 		toolName: "ast_grep_replace",
@@ -546,7 +549,10 @@ test("Developer allows stable built-in observations and blocks undeclared extens
 		input: { pattern: "const $A = $B", rewrite: "const $A = $C", apply: true },
 	});
 	assert.equal(astMutation.block, true);
-	assert.match(astMutation.reason, /no trusted Developer host capability declaration/);
+	assert.match(
+		astMutation.reason,
+		/no trusted Developer host capability declaration/,
+	);
 	const mcpCall = await harness.emit("tool_call", {
 		type: "tool_call",
 		toolName: "mcp",
@@ -554,7 +560,10 @@ test("Developer allows stable built-in observations and blocks undeclared extens
 		input: { tool: "external_write", args: { value: "changed" } },
 	});
 	assert.equal(mcpCall.block, true);
-	assert.match(mcpCall.reason, /no trusted Developer host capability declaration/);
+	assert.match(
+		mcpCall.reason,
+		/no trusted Developer host capability declaration/,
+	);
 	const unknown = await harness.emit("tool_call", {
 		type: "tool_call",
 		toolName: "future_mutator",
@@ -562,7 +571,10 @@ test("Developer allows stable built-in observations and blocks undeclared extens
 		input: {},
 	});
 	assert.equal(unknown.block, true);
-	assert.match(unknown.reason, /no trusted Developer host capability declaration/);
+	assert.match(
+		unknown.reason,
+		/no trusted Developer host capability declaration/,
+	);
 });
 
 test("status binds inventory and replays pending branch ownership", async () => {
@@ -697,7 +709,10 @@ test("natural user answers become exact Need-bound Contributions without a Skill
 		};
 	};
 	assert.equal(replayEvent.kind, "host-contribution-accepted");
-	assert.match(replayEvent.proposal?.contributionNeedId ?? "", /^contribution_need_/);
+	assert.match(
+		replayEvent.proposal?.contributionNeedId ?? "",
+		/^contribution_need_/,
+	);
 	assert.deepEqual(replayEvent.proposal?.basis, directAnswerBasis);
 });
 

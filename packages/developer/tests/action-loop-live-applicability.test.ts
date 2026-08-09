@@ -109,8 +109,11 @@ test("applicable Capability creates one current live assignment", () => {
 	assert.deepEqual(result.state.applicabilityAssessments, [result.assessment]);
 	assert.deepEqual(result.state.assignments, [result.assignment]);
 	assert.equal(
-		findCapabilityAssignment(result.state, entry, result.need.contributionNeedId)
-			?.assignmentId,
+		findCapabilityAssignment(
+			result.state,
+			entry,
+			result.need.contributionNeedId,
+		)?.assignmentId,
 		result.assignment?.assignmentId,
 	);
 

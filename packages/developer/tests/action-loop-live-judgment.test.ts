@@ -58,10 +58,7 @@ test("live Judgment records against the exact current Context revision", () => {
 		modelProjection,
 		/"requirement":"Consequential assumptions are explicit\."/,
 	);
-	assert.match(
-		modelProjection,
-		/"function":"accepted behavior observation"/,
-	);
+	assert.match(modelProjection, /"function":"accepted behavior observation"/);
 	assert.doesNotMatch(
 		modelProjection,
 		/(?:work_case|revision|judgment|contribution_need|conclusion|action_candidate|action_clearance|effect|selection|sealed|assignment)_[a-f0-9]+/,

@@ -741,9 +741,7 @@ function trustedClaimAssuranceRequest(
 	state: SdkActionLoopState,
 ): string {
 	const judgment =
-		state.phase.kind === "judgment-active"
-			? state.phase.judgment
-			: undefined;
+		state.phase.kind === "judgment-active" ? state.phase.judgment : undefined;
 	if (judgment?.category !== "Claim Assurance") return request;
 	const conclusions = state.workCase.conclusions.map(
 		(conclusion) => `${conclusion.category}: ${conclusion.answer}`,
@@ -892,7 +890,10 @@ async function routeActionProgression(
 async function progressAcceptedAction(input: {
 	readonly progression: ActionProgressionInput;
 	readonly phase: ActionLoopActionProposalPhase;
-	readonly action: Extract<SdkActionCandidateResult, { readonly status: "accepted" }>;
+	readonly action: Extract<
+		SdkActionCandidateResult,
+		{ readonly status: "accepted" }
+	>;
 	readonly authorizeAction: NonNullable<
 		SdkActionLoopProgressionInput["authorizeAction"]
 	>;
