@@ -85,6 +85,11 @@ import {
 } from "./action-loop-model-tools.ts";
 import { bindPiControlledAction } from "./action-loop-pi-action.ts";
 import {
+	consumeActionLoopProgressionPermit,
+	createActionLoopProgressionPermitState,
+	openActionLoopProgressionPermit,
+} from "./action-loop-progression-permit.ts";
+import {
 	MAX_LIVE_HOST_OBSERVATIONS,
 	admitLiveToolResultObservation,
 	admitLiveUserPromptObservation,
@@ -178,6 +183,7 @@ export default async function developer(pi: ExtensionAPI) {
 		| undefined;
 	let actionLoopReplayFailure: string | undefined;
 	let actionLoopProgressing = false;
+	let actionLoopProgressionPermit = createActionLoopProgressionPermitState();
 	let actionLoopSessionDurable = false;
 	let liveHostObservations: LiveHostObservation[] = [];
 	let actionLoopHistory: ActionLoopSessionEvent[] = [];
@@ -516,6 +522,15 @@ export default async function developer(pi: ExtensionAPI) {
 			if (prepared.status !== "ready") {
 				fail("The current Pi session has no active model for SDK progression.");
 			}
+			const permit = consumeActionLoopProgressionPermit(
+				actionLoopProgressionPermit,
+			);
+			if (permit.status === "refused") {
+				fail(
+					"Developer progression already ran at the current evidence boundary. End this response and continue only after a new user turn, accepted observed Contribution, or finalized Effect Observation.",
+				);
+			}
+			actionLoopProgressionPermit = permit.state;
 			const hadActiveWorkCase = activeWorkCase !== undefined;
 			actionLoopProgressing = true;
 			refreshUI(ctx);
@@ -538,7 +553,7 @@ export default async function developer(pi: ExtensionAPI) {
 								],
 							};
 						},
-						maxSteps: 4,
+						maxSteps: 6,
 						appendCheckpoint(event) {
 							appendActionLoopSessionEvent(event);
 						},
@@ -709,6 +724,9 @@ export default async function developer(pi: ExtensionAPI) {
 			);
 			if (accepted.status === "invalid") fail(accepted.message);
 			activeWorkCase = accepted.state;
+			actionLoopProgressionPermit = openActionLoopProgressionPermit(
+				actionLoopProgressionPermit,
+			);
 			return textResult(
 				`Observed contribution ${accepted.status} for the selected current Need.`,
 				withActionLoopReplayEvent(
@@ -1851,6 +1869,9 @@ export default async function developer(pi: ExtensionAPI) {
 	);
 
 	pi.on("before_agent_start", async (event, ctx) => {
+		actionLoopProgressionPermit = openActionLoopProgressionPermit(
+			actionLoopProgressionPermit,
+		);
 		const inventory = await prepareLiveCapabilityInventory(event, skillsRoot);
 		replaceCapabilityInventory(inventory);
 		await recoverPendingActionLoopBranch(inventory);
@@ -2006,6 +2027,9 @@ export default async function developer(pi: ExtensionAPI) {
 				if (observed.status === "observed") {
 					appendActionLoopSessionEvent(
 						actionLoopEffectObservedEvent(observed.observation),
+					);
+					actionLoopProgressionPermit = openActionLoopProgressionPermit(
+						actionLoopProgressionPermit,
 					);
 				}
 				activeWorkCase = observed.state;
