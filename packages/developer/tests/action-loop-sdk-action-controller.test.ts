@@ -165,3 +165,24 @@ test("SDK Action proposal fails before a model session without Conclusions or ad
 	});
 	assert.equal(missingActions.status, "invariant-failure");
 });
+
+test("SDK Action proposal prompt keeps intended Effects observable and local", async () => {
+	let systemPrompt = "";
+	const scripted = scriptedSdkRunner([{ result: "bounded-stop" }]);
+	const result = await proposeActionWithSdk({
+		request: "Write one exact target file.",
+		workCaseId: conclusion.workCaseId,
+		conclusions: [conclusion],
+		actions: [writeAction],
+		runner: {
+			async run(request) {
+				systemPrompt = request.systemPrompt;
+				return scripted.run(request);
+			},
+		},
+	});
+
+	assert.equal(result.status, "bounded-stop");
+	assert.match(systemPrompt, /positive state or verifier output/);
+	assert.match(systemPrompt, /Do not add absence-of-collateral/);
+});

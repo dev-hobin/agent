@@ -249,6 +249,8 @@ function actionProposalPrompt(input: SdkActionCandidateInput) {
 		objective: "Propose one exact controlled host Action Candidate.",
 		rules: [
 			"Select current required Conclusions and state intended Effects.",
+			"Each intended Effect must be a positive state or verifier output that this controlled Action can produce and a later exact host Observation can distinguish.",
+			"Do not add absence-of-collateral, policy-compliance, permission, or completion claims as intended Effects; those remain separate constraints or closure obligations.",
 			"Do not claim permission, execution, Effect success, or Work Case completion.",
 		],
 		sections: [
