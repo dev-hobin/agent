@@ -2,7 +2,7 @@
 
 English | [한국어](./ko/action-loop-routing-contract-v0.1.md)
 
-> Status: reconstruction design contract
+> Status: implemented contract for `@hobin/developer@0.1.20`
 >
 > Related documents:
 > [Action Loop Architecture](./action-loop-architecture-v0.1.md) ·
@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-routing-contract-v0.1.md)
 >
 > Baseline: `@hobin/developer@0.1.19`
 >
-> Runtime note: `@hobin/developer@0.2.0-rc.1` implements this default-or-schema-identified Skill TOC boundary. The old route-policy files are removed; there is no compatibility loader for that retired shape.
+> Runtime note: `@hobin/developer@0.1.20` implements this default-or-schema-identified Skill TOC boundary. The old route-policy files are removed; there is no compatibility loader for that retired shape.
 >
 > Authored: 2026-08-06
 

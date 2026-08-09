@@ -1,6 +1,6 @@
 {
   "name": "@hobin/developer",
-  "version": "0.2.0-rc.1",
+  "version": "0.1.20",
   "description": "A model-neutral Action Loop for evidence-backed engineering work in Pi.",
   "type": "module",
   "keywords": [

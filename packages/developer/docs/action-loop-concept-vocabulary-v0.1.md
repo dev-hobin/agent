@@ -2,7 +2,7 @@
 
 English | [한국어](./ko/action-loop-concept-vocabulary-v0.1.md)
 
-> Status: reconstruction concept contract
+> Status: implemented concept contract for `@hobin/developer@0.1.20`
 >
 > Related documents:
 > [Action Loop Architecture](./action-loop-architecture-v0.1.md) ·
@@ -10,7 +10,7 @@ English | [한국어](./ko/action-loop-concept-vocabulary-v0.1.md)
 >
 > Baseline: `@hobin/developer@0.1.19`
 >
-> Runtime note: this vocabulary is domain language for describing transition traces. It does not describe the type, tool, or event names of the current 0.1.19 runtime, nor does it require creating a class or JSON field for every concept.
+> Runtime note: `@hobin/developer@0.1.20` uses this vocabulary as its semantic language for transition traces. A concept does not require a one-to-one class, tool, event name, or JSON field.
 >
 > Written: 2026-08-06
 

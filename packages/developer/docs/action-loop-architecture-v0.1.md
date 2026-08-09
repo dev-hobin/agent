@@ -2,7 +2,7 @@
 
 English | [한국어](./ko/action-loop-architecture-v0.1.md)
 
-> Status: reconstruction working contract
+> Status: implemented contract for `@hobin/developer@0.1.20`
 >
 > Baseline: `@hobin/developer@0.1.19`
 >
@@ -10,11 +10,11 @@ English | [한국어](./ko/action-loop-architecture-v0.1.md)
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: the published 0.1.19 artifact does not implement this architecture. The reconstruction branch now uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, and carries one Pi session branch-owned Work Case through current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, exact Pi Action Clearance and occurrence, Effect Observation and settlement, Closure Claim, and completion. Versioned semantic session events replay that state from the current Pi branch without persisting sealed Skill or Reference bytes. The live adapter inherits Pi's default permission policy without adding a separate approval feature. Exact adverse Effect remediation and all three durable nonterminal states—human-owned pause, observed-condition waiting, and Claim-Assured blocking—are live. The published runtime and Skills remain the recovery baseline.
+> Runtime note: `@hobin/developer@0.1.20` implements this architecture. It uses the Action Loop adapter for `before_agent_start` Capability admission, packages `src/action-loop`, and carries one Pi session branch-owned Work Case through current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, exact Pi Action Clearance and occurrence, Effect Observation and settlement, Closure Claim, and completion. Versioned semantic session events replay that state from the current Pi branch without persisting sealed Skill or Reference bytes. The live adapter inherits Pi's default permission policy without adding a separate approval feature. Exact adverse Effect remediation and all three durable nonterminal states—human-owned pause, observed-condition waiting, and Claim-Assured blocking—are live. Published `0.1.19` remains the immutable recovery baseline.
 >
 > Date written: 2026-08-06
 
-## 1. Why this reconstruction is being done
+## 1. Why this architecture changed
 
 Developer’s next product question is not how to expand the Skill inventory or a fixed development procedure.
 
@@ -575,7 +575,7 @@ before_agent_start.systemPromptOptions.skills
   → Action Loop protocol prompt
 ```
 
-This boundary is live in the reconstruction package. Rejected catalogs admit no Developer Skill, while per-entry descriptor or binding failures remain unavailable rather than falling back to unstructured routing.
+This boundary is live in `@hobin/developer@0.1.20`. Rejected catalogs admit no Developer Skill, while per-entry descriptor or binding failures remain unavailable rather than falling back to unstructured routing.
 
 The next live slice opens and projects one bounded Work Case:
 
@@ -786,7 +786,7 @@ Conclusion
 - The canonical adapter, session replay, semantic Workbench, and exact Action gating now own the live runtime.
 - The legacy machine, state projection, route/question tools, Workbench protocol, and `xstate` dependency have been removed.
 - Eval projection, package description, and bilingual README now use canonical Action Loop semantics.
-- Package versioning, publication, and merge to main remain separate approval matters from reconstruction completion.
+- Publication remains a separate operational authorization from implementation completion.
 
 ## 14. Required transition traces
 
@@ -816,7 +816,7 @@ Additional states, events, and abstractions are introduced only when required by
 - forcing all work through the four categories
 - promoting effect settlement to a separate upper-level category
 - a general-purpose ontology for authority, confidence, or priority
-- post-reconstruction backward compatibility with the previous runtime
+- backward compatibility with the `0.1.19` runtime protocol
 - modifying or integrating Operator
 - an SDK-owned host implementation
 - provider/model-specific state machine, category, TOC, or Work Core type

@@ -38,7 +38,7 @@ const expectedSkills = [
 
 const manifest = await readJson(join(root, "package.json"));
 assert.equal(manifest.name, "@hobin/developer");
-assert.equal(manifest.version, "0.2.0-rc.1");
+assert.equal(manifest.version, "0.1.20");
 assert.equal(manifest.dependencies?.xstate, undefined);
 assert.deepEqual(manifest.pi.extensions, ["./extensions/developer.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);

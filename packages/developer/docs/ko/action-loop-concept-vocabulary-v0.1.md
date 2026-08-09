@@ -2,7 +2,7 @@
 
 [English](../action-loop-concept-vocabulary-v0.1.md) | 한국어
 
-> 상태: reconstruction concept contract
+> 상태: `@hobin/developer@0.1.20` 구현 concept 계약
 >
 > 관련 문서:
 > [Action Loop Architecture](./action-loop-architecture-v0.1.md) ·
@@ -10,7 +10,7 @@
 >
 > 기준선: `@hobin/developer@0.1.19`
 >
-> Runtime note: 이 vocabulary는 transition trace를 서술하기 위한 domain language다. 현재 0.1.19 runtime의 type, tool, event 이름을 설명하지 않으며, concept마다 class나 JSON field를 만들 것을 요구하지 않는다.
+> Runtime note: `@hobin/developer@0.1.20`은 이 vocabulary를 transition trace를 위한 semantic language로 사용한다. 각 concept가 class, tool, event name, JSON field와 일대일로 대응할 필요는 없다.
 >
 > 작성 시점: 2026-08-06
 

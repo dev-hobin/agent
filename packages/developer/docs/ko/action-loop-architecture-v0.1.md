@@ -2,7 +2,7 @@
 
 [English](../action-loop-architecture-v0.1.md) | 한국어
 
-> 상태: reconstruction working contract
+> 상태: `@hobin/developer@0.1.20` 구현 계약
 >
 > 기준선: `@hobin/developer@0.1.19`
 >
@@ -10,11 +10,11 @@
 > [Concept Vocabulary](./action-loop-concept-vocabulary-v0.1.md) ·
 > [Capability and Material Routing](./action-loop-routing-contract-v0.1.md)
 >
-> Runtime note: published 0.1.19 artifact는 이 architecture를 구현하지 않는다. Reconstruction branch는 이제 `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 하나의 Pi session branch-owned Work Case를 current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, exact Pi Action Clearance와 occurrence, Effect Observation과 settlement, Closure Claim, completion까지 진행한다. Versioned semantic session event가 sealed Skill 또는 Reference bytes를 저장하지 않고 current Pi branch에서 그 state를 replay한다. Live adapter는 별도 approval feature를 추가하지 않고 Pi의 default permission policy를 상속한다. Exact adverse Effect remediation과 세 durable nonterminal state—human-owned pause, observed-condition waiting, Claim-Assured blocking—가 모두 live이다. Published runtime과 Skills는 recovery baseline으로 유지된다.
+> Runtime note: `@hobin/developer@0.1.20`은 이 architecture를 구현한다. `before_agent_start` Capability admission에 Action Loop adapter를 사용하고 `src/action-loop`을 package에 포함하며 하나의 Pi session branch-owned Work Case를 current Judgment, Capability Assignment, Reference sealing, Contribution, Need Coverage, Conclusion, exact Pi Action Clearance와 occurrence, Effect Observation과 settlement, Closure Claim, completion까지 진행한다. Versioned semantic session event가 sealed Skill 또는 Reference bytes를 저장하지 않고 current Pi branch에서 그 state를 replay한다. Live adapter는 별도 approval feature를 추가하지 않고 Pi의 default permission policy를 상속한다. Exact adverse Effect remediation과 세 durable nonterminal state—human-owned pause, observed-condition waiting, Claim-Assured blocking—가 모두 live다. Published `0.1.19`는 immutable recovery baseline으로 남는다.
 >
 > 작성 시점: 2026-08-06
 
-## 1. 이 reconstruction을 하는 이유
+## 1. 이 architecture가 변경된 이유
 
 Developer의 다음 제품 질문은 Skill 목록이나 고정된 개발 절차를 어떻게 늘릴지가 아니다.
 
@@ -575,7 +575,7 @@ before_agent_start.systemPromptOptions.skills
   → Action Loop protocol prompt
 ```
 
-이 boundary는 reconstruction package에서 live다. Rejected catalog는 어떤 Developer Skill도 admit하지 않고, entry별 descriptor 또는 binding failure는 unstructured routing으로 fallback하지 않은 채 unavailable로 남는다.
+이 boundary는 `@hobin/developer@0.1.20`에서 live다. Rejected catalog는 어떤 Developer Skill도 admit하지 않고, entry별 descriptor 또는 binding failure는 unstructured routing으로 fallback하지 않은 채 unavailable로 남는다.
 
 다음 live slice는 하나의 bounded Work Case를 열고 projection한다.
 
@@ -786,7 +786,7 @@ Conclusion
 - Canonical adapter, session replay, semantic Workbench, exact Action gating이 live runtime을 소유한다.
 - Legacy machine, state projection, route/question tool, Workbench protocol, `xstate` dependency를 제거했다.
 - Eval projection, package description, bilingual README는 canonical Action Loop semantics를 사용한다.
-- package version, publication, main merge는 reconstruction 완료와 별도 승인 사항이다.
+- publication은 구현 완료와 분리된 운영 승인 사항이다.
 
 ## 14. Required transition traces
 
@@ -816,7 +816,7 @@ Conclusion
 - 모든 작업에 네 category를 강제 적용
 - effect settlement를 별도 상위 category로 승격
 - authority, confidence, priority를 위한 일반 목적 ontology
-- 이전 runtime과의 post-reconstruction backward compatibility
+- `0.1.19` runtime protocol과의 backward compatibility
 - Operator 변경 또는 통합
 - SDK-owned host 구현
 - provider/model-specific state machine, category, TOC, Work Core type
