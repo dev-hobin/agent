@@ -379,7 +379,10 @@ export default async function developer(pi: ExtensionAPI) {
 		refreshUI(ctx);
 	};
 
-	const setDeveloperEnabled = (enabled: boolean, ctx: ExtensionContext): boolean => {
+	const setDeveloperEnabled = (
+		enabled: boolean,
+		ctx: ExtensionContext,
+	): boolean => {
 		if (enabled && toolPolicyRestartRequired) {
 			ctx.ui.notify(TOOL_POLICY_RESTART_MESSAGE, "error");
 			refreshUI(ctx);
@@ -400,28 +403,29 @@ export default async function developer(pi: ExtensionAPI) {
 		return true;
 	};
 
-	const controlledPiActionAdapters = (): readonly SdkControlledActionAdapter[] => {
-		const descriptions = new Map(
-			pi.getAllTools().map((tool) => [tool.name, tool.description]),
-		);
-		return (["bash", "edit", "write"] as const).map((name) => ({
-			name,
-			description:
-				descriptions.get(name) ??
-				`Execute one exact controlled Pi ${name} Action.`,
-			bind(input: Readonly<Record<string, unknown>>) {
-				const bound = bindPiControlledAction(name, input);
-				if (bound.status === "invalid") return bound;
-				return {
-					status: "bound" as const,
-					value: {
-						controlledAction: bound.value,
-						canonicalInput: bound.canonicalInput,
-					},
-				};
-			},
-		}));
-	};
+	const controlledPiActionAdapters =
+		(): readonly SdkControlledActionAdapter[] => {
+			const descriptions = new Map(
+				pi.getAllTools().map((tool) => [tool.name, tool.description]),
+			);
+			return (["bash", "edit", "write"] as const).map((name) => ({
+				name,
+				description:
+					descriptions.get(name) ??
+					`Execute one exact controlled Pi ${name} Action.`,
+				bind(input: Readonly<Record<string, unknown>>) {
+					const bound = bindPiControlledAction(name, input);
+					if (bound.status === "invalid") return bound;
+					return {
+						status: "bound" as const,
+						value: {
+							controlledAction: bound.value,
+							canonicalInput: bound.canonicalInput,
+						},
+					};
+				},
+			}));
+		};
 
 	registerActionLoopTool({
 		name: ACTION_LOOP_PROGRESS_TOOL,
@@ -1943,7 +1947,8 @@ export default async function developer(pi: ExtensionAPI) {
 			return;
 		}
 		const startEnabled = pi.getFlag("developer");
-		if (startEnabled === true && !developerEnabled) setDeveloperEnabled(true, ctx);
+		if (startEnabled === true && !developerEnabled)
+			setDeveloperEnabled(true, ctx);
 	});
 	pi.on("session_tree", (_event, ctx) => resetRuntimeFromBranch(ctx));
 	pi.on("agent_settled", (_event, ctx) => refreshUI(ctx));
