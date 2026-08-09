@@ -392,6 +392,12 @@ test("the canonical prompt uses only Pi-admitted Skills and Action Loop tools", 
 	assert.match(result.systemPrompt, /exact cleared host Action/);
 	assert.doesNotMatch(result.systemPrompt, /After a Judgment refusal/);
 	assert.ok(actionLoopModelProtocolPrompt(["specify"]).length <= 700);
+	assert.match(
+		harness.tools
+			.get("developer_progress_action_loop")
+			.promptGuidelines.join("\n"),
+		/judgment-refused requires developer_accept_observation_contribution/,
+	);
 	assert.deepEqual(
 		harness
 			.activeTools()

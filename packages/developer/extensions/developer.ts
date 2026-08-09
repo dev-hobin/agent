@@ -439,6 +439,7 @@ export default async function developer(pi: ExtensionAPI) {
 		promptSnippet: "Progress canonical work with the SDK controller",
 		promptGuidelines: [
 			`Use ${ACTION_LOOP_PROGRESS_TOOL} as the primary Developer entry point and call it again after the exact cleared host Action returns.`,
+			`Recovery: judgment-refused requires ${ACTION_LOOP_ACCEPT_HOST_CONTRIBUTION_TOOL} with exact listed evidence for an unresolved Need; effect-unsettled requires one new observational host tool result. Never repeat progression without that state change.`,
 			"A bounded stop preserves acknowledged branch checkpoints. Do not replace replay-unavailable or held ownership, infer Effect success from a tool return, or bypass complete closure revalidation.",
 		],
 		parameters: Type.Object({}, { additionalProperties: false }),
