@@ -802,59 +802,44 @@ test("SDK Action Loop progression checkpoints one exact host-cleared Action", as
 		effectCheckpoint,
 	);
 	assert.equal(settledLive.workCase.currentEffectAssessments.length, 1);
-	const completionReady = await progressActionLoopWithSdk({
+	const postEffectCheckpoints: SdkActionLoopCheckpoint[] = [];
+	const postEffect = await progressActionLoopWithSdk({
 		request: "Continue after exact Effect settlement.",
 		state: settled.state,
 		capabilities: [],
 		effectObservations: [observation],
 		actions: [writeAction],
-		runner: scriptedSdkRunner([]),
-		maxSteps: 1,
-		checkpoint() {
-			throw new Error("A current settled Effect must not be reassessed.");
-		},
-	});
-	assert.equal(completionReady.status, "ready-for-completion");
-	assert.equal(completionReady.steps, 0);
-	assert.equal(completionReady.checkpoints, 0);
-
-	const completionEvents: string[] = [];
-	const completed = await progressPiActionLoop({
-		request: "Complete the bounded write after exact settlement.",
-		state: settledLive,
-		inventory: { boundCapabilitiesBySkillName: new Map() },
 		runner: scriptedSdkRunner([
 			{
 				proposals: [
 					{
-						mode: "completed",
-						basis_json:
-							'["Every current closure obligation and evidence item is accounted for."]',
-						obligation_0_conclusion_indices_json: "[0,1]",
-						obligation_0_effect_indices_json: "[]",
-						obligation_0_remediation_indices_json: "[]",
-						obligation_0_basis:
-							"Claim Assurance supports the acceptance condition.",
-						obligation_1_conclusion_indices_json: "[]",
-						obligation_1_effect_indices_json: "[0]",
-						obligation_1_remediation_indices_json: "[]",
-						obligation_1_basis:
-							"The observed-success Effect supports the bounded constraint.",
+						...judgmentProposal,
+						category: "Proportionate Intervention",
+						subject: "Whether the settled Effect attained the Outcome",
+						question:
+							"Does current post-Effect evidence warrant another Action, Completion, or nonterminal continuity?",
 					},
 				],
 			},
 		]),
-		complete: true,
-		actions: [writeAction],
 		maxSteps: 1,
-		appendCheckpoint(event) {
-			completionEvents.push(event.kind);
+		checkpoint(checkpoint) {
+			postEffectCheckpoints.push(checkpoint);
 		},
 	});
-	assert.equal(completed.result.status, "completed");
-	assert.equal(completed.state, undefined);
-	assert.equal(completed.completedWorkCase?.status, "complete");
-	assert.deepEqual(completionEvents, ["work-case-completed"]);
+	assert.equal(postEffect.status, "bounded-stop");
+	if (postEffect.status !== "bounded-stop") return;
+	assert.equal(postEffect.stage, "inventory");
+	assert.deepEqual(
+		postEffectCheckpoints.map(({ kind }) => kind),
+		["judgment-opened"],
+	);
+	const postEffectJudgment = postEffectCheckpoints[0];
+	if (postEffectJudgment?.kind !== "judgment-opened") return;
+	assert.equal(
+		postEffectJudgment.result.judgment.category,
+		"Proportionate Intervention",
+	);
 });
 
 test("SDK Action Loop progression does not depend on an unacknowledged opening", async () => {

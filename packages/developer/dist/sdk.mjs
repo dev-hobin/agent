@@ -11350,7 +11350,15 @@ function nextRequiredJudgmentCategory(state) {
       if (successfulEffectSettlements(state).length > 0) return void 0;
       return pendingRemediationIntervention(state) === void 0 ? "Proportionate Intervention" : void 0;
     }
-    return !categories2.has("Claim Assurance") ? "Claim Assurance" : void 0;
+    const consumed = consumedConclusionIds(state);
+    const postEffectIntervention = state.workCase.conclusions.find(
+      (conclusion) => conclusion.category === "Proportionate Intervention" && !consumed.has(conclusion.conclusionId)
+    );
+    if (!postEffectIntervention) return "Proportionate Intervention";
+    if (postEffectIntervention.interventionDisposition === "no-action" && (postEffectIntervention.noActionDisposition === void 0 || postEffectIntervention.noActionDisposition === "outcome-attained")) {
+      return !categories2.has("Claim Assurance") ? "Claim Assurance" : void 0;
+    }
+    return void 0;
   }
   if (!categories2.has("Proportionate Intervention") && !categories2.has("Claim Assurance")) {
     return "Proportionate Intervention";
@@ -11421,26 +11429,42 @@ async function progressAction(input) {
       }
       actionConclusions = [intervention2];
     } else {
-      if (!input.complete) return progressed;
-      if (!progressed.state) {
+      const consumed = consumedConclusionIds(input.state);
+      const postEffectIntervention = input.state.workCase.conclusions.find(
+        (conclusion) => conclusion.category === "Proportionate Intervention" && !consumed.has(conclusion.conclusionId)
+      );
+      if (postEffectIntervention?.interventionDisposition === "action-required") {
+        actionConclusions = [postEffectIntervention];
+      } else if (postEffectIntervention?.interventionDisposition === "no-action" && (postEffectIntervention.noActionDisposition === "blocked" || postEffectIntervention.noActionDisposition === "waiting")) {
         return {
-          status: "invariant-failure",
-          stage: "completion",
-          code: "missing-active-work-case",
-          message: "Completion progression lost the active Work Case.",
+          status: "continuity-required",
+          disposition: postEffectIntervention.noActionDisposition,
+          state: input.state,
           steps: progressed.steps,
           checkpoints: progressed.checkpoints
         };
+      } else {
+        if (!input.complete) return progressed;
+        if (!progressed.state) {
+          return {
+            status: "invariant-failure",
+            stage: "completion",
+            code: "missing-active-work-case",
+            message: "Completion progression lost the active Work Case.",
+            steps: progressed.steps,
+            checkpoints: progressed.checkpoints
+          };
+        }
+        return progressCompletion({
+          request: input.request,
+          state: progressed.state,
+          runner: input.runner,
+          checkpoint: input.checkpoint,
+          maxSteps: input.maxSteps,
+          steps: progressed.steps,
+          checkpoints: progressed.checkpoints
+        });
       }
-      return progressCompletion({
-        request: input.request,
-        state: progressed.state,
-        runner: input.runner,
-        checkpoint: input.checkpoint,
-        maxSteps: input.maxSteps,
-        steps: progressed.steps,
-        checkpoints: progressed.checkpoints
-      });
     }
   }
   const categories2 = new Set(
