@@ -230,9 +230,26 @@ export function liveWorkCasePrompt(
 		judgment === undefined
 			? ["Open Judgment: none"]
 			: [
-					`Open Judgment: ${judgment.judgmentId} · ${judgment.category} · ${judgment.question}`,
-					`Closure Requirements: ${judgment.requirements.map(({ requirementId, statement }) => `${requirementId}: ${statement}`).join(" | ")}`,
-					`Contribution Needs: ${judgment.contributionNeeds.map(({ contributionNeedId, function: needFunction }) => `${contributionNeedId}: ${needFunction}`).join(" | ")}`,
+					`Open Judgment: ${judgment.category} · ${judgment.question}`,
+					`Closure Requirements: ${judgment.requirements.map(({ statement }) => statement).join(" | ")}`,
+					`Contribution Needs: ${judgment.requirements
+						.flatMap((requirement) =>
+							requirement.contributionNeedIds.flatMap((contributionNeedId) => {
+								const need = judgment.contributionNeeds.find(
+									(candidate) =>
+										candidate.contributionNeedId === contributionNeedId,
+								);
+								return need
+									? [
+											JSON.stringify({
+												requirement: requirement.statement,
+												function: need.function,
+											}),
+										]
+									: [];
+							}),
+						)
+						.join(" | ")}`,
 				];
 	const conclusionLines =
 		workCase.conclusions.length === 0
@@ -246,14 +263,13 @@ export function liveWorkCasePrompt(
 			? ["Capability applicability: none assessed"]
 			: state.applicabilityAssessments.map(
 					(assessment) =>
-						`Capability applicability: ${assessment.capabilityRevisionId} → ${assessment.contributionNeedId} · ${assessment.status}`,
+						`Capability applicability for a current Need: ${assessment.status}`,
 				);
 	const assignmentLines =
 		state.assignments.length === 0
 			? ["Capability assignments: none"]
 			: state.assignments.map(
-					(assignment) =>
-						`Capability assignment: ${assignment.assignmentId} · ${assignment.capabilityRevisionId} → ${assignment.contributionNeedId}`,
+					() => "Capability assignment: bound to one current Need",
 				);
 	const selectionLines =
 		state.selections.length === 0
@@ -275,14 +291,13 @@ export function liveWorkCasePrompt(
 			? ["Skill Contributions: none"]
 			: state.contributions.map(
 					(contribution) =>
-						`Skill Contribution: ${contribution.contributionId} · ${contribution.localStatus} → ${contribution.contributionNeedId}`,
+						`Contribution for a current Need: ${contribution.localStatus}`,
 				);
 	const coverageLines =
 		state.coverages.length === 0
 			? ["Need Coverage: none"]
 			: state.coverages.map(
-					(coverage) =>
-						`Need Coverage: ${coverage.coverageId} · ${coverage.status} → ${coverage.contributionNeedId}`,
+					(coverage) => `Need Coverage for a current Need: ${coverage.status}`,
 				);
 	const continuityLines =
 		workCase.status === "paused"

@@ -4,7 +4,10 @@ import {
 	openLiveJudgment,
 	selectLiveContributionNeed,
 } from "../extensions/action-loop-judgment.ts";
-import { openLiveWorkCase } from "../extensions/action-loop-work-case.ts";
+import {
+	liveWorkCasePrompt,
+	openLiveWorkCase,
+} from "../extensions/action-loop-work-case.ts";
 
 function workCase() {
 	const opened = openLiveWorkCase(undefined, {
@@ -50,6 +53,16 @@ test("live Judgment records against the exact current Context revision", () => {
 	);
 	assert.equal(result.judgment.contextRevisionId, current.workCase.revisionId);
 	assert.deepEqual(result.state.workCase.openJudgments, [result.judgment]);
+	const modelProjection = liveWorkCasePrompt(result.state);
+	assert.match(
+		modelProjection,
+		/"requirement":"Consequential assumptions are explicit\."/,
+	);
+	assert.match(
+		modelProjection,
+		/"function":"accepted behavior observation"/,
+	);
+	assert.doesNotMatch(modelProjection, /contribution_need_[a-f0-9]+/);
 });
 
 test("exact duplicate stutters without advancing Work Case revision", () => {
