@@ -5376,8 +5376,8 @@ function deriveOutcome(observationDispositions, intended) {
   ).length;
   if (reliedCount === 0) return "pending";
   const statuses = intended.map(({ status }) => status);
-  if (statuses.includes("unknown")) return "unknown";
-  if (statuses.includes("partially-observed")) return "partially-applied";
+  if (statuses.includes("unknown") || statuses.includes("partially-observed"))
+    return "unknown";
   const observedCount = statuses.filter(
     (status) => status === "observed"
   ).length;

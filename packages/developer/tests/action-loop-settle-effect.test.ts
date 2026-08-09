@@ -81,7 +81,6 @@ test("settled outcomes are derived from intended Effect dispositions", () => {
 		["observed", "observed-success"],
 		["not-observed", "observed-no-effect"],
 		["failed", "failed"],
-		["partially-observed", "partially-applied"],
 	] as const) {
 		const currentEffect = effect();
 		const observations = [observation(`observation-${status}`, currentEffect)];
@@ -128,14 +127,28 @@ test("pending and unknown remain explicit unsettled outcomes", () => {
 			observations,
 		}),
 	);
+	const partiallyObserved = settleEffect(
+		currentEffect,
+		observations,
+		proposal({
+			currentEffect,
+			outcome: "unknown",
+			intendedStatus: "partially-observed",
+			observations,
+		}),
+	);
 
 	assert.equal(pending.status, "unsettled");
 	assert.equal(unknown.status, "unsettled");
+	assert.equal(partiallyObserved.status, "unsettled");
 	if (pending.status === "unsettled") {
 		assert.equal(pending.value.outcome, "pending");
 	}
 	if (unknown.status === "unsettled") {
 		assert.equal(unknown.value.outcome, "unknown");
+	}
+	if (partiallyObserved.status === "unsettled") {
+		assert.equal(partiallyObserved.value.outcome, "unknown");
 	}
 });
 
