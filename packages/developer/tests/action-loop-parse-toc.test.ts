@@ -200,7 +200,9 @@ test("the checked-in schema identifies the same closed authoring contract", asyn
 			"utf8",
 		);
 	} catch (error) {
-		assert.fail(`Canonical Skill TOC schema must be readable: ${String(error)}`);
+		assert.fail(
+			`Canonical Skill TOC schema must be readable: ${String(error)}`,
+		);
 	}
 	let schema: {
 		$id: string;
@@ -214,7 +216,9 @@ test("the checked-in schema identifies the same closed authoring contract", asyn
 	try {
 		schema = JSON.parse(schemaSource) as typeof schema;
 	} catch (error) {
-		assert.fail(`Canonical Skill TOC schema must be valid JSON: ${String(error)}`);
+		assert.fail(
+			`Canonical Skill TOC schema must be valid JSON: ${String(error)}`,
+		);
 	}
 
 	assert.equal(schema.$id, SKILL_TOC_SCHEMA_URI);
