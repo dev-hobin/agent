@@ -128,7 +128,7 @@ export const ACTION_LOOP_LIVE_CASES = Object.freeze([
 		files: {
 			"target.txt": "alpha\n",
 			"guard.txt": "guard\n",
-			"nested/config.json": "{\"mode\":\"locked\"}\n",
+			"nested/config.json": '{"mode":"locked"}\n',
 			"nested/notes.md": "unchanged\n",
 		},
 		prompt:
@@ -138,7 +138,7 @@ export const ACTION_LOOP_LIVE_CASES = Object.freeze([
 		expectedFiles: {
 			"target.txt": "beta\n",
 			"guard.txt": "guard\n",
-			"nested/config.json": "{\"mode\":\"locked\"}\n",
+			"nested/config.json": '{"mode":"locked"}\n',
 			"nested/notes.md": "unchanged\n",
 		},
 		allowedChangedPaths: ["target.txt"],
