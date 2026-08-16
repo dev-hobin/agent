@@ -43,8 +43,8 @@ current selection. Apply each material only to the question it actually
 addresses and preserve any visible mismatch as a limitation. Do not rediscover
 alternatives unless the selection is explicitly incomplete.
 
-Otherwise, inspect the colocated [Skill TOC](toc.json). Use its root `when` and
-`unless` conditions to confirm that this method applies; exclusions win. If an
+Otherwise, inspect the colocated [Skill References](references.json). Use the root
+`when` and `unless` conditions to confirm that this method applies; exclusions win. If an
 exclusion applies, return `not-applicable` rather than forcing the method. Then
 evaluate every Reference's `when` conditions and read the smallest materially
 applicable set before producing the result. Broad topic similarity alone is not

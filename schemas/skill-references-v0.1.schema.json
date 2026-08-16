@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-references-v0.1.schema.json",
+  "title": "Skill References v0.1",
+  "description": "A framework-independent declaration of Skill applicability and conditionally relevant supporting materials.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["when", "unless", "references"],
+  "properties": {
+    "$schema": {
+      "const": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-references-v0.1.schema.json"
+    },
+    "when": {
+      "$ref": "#/$defs/conditions"
+    },
+    "unless": {
+      "$ref": "#/$defs/conditions"
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reference"
+      }
+    }
+  },
+  "$defs": {
+    "conditions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "when"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!\\s)(?!.*\\s$)(?!.*\\\\)(?!.*//)(?!.*/$)(?!.*\\u0000)(?!.*(?:^|/)\\.\\.?(?:/|$)).+$"
+        },
+        "when": {
+          "$ref": "#/$defs/conditions"
+        }
+      }
+    }
+  }
+}

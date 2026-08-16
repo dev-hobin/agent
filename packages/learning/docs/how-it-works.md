@@ -110,18 +110,18 @@ as explicit user-visible inputs rather than implicit lifecycle state.
 ## 6. `judgment.json` is an authoring source, not a runtime policy engine
 
 Each Skill's `judgment.json` is a maintainer source for conditions under which
-packaged references may help. During development, a script compiles that policy
-through `judgmentPolicyDirections()` into deterministic Markdown under the
-Skill's `## Context Directions` section.
+packaged references may help. During development, a package-local script
+compiles that policy into deterministic Markdown under the Skill's
+`## Context Directions` section.
 
 ```sh
 node packages/learning/scripts/write-context-directions.mjs
 pnpm --filter @hobin/learning check
 ```
 
-The installed package starts no Learning policy service or Judgment session.
-The runtime instruction visible to the model is the generated text already
-embedded in `SKILL.md`. This is why `@hobin/judgment` is a development dependency.
+The installed package starts no Learning policy service. The runtime instruction
+visible to the model is the generated text already embedded in `SKILL.md`. The
+parser, renderer, and authoring schema are package-local development files.
 
 Package checks compare policy output and the embedded section byte for byte. A
 maintainer cannot change only the policy and pass release checks with a stale

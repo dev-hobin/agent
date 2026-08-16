@@ -15,18 +15,11 @@
   "bugs": {
     "url": "https://github.com/dev-hobin/agent/issues"
   },
-  "packageManager": "pnpm@11.15.0+sha512.266f8957a30d2be6e9468e5e66bcdedd35a794175f71b067ba8504d686cce1d0c0f429b33c323c3c569ad4891e667574a49ff71d1b89a22cc66f13c65818c578",
+  "packageManager": "pnpm@10.33.4",
   "engines": {
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check": "pnpm check:docs && pnpm check:isolation && pnpm --filter './packages/**' --fail-if-no-match --if-present check",
-    "check:docs": "node scripts/check-documentation.mjs",
-    "check:isolation": "node scripts/check-package-isolation.mjs",
-    "eval": "pnpm --filter './packages/**' --fail-if-no-match --if-present eval",
-    "eval:json": "pnpm --filter @hobin/developer eval:json"
-  },
-  "devDependencies": {
-    "@types/node": "26.1.1"
+    "check": "pnpm --filter @hobin/developer check && pnpm --filter @hobin/learning check"
   }
 }

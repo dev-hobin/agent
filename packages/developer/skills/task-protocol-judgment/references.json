@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-references-v0.1.schema.json",
+  "when": [
+    "A concrete task crosses process boundaries and completion, outstanding ownership, routing, retries, duplicates, cancellation, or recovery must be judged."
+  ],
+  "unless": [
+    "The work is wholly local to one process, no concrete protocol exists, or accepted business-completion semantics still have to be invented."
+  ],
+  "references": [
+    {
+      "path": "references/topology-resolution-routing.md",
+      "when": [
+        "Participants, channels, fixed or dynamic topology, identity, resolution, discovery, routers, route ownership, or route failure determine whether the task reaches an appropriate process."
+      ]
+    },
+    {
+      "path": "references/task-and-acknowledgement.md",
+      "when": [
+        "Receipt, acceptance, progress, business completion, terminal failure, outstanding-work ownership, or an uncertain effect boundary may be confused or unowned."
+      ]
+    },
+    {
+      "path": "references/retry-idempotency-cancellation.md",
+      "when": [
+        "Timeout, retry, duplicate delivery, idempotency, ordering, cancellation, restart, durability, late results, recovery, or terminal stop is consequential."
+      ]
+    }
+  ]
+}

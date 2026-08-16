@@ -112,18 +112,17 @@ load합니다.
 ## 6. `judgment.json`은 runtime policy engine이 아니라 authoring source다
 
 각 Skill directory의 `judgment.json`은 packaged reference를 언제 읽을지 작성하는
-maintainer용 source입니다. Package 개발 script는 이 policy를
-`judgmentPolicyDirections()`로 compile해 `SKILL.md`의 `## Context Directions`
-section에 결정적인 Markdown으로 넣습니다.
+maintainer용 source입니다. Package-local 개발 script는 이 policy를 compile해
+`SKILL.md`의 `## Context Directions` section에 결정적인 Markdown으로 넣습니다.
 
 ```sh
 node packages/learning/scripts/write-context-directions.mjs
 pnpm --filter @hobin/learning check
 ```
 
-설치된 package에서 이 JSON을 감시하는 Learning service나 Judgment session은
-시작되지 않습니다. Runtime에서 모델이 보는 실행 지침은 이미 생성된 `SKILL.md`
-본문입니다. `@hobin/judgment`가 devDependency인 이유도 여기에 있습니다.
+설치된 package에서 이 JSON을 감시하는 Learning policy service는 시작되지 않습니다.
+Runtime에서 모델이 보는 실행 지침은 이미 생성된 `SKILL.md` 본문입니다. Parser,
+renderer, authoring schema는 package-local 개발 파일입니다.
 
 Package check는 policy와 generated section이 byte 단위로 같은지 확인합니다. 따라서
 maintainer가 policy만 바꾸고 Skill prompt를 재생성하지 않으면 배포 검사가 실패합니다.

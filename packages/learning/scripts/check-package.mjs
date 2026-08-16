@@ -37,6 +37,7 @@ assert.deepEqual(manifest.files, [
 	"extensions",
 	"references",
 	"skills",
+	"schemas",
 	"docs",
 	"README.md",
 	"README.ko.md",
@@ -45,7 +46,6 @@ assert.deepEqual(manifest.files, [
 assert.deepEqual(manifest.pi.extensions, ["./extensions/learning.ts"]);
 assert.deepEqual(manifest.pi.skills, ["./skills"]);
 assert.deepEqual(manifest.devDependencies, {
-	"@hobin/judgment": "workspace:^0.1.0",
 	yaml: "^2.9.0",
 });
 assert.equal(manifest.dependencies, undefined);
@@ -54,11 +54,6 @@ assert.deepEqual(manifest.peerDependencies, {
 	"@earendil-works/pi-coding-agent": ">=0.80.10",
 	"@earendil-works/pi-tui": ">=0.80.10",
 });
-assert.equal(
-	manifest.pi.extensions.includes("../judgment/extensions/judgment.ts"),
-	false,
-);
-assert.equal(manifest.pi.skills.includes("../judgment/skills"), false);
 
 const entries = await readdir(join(root, "skills"), { withFileTypes: true });
 const skills = entries
@@ -208,6 +203,14 @@ await assert.rejects(
 	access(join(root, "references/graph-artifact-standard.md")),
 );
 assert.match(await readFile(join(root, "LICENSE"), "utf8"), /^MIT License$/m);
+const authoringSchema = await readJson(
+	join(root, "schemas/judgment-authoring.schema.json"),
+	"Learning judgment authoring schema",
+);
+assert.equal(
+	authoringSchema.$id,
+	"https://raw.githubusercontent.com/dev-hobin/agent/main/packages/learning/schemas/judgment-authoring.schema.json",
+);
 
 const extension = await readFile(join(root, "extensions/learning.ts"), "utf8");
 assert.match(extension, /registerCommand\("learning"/);

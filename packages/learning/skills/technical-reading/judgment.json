@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/learning/schemas/judgment-authoring.schema.json",
   "specVersion": "0.1",
   "when": [
     "The source is dense, mixes several kinds of work, or a direct local explanation cannot resolve the reader's confusion.",

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-references-v0.1.schema.json",
+  "when": [
+    "A concrete caller-facing interface, helper, API, workflow rule, boundary, or structural candidate is already shaped enough to inspect."
+  ],
+  "unless": [
+    "The caller-facing operation or collaboration still needs to be invented rather than reviewed."
+  ],
+  "references": [
+    {
+      "path": "references/field-card.md",
+      "when": [
+        "A concrete caller-facing interface, helper, boundary, role, or workflow candidate exists and needs an auditable keep, revise, split, reject, or defer decision.",
+        "An observable candidate stop check failed or current evidence directly contradicts one of the candidate's promises.",
+        "The field card is complete, but keep versus revise, split, reject, or defer remains ambiguous and a matching candidate-promise example can resolve the interpretation."
+      ]
+    },
+    {
+      "path": "references/repair-table.md",
+      "when": [
+        "An observable candidate stop check failed or current evidence directly contradicts one of the candidate's promises."
+      ]
+    },
+    {
+      "path": "references/worked-examples.md",
+      "when": [
+        "The field card is complete, but keep versus revise, split, reject, or defer remains ambiguous and a matching candidate-promise example can resolve the interpretation."
+      ]
+    }
+  ]
+}

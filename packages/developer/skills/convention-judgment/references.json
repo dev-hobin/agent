@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-references-v0.1.schema.json",
+  "when": [
+    "A concrete code-shape-to-intent convention must be judged against violation consequence and proportional enforcement."
+  ],
+  "unless": [
+    "Only formatting preference is disputed, no concrete convention exists, or the underlying product meaning still has to be invented."
+  ],
+  "references": [
+    {
+      "path": "references/enforcement-strength.md",
+      "when": [
+        "The decision depends on whether documentation, signaling, localization, static checks, restricted construction, runtime rejection, or atomic ownership is proportionate."
+      ]
+    },
+    {
+      "path": "references/scope-state-and-effects.md",
+      "when": [
+        "The convention communicates scope crossing, hidden effects, mutable state, snapshot or atomicity expectations, laziness, ordering, or bounded absence."
+      ]
+    }
+  ]
+}

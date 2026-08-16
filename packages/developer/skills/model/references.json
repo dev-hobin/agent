@@ -1,0 +1,59 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-references-v0.1.schema.json",
+  "when": [
+    "Consequential conditions, rules, contracts, histories, or proof boundaries must be modeled."
+  ],
+  "unless": [
+    "The laws or invariants are already settled and only an implementable interface shape is needed."
+  ],
+  "references": [
+    {
+      "path": "references/problem-modeling.md",
+      "when": [
+        "Consequential conditions require an admitted domain, distinctions, assumptions, rules, forbidden cases, owners, or counterexamples."
+      ]
+    },
+    {
+      "path": "references/contract-and-replacement-models.md",
+      "when": [
+        "Caller or callee obligations, preconditions, postconditions, failures, compatibility observers, replacement, or refinement are consequential."
+      ]
+    },
+    {
+      "path": "references/relational-constraint-models.md",
+      "when": [
+        "Entities, intervals, cross-record integrity, quantified relations, identity, multiplicity, or set-versus-bag semantics determine valid instances."
+      ]
+    },
+    {
+      "path": "references/temporal-behavior-models.md",
+      "when": [
+        "Retry, stale or duplicate events, lifecycle, reorder, concurrency, safety, progress, stuttering, fairness, or temporal refinement is consequential."
+      ]
+    },
+    {
+      "path": "references/proof-obligations.md",
+      "when": [
+        "A deductive implementation-conformance claim requires explicit specification, invariant, termination, proof-step, runtime-model, or trusted-boundary obligations."
+      ]
+    },
+    {
+      "path": "references/solver-result-boundaries.md",
+      "when": [
+        "Bounded search, satisfiability, feasibility, optimization, scope, encoding assumptions, witness meaning, or exact solver result states bound the claim."
+      ]
+    },
+    {
+      "path": "references/logic-query-semantics.md",
+      "when": [
+        "Facts, rules, zero-one-many answers, proof multiplicity, duplicates, negation, binding order, search fairness, cycles, or divergence are consequential."
+      ]
+    },
+    {
+      "path": "references/planning-models.md",
+      "when": [
+        "Initial state, goal, legal actions, intermediate invariants, action costs, equivalent plans, or no-plan meaning is consequential."
+      ]
+    }
+  ]
+}

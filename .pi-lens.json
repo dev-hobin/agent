@@ -1,6 +1,0 @@
-{
-  "ignore": [
-    "packages/judgment/bin/judgment.mjs",
-    "packages/judgment/dist/**"
-  ]
-}

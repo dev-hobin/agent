@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/judgment/schemas/judgment-authoring.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/packages/learning/schemas/judgment-authoring.schema.json",
   "specVersion": "0.1",
   "when": [
     "At least two independent cases, concepts, diagnostics, or judgments appear to share a practical problem or successful movement and must be distinguished from a topic cluster.",

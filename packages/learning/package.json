@@ -22,6 +22,7 @@
     "extensions",
     "references",
     "skills",
+    "schemas",
     "docs",
     "README.md",
     "README.ko.md",
@@ -43,7 +44,6 @@
     "skills": ["./skills"]
   },
   "devDependencies": {
-    "@hobin/judgment": "workspace:^0.1.0",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {

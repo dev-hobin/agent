@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-hobin/agent/main/schemas/skill-references-v0.1.schema.json",
+  "when": [
+    "A code name is generic, misleading, filler-like, implementation-shaped, effect-hiding, overloaded, or carrying multiple product senses."
+  ],
+  "unless": [
+    "No concrete naming decision is in scope."
+  ],
+  "references": [
+    {
+      "path": "references/domain-naming.md",
+      "when": [
+        "Naming pressure is subtle, disputed, recurring, effect-hiding, responsibility-derived, false indirection, or crosses data/module scope so stable sense cannot be read directly from nearby callers."
+      ]
+    }
+  ]
+}
