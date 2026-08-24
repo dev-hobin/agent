@@ -22,6 +22,10 @@ pi -e ./packages/developer
 pi -e ./packages/learning
 ```
 
+## Standalone resources
+
+[`agents/`](./agents) contains reviewable context fragments, and [`skills/`](./skills) contains independent Skills. They are not declared by either package and are not loaded automatically. Merge a selected context fragment into an `AGENTS.md`, or load a Skill explicitly with `pi --skill ./skills/<name>`.
+
 ## Development
 
 ```sh
