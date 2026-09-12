@@ -48,6 +48,7 @@ test("manifest exposes only the Skill library and passive Skill References Exten
 		"extensions",
 		"skills",
 		"README.md",
+		"README.ko.md",
 		"LICENSE",
 	]);
 	assert.deepEqual(manifest.pi, {
@@ -88,6 +89,7 @@ test("npm pack contains the runtime surface but excludes tests and removed runti
 
 	assert.equal(paths.includes("extensions/skill-references/index.js"), true);
 	assert.equal(paths.includes("LICENSE"), true);
+	assert.equal(paths.includes("README.ko.md"), true);
 	assert.equal(paths.filter((path) => path.endsWith("/SKILL.md")).length, 17);
 	assert.equal(paths.some((path) => path.startsWith("test/")), false);
 	assert.equal(paths.some((path) => path.startsWith("runtime/")), false);
