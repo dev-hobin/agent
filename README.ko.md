@@ -1,49 +1,115 @@
-# 개발 판단과 학습을 위한 Pi 패키지
+# Hobin 에이전트 리소스
 
 [English](./README.md) | 한국어
 
-서로 독립적으로 설치해 사용하는 Pi 패키지 두 개를 담고 있습니다.
+개발 판단과 source-grounded 학습을 위한 에이전트 중립적인 원본입니다. Skill은
+[Agent Skills 명세](https://agentskills.io/specification)를 따르며, 서비스별 연동은
+같은 원본을 소비하는 선택 사항입니다.
 
 ## 이 패키지를 만든 이유
 
-사람은 모든 세부 지식을 한꺼번에 머릿속에 올려두고 일하지 않습니다. 지금 어떤 일을 다루는지 판단할 수 있는 큰 작업 방식은 유지하고, 구체적인 상황을 만났을 때 필요한 자료를 찾아봅니다.
+사람은 모든 세부 지식을 한꺼번에 머릿속에 올려두고 일하지 않습니다. 지금 어떤
+일을 다루는지 판단할 수 있는 큰 작업 방식은 유지하고, 구체적인 상황을 만났을 때
+필요한 자료를 찾아봅니다.
 
-이 패키지들도 에이전트의 컨텍스트를 같은 방식으로 구성합니다. Skill에는 계속 유지할 작업 방법을 두고, 상황에 따라 결과를 바꿀 수 있는 세부 내용만 Reference에서 가져옵니다. 모든 내용을 미리 넣거나 하나의 고정된 절차로 만들지 않고, 현재 작업에 필요한 컨텍스트에 집중하기 위한 구조입니다.
+이 패키지들도 에이전트의 컨텍스트를 같은 방식으로 구성합니다. Skill에는 계속
+유지할 작업 방법을 두고, 상황에 따라 결과를 바꿀 수 있는 세부 내용만 Reference에서
+가져옵니다. 모든 내용을 미리 넣거나 하나의 고정된 절차로 만들지 않고, 현재 작업에
+필요한 컨텍스트에 집중하기 위한 구조입니다.
 
-## 패키지
+[표준 출처와 채택 범위](./docs/standards.md),
+[조건부 레퍼런스 계약](./docs/skill-references.md)부터 확인합니다. 후자는 저장소의
+자체 규약이지 Agent Skills의 추가 표준이 아닙니다.
 
-| 패키지 | 용도 | 설치 |
+## 원본 리소스
+
+| 위치 | 용도 |
+| --- | --- |
+| [`packages/developer/skills/`](./packages/developer/skills) | 경험으로 쌓은 직관을 명시적인 개발 판단으로 옮긴 Skill 17개와 조건부 Reference |
+| [`packages/learning/skills/`](./packages/learning/skills) | 기술 문서 읽기, 저장소 학습, 개념화, 패턴 발견, 연습을 위한 독립 Skill 5개 |
+| [`skills/`](./skills) | 두 패키지 밖에서 제공하는 협업 Skill 4개 |
+| [`agents/`](./agents) | 프로젝트 지침에 선택해 합치는 컨텍스트 조각이며, 표준 subagent 정의가 아님 |
+| `packages/*/adapters/pi/` | 선택적인 Pi lifecycle 연동과 선택기 |
+
+`@hobin/developer`와 `@hobin/learning`은 서로 독립적으로 배포하는 npm 패키지입니다.
+하나의 단계형 workflow가 아니며, 공통 agent loop, 필수 policy runtime, 숨은
+cross-Skill state를 만들지 않습니다.
+[0.2.0 배포 준비와 마이그레이션 안내](./docs/releases/0.2.0.md)에 버전 변경과 별도의
+npm 배포 단계를 기록했습니다.
+
+## Agent Skills 호스트에서 사용
+
+호스트가 발견하는 위치에 **Skill 디렉터리 전체**를 설치하거나 노출합니다.
+`SKILL.md`만 복사하지 말고 supporting file도 포함합니다. npm 패키지에서 꺼낸
+`skills/`와 이 저장소의 디렉터리는 같은 원본이며, 지침을 읽는 데 Pi나 Node.js는
+필요하지 않습니다.
+
+아래는 공통 탐색 규칙이 아니라 호스트별 개인 경로와 호출 예시입니다.
+
+| 호스트 | 개인 Skill 경로 | 직접 호출 예시 |
 | --- | --- | --- |
-| [`@hobin/developer`](./packages/developer/README.ko.md) | 개발자가 경험으로 쌓은 직관을 명시적인 개발 판단 Skill로 만들고, 현재 문제에 맞는 Reference를 함께 활용 | `pi install npm:@hobin/developer` |
-| [`@hobin/learning`](./packages/learning/README.ko.md) | 기술 문서 읽기, 오픈 소스 학습, 개념화, 패턴 발견, 의도적 연습을 위한 Skill | `pi install npm:@hobin/learning` |
+| [Claude Code](https://code.claude.com/docs/en/skills) | `~/.claude/skills/<name>/` | `/sketch` |
+| [Codex](https://developers.openai.com/codex/skills/) | `~/.agents/skills/<name>/` | `$sketch` |
+| Pi | 기본 Skill 경로 또는 아래 패키지 manifest | `/skill:sketch` |
 
-두 패키지는 Node.js 22.19 이상이 필요하며, Pi의 기본 모델·Tool·세션·compaction·응답 루프를 그대로 사용합니다. 하나의 단계형 워크플로를 이루지 않으며 서로 독립적으로 설치해 사용합니다.
+로컬 개발에서는 symlink를 지원하는 호스트가 원본 디렉터리를 가리키게 할 수
+있습니다. 배포할 때는 디렉터리 전체를 복사하고 패키지나 저장소 버전을 고정합니다.
+설치 전에 같은 이름의 Skill을 확인하며, 다른 리소스를 업데이트로 덮어쓰지 않습니다.
+이 저장소는 전역 에이전트 설정을 바꾸거나 범용 설치 관리자를 제공하지 않습니다.
 
-설치하지 않고 한 번만 실행하려면:
+Developer는 hook 없이 `references.json`을 읽을 수 있고, Learning은 생성된 선택
+지침을 `SKILL.md`에 포함합니다. 일반 지침과 file access만으로 필요한 참고 자료를
+읽으며 서비스별 loader는 필수가 아닙니다. 실제 선택과 지침 준수는 파일 형식이
+강제하는 동작이 아니라 모델의 행동입니다.
+
+## 선택적인 Pi 연동
+
+기존 패키지 설치는 유지됩니다.
 
 ```sh
-pi -e npm:@hobin/developer
+pi install npm:@hobin/developer
+pi install npm:@hobin/learning
 ```
 
-소스 체크아웃에서 실행할 때는 저장소 루트가 아니라 실제 패키지 디렉터리를 불러옵니다.
+소스 체크아웃에서는 저장소 루트가 아니라 실제 패키지 디렉터리를 불러옵니다.
 
 ```sh
 pi -e ./packages/developer
 pi -e ./packages/learning
 ```
 
-## 독립 리소스
-
-[`agents/`](./agents)에는 검토 가능한 컨텍스트 조각이, [`skills/`](./skills)에는 독립적인 Skill이 있습니다. 두 패키지 어디에도 선언되지 않으며 자동으로 로드되지 않습니다. 필요한 컨텍스트 조각을 `AGENTS.md`에 합치거나, `pi --skill ./skills/<name>`으로 Skill을 직접 불러옵니다.
+Manifest는 `adapters/pi/`를 가리킵니다. Extension 소스 경로를 직접 설정했다면
+`extensions/`를 `adapters/pi/`로 바꿉니다. 패키지 설치와 `"extensions": []` 같은
+resource filter는 유지됩니다. 세부 동작은 각 패키지 README에서 설명합니다.
 
 ## 개발
 
+개발 도구로 Node.js 22.19+, pnpm 10.33.4, 고정한 공식 reference validator용
+Python 3.11+가 필요합니다. 지침으로 구성된 Skill의 실행 의존성은 아닙니다.
+적합한 Python 실행 파일로 로컬 환경을 만듭니다.
+
 ```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-skills.txt
 pnpm install --frozen-lockfile
+pnpm check:portable
+pnpm check:pi
+# 둘 다 실행하려면:
 pnpm check
 ```
 
-패키지 검사는 모델 제공자 없이 실행됩니다. 실제 모델을 사용하는 검증은 별도로 범위를 정해 실행하며 기본 테스트 명령에는 포함되지 않습니다.
+기본 Python이 3.11보다 오래됐다면 환경을 만들 때 설치된 새 실행 파일을 선택합니다.
+Windows에서는 사용하는 shell에 맞게 `.venv\Scripts\activate`를 활성화합니다.
+검사는 활성 환경의 `python`을 사용합니다.
+
+Pi 개발 의존성 없이 검사하려면 `pnpm install --filter agent --frozen-lockfile`로
+설치하고 활성화한 Python 환경에서 `pnpm check:portable`을 실행합니다. CI에서도
+이 분리를 확인합니다. Pi 검사는 전체 workspace 설치를 사용합니다.
+
+기본 검사는 provider-free입니다. 구조, 패키지 내용, Pi 연동의 검증이 실제 모델의
+올바른 선택이나 미래의 모든 서비스 지원을 증명하지는 않습니다. 실모델 평가는
+별도로 범위를 정해 선택적으로 실행합니다.
 
 ## 라이선스
 

@@ -1,6 +1,6 @@
 {
   "name": "@hobin/learning",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Five independent Agent Skills for technical reading, repository study, concepts, patterns, and practice.",
   "type": "module",
   "keywords": ["agent-skills", "learning", "skills", "pi-package", "pi"],

@@ -17,7 +17,7 @@ const expectedSkills = [
 
 test("manifest ships canonical Skills and an optional Pi adapter without runtime dependencies", async () => {
 	const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
-	assert.equal(manifest.version, "0.1.20");
+	assert.equal(manifest.version, "0.2.0");
 	assert.equal(manifest.private, undefined);
 	assert.equal(manifest.license, "MIT");
 	assert.deepEqual(manifest.publishConfig, { access: "public" });

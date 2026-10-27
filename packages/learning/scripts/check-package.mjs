@@ -30,7 +30,7 @@ async function readJson(path, label) {
 
 const manifest = await readJson(join(root, "package.json"), "package manifest");
 assert.equal(manifest.name, "@hobin/learning");
-assert.equal(manifest.version, "0.1.1");
+assert.equal(manifest.version, "0.2.0");
 assert.equal(manifest.private, undefined);
 assert.deepEqual(manifest.files, [
 	"adapters",

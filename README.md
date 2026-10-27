@@ -33,7 +33,9 @@ our own convention, not an additional Agent Skills standard.
 
 `@hobin/developer` and `@hobin/learning` remain independently distributable npm
 packages. They are not phases of one workflow. There is no shared agent loop,
-mandatory policy runtime, or hidden cross-Skill state.
+mandatory policy runtime, or hidden cross-Skill state. See the
+[0.2.0 release preparation and migration notes](./docs/releases/0.2.0.md) for the
+package version changes and the separate npm publication step.
 
 ## Use with an Agent Skills host
 

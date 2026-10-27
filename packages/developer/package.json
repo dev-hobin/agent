@@ -1,6 +1,6 @@
 {
   "name": "@hobin/developer",
-  "version": "0.1.20",
+  "version": "0.2.0",
   "description": "Agent Skills for engineering methods and conditional references, with optional Pi integration",
   "type": "module",
   "keywords": [
