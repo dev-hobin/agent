@@ -71,6 +71,7 @@ run a model. Icons/public directory submission, publisher verification and live
 model behavior are separate concerns. See the
 [evidence boundaries](installation.md#evidence-recorded-on-2026-10-27).
 
-Published 0.2.1 introduced the Claude compatibility files. The current 0.2.2
-preparation adds the portable manifests and native catalogs; it is not yet an npm
-release. See [release notes](releases/0.2.2.md).
+Version 0.2.1 introduced the Claude compatibility files. Version 0.2.2 adds the
+portable manifests to npm artifacts and native catalogs to the Git repository.
+Git source publication and npm releases remain separate operations. See
+[release notes](releases/0.2.2.md) for registry publication status.

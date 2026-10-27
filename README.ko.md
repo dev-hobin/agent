@@ -41,11 +41,11 @@
 cross-Skill state를 만들지 않습니다. Private workspace 루트는 하위 패키지를
 재귀 탐색하는 세 번째 플러그인이 아닙니다.
 
-**현재 0.2.2 준비본이며 아직 배포하지 않았습니다.** 공개된 0.2.1에는 Claude 호환
-파일이 있지만 새로운 루트 manifest와 카탈로그는 없습니다. 아래 설치에는 이 변경이
-포함된 checkout을 사용합니다. [0.2.2 준비 내용](./docs/releases/0.2.2.md),
-[0.2.1 기록](./docs/releases/0.2.1.md), [0.2.0 마이그레이션](./docs/releases/0.2.0.md)을
-참고합니다.
+**버전 경계: 0.2.2부터 공통 패키지 manifest를 제공합니다.** 0.2.1에는 Claude 호환
+파일만 있습니다. 호스트의 marketplace 카탈로그는 개별 npm 압축파일이 아니라 이 Git
+저장소에 있으므로 아래 설치에는 카탈로그가 포함된 checkout을 사용합니다.
+[0.2.2 릴리스 기록](./docs/releases/0.2.2.md), [0.2.1 기록](./docs/releases/0.2.1.md),
+[0.2.0 마이그레이션](./docs/releases/0.2.0.md)을 참고합니다.
 
 ## 기본 설치: 호스트의 플러그인 관리자로 한 번 설치
 
@@ -111,7 +111,7 @@ pi install npm:@hobin/developer
 pi install npm:@hobin/learning
 ```
 
-준비 중인 checkout에서는 실제 패키지 루트를 불러옵니다.
+소스 checkout에서는 실제 패키지 루트를 불러옵니다.
 
 ```sh
 pi -e ./packages/developer

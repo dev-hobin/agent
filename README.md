@@ -41,11 +41,11 @@ packages, not phases of one workflow. There is no shared agent loop, mandatory
 policy runtime, or hidden cross-Skill state. The private workspace root is not a
 third plugin that recursively loads the package catalogs.
 
-**Current preparation: 0.2.2, not yet published.** Published 0.2.1 contains the
-Claude compatibility files, but not the new root manifests/catalogs. Use a
-checkout containing this revision for the native route below. See
-[0.2.2 preparation](./docs/releases/0.2.2.md), [0.2.1 notes](./docs/releases/0.2.1.md)
-and the [0.2.0 migration](./docs/releases/0.2.0.md).
+**Version boundary: 0.2.2 adds portable package manifests.** Version 0.2.1 has
+only the Claude compatibility descriptors. The native marketplace catalogs live
+in this Git repository, not in the individual npm archives; use a checkout
+containing them for the native route below. See [0.2.2 release notes](./docs/releases/0.2.2.md),
+[0.2.1 notes](./docs/releases/0.2.1.md) and the [0.2.0 migration](./docs/releases/0.2.0.md).
 
 ## Install once with the native plugin manager
 
@@ -113,7 +113,7 @@ pi install npm:@hobin/developer
 pi install npm:@hobin/learning
 ```
 
-For the prepared checkout, use the package roots:
+From a checkout, use the package roots:
 
 ```sh
 pi -e ./packages/developer

@@ -64,8 +64,9 @@ service. Learning stores no notebook, progress record, or hidden cross-Skill sta
 
 ## Native plugin installation
 
-Use a checkout containing the prepared 0.2.2 manifests/catalogs; it is not yet an
-npm release. Register the **resource checkout**, not a selected work project.
+Use a checkout containing the 0.2.2 manifests and repository marketplace catalogs.
+The catalogs live in Git, not in the individual npm archive. Register the
+**resource checkout**, not a selected work project.
 
 Claude Code, once for your user across projects:
 

@@ -58,9 +58,9 @@ in Claude plugin mode, `$hobin-developer:specify` in Codex plugin mode, or
 
 ## Native plugin installation
 
-Use a checkout containing the prepared 0.2.2 manifests and catalogs; this version
-is not yet published. Register the **resource checkout** from any directory, not
-a selected work project.
+Use a checkout containing the 0.2.2 manifests and repository marketplace catalogs.
+The catalogs live in the Git repository, not in the individual npm archive.
+Register the **resource checkout** from any directory, not a selected work project.
 
 Claude Code, for your user across projects:
 

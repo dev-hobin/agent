@@ -6,15 +6,17 @@ existing native managers below, not a custom installer or a chosen work project.
 
 ## Source and release status
 
-This checkout prepares **0.2.2**, not yet published. It contains two independent
-plugin roots, `packages/developer/` and `packages/learning/`. The private workspace
-root is a marketplace source, not a third plugin containing all 26 Skills.
+Version **0.2.2** adds portable root manifests to the independent
+`packages/developer/` and `packages/learning/` plugin roots. Version 0.2.1 has
+Claude compatibility metadata only. The private workspace root is a marketplace
+source, not a third plugin containing all 26 Skills.
 
-Published npm 0.2.1 has Claude compatibility metadata but not the new portable
-root manifests or repository catalogs. Do not assume a published package already
-contains the prepared changes. For the verified route, use an absolute path to a
-checkout **containing this revision**; retain that source directory for local
-marketplace updates. Native managers handle their own install/cache locations.
+Individual npm archives include their portable manifest and complete Skill
+catalog, but the host marketplace catalogs live at the Git repository root.
+For the verified route, use an absolute path to a checkout **containing those
+catalogs**; retain that source directory for local marketplace updates. Native
+managers handle their own install/cache locations. Git source publication and
+npm version availability are separate; check the registry for published versions.
 
 ## Claude Code: once for your user, across projects
 

@@ -62,8 +62,9 @@ Method는 대화에서 완전한 결과나 복사 가능한 Markdown을 완성�
 
 ## 호스트의 기본 플러그인 설치
 
-아직 npm에 배포하지 않은 0.2.2 준비본의 manifest와 카탈로그가 포함된 checkout을
-사용합니다. 임의의 작업 프로젝트가 아닌 **리소스 checkout**을 등록합니다.
+0.2.2 manifest와 저장소의 marketplace 카탈로그가 포함된 checkout을 사용합니다.
+카탈로그는 개별 npm 압축파일이 아니라 Git 저장소에 있습니다. 임의의 작업 프로젝트가
+아닌 **리소스 checkout**을 등록합니다.
 
 Claude Code에서 사용자 전체 프로젝트에 적용하려면:
 
