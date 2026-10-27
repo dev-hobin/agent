@@ -1,7 +1,7 @@
 {
   "name": "agent",
   "private": true,
-  "description": "Canonical Agent Skills and optional host adapters maintained by dev-hobin.",
+  "description": "Canonical Agent Skills, portable Agent Plugins packages, and optional host compatibility maintained by dev-hobin.",
   "license": "MIT",
   "author": {
     "name": "dev-hobin",
@@ -20,10 +20,13 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check:standard": "python scripts/check-agent-skills.py",
+    "check:standard:skills": "python scripts/check-agent-skills.py",
+    "check:standard:plugins": "node scripts/check-agent-plugins.mjs",
+    "check:standard": "pnpm check:standard:skills && pnpm check:standard:plugins",
     "check:portable": "pnpm check:standard && node --test tests/*.test.mjs && pnpm --filter @hobin/developer check:portable && pnpm --filter @hobin/learning check:portable",
     "check:pi": "pnpm --filter @hobin/developer check:pi && pnpm --filter @hobin/learning check:pi",
-    "check:claude": "claude plugin validate packages/developer --strict && claude plugin validate packages/learning --strict",
+    "check:claude": "claude plugin validate packages/developer --strict && claude plugin validate packages/learning --strict && claude plugin validate .claude-plugin/marketplace.json --strict",
+    "check:install": "node scripts/check-plugin-installation.mjs",
     "check": "pnpm check:portable && pnpm check:pi"
   },
   "devDependencies": {

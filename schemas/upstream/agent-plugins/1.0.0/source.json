@@ -1,0 +1,12 @@
+{
+  "project": "https://github.com/agentplugins/agent-plugins-spec",
+  "version": "1.0.0",
+  "tag": "v1.0.0",
+  "commit": "bd383552095128f6effe895b9257cfd580a6d179",
+  "specification": "spec/1.0.0.md",
+  "schema": "schemas/1.0.0/plugin.schema.json",
+  "schemaSha256": "0a4aad95ce337878ad38802ebf0daa3fde76abe3f65400c86bcbb1ec0b3ab883",
+  "license": "Apache-2.0",
+  "licenseSource": "LICENSES/Apache-2.0.txt",
+  "licenseSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+}

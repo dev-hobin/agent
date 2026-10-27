@@ -8,17 +8,18 @@
 
 ## 에이전트 중립적인 설치
 
-`skills/<name>/` 디렉터리 전체를 사용하는 호스트의 Skill 탐색 경로에 설치하거나
-노출합니다. `SKILL.md`만 복사하지 말고 supporting files도 포함합니다. 지침으로
-구성된 Skill을 읽는 데 Pi나 Node.js는 필요하지 않고, 참고 자료 선택을 위한
-호스트 확장도 필요하지 않습니다.
+루트 `plugin.json`은 Agent Plugins 1.0.0을 따르며 `hobin-learning`을 선언합니다.
+Claude와 Codex에서는 여러 프로젝트에서 쓸 수 있는 아래의 기본 플러그인 설치를
+권장합니다. 개별 Skill을 노출한다면 supporting files를 포함한 `skills/<name>/`
+디렉터리 전체를 사용합니다. 지침 자체를 읽는 데 Pi나 Node.js는 필요하지 않고,
+참고 자료 선택을 위한 호스트 확장도 필수가 아닙니다.
 
 아래는 호스트별 로딩 방식과 직접 호출 예시입니다.
 
 | 호스트 | 경로 | 예시 |
 | --- | --- | --- |
-| Claude Code 플러그인 | 패키지 루트를 로드 | `/hobin-learning:technical-reading` |
-| Codex | `~/.agents/skills/<name>/` | `$technical-reading` |
+| Claude Code 플러그인 | 기본 사용자 플러그인 설치 | `/hobin-learning:technical-reading` |
+| Codex 플러그인 | 기본 사용자 플러그인 설치 | `$hobin-learning:technical-reading` |
 | Pi | 기본 Skill 경로 또는 아래 패키지 설치 | `/skill:technical-reading` |
 
 공통 Agent Skills 탐색 규칙이 아니라 서비스별 사용 예시입니다. 저장소의
@@ -59,21 +60,34 @@ Method는 대화에서 완전한 결과나 복사 가능한 Markdown을 완성�
 아닙니다. Judgment runtime이나 reference 선택 service는 없습니다. Notebook,
 진행률, Skill 사이의 숨은 state도 만들지 않습니다.
 
-## 선택적인 Claude namespace
+## 호스트의 기본 플러그인 설치
 
-패키지의 `.claude-plugin/plugin.json`은 plugin 이름을 `hobin-learning`으로 고정합니다.
-실제 작업할 프로젝트에서 **패키지 루트 전체**를 로드합니다.
+아직 npm에 배포하지 않은 0.2.2 준비본의 manifest와 카탈로그가 포함된 checkout을
+사용합니다. 임의의 작업 프로젝트가 아닌 **리소스 checkout**을 등록합니다.
+
+Claude Code에서 사용자 전체 프로젝트에 적용하려면:
 
 ```sh
-claude --plugin-dir /path/to/agent/packages/learning
+claude plugin marketplace add /absolute/path/to/agent --scope user
+claude plugin install hobin-learning@hobin-agent --scope user
 ```
 
-`/hobin-learning:technical-reading`, `/hobin-learning:exercise`처럼 호출합니다.
-표준 `skills/` 원본을 그대로 사용하며 Skill 사본이나 별도 runtime을 추가하지
-않습니다. 이 namespace는 Claude 플러그인 모드에만 적용되고, 일반 flat `skills add`
-설치에는 적용되지 않습니다. 자세한
-[로딩 방법과 보장 범위](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md)를
-확인합니다.
+Codex의 기본 사용자 설치:
+
+```sh
+codex plugin marketplace add /absolute/path/to/agent
+codex plugin add hobin-learning@hobin-agent
+```
+
+새 세션에서 Claude는 `/hobin-learning:technical-reading`, Codex는
+`$hobin-learning:technical-reading`처럼 사용합니다. 두 호스트가 같은 `skills/`를
+사용합니다. `.claude-plugin/plugin.json`은 공통 manifest와 동기화한 기존 Claude
+호환 파일이며, 여기서는 `.codex-plugin` 파일이 필요하지 않습니다.
+
+`claude --plugin-dir /absolute/path/to/agent/packages/learning`은 개발용 세션 로드입니다.
+일반 flat `skills add`가 namespace를 적용하거나 기존 사본을 제거하지도 않습니다.
+[설치와 실제 검증 범위](https://github.com/dev-hobin/agent/blob/main/docs/installation.md),
+[Claude 충돌 경계](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md)를 참고합니다.
 
 ## 선택적인 Pi 선택기
 
@@ -113,6 +127,10 @@ pnpm check:claude
 ```sh
 node packages/learning/scripts/write-context-directions.mjs
 ```
+
+`pnpm check:standard`는 Agent Skills와 Agent Plugins를 검사합니다. 선택적인
+`pnpm check:install -- claude`와 `pnpm check:install -- codex`는 임시 HOME·설정으로
+실제 설치를 검사하며 모델을 호출하지 않습니다. 소비자용 설치기가 아니라 개발 검사입니다.
 
 `eval`, `eval:contrast`는 선택적인 Pi 실모델 평가 명령입니다. Portable 검사에
 포함되지 않으며 provider 요청이 발생할 수 있습니다.

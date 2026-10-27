@@ -1,123 +1,189 @@
-# Standards and adoption boundaries
+# Standards adoption register
 
-This repository is the source of truth for reusable agent instructions, not a
-configuration repository for one agent service. A host consumes the same Skill
-bundle; host integrations must not become prerequisites for its method.
+This repository owns reusable agent resources, not a configuration for one agent
+service. The contract is **Agent Skills for methods, Agent Plugins for packages,
+and optional host compatibility at the edges**. A host integration must not be
+required to understand a method or select its supporting references.
 
-## Source register
+Reviewed **2026-10-27 UTC**. An unversioned URL is not a frozen contract. This is
+a scope-bound adoption record, not a claim to have surveyed every AI standard.
 
-Sources were reviewed on **2026-10-27 (UTC)**. An unversioned documentation URL
-is not a frozen contract. Review upstream changes before changing these baselines.
+## Admission and change procedure
 
-| Source | Adopted baseline | Role |
+Before adding or changing an instruction format, package boundary, discovery
+mechanism, or distribution route:
+
+1. Identify the responsibility being changed. Look for existing specifications
+   at that layer, starting with official project indexes, normative references,
+   and the specification's related projects—not just one host's documentation.
+2. Verify the canonical domain/repository, governance, license, document status,
+   and version policy. Search summaries, SDK versions, examples, and foundation
+   membership do not substitute for a normative contract.
+3. Record `adopted`, `conditional`, `observe`, `host contract`, or `repository
+   convention`; state the included and excluded behavior and the evidence gap.
+4. Pin the adopted revision or commit and retain upstream attribution. Map each
+   applicable requirement to a check or an explicit human review obligation.
+5. Separate requirements, recommendations, our stricter authoring safeguards,
+   and host constraints. Do not silently strengthen a recommendation into an
+   upstream requirement or advertise an untested client guarantee.
+6. Reopen this decision when upstream changes affect an exported boundary, a
+   target client changes its behavior, or a previously excluded feature is
+   proposed. Review the upstream diff before updating a pin.
+
+A community specification, a foundation-hosted project, a formal standards-body
+publication, and a vendor product contract are different authority claims. None
+alone proves applicability, interoperability, safety, or model adherence.
+
+## Adopted sources
+
+| Source and authority | Baseline and license | Adopted responsibility | Excluded responsibility |
+| --- | --- | --- | --- |
+| [Agent Skills](https://agentskills.io/specification), public format; [AAIF project listing](https://aaif.io/projects/skills) | [Specification and skills-ref at `69ef37e9424c0a7ea9dd2293b559e43ec8176379`](https://github.com/agentskills/agentskills/tree/69ef37e9424c0a7ea9dd2293b559e43ec8176379); specification CC-BY-4.0, validator Apache-2.0 | `SKILL.md`, supporting files, Skill-relative references, progressive disclosure | Installation directories, invocation syntax, automatic selection and enforcement |
+| [Agent Plugins](https://agent-plugins.org/specification), independently governed multi-vendor TSC | Published 1.0.0, tag `v1.0.0`, commit [`bd383552095128f6effe895b9257cfd580a6d179`](https://github.com/agentplugins/agent-plugins-spec/tree/bd383552095128f6effe895b9257cfd580a6d179); specification CC-BY-4.0, schemas Apache-2.0 | Root `plugin.json`, fixed `skills/` discovery and package containment for our skills-only bundles | Marketplaces, installation, permissions, publisher identity, global name reservation, model behavior |
+| [AGENTS.md](https://agents.md/), open Markdown format stewarded by AAIF | Unversioned guidance reviewed on the date above; [source README at `557da8b39c6f5b4dee2239df09a6ab97a82ff4df`](https://github.com/agentsmd/agents.md/blob/557da8b39c6f5b4dee2239df09a6ab97a82ff4df/README.md), MIT | Instructions for maintaining this repository | Required body schema, standardized subagent definitions, universally identical automatic loading or precedence |
+| [JSON Schema](https://json-schema.org/specification), public schema specification | [Draft 2020-12](https://json-schema.org/draft/2020-12/schema); [upstream licensing](https://github.com/json-schema-org/json-schema-spec/blob/main/LICENSE) | Structure of repository-owned JSON authoring formats and the upstream plugin schema dialect | Meaning of natural-language applicability conditions |
+| [Semantic Versioning](https://semver.org/spec/v2.0.0.html) | 2.0.0; CC-BY-3.0 | Release/version policy; describe compatibility of exported resource names, metadata and integration interfaces | A universal guarantee that a model will behave identically; a mandatory Agent Plugins version-string grammar |
+| [SPDX License List](https://spdx.org/licenses/) | Reviewed list 3.29.0; [source and licensing information](https://github.com/spdx/license-list-data#licensing-information) | License identifiers such as `MIT`; retain actual license texts separately | Mandatory SPDX validity for every otherwise type-correct upstream manifest |
+
+Agent Plugins is **not an AAIF project**. The [AAIF-hosted community guest
+post](https://aaif.io/blog/from-skills-and-tools-to-portable-agent-plugins)
+explicitly says it is independently governed. Its [technical charter](https://github.com/agentplugins/agent-plugins-spec/blob/bd383552095128f6effe895b9257cfd580a6d179/GOVERNANCE.md)
+is the governance source. Foundation-hosted articles must not be relabeled as
+foundation ownership or formal standards-body approval.
+
+The `skills-ref` README describes demonstration code, not a production runtime.
+Its frontmatter checker is an authoring dependency, pinned in
+`requirements-skills.txt`. It does not prove all prose obligations or behavior.
+
+## Agent Skills: requirements versus guidance
+
+The upstream specification owns the required `SKILL.md` frontmatter, naming and
+name-directory match, standard optional fields, relative references, and the
+supporting-resource format. Additional JSON files are permitted supporting data;
+that permission does not standardize their meaning. There is no mandatory body
+template. `allowed-tools` remains experimental and host-dependent.
+
+Recommendations about 500 lines, token budgets and short reference chains are
+authoring guidance, not additional schema fields or unconditional failures.
+Canonical methods remain in `packages/*/skills/` and `skills/` without per-host
+copies. Four standalone Skills remain outside the two plugin catalogs.
+
+## Agent Plugins: applicable requirements and verification
+
+The specification text, not the JSON Schema alone, is authoritative. We adopt a
+**skills-only package profile**; neither package declares MCP servers or Agent
+Plugins client extensions. There is no custom loader or mandatory runtime.
+
+| Normative section / obligation | Authoring evidence | Boundary or review obligation |
 | --- | --- | --- |
-| [Agent Skills specification](https://agentskills.io/specification) | [Specification at `69ef37e9424c0a7ea9dd2293b559e43ec8176379`](https://github.com/agentskills/agentskills/blob/69ef37e9424c0a7ea9dd2293b559e43ec8176379/docs/specification.mdx) | Primary Skill format contract |
-| [Agent Skills integration guide](https://agentskills.io/integrate-skills) | Documentation reviewed on the date above | Implementation guidance, not an additional Skill format |
-| [skills-ref](https://github.com/agentskills/agentskills/tree/69ef37e9424c0a7ea9dd2293b559e43ec8176379/skills-ref) | Same upstream commit; pinned in `requirements-skills.txt` | Development-time reference validator |
-| [AGENTS.md](https://agents.md/) | Open-format guidance reviewed on the date above | Repository working instructions, separate from Agent Skills |
-| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12) | Draft 2020-12; [metaschema](https://json-schema.org/draft/2020-12/schema) | Structure of our own reference-policy schemas |
-| [Claude plugin manifest](https://code.claude.com/docs/en/plugins-reference) | Documentation reviewed on the date above; local validator 2.1.311 | Optional host identity metadata, not an Agent Skills requirement |
+| §4.1, §5.1: root `plugin.json`, resolved package paths stay inside the plugin root | `check:standard:plugins`; negative manifest/Skill/resource symlink cases; actual extracted npm packs | These checks reject broken authored bundles; they are not a reimplementation of client failure handling |
+| §5.2–5.5: canonical `$schema`, required fields, types, closed manifest and name constraints | Unmodified pinned upstream schema; positive and negative schema tests | Schema validation is intentionally strict for authors. The client's report-and-ignore exceptions are not implemented as a runtime here |
+| §6–7.1: fixed `skills/`, immediate children only, Agent Skills validity | Layout checks, catalog counts, pinned skills-ref, relocated-bundle tests | Missing optional component directories are valid upstream; our two catalogs separately require 17 and 5 Skills |
+| §7.2, §9: MCP configuration and subprocess behavior | Not applicable: our exported profile contains no `mcp.json` or MCP process | Adding an MCP component reopens adoption, schema and host verification; schema-only green checks are not evidence for it |
+| §8: reverse-domain client extensions | No `extensions` field or standard client-extension directory is shipped by our portable profile | New Agent Plugins extension data/files must follow §8 and the owning client's contract; do not invent a namespace for a client |
+| §10: schema version and plugin version distinction | Schema provenance and metadata-consistency tests | SemVer and SPDX are upstream recommendations, not new mandatory upstream syntax checks |
+| §11: client conformance | Outside this repository's implementation scope | Installing our package does not certify a client or guarantee that every client supports it |
 
-The `skills-ref` README explicitly describes the library as demonstration code,
-not a production runtime. We use it only for authoring checks. Its successful
-frontmatter validation does not prove all specification requirements, reference
-selection quality, or compatibility with every host.
+The original schema, its Apache-2.0 license, immutable source paths and SHA-256
+pins live under `schemas/upstream/agent-plugins/1.0.0/`. The checker verifies local
+bytes and performs no schema download. Upstream files must not be edited or
+relicensed as our MIT work.
 
-## Agent Skills: adopted requirements
+### Common identity and legacy compatibility
 
-The upstream specification owns the format, including:
+Each package's root `plugin.json` owns the portable identity. Our convention maps
+`@hobin/<package>` to `hobin-<package>` and keeps its release metadata aligned
+with npm. This mapping, disjoint names within our catalogs, identity-only
+manifests and npm export rules are **repository conventions**, not upstream
+requirements or a global registry.
 
-- a Skill directory containing `SKILL.md` with YAML frontmatter and Markdown;
-- required `name` and `description`, their constraints, and name-directory match;
-- the standard optional `license`, `compatibility`, `metadata`, and experimental
-  `allowed-tools` fields;
-- relative file references resolved from the Skill directory;
-- progressively disclosed metadata, instructions, and supporting resources.
+Existing `.claude-plugin/plugin.json` and `package.json`'s `pi` fields are parallel
+legacy host-format compatibility, not portable manifest overrides or claimed §8
+client extensions. Existing Pi adapter components remain outside the v1
+component types (§7); their discovery and behavior belong only to Pi. New
+standard client extensions must use §8 rather than copying these legacy paths.
+The portable core does not discover or execute them. Native compatibility checks
+remain separate, and the same canonical Skill directories supply every route.
 
-Supporting files may use additional names and formats. A custom JSON file is
-allowed supporting data; that does not make its meaning part of Agent Skills.
-There is no required Markdown body template.
+## Conditional adoption: no implementation without a matching feature
 
-Recommendations such as keeping `SKILL.md` under 500 lines, short reference
-chains, and the suggested token budgets are authoring guidance, not additional
-schema fields or unconditional validation failures. Tool allowlisting is
-experimental and may differ between hosts.
+| Candidate and canonical source | Responsibility | Adoption trigger / current exclusion |
+| --- | --- | --- |
+| [MCP](https://modelcontextprotocol.io/specification/), current revision 2026-07-28 | External tool and context connections | When this repository actually provides an MCP integration; not a prerequisite for local Skills |
+| [MCP Skills extension](https://skills.extensions.modelcontextprotocol.io/specification/stable/skills), `io.modelcontextprotocol/skills` | Remote Skill transport over MCP, preserving Agent Skills | When remote serving is required; ordinary resource reads do not imply Skill activation |
+| [A2A](https://a2a-protocol.org/latest/) | Independent agent-service communication | When exposing such a service; not our internal subagent or file format |
+| [Agent Client Protocol](https://agentclientprotocol.com/overview/introduction) | Editor-to-coding-agent communication | When implementing a client/agent boundary; not a package manifest |
+| [Open Responses](https://www.openresponses.org/specification) / [OpenAPI](https://spec.openapis.org/oas/) | Cross-provider model API / HTTP API descriptions | When owning those API boundaries; not instruction-only distribution |
+| [AG-UI](https://docs.ag-ui.com/introduction) | Agent backend to application UI | When providing that protocol boundary; not a reason to replace the optional Pi chooser |
+| [PURL / ECMA-427](https://ecma-international.org/publications-and-standards/standards/ecma-427/) | Ecosystem-independent software-package identification | When inventory/provenance needs it; not a Skill invocation namespace or publisher verification |
+| [SLSA](https://slsa.dev/spec/), reviewed 1.2 | Supply-chain provenance and security guarantees | When adding a concrete provenance/verifier boundary; no SLSA level is currently claimed |
 
-## Repository conventions: additional, not upstream requirements
+These entries record discovery and responsibility, not a completed compliance or
+client-support assessment. Detailed version/license/compatibility review must
+precede their activation. Do not build a runtime just to adopt a protocol.
 
-The repository separately owns these portability expectations:
+## Observe or leave outside the current resource model
 
-- Keep one canonical copy of each Skill and its supporting files. Do not maintain
-  Claude-, Codex-, and Pi-specific copies of the method.
-- Keep each bundle self-contained, including physically contained reference
-  targets. Our path containment checks are repository safeguards.
-- Keep the core method complete without prepared reference bodies or a host hook.
-- Keep host command syntax and APIs out of portable method instructions.
-- Preserve optional, materially relevant reference selection, with exclusions
-  taking precedence. See [our reference contract](skill-references.md).
-- Treat generated directions as generated output and check them against their
-  authoring source.
-- Keep package-owned Claude identities scoped and stable: `@hobin/<package>`
-  maps to `hobin-<package>`, with distinct names across our packages and matching
-  package metadata. See [Claude namespaces](claude-plugins.md). This is a
-  repository convention for Claude plugin mode, not a cross-host name registry.
+- [AI Catalog](https://ai-catalog.io/spec/) addresses artifact discovery. Its
+  normative document says it is a draft that may change at any time. Observe;
+  do not claim it is an adopted universal marketplace/installer standard.
+- [OASF](https://github.com/agntcy/oasf) describes agent discovery/capability
+  metadata. It does not replace our Skill methods or conditional references.
+- [Open Agent Specification](https://github.com/oracle/agent-spec) describes
+  runnable agents/flows. Our independent methods are not executable agent-loop
+  definitions, so this is outside the present model.
 
-`references.json`, `judgment.json`, `Context Directions`, applicability rules,
-completion statuses, and the preference for minimal reference reads are our own
-contracts. JSON Schema validates data structure; it cannot decide whether a
-natural-language condition applies to a user's request.
+## Repository conventions and host contracts
 
-## Resource ownership
+`references.json`, `judgment.json`, generated `Context Directions`, applicability,
+completion statuses and minimal relevant reference reads remain **our own
+contracts**. See [conditional references](skill-references.md). Core methods work
+without host metadata injection. Reference files stay within their owning Skill;
+this stricter authoring safeguard is distinct from plugin-root containment.
 
-| Canonical location | Contract and owner |
+Host docs are compatibility evidence, not alternative normative package specs:
+
+- [Claude plugin manifest](https://code.claude.com/docs/en/plugins-reference),
+  [marketplace](https://code.claude.com/docs/en/plugins/marketplace-reference),
+  [installation scopes](https://code.claude.com/docs/en/discover-plugins).
+- [OpenAI plugin packaging and catalogs](https://developers.openai.com/plugins/build/plugins).
+- [Pi package/Skill integration](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/packages.md).
+
+The two root marketplace files are host-owned distribution metadata, not Agent
+Plugins components. They point to the same package roots and are checked for
+identity/source drift. Their different required fields do not justify copies of
+methods. Global install scope, command syntax, cache behavior, permissions,
+automatic context injection and hook APIs remain host-specific.
+
+## Ownership and checks
+
+| Location / command | Owner and supported claim |
 | --- | --- |
-| `packages/developer/skills/` | Developer methods, Agent Skills bundles |
-| `packages/learning/skills/` | Learning methods, Agent Skills bundles; embedded directions are generated locally |
-| `skills/` | Independent Agent Skills bundles, outside the npm package catalogs |
-| `schemas/` and `packages/learning/schemas/` | Versioned repository-owned authoring formats |
-| `packages/*/adapters/pi/` | Optional Pi lifecycle and UI integration |
-| `packages/*/.claude-plugin/plugin.json` | Optional Claude identity metadata at the host-required discovery path; uses the same default `skills/` directories |
-| Package `test/` / `tests/` and Learning `scripts/eval-*.mjs` | Development checks; Pi live-evaluation drivers and adapter tests are host-specific, not portable method dependencies |
-| `agents/` | Reviewable context fragments, not a standardized subagent definition format |
-| `AGENTS.md` | Instructions for maintaining this repository, not a global policy automatically installed for consumers |
+| `packages/*/plugin.json` | Portable package identity; npm metadata is synchronized by repository checks |
+| `packages/*/skills/`, `skills/` | Canonical Agent Skills and contained supporting files |
+| `packages/*/.claude-plugin/plugin.json` | Legacy Claude identity compatibility, not a portable override |
+| `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json` | Claude and Codex distribution catalogs |
+| `packages/*/adapters/pi/` | Optional Pi-only components, not portable client extensions |
+| `schemas/`, `packages/learning/schemas/` | Repository-owned authoring schemas, except the attributed `schemas/upstream/` subtree |
+| `agents/` | Optional context fragments, not standardized subagent definitions |
+| `AGENTS.md` | Repository maintenance instructions, not consumers' auto-installed global policy |
+| `pnpm check:standard:skills` | Pinned upstream Skill frontmatter validation for all three catalogs |
+| `pnpm check:standard:plugins` | Pinned manifest schema and applicable portable package/path checks |
+| `pnpm check:standard` | Both standard-resource checks, without a host executable |
+| `pnpm check:portable` | Standard checks plus repository policies, negative cases, actual npm packs and relocated resources |
+| `pnpm check:pi` | Existing optional Pi integration/discovery behavior |
+| `pnpm check:claude` | Optional native Claude metadata/catalog validation; no model call |
+| `pnpm check:install -- <host>` | Opt-in isolated native installation/persistence checks against actual packed artifacts; see [installation](installation.md) |
 
-Package names group distributable resources. They do not define a portable agent
-runtime, mandatory pipeline, or cross-Skill state machine.
+Portable CI must work without Pi, Claude or Codex. Host compatibility results must
+name the actual executable version and exercised source. Structural checks and
+model-free installs do not establish model selection, reference-reading quality,
+permission enforcement, or live invocation behavior. Paid behavioral evaluation,
+real user configuration changes and publishing remain separately authorized.
 
-## Host documentation: compatibility evidence only
-
-- [Claude Code Skills](https://code.claude.com/docs/en/skills)
-- [Claude Code project instructions](https://code.claude.com/docs/en/memory)
-- [Codex Skills](https://developers.openai.com/codex/skills/)
-- [Codex project instructions](https://developers.openai.com/codex/guides/agents-md/)
-- [Pi Skills](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/skills.md)
-
-These describe discovery paths, invocation, permissions, and host extensions.
-They do not redefine the canonical method. Discovery locations, command syntax,
-AGENTS.md precedence, automatic context injection, and hook APIs are not
-universal Agent Skills guarantees.
-
-MCP is not required for this migration. If external tools are added later, their
-protocol should be documented separately rather than used as a Skill loader.
-
-## Verification and updating the baseline
-
-- `pnpm check:standard`: reference validation of all three Skill catalogs, with
-  no agent runtime. The installed validator's Git provenance must match the
-  commit in `requirements-skills.txt`; a same-version tool from another source
-  is not accepted.
-- `pnpm check:portable`: standard checks plus repository conventions, authoring
-  consistency, relocated bundles, and packed artifacts.
-- `pnpm check:pi`: Pi adapter, discovery, and runtime integration checks.
-- `pnpm check:claude`: optional native Claude manifest validation; requires Claude
-  Code but no model call. Portable checks enforce our identity and packaging
-  conventions without depending on the Claude executable.
-- Live-model tests are separate evidence for model behavior, not implied by any
-  of the structural checks above.
-
-To update the Agent Skills baseline, review the specification and validator diff,
-update this register and `requirements-skills.txt` together, reinstall the
-reference tool with `python -m pip install --force-reinstall -r requirements-skills.txt`,
-and rerun the checks. Classify every added rule as an upstream
-requirement, upstream recommendation, repository convention, or host constraint.
-Do not silently promote a host feature or our own convention into a standard.
+For an Agent Skills update, review its specification/validator diff, update this
+register and `requirements-skills.txt` together, reinstall the pinned validator,
+and rerun the checks. For Agent Plugins, review the normative/schema/license
+diffs, vendor exact upstream bytes, update `source.json` and this register, and
+rerun the standard, packed-artifact and relevant host checks. Preserve the
+classification of every added rule throughout the update.

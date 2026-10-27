@@ -1,0 +1,20 @@
+{
+  "name": "hobin-agent",
+  "owner": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "description": "Independent engineering and learning methods from one canonical Agent Skills source.",
+  "plugins": [
+    {
+      "name": "hobin-developer",
+      "source": "./packages/developer",
+      "category": "Productivity"
+    },
+    {
+      "name": "hobin-learning",
+      "source": "./packages/learning",
+      "category": "Productivity"
+    }
+  ]
+}

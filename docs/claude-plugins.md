@@ -1,100 +1,76 @@
-# Package-owned Claude namespaces
+# Claude compatibility and namespaces
 
-Claude plugin identity is optional host metadata, not part of Agent Skills.
-Canonical `skills/<name>/SKILL.md` names and reference paths stay unchanged.
+For normal persistent installation, follow the
+[native installation guide](installation.md). Claude supports user-wide plugins;
+its default `user` scope is not tied to a chosen work repository.
 
-## Stable identities
+## Common identity, host compatibility
 
-| npm package | Claude plugin name | Example invocation in plugin mode |
+Each package's root `plugin.json` declares its Agent Plugins identity.
+`.claude-plugin/plugin.json` retains the matching name, version, description and
+author solely for Claude's legacy discovery format. The same `skills/` directories
+supply every host; there are no per-host Skill copies or reference loaders.
+
+| npm package | Portable / Claude name | Claude invocation |
 | --- | --- | --- |
 | `@hobin/developer` | `hobin-developer` | `/hobin-developer:model` |
 | `@hobin/learning` | `hobin-learning` | `/hobin-learning:technical-reading` |
 
-Each package owns `.claude-plugin/plugin.json` at its root. Our convention maps
-`@hobin/<package>` to `hobin-<package>`; the manifest's version, description, and
-author match `package.json`. The default `skills/` layout is used directly, with
-no Skill copies, renamed frontmatter, hooks, MCP server, or custom loader.
+The `@hobin/<package>` to `hobin-<package>` mapping is our convention, not a
+portable name registry. The standard defines package structure, not a universal
+command syntax. Native Codex also qualifies plugin Skills; see the separate
+Codex commands and observed names in the installation guide.
 
-Claude permits a plugin without a manifest, but then its identity can depend on
-the directory or marketplace entry. Shipping an explicit name keeps our identity
-stable when an npm archive is extracted to a directory such as `package/`.
+## Persistent user installation
 
-These metadata files are included in npm packages starting with the prepared
-`0.2.1` release. Published `0.2.0` packages do not contain them.
-
-## Load the package as a Claude plugin
-
-From the project where you want to work, point Claude at the **package roots**:
+From any directory, register a checkout containing the current catalogs:
 
 ```sh
-claude --plugin-dir /path/to/agent/packages/developer \
-       --plugin-dir /path/to/agent/packages/learning
+claude plugin marketplace add /absolute/path/to/agent --scope user
+claude plugin install hobin-developer@hobin-agent --scope user
+claude plugin install hobin-learning@hobin-agent --scope user
 ```
 
-For npm-installed packages, use the corresponding
-`node_modules/@hobin/developer` and `node_modules/@hobin/learning` roots instead.
-The same layout also works with Claude's supported whole-plugin installation
-mechanisms; this repository does not install a marketplace or change user settings.
+The root `.claude-plugin/marketplace.json` points at the two package roots.
+Claude stores user enablement in its own settings and manages its cache. Local
+marketplace source folders should remain available; they are not the user's
+work project. Start a new session or run `/reload-plugins` to pick up changes.
 
-Use qualified commands such as:
+For editing only, `claude --plugin-dir /absolute/path/to/agent/packages/developer`
+loads a package for that session. It is not a persistent install.
 
-```text
-/hobin-developer:model Model the unresolved cases behind this bug.
-/hobin-developer:doctor Diagnose this module.
-/hobin-developer:verify Check what this evidence supports.
-/hobin-learning:technical-reading Read this specification faithfully.
-```
+## Collision and migration boundary
 
-Plugin mode gives these commands different names from Claude's `/model`,
-`/doctor`, and bundled `/verify`. It does not remove already installed flat
-Skills that may still shadow those commands. If migrating a flat installation,
-inspect the Claude entries and remove or disable only the copies you own. Do not
-blindly delete shared `~/.agents/skills/` resources that Codex may still use.
+Plugin-qualified names differ from Claude's bare `/model`, `/doctor`, and bundled
+`/verify`. Ordinary flat `skills add` does not create this namespace, and plugin
+installation does not remove already installed flat Skills. Remove or disable
+only entries you own after inspecting their source. Never blindly delete a
+shared `~/.agents/skills/` tree that another client uses.
 
-## Ordinary Skill installation is a different route
+The package cannot reserve a name globally. Another publisher could deliberately
+choose the same plugin ID; host precedence and trust policy remain relevant.
 
-A common installer such as Vercel Labs' `skills` CLI manages discovery, copying,
-links, and updates. It does not turn ordinary Skill installations into native
-Claude plugins or promise to apply this namespace.
+## Checks and limits
 
-For example, install the standard bundles for Codex with:
+`pnpm check:standard` includes the pinned upstream Agent Plugins schema as well
+as Agent Skills validation. `pnpm check:portable` additionally checks our identity
+mapping, metadata/catalog consistency, source hashes, negative cases and actual
+npm packs. It does not require Claude.
 
-```sh
-npx skills@1.7.4 add dev-hobin/agent/packages/developer -g -a codex
-npx skills@1.7.4 add dev-hobin/agent/packages/learning -g -a codex
-```
-
-This optional installer needs Node.js 22.20+. That is a tool requirement, not a
-runtime requirement of the Skills. Review same-named existing Skills before
-installing. Codex's `$model` remains an ordinary Skill mention; this manifest
-does not introduce a cross-host namespace syntax.
-
-Do not install these packages as flat Claude Skills and assume that adding the
-plugin metadata elsewhere has qualified their names. Choose native Claude
-plugin loading when avoiding bare-command collisions is required.
-
-## Guarantee and checks
-
-`pnpm check:portable` checks the package-to-plugin identity mapping, disjoint
-names across our packages, matching metadata, and inclusion in actual npm packs.
-Negative cases cover unscoped or duplicate IDs, stale versions, missing npm
-exports, and accidental executable manifest fields. Packed Skills still work
-without host metadata when copied on their own.
-
-With Claude Code installed, run the optional, model-free authoritative check:
+Optional native, model-free checks:
 
 ```sh
 pnpm check:claude
+pnpm check:install -- claude
 ```
 
-This check is not required by portable CI. Marketplace listing, icons, global
-installation, and live-model evaluations are separate operations.
+The latter installs actual packed artifacts under a temporary HOME, verifies user
+scope across work directories, inspects 17 + 5 Skills and a same-named peer Skill,
+and checks installed resource bytes. It does not modify real user settings or
+run a model. Icons/public directory submission, publisher verification and live
+model behavior are separate concerns. See the
+[evidence boundaries](installation.md#evidence-recorded-on-2026-10-27).
 
-The guarantee covers identities we own and Claude's plugin-loading route. It is
-not a global reservation system: another plugin can deliberately choose the same
-manifest name, and Claude's load precedence then applies. Plain Skill installs
-and other hosts are not silently renamed or made collision-free by this file.
-
-References: [manifest format](https://code.claude.com/docs/en/plugins-reference),
-[plugin loading and name conflicts](https://code.claude.com/docs/en/plugins/loading),
-[skills CLI](https://github.com/vercel-labs/skills).
+Published 0.2.1 introduced the Claude compatibility files. The current 0.2.2
+preparation adds the portable manifests and native catalogs; it is not yet an npm
+release. See [release notes](releases/0.2.2.md).

@@ -1,0 +1,26 @@
+{
+  "name": "hobin-agent",
+  "interface": {
+    "displayName": "Hobin agent resources"
+  },
+  "plugins": [
+    {
+      "name": "hobin-developer",
+      "source": "./packages/developer",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "hobin-learning",
+      "source": "./packages/learning",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

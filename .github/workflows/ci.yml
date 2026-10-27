@@ -51,7 +51,7 @@ jobs:
       - name: Install only portable authoring dependencies
         run: pnpm install --filter agent --frozen-lockfile
 
-      - name: Check standard resources and repository conventions
+      - name: Check Skill/plugin standards, packed artifacts and conventions
         run: pnpm check:portable
 
       - name: Check patch whitespace

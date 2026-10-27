@@ -25,10 +25,11 @@ Reference가 필요하지 않을 수도 있고, 하나 또는 여러 개를 함�
 **디렉터리 전체**를 설치하거나 노출합니다. 있는 경우 `references.json`과
 `references/`도 포함해야 합니다. 지침을 읽는 데 Pi나 Node.js는 필요하지 않습니다.
 
-Codex의 개인 Skill 경로는 `~/.agents/skills/`입니다. Claude도 `~/.claude/skills/`의
-flat Skill을 지원하지만 기본 명령과의 충돌을 피하려면 아래의 패키지 플러그인
-방식을 사용합니다. 경로와 namespace는 호스트 기능이지 공통 Skill 형식이 아닙니다.
-서비스별 method 사본이나 전용 reference loader는 필요하지 않습니다.
+루트 `plugin.json`은 Agent Plugins 1.0.0을 따르며 `hobin-developer`를 선언합니다.
+Claude와 Codex에서 여러 프로젝트에 걸쳐 쓰려면 아래의 기본 플러그인 설치를
+권장합니다. 개별 flat Skill 설치도 가능하지만 플러그인 namespace는 적용되지
+않습니다. 경로와 호출 문법은 호스트 기능이며 서비스별 method 사본이나 전용
+reference loader는 필요하지 않습니다.
 
 Developer는 별도의 agent loop, on/off mode, phase state, custom Tool, runtime
 verifier, workflow protocol, persistence layer를 만들지 않습니다. 호스트나 사용자가
@@ -49,24 +50,38 @@ verifier, workflow protocol, persistence layer를 만들지 않습니다. 호스
 ```
 
 직접 호출 문법은 호스트에 따라 다릅니다. 예를 들어 Claude 플러그인에서는
-`/hobin-developer:specify`, Codex에서는 `$specify`, Pi에서는 `/skill:specify`를 씁니다.
+`/hobin-developer:specify`, Codex 플러그인에서는 `$hobin-developer:specify`,
+Pi에서는 `/skill:specify`를 씁니다.
 
-## 선택적인 Claude namespace
+## 호스트의 기본 플러그인 설치
 
-패키지의 `.claude-plugin/plugin.json`은 설치 디렉터리와 무관하게 plugin 이름을
-`hobin-developer`로 고정합니다. 실제 작업할 프로젝트에서 개별 Skill이 아닌
-**패키지 루트**를 로드합니다.
+아직 배포하지 않은 0.2.2 준비본의 manifest와 카탈로그가 포함된 checkout을 사용합니다.
+임의의 작업 프로젝트가 아니라 **리소스 checkout**을 등록하며 어느 경로에서 실행해도
+됩니다.
+
+Claude Code에서 사용자 전체 프로젝트에 적용하려면:
 
 ```sh
-claude --plugin-dir /path/to/agent/packages/developer
+claude plugin marketplace add /absolute/path/to/agent --scope user
+claude plugin install hobin-developer@hobin-agent --scope user
 ```
 
-기본 명령과 겹치는 bare name 대신 `/hobin-developer:model`,
-`/hobin-developer:doctor`, `/hobin-developer:verify`를 사용합니다. 식별 metadata만
-추가하고 기존 `skills/`를 그대로 사용합니다. 일반 `skills add` 설치에 namespace가
-자동 적용되거나 기존 flat Skill이 제거되지는 않습니다. 자세한
-[로딩 방법과 보장 범위](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md)를
-확인합니다.
+Codex의 기본 사용자 설치:
+
+```sh
+codex plugin marketplace add /absolute/path/to/agent
+codex plugin add hobin-developer@hobin-agent
+```
+
+새 세션에서 Claude는 `/hobin-developer:model`, Codex는 `$hobin-developer:model`처럼
+사용합니다. `.claude-plugin/plugin.json`은 공통 manifest와 동기화한 기존 Claude
+형식의 호환 파일이며 공통 원본을 대체하지 않습니다. 두 호스트 모두 같은 `skills/`를
+사용합니다.
+
+`claude --plugin-dir /absolute/path/to/agent/packages/developer`는 개발용 세션 로드이며
+영구 설치가 아닙니다. 일반 flat `skills add`가 namespace를 적용하거나 기존 사본을
+제거하지도 않습니다. [설치와 실제 검증 범위](https://github.com/dev-hobin/agent/blob/main/docs/installation.md),
+[Claude 충돌 경계](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md)를 참고합니다.
 
 ## 조건부 참고 자료
 
@@ -142,9 +157,11 @@ pnpm --filter @hobin/developer check:pi
 pnpm check:claude
 ```
 
-Portable 검사는 공식 reference validator, 자체 metadata 규약, 실제 packed/relocated
-bundle을 확인합니다. Pi 검사는 기본 discovery와 수동 metadata 공개를 확인합니다.
-실모델의 올바른 reference 선택을 증명하는 검사는 아닙니다.
+Portable 검사는 호스트 실행 파일 없이 두 공식 형식, 자체 metadata·카탈로그 규약,
+실제 packed/relocated bundle을 확인합니다. 선택적인 `pnpm check:install -- claude`와
+`pnpm check:install -- codex`는 임시 HOME·설정으로 실제 설치를 검사하며 모델을 호출하지
+않습니다. Pi의 기존 discovery와 metadata 공개 동작도 별도로 검사합니다. 실모델의
+올바른 reference 선택을 증명하는 검사는 아닙니다.
 
 ## 라이선스
 

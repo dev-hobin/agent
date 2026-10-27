@@ -14,7 +14,14 @@ const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 
 test("Pi loads the five canonical Skills and optional chooser from the actual packed package", async (t) => {
 	const root = await mkdtemp(join(tmpdir(), "learning-packed-"));
-	t.after(() => rm(root, { recursive: true, force: true }));
+	const previousHome = process.env.HOME;
+	// agentDir alone does not isolate the host's automatic ~/.agents/skills scan.
+	process.env.HOME = root;
+	t.after(async () => {
+		if (previousHome === undefined) delete process.env.HOME;
+		else process.env.HOME = previousHome;
+		await rm(root, { recursive: true, force: true });
+	});
 	const agentDir = join(root, "agent");
 	const cwd = join(root, "workspace");
 	await Promise.all([agentDir, cwd].map((path) => mkdir(path, { recursive: true })));
@@ -30,6 +37,7 @@ test("Pi loads the five canonical Skills and optional chooser from the actual pa
 		noPromptTemplates: true, noThemes: true, noContextFiles: true,
 	});
 	await loader.reload();
+	assert.deepEqual(loader.getSkills().diagnostics, []);
 	const entries = await readdir(join(packageRoot, "skills"), { withFileTypes: true });
 	const expectedSkills = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
 	const skills = loader.getSkills().skills.filter((skill) => skill.filePath.startsWith(packedRoot));

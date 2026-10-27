@@ -9,17 +9,18 @@ each Skill completes its own result and can be used by itself.
 
 ## Portable installation
 
-Install or expose a whole `skills/<name>/` directory through your host's Skill
-discovery mechanism. Include its supporting files, not just `SKILL.md`. The
-instruction-only bundles do not require Pi or Node.js, and reference selection
-needs no host extension.
+The root `plugin.json` follows Agent Plugins 1.0.0 and declares `hobin-learning`.
+Prefer native plugin installation below for persistent, package-qualified Skills
+in Claude and Codex. Alternatively expose a whole `skills/<name>/` directory,
+including supporting files, through a compatible host. Instruction-only bundles
+need neither Pi nor Node.js, and reference selection needs no host extension.
 
 Host-specific loading and explicit invocation examples:
 
 | Host | Location | Example |
 | --- | --- | --- |
-| Claude Code plugin | Load the package root | `/hobin-learning:technical-reading` |
-| Codex | `~/.agents/skills/<name>/` | `$technical-reading` |
+| Claude Code plugin | Native user plugin installation | `/hobin-learning:technical-reading` |
+| Codex plugin | Native user plugin installation | `$hobin-learning:technical-reading` |
 | Pi | Native Skill paths or package installation below | `/skill:technical-reading` |
 
 These are compatibility examples, not universal Agent Skills discovery rules.
@@ -61,20 +62,34 @@ Each Skill's `judgment.json` is an authoring source, rendered into deterministic
 standard host policy API. There is no Judgment runtime or reference-selection
 service. Learning stores no notebook, progress record, or hidden cross-Skill state.
 
-## Optional Claude namespace
+## Native plugin installation
 
-The packaged `.claude-plugin/plugin.json` declares the stable plugin name
-`hobin-learning`. From your working project, load the **whole package root**:
+Use a checkout containing the prepared 0.2.2 manifests/catalogs; it is not yet an
+npm release. Register the **resource checkout**, not a selected work project.
+
+Claude Code, once for your user across projects:
 
 ```sh
-claude --plugin-dir /path/to/agent/packages/learning
+claude plugin marketplace add /absolute/path/to/agent --scope user
+claude plugin install hobin-learning@hobin-agent --scope user
 ```
 
-Use `/hobin-learning:technical-reading` or `/hobin-learning:exercise`. The same
-standard `skills/` directories supply the methods; no copied Skills or custom
-runtime are introduced. This namespace applies only in Claude plugin mode, not
-ordinary flat `skills add` installation. See the repository's
-[loading and guarantee boundaries](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md).
+Codex, using its native user installation:
+
+```sh
+codex plugin marketplace add /absolute/path/to/agent
+codex plugin add hobin-learning@hobin-agent
+```
+
+Start a new session. Claude uses `/hobin-learning:technical-reading`; Codex uses
+`$hobin-learning:technical-reading`. Both consume the same canonical `skills/`.
+The synchronized `.claude-plugin/plugin.json` is legacy compatibility, not an
+alternative portable manifest. No `.codex-plugin` descriptor is needed here.
+
+`claude --plugin-dir /absolute/path/to/agent/packages/learning` is for one-session
+development only. Flat `skills add` does not apply plugin namespaces or remove
+existing copies. See [installation and exercised evidence](https://github.com/dev-hobin/agent/blob/main/docs/installation.md)
+and [Claude collision boundaries](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md).
 
 ## Optional Pi chooser
 
@@ -115,6 +130,11 @@ After changing a policy:
 ```sh
 node packages/learning/scripts/write-context-directions.mjs
 ```
+
+`pnpm check:standard` covers Agent Skills and Agent Plugins. The optional
+`pnpm check:install -- claude` or `pnpm check:install -- codex` probes actual
+native installation in temporary HOME/config without a model call. These are
+authoring checks, not consumer installers.
 
 `eval` and `eval:contrast` remain optional Pi live-model evaluation commands;
 they are not part of portable checks and may make provider requests.

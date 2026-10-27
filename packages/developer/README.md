@@ -29,11 +29,11 @@ each **whole directory**, including `references.json` and `references/` when
 present, through your Agent Skills host's discovery mechanism. Reading these
 instruction-only bundles does not require Pi or Node.js.
 
-Codex discovers personal Skills under `~/.agents/skills/`. Claude also supports
-flat Skills under `~/.claude/skills/`, but use the package as a plugin below to
-avoid collisions with built-in commands. Host paths and namespaces are not part
-of the Skill format. No per-host method copies or custom reference loader are
-needed.
+The root `plugin.json` follows Agent Plugins 1.0.0 and declares `hobin-developer`.
+Prefer the native plugin installation below for persistent, package-qualified
+Skills in Claude or Codex. Individual flat Skill installation remains optional;
+it does not apply plugin namespaces. Host paths and invocation syntax are not
+part of the Skill format. No per-host method copies or custom loader are needed.
 
 Developer does not provide an agent loop, on/off mode, phase state, custom Tool,
 runtime verifier, workflow protocol, or persistence layer. The host or user
@@ -53,24 +53,39 @@ Verify which completion claims the current evidence actually supports.
 ```
 
 Explicit invocation is host-specific: for example, `/hobin-developer:specify`
-in Claude plugin mode, `$specify` in Codex, or `/skill:specify` in Pi.
+in Claude plugin mode, `$hobin-developer:specify` in Codex plugin mode, or
+`/skill:specify` in Pi.
 
-## Optional Claude namespace
+## Native plugin installation
 
-The packaged `.claude-plugin/plugin.json` fixes the plugin name as
-`hobin-developer`, independent of its installation directory. From your working
-project, load the **package root**, not an individual Skill:
+Use a checkout containing the prepared 0.2.2 manifests and catalogs; this version
+is not yet published. Register the **resource checkout** from any directory, not
+a selected work project.
+
+Claude Code, for your user across projects:
 
 ```sh
-claude --plugin-dir /path/to/agent/packages/developer
+claude plugin marketplace add /absolute/path/to/agent --scope user
+claude plugin install hobin-developer@hobin-agent --scope user
 ```
 
-Use `/hobin-developer:model`, `/hobin-developer:doctor`, or
-`/hobin-developer:verify` instead of bare names that can collide with Claude's
-commands. This identity metadata uses the existing default `skills/` directory.
-Ordinary `skills add` installation does not apply this namespace, and existing
-flat Skill installations are not removed automatically. See the
-[loading and guarantee boundaries](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md).
+Codex, using its native user installation:
+
+```sh
+codex plugin marketplace add /absolute/path/to/agent
+codex plugin add hobin-developer@hobin-agent
+```
+
+Start a new session. Use `/hobin-developer:model` in Claude or
+`$hobin-developer:model` in Codex instead of an unqualified Skill name.
+`.claude-plugin/plugin.json` is synchronized legacy Claude metadata, not the
+portable source of truth. Both routes use the same `skills/` directory.
+
+`claude --plugin-dir /absolute/path/to/agent/packages/developer` is a session-only
+development shortcut, not persistent installation. Ordinary flat `skills add`
+does not apply plugin namespaces or remove existing copies. See
+[installation and exercised evidence](https://github.com/dev-hobin/agent/blob/main/docs/installation.md)
+and [Claude collision boundaries](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md).
 
 ## Conditional supporting material
 
@@ -149,9 +164,11 @@ pnpm --filter @hobin/developer check:pi
 pnpm check:claude
 ```
 
-Portable checks cover upstream reference validation, our metadata conventions,
-and actual packed/relocated bundles. Pi checks cover native discovery and
-passive disclosure. Neither proves live-model reference-selection quality.
+Portable checks cover both upstream formats, our metadata/catalog conventions,
+and actual packed/relocated bundles without a host executable. The optional
+`pnpm check:install -- claude` or `pnpm check:install -- codex` uses temporary
+HOME/config and real native installation without a model call. Pi checks retain
+native discovery and passive disclosure. None proves live-model selection quality.
 
 ## License
 

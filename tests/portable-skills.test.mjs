@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { canonicalSkillDirectories, checkSkillResources } from "../scripts/skill-resources.mjs";
+import { checkPluginPackage } from "../scripts/check-agent-plugins.mjs";
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -38,52 +39,6 @@ function referencePolicy(path = "references/material.md") {
 			{ path, when: ["This material can change the result"] },
 		] };
 }
-
-async function readJson(path) {
-	try {
-		return JSON.parse(await readFile(path, "utf8"));
-	} catch (error) {
-		throw new Error(`Cannot read JSON metadata at ${path}`, { cause: error });
-	}
-}
-
-// Repository policy for our identity-only Claude manifests, not a host runtime.
-function assertClaudePluginIdentity(pkg, plugin, seen = new Set()) {
-	assert.match(pkg.name, /^@hobin\/[a-z0-9]+(?:-[a-z0-9]+)*$/u);
-	const namespace = pkg.name.slice(1).replace("/", "-");
-	assert.equal(plugin.name, namespace, "Claude namespace must match the scoped npm package");
-	assert.equal(plugin.version, pkg.version, "Claude plugin version must match the package");
-	assert.ok(pkg.files.includes(".claude-plugin"), "Plugin metadata must be included in npm files");
-	assert.deepEqual(plugin, { name: namespace, version: pkg.version, description: pkg.description, author: pkg.author },
-		"Claude manifest must contain only package-aligned identity metadata");
-	assert.ok(!seen.has(namespace), `Duplicate Claude plugin namespace: ${namespace}`);
-	seen.add(namespace);
-}
-
-test("packages own stable, disjoint Claude namespaces instead of inheriting directory names", async () => {
-	const seen = new Set();
-	for (const name of ["developer", "learning"]) {
-		const packageRoot = join(root, "packages", name);
-		const pkg = await readJson(join(packageRoot, "package.json"));
-		const plugin = await readJson(join(packageRoot, ".claude-plugin/plugin.json"));
-		assert.equal(pkg.name, `@hobin/${name}`);
-		assertClaudePluginIdentity(pkg, plugin, seen);
-	}
-	assert.deepEqual([...seen].sort(), ["hobin-developer", "hobin-learning"]);
-});
-
-test("unscoped, duplicated, stale, unpacked, or executable plugin metadata cannot pass", () => {
-	const pkg = { name: "@hobin/developer", version: "0.2.1", description: "Fixture", author: { name: "Fixture author" }, files: [".claude-plugin", "skills"] };
-	const plugin = { name: "hobin-developer", version: pkg.version, description: pkg.description, author: pkg.author };
-	const seen = new Set();
-	assertClaudePluginIdentity(pkg, plugin, seen);
-	assert.throws(() => assertClaudePluginIdentity(pkg, plugin, seen), /Duplicate Claude plugin namespace/);
-	assert.throws(() => assertClaudePluginIdentity(pkg, { ...plugin, name: "model" }), /scoped npm package/);
-	assert.throws(() => assertClaudePluginIdentity(pkg, { ...plugin, name: "hobin-learning" }), /scoped npm package/);
-	assert.throws(() => assertClaudePluginIdentity(pkg, { ...plugin, version: "0.2.0" }), /version must match/);
-	assert.throws(() => assertClaudePluginIdentity({ ...pkg, files: ["skills"] }, plugin), /included in npm files/);
-	assert.throws(() => assertClaudePluginIdentity(pkg, { ...plugin, hooks: "./hooks/hooks.json" }), /only package-aligned identity/);
-});
 
 test("the standards register and installed-check requirements share one upstream pin", async () => {
 	const requirements = await readFile(join(root, "requirements-skills.txt"), "utf8");
@@ -179,10 +134,10 @@ for (const [name, count] of [["developer", 17], ["learning", 5]]) {
 			{ cwd: packageRoot, maxBuffer: 2 * 1024 * 1024 });
 		const [pack] = JSON.parse(stdout);
 		await exec("tar", ["-xzf", join(directory, pack.filename), "-C", directory]);
-		const pkg = await readJson(join(directory, "package/package.json"));
-		const plugin = await readJson(join(directory, "package/.claude-plugin/plugin.json"));
+		const { pkg, skills } = await checkPluginPackage(join(directory, "package"));
 		assert.equal(pkg.name, `@hobin/${name}`);
-		assertClaudePluginIdentity(pkg, plugin);
+		assert.equal(skills.length, count);
+		assert.ok(pack.files.some((file) => file.path === "plugin.json"));
 		const neutralRoot = join(directory, "consumer", "skills");
 		await cp(join(directory, "package", "skills"), neutralRoot, { recursive: true });
 		const entries = await readdir(neutralRoot, { withFileTypes: true });

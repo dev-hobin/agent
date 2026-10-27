@@ -22,7 +22,15 @@ test("Pi discovers the canonical Skill catalog without diagnostics", () => {
 
 test("Pi loads canonical Skills and the passive adapter from the actual packed package", async (t) => {
 	const root = await mkdtemp(join(tmpdir(), "developer-packed-"));
-	t.after(() => rm(root, { recursive: true, force: true }));
+	const previousHome = process.env.HOME;
+	// The explicit agentDir does not disable Pi's ~/.agents/skills discovery.
+	// This test file runs in its own process; isolate home without editing user settings.
+	process.env.HOME = root;
+	t.after(async () => {
+		if (previousHome === undefined) delete process.env.HOME;
+		else process.env.HOME = previousHome;
+		await rm(root, { recursive: true, force: true });
+	});
 	const packDir = join(root, "pack");
 	const agentDir = join(root, "agent");
 	const cwd = join(root, "workspace");
@@ -39,6 +47,7 @@ test("Pi loads canonical Skills and the passive adapter from the actual packed p
 	const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager,
 		noPromptTemplates: true, noThemes: true, noContextFiles: true });
 	await loader.reload();
+	assert.deepEqual(loader.getSkills().diagnostics, []);
 	const packedSkills = loader.getSkills().skills.filter((skill) => skill.filePath.startsWith(packedRoot));
 	assert.deepEqual(packedSkills.map((skill) => skill.name).sort(), expectedSkills);
 	const extensions = loader.getExtensions();
