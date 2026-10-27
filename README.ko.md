@@ -30,12 +30,14 @@
 | [`skills/`](./skills) | 두 패키지 밖에서 제공하는 협업 Skill 4개 |
 | [`agents/`](./agents) | 프로젝트 지침에 선택해 합치는 컨텍스트 조각이며, 표준 subagent 정의가 아님 |
 | `packages/*/adapters/pi/` | 선택적인 Pi lifecycle 연동과 선택기 |
+| `packages/*/.claude-plugin/plugin.json` | Skill을 복제하지 않는 선택적 Claude 패키지 식별 metadata |
 
 `@hobin/developer`와 `@hobin/learning`은 서로 독립적으로 배포하는 npm 패키지입니다.
 하나의 단계형 workflow가 아니며, 공통 agent loop, 필수 policy runtime, 숨은
 cross-Skill state를 만들지 않습니다.
-[0.2.0 배포 준비와 마이그레이션 안내](./docs/releases/0.2.0.md)에 버전 변경과 별도의
-npm 배포 단계를 기록했습니다.
+[0.2.0 마이그레이션 안내](./docs/releases/0.2.0.md)와
+[0.2.1 namespace metadata 준비](./docs/releases/0.2.1.md)에 변경을 기록했습니다.
+Manifest 버전 준비와 실제 npm 배포는 별개입니다.
 
 ## Agent Skills 호스트에서 사용
 
@@ -46,9 +48,9 @@ npm 배포 단계를 기록했습니다.
 
 아래는 공통 탐색 규칙이 아니라 호스트별 개인 경로와 호출 예시입니다.
 
-| 호스트 | 개인 Skill 경로 | 직접 호출 예시 |
+| 호스트 | 발견 또는 로드 방식 | 직접 호출 예시 |
 | --- | --- | --- |
-| [Claude Code](https://code.claude.com/docs/en/skills) | `~/.claude/skills/<name>/` | `/sketch` |
+| [Claude Code](https://code.claude.com/docs/en/plugins) | 패키지 루트를 플러그인으로 로드 | `/hobin-developer:sketch` |
 | [Codex](https://developers.openai.com/codex/skills/) | `~/.agents/skills/<name>/` | `$sketch` |
 | Pi | 기본 Skill 경로 또는 아래 패키지 manifest | `/skill:sketch` |
 
@@ -61,6 +63,23 @@ Developer는 hook 없이 `references.json`을 읽을 수 있고, Learning은 생
 지침을 `SKILL.md`에 포함합니다. 일반 지침과 file access만으로 필요한 참고 자료를
 읽으며 서비스별 loader는 필수가 아닙니다. 실제 선택과 지침 준수는 파일 형식이
 강제하는 동작이 아니라 모델의 행동입니다.
+
+## 선택적인 Claude namespace
+
+Flat Skill 설치는 Claude의 기본 `/model`, `/doctor`, 번들 `/verify`와 충돌할 수
+있습니다. 패키지는 표준 Skill 이름을 바꾸지 않고 plugin 이름만 `hobin-developer`,
+`hobin-learning`으로 고정합니다. 실제 작업할 프로젝트에서 패키지 루트를 로드합니다.
+
+```sh
+claude --plugin-dir /path/to/agent/packages/developer \
+       --plugin-dir /path/to/agent/packages/learning
+```
+
+이후 `/hobin-developer:model`, `/hobin-learning:technical-reading`처럼 호출합니다.
+일반 `skills add` 설치가 이 namespace를 적용하거나 기존 flat Skill을 제거하지는
+않습니다. Codex용 공통 설치 명령과 보장 범위는
+[Claude 로딩 및 이름 충돌 안내](./docs/claude-plugins.md)에 있습니다. 원본 method에
+전용 설치 관리자나 호스트 runtime을 추가하지 않습니다.
 
 ## 선택적인 Pi 연동
 
@@ -95,7 +114,9 @@ python -m pip install -r requirements-skills.txt
 pnpm install --frozen-lockfile
 pnpm check:portable
 pnpm check:pi
-# 둘 다 실행하려면:
+# Claude Code가 설치된 경우 선택적인 기본 manifest 검사:
+pnpm check:claude
+# 표준/portable 및 Pi 검사를 함께 실행하려면:
 pnpm check
 ```
 

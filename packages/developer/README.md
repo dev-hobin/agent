@@ -4,7 +4,7 @@ English | [한국어](./README.ko.md)
 
 Engineering judgment methods following the
 [Agent Skills specification](https://agentskills.io/specification), with
-conditional supporting references and optional Pi integration.
+conditional supporting references and optional host integrations.
 
 ## Why
 
@@ -29,10 +29,11 @@ each **whole directory**, including `references.json` and `references/` when
 present, through your Agent Skills host's discovery mechanism. Reading these
 instruction-only bundles does not require Pi or Node.js.
 
-Examples of host discovery roots are `~/.claude/skills/` for Claude Code and
-`~/.agents/skills/` for Codex. Their command syntax and installation paths are
-host features, not part of the Skill format. No per-host method copies or custom
-reference loader are needed.
+Codex discovers personal Skills under `~/.agents/skills/`. Claude also supports
+flat Skills under `~/.claude/skills/`, but use the package as a plugin below to
+avoid collisions with built-in commands. Host paths and namespaces are not part
+of the Skill format. No per-host method copies or custom reference loader are
+needed.
 
 Developer does not provide an agent loop, on/off mode, phase state, custom Tool,
 runtime verifier, workflow protocol, or persistence layer. The host or user
@@ -51,8 +52,25 @@ Decide whether this repeated structure is ready to become an abstraction.
 Verify which completion claims the current evidence actually supports.
 ```
 
-Explicit invocation is host-specific: for example, `/specify` in Claude Code,
-`$specify` in Codex, or `/skill:specify` in Pi.
+Explicit invocation is host-specific: for example, `/hobin-developer:specify`
+in Claude plugin mode, `$specify` in Codex, or `/skill:specify` in Pi.
+
+## Optional Claude namespace
+
+The packaged `.claude-plugin/plugin.json` fixes the plugin name as
+`hobin-developer`, independent of its installation directory. From your working
+project, load the **package root**, not an individual Skill:
+
+```sh
+claude --plugin-dir /path/to/agent/packages/developer
+```
+
+Use `/hobin-developer:model`, `/hobin-developer:doctor`, or
+`/hobin-developer:verify` instead of bare names that can collide with Claude's
+commands. This identity metadata uses the existing default `skills/` directory.
+Ordinary `skills add` installation does not apply this namespace, and existing
+flat Skill installations are not removed automatically. See the
+[loading and guarantee boundaries](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md).
 
 ## Conditional supporting material
 
@@ -127,6 +145,8 @@ From the repository root, after the root README's authoring setup:
 ```sh
 pnpm check:portable
 pnpm --filter @hobin/developer check:pi
+# Optional, with Claude Code installed:
+pnpm check:claude
 ```
 
 Portable checks cover upstream reference validation, our metadata conventions,

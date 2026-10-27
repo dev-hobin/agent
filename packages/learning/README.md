@@ -14,11 +14,11 @@ discovery mechanism. Include its supporting files, not just `SKILL.md`. The
 instruction-only bundles do not require Pi or Node.js, and reference selection
 needs no host extension.
 
-Host-specific personal locations and explicit invocation examples:
+Host-specific loading and explicit invocation examples:
 
 | Host | Location | Example |
 | --- | --- | --- |
-| Claude Code | `~/.claude/skills/<name>/` | `/technical-reading` |
+| Claude Code plugin | Load the package root | `/hobin-learning:technical-reading` |
 | Codex | `~/.agents/skills/<name>/` | `$technical-reading` |
 | Pi | Native Skill paths or package installation below | `/skill:technical-reading` |
 
@@ -61,6 +61,21 @@ Each Skill's `judgment.json` is an authoring source, rendered into deterministic
 standard host policy API. There is no Judgment runtime or reference-selection
 service. Learning stores no notebook, progress record, or hidden cross-Skill state.
 
+## Optional Claude namespace
+
+The packaged `.claude-plugin/plugin.json` declares the stable plugin name
+`hobin-learning`. From your working project, load the **whole package root**:
+
+```sh
+claude --plugin-dir /path/to/agent/packages/learning
+```
+
+Use `/hobin-learning:technical-reading` or `/hobin-learning:exercise`. The same
+standard `skills/` directories supply the methods; no copied Skills or custom
+runtime are introduced. This namespace applies only in Claude plugin mode, not
+ordinary flat `skills add` installation. See the repository's
+[loading and guarantee boundaries](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md).
+
 ## Optional Pi chooser
 
 ```sh
@@ -91,6 +106,8 @@ After the repository root's authoring setup:
 ```sh
 pnpm check:portable
 pnpm --filter @hobin/learning check:pi
+# Optional, with Claude Code installed:
+pnpm check:claude
 ```
 
 After changing a policy:

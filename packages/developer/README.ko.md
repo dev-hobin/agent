@@ -3,7 +3,7 @@
 [English](./README.md) | 한국어
 
 [Agent Skills 명세](https://agentskills.io/specification)를 따르는 개발 판단 method와
-조건부 Reference 모음입니다. Pi 연동은 선택 사항입니다.
+조건부 Reference 모음입니다. 호스트별 연동은 선택 사항입니다.
 
 ## 만든 이유
 
@@ -25,8 +25,9 @@ Reference가 필요하지 않을 수도 있고, 하나 또는 여러 개를 함�
 **디렉터리 전체**를 설치하거나 노출합니다. 있는 경우 `references.json`과
 `references/`도 포함해야 합니다. 지침을 읽는 데 Pi나 Node.js는 필요하지 않습니다.
 
-개인 경로의 예로 Claude Code는 `~/.claude/skills/`, Codex는 `~/.agents/skills/`를
-사용합니다. 경로와 호출 문법은 호스트 기능이지 공통 Skill 형식이 아닙니다.
+Codex의 개인 Skill 경로는 `~/.agents/skills/`입니다. Claude도 `~/.claude/skills/`의
+flat Skill을 지원하지만 기본 명령과의 충돌을 피하려면 아래의 패키지 플러그인
+방식을 사용합니다. 경로와 namespace는 호스트 기능이지 공통 Skill 형식이 아닙니다.
 서비스별 method 사본이나 전용 reference loader는 필요하지 않습니다.
 
 Developer는 별도의 agent loop, on/off mode, phase state, custom Tool, runtime
@@ -47,8 +48,25 @@ verifier, workflow protocol, persistence layer를 만들지 않습니다. 호스
 현재 증거로 완료됐다고 말할 수 있는 범위를 검증해 줘.
 ```
 
-직접 호출 문법은 호스트에 따라 다릅니다. 예를 들어 Claude Code에서는 `/specify`,
-Codex에서는 `$specify`, Pi에서는 `/skill:specify`를 사용합니다.
+직접 호출 문법은 호스트에 따라 다릅니다. 예를 들어 Claude 플러그인에서는
+`/hobin-developer:specify`, Codex에서는 `$specify`, Pi에서는 `/skill:specify`를 씁니다.
+
+## 선택적인 Claude namespace
+
+패키지의 `.claude-plugin/plugin.json`은 설치 디렉터리와 무관하게 plugin 이름을
+`hobin-developer`로 고정합니다. 실제 작업할 프로젝트에서 개별 Skill이 아닌
+**패키지 루트**를 로드합니다.
+
+```sh
+claude --plugin-dir /path/to/agent/packages/developer
+```
+
+기본 명령과 겹치는 bare name 대신 `/hobin-developer:model`,
+`/hobin-developer:doctor`, `/hobin-developer:verify`를 사용합니다. 식별 metadata만
+추가하고 기존 `skills/`를 그대로 사용합니다. 일반 `skills add` 설치에 namespace가
+자동 적용되거나 기존 flat Skill이 제거되지는 않습니다. 자세한
+[로딩 방법과 보장 범위](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md)를
+확인합니다.
 
 ## 조건부 참고 자료
 
@@ -120,6 +138,8 @@ Skill은 유지하고 어댑터만 끄려면:
 ```sh
 pnpm check:portable
 pnpm --filter @hobin/developer check:pi
+# Claude Code가 설치된 경우 선택적으로 실행:
+pnpm check:claude
 ```
 
 Portable 검사는 공식 reference validator, 자체 metadata 규약, 실제 packed/relocated

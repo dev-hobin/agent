@@ -13,11 +13,11 @@
 구성된 Skill을 읽는 데 Pi나 Node.js는 필요하지 않고, 참고 자료 선택을 위한
 호스트 확장도 필요하지 않습니다.
 
-아래는 호스트별 개인 경로와 직접 호출 예시입니다.
+아래는 호스트별 로딩 방식과 직접 호출 예시입니다.
 
 | 호스트 | 경로 | 예시 |
 | --- | --- | --- |
-| Claude Code | `~/.claude/skills/<name>/` | `/technical-reading` |
+| Claude Code 플러그인 | 패키지 루트를 로드 | `/hobin-learning:technical-reading` |
 | Codex | `~/.agents/skills/<name>/` | `$technical-reading` |
 | Pi | 기본 Skill 경로 또는 아래 패키지 설치 | `/skill:technical-reading` |
 
@@ -59,6 +59,22 @@ Method는 대화에서 완전한 결과나 복사 가능한 Markdown을 완성�
 아닙니다. Judgment runtime이나 reference 선택 service는 없습니다. Notebook,
 진행률, Skill 사이의 숨은 state도 만들지 않습니다.
 
+## 선택적인 Claude namespace
+
+패키지의 `.claude-plugin/plugin.json`은 plugin 이름을 `hobin-learning`으로 고정합니다.
+실제 작업할 프로젝트에서 **패키지 루트 전체**를 로드합니다.
+
+```sh
+claude --plugin-dir /path/to/agent/packages/learning
+```
+
+`/hobin-learning:technical-reading`, `/hobin-learning:exercise`처럼 호출합니다.
+표준 `skills/` 원본을 그대로 사용하며 Skill 사본이나 별도 runtime을 추가하지
+않습니다. 이 namespace는 Claude 플러그인 모드에만 적용되고, 일반 flat `skills add`
+설치에는 적용되지 않습니다. 자세한
+[로딩 방법과 보장 범위](https://github.com/dev-hobin/agent/blob/main/docs/claude-plugins.md)를
+확인합니다.
+
 ## 선택적인 Pi 선택기
 
 ```sh
@@ -88,6 +104,8 @@ pi -e npm:@hobin/learning
 ```sh
 pnpm check:portable
 pnpm --filter @hobin/learning check:pi
+# Claude Code가 설치된 경우 선택적으로 실행:
+pnpm check:claude
 ```
 
 정책을 바꾼 뒤에는 generated directions를 다시 만듭니다.

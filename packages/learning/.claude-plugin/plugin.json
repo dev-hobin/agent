@@ -1,0 +1,9 @@
+{
+  "name": "hobin-learning",
+  "version": "0.2.1",
+  "description": "Five independent Agent Skills for technical reading, repository study, concepts, patterns, and practice.",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  }
+}

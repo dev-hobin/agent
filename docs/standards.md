@@ -16,6 +16,7 @@ is not a frozen contract. Review upstream changes before changing these baseline
 | [skills-ref](https://github.com/agentskills/agentskills/tree/69ef37e9424c0a7ea9dd2293b559e43ec8176379/skills-ref) | Same upstream commit; pinned in `requirements-skills.txt` | Development-time reference validator |
 | [AGENTS.md](https://agents.md/) | Open-format guidance reviewed on the date above | Repository working instructions, separate from Agent Skills |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12) | Draft 2020-12; [metaschema](https://json-schema.org/draft/2020-12/schema) | Structure of our own reference-policy schemas |
+| [Claude plugin manifest](https://code.claude.com/docs/en/plugins-reference) | Documentation reviewed on the date above; local validator 2.1.311 | Optional host identity metadata, not an Agent Skills requirement |
 
 The `skills-ref` README explicitly describes the library as demonstration code,
 not a production runtime. We use it only for authoring checks. Its successful
@@ -56,6 +57,10 @@ The repository separately owns these portability expectations:
   taking precedence. See [our reference contract](skill-references.md).
 - Treat generated directions as generated output and check them against their
   authoring source.
+- Keep package-owned Claude identities scoped and stable: `@hobin/<package>`
+  maps to `hobin-<package>`, with distinct names across our packages and matching
+  package metadata. See [Claude namespaces](claude-plugins.md). This is a
+  repository convention for Claude plugin mode, not a cross-host name registry.
 
 `references.json`, `judgment.json`, `Context Directions`, applicability rules,
 completion statuses, and the preference for minimal reference reads are our own
@@ -71,6 +76,7 @@ natural-language condition applies to a user's request.
 | `skills/` | Independent Agent Skills bundles, outside the npm package catalogs |
 | `schemas/` and `packages/learning/schemas/` | Versioned repository-owned authoring formats |
 | `packages/*/adapters/pi/` | Optional Pi lifecycle and UI integration |
+| `packages/*/.claude-plugin/plugin.json` | Optional Claude identity metadata at the host-required discovery path; uses the same default `skills/` directories |
 | Package `test/` / `tests/` and Learning `scripts/eval-*.mjs` | Development checks; Pi live-evaluation drivers and adapter tests are host-specific, not portable method dependencies |
 | `agents/` | Reviewable context fragments, not a standardized subagent definition format |
 | `AGENTS.md` | Instructions for maintaining this repository, not a global policy automatically installed for consumers |
@@ -103,6 +109,9 @@ protocol should be documented separately rather than used as a Skill loader.
 - `pnpm check:portable`: standard checks plus repository conventions, authoring
   consistency, relocated bundles, and packed artifacts.
 - `pnpm check:pi`: Pi adapter, discovery, and runtime integration checks.
+- `pnpm check:claude`: optional native Claude manifest validation; requires Claude
+  Code but no model call. Portable checks enforce our identity and packaging
+  conventions without depending on the Claude executable.
 - Live-model tests are separate evidence for model behavior, not implied by any
   of the structural checks above.
 

@@ -30,12 +30,14 @@ our own convention, not an additional Agent Skills standard.
 | [`skills/`](./skills) | Four standalone collaboration Skills, outside both package catalogs |
 | [`agents/`](./agents) | Reviewable context fragments to select and merge into project instructions, not standard subagent definitions |
 | `packages/*/adapters/pi/` | Optional Pi lifecycle and chooser integration |
+| `packages/*/.claude-plugin/plugin.json` | Optional package-owned Claude identity metadata; no copied Skills |
 
 `@hobin/developer` and `@hobin/learning` remain independently distributable npm
 packages. They are not phases of one workflow. There is no shared agent loop,
 mandatory policy runtime, or hidden cross-Skill state. See the
-[0.2.0 release preparation and migration notes](./docs/releases/0.2.0.md) for the
-package version changes and the separate npm publication step.
+[0.2.0 migration notes](./docs/releases/0.2.0.md) and the
+[0.2.1 namespace metadata preparation](./docs/releases/0.2.1.md). Preparing a
+manifest version is separate from publishing it to npm.
 
 ## Use with an Agent Skills host
 
@@ -46,9 +48,9 @@ canonical resources; Node.js and Pi are not required to read them.
 
 Host-specific examples, not universal discovery rules:
 
-| Host | Personal Skill directory | Explicit invocation example |
+| Host | Discovery or loading | Explicit invocation example |
 | --- | --- | --- |
-| [Claude Code](https://code.claude.com/docs/en/skills) | `~/.claude/skills/<name>/` | `/sketch` |
+| [Claude Code](https://code.claude.com/docs/en/plugins) | Package root loaded as a plugin | `/hobin-developer:sketch` |
 | [Codex](https://developers.openai.com/codex/skills/) | `~/.agents/skills/<name>/` | `$sketch` |
 | Pi | Native Skill paths or the package manifest below | `/skill:sketch` |
 
@@ -63,6 +65,25 @@ read `references.json` without a hook; Learning embeds generated selection
 directions in `SKILL.md`. Neither requires service-specific reference-loading
 code. Actual model selection and adherence remain behavioral, not enforced by
 the file format.
+
+## Optional Claude namespaces
+
+Claude's bare `/model`, `/doctor`, and bundled `/verify` can collide with flat
+Skill installations. Package metadata fixes our plugin names as `hobin-developer`
+and `hobin-learning` without renaming the standard Skills. From your working
+project, load the package roots:
+
+```sh
+claude --plugin-dir /path/to/agent/packages/developer \
+       --plugin-dir /path/to/agent/packages/learning
+```
+
+For example, use `/hobin-developer:model` or
+`/hobin-learning:technical-reading`. Plain `skills add` installation does not
+apply these namespaces or remove pre-existing flat Skills. See
+[Claude loading and collision boundaries](./docs/claude-plugins.md), including
+common-installer commands for Codex. No custom installer or host runtime is
+required by the canonical methods.
 
 ## Optional Pi integration
 
@@ -98,7 +119,9 @@ python -m pip install -r requirements-skills.txt
 pnpm install --frozen-lockfile
 pnpm check:portable
 pnpm check:pi
-# Or both:
+# Optional native manifest validation, if Claude Code is installed:
+pnpm check:claude
+# Standard/portable and Pi checks:
 pnpm check
 ```
 

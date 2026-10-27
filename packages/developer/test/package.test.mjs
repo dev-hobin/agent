@@ -17,12 +17,12 @@ const expectedSkills = [
 
 test("manifest ships canonical Skills and an optional Pi adapter without runtime dependencies", async () => {
 	const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
-	assert.equal(manifest.version, "0.2.0");
+	assert.equal(manifest.version, "0.2.1");
 	assert.equal(manifest.private, undefined);
 	assert.equal(manifest.license, "MIT");
 	assert.deepEqual(manifest.publishConfig, { access: "public" });
 	assert.deepEqual(manifest.files, [
-		"adapters", "skills", "README.md", "README.ko.md", "LICENSE",
+		".claude-plugin", "adapters", "skills", "README.md", "README.ko.md", "LICENSE",
 	]);
 	assert.deepEqual(manifest.pi, {
 		extensions: ["./adapters/pi/skill-references/index.js"], skills: ["./skills"],
@@ -45,6 +45,7 @@ test("npm pack includes Skills and the optional adapter but excludes tests and r
 	const [pack] = JSON.parse(stdout);
 	const paths = pack.files.map((file) => file.path);
 	assert.equal(paths.includes("adapters/pi/skill-references/index.js"), true);
+	assert.equal(paths.includes(".claude-plugin/plugin.json"), true);
 	assert.equal(paths.includes("LICENSE"), true);
 	assert.equal(paths.includes("README.ko.md"), true);
 	assert.equal(paths.filter((path) => path.endsWith("/SKILL.md")).length, 17);

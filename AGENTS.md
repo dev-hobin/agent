@@ -8,8 +8,10 @@
 - Distinguish upstream requirements, upstream recommendations, our own reference
   convention, and host constraints. See `docs/skill-references.md`.
 - Keep host-specific runtime integration in package-local `adapters/<host>/`.
-  It must not be required to use a portable Skill bundle. Keep adapter tests and
-  live-evaluation drivers explicitly host-scoped.
+  It must not be required to use a portable Skill bundle. Host discovery metadata
+  such as `.claude-plugin/plugin.json` stays at its host-required location; keep
+  it identity-only and aligned with the scoped npm package. Keep adapter tests
+  and live-evaluation drivers explicitly host-scoped.
 - `agents/` contains optional context fragments, not auto-installed policy or a
   standardized subagent format.
 
@@ -18,7 +20,9 @@
 - Node.js 22.19+ and pnpm 10.33.4 are development tools, not Skill runtime
   prerequisites. Reference validation also needs Python 3.11+; see README.md.
 - Run `pnpm check:portable` for portable resource changes and `pnpm check:pi` for
-  Pi adapter changes. Run `pnpm check` before reporting the migration complete.
+  Pi adapter changes. For Claude metadata changes, also run the optional native
+  `pnpm check:claude` when Claude Code is available. Run `pnpm check` before
+  reporting the migration complete.
 - After editing a Learning `judgment.json`, run
   `node packages/learning/scripts/write-context-directions.mjs` and check for
   generated-text drift.
