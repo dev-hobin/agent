@@ -2,33 +2,46 @@
 
 English | [한국어](./README.ko.md)
 
-Engineering judgment Skills and conditional References for Pi.
+Engineering judgment methods following the
+[Agent Skills specification](https://agentskills.io/specification), with
+conditional supporting references and optional Pi integration.
 
 ## Why
 
-Experienced developers rarely recall every design rule at once. They keep a small set of judgment frames in mind—what kind of problem this is and what should happen next—then consult detailed material when the concrete situation calls for it.
+Experienced developers rarely recall every design rule at once. They keep a
+small set of judgment frames in mind—what kind of problem this is and what
+should happen next—then consult detailed material when the concrete situation
+calls for it.
 
-`@hobin/developer` brings that working intuition into Pi as reviewable Skills and References. A Skill keeps the core judgment method available. Its References hold details that matter only under particular conditions, so the model can bring in the parts that fit the current problem instead of carrying a large engineering textbook into every task.
+`@hobin/developer` brings that working intuition into reviewable Skills and
+References. A Skill keeps the core judgment method available. Its References
+hold details that matter only under particular conditions, so the model can
+bring in the parts that fit the current problem instead of carrying a large
+engineering textbook into every task.
 
-This is progressive context, not a fixed workflow. A task may need no supporting Reference, one Reference, or several at the same time.
+This is progressive context, not a fixed workflow. A task may need no supporting
+Reference, one Reference, or several at the same time.
 
-## Install
+## Portable Skills
 
-Requires [Pi](https://pi.dev) and Node.js 22.19 or newer.
+The canonical resources are the 17 directories under `skills/`. Install or expose
+each **whole directory**, including `references.json` and `references/` when
+present, through your Agent Skills host's discovery mechanism. Reading these
+instruction-only bundles does not require Pi or Node.js.
 
-```sh
-pi install npm:@hobin/developer
-```
+Examples of host discovery roots are `~/.claude/skills/` for Claude Code and
+`~/.agents/skills/` for Codex. Their command syntax and installation paths are
+host features, not part of the Skill format. No per-host method copies or custom
+reference loader are needed.
 
-Try it for one run:
-
-```sh
-pi -e npm:@hobin/developer
-```
+Developer does not provide an agent loop, on/off mode, phase state, custom Tool,
+runtime verifier, workflow protocol, or persistence layer. The host or user
+selects a Skill; its `SKILL.md` owns its method, boundaries, result, and stop
+condition. Skills are independent judgments, not mandatory phases of a pipeline.
 
 ## Use
 
-Ask Pi normally. It can select a matching Skill from its standard Skill catalog.
+Ask your agent normally. It can select a matching Skill from its catalog:
 
 ```text
 Clarify what must remain true before implementing this requirement.
@@ -38,79 +51,87 @@ Decide whether this repeated structure is ready to become an abstraction.
 Verify which completion claims the current evidence actually supports.
 ```
 
-You can also invoke a Skill directly with `/skill:<name>`.
+Explicit invocation is host-specific: for example, `/specify` in Claude Code,
+`$specify` in Codex, or `/skill:specify` in Pi.
 
-## What it provides
+## Conditional supporting material
 
-- 17 independent engineering judgment Skills
-- detailed References associated with the conditions where they matter
-- one passive Skill References disclosure Extension
+A Skill's core method is complete without prepared references. For Skills that
+have `references.json`, the instructions tell the agent to inspect that sibling
+file unless the host already supplied bounded metadata for the invocation.
+Exclusions win, and the agent reads only references that materially apply.
+Relative paths start at the Skill directory, not the task's working directory.
 
-The Skills cover different kinds of engineering judgment. They are not mandatory phases and do not form one pipeline. Use the one that matches the decision in front of you, and stop when its result is sufficient.
+`references.json` and its `when`/`unless` meaning are our own convention, not an
+Agent Skills feature that hosts must natively interpret. See the repository's
+[standards register](https://github.com/dev-hobin/agent/blob/main/docs/standards.md)
+and [reference contract](https://github.com/dev-hobin/agent/blob/main/docs/skill-references.md).
+Our packaged metadata is checked against the retained JSON Schema during
+authoring; selection remains model behavior rather than enforced access control.
 
-## How context stays focused
+## Optional Pi adapter
 
-1. Pi discovers Skill names and descriptions through its normal Skill system.
-2. The model or user selects a Skill, and Pi loads its `SKILL.md` as the working method.
-3. The Extension discloses that Skill's sibling `references.json` as hidden selection metadata.
-4. The model interprets the conditions in the context of the selected Skill.
-5. It reads only the materially applicable Reference bodies through Pi's normal `read` Tool. More than one Reference may apply, and none may be needed.
-
-The Extension does **not** choose References, read Reference bodies, or replace Pi's Skill selection. It only makes the selected Skill's reference metadata available to the model.
-
-## Skill References disclosure
-
-For any Skill already discovered by Pi—whether supplied by this package, another package, a global Skill directory, or a trusted project—the Extension checks the exact sibling `references.json` after either:
-
-- a successful `read` of that Skill's `SKILL.md`; or
-- `/skill:name` expansion before the agent starts.
-
-A syntactically valid file no larger than 32 KiB is delivered to the model as non-displayed selection metadata. The original Skill read result and Pi's native TUI rendering remain unchanged. Any Reference the model actually reads appears through Pi's ordinary `read` Tool UI. Missing, malformed, oversized, or unreadable files are silent no-ops and never affect a successful Skill read.
-
-Developer's own `references.json` files are separately validated against the repository's retained schema during package checks.
-
-## Boundaries
-
-Developer does not replace Pi's agent loop and has no on/off mode, phase state, custom Tool, fixed workflow protocol, verifier, or persistence layer. Installed Skills use Pi's normal discovery and progressive disclosure behavior.
-
-## Resource control
-
-Use Pi's package configuration to enable or filter package resources.
-
-Disable the Extension while keeping the Skills:
-
-```json
-{
-  "packages": [
-    {
-      "source": "npm:@hobin/developer",
-      "extensions": []
-    }
-  ]
-}
-```
-
-Disable the Skills while keeping generic Skill References disclosure:
-
-```json
-{
-  "packages": [
-    {
-      "source": "npm:@hobin/developer",
-      "skills": []
-    }
-  ]
-}
-```
-
-## Checks
+Existing installation remains supported. This adapter requires Pi and Node.js
+22.19 or newer:
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm check
+pi install npm:@hobin/developer
+# Or try for one run:
+pi -e npm:@hobin/developer
 ```
 
-The checks are provider-free. They cover Skill discovery, static Skill References validation, runtime disclosure behavior, and packed package contents.
+`adapters/pi/skill-references/index.js` passively discloses reference metadata.
+For a Skill already discovered by Pi, from any package or trusted Skill location,
+it checks the exact sibling `references.json` after either:
+
+- a successful `read` of `SKILL.md`; or
+- `/skill:name` expansion before the agent starts.
+
+Syntactically valid JSON no larger than 32 KiB is supplied as non-displayed
+selection metadata. The native read result and TUI rendering are unchanged. The
+adapter does not validate external metadata against our schema, select a
+reference, or read its body. Missing, malformed, oversized, or unreadable files
+are silent no-ops.
+
+The normal Skill-directed file-reading path works without this adapter.
+Package-based installation is unchanged; manually configured source paths must
+change from `extensions/skill-references/index.js` to
+`adapters/pi/skill-references/index.js`.
+
+### Pi resource control
+
+Disable the adapter while retaining Skills:
+
+```json
+{
+  "packages": [
+    { "source": "npm:@hobin/developer", "extensions": [] }
+  ]
+}
+```
+
+Disable the Skills while retaining generic metadata disclosure:
+
+```json
+{
+  "packages": [
+    { "source": "npm:@hobin/developer", "skills": [] }
+  ]
+}
+```
+
+## Development checks
+
+From the repository root, after the root README's authoring setup:
+
+```sh
+pnpm check:portable
+pnpm --filter @hobin/developer check:pi
+```
+
+Portable checks cover upstream reference validation, our metadata conventions,
+and actual packed/relocated bundles. Pi checks cover native discovery and
+passive disclosure. Neither proves live-model reference-selection quality.
 
 ## License
 

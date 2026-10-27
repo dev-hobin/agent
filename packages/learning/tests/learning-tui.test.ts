@@ -7,7 +7,7 @@ import {
 	learningSkillItems,
 	prepareLearningSkill,
 	showLearningSkillSelector,
-} from "../extensions/tui.ts";
+} from "../adapters/pi/tui.ts";
 
 const theme = {
 	bold: (text: string) => text,

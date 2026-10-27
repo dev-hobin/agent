@@ -2,100 +2,102 @@
 
 [English](./README.md) | 한국어
 
-기술 문서와 공개 저장소를 이해하고, 거기서 얻은 내용을 재사용할 아이디어나
-연습으로 만들 때 쓰는 독립적인 Pi Skill 다섯 개입니다.
+기술 문서와 공개 저장소를 이해하고, 재사용할 아이디어와 연습으로 발전시킬 때
+쓰는 독립적인 [Agent Skills](https://agentskills.io/specification) 다섯 개입니다.
+정해진 학습 과정을 실행하는 도구가 아니며, 각 Skill이 자기 결과를 완성하고 끝납니다.
 
-Learning은 정해진 학습 과정을 실행하는 도구가 아닙니다. 필요한 Skill 하나만 쓸
-수 있고, 각 Skill은 자기 결과를 완성한 뒤 끝납니다.
+## 에이전트 중립적인 설치
 
-## 설치
+`skills/<name>/` 디렉터리 전체를 사용하는 호스트의 Skill 탐색 경로에 설치하거나
+노출합니다. `SKILL.md`만 복사하지 말고 supporting files도 포함합니다. 지침으로
+구성된 Skill을 읽는 데 Pi나 Node.js는 필요하지 않고, 참고 자료 선택을 위한
+호스트 확장도 필요하지 않습니다.
 
-[Pi](https://pi.dev)와 Node.js 22.19 이상이 필요합니다.
+아래는 호스트별 개인 경로와 직접 호출 예시입니다.
 
-```sh
-pi install npm:@hobin/learning
-```
+| 호스트 | 경로 | 예시 |
+| --- | --- | --- |
+| Claude Code | `~/.claude/skills/<name>/` | `/technical-reading` |
+| Codex | `~/.agents/skills/<name>/` | `$technical-reading` |
+| Pi | 기본 Skill 경로 또는 아래 패키지 설치 | `/skill:technical-reading` |
 
-설치하지 않고 한 번만 써 보려면:
-
-```sh
-pi -e npm:@hobin/learning
-```
+공통 Agent Skills 탐색 규칙이 아니라 서비스별 사용 예시입니다. 저장소의
+[표준 기준 문서](https://github.com/dev-hobin/agent/blob/main/docs/standards.md)는
+공식 형식, 자체 레퍼런스 규약, 호스트 API를 구분합니다.
 
 ## 먼저 해보기
 
-평소처럼 요청해도 됩니다.
+평소처럼 요청하거나 `technical-reading`을 직접 선택합니다.
 
 ```text
 이 RFC 부분을 같이 읽어 줘. 예시와 예외를 빼먹지 말고, 여기서 전제하는 state
 model을 설명해 줘.
 ```
 
-Skill을 바로 부를 수도 있습니다.
-
-```text
-/skill:technical-reading 이 글의 경계를 뭉개지 말고 설명해 줘.
-/skill:opensource-reading 이 API를 docs, tests, implementation에서 추적해 줘.
-/skill:conceptualize 이 결과에서 출처를 넘어 쓸 수 있는 개념 하나를 만들어 줘.
-/skill:patternize 이 반복 사례가 재사용할 수 있는 routine인지 판단해 줘.
-/skill:exercise 예측, 오개념 진단, 수정, transfer 연습을 만들어 줘.
-```
-
-`/learning`은 작은 선택기를 엽니다. 고른 `/skill:...` 명령을 editor에 넣고 기존
-초안은 보존합니다. 자동으로 전송하거나 별도의 Learning session을 시작하지
-않습니다.
-
 ## Skill 고르기
 
 | 필요한 결과 | Skill |
 | --- | --- |
 | 책, 글, 명세, 튜토리얼, PDF, 웹페이지를 원문에 충실하게 이해 | `technical-reading` |
-| 오픈 소스 저장소의 공개 API, 흐름, 불변식, tradeoff를 실제 코드 근거로 학습 | `opensource-reading` |
-| 여러 자료에서 얻은 내용을 출처 밖에서도 쓸 수 있는 개념으로 정리 | `conceptualize` |
-| 여러 사례의 반복을 실제로 실행할 수 있는 routine으로 정리 | `patternize` |
-| 이해한 내용을 사용할 수 있는지 관찰 가능한 연습으로 확인 | `exercise` |
+| 공개 저장소의 API, 흐름, 불변식, tradeoff 하나를 실제 코드로 학습 | `opensource-reading` |
+| 여러 자료에서 출처 밖에서도 쓸 수 있는 개념 하나를 정리 | `conceptualize` |
+| 여러 사례의 반복을 실행할 수 있는 routine으로 정리 | `patternize` |
+| 이해를 실제로 사용할 수 있는지 관찰 가능한 연습으로 확인 | `exercise` |
 
-이것은 다섯 단계가 아니라 서로 다른 질문입니다. 글을 읽었다고 반드시 개념을
-만들 필요가 없고, 개념을 만들었다고 반드시 pattern으로 이어갈 필요도 없습니다.
-각 Skill의 결과만으로 끝내도 됩니다.
+다섯 단계가 아니라 서로 다른 질문입니다. 읽었다고 반드시 개념을 만들거나,
+개념을 만들었다고 반드시 pattern으로 이어갈 필요는 없습니다.
 
-## Skill을 고른 뒤 일어나는 일
+## 실행과 참고 자료
 
-1. Pi가 선택한 `SKILL.md`를 완전한 작업 방법으로 불러옵니다.
-2. Skill이 자기 질문에 필요한 source나 repository 범위만 읽습니다.
-3. 패키지 참고 자료는 그 파일이 알려 줄 구분이 현재 결과를 바꿀 때만 엽니다.
-4. 대화에서 바로 쓸 수 있는 완전한 결과나 복사 가능한 Markdown을 돌려줍니다.
-5. 사용자가 저장 위치를 정하거나 승인했을 때만 파일을 씁니다.
+호스트가 선택한 `SKILL.md`를 로드하면 에이전트가 일반 source, repository, file
+도구로 method를 따릅니다. 현재 결과를 실질적으로 바꿀 참고 자료만 읽습니다.
+Method는 대화에서 완전한 결과나 복사 가능한 Markdown을 완성하고, 사용자가
+저장을 요청하고 target을 정하거나 승인했을 때만 파일을 쓰도록 지시합니다.
 
-Learning은 notebook, graph database, 진행률, Skill 사이의 숨은 state를 만들지
-않습니다.
+각 Skill의 `judgment.json`은 개발용 원본이고, `SKILL.md`의 결정적인
+`Context Directions`로 생성됩니다. JSON은 자체 규약이지 표준 호스트 정책 API가
+아닙니다. Judgment runtime이나 reference 선택 service는 없습니다. Notebook,
+진행률, Skill 사이의 숨은 state도 만들지 않습니다.
 
-## 선택적 참고 자료 지침
+## 선택적인 Pi 선택기
 
-각 Skill에는 패키지 개발에만 쓰는 작은 `judgment.json`이 있습니다. 이 정책은
-`SKILL.md` 안의 결정적인 `Context Directions` section으로 생성됩니다. 설치된
-Learning이 Judgment runtime을 시작하는 것은 아닙니다. Pi는 일반 Skill 내용으로
-method와 directions를 모델에 보여 줄 뿐입니다.
+```sh
+pi install npm:@hobin/learning
+# 한 번만 써 보려면:
+pi -e npm:@hobin/learning
+```
+
+`adapters/pi/learning.ts`가 `/learning`을 등록합니다. 선택기는 고른 `/skill:...`
+명령을 editor에 넣고 초안을 보존할 뿐, 전송하거나 참고 자료를 읽거나 별도 session을
+시작하지 않습니다. 선택기 없이 Pi의 직접 Skill 명령을 사용할 수 있습니다.
+
+패키지 설치 방식은 유지됩니다. 소스 경로를 직접 설정했다면
+`extensions/learning.ts`를 `adapters/pi/learning.ts`로 바꿉니다. Pi peer dependency는
+선택 사항이며, Skill 디렉터리를 소비하는 데 Pi runtime 설치가 필요하지 않습니다.
 
 ## 문서
 
-- [Skill 고르기](./docs/ko/choosing-a-skill.md) — 다섯 결과를 구분하는 기준
-- [Learning의 동작 원리](./docs/ko/how-it-works.md) — Pi resource discovery,
-  editor staging, prompt-time Skill 실행, authoring/runtime 경계
+- [Skill 고르기](./docs/ko/choosing-a-skill.md)
+- [Learning의 동작 원리](./docs/ko/how-it-works.md) — 표준 method, authoring/runtime
+  경계, 선택적인 Pi 연동
 
 ## 개발
 
+저장소 루트 README의 개발 환경을 준비한 뒤 실행합니다.
+
 ```sh
-pnpm --filter @hobin/learning check
-pnpm --filter @hobin/learning eval
-pi -e ./packages/learning
+pnpm check:portable
+pnpm --filter @hobin/learning check:pi
 ```
 
-정책을 바꾼 뒤 embedded directions를 다시 만듭니다.
+정책을 바꾼 뒤에는 generated directions를 다시 만듭니다.
 
 ```sh
 node packages/learning/scripts/write-context-directions.mjs
 ```
+
+`eval`, `eval:contrast`는 선택적인 Pi 실모델 평가 명령입니다. Portable 검사에
+포함되지 않으며 provider 요청이 발생할 수 있습니다.
 
 ## 라이선스
 

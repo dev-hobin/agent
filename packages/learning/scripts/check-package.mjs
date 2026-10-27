@@ -3,7 +3,6 @@ import { access, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 import { parse } from "yaml";
 
 import {
@@ -34,7 +33,7 @@ assert.equal(manifest.name, "@hobin/learning");
 assert.equal(manifest.version, "0.1.1");
 assert.equal(manifest.private, undefined);
 assert.deepEqual(manifest.files, [
-	"extensions",
+	"adapters",
 	"references",
 	"skills",
 	"schemas",
@@ -43,9 +42,9 @@ assert.deepEqual(manifest.files, [
 	"README.ko.md",
 	"LICENSE",
 ]);
-assert.deepEqual(manifest.pi.extensions, ["./extensions/learning.ts"]);
-assert.deepEqual(manifest.pi.skills, ["./skills"]);
 assert.deepEqual(manifest.devDependencies, {
+	"@earendil-works/pi-coding-agent": "0.83.0",
+	"@earendil-works/pi-tui": "0.84.2",
 	yaml: "^2.9.0",
 });
 assert.equal(manifest.dependencies, undefined);
@@ -53,6 +52,10 @@ assert.equal(manifest.bundledDependencies, undefined);
 assert.deepEqual(manifest.peerDependencies, {
 	"@earendil-works/pi-coding-agent": ">=0.80.10",
 	"@earendil-works/pi-tui": ">=0.80.10",
+});
+assert.deepEqual(manifest.peerDependenciesMeta, {
+	"@earendil-works/pi-coding-agent": { optional: true },
+	"@earendil-works/pi-tui": { optional: true },
 });
 
 const entries = await readdir(join(root, "skills"), { withFileTypes: true });
@@ -62,18 +65,8 @@ const skills = entries
 	.sort();
 assert.deepEqual(skills, expectedSkills);
 
-const loaded = loadSkillsFromDir({
-	dir: join(root, "skills"),
-	source: "@hobin/learning",
-});
-assert.deepEqual(loaded.diagnostics, []);
-assert.deepEqual(
-	loaded.skills.map((skill) => skill.name).sort(),
-	expectedSkills,
-);
-
-const codexSyntax =
-	/\$learning:|\$(?:technical-reading|opensource-reading|conceptualize|patternize|exercise)|learning:(?:technical-reading|opensource-reading|conceptualize|patternize|exercise)/;
+const hostInvocationSyntax =
+	/\/skill:|\$learning:|\$(?:technical-reading|opensource-reading|conceptualize|patternize|exercise)|learning:(?:technical-reading|opensource-reading|conceptualize|patternize|exercise)/;
 const englishDocNames = (
 	await readdir(join(root, "docs"), {
 		withFileTypes: true,
@@ -109,7 +102,7 @@ for (const name of skills) {
 	assert.match(source, /\[judgment\.json\]\(judgment\.json\)/i);
 	assert.doesNotMatch(source, /^## Judgment Guidance$/mu);
 	assert.doesNotMatch(source, /reference-policy|read order|read_order/i);
-	assert.doesNotMatch(source, codexSyntax);
+	assert.doesNotMatch(source, hostInvocationSyntax);
 	assert.doesNotMatch(
 		source,
 		/validate_learning_artifact|graph-artifact-standard|concepts\/context\.jsonld/,
@@ -192,13 +185,14 @@ for (const documentPath of markdownDocuments) {
 	const absoluteDocumentPath = join(root, documentPath);
 	const source = await readFile(absoluteDocumentPath, "utf8");
 	for (const match of source.matchAll(/\]\(([^)]+\.md)\)/g)) {
+		if (/^[a-z][a-z0-9+.-]*:/i.test(match[1])) continue;
 		await readFile(join(dirname(absoluteDocumentPath), match[1]), "utf8");
 	}
 }
 
 await assert.rejects(access(join(root, "references/reference-routing.md")));
 await assert.rejects(access(join(root, "references/judgment-guidance.md")));
-await assert.rejects(access(join(root, "extensions/artifact-validator.ts")));
+await assert.rejects(access(join(root, "adapters/pi/artifact-validator.ts")));
 await assert.rejects(
 	access(join(root, "references/graph-artifact-standard.md")),
 );
@@ -212,31 +206,6 @@ assert.equal(
 	"https://raw.githubusercontent.com/dev-hobin/agent/main/packages/learning/schemas/judgment-authoring.schema.json",
 );
 
-const extension = await readFile(join(root, "extensions/learning.ts"), "utf8");
-assert.match(extension, /registerCommand\("learning"/);
-assert.doesNotMatch(extension, /registerTool|validate_learning_artifact/);
-
-const tui = await readFile(join(root, "extensions/tui.ts"), "utf8");
-assert.match(tui, /SelectList/);
-assert.match(tui, /LEARNING_SKILL_NAMES/);
-assert.match(tui, /showLearningSkillSelector/);
-assert.match(tui, /prepareLearningSkill/);
-assert.doesNotMatch(
-	tui,
-	/LEARNING_ROUTES|LearningRoute|parseLearningAction|prepareLearningAction/u,
-);
-assert.match(tui, /setEditorText/);
-assert.doesNotMatch(
-	tui,
-	/validate_learning_artifact|value:\s*"validate"|Validate a saved artifact/,
-);
-
-const evalScript = await readFile(join(root, "scripts/eval-rpc.mjs"), "utf8");
-assert.match(evalScript, /"skill:technical-reading"/);
-assert.doesNotMatch(evalScript, /validate_learning_artifact/);
-assert.match(evalScript, /LEARNING_EVAL_PACKAGE_PATH/);
-assert.doesNotMatch(evalScript, /node:readline/);
-
 process.stdout.write(
-	"learning package structure and optional-reference Context Directions are consistent\n",
+	"learning portable package structure and Context Directions are consistent\n",
 );

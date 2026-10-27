@@ -20,7 +20,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 const extensionPath = fileURLToPath(
-	new URL("../extensions/skill-references/index.js", import.meta.url),
+	new URL("../adapters/pi/skill-references/index.js", import.meta.url),
 );
 
 async function createFixture(t) {

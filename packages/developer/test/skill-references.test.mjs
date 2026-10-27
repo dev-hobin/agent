@@ -6,7 +6,7 @@ import test from "node:test";
 
 import skillReferencesDisclosure, {
 	MAX_REFERENCES_BYTES,
-} from "../extensions/skill-references/index.js";
+} from "../adapters/pi/skill-references/index.js";
 
 function createHarness() {
 	const handlers = new Map();

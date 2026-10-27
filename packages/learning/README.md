@@ -2,103 +2,105 @@
 
 English | [한국어](./README.ko.md)
 
-Five independent Pi Skills for understanding technical sources, studying public
-repositories, forming reusable ideas, and practicing them.
+Five independent [Agent Skills](https://agentskills.io/specification) for
+understanding technical sources, studying public repositories, forming reusable
+ideas, and practicing them. Learning is not a course runner or fixed pipeline:
+each Skill completes its own result and can be used by itself.
 
-Learning is not a course runner or a fixed pipeline. Each Skill can be used by
-itself and ends with its own complete result.
+## Portable installation
 
-## Install
+Install or expose a whole `skills/<name>/` directory through your host's Skill
+discovery mechanism. Include its supporting files, not just `SKILL.md`. The
+instruction-only bundles do not require Pi or Node.js, and reference selection
+needs no host extension.
 
-Requires [Pi](https://pi.dev) and Node.js 22.19 or newer.
+Host-specific personal locations and explicit invocation examples:
 
-```sh
-pi install npm:@hobin/learning
-```
+| Host | Location | Example |
+| --- | --- | --- |
+| Claude Code | `~/.claude/skills/<name>/` | `/technical-reading` |
+| Codex | `~/.agents/skills/<name>/` | `$technical-reading` |
+| Pi | Native Skill paths or package installation below | `/skill:technical-reading` |
 
-Try it for one run:
-
-```sh
-pi -e npm:@hobin/learning
-```
+These are compatibility examples, not universal Agent Skills discovery rules.
+The repository's [standards register](https://github.com/dev-hobin/agent/blob/main/docs/standards.md)
+separates the upstream format from our own reference convention and host APIs.
 
 ## Try this first
 
-Ask Pi normally:
+Ask your agent normally, or explicitly select `technical-reading`:
 
 ```text
 Read this RFC section with me. Preserve the example and the exception, then
 explain the state model it expects me to use.
 ```
 
-Or invoke a Skill directly:
-
-```text
-/skill:technical-reading Explain this article without flattening its boundaries.
-/skill:opensource-reading Trace this API through docs, tests, and implementation.
-/skill:conceptualize Turn these findings into one source-independent concept.
-/skill:patternize Decide whether these repeated cases form one reusable routine.
-/skill:exercise Build prediction, diagnosis, repair, and transfer practice.
-```
-
-`/learning` opens a small chooser. It places the selected `/skill:...` command in
-the editor and preserves the current draft. It does not send the command or
-start a separate Learning session.
-
 ## Choose a Skill
 
 | Needed result | Skill |
 | --- | --- |
 | Understand a book, article, specification, tutorial, PDF, or webpage faithfully | `technical-reading` |
-| Learn how one public API, flow, invariant, or tradeoff works in an open-source repository | `opensource-reading` |
+| Learn one public API, flow, invariant, or tradeoff in an open-source repository | `opensource-reading` |
 | Name and test a durable idea that survives beyond its sources | `conceptualize` |
 | Turn recurrence across cases into an operational routine | `patternize` |
 | Produce observable evidence that a learner can use the idea | `exercise` |
 
-These are different questions, not five phases. Technical reading does not have
-to become a concept; a concept does not have to become a pattern; any completed
-result can stop where it is.
+These are different questions, not five phases. Reading does not have to become
+a concept, and a concept does not have to become a pattern.
 
-## What happens after selecting a Skill
+## Execution and supporting material
 
-1. Pi loads the selected `SKILL.md` as the complete method.
-2. The Skill reads only the source or repository slice needed for its question.
-3. A packaged reference is opened only when its stated distinction can change
-   the result.
-4. The Skill returns a complete conversational result or copyable Markdown.
-5. It writes a file only after the user names or approves a target.
+The host loads the selected `SKILL.md`; the agent follows its method using
+ordinary source, repository, and file tools. It reads only supporting references
+that can materially change the result. The method directs it to complete a
+conversational result or copyable Markdown, and to write files only after a user
+requests persistence and names or approves the target.
 
-Learning does not create a notebook, graph database, progress record, or hidden
-cross-Skill state.
+Each Skill's `judgment.json` is an authoring source, rendered into deterministic
+`Context Directions` inside `SKILL.md`. This JSON is our own convention, not a
+standard host policy API. There is no Judgment runtime or reference-selection
+service. Learning stores no notebook, progress record, or hidden cross-Skill state.
 
-## Optional reference directions
+## Optional Pi chooser
 
-Each Skill has a small `judgment.json` used during package development. It is
-rendered into a deterministic `Context Directions` section inside `SKILL.md`.
-The installed package does not start a Judgment runtime. Pi simply shows the
-method and directions to the model as normal Skill content.
+```sh
+pi install npm:@hobin/learning
+# Or try for one run:
+pi -e npm:@hobin/learning
+```
+
+`adapters/pi/learning.ts` registers `/learning`. The chooser places a selected
+`/skill:...` command in the editor and preserves the draft; it does not send it,
+load references, or start a Learning session. Native explicit Skill commands
+work without opening the chooser.
+
+Package installation remains supported. Manually configured source paths change
+from `extensions/learning.ts` to `adapters/pi/learning.ts`. The Pi peers are
+optional; consuming a Skill directory does not require installing a Pi runtime.
 
 ## Documentation
 
-- [Choosing a Skill](./docs/choosing-a-skill.md) — the distinction between the
-  five results
-- [Learning operating principles](./docs/how-it-works.md) — Pi resource
-  discovery, editor staging, prompt-time Skill execution, and the
-  authoring/runtime boundary
+- [Choosing a Skill](./docs/choosing-a-skill.md)
+- [Learning operating principles](./docs/how-it-works.md) — portable methods,
+  authoring/runtime boundaries, and optional Pi integration
 
 ## Development
 
+After the repository root's authoring setup:
+
 ```sh
-pnpm --filter @hobin/learning check
-pnpm --filter @hobin/learning eval
-pi -e ./packages/learning
+pnpm check:portable
+pnpm --filter @hobin/learning check:pi
 ```
 
-After changing a policy, regenerate the embedded directions:
+After changing a policy:
 
 ```sh
 node packages/learning/scripts/write-context-directions.mjs
 ```
+
+`eval` and `eval:contrast` remain optional Pi live-model evaluation commands;
+they are not part of portable checks and may make provider requests.
 
 ## License
 

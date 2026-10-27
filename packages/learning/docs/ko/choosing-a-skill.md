@@ -94,7 +94,7 @@ workflow에서 반복해서 다음 순서가 나타난다면 pattern 후보가 �
 
 ## Learning을 쓰지 않을 때
 
-- Pi가 repository를 배우는 것이 아니라 실제로 수정해야 할 때
+- 에이전트가 repository를 배우는 것이 아니라 실제로 수정해야 할 때
 - 자동으로 쌓이는 영속 notebook이 필요할 때
 - 근거 없이 짧은 요약만 원할 때
 - Source, concept, 반복 사례, 수행 목표 중 무엇을 다룰지 아직 정하지 못했을 때

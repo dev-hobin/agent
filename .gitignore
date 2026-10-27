@@ -4,3 +4,5 @@ coverage/
 *.log
 *.tgz
 .DS_Store
+.venv/
+__pycache__/

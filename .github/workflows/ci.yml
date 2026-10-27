@@ -10,8 +10,55 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Node ${{ matrix.node }}
+  portable:
+    name: Portable / Node ${{ matrix.node }} / Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: 22.19.0
+            python: "3.11"
+          - node: 24.x
+            python: "3.14"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+        with:
+          run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install Python for reference validation
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements-skills.txt
+
+      - name: Install pinned upstream reference validator
+        run: python -m pip install -r requirements-skills.txt
+
+      - name: Install only portable authoring dependencies
+        run: pnpm install --filter agent --frozen-lockfile
+
+      - name: Check standard resources and repository conventions
+        run: pnpm check:portable
+
+      - name: Check patch whitespace
+        run: git diff --check
+
+  pi:
+    name: Pi adapter / Node ${{ matrix.node }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -34,11 +81,8 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
 
-      - name: Install dependencies
+      - name: Install adapter development dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check packages
-        run: pnpm check
-
-      - name: Check patch whitespace
-        run: git diff --check
+      - name: Check optional Pi integration
+        run: pnpm check:pi

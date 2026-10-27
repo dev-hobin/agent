@@ -6,7 +6,14 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   packages/developer:
     devDependencies:
@@ -21,14 +28,13 @@ importers:
         version: 8.17.1
 
   packages/learning:
-    dependencies:
+    devDependencies:
       '@earendil-works/pi-coding-agent':
-        specifier: '>=0.80.10'
+        specifier: 0.83.0
         version: 0.83.0(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-tui':
-        specifier: '>=0.80.10'
+        specifier: 0.84.2
         version: 0.84.2
-    devDependencies:
       yaml:
         specifier: ^2.9.0
         version: 2.9.0

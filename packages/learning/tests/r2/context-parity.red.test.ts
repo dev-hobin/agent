@@ -98,8 +98,8 @@ test("L1 red: packed SKILL directions expose every declared need and source", as
 
 test("L1 red: chooser vocabulary names Pi skills rather than routes", async () => {
 	const [learning, tui] = await Promise.all([
-		readFile(join(root, "extensions/learning.ts"), "utf8"),
-		readFile(join(root, "extensions/tui.ts"), "utf8"),
+		readFile(join(root, "adapters/pi/learning.ts"), "utf8"),
+		readFile(join(root, "adapters/pi/tui.ts"), "utf8"),
 	]);
 	const combined = `${learning}\n${tui}`;
 	for (const name of [

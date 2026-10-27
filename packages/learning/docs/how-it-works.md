@@ -2,182 +2,133 @@
 
 English | [한국어](./ko/how-it-works.md)
 
-Learning is not a runtime that tracks progress through a curriculum. The package
-contains five complete `SKILL.md` methods that Pi loads directly and one small
-extension that makes choosing a method convenient.
+Learning is a collection of complete Agent Skills, not a service or a runtime
+tracking progress through a curriculum. Its optional Pi chooser is separate from
+its canonical methods.
 
-That separation is the central mechanism:
-
-```text
-Pi package discovery
-├─ extensions/learning.ts  → /learning chooser
-└─ skills/*/SKILL.md       → methods loaded into model context by Pi
-```
-
-The chooser does not execute a Skill, and Skills do not run on a Learning-owned
-state machine.
-
-## 1. Pi discovers the extension and Skills as separate resources
-
-`pi.extensions` in `package.json` points to `extensions/learning.ts`, while
-`pi.skills` points to the `skills/` directory.
-
-When Pi loads the package it does two independent things:
-
-1. executes the extension module, which registers `/learning`; and
-2. discovers each `skills/<name>/SKILL.md` through the normal Pi Skill loader.
-
-The extension does not copy Skills into a private registry or assemble their
-model prompts. Pi owns Skill discovery and `/skill:<name>` execution. A user can
-therefore invoke `/skill:technical-reading` without ever opening `/learning`.
-
-## 2. `/learning` changes editor text only
-
-The chooser handler parses either its argument or the TUI selection into one of
-five Skill names, then calls `prepareLearningSkill()`.
-
-That function removes only an existing Learning Skill prefix from the editor and
-preserves the rest of the draft before prepending the new command:
+## 1. The portable unit is a whole Skill directory
 
 ```text
-editor before:
-  Explain the state-transition failure in this RFC.
-
-after choosing technical-reading:
-  /skill:technical-reading Explain the state-transition failure in this RFC.
+skills/<name>/
+├─ SKILL.md          -> complete method and generated selection directions
+├─ judgment.json     -> authoring source, not a required host policy API
+└─ references/*.md   -> conditional supporting material
 ```
 
-No model request, Learning session event, or source read occurs. The extension
-calls `setEditorText()` and returns. Pi loads the Skill only after the user
-reviews and sends the edited message.
+A host discovers the Skill's metadata and loads `SKILL.md` when selected. The
+agent follows its method using ordinary tools and reads supporting files only
+when needed. Relative resource paths start at the owning Skill directory, not
+the current task directory. No Learning-specific loader or controller is needed.
 
-`/learning technical-reading` uses the same function. It bypasses the selector,
-not the send boundary.
+The upstream format is Agent Skills. The `judgment.json` vocabulary, generated
+section, and material-relevance rules are repository conventions, not additional
+standard fields or host APIs.
 
-## 3. A Skill method is a prompt-time execution contract
+## 2. The method is a prompt-time execution contract
 
-When the user sends `/skill:technical-reading`, Pi places that `SKILL.md` in the
-current model context. Reading, repository navigation, conceptualization,
-pattern judgment, and exercise design then use ordinary Pi tools under the Skill
-method.
+Each Skill independently defines:
 
-The execution semantics therefore live in `SKILL.md`, not a TypeScript
-controller. Every Skill must independently define:
+- its central question and accepted requests;
+- source scope, investigation order, and distinctions;
+- behavior when evidence is missing or another question becomes consequential;
+- a complete result and stop condition.
 
-- which requests and central question it owns;
-- accepted source and scope;
-- investigation order and distinctions;
-- behavior for missing evidence or a newly consequential question; and
-- its result and stop condition.
-
-The core method must remain complete when no packaged reference is opened. A
-method that cannot begin without a reference or another Learning Skill is not an
-independent capability.
-
-## 4. Skills are separated by question ownership, not output format
+Its core method remains complete when no prepared reference is opened. It does
+not require a previous Learning Skill or a TypeScript controller to begin.
 
 | Skill | Central question owned |
 | --- | --- |
 | `technical-reading` | What does this source actually claim, demonstrate, and bound? |
 | `opensource-reading` | What contract and tradeoff does an exact public code slice implement? |
-| `conceptualize` | What concept remains valid after source-specific wording is removed? |
-| `patternize` | Under what conditions does recurrence across cases become a reusable routine? |
-| `exercise` | What observable performance would demonstrate usable understanding? |
+| `conceptualize` | What concept remains after source-specific wording is removed? |
+| `patternize` | When does recurrence across cases become a reusable routine? |
+| `exercise` | What observable performance demonstrates usable understanding? |
 
-Technical reading preserves source wording and order when they carry meaning.
-Conceptualization deliberately removes source-specific language to test
-transfer. An automatic package phase joining them would damage their different
-completion conditions.
+Technical reading preserves meaningful source wording and order; conceptualize
+removes source-specific language to test transfer. An automatic phase joining
+them would damage their different completion conditions.
 
-## 5. There is no package-wide lifecycle state
+## 3. Authoring JSON becomes standard Markdown before execution
 
-Learning does not persist:
-
-- a current learning phase;
-- completion percentage;
-- the next required Skill;
-- one artifact schema; or
-- a default Notebook or repository path.
-
-A Skill result may recommend a handoff when another central question becomes
-important. The package runtime does not automatically start that Skill or pass
-hidden shared state. A later user request causes Pi to load the next method
-normally.
-
-Independence does not forbid composition. It means results move between Skills
-as explicit user-visible inputs rather than implicit lifecycle state.
-
-## 6. `judgment.json` is an authoring source, not a runtime policy engine
-
-Each Skill's `judgment.json` is a maintainer source for conditions under which
-packaged references may help. During development, a package-local script
-compiles that policy into deterministic Markdown under the Skill's
-`## Context Directions` section.
+A development-time, package-local parser and renderer compile `judgment.json`
+into `## Context Directions` inside `SKILL.md`:
 
 ```sh
 node packages/learning/scripts/write-context-directions.mjs
-pnpm --filter @hobin/learning check
 ```
 
-The installed package starts no Learning policy service. The runtime instruction
-visible to the model is the generated text already embedded in `SKILL.md`. The
-parser, renderer, and authoring schema are package-local development files.
+No installed policy service interprets the JSON. The model sees the generated
+Markdown as normal Skill instructions. Checks compare the generated section with
+the authoring source byte for byte, and check reference coverage and existence.
+Changing a policy without regenerating the directions fails authoring checks.
 
-Package checks compare policy output and the embedded section byte for byte. A
-maintainer cannot change only the policy and pass release checks with a stale
-Skill prompt.
+## 4. Supporting references are conditional
 
-## 7. References are conditional supporting material
+For a candidate method, at least one root `when` must apply and any matching
+`unless` excludes it. Exclusions win. For an applicable method:
 
-Files under `references/` do not replace the core method. Context Directions give
-each file an independent condition describing what missing distinction,
-counterexample, or check it can add.
+1. inspect the source through the core method;
+2. identify a consequential missing distinction, counterexample, or check;
+3. read only references whose independent conditions can change the result;
+4. skip material the source already supplies.
 
-The intended decision is:
+Zero, one, and several reference reads are valid. Reference growth does not mean
+eagerly injecting every body. These are model instructions, not access-control
+rules enforced by the optional chooser or a standard runtime.
 
-1. inspect the actual source through the core method;
-2. identify a consequential missing distinction;
-3. open only an exact reference that can supply it with an ordinary file tool;
-4. skip the reference when the source already supplies the distinction.
+## 5. There is no package-wide lifecycle or persistence service
 
-Reference growth therefore does not inject every file into model context. Zero,
-one, or many references are all valid. Generated directions also preserve root
-`unless` exclusions rather than treating a similar `when` as sufficient.
+Learning stores no phase, completion percentage, next required Skill, shared
+artifact schema, default Notebook, or hidden cross-Skill state. Results can be
+composed as explicit user-visible inputs; there is no automatic handoff.
 
-This selection is agent behavior under prompt instructions. The Learning
-extension does not intercept tool calls to enforce it as access control.
+Methods default to complete conversational results. They direct the agent to
+write only when a user requests persistence and names or approves a target.
+Distinguish three levels:
 
-## 8. Persistence is also a Skill contract, not a hidden service
+- the Pi chooser structurally changes only editor text and stores no state;
+- the Skill method instructs the model to respect the save boundary;
+- the host actually executes file tools under its own permissions.
 
-Each method is written to complete a conversational result by default and to use
-ordinary file tools only after the user requests persistence and selects or
-approves a target.
+Learning is not an operating-system write sandbox or an artifact writer.
 
-The extension has no artifact writer, Notebook service, graph database, or
-Learning session store. Three distinct levels matter:
+## 6. Pi integration is optional
 
-- **structurally enforced:** the chooser changes only the editor and stores no
-  Learning state;
-- **required by the Skill method:** do not write without a user-owned target and
-  save request;
-- **performed by Pi:** an active model tool writes with host permissions when
-  invoked.
+`package.json` exposes Skills and the chooser independently:
 
-Learning is not an operating-system write sandbox. Persistence discipline is an
-execution contract carried by the Skill prompt.
+```text
+pi.skills      -> skills/
+pi.extensions  -> adapters/pi/learning.ts
+```
 
-## 9. Package checks protect the structural boundary
+Pi's native loader owns discovery and `/skill:<name>` invocation. The adapter
+registers only `/learning`; it does not duplicate the catalog or assemble model
+prompts. Users can invoke Skills without opening the chooser.
 
-`pnpm --filter @hobin/learning check` verifies that:
+The chooser parses an argument or TUI selection into one of the five names and
+calls `prepareLearningSkill()`. It replaces only an existing Learning prefix,
+preserving the rest of the draft:
 
-- Pi discovers all five Skills without diagnostics;
-- chooser names match actual Skill directories;
-- each Skill has frontmatter, a complete method, and Context Directions;
-- every packaged reference is governed by exactly one policy entry;
-- policy paths name existing Markdown under the Skill root;
-- generated directions match their policies; and
-- the removed artifact validator, shared graph schema, and Judgment runtime
-  extension do not return.
+```text
+before: Explain the state-transition failure in this RFC.
+after:  /skill:technical-reading Explain the state-transition failure in this RFC.
+```
 
-These checks do not prove semantic learning quality. They prove that the package
-continues to preserve independent Skills and the authoring/runtime boundary.
+It makes no model request or source read and does not send the editor. The user
+reviews and submits it. `/learning technical-reading` bypasses the selector,
+not this send boundary. Other hosts need not reproduce this UI.
+
+## 7. Verification has separate owners
+
+- Root `pnpm check:portable` uses pinned upstream reference validation, checks our
+  resource conventions, and consumes packed/relocated Skill bundles without
+  adapters or package manifests.
+- Package `check:portable` checks the independent catalog, authoring directions,
+  paths, and absence of the removed shared runtime artifacts.
+- Package `check:pi` checks Pi discovery, chooser wiring, editor behavior, and
+  provider-free adapter tests. Pi RPC evaluation drivers are host-specific
+  development tools, not portable method dependencies.
+
+These checks do not prove semantic learning quality or correct model selection.
+Live-model evaluations are optional, host-specific evidence outside default
+checks. A successful validator is not proof of support by every future service.

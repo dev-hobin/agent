@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import learning from "../extensions/learning.ts";
+import learning from "../adapters/pi/learning.ts";
 
 test("Learning registers only its self-contained chooser command", () => {
 	let command: any;

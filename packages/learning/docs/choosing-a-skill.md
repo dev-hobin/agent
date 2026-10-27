@@ -93,7 +93,7 @@ because a package-level sequence says it should.
 
 ## When not to use Learning
 
-- Pi needs to change a repository rather than learn from it.
+- The agent needs to change a repository rather than learn from it.
 - You need an automatic persistent notebook.
 - You want a short summary without source or mastery requirements.
 - No source, concept, recurrence, or performance target is precise enough yet.

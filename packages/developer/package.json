@@ -1,7 +1,7 @@
 {
   "name": "@hobin/developer",
   "version": "0.1.20",
-  "description": "Composable engineering method Skills and conditional References for Pi",
+  "description": "Agent Skills for engineering methods and conditional references, with optional Pi integration",
   "type": "module",
   "keywords": [
     "pi-package",
@@ -28,7 +28,7 @@
     "access": "public"
   },
   "files": [
-    "extensions",
+    "adapters",
     "skills",
     "README.md",
     "README.ko.md",
@@ -36,7 +36,7 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/skill-references/index.js"
+      "./adapters/pi/skill-references/index.js"
     ],
     "skills": [
       "./skills"
@@ -44,7 +44,9 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "check": "pnpm test"
+    "check:portable": "node --test test/package.test.mjs test/skill-references-schema.test.mjs",
+    "check:pi": "node --test test/pi-*.test.mjs test/skill-references.test.mjs",
+    "check": "pnpm check:portable && pnpm check:pi"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "0.83.0",

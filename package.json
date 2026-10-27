@@ -1,7 +1,7 @@
 {
   "name": "agent",
   "private": true,
-  "description": "Pi packages maintained by dev-hobin.",
+  "description": "Canonical Agent Skills and optional host adapters maintained by dev-hobin.",
   "license": "MIT",
   "author": {
     "name": "dev-hobin",
@@ -20,6 +20,13 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check": "pnpm --filter @hobin/developer check && pnpm --filter @hobin/learning check"
+    "check:standard": "python scripts/check-agent-skills.py",
+    "check:portable": "pnpm check:standard && node --test tests/*.test.mjs && pnpm --filter @hobin/developer check:portable && pnpm --filter @hobin/learning check:portable",
+    "check:pi": "pnpm --filter @hobin/developer check:pi && pnpm --filter @hobin/learning check:pi",
+    "check": "pnpm check:portable && pnpm check:pi"
+  },
+  "devDependencies": {
+    "ajv": "8.17.1",
+    "yaml": "2.9.0"
   }
 }

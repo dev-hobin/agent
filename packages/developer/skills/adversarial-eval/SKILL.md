@@ -1,6 +1,6 @@
 ---
 name: adversarial-eval
-description: "Design and run finite adversarial evaluations for Pi skills, packages, agent workflows, or implementation claims using exact source provenance, escalating counterexamples, hidden checks, failure classification, and a marginal-value stop rule. Use when ordinary checks may miss real workflow, compatibility, or pass-but-wrong failures."
+description: "Design and run finite adversarial evaluations for agent skills, packages, workflows, or implementation claims using exact source provenance, escalating counterexamples, hidden checks, failure classification, and a marginal-value stop rule. Use when ordinary checks may miss real workflow, compatibility, or pass-but-wrong failures."
 ---
 
 # Adversarial Eval
