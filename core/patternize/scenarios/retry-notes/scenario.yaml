@@ -1,0 +1,82 @@
+# Acceptance scenario for core/patternize/SPEC.md §8. Hosts run it with their own eval tools.
+# A section counts when a Markdown heading names it, or a label line ("Term:") does.
+id: retry-notes
+tags:
+  - regression
+  - learning
+base: base
+request: |-
+  Use the patternize skill for this.
+
+  The three notes in notes/ come from different incidents. Turn what they have in common into a reusable pattern I can follow the next time a call with side effects might be retried, and check it against cases it should and shouldn't cover. Save the result to out/pattern.md.
+expect:
+  - id: artifact-written
+    file_exists: out/pattern.md
+  - id: has-case-table
+    file_matches:
+      path: out/pattern.md
+      pattern: ^\|.*\|.*\|
+      flags: m
+  - id: has-context
+    file_matches:
+      path: out/pattern.md
+      pattern: ^(#{1,6} [^\n]*(context|signals)|\s*[-*]?\s*\**[^\n:]{0,40}(context|signals)[^\n:]{0,20}\**:)
+      flags: im
+  - id: has-axis
+    file_matches:
+      path: out/pattern.md
+      pattern: ^(#{1,6} [^\n]*axis|\s*[-*]?\s*\**[^\n:]{0,40}axis[^\n:]{0,20}\**:)
+      flags: im
+  - id: has-forces
+    file_matches:
+      path: out/pattern.md
+      pattern: ^(#{1,6} [^\n]*forces|\s*[-*]?\s*\**[^\n:]{0,40}forces[^\n:]{0,20}\**:)
+      flags: im
+  - id: has-roles
+    file_matches:
+      path: out/pattern.md
+      pattern: ^(#{1,6} [^\n]*roles|\s*[-*]?\s*\**[^\n:]{0,40}roles[^\n:]{0,20}\**:)
+      flags: im
+  - id: has-ordered-moves
+    file_matches:
+      path: out/pattern.md
+      pattern: ^\s*1[.)]\s
+      flags: m
+  - id: has-checks
+    file_matches:
+      path: out/pattern.md
+      pattern: ^(#{1,6} [^\n]*checks?|\s*[-*]?\s*\**[^\n:]{0,40}checks?[^\n:]{0,20}\**:)
+      flags: im
+  - id: cites-order-note
+    file_matches:
+      path: out/pattern.md
+      pattern: (idempotency-keys|order)
+      flags: i
+  - id: cites-label-note
+    file_matches:
+      path: out/pattern.md
+      pattern: (retries\.md|label)
+      flags: i
+  - id: cites-payout-note
+    file_matches:
+      path: out/pattern.md
+      pattern: (timeouts\.md|payout)
+      flags: i
+  - id: has-transfer-case
+    file_matches:
+      path: out/pattern.md
+      pattern: ^(#{1,6} [^\n]*transfer|\s*[-*]?\s*\**[^\n:]{0,40}transfer[^\n:]{0,20}\**:)
+      flags: im
+  - id: has-boundary
+    file_matches:
+      path: out/pattern.md
+      pattern: (when not|do not use|don't use|boundary|instead)
+      flags: i
+  - id: has-falsifier
+    file_matches:
+      path: out/pattern.md
+      pattern: ^(#{1,6} [^\n]*(falsifier|evidence gap)|\s*[-*]?\s*\**[^\n:]{0,40}(falsifier|evidence gap)[^\n:]{0,20}\**:)
+      flags: im
+  - id: notes-unchanged
+    unchanged:
+      - notes

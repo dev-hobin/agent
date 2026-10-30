@@ -1,0 +1,7 @@
+{
+  "name": "tiny-bucket",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/bucket.js",
+  "scripts": { "test": "node --test" }
+}

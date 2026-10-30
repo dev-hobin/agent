@@ -1,0 +1,25 @@
+{
+  "skill": "commit-message",
+  "queries": [
+    { "id": "t01", "query": "write a commit message for what I've staged", "should_trigger": true, "note": "Direct request." },
+    { "id": "t02", "query": "Can you draft the commit message? Everything I want in this commit is already in the index.", "should_trigger": true, "note": "Staged, described indirectly." },
+    { "id": "t03", "query": "스테이징한 변경으로 커밋 메시지 써줘", "should_trigger": true, "note": "Korean." },
+    { "id": "t04", "query": "need a conventional commit msg for the staged diff", "should_trigger": true, "note": "Terse, names the convention." },
+    { "id": "t05", "query": "I staged the auth fix. What should the commit message say?", "should_trigger": true, "note": "Question form." },
+    { "id": "t06", "query": "git add is done, give me a good commit message", "should_trigger": true, "note": "Staged implied by git add." },
+    { "id": "t07", "query": "Summarize my staged changes as a commit message with a proper type and scope", "should_trigger": true, "note": "Asks for type and scope." },
+    { "id": "t08", "query": "커밋하기 전에 메시지 좀 만들어줘. git diff --staged 기준으로", "should_trigger": true, "note": "Korean, names the command." },
+    { "id": "t09", "query": "I renamed an exported function and staged it; write the commit message so the breaking change is clear", "should_trigger": true, "note": "Breaking change." },
+    { "id": "t10", "query": "commit msg pls", "should_trigger": true, "note": "Minimal phrasing." },
+    { "id": "f01", "query": "Write the pull request description for this branch", "should_trigger": false, "note": "PR description, excluded." },
+    { "id": "f02", "query": "Generate a CHANGELOG entry for the 2.3.0 release", "should_trigger": false, "note": "Changelog, excluded." },
+    { "id": "f03", "query": "Reword the last three commit messages to follow Conventional Commits", "should_trigger": false, "note": "Rewriting history, excluded." },
+    { "id": "f04", "query": "Explain what Conventional Commits types mean", "should_trigger": false, "note": "Concept question." },
+    { "id": "f05", "query": "Review my staged diff for bugs before I commit", "should_trigger": false, "note": "Shares staged diff; asks for review." },
+    { "id": "f06", "query": "Squash my last 4 commits into one", "should_trigger": false, "note": "History edit." },
+    { "id": "f07", "query": "릴리스 노트 써줘", "should_trigger": false, "note": "Release notes, Korean." },
+    { "id": "f08", "query": "Set up commitlint so bad commit messages fail CI", "should_trigger": false, "note": "Tooling for commit messages, not writing one." },
+    { "id": "f09", "query": "Is this commit message okay? 'fixed stuff'", "should_trigger": false, "note": "Grading one message." },
+    { "id": "f10", "query": "Commit and push everything with message 'wip'", "should_trigger": false, "note": "Message already given." }
+  ]
+}

@@ -1,0 +1,6 @@
+refactor(billing): rename price formatter
+
+The helper formats any amount in cents, not only prices, and the old
+name led callers to reimplement it for refunds.
+
+BREAKING CHANGE: formatPrice is removed; import formatAmount instead.

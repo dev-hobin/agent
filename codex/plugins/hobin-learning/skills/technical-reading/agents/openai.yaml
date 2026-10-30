@@ -1,0 +1,4 @@
+interface:
+  display_name: "Technical Reading"
+  short_description: "Read technical prose faithfully and synthesize source-bound insights"
+  default_prompt: "Use $hobin-learning:technical-reading to read this document faithfully and pull out what to carry forward."

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Applying Stances"
+  short_description: "Install engineering stances into agent instructions"
+  default_prompt: "Use $hobin-stances:applying-stances to set up the engineering stances for this project."
+policy:
+  allow_implicit_invocation: false

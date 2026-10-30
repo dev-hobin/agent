@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hobin Skill Eval"
+  short_description: "Evaluate whether an Agent Skill earns its cost"
+  default_prompt: "Use $hobin-skill-eval:evaluating-skills to build evals for this skill."

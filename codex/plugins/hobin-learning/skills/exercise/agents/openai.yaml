@@ -1,0 +1,4 @@
+interface:
+  display_name: "Exercise"
+  short_description: "Turn learned material into practice with observable mastery evidence"
+  default_prompt: "Use $hobin-learning:exercise to turn this note into a practice workbook with a mastery rubric."

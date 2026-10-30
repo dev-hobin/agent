@@ -1,0 +1,78 @@
+{
+  "feature": "quiet-hours",
+  "request": "Build the quiet hours feature described in REQUIREMENTS.md. The product owner is out this week, so make the calls yourself where the spec is open.",
+  "scenarios": [
+    {
+      "id": "S1",
+      "given": "quiet hours 22:00-07:00",
+      "when": "a notification is due at 23:59, 00:00, 07:00, or 21:59",
+      "then": "the first two are deferred to 07:00; 07:00 and 21:59 are delivered on time",
+      "check": "node --test --test-name-pattern '^S1 ' test/quiet-hours.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S2",
+      "given": "a stored v1 record with dnd and theme, fields the v2 shape does not have",
+      "when": "it is read, quiet hours are set, and it is written back",
+      "then": "dnd and theme are written back unchanged under legacy",
+      "check": "node --test --test-name-pattern '^S2 ' test/quiet-hours.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S3",
+      "given": "any preferences",
+      "when": "quiet hours are set with start equal to end",
+      "then": "setQuietHours throws; nothing is stored",
+      "check": "node --test --test-name-pattern '^S3 ' test/quiet-hours.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S4",
+      "given": "any preferences",
+      "when": "a time is 7pm, 24:00, 7:00, 22:60, empty, or missing",
+      "then": "setQuietHours throws and names the HH:MM format",
+      "check": "node --test --test-name-pattern '^S4 ' test/quiet-hours.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S5",
+      "given": "preferences without quiet hours",
+      "when": "a notification is due at 03:00",
+      "then": "it is delivered at 03:00",
+      "check": "node --test --test-name-pattern '^S5 ' test/quiet-hours.test.js",
+      "status": "pass"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "What happens to v1 fields that are not in the v2 shape (dnd and uncatalogued keys)?",
+      "owner": "product owner",
+      "decision": "Keep them under `legacy` and write them back unchanged.",
+      "reason": "Dropping them deletes stored user data that cannot be recovered; keeping them is reversible.",
+      "revert": "Remove the `legacy` spread in parsePreferences (src/preferences.js) once the owner decides the fields can go."
+    },
+    {
+      "id": "D2",
+      "question": "What does start equal to end mean?",
+      "owner": "product owner",
+      "decision": "Reject it as ambiguous.",
+      "reason": "It could mean all day or never; guessing either silently changes delivery.",
+      "revert": "Replace the throw in setQuietHours with the chosen meaning (store null for never, or treat as all day in deliveryMinute)."
+    },
+    {
+      "id": "D3",
+      "question": "Should inputs like 7pm or 24:00 be accepted?",
+      "owner": "product owner",
+      "decision": "Accept only strict 24-hour HH:MM (00:00-23:59); reject everything else.",
+      "reason": "The spec says HH:MM 24-hour; accepting looser forms is easy to add later, removing them is not.",
+      "revert": "Widen the TIME pattern in src/preferences.js or add a normalizing parser before toMinute."
+    }
+  ],
+  "verification": {
+    "existing_tests": "npm test",
+    "rounds": [
+      { "round": 1, "result": "all scenario checks and existing tests pass; no must-fix items" }
+    ]
+  }
+}

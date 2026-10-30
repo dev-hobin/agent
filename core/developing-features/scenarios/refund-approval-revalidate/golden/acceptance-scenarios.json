@@ -1,0 +1,105 @@
+{
+  "feature": "refund-approval",
+  "request": "Implement refund approval per REQUIREMENTS.md in src/approve.js. The owner can't be reached, so decide the open questions conservatively and tell me what you decided.",
+  "scenarios": [
+    {
+      "id": "S1",
+      "given": "a pending request whose snapshot is current; the order has room to refund",
+      "when": "an agent approves it",
+      "then": "one refund is issued, the request is approved, and refundedCents grows by the amount",
+      "check": "node --test --test-name-pattern '^S1 ' test/refund-scenarios.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S2",
+      "given": "the customer edited the amount after the queue loaded the snapshot",
+      "when": "an agent approves the old snapshot",
+      "then": "approval rejects before any refund; the request stays pending",
+      "check": "node --test --test-name-pattern '^S2 ' test/refund-scenarios.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S3",
+      "given": "another agent rejected the request after the snapshot was loaded",
+      "when": "an agent approves the old snapshot",
+      "then": "approval rejects; no refund is issued",
+      "check": "node --test --test-name-pattern '^S3 ' test/refund-scenarios.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S4",
+      "given": "the request no longer exists",
+      "when": "an agent approves the snapshot",
+      "then": "approval rejects; no refund is issued",
+      "check": "node --test --test-name-pattern '^S4 ' test/refund-scenarios.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S5",
+      "given": "earlier partial refunds leave less than the requested amount refundable",
+      "when": "an agent approves",
+      "then": "approval rejects; no refund; refundedCents unchanged",
+      "check": "node --test --test-name-pattern '^S5 ' test/refund-scenarios.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S6",
+      "given": "an imported request with fractional cents",
+      "when": "an agent approves",
+      "then": "approval rejects; the amount is never rounded",
+      "check": "node --test --test-name-pattern '^S6 ' test/refund-scenarios.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S7",
+      "given": "a pending request",
+      "when": "the agent double-clicks Approve",
+      "then": "exactly one refund is issued and recorded once; the request is approved",
+      "check": "node --test --test-name-pattern '^S7 ' test/refund-scenarios.test.js",
+      "status": "pass"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "What if the request changed after the queue snapshot was loaded?",
+      "owner": "product owner",
+      "decision": "Re-read the request right before paying; refuse unless it is still pending at the snapshot version.",
+      "reason": "The refund cannot be undone, so it must use the state the agent actually reviewed.",
+      "revert": "In src/approve.js, compare only the fields that matter (amount, status) instead of the version."
+    },
+    {
+      "id": "D2",
+      "question": "What if other refunds since the request leave less to refund?",
+      "owner": "product owner",
+      "decision": "Refuse when the amount exceeds paidCents - refundedCents on a fresh read of the order.",
+      "reason": "Refunding more than was paid moves money that is not owed.",
+      "revert": "Remove the refundable-remainder check in src/approve.js, or cap the amount instead of refusing."
+    },
+    {
+      "id": "D3",
+      "question": "What happens on a double click?",
+      "owner": "team",
+      "decision": "Claim the request (pending -> processing, version-checked) before paying, and use the request id as the idempotency key.",
+      "reason": "Only one of two concurrent approvals can claim the version, and the provider deduplicates by key.",
+      "revert": "Drop the processing claim and rely on the idempotency key alone."
+    },
+    {
+      "id": "D4",
+      "question": "What about fractional cents from the old CSV tool?",
+      "owner": "product owner",
+      "decision": "Refuse them; never round.",
+      "reason": "Rounding changes the amount of money moved without anyone deciding it.",
+      "revert": "Round with Math.round before the checks in src/approve.js."
+    }
+  ],
+  "verification": {
+    "existing_tests": "npm test",
+    "rounds": [
+      {
+        "round": 1,
+        "result": "all scenario checks and existing tests pass; no must-fix items"
+      }
+    ]
+  }
+}

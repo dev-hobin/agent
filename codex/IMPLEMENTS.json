@@ -14,5 +14,162 @@
       "G2": "instructed: the skill writes only its report and tells subagents not to edit (no per-agent sandbox)",
       "G3": "instructed: verify step and fixed format, checked by the scenarios"
     }
+  },
+  "applying-stances": {
+    "spec": "ba145b48c7f2af68216aff33",
+    "plugin": "plugins/hobin-stances",
+    "copies": {
+      "assets": "plugins/hobin-stances/skills/applying-stances/assets",
+      "scenarios/{scenario}/base": "evals/hobin-stances/{scenario}/base"
+    },
+    "evals": "evals/hobin-stances/{scenario}/benchmark.json",
+    "guarantees": {
+      "G1": "enforced: agents/openai.yaml policy.allow_implicit_invocation: false",
+      "G2": "instructed: the skill writes only the proposal file the request names until the user approves",
+      "G3": "instructed: the proposal form in step 4, checked by the scenario",
+      "G4": "instructed: step 2 drops duplicates and reports conflicts; checked by the scenario",
+      "G5": "instructed: step 1 target rules",
+      "G6": "instructed: step 4 replaces an existing marker block in place",
+      "G7": "instructed: step 3 appends checks only when they exist in the project"
+    }
+  },
+  "enforcing-conventions": {
+    "spec": "9856f20f6eb1b8fe216aff33",
+    "plugin": "plugins/hobin-stances",
+    "copies": {
+      "scenarios/{scenario}/base": "evals/hobin-stances/{scenario}/base"
+    },
+    "evals": "evals/hobin-stances/{scenario}/benchmark.json",
+    "triggers": "unsupported: plugin-eval has no skill-selection verifier",
+    "guarantees": {
+      "G1": "instructed: steps 4 and 6; checked by the hidden command",
+      "G2": "instructed: step 4 message form (rule, reason, replacement); checked by the hidden command",
+      "G3": "instructed: step 5; checked by the hidden command",
+      "G4": "instructed: step 4; checked by the no-new-dependencies scenario check",
+      "G5": "instructed: step 7; checked by the rule-points-to-check scenario check",
+      "G6": "instructed: step 6; checked by ran-the-check where the trace is available"
+    }
+  },
+  "technical-reading": {
+    "spec": "2d0674bb28f26c8f216aff33",
+    "plugin": "plugins/hobin-learning",
+    "copies": {
+      "knowledge": "plugins/hobin-learning/skills/technical-reading/references",
+      "scenarios/{scenario}/base": "evals/hobin-learning/technical-reading-{scenario}/base"
+    },
+    "evals": "evals/hobin-learning/technical-reading-{scenario}/benchmark.json",
+    "guarantees": {
+      "G1": "instructed: 'Every result must' and the Scope/Source scope fields; checked by the lease-spec scenario",
+      "G2": "instructed: the Evidence level field (source claim | interpretation | hypothesis); checked by the lease-spec scenario",
+      "G3": "instructed: the insight fields Source evidence, Boundary / likely misreading, Practical consequence; checked by the lease-spec scenario",
+      "G4": "instructed: the Unresolved question field; checked by the lease-spec scenario",
+      "G5": "instructed: the fixed reading-progress order; not covered by the scenario",
+      "G6": "instructed: the skill writes only the requested artifact; checked by the source-unchanged scenario check"
+    }
+  },
+  "opensource-reading": {
+    "spec": "16b52c7b9df71779216aff33",
+    "plugin": "plugins/hobin-learning",
+    "copies": {
+      "knowledge": "plugins/hobin-learning/skills/opensource-reading/references",
+      "scenarios/{scenario}/base": "evals/hobin-learning/opensource-reading-{scenario}/base"
+    },
+    "evals": "evals/hobin-learning/opensource-reading-{scenario}/benchmark.json",
+    "guarantees": {
+      "G1": "instructed: the slice definition's Slice and Out of scope fields; checked by the token-bucket scenario",
+      "G2": "instructed: step 2 and the evidence-path rule; checked by the token-bucket scenario",
+      "G3": "instructed: step 5 and the evidence-level fields; checked by the token-bucket scenario",
+      "G4": "instructed: step 5 and the invariant-or-tradeoff and falsifier rules; checked by the token-bucket scenario",
+      "G5": "instructed: step 7; checked by the token-bucket scenario",
+      "G6": "instructed: the skill writes only the requested artifact; checked by the repository-unchanged scenario check"
+    }
+  },
+  "conceptualize": {
+    "spec": "231c56ecff852444216aff33",
+    "plugin": "plugins/hobin-learning",
+    "copies": {
+      "knowledge": "plugins/hobin-learning/skills/conceptualize/references",
+      "scenarios/{scenario}/base": "evals/hobin-learning/conceptualize-{scenario}/base"
+    },
+    "evals": "evals/hobin-learning/conceptualize-{scenario}/benchmark.json",
+    "triggers": "unsupported: plugin-eval has no skill-selection verifier",
+    "guarantees": {
+      "G1": "instructed: the Delivery rules; checked by the retry-notes scenario",
+      "G2": "instructed: the Output fields and 'Every result must'; checked by the retry-notes scenario",
+      "G3": "instructed: the skill writes only the requested artifact; checked by the notes-unchanged scenario check",
+      "G4": "instructed: 'Every result must' source-independence gap rule; not covered by the scenario"
+    }
+  },
+  "patternize": {
+    "spec": "65cfbfdb276f88ad216aff33",
+    "plugin": "plugins/hobin-learning",
+    "copies": {
+      "knowledge": "plugins/hobin-learning/skills/patternize/references",
+      "scenarios/{scenario}/base": "evals/hobin-learning/patternize-{scenario}/base"
+    },
+    "evals": "evals/hobin-learning/patternize-{scenario}/benchmark.json",
+    "triggers": "unsupported: plugin-eval has no skill-selection verifier",
+    "guarantees": {
+      "G1": "instructed: the Delivery rules; checked by the retry-notes scenario",
+      "G2": "instructed: step 2 table and the Output fields; checked by the retry-notes scenario",
+      "G3": "instructed: the skill writes only the requested artifact; checked by the notes-unchanged scenario check",
+      "G4": "instructed: step 2 pattern gate ('no pattern yet'); not covered by the scenario",
+      "G5": "instructed: step 8 diagram rule"
+    }
+  },
+  "exercise": {
+    "spec": "b4d9ab643540fd12216aff33",
+    "plugin": "plugins/hobin-learning",
+    "copies": {
+      "knowledge": "plugins/hobin-learning/skills/exercise/references",
+      "scenarios/{scenario}/base": "evals/hobin-learning/exercise-{scenario}/base"
+    },
+    "evals": "evals/hobin-learning/exercise-{scenario}/benchmark.json",
+    "guarantees": {
+      "G1": "instructed: the Exercise Design Brief; checked by the fencing-note scenario",
+      "G2": "instructed: step 4 and 'Every result must'; checked by the fencing-note scenario",
+      "G3": "instructed: step 5 and the Answer keys output; checked by the fencing-note scenario",
+      "G4": "instructed: the Transfer task and Mastery rubric outputs; checked by the fencing-note scenario",
+      "G5": "instructed: the Hint and retry rules output; checked by the fencing-note scenario",
+      "G6": "instructed: the checkpoint rule (one question, stop and wait); not covered by the scenario",
+      "G7": "instructed: the skill writes only the requested artifact; checked by the notes-unchanged scenario check"
+    }
+  },
+  "developing-features": {
+    "spec": "31666ab12abd62af216aff33",
+    "plugin": "plugins/hobin-feature",
+    "copies": {
+      "knowledge": "plugins/hobin-feature/skills/developing-features/references/knowledge",
+      "../shared/lenses": "plugins/hobin-feature/skills/developing-features/references/lenses",
+      "assets": "plugins/hobin-feature/skills/developing-features/assets",
+      "scenarios/{scenario}/base": "evals/hobin-feature/{scenario}/base"
+    },
+    "evals": "evals/hobin-feature/{scenario}/benchmark.json",
+    "guarantees": {
+      "G1": "enforced: agents/openai.yaml policy.allow_implicit_invocation: false",
+      "G2": "instructed: step 1 and the report form; checked by the scenarios-recorded scenario check",
+      "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
+      "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
+      "G5": "instructed: steps 5 to 7; the verifier subagent is instructed not to edit (no per-agent sandbox); checked by the hidden and visible tests and the tests-saved-and-passing scenario check"
+    }
+  },
+  "evaluating-skills": {
+    "spec": "5e2c52fbc19d199a216aff33",
+    "plugin": "plugins/hobin-skill-eval",
+    "copies": {
+      "knowledge/formats.md": "plugins/hobin-skill-eval/skills/evaluating-skills/references/formats.md",
+      "scenarios/{scenario}/base": "evals/hobin-skill-eval/{scenario}/base"
+    },
+    "evals": "evals/hobin-skill-eval/{scenario}/benchmark.json",
+    "triggers": "unsupported: plugin-eval has no skill-selection verifier",
+    "guarantees": {
+      "G1": "instructed: the last Gotcha; checked by the skill-untouched scenario check",
+      "G2": "instructed: Gotchas and step 3; not covered by the scenario",
+      "G3": "instructed: the path-grading Gotcha and step 3; not covered by the scenario",
+      "G4": "instructed: step 2; not covered by the scenario; no trigger cases on Codex",
+      "G5": "instructed: step 6 and the report form; checked by the names-baseline, names-control and names-decision-rule scenario checks",
+      "G6": "instructed: the layer table and step 4; not covered by the scenario",
+      "G7": "instructed: step 1; proven for this repository's scenarios by pnpm check:core"
+    }
   }
 }

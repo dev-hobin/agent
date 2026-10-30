@@ -1,0 +1,4 @@
+interface:
+  display_name: "Patternize"
+  short_description: "Discover and test a reusable operational pattern across cases"
+  default_prompt: "Use $hobin-learning:patternize to turn these cases into a reusable pattern, or tell me there is none yet."

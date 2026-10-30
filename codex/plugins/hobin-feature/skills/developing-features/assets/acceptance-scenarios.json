@@ -1,0 +1,36 @@
+{
+  "feature": "<short name>",
+  "request": "<the request in the user's words>",
+  "scenarios": [
+    {
+      "id": "S1",
+      "given": "<state before, including stored data>",
+      "when": "<the action or input>",
+      "then": "<observable outcome>",
+      "check": "<command that passes only when this holds, e.g. node --test test/feature.test.js --test-name-pattern S1>",
+      "status": "pending"
+    },
+    {
+      "id": "S2",
+      "given": "<the same state>",
+      "when": "<a missing, empty, or malformed input>",
+      "then": "<rejected or surfaced, never treated as valid-empty>",
+      "check": "<command>",
+      "status": "pending"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "<what the request and code do not settle>",
+      "owner": "user | product owner | team",
+      "decision": "<what was chosen; the conservative default if nobody was available>",
+      "reason": "<why>",
+      "revert": "<how to change it later>"
+    }
+  ],
+  "verification": {
+    "existing_tests": "<command for the existing suites around the change>",
+    "rounds": []
+  }
+}

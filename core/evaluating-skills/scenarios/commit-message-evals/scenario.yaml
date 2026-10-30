@@ -1,0 +1,27 @@
+# Acceptance scenario for core/evaluating-skills/SPEC.md §8. Hosts run it with their own eval tools.
+id: commit-message-evals
+tags: [regression]
+base: base
+request: "Build evals for the skill in skills/commit-message so I can tell whether it's worth keeping. Put them under evals/commit-message/. Don't run any models yet, just build the eval set. Then write `REPORT.md` in the repository root saying what the results will be compared against and how they decide what happens to the skill."
+expect:
+  - id: evals-created
+    file_exists: "evals/commit-message/**"
+  - id: skill-untouched
+    unchanged: [skills/]
+  - id: report-written
+    file_exists: REPORT.md
+  - id: names-baseline
+    file_matches:
+      path: REPORT.md
+      pattern: "(without[- ](the[- ])?skill|no[- ]skill|baseline)"
+      flags: i
+  - id: names-control
+    file_matches:
+      path: REPORT.md
+      pattern: "(length[- ]matched|control)"
+      flags: i
+  - id: names-decision-rule
+    file_matches:
+      path: REPORT.md
+      pattern: "^(?=[\\s\\S]*\\bkeep)(?=[\\s\\S]*\\bretire)"
+      flags: i

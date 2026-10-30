@@ -1,0 +1,4 @@
+docs: mark public functions as stable API
+
+Callers outside these modules depend on the signatures; the comments
+warn before someone changes them.

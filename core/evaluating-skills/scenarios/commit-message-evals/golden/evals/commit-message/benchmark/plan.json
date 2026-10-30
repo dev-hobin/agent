@@ -1,0 +1,14 @@
+{
+  "skill": "skills/commit-message/SKILL.md",
+  "tasks": ["staged-only", "breaking-rename", "wide-scope"],
+  "conditions": {
+    "with-skill": "the skill is available and named in the request",
+    "without-skill": "no skill; the same request",
+    "control": "benchmark/control.md loaded in place of the skill: generic advice of about the same length"
+  },
+  "order": "Run without-skill first and drop any task it already passes on every run; a task at the ceiling cannot show a difference.",
+  "models": "at least two; record the exact model ids in each result",
+  "runs": 3,
+  "record": "benchmark/results/<date>.json: per condition and model, the pass rate of every case check, cost, and time",
+  "gate": false
+}

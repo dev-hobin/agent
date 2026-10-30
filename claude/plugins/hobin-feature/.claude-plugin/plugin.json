@@ -1,0 +1,16 @@
+{
+  "name": "hobin-feature",
+  "version": "0.3.0",
+  "description": "Develops features through acceptance scenarios, owner decisions, design, small verified slices, and independent verification.",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "homepage": "https://github.com/dev-hobin/agent",
+  "repository": "https://github.com/dev-hobin/agent",
+  "license": "MIT",
+  "keywords": [
+    "feature",
+    "acceptance-scenarios"
+  ]
+}

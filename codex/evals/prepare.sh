@@ -6,10 +6,13 @@ dir="codex/evals/$1/$2"
 rm -rf "$dir/workspace"
 cp -R "$dir/base" "$dir/workspace"
 cd "$dir/workspace"
-git init -q
-git -c user.name=eval -c user.email=eval@example.invalid add -A
-git -c user.name=eval -c user.email=eval@example.invalid commit -q -m base
-git apply ../change.patch
-git add -A
-git diff --cached > CHANGE.diff
-rm -rf .git
+# A scenario without a change is the base alone.
+if [ -f ../change.patch ]; then
+  git init -q
+  git -c user.name=eval -c user.email=eval@example.invalid add -A
+  git -c user.name=eval -c user.email=eval@example.invalid commit -q -m base
+  git apply ../change.patch
+  git add -A
+  git diff --cached > CHANGE.diff
+  rm -rf .git
+fi

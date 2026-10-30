@@ -13,22 +13,22 @@
     },
     {
       "name": "hobin-feature",
-      "source": "./packages/feature",
+      "source": "./claude/plugins/hobin-feature",
       "category": "Productivity"
     },
     {
       "name": "hobin-stances",
-      "source": "./packages/stances",
+      "source": "./claude/plugins/hobin-stances",
       "category": "Productivity"
     },
     {
       "name": "hobin-skill-eval",
-      "source": "./packages/skill-eval",
+      "source": "./claude/plugins/hobin-skill-eval",
       "category": "Productivity"
     },
     {
       "name": "hobin-learning",
-      "source": "./packages/learning",
+      "source": "./claude/plugins/hobin-learning",
       "category": "Productivity"
     }
   ]

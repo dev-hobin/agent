@@ -1,0 +1,29 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "hobin-feature",
+  "version": "0.3.0",
+  "description": "Develops features through acceptance scenarios, owner decisions, design, small verified slices, and independent verification.",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/dev-hobin/agent",
+  "repository": "https://github.com/dev-hobin/agent",
+  "keywords": [
+    "feature",
+    "acceptance-scenarios"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Hobin Feature",
+        "shortDescription": "Build a feature through verified acceptance scenarios",
+        "developerName": "dev-hobin",
+        "defaultPrompt": [
+          "Use $hobin-feature:developing-features to build this feature through acceptance scenarios."
+        ]
+      }
+    }
+  }
+}

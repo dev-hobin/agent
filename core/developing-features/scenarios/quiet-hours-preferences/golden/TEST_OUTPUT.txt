@@ -1,0 +1,20 @@
+
+> test
+> node --test
+
+✔ a v1 record is read in the v2 shape (0.614709ms)
+✔ an overnight window defers to its end (0.1405ms)
+✔ start is quiet, end is not (0.065042ms)
+✔ S1 a notification inside an overnight window waits for its end (0.490458ms)
+✔ S2 v1 fields outside the v2 shape survive read, set, and write (0.357084ms)
+✔ S3 start equal to end is rejected (0.563333ms)
+✔ S4 times outside strict 24-hour HH:MM are rejected (0.105083ms)
+✔ S5 preferences without quiet hours deliver on time (0.057208ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 51.285792

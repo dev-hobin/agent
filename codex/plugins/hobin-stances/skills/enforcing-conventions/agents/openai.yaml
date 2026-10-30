@@ -1,0 +1,4 @@
+interface:
+  display_name: "Enforcing Conventions"
+  short_description: "Turn a repeatedly broken convention into a check"
+  default_prompt: "Use $hobin-stances:enforcing-conventions to turn a repeatedly broken rule into a check."

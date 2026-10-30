@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "hobin-stances",
+  "version": "0.3.0",
+  "description": "Installs short engineering stances into agent instructions and turns repeatedly broken conventions into automatic checks.",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/dev-hobin/agent",
+  "repository": "https://github.com/dev-hobin/agent",
+  "keywords": [
+    "stances",
+    "conventions"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Hobin Stances",
+        "shortDescription": "Install stances and enforce broken conventions",
+        "developerName": "dev-hobin",
+        "defaultPrompt": [
+          "Use $hobin-stances:applying-stances to set up the engineering stances for this project.",
+          "Use $hobin-stances:enforcing-conventions to turn a repeatedly broken rule into a check."
+        ]
+      }
+    }
+  }
+}

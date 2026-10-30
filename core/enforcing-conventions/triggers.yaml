@@ -1,0 +1,63 @@
+# Model-selection queries for core/enforcing-conventions (SPEC.md §2). Hosts that can
+# observe skill selection run one case per query.
+queries:
+  - id: t01
+    query: "People keep importing from '@/internal/*' outside the core package even though the README says not to. Can we make that fail automatically?"
+    should_trigger: true  # Documented convention repeatedly violated.
+  - id: t02
+    query: "금액 계산은 toCents()를 거치라는 규칙이 계속 깨져. 자동으로 잡히게 해줘"
+    should_trigger: true  # Repeated violation in Korean, asks for automatic catch.
+  - id: t03
+    query: "Agents keep ignoring the 'no default exports' rule in AGENTS.md. Turn it into something that actually fails CI."
+    should_trigger: true  # Agent-instruction rule that keeps being broken.
+  - id: t04
+    query: "every PR someone forgets to register the new migration. make that impossible to forget"
+    should_trigger: true  # Recurring violation; cheapest enforcement wanted.
+  - id: t05
+    query: "The stance 'verify before claiming done' needs an automatic check. What's the cheapest way to enforce it here?"
+    should_trigger: true  # A stance that needs an automatic check.
+  - id: t06
+    query: "날짜는 항상 UTC로 저장하라는 컨벤션을 타입이나 린트로 강제하고 싶어"
+    should_trigger: true  # Convention to type/lint enforcement in Korean.
+  - id: t07
+    query: "Our convention is that API handlers never call the DB directly, only through repositories. It was broken three times this month. Enforce it."
+    should_trigger: true  # Architectural convention with repeated violations.
+  - id: t08
+    query: "make it so nobody can construct an Email value without validation, people keep passing raw strings"
+    should_trigger: true  # Construction-boundary enforcement of a recurring mistake.
+  - id: t09
+    query: "console.log 쓰지 말라는 규칙이 자꾸 어겨지는데, 고치는 방법까지 알려주는 에러 메시지로 막아줘"
+    should_trigger: true  # Enforcement with an actionable message, Korean.
+  - id: t10
+    query: "Reviewers keep flagging the same thing: feature flags must be read through flags.get(). Add enforcement so they don't have to."
+    should_trigger: true  # Convention caught by hand repeatedly.
+  - id: f01
+    query: "Airbnb 스타일 가이드랑 Standard 중에 뭘 쓸지 골라줘"
+    should_trigger: false  # Choosing a style guide, explicitly excluded.
+  - id: f02
+    query: "Fix this one place in cart.js where I used a raw float for the price"
+    should_trigger: false  # One-off violation fix, explicitly excluded.
+  - id: f03
+    query: "Write our coding conventions doc for new hires"
+    should_trigger: false  # Documentation of conventions, no enforcement.
+  - id: f04
+    query: "eslint 설정 파일이 왜 안 먹는지 봐줘"
+    should_trigger: false  # Debugging lint config.
+  - id: f05
+    query: "Turn off the no-unused-vars rule, it's too noisy"
+    should_trigger: false  # Removing a rule, not enforcing a violated convention.
+  - id: f06
+    query: "Apply the hobin stances to AGENTS.md"
+    should_trigger: false  # Installing stances text belongs to applying-stances.
+  - id: f07
+    query: "Rename the snake_case variables in src/utils.js to camelCase"
+    should_trigger: false  # One-off cleanup of a convention.
+  - id: f08
+    query: "이 lint 에러들 다 고쳐줘"
+    should_trigger: false  # Fixing existing lint errors.
+  - id: f09
+    query: "Explain why we have a rule against default exports"
+    should_trigger: false  # Explaining a convention.
+  - id: f10
+    query: "프로젝트에 prettier 설치하고 포맷 맞춰줘"
+    should_trigger: false  # Formatter setup and style choice.

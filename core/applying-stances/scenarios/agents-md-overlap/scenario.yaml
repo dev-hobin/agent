@@ -1,0 +1,31 @@
+# Acceptance scenario for core/applying-stances/SPEC.md §8. Hosts run it with their own eval tools.
+id: agents-md-overlap
+tags: [regression]
+base: base
+request: "Apply the hobin engineering stances to this project's agent instructions. Write the proposal you would show me to `PROPOSAL.md` in the repository root, and do not change any other file."
+expect:
+  - id: proposal-written
+    file_exists: PROPOSAL.md
+  - id: targets-agents-md
+    file_matches:
+      path: PROPOSAL.md
+      pattern: "AGENTS\\.md"
+  # Added diff lines, a hunk header, or a diff fence; plain Markdown `- ` bullets do not count.
+  - id: shows-diff
+    file_matches:
+      path: PROPOSAL.md
+      pattern: "(```diff|^@@ |^\\+(?!\\+\\+ ))"
+      flags: m
+  - id: asks-approval
+    file_matches:
+      path: PROPOSAL.md
+      pattern: "(approv|confirm|go ahead|shall i|should i|want me to)"
+      flags: i
+  # The verification stance duplicates the existing AGENTS.md rule, so no added diff line
+  # may carry it. Naming it as skipped elsewhere in the proposal is fine.
+  - id: no-duplicate-verification-stance
+    file_matches:
+      path: PROPOSAL.md
+      pattern: "^(?![\\s\\S]*(?:^|\\n)\\+[^\\n]*(Before saying a change is done|run the checks that cover the changed code))"
+  - id: no-other-changes
+    unchanged_except: [PROPOSAL.md]

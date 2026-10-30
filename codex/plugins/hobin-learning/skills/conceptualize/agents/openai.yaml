@@ -1,0 +1,4 @@
+interface:
+  display_name: "Conceptualize"
+  short_description: "Form and test one transferable concept from several sources"
+  default_prompt: "Use $hobin-learning:conceptualize to form one concept from these notes and test whether it transfers."

@@ -1,0 +1,13 @@
+{
+  "id": "staged-only",
+  "setup": "setup.sh",
+  "request": "Write a commit message for what I have staged. Save just the message to COMMIT_MSG.txt.",
+  "checks": [
+    { "id": "message-written", "file_exists": "COMMIT_MSG.txt" },
+    { "id": "fix-with-auth-scope", "file_matches": { "path": "COMMIT_MSG.txt", "pattern": "^(```[a-z]*\\n)?fix\\(auth\\): [a-z]" } },
+    { "id": "subject-at-most-50", "file_matches": { "path": "COMMIT_MSG.txt", "pattern": "^(```[a-z]*\\n)?[^\\n]{1,50}(\\n|$)" } },
+    { "id": "no-trailing-period", "file_lacks": { "path": "COMMIT_MSG.txt", "pattern": "^(```[a-z]*\\n)?[^\\n]*\\.(\\n|$)" } },
+    { "id": "unstaged-not-described", "file_lacks": { "path": "COMMIT_MSG.txt", "pattern": "invoice|billing|lineCount", "flags": "i" } }
+  ],
+  "reference": "reference"
+}

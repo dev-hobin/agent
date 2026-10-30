@@ -1,0 +1,11 @@
+{
+  "id": "wide-scope",
+  "setup": "setup.sh",
+  "request": "commit message for the staged stuff please, write it to COMMIT_MSG.txt",
+  "checks": [
+    { "id": "message-written", "file_exists": "COMMIT_MSG.txt" },
+    { "id": "docs-without-scope", "file_matches": { "path": "COMMIT_MSG.txt", "pattern": "^(```[a-z]*\\n)?docs: [a-z]" } },
+    { "id": "subject-at-most-50", "file_matches": { "path": "COMMIT_MSG.txt", "pattern": "^(```[a-z]*\\n)?[^\\n]{1,50}(\\n|$)" } }
+  ],
+  "reference": "reference"
+}

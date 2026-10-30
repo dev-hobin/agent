@@ -1,0 +1,21 @@
+
+> test
+> node --test
+
+✔ approving issues the refund and marks the request approved (1.745ms)
+✔ approving records the refunded amount on the order (0.470375ms)
+✔ S1 approving a current request refunds once and records it (1.9515ms)
+✔ S2 an amount edited after the snapshot is refused before paying (0.379042ms)
+✔ S3 a request another agent rejected is refused (0.267916ms)
+✔ S4 a missing request is refused (0.2055ms)
+✔ S5 more than the refundable remainder is refused (0.559875ms)
+✔ S6 fractional cents are refused, not rounded (0.171ms)
+✔ S7 a double click moves money once and records it once (0.294208ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 44.403459

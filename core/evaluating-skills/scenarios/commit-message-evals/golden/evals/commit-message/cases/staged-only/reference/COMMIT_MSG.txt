@@ -1,0 +1,4 @@
+fix(auth): treat a token expiring now as expired
+
+Sessions stayed valid for one extra request when the expiry time
+equaled the current time.

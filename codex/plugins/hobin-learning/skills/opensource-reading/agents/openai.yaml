@@ -1,0 +1,4 @@
+interface:
+  display_name: "Open Source Reading"
+  short_description: "Study one evidence-backed slice of an open source repository"
+  default_prompt: "Use $hobin-learning:opensource-reading to trace one API or flow in this repository through docs, tests, and code."

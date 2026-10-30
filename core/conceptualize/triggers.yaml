@@ -1,0 +1,82 @@
+# Model-selection cases for core/conceptualize/SPEC.md §2, from the hobin-learning trigger evals.
+queries:
+  - id: t01
+    query: I have notes from three postmortems about caches going stale. Pull out one concept that holds across them.
+    should_trigger: true
+    note: Several sources, one transferable concept.
+  - id: t02
+    query: 이 세 책에서 말하는 '경계'가 같은 개념인지 보고, 하나의 개념으로 정리해줘
+    should_trigger: true
+    note: Cross-source concept formation, Korean.
+  - id: t03
+    query: From these reading insights on backpressure (broker docs, a reactive streams article, TCP flow control), form a source-independent concept and test it with a counterexample.
+    should_trigger: true
+    note: Explicit source-independent concept with counterexample.
+  - id: t04
+    query: What's the single transferable idea behind optimistic locking, ETags and compare-and-swap?
+    should_trigger: true
+    note: One concept across several examples.
+  - id: t05
+    query: 메모이제이션, CDN 캐시, 빌드 캐시 노트에서 공통 개념 하나 추출해줘
+    should_trigger: true
+    note: Concept extraction from notes, Korean.
+  - id: t06
+    query: Is 'parse, don't validate' the same concept as 'make illegal states unrepresentable'? Separate or merge them, with transfer cases.
+    should_trigger: true
+    note: Concept boundary and near-concept separation.
+  - id: t07
+    query: Turn these observations on debouncing, rate limits and batching into one reusable concept I can apply outside frontend.
+    should_trigger: true
+    note: Strip source context into a portable concept.
+  - id: t08
+    query: 여러 소스에서 나온 인사이트를 소스 독립적인 개념으로 만들어줘. 반례도 같이
+    should_trigger: true
+    note: Explicit concept formation with counterexample, Korean.
+  - id: t09
+    query: Strip the source-specific stuff from these three insight cards and tell me what concept is left, if any.
+    should_trigger: true
+    note: Accidental-detail removal; failed gate is valid.
+  - id: t10
+    query: These two talks both describe something like 'ownership of state'. Conceptualize it.
+    should_trigger: true
+    note: Direct request with two sources.
+  - id: f01
+    query: Turn these three incident notes into a step-by-step runbook I can follow next time
+    should_trigger: false
+    note: Workflow from cases belongs to patternize.
+  - id: f02
+    query: 이 사례들에서 반복되는 작업 흐름을 체크리스트로 만들어줘
+    should_trigger: false
+    note: Recurring workflow/checklist is patternize territory.
+  - id: f03
+    query: Summarize chapter 4 of Designing Data-Intensive Applications
+    should_trigger: false
+    note: Single-source reading.
+  - id: f04
+    query: 멱등성이 뭔지 설명해줘
+    should_trigger: false
+    note: Explaining a known concept, no synthesis from evidence.
+  - id: f05
+    query: 이 글 번역하고 핵심 주장 정리해줘
+    should_trigger: false
+    note: Faithful reading/translation of one source.
+  - id: f06
+    query: Make practice problems so I can learn backpressure
+    should_trigger: false
+    note: Deliberate practice belongs to exercise.
+  - id: f07
+    query: Trace how React's useEffect cleanup works in the source
+    should_trigger: false
+    note: Open source reading of one slice.
+  - id: f08
+    query: Based on these cases, what decision path should I follow when choosing between a queue and a cron job?
+    should_trigger: false
+    note: Decision path from cases is patternize.
+  - id: f09
+    query: 개념 정리 노트 파일들을 폴더별로 정리해줘
+    should_trigger: false
+    note: File organization; shares the word concept.
+  - id: f10
+    query: Define the domain model for our Order entity
+    should_trigger: false
+    note: Domain modeling for code, not concept formation.

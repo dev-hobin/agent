@@ -1,0 +1,26 @@
+# Acceptance scenario for core/enforcing-conventions/SPEC.md §8. Hosts run it with their own eval tools.
+id: money-to-cents
+tags: [regression]
+base: base
+request: "The money rule in CONVENTIONS.md keeps getting broken and reviewers catch it by hand. Enforce it so it can't regress. Wire whatever check you add into `npm run check` in package.json, and fix the code that currently violates it."
+expect:
+  - id: check-script-added
+    file_matches:
+      path: package.json
+      pattern: "\"check\"\\s*:\\s*\""
+  - id: rule-points-to-check
+    file_matches:
+      path: CONVENTIONS.md
+      pattern: "npm run check"
+  - id: no-new-dependencies
+    file_lacks:
+      path: package.json
+      pattern: "ependencies\""
+  - id: ran-the-check
+    ran_command: "npm run check"
+  # hidden/enforcement.check.mjs runs `npm run check` on the result (must pass), then adds a
+  # new `line.price * line.qty` file to src/ (must fail with output naming toCents).
+  - id: catches-new-violation
+    command_passes:
+      command: "node --test hidden/enforcement.check.mjs"
+      files: hidden

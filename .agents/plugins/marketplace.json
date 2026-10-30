@@ -15,7 +15,7 @@
     },
     {
       "name": "hobin-feature",
-      "source": "./packages/feature",
+      "source": "./codex/plugins/hobin-feature",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
@@ -24,7 +24,7 @@
     },
     {
       "name": "hobin-stances",
-      "source": "./packages/stances",
+      "source": "./codex/plugins/hobin-stances",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
@@ -33,7 +33,7 @@
     },
     {
       "name": "hobin-skill-eval",
-      "source": "./packages/skill-eval",
+      "source": "./codex/plugins/hobin-skill-eval",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
@@ -42,7 +42,7 @@
     },
     {
       "name": "hobin-learning",
-      "source": "./packages/learning",
+      "source": "./codex/plugins/hobin-learning",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
