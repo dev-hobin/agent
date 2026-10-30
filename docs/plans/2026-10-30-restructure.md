@@ -1,6 +1,6 @@
 # 저장소 재구성 계획 (2026-10-30)
 
-상태: P1 완료, P2 대기. 브랜치 작업만 하며 배포, 원격 push, 유료 평가는 하지 않는다.
+상태: P1·P2·P3 완료, P5 준비 완료(릴리스 전). P4(모델 평가 실행)는 승인 대기. 브랜치 작업만 하며 배포, 원격 push, 유료 평가는 하지 않는다.
 P4 평가 실행과 P5 릴리스는 각각 별도 승인을 받는다.
 
 ## 0. 원칙
@@ -125,3 +125,40 @@ description은 3인칭으로 무엇을 하는지 쓰고, 이어서 `Use when …
 | description은 3인칭 동사로 시작하고 `Use when`은 명령형으로 둔다 | 3인칭은 Claude 지침, 명령형은 Agent Skills 지침이다. 두 지침이 다루는 부분이 다르므로 둘 다 따른다 | 이 브랜치의 description 변경 커밋을 revert |
 | root skill의 description을 큰따옴표 YAML로 통일한다 | 일괄 편집할 때 따옴표가 없는 스칼라에서 `: ` 같은 문자가 YAML을 깨뜨릴 위험을 없앤다. 의미는 같다 | 따옴표 제거 |
 | 버전은 올리지 않는다 | 릴리스는 P5에서 한다. 테스트가 0.2.2를 고정하고 있다 | 해당 없음 |
+
+## 7. P2·P3·P5 준비 결과
+
+### 구조
+
+| 항목 | 결과 |
+| --- | --- |
+| 패키지 | `hobin-review`(reviewing-code), `hobin-feature`(developing-features), `hobin-stances`(applying-stances, enforcing-conventions), `hobin-skill-eval`(evaluating-skills), `hobin-learning`(5개 유지). 모두 0.3.0 |
+| 관점 | `sources/lenses/`의 contract, async-flow, structure, data-loss, evidence(각 52~56줄). `pnpm sync:sources`로 review의 `perspectives/`와 feature의 `lenses/`에 복사하고, `check:sources`가 드리프트를 막는다 |
+| 설계 reference | feature의 `design-surface.md`(150줄), `condition-modeling.md`(100줄) |
+| scripts·assets | `collect-context.sh`(리뷰 맥락), `acceptance-scenarios.json`(시나리오·결정 기록), `run-evals.mjs`(평가 실행기, 기본 dry run), stances 자산 3종 |
+| Codex 호출 정책 | 진입점 3개(reviewing-code, developing-features, applying-stances)에 `allow_implicit_invocation: false`. enforcing-conventions와 evaluating-skills는 자동 호출 허용 |
+| 보관 | 기존 developer 17개 skill과 Pi 어댑터, 루트 skill 4개와 `agents/` 조각을 `archive/`로 옮겼다(삭제 아님) |
+| 마켓플레이스 | `hobin-agent` → `hobin` |
+| 평가 데이터 | `evals/<skill>/`의 트리거 세트와 결과 과제, 합성 fixture(저장소가 공개라 실제 회사 코드는 쓰지 않음) |
+
+### 증류에서 버린 reference
+
+다음은 기능 개발과 리뷰에 쓰이지 않는 특수 주제여서 새 skill에 옮기지 않았고 `archive/`에만 남겼다:
+proof-obligations, solver-result-boundaries, logic-query-semantics, planning-models(model),
+language-semantics, runtime-and-compilation, closure-and-conventional-interfaces,
+type-transitions(sketch), topology-resolution-routing의 동적 토폴로지 부분, visualize 전체.
+
+### 결정 기록
+
+| 결정 | 근거 | 되돌리는 법 |
+| --- | --- | --- |
+| Pi developer 어댑터 은퇴 | 새 skill은 `references.json`을 쓰지 않으므로 어댑터가 할 일이 없다. 새 패키지는 `pi.skills`만 선언해 Pi 기본 탐색을 쓴다 | `archive/developer-0.2.2/adapters/`를 패키지로 복원 |
+| npm 패키지를 플러그인과 1:1로 분리 | 계획 §8의 권장안. 저장소 규칙 `@hobin/<name>` ↔ `hobin-<name>`을 그대로 유지한다 | 해당 없음(새 이름) |
+| learning에는 `agents/openai.yaml`과 "명시 호출" 문구를 넣지 않음 | learning 패키지 검사가 처음(2026-07-19)부터 skill 안의 `agents/`를 금지하고 있고, 자동 선택이 도움이 되는지는 P4 트리거 평가로 판단해야 한다 | P4 이후 검사와 description 수정 |
+| learning 본문 축소 보류 | 증거 없이 줄이면 품질이 떨어질 위험이 있다. P4 결과로 결정한다 | 해당 없음 |
+| 설치 검사의 충돌 fixture를 `model`에서 `reviewing-code`로 변경 | 새 패키지에는 `model` skill이 없어서 기존 fixture로는 충돌을 시험할 수 없다 | 스크립트 한 줄 |
+
+### P4 실행 전에 확인할 것
+
+1. 실행기 격리: 실행기는 init 이벤트의 plugin 목록을 검사하고, 예상하지 않은 plugin이 있으면 중단한다. 사용자 전역 설치 플러그인(`hobin-developer` 0.2.2)이 `--setting-sources project`에서 실제로 빠지는지는 첫 smoke 실행으로 확인한다.
+2. 비용: 결과 평가는 과제 수 × 조건 3 × 모델 2~3 × 3회다. 실행 전에 dry run 출력으로 실행 횟수를 보여 주고 상한을 승인받는다.

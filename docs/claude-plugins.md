@@ -13,7 +13,10 @@ supply every host; there are no per-host Skill copies or reference loaders.
 
 | npm package | Portable / Claude name | Claude invocation |
 | --- | --- | --- |
-| `@hobin/developer` | `hobin-developer` | `/hobin-developer:model` |
+| `@hobin/review` | `hobin-review` | `/hobin-review:reviewing-code` |
+| `@hobin/feature` | `hobin-feature` | `/hobin-feature:developing-features` |
+| `@hobin/stances` | `hobin-stances` | `/hobin-stances:applying-stances`, `/hobin-stances:enforcing-conventions` |
+| `@hobin/skill-eval` | `hobin-skill-eval` | `/hobin-skill-eval:evaluating-skills` |
 | `@hobin/learning` | `hobin-learning` | `/hobin-learning:technical-reading` |
 
 The `@hobin/<package>` to `hobin-<package>` mapping is our convention, not a
@@ -27,22 +30,24 @@ From any directory, register a checkout containing the current catalogs:
 
 ```sh
 claude plugin marketplace add /absolute/path/to/agent --scope user
-claude plugin install hobin-developer@hobin-agent --scope user
-claude plugin install hobin-learning@hobin-agent --scope user
+claude plugin install hobin-review@hobin --scope user
+claude plugin install hobin-feature@hobin --scope user
 ```
 
-The root `.claude-plugin/marketplace.json` points at the two package roots.
+The root `.claude-plugin/marketplace.json` points at the five package roots.
 Claude stores user enablement in its own settings and manages its cache. Local
 marketplace source folders should remain available; they are not the user's
 work project. Start a new session or run `/reload-plugins` to pick up changes.
 
-For editing only, `claude --plugin-dir /absolute/path/to/agent/packages/developer`
+For editing only, `claude --plugin-dir /absolute/path/to/agent/packages/review`
 loads a package for that session. It is not a persistent install.
 
 ## Collision and migration boundary
 
-Plugin-qualified names differ from Claude's bare `/model`, `/doctor`, and bundled
-`/verify`. Ordinary flat `skills add` does not create this namespace, and plugin
+Plugin-qualified names cannot collide with Claude's built-in commands or with
+another publisher's Skill of the same name. Entry-point descriptions say "Use only
+when explicitly asked", so Claude does not select them on its own; Claude has no
+portable field for this, and the repository does not use host-only frontmatter. Ordinary flat `skills add` does not create this namespace, and plugin
 installation does not remove already installed flat Skills. Remove or disable
 only entries you own after inspecting their source. Never blindly delete a
 shared `~/.agents/skills/` tree that another client uses.
@@ -65,13 +70,12 @@ pnpm check:install -- claude
 ```
 
 The latter installs actual packed artifacts under a temporary HOME, verifies user
-scope across work directories, inspects 17 + 5 Skills and a same-named peer Skill,
+scope across work directories, inspects all ten Skills and a same-named peer Skill,
 and checks installed resource bytes. It does not modify real user settings or
 run a model. Icons/public directory submission, publisher verification and live
 model behavior are separate concerns. See the
 [evidence boundaries](installation.md#evidence-recorded-on-2026-10-27).
 
-Version 0.2.1 introduced the Claude compatibility files. Version 0.2.2 adds the
-portable manifests to npm artifacts and native catalogs to the Git repository.
-Git source publication and npm releases remain separate operations. See
-[release notes](releases/0.2.2.md) for registry publication status.
+Version 0.3.0 replaces `hobin-developer` with four focused plugins and renames the
+marketplace to `hobin`. Git source publication and npm releases remain separate
+operations. See the [0.3.0 release notes](releases/0.3.0.md).
