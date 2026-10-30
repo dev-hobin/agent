@@ -58,6 +58,19 @@ the full change against the base. "
 | `file_lacks` | same as above plus `match: not_contains` |
 | `unchanged_except: [P…]` | `<check>.md`: `type: tool_used`, `tool: Edit`, `min: 0`, `max: 0`, `arm: both`; and `<check>-write.md`: `type: tool_used`, `tool: Write`, `input_match` matching a `file_path` that does not end in an allowed path, `min: 0`, `max: 0`, `arm: both` |
 | `ran_command: R` | `type: tool_used`, `tool: Bash`, `input_match: R` |
+| `unchanged: [P…]` | `tool_used` on `Edit` and on `Write` with `input_match` on a `file_path` under P, `min: 0`, `max: 0`, `arm: both` (one grader each) |
+| `command_passes` | Not supported: `claude plugin eval` has no custom-code graders and runs nothing after the run. Omit it and list it under "Not covered on Claude" in the case's `prompt.md` frontmatter `description` |
+
+A scenario without `change` needs no patch step: the scaffold copies `base/` only.
+
+### Triggers
+
+For a capability with `triggers.yaml`, write one case per query under
+`evals/triggers/<capability>-<query id>/` with `prompt.md` (frontmatter `tags: [trigger]`,
+`runs: 3`, `max_turns: 3`, `allowed_tools: [Skill]`; body: the query) and one grader
+`graders/trigger.md`: `type: tool_used`, `tool: Skill`, `input_match` for the skill name,
+`min: 1` when it should trigger or `min: 0` and `max: 0` when not, `arm: both`. Run them with
+`--tag trigger`. Explicit-only capabilities have no trigger file.
 
 Only deterministic graders; never grade the path a strategy took.
 

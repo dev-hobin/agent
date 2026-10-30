@@ -19,6 +19,8 @@ import { checkScenario } from "./scenario-check.mjs";
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const hosts = ["claude", "codex"];
 const sync = process.argv.includes("--sync");
+// While writing a spec: prove its scenarios without requiring implementations yet.
+const scenariosOnly = process.argv.includes("--scenarios-only");
 
 function files(dir, base = dir) {
 	return readdirSync(dir).sort().flatMap((name) => {
@@ -87,7 +89,7 @@ for (const id of capabilities) {
 	if (!sync) for (const s of scenarios) {
 		try { proveScenario(s, join(core, "scenarios", s)); } catch (error) { problems.push(error.message); }
 	}
-	for (const host of hosts) {
+	for (const host of scenariosOnly ? [] : hosts) {
 		const recordPath = join(root, host, "IMPLEMENTS.json");
 		const record = JSON.parse(readFileSync(recordPath, "utf8"));
 		const entry = record[id];
@@ -102,6 +104,17 @@ for (const id of capabilities) {
 		}
 		for (const s of scenarios) {
 			if (!existsSync(join(root, host, entry.evals.replaceAll("{scenario}", s)))) problems.push(`${host}: no eval case for core/${id} scenario ${s}`);
+		}
+		const triggersFile = join(core, "triggers.yaml");
+		if (existsSync(triggersFile)) {
+			if (!entry.triggers) problems.push(`${host}: core/${id} has triggers.yaml but IMPLEMENTS.json has no "triggers" entry`);
+			else if (!entry.triggers.startsWith("unsupported:")) for (const q of parse(readFileSync(triggersFile, "utf8")).queries) {
+				if (!existsSync(join(root, host, entry.triggers.replaceAll("{trigger}", q.id)))) problems.push(`${host}: no trigger case for core/${id} query ${q.id}`);
+			}
+		}
+		const promised = [...readFileSync(join(core, "SPEC.md"), "utf8").matchAll(/^\| (G\d+) \|/gm)].map((m) => m[1]);
+		for (const g of promised) {
+			if (!/^(enforced|instructed|unsupported):/.test(entry.guarantees?.[g] ?? "")) problems.push(`${host}: core/${id} ${g} needs "enforced|instructed|unsupported: how" in IMPLEMENTS.json`);
 		}
 		const hash = specHash(core);
 		if (sync) { entry.spec = hash; writeFileSync(recordPath, JSON.stringify(record, null, 2) + "\n"); }

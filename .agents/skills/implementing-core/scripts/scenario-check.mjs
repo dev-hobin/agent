@@ -4,8 +4,9 @@
 // Used as a verifier command by hosts whose eval tools run commands (Codex plugin-eval) and
 // by check.mjs to prove each scenario accepts its golden result and rejects wrong ones.
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { cpSync, existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
@@ -17,6 +18,10 @@ function files(root, dir = root) {
 	});
 }
 const digest = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
+// Glob: `**/` matches any directories (or none), `**` anything, `*` within one segment.
+const glob = (pattern) => new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&")
+	.replace(/\*\*\//g, "\u0000").replace(/\*\*/g, "\u0001").replace(/\*/g, "[^/]*")
+	.replace(/\u0000/g, "(?:.*/)?").replace(/\u0001/g, ".*")}$`);
 
 export function checkScenario(casePath, workspace, original) {
 	const spec = parse(readFileSync(casePath, "utf8"));
@@ -24,7 +29,7 @@ export function checkScenario(casePath, workspace, original) {
 	for (const expectation of spec.expect) {
 		const [kind, value] = Object.entries(expectation).find(([key]) => key !== "id");
 		let passed;
-		if (kind === "file_exists") passed = files(workspace).includes(value);
+		if (kind === "file_exists") passed = files(workspace).some((path) => glob(value).test(path));
 		else if (kind === "file_matches" || kind === "file_lacks") {
 			let text = "";
 			try { text = readFileSync(join(workspace, value.path), "utf8"); } catch { passed = false; }
@@ -36,6 +41,15 @@ export function checkScenario(casePath, workspace, original) {
 			const before = new Map(files(original).map((path) => [path, digest(join(original, path))]));
 			const after = files(workspace).filter((path) => !value.includes(path));
 			passed = after.length === before.size && after.every((path) => before.get(path) === digest(join(workspace, path)));
+		} else if (kind === "unchanged") {
+			const inScope = (path) => value.some((prefix) => path === prefix || path.startsWith(prefix.replace(/\/?$/, "/")));
+			const before = files(original).filter(inScope), after = files(workspace).filter(inScope);
+			passed = before.length === after.length && before.every((path, i) => path === after[i] && digest(join(original, path)) === digest(join(workspace, path)));
+		} else if (kind === "command_passes") {
+			// Hidden files come from the scenario directory and are added only after the run.
+			if (value.files) cpSync(join(dirname(casePath), value.files), join(workspace, value.files), { recursive: true });
+			const { NODE_TEST_CONTEXT: _, ...env } = process.env;
+			try { execFileSync("sh", ["-c", value.command], { cwd: workspace, env, stdio: "pipe" }); passed = true; } catch { passed = false; }
 		} else continue; // trace-based expectations are checked by the host's own tool
 		results.push({ id: expectation.id, passed });
 	}

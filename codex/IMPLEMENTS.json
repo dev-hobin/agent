@@ -1,6 +1,6 @@
 {
   "review": {
-    "spec": "15f605e6e62718a2",
+    "spec": "0c7e5b80205c5c85",
     "plugin": "plugins/hobin-review",
     "copies": {
       "knowledge": "plugins/hobin-review/skills/reviewing-code/references/perspectives",
@@ -8,6 +8,11 @@
       "scenarios/{scenario}/base": "evals/hobin-review/{scenario}/base",
       "scenarios/{scenario}/change.patch": "evals/hobin-review/{scenario}/change.patch"
     },
-    "evals": "evals/hobin-review/{scenario}/benchmark.json"
+    "evals": "evals/hobin-review/{scenario}/benchmark.json",
+    "guarantees": {
+      "G1": "enforced: agents/openai.yaml policy.allow_implicit_invocation: false",
+      "G2": "instructed: the skill writes only its report and tells subagents not to edit (no per-agent sandbox)",
+      "G3": "instructed: verify step and fixed format, checked by the scenarios"
+    }
   }
 }

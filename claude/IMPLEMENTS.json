@@ -1,6 +1,6 @@
 {
   "review": {
-    "spec": "15f605e6e62718a2",
+    "spec": "0c7e5b80205c5c85",
     "plugin": "plugins/hobin-review",
     "copies": {
       "knowledge": "plugins/hobin-review/knowledge",
@@ -8,6 +8,11 @@
       "scenarios/{scenario}/base": "plugins/hobin-review/evals/{scenario}/base",
       "scenarios/{scenario}/change.patch": "plugins/hobin-review/evals/{scenario}/change.patch"
     },
-    "evals": "plugins/hobin-review/evals/{scenario}/prompt.md"
+    "evals": "plugins/hobin-review/evals/{scenario}/prompt.md",
+    "guarantees": {
+      "G1": "enforced: disable-model-invocation: true",
+      "G2": "instructed: the skill writes only its report; reviewer agents are enforced read-only by their tools",
+      "G3": "instructed: verify step and fixed format, checked by the scenarios"
+    }
   }
 }

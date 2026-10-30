@@ -33,8 +33,10 @@ implementations). The user maintains only core; you keep the implementations in 
    plugin files, skill, agents for the §6 strategy, evals per §8 scenario. Write the
    skill text in English from the spec's content.
 3. **Implement for Codex** following [references/codex.md](references/codex.md).
-4. **Copy core resources and record the implementation.** Update the `copies` and
-   `evals` entries for this capability in each `IMPLEMENTS.json`, then run
+4. **Copy core resources and record the implementation.** Update this capability's entry
+   in each `IMPLEMENTS.json` — `plugin`, `copies`, `evals`, `triggers` (a path pattern
+   with `{trigger}`, or `"unsupported: reason"`), and `guarantees` (each §4 ID as
+   `"enforced: …"`, `"instructed: …"`, or `"unsupported: …"`) — then run
    `node .agents/skills/implementing-core/scripts/check.mjs --sync`. It copies the
    resources and records the current spec hash.
 5. **Verify without models.** Activate the repository's Python environment first
