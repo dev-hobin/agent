@@ -392,3 +392,20 @@ refund 3/3 · 3/3 · 3/3, money-to-cents 3/3 · 3/3 · 3/3.
 
 - 흔들린 항목은 모두 skill이 지시만 하는 산출물 요소다. 같은 출력에는 항상 같은 판정이 나오므로, 흔들림은 채점이 아니라 모델 행동에서 온다.
 - 다음 단계는 해당 명세에 Gotcha를 추가하거나 산출물 형식을 더 분명히 하고, `/implementing-core`로 반영하는 것이다. 예: technical-reading의 열린 질문 섹션.
+
+### 13.2 라벨 계약과 트리거 기준선 (2026-10-30)
+
+- **라벨 계약:** learning 명세 4개(technical-reading, exercise, opensource-reading, patternize)에 "결과 파일에는 형식의 영어 제목·라벨을 그대로 쓴다"를 추가했다. 새 세션의 `/implementing-core`로 반영했다($0.38).
+  - learning 회귀 결과($1.94): opensource-reading 0.97 → 1.00, patternize 0.98 → 1.00, technical-reading 0.93 → 0.98.
+  - technical-reading의 열린 질문은 1/3 → 2/3이 됐다. exercise의 풀이 예시는 여전히 2/3이다.
+- **트리거 기준선**(`claude plugin eval --tag trigger`, Sonnet 3회, $9.0):
+
+| skill | 정답 질의 | 놓친 질의 |
+| --- | --- | --- |
+| enforcing-conventions | 18/20 | f06(오탐), t08 |
+| evaluating-skills | 19/20 | t04 |
+| conceptualize | 16/20 | t02, t04, t06, t10 |
+| patternize | 15/20 | t01, t03, t04, t05, t10 ("절차·판단 흐름으로 만들어 줘" 유형) |
+
+- **이전 수치와의 차이:** description은 이전과 같다. 이전 수치(자체 실행기, Sonnet 18~20/20)와의 차이는 측정 환경의 차이로 보고, 이번 값을 공식 도구 기준의 기준선으로 삼는다.
+- **개선 방법:** description 개선은 Agent Skills의 optimizing-descriptions 방식(학습/검증 질의 분리, 과적합 금지)으로 따로 한다.
