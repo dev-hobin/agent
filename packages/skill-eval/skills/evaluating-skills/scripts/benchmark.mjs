@@ -75,8 +75,11 @@ function run(item, plugins) {
 		const r = spawnSync("sh", ["-c", check.command], { cwd: ws, encoding: "utf8", timeout: 10 * 60_000 });
 		return { id: check.id, passed: r.status === 0, output: (r.stdout + r.stderr).slice(-3000) };
 	});
+	// A Skill call only counts when it succeeded: without the plugin, the call fails with "Unknown skill".
+	const failed = new Set(events.flatMap((e) => e.type === "user" && Array.isArray(e.message?.content)
+		? e.message.content.filter((c) => c.type === "tool_result" && c.is_error).map((c) => c.tool_use_id) : []));
 	const skillFired = events.some((e) => e.type === "assistant" && (e.message?.content ?? []).some((c) =>
-		c.type === "tool_use" && c.name === "Skill" && String(c.input?.skill ?? "").split(":").pop() === item.task.skill));
+		c.type === "tool_use" && c.name === "Skill" && !failed.has(c.id) && String(c.input?.skill ?? "").split(":").pop() === item.task.skill));
 	rmSync(ws, { recursive: true, force: true });
 	return { task: item.task.id, condition: item.condition, model: item.model, run: item.n, skillFired, checks,
 		cost: result.total_cost_usd ?? 0, ms: Date.now() - started, events };
