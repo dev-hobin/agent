@@ -172,7 +172,9 @@ for (const item of matrix) {
 	const ws = workspace(item.task);
 	const plugins = { skill: [pluginDir], control: control ? [control] : [], none: [] }[item.condition];
 	const prompt = item.q ? item.q.query : item.condition === "none" ? item.task.prompt : `/${pluginName}:${item.skill} ${item.task.prompt}`;
-	const tools = item.q ? [] : ["--permission-mode", "acceptEdits", "--allowedTools", "Bash(node *)", "Bash(npm *)", "Bash(git *)", "Bash(sh *)", "Bash(bash *)", "Bash(ls *)", "Bash(cat *)", "Bash(grep *)", "Bash(find *)", "Bash(head *)", "Bash(wc *)", "Read", "Edit", "Write", "Grep", "Glob", "Agent", "Skill"];
+	// Trigger runs get only the Skill tool: the run can choose the Skill or answer in text,
+	// but cannot explore an empty workspace and stop before deciding.
+	const tools = item.q ? ["--tools", "Skill"] : ["--permission-mode", "acceptEdits", "--allowedTools", "Bash(node *)", "Bash(npm *)", "Bash(git *)", "Bash(sh *)", "Bash(bash *)", "Bash(ls *)", "Bash(cat *)", "Bash(grep *)", "Bash(find *)", "Bash(head *)", "Bash(wc *)", "Read", "Edit", "Write", "Grep", "Glob", "Agent", "Skill"];
 	const run = claude(prompt, ws, item.model, plugins, tools);
 	const warning = assertIsolated(run.init, item.condition === "none" ? [] : [pluginName]);
 	const record = { mode, skill: item.skill, id: item.q?.id ?? item.task.id, condition: item.condition, model: item.model, run: item.n,
