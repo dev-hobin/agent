@@ -23,6 +23,10 @@ Decide with evidence whether a Skill changes outcomes enough to justify its cont
 - A gain over no skill can come from extra prompt length alone. Compare against a
   length-matched control before crediting the Skill's content.
 - Assertions that pass in every condition carry no information; remove or harden them.
+- An LLM grader that sees only the final answer cannot judge process assertions
+  ("ran the existing tests", "used an independent reviewer") and tends to fail
+  negative ones ("did not flag X") for lack of evidence. Give it the commands and
+  subagents the run used, and tell it how to treat negative assertions.
 
 ## Procedure
 
@@ -66,8 +70,9 @@ node scripts/run-evals.mjs outcomes --evals <evals/skill-dir> --plugin-dir <plug
   --models haiku,sonnet --runs 3 --execute
 ```
 
-Results are written to `<evals/skill-dir>/results/<timestamp>/` with a transcript and a
-record per run, plus `summary.json`. On other hosts, follow the same procedure by hand
+Results are written to `<evals/skill-dir>/results/<timestamp>/`: per run a transcript,
+the final answer, the workspace diff, the commands it ran, and a graded record; plus
+`summary.json`. On other hosts, follow the same procedure by hand
 or adapt the runner's `claude()` and `usedSkill()` functions.
 
 ## When to read more

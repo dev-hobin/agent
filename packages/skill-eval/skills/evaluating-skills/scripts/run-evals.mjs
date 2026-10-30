@@ -105,7 +105,21 @@ function usedSkill(events, skill) {
 			|| (c.name === "Read" && String(c.input?.file_path ?? "").includes(`/skills/${skill}/SKILL.md`)))));
 }
 
-function grade(task, ws, answer) {
+// What the agent did, from the transcript: shell commands (with failures) and subagents.
+function activity(events) {
+	const results = new Map();
+	for (const e of events) if (e.type === "user" && Array.isArray(e.message?.content))
+		for (const c of e.message.content) if (c.type === "tool_result") results.set(c.tool_use_id, c.is_error === true);
+	const lines = [];
+	for (const e of events) if (e.type === "assistant") for (const c of e.message?.content ?? []) {
+		if (c.type !== "tool_use") continue;
+		if (c.name === "Bash") lines.push(`$ ${c.input?.command}${results.get(c.id) ? "   [failed]" : ""}`);
+		if (c.name === "Agent" || c.name === "Task") lines.push(`[subagent] ${c.input?.description ?? ""}`);
+	}
+	return lines.join("\n");
+}
+
+function grade(task, ws, answer, events) {
 	const checks = (task.checks ?? []).map((check) => {
 		const hidden = join(evalsDir, task.fixture, "hidden");
 		if (existsSync(hidden)) cpSync(hidden, join(ws, "hidden"), { recursive: true });
@@ -113,7 +127,9 @@ function grade(task, ws, answer) {
 		return { id: check.id, passed: run.status === 0, output: (run.stdout + run.stderr).slice(-3000) };
 	});
 	const diff = spawnSync("sh", ["-c", "git add -A -- . ':!hidden' && git diff --cached HEAD"], { cwd: ws, encoding: "utf8" }).stdout;
-	const prompt = `Grade an AI agent's work. For each assertion decide passed true/false using only the evidence below; when evidence is missing, it fails.
+	const commands = activity(events);
+	const prompt = `Grade an AI agent's work. For each assertion decide passed true/false using only the evidence below.
+For an assertion that something happened, missing evidence means it fails. For an assertion that something was NOT done or NOT reported, it passes unless the evidence shows it.
 Return only JSON: {"results":[{"id":"...","passed":true,"evidence":"short quote or reason"}]}
 
 ASSERTIONS:
@@ -122,13 +138,16 @@ ${task.assertions.map((a) => `- ${a.id}: ${a.text}`).join("\n")}
 FINAL ANSWER:
 ${answer.slice(0, 40_000)}
 
+COMMANDS AND SUBAGENTS RUN BY THE AGENT:
+${commands.slice(0, 20_000) || "(none)"}
+
 WORKSPACE DIFF:
 ${diff.slice(0, 60_000)}`;
 	const graded = claude(prompt, ws, opts["grader-model"], [], ["--tools", ""]);
 	let assertions;
 	try { assertions = JSON.parse(String(graded.result.result).match(/\{[\s\S]*\}/)[0]).results; }
 	catch { assertions = task.assertions.map((a) => ({ id: a.id, passed: false, evidence: "grader output unparseable" })); }
-	return { checks, assertions, graderCost: graded.result.total_cost_usd ?? 0 };
+	return { checks, assertions, graderCost: graded.result.total_cost_usd ?? 0, evidence: { answer, diff, commands } };
 }
 
 const matrix = [];
@@ -159,9 +178,15 @@ for (const item of matrix) {
 	const record = { mode, skill: item.skill, id: item.q?.id ?? item.task.id, condition: item.condition, model: item.model, run: item.n,
 		cost: run.result.total_cost_usd ?? 0, ms: run.ms, usage: run.result.usage ?? null, warning, triggered: usedSkill(run.events, item.skill) };
 	if (item.q) record.expected = item.q.should_trigger;
-	else Object.assign(record, grade(item.task, ws, String(run.result.result ?? "")));
+	else Object.assign(record, grade(item.task, ws, String(run.result.result ?? ""), run.events));
 	const dir = join(out, record.id, item.condition, item.model, `run-${item.n}`);
 	mkdirSync(dir, { recursive: true });
+	if (record.evidence) {
+		writeFileSync(join(dir, "answer.md"), record.evidence.answer);
+		writeFileSync(join(dir, "diff.patch"), record.evidence.diff);
+		writeFileSync(join(dir, "commands.txt"), record.evidence.commands);
+		delete record.evidence;
+	}
 	writeFileSync(join(dir, "transcript.jsonl"), run.events.map((e) => JSON.stringify(e)).join("\n"));
 	writeFileSync(join(dir, "record.json"), JSON.stringify(record, null, 2));
 	records.push(record);
