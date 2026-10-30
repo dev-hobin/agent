@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 
-import { checkPluginPackage, checkPortablePlugin, packageNames, pluginSchemaId, readJson, repositoryRoot } from "./check-agent-plugins.mjs";
+import { checkPortablePlugin, pluginSchemaId, readJson, repositoryRoot } from "./check-agent-plugins.mjs";
 
 const exec = promisify(execFile);
 const args = process.argv.slice(2).filter((argument) => argument !== "--");
@@ -119,7 +119,7 @@ async function codexSkills(cwd) {
 }
 
 try {
-	for (const path of [home, env.CLAUDE_CONFIG_DIR, env.CODEX_HOME, env.TMPDIR, join(marketplace, "packages"), ...projects]) {
+	for (const path of [home, env.CLAUDE_CONFIG_DIR, env.CODEX_HOME, env.TMPDIR, ...projects]) {
 		await mkdir(path, { recursive: true });
 	}
 	await writeFile(env.npm_config_userconfig, "");
@@ -127,19 +127,8 @@ try {
 	const catalogRelative = host === "claude" ? ".claude-plugin/marketplace.json" : ".agents/plugins/marketplace.json";
 	const catalog = await readJson(join(repositoryRoot, catalogRelative));
 	const expected = [];
-	for (const name of packageNames) {
-		const packageRoot = join(repositoryRoot, "packages", name);
-		const { stdout } = await run("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", temporary], packageRoot);
-		const [pack] = JSON.parse(stdout);
-		const destination = join(marketplace, "packages", name);
-		await mkdir(destination);
-		await run("tar", ["-xzf", join(temporary, pack.filename), "-C", destination, "--strip-components=1"]);
-		const { plugin, skills } = await checkPluginPackage(destination);
-		expected.push({ name: plugin.name, version: plugin.version, packageName: name,
-			skillNames: skills.map((path) => basename(path)).sort() });
-	}
 	// Host implementations of core specs are plugin directories; copy them as-is.
-	for (const entry of catalog.plugins.filter((item) => !item.source.startsWith("./packages/"))) {
+	for (const entry of catalog.plugins) {
 		const sourceDir = join(repositoryRoot, entry.source);
 		await cp(sourceDir, join(marketplace, entry.source), { recursive: true });
 		const manifest = await readJson(join(sourceDir, host === "claude" ? ".claude-plugin/plugin.json" : "plugin.json"));
@@ -218,16 +207,12 @@ try {
 	for (const plugin of [...expected, peerExpected]) {
 		const installed = await realpath(installedPaths.get(plugin.name));
 		assertInside(installed, home);
-		const source = plugin.name === peerManifest.name ? peer : plugin.sourceDir ?? join(repositoryRoot, "packages", plugin.packageName);
+		const source = plugin.name === peerManifest.name ? peer : plugin.sourceDir;
 		await assertSameTree(join(source, "skills"), join(installed, "skills"));
 		if (plugin.sourceDir && host === "codex") assert.equal((await checkPortablePlugin(installed)).plugin.name, plugin.name);
-		else if (plugin.name !== peerManifest.name && !plugin.sourceDir) {
-			const packed = await checkPluginPackage(installed);
-			assert.equal(packed.plugin.name, plugin.name);
-		}
 	}
 	console.log(JSON.stringify({ host, version, isolated: true,
-		packedArtifacts: expected.map((plugin) => ({ name: plugin.name, version: plugin.version, skillCount: plugin.skillNames.length })),
+		plugins: expected.map((plugin) => ({ name: plugin.name, version: plugin.version, skillCount: plugin.skillNames.length })),
 		projects: projects.length, nativeInventoryChecked: true, installedResourcesMatchSource: true,
 		peerWithSameSkillName: true, qualifiedCodexNamesChecked: host === "codex", modelCalls: false }));
 } finally {

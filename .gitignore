@@ -6,6 +6,5 @@ coverage/
 .DS_Store
 .venv/
 __pycache__/
-packages/*/evals/results/
-packages/*/benchmarks/results/
+claude/plugins/*/evals/results/
 codex/evals/*/*/workspace/

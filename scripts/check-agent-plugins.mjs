@@ -8,10 +8,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 
 export const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
-export const packageNames = ["feature", "stances", "skill-eval", "learning"];
-// Host implementations of core/ specs, maintained in claude/ and codex/.
-export const implementationPlugins = { claude: [{ name: "hobin-review", source: "./claude/plugins/hobin-review" }],
-	codex: [{ name: "hobin-review", source: "./codex/plugins/hobin-review" }] };
 const upstreamRoot = fileURLToPath(new URL("../schemas/upstream/agent-plugins/1.0.0/", import.meta.url));
 
 export async function readJson(path) {
@@ -92,55 +88,40 @@ export async function checkPortablePlugin(packageRoot) {
 	return { plugin, skills: skills.sort() };
 }
 
-// Repository conventions, deliberately separate from the upstream schema.
-export function assertPluginIdentity(pkg, plugin, claude, seen = new Set()) {
-	assert.match(pkg.name, /^@hobin\/[a-z0-9]+(?:-[a-z0-9]+)*$/u, "Expected a scoped npm package");
-	const name = pkg.name.slice(1).replace("/", "-");
-	assert.deepEqual(plugin, { $schema: pluginSchemaId, name, version: pkg.version,
-		description: pkg.description, author: pkg.author, license: pkg.license },
-		"Repository policy: portable identity must match the npm package and contain no executable configuration");
-	assert.deepEqual(claude, { name: plugin.name, version: plugin.version,
-		description: plugin.description, author: plugin.author },
-		"Repository policy: Claude compatibility identity must match portable plugin.json");
-	for (const path of ["plugin.json", ".claude-plugin", "skills"]) {
-		assert.ok(pkg.files.includes(path), `Repository policy: npm files must include ${path}`);
-	}
-	assert.ok(!seen.has(name), `Duplicate package-owned plugin identity: ${name}`);
-	seen.add(name);
-}
-
-export async function checkPluginPackage(packageRoot, seen = new Set()) {
-	const result = await checkPortablePlugin(packageRoot);
-	const pkg = await readJson(join(packageRoot, "package.json"));
-	const claude = await readJson(join(packageRoot, ".claude-plugin/plugin.json"));
-	assertPluginIdentity(pkg, result.plugin, claude, seen);
-	await assert.rejects(lstat(join(packageRoot, "mcp.json")), { code: "ENOENT" },
-		"Repository policy: adding MCP requires an explicit adoption/profile review");
-	return { ...result, pkg };
-}
-
-export function assertMarketplaceCatalogs(claude, codex, entries, built = implementationPlugins) {
+// Repository conventions: both host catalogs list the same plugins, each pointing at
+// that host's implementation directory.
+export function assertMarketplaceCatalogs(claude, codex) {
 	assert.equal(claude.name, "hobin");
 	assert.equal(codex.name, claude.name);
 	assert.equal(claude.owner.name, "dev-hobin");
 	assert.equal(typeof claude.description, "string");
 	assert.equal(codex.interface.displayName, "Hobin agent resources");
-	assert.deepEqual(claude.plugins, [...built.claude, ...entries].map((entry) => ({ ...entry, category: "Productivity" })),
-		"Repository policy: Claude catalog must point only at the canonical package roots");
-	assert.deepEqual(codex.plugins, [...built.codex, ...entries].map((entry) => ({ ...entry,
-		policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" }, category: "Productivity" })),
-		"Repository policy: Codex catalog must expose the same packages with explicit host policy");
+	assert.deepEqual(claude.plugins.map((p) => p.name), codex.plugins.map((p) => p.name),
+		"Repository policy: both host catalogs list the same plugins");
+	for (const entry of claude.plugins) {
+		assert.deepEqual(entry, { name: entry.name, source: `./claude/plugins/${entry.name}`, category: "Productivity" },
+			"Repository policy: Claude catalog entries point at claude/plugins/<name>");
+	}
+	for (const entry of codex.plugins) {
+		assert.deepEqual(entry, { name: entry.name, source: `./codex/plugins/${entry.name}`,
+			policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" }, category: "Productivity" },
+			"Repository policy: Codex catalog entries point at codex/plugins/<name> with explicit host policy");
+	}
+}
+
+export async function readCatalogs(root = repositoryRoot) {
+	return { claude: await readJson(join(root, ".claude-plugin/marketplace.json")),
+		codex: await readJson(join(root, ".agents/plugins/marketplace.json")) };
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+	const { claude, codex } = await readCatalogs();
+	assertMarketplaceCatalogs(claude, codex);
 	let count = 0;
-	for (const name of packageNames) {
-		const { skills } = await checkPortablePlugin(join(repositoryRoot, "packages", name));
+	for (const entry of codex.plugins) {
+		const { plugin, skills } = await checkPortablePlugin(join(repositoryRoot, entry.source));
+		assert.equal(plugin.name, entry.name);
 		count += skills.length;
 	}
-	for (const { source } of implementationPlugins.codex) {
-		const { skills } = await checkPortablePlugin(join(repositoryRoot, source));
-		count += skills.length;
-	}
-	console.log(`Agent Plugins 1.0.0: ${packageNames.length + implementationPlugins.codex.length} manifests and ${count} immediate Skill directories passed schema/path checks`);
+	console.log(`Agent Plugins 1.0.0: ${codex.plugins.length} Codex manifests and ${count} immediate Skill directories passed schema/path checks`);
 }

@@ -6,13 +6,11 @@ import test from "node:test";
 
 import {
 	assertMarketplaceCatalogs,
-	assertPluginIdentity,
 	assertPluginManifest,
-	checkPluginPackage,
 	checkPortablePlugin,
 	loadPluginSchema,
-	packageNames,
 	pluginSchemaId,
+	readCatalogs,
 	readJson,
 	repositoryRoot,
 } from "../scripts/check-agent-plugins.mjs";
@@ -30,13 +28,6 @@ async function pluginFixture(t) {
 	const directory = await temporaryDirectory(t);
 	await writeFile(join(directory, "plugin.json"), JSON.stringify(minimal));
 	return directory;
-}
-
-function identities() {
-	const pkg = { name: "@hobin/developer", version: "0.2.2", description: "Fixture",
-		author: { name: "Fixture author" }, license: "MIT", files: ["plugin.json", ".claude-plugin", "skills"] };
-	const claude = { name: "hobin-developer", version: pkg.version, description: pkg.description, author: pkg.author };
-	return { pkg, claude, plugin: { $schema: pluginSchemaId, ...claude, license: pkg.license } };
 }
 
 test("the schema and its license retain exact pinned upstream bytes and documented provenance", async () => {
@@ -83,48 +74,23 @@ test("upstream plugin name constraints include periods but reject invalid bounda
 	}
 });
 
-test("repository policy aligns npm, portable and legacy identities and exported metadata", () => {
-	const { pkg, plugin, claude } = identities();
-	const seen = new Set();
-	assertPluginIdentity(pkg, plugin, claude, seen);
-	assert.throws(() => assertPluginIdentity(pkg, plugin, claude, seen), /Duplicate package-owned/);
-	assert.throws(() => assertPluginIdentity({ ...pkg, name: "developer" }, plugin, claude), /scoped npm/);
-	for (const changed of [{ name: "model" }, { version: "0.2.0" }, { hooks: "./hooks.json" }]) {
-		assert.throws(() => assertPluginIdentity(pkg, { ...plugin, ...changed }, claude), /Repository policy/);
+test("both host catalogs list the same plugins at their host implementation directories", async () => {
+	const { claude, codex } = await readCatalogs();
+	assertMarketplaceCatalogs(claude, codex);
+	for (const entry of codex.plugins) {
+		const { plugin, skills } = await checkPortablePlugin(join(repositoryRoot, entry.source));
+		assert.equal(plugin.name, entry.name);
+		assert.ok(skills.length > 0, `${entry.name}: at least one skill`);
+		assert.equal((await readJson(join(repositoryRoot, `claude/plugins/${entry.name}/.claude-plugin/plugin.json`))).name, entry.name);
 	}
-	assert.throws(() => assertPluginIdentity(pkg, plugin, { ...claude, name: "other" }), /Claude compatibility/);
-	for (const excluded of ["plugin.json", ".claude-plugin", "skills"]) {
-		assert.throws(() => assertPluginIdentity({ ...pkg, files: pkg.files.filter((path) => path !== excluded) }, plugin, claude), /npm files must include/);
-	}
-});
-
-test("our source packages own disjoint portable identities and unchanged immediate catalogs", async () => {
-	const seen = new Set();
-	for (const [index, name] of packageNames.entries()) {
-		const { pkg, skills } = await checkPluginPackage(join(repositoryRoot, "packages", name), seen);
-		assert.equal(pkg.name, `@hobin/${name}`);
-		assert.equal(skills.length, [1, 2, 1, 5][index]);
-	}
-	assert.deepEqual([...seen], ["hobin-feature", "hobin-stances", "hobin-skill-eval", "hobin-learning"]);
-});
-
-test("host catalogs expose the same canonical roots without component overrides", async () => {
-	const claude = await readJson(join(repositoryRoot, ".claude-plugin/marketplace.json"));
-	const codex = await readJson(join(repositoryRoot, ".agents/plugins/marketplace.json"));
-	const entries = [];
-	for (const name of packageNames) {
-		const plugin = await readJson(join(repositoryRoot, "packages", name, "plugin.json"));
-		entries.push({ name: plugin.name, source: `./packages/${name}` });
-	}
-	assertMarketplaceCatalogs(claude, codex, entries);
 	for (const change of [{ source: "../outside" }, { name: "model" }, { hooks: "./hooks.json" }]) {
 		const changed = structuredClone(claude);
 		Object.assign(changed.plugins[0], change);
-		assert.throws(() => assertMarketplaceCatalogs(changed, codex, entries), /canonical package roots/);
+		assert.throws(() => assertMarketplaceCatalogs(changed, codex));
 	}
 	const changed = structuredClone(codex);
 	delete changed.plugins[0].policy;
-	assert.throws(() => assertMarketplaceCatalogs(claude, changed, entries), /explicit host policy/);
+	assert.throws(() => assertMarketplaceCatalogs(claude, changed), /explicit host policy/);
 });
 
 test("a missing optional skills directory is valid, but a missing portable manifest is not", async (t) => {
@@ -173,14 +139,3 @@ for (const target of ["plugin.json", "skills", "skills/direct/escape.md"]) {
 		await assert.rejects(checkPortablePlugin(directory), /escapes plugin root/);
 	});
 }
-
-test("adding an MCP component cannot silently widen our checked skills-only profile", async (t) => {
-	const directory = await pluginFixture(t);
-	const { pkg, plugin, claude } = identities();
-	await writeFile(join(directory, "plugin.json"), JSON.stringify(plugin));
-	await writeFile(join(directory, "package.json"), JSON.stringify(pkg));
-	await mkdir(join(directory, ".claude-plugin"));
-	await writeFile(join(directory, ".claude-plugin/plugin.json"), JSON.stringify(claude));
-	await writeFile(join(directory, "mcp.json"), "{}");
-	await assert.rejects(checkPluginPackage(directory), /adding MCP requires an explicit/);
-});

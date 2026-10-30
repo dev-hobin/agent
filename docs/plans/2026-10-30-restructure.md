@@ -358,3 +358,23 @@ refund 3/3 · 3/3 · 3/3, money-to-cents 3/3 · 3/3 · 3/3.
 1. Codex 평가 실행.
 2. 나머지 역량(stances → feature → skill-eval → learning)을 명세로 옮기고 변환 skill로 구현한다.
 3. 다 옮긴 뒤 `packages/`, `sources/`, 기존 평가 장치를 제거한다.
+
+## 13. 전체 이전 완료 (2026-10-30)
+
+- **core 명세:** applying-stances, enforcing-conventions, developing-features, evaluating-skills, learning 5개를 추가해 review까지 10개다.
+  - 명세 작성은 subagent 3개가 병렬로 했다. 각 시나리오는 `check.mjs --scenarios-only`로 정답 예시 증명을 통과했다.
+  - learning의 긴 방법 원문은 번역 손실을 막기 위해 `knowledge/method.md`에 영어 원문으로 보존했다.
+  - 공유 관점 지식은 `core/shared/lenses/`에 한 번만 둔다.
+- **구현:** 새 Claude 세션에서 `/implementing-core`를 세 번 돌려 만들었다(sonnet, 각 $0.60 / $0.73 / $0.97). 사람이 개입한 수정은 없었다.
+  - 변환 세션이 스스로 고친 것: Codex 준비 스크립트의 "patch 없는 시나리오" 처리, 같은 이름 시나리오의 평가 디렉터리 충돌 회피.
+- **형식 확장:** `unchanged`(특정 경로 불변), `command_passes`(숨은 테스트), glob `file_exists`, `triggers.yaml`, `assets/`, 보장 수준 기록(`IMPLEMENTS.json`의 guarantees).
+  - 호스트가 지원하지 못하는 판정은 숨기지 않고 표시한다.
+  - Claude: 숨은 테스트는 미검증으로 case에 명시.
+  - Codex: 트리거는 `"unsupported: …"`, trace가 필요한 판정은 benchmark notes에 기록.
+- **제거:** `packages/`, `sources/`, npm 배포, Pi 어댑터, lens 동기화, 트리거 생성기, 자체 skill-resources 검사, references.json 규약 문서, `docs/claude-plugins.md`.
+  - CI는 단일 job(`pnpm check`)이다.
+- **검증(모델 없음):** `pnpm check`(skills-ref 11, Codex manifest 5, 역량 10, 테스트 19), `check:claude` 6건, 두 호스트 설치 검사 모두 통과.
+
+남은 것:
+1. review 외 플러그인의 Claude 평가 실행(비용 발생).
+2. Codex 평가는 `plugin-eval`이 외부 코드 실행이라 사용자 허용이 필요하다.

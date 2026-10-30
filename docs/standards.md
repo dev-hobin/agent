@@ -65,9 +65,9 @@ template. `allowed-tools` remains experimental and host-dependent.
 
 Recommendations about 500 lines, token budgets and short reference chains are
 authoring guidance, not additional schema fields or unconditional failures.
-Canonical methods remain in `packages/*/skills/` without per-host copies. Shared
-lens text is authored once in `sources/lenses/` and copied into each Skill that ships
-it, because a Skill must stay self-contained; `check:sources` fails on drift.
+Capability content is authored once in `core/`; each host implementation carries a
+byte-identical copy of the resources it needs, because a plugin must stay
+self-contained; `check:core` fails on drift.
 
 ### Skill authoring guidance (reviewed 2026-10-30)
 
@@ -81,7 +81,7 @@ at the pinned commit (upstream recommendations), and Claude's
 | --- | --- | --- |
 | A description states what the Skill does in the third person, then `Use when …`, then `Not for …` near misses | The third person follows the Claude guidance ("Always write in third person"). The imperative `Use when` follows the Agent Skills guidance. Upstream recommends near-miss *test queries*; writing them into the description is our **repository convention** | Human review now; trigger evals with near-miss queries (planned) |
 | A `## Gotchas` section, placed directly after the introduction, holds only failures that were observed or corrected | Upstream recommendation ("Gotchas sections"); the evidence-only rule is our **repository convention**. Provenance is recorded in the change's plan, not in the Skill | Human review; each entry cites an observation in `docs/plans/` |
-| One short `## When to read more` section replaces the repeated reference-lookup boilerplate | **Repository convention**, following the upstream advice to spend context only on what the agent lacks. The `references.json` contract in [conditional references](skill-references.md) is unchanged | `check:portable` link and resource checks |
+| A `## When to read more` section lists each reference file with its read condition | **Repository convention**, following the upstream advice to spend context only on what the agent lacks | Review; `claude plugin validate` and skills-ref for links and fields |
 
 Where the Claude and Agent Skills guidance differ, the rule above records which part
 each one governs. Neither is relabeled as an upstream requirement.
@@ -90,7 +90,7 @@ Evaluation follows Anthropic's "Demystifying evals for AI agents" (deterministic
 where possible; regression suites near 100% kept apart from capability benchmarks) and
 uses Claude Code's `claude plugin eval` case format as a **host contract**, reviewed
 2026-10-30 on Claude Code 2.1.314. Cases sit inside each plugin because the command reads
-`<plugin>/evals/`; npm packs exclude them, while marketplace installs copy them. Gating
+`<plugin>/evals/`, so they sit inside each Claude plugin and marketplace installs copy them. Gating
 cases use only `regex`, `tool_used`, `tool_order`, and `file_exists` graders, checked by
 `tests/evals.test.mjs`. Hidden-test outcomes need a command after the run, which the host
 does not offer (it has no custom-code graders), so they run in the repository's
@@ -104,7 +104,7 @@ Plugins client extensions. There is no custom loader or mandatory runtime.
 
 | Normative section / obligation | Authoring evidence | Boundary or review obligation |
 | --- | --- | --- |
-| §4.1, §5.1: root `plugin.json`, resolved package paths stay inside the plugin root | `check:standard:plugins`; negative manifest/Skill/resource symlink cases; actual extracted npm packs | These checks reject broken authored bundles; they are not a reimplementation of client failure handling |
+| §4.1, §5.1: root `plugin.json`, resolved package paths stay inside the plugin root | `check:standard:plugins`; negative manifest/Skill/resource symlink cases | These checks reject broken authored bundles; they are not a reimplementation of client failure handling |
 | §5.2–5.5: canonical `$schema`, required fields, types, closed manifest and name constraints | Unmodified pinned upstream schema; positive and negative schema tests | Schema validation is intentionally strict for authors. The client's report-and-ignore exceptions are not implemented as a runtime here |
 | §6–7.1: fixed `skills/`, immediate children only, Agent Skills validity | Layout checks, catalog counts, pinned skills-ref, relocated-bundle tests | Missing optional component directories are valid upstream; our five catalogs require 1, 1, 2, 1 and 5 Skills |
 | §7.2, §9: MCP configuration and subprocess behavior | Not applicable: our exported profile contains no `mcp.json` or MCP process | Adding an MCP component reopens adoption, schema and host verification; schema-only green checks are not evidence for it |
@@ -117,23 +117,13 @@ pins live under `schemas/upstream/agent-plugins/1.0.0/`. The checker verifies lo
 bytes and performs no schema download. Upstream files must not be edited or
 relicensed as our MIT work.
 
-### Common identity and host-specific manifests
+### Host manifests
 
-Each package's root `plugin.json` owns the portable identity. Our convention maps
-`@hobin/<package>` to `hobin-<package>` and keeps its release metadata aligned
-with npm. This mapping, disjoint names within our catalogs, identity-only
-manifests and npm export rules are **repository conventions**, not upstream
-requirements or a global registry.
-
-`.claude-plugin/plugin.json` is Claude Code's current manifest location, a host
-contract rather than a deprecated format, and `package.json`'s `pi` fields are Pi
-package metadata. We keep both identity-only and synchronized: they are
-host-specific compatibility, not portable manifest overrides or claimed §8
-client extensions. Existing Pi adapter components remain outside the v1
-component types (§7); their discovery and behavior belong only to Pi. New
-standard client extensions must use §8 rather than copying these host-specific paths.
-The portable core does not discover or execute them. Native compatibility checks
-remain separate, and the same canonical Skill directories supply every route.
+Codex implementations use the root Agent Plugins `plugin.json` (Codex's canonical
+format), checked against the pinned schema. Claude Code implementations use
+`.claude-plugin/plugin.json`, Claude Code's manifest location, checked with
+`claude plugin validate --strict`. Neither is an override of the other: each is that
+host's implementation of the same core spec.
 
 ## Conditional adoption: no implementation without a matching feature
 
@@ -144,7 +134,7 @@ remain separate, and the same canonical Skill directories supply every route.
 | [A2A](https://a2a-protocol.org/latest/) | Independent agent-service communication | When exposing such a service; not our internal subagent or file format |
 | [Agent Client Protocol](https://agentclientprotocol.com/overview/introduction) | Editor-to-coding-agent communication | When implementing a client/agent boundary; not a package manifest |
 | [Open Responses](https://www.openresponses.org/specification) / [OpenAPI](https://spec.openapis.org/oas/) | Cross-provider model API / HTTP API descriptions | When owning those API boundaries; not instruction-only distribution |
-| [AG-UI](https://docs.ag-ui.com/introduction) | Agent backend to application UI | When providing that protocol boundary; not a reason to replace the optional Pi chooser |
+| [AG-UI](https://docs.ag-ui.com/introduction) | Agent backend to application UI | When providing that protocol boundary |
 | [PURL / ECMA-427](https://ecma-international.org/publications-and-standards/standards/ecma-427/) | Ecosystem-independent software-package identification | When inventory/provenance needs it; not a Skill invocation namespace or publisher verification |
 | [SLSA](https://slsa.dev/spec/), reviewed 1.2 | Supply-chain provenance and security guarantees | When adding a concrete provenance/verifier boundary; no SLSA level is currently claimed |
 
@@ -172,60 +162,51 @@ precede their activation. Do not build a runtime just to adopt a protocol.
 Claude Code and Codex evolve independently, and no vendor-neutral standard covers
 invocation policy, subagent definitions, or evaluation formats
 ([research, 2026-10-30](research/2026-10-30-neutral-standards.md)). The repository
-therefore keeps a host-neutral interface in `core/` and one implementation per host in
-`implementations/<host>/`, each rendering the interface in that host's recommended form
-and pinning its host contract in `HOST.md`. Agent Skills and Agent Plugins are used as
-notation where they fit (the portable implementation and the Codex manifest), not as a
-limit on what an implementation may use. Generated plugins live in `dist/<host>/` and
-are what the marketplace catalogs point to.
+therefore keeps a host-neutral interface in `core/` (written in Korean for its
+maintainer) and maintains one implementation per host in `claude/` and `codex/`, each in
+that host's recommended form and free to use everything the host offers. The
+`implementing-core` skill applies spec changes to both, following host recipes that pin
+the host version and documentation reviewed. Agent Skills and Agent Plugins are used where
+the host adopts them (Codex manifests and skill fields), not as a limit on what an
+implementation may use.
 
 ## Repository conventions and host contracts
 
-`references.json`, `judgment.json`, generated `Context Directions`, applicability,
-completion statuses and minimal relevant reference reads remain **our own
-contracts**. See [conditional references](skill-references.md). Core methods work
-without host metadata injection. Reference files stay within their owning Skill;
-this stricter authoring safeguard is distinct from plugin-root containment.
-
-Host docs are compatibility evidence, not alternative normative package specs:
+The core spec format, scenario checks, `IMPLEMENTS.json`, and the guarantee levels
+(enforced, instructed, unsupported) are **our own conventions**, described in
+`.agents/skills/implementing-core/references/`. Host documentation is the contract for
+each implementation; the recipes there pin the version and date reviewed:
 
 - [Claude plugin manifest](https://code.claude.com/docs/en/plugins-reference),
   [marketplace](https://code.claude.com/docs/en/plugins/marketplace-reference),
-  [installation scopes](https://code.claude.com/docs/en/discover-plugins).
-- [OpenAI plugin packaging and catalogs](https://developers.openai.com/plugins/build/plugins).
-- [Pi package/Skill integration](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/packages.md).
+  [plugin evals](https://code.claude.com/docs/en/plugin-evals).
+- [OpenAI plugin packaging and catalogs](https://developers.openai.com/plugins/build/plugins),
+  [Codex skills](https://developers.openai.com/codex/skills).
 
-The two root marketplace files are host-owned distribution metadata, not Agent
-Plugins components. They point to the same package roots and are checked for
-identity/source drift. Their different required fields do not justify copies of
-methods. Global install scope, command syntax, cache behavior, permissions,
-automatic context injection and hook APIs remain host-specific.
+The two root marketplace files are host-owned distribution metadata. They list the same
+plugins and point each at its host's implementation. Install scope, command syntax,
+cache behavior, permissions, and hook APIs remain host-specific.
 
 ## Ownership and checks
 
 | Location / command | Owner and supported claim |
 | --- | --- |
-| `packages/*/plugin.json` | Portable package identity; npm metadata is synchronized by repository checks |
-| `packages/*/skills/` | Canonical Agent Skills and contained supporting files |
-| `sources/lenses/` | Single source for lens files copied into Skills (`pnpm sync:sources`, `check:sources`) |
-| `packages/*/evals/` | `claude plugin eval` regression and trigger cases (host contract), deterministic graders only; excluded from npm packs |
-| `packages/*/benchmarks/` | Hidden-test benchmark tasks for `evaluating-skills/scripts/benchmark.mjs`; excluded from npm packs |
+| `core/<id>/`, `core/shared/` | Capability specs (the interface), maintained by the user |
+| `claude/plugins/`, `codex/plugins/`, `codex/evals/` | Host implementations and their eval suites |
+| `claude/IMPLEMENTS.json`, `codex/IMPLEMENTS.json` | Implemented spec hash, copied resources, eval paths, guarantee levels |
+| `.agents/skills/implementing-core/` | Spec format, host recipes, and `check.mjs` |
+| `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json` | Claude Code and Codex catalogs |
+| `schemas/upstream/` | Attributed upstream Agent Plugins schema and license |
 | `archive/` | Retired resources kept for provenance; not packaged, discovered or checked |
-| `packages/*/.claude-plugin/plugin.json` | Claude Code host manifest, identity-only and synchronized; not a portable override |
-| `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json` | Claude and Codex distribution catalogs |
-| `packages/*/adapters/pi/` | Optional Pi-only components, not portable client extensions |
-| `schemas/`, `packages/learning/schemas/` | Repository-owned authoring schemas, except the attributed `schemas/upstream/` subtree |
-| `packages/*/skills/*/agents/openai.yaml` | Codex invocation policy for explicit-use Skills, ignored by other hosts |
-| `AGENTS.md` | Repository maintenance instructions, not consumers' auto-installed global policy |
-| `pnpm check:standard:skills` | Pinned upstream Skill frontmatter validation for every package catalog |
-| `pnpm check:standard:plugins` | Pinned manifest schema and applicable portable package/path checks |
-| `pnpm check:standard` | Both standard-resource checks, without a host executable |
-| `pnpm check:portable` | Standard checks plus repository policies, negative cases, actual npm packs and relocated resources |
-| `pnpm check:pi` | Existing optional Pi integration/discovery behavior |
-| `pnpm check:claude` | Optional native Claude metadata/catalog validation; no model call |
-| `pnpm check:install -- <host>` | Opt-in isolated native installation/persistence checks against actual packed artifacts; see [installation](installation.md) |
+| `AGENTS.md` | Repository maintenance instructions |
+| `pnpm check:standard:skills` | Pinned upstream Skill frontmatter validation for Codex skills and repository tools |
+| `pnpm check:standard:plugins` | Pinned manifest schema and path checks for Codex implementations, catalog consistency |
+| `pnpm check:core` | Implementations in step with core, copies identical, every scenario and trigger has an eval case, every guarantee declared, every scenario proven by its golden result |
+| `pnpm check` | All of the above plus tests, without a host executable |
+| `pnpm check:claude` | `claude plugin validate --strict` on every Claude plugin and the catalog; no model call |
+| `pnpm check:install -- <host>` | Opt-in isolated native installation of every plugin; see [installation](installation.md) |
 
-Portable CI must work without Pi, Claude or Codex. Host compatibility results must
+CI must work without Claude or Codex. Host compatibility results must
 name the actual executable version and exercised source. Structural checks and
 model-free installs do not establish model selection, reference-reading quality,
 permission enforcement, or live invocation behavior. Paid behavioral evaluation,
