@@ -21,6 +21,9 @@ Do not change the reviewed code; write only the report.
   not touch.
 - Reviewers drift into style and naming nits when nothing serious is found. "No
   findings" is a valid result.
+- A perspective reviewer's candidate is not a defect until verified. Reviewers raise
+  harmless new methods and constants as defects, so drop any candidate that step 5
+  cannot reproduce with a concrete scenario.
 
 ## Procedure
 

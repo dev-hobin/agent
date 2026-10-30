@@ -1,0 +1,941 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.314",
+  "startedAt": "2026-10-30T09:16:10.248Z",
+  "durationSeconds": 60,
+  "costUsd": 0.7205196,
+  "partial": false,
+  "suite": {
+    "root": "/Users/boostree/coding/agent/claude/plugins/hobin-review",
+    "ablation": "none",
+    "modelOverride": "sonnet",
+    "tagFilters": [
+      "regression"
+    ],
+    "threshold": 1,
+    "concurrency": 3,
+    "plugins": [
+      {
+        "name": "hobin-review",
+        "version": "0.3.0",
+        "path": "/Users/boostree/coding/agent/claude/plugins/hobin-review"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "format-refactor-sibling",
+      "dir": "evals/format-refactor-sibling",
+      "source": "mixed",
+      "promptMarkdown": "/hobin-review:reviewing-code The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. Can you review this change before I merge? Author says: \"Refactored amount formatting into a shared helper and added thousands separators. The new grouping tests pass.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 1200,
+      "maxTurns": 60,
+      "graders": [
+        {
+          "name": "finds-broken-existing-test",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*(machine-readable|existing test|format\\.test|1,234\\.50)",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "finds-csv-column-split",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*(csv|toCsv)",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "finds-untested-sibling",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*formatSigned",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "no-flag-destructuring",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*destructur",
+            "flags": "i",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "no-other-changes-write",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Write",
+            "input_match": "\"file_path\"\\s*:\\s*\"(?![^\"]*/(REVIEW\\.md)\")",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        },
+        {
+          "name": "no-other-changes",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Edit",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        },
+        {
+          "name": "ran-the-suite",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Bash",
+            "input_match": "node --test|npm (run )?test"
+          }
+        },
+        {
+          "name": "review-written",
+          "type": "file_exists",
+          "weight": 1,
+          "config": {
+            "path": "REVIEW.md",
+            "exists": true
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.0770198,
+            "judgeCostUsd": 0,
+            "durationSeconds": 21,
+            "startedAt": "2026-10-30T09:16:10.282Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-pAVruA/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "finds-broken-existing-test",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(machine-readable|existing test|format\\.test|1,234\\.50)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-csv-column-split",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(csv|toCsv)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-untested-sibling",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*formatSigned",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-flag-destructuring",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes-write",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran-the-suite",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "review-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "REVIEW.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.0832341,
+            "judgeCostUsd": 0,
+            "durationSeconds": 20,
+            "startedAt": "2026-10-30T09:16:10.282Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-NnBfT5/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "finds-broken-existing-test",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(machine-readable|existing test|format\\.test|1,234\\.50)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-csv-column-split",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(csv|toCsv)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-untested-sibling",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*formatSigned",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-flag-destructuring",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes-write",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran-the-suite",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "review-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "REVIEW.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.07930319999999999,
+            "judgeCostUsd": 0,
+            "durationSeconds": 21,
+            "startedAt": "2026-10-30T09:16:10.282Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-SN7l2B/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "finds-broken-existing-test",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(machine-readable|existing test|format\\.test|1,234\\.50)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-csv-column-split",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(csv|toCsv)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-untested-sibling",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*formatSigned",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-flag-destructuring",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes-write",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran-the-suite",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "review-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "REVIEW.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "queue-worker-ack",
+      "dir": "evals/queue-worker-ack",
+      "source": "mixed",
+      "promptMarkdown": "/hobin-review:reviewing-code The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. Review this change before I merge. Context from the author: \"Fixes redelivery storms on slow jobs by acking early, and adds in-place retries for transient ledger errors.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 1200,
+      "maxTurns": 60,
+      "graders": [
+        {
+          "name": "finds-early-ack",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*\\b(ack|acknowledg)",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "finds-retry-double-credit",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*(idempot|double|twice|duplicate)",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "no-flag-pending-count",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*pendingCount",
+            "flags": "",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "no-other-changes-write",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Write",
+            "input_match": "\"file_path\"\\s*:\\s*\"(?![^\"]*/(REVIEW\\.md)\")",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        },
+        {
+          "name": "no-other-changes",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Edit",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        },
+        {
+          "name": "review-written",
+          "type": "file_exists",
+          "weight": 1,
+          "config": {
+            "path": "REVIEW.md",
+            "exists": true
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.0776698,
+            "judgeCostUsd": 0,
+            "durationSeconds": 15,
+            "startedAt": "2026-10-30T09:16:30.211Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-JhCm1D/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "finds-early-ack",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*\\b(ack|acknowledg)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-retry-double-credit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(idempot|double|twice|duplicate)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-flag-pending-count",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes-write",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "review-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "REVIEW.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.0808448,
+            "judgeCostUsd": 0,
+            "durationSeconds": 16,
+            "startedAt": "2026-10-30T09:16:31.054Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-8SQMh2/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "finds-early-ack",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*\\b(ack|acknowledg)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-retry-double-credit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(idempot|double|twice|duplicate)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-flag-pending-count",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes-write",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "review-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "REVIEW.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.0703782,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-30T09:16:31.499Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-irC1Oe/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "finds-early-ack",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*\\b(ack|acknowledg)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-retry-double-credit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(idempot|double|twice|duplicate)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-flag-pending-count",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes-write",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "review-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "REVIEW.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "settings-migration-envelope",
+      "dir": "evals/settings-migration-envelope",
+      "source": "mixed",
+      "promptMarkdown": "/hobin-review:reviewing-code The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. Please review this change before I merge. Author's note: \"Template schema v2: footers move to the workspace signature, stored templates are migrated, and the catalog parser now tolerates the empty-body response upstream sometimes sends. Tests are green.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 1200,
+      "maxTurns": 60,
+      "graders": [
+        {
+          "name": "finds-missing-envelope-as-empty",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*(envelope|parseRows|empty (list|array|result|catalog)|\\[\\])",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "finds-stored-footer-scrub",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*footer",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "no-flag-placeholder-constant",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*PLACEHOLDER",
+            "flags": "",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "no-other-changes-write",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Write",
+            "input_match": "\"file_path\"\\s*:\\s*\"(?![^\"]*/(REVIEW\\.md)\")",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        },
+        {
+          "name": "no-other-changes",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Edit",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        },
+        {
+          "name": "review-written",
+          "type": "file_exists",
+          "weight": 1,
+          "config": {
+            "path": "REVIEW.md",
+            "exists": true
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.07872749999999999,
+            "judgeCostUsd": 0,
+            "durationSeconds": 16,
+            "startedAt": "2026-10-30T09:16:44.764Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-37g8PE/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "finds-missing-envelope-as-empty",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(envelope|parseRows|empty (list|array|result|catalog)|\\[\\])",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-stored-footer-scrub",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*footer",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-flag-placeholder-constant",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes-write",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "review-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "REVIEW.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.08370129999999999,
+            "judgeCostUsd": 0,
+            "durationSeconds": 17,
+            "startedAt": "2026-10-30T09:16:45.140Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-tLsCgD/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "finds-missing-envelope-as-empty",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(envelope|parseRows|empty (list|array|result|catalog)|\\[\\])",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-stored-footer-scrub",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*footer",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-flag-placeholder-constant",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes-write",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "review-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "REVIEW.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.08964090000000001,
+            "judgeCostUsd": 0,
+            "durationSeconds": 23,
+            "startedAt": "2026-10-30T09:16:47.031Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-iCSeFH/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "finds-missing-envelope-as-empty",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(envelope|parseRows|empty (list|array|result|catalog)|\\[\\])",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-stored-footer-scrub",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*footer",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-flag-placeholder-constant",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes-write",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "review-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "REVIEW.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 3,
+    "casesPassed": 3,
+    "overallScore": 1,
+    "overallPassRate": 1
+  }
+}

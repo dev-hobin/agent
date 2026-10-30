@@ -87,7 +87,10 @@ POSIX shell(`collect-context.sh`)이나 Node.js 22(`benchmark.mjs`)가 필요합
 
 | 위치 | 용도 |
 | --- | --- |
-| `packages/*/` | 플러그인: `plugin.json`, `.claude-plugin/plugin.json`, `skills/` |
+| `core/<id>/` | 역량 명세(인터페이스): `SPEC.md`, 지식, 스크립트, 수용 시나리오 |
+| `claude/plugins/`, `codex/plugins/` | core 명세의 호스트별 구현체. 각 호스트의 권장 방식과 자체 평가를 따름 |
+| `.agents/skills/implementing-core/` | 명세 변경을 두 구현체에 반영하는 skill과 `check.mjs` |
+| `packages/*/` | 아직 core 명세로 옮기지 않은 플러그인 |
 | `sources/lenses/` | 여러 skill에 복사되는 관점 파일의 단일 원본 (`pnpm sync:sources`) |
 | `packages/*/evals/` | `claude plugin eval` 회귀·트리거 case. npm 배포에서 제외 |
 | `packages/*/benchmarks/` | 숨은 테스트 벤치마크 과제. npm 배포에서 제외 |

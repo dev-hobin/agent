@@ -1,6 +1,6 @@
 {
   "review": {
-    "spec": "53143edaca1a3a5f",
+    "spec": "15f605e6e62718a2",
     "plugin": "plugins/hobin-review",
     "copies": {
       "knowledge": "plugins/hobin-review/skills/reviewing-code/references/perspectives",

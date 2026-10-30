@@ -93,7 +93,10 @@ ignore it. Scripts need a POSIX shell (`collect-context.sh`) or Node.js 22
 
 | Location | Purpose |
 | --- | --- |
-| `packages/*/` | Plugins: `plugin.json`, `.claude-plugin/plugin.json`, `skills/` |
+| `core/<id>/` | Capability specs (the interface): `SPEC.md`, knowledge, scripts, acceptance scenarios |
+| `claude/plugins/`, `codex/plugins/` | Host implementations of core specs, each in its host's recommended form, with their own evals |
+| `.agents/skills/implementing-core/` | The skill that applies a spec change to both implementations, and `check.mjs` |
+| `packages/*/` | Plugins not yet migrated to a core spec |
 | `sources/lenses/` | Single source for lens files copied into Skills (`pnpm sync:sources`) |
 | `packages/*/evals/` | `claude plugin eval` regression and trigger cases; excluded from npm packs |
 | `packages/*/benchmarks/` | Hidden-test benchmark tasks; excluded from npm packs |

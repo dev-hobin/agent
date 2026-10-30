@@ -2,14 +2,14 @@
 
 ## Source of truth
 
-- **Interface and implementations.** `core/<capability>/` is the host-neutral interface:
-  capability intent (`capability.yaml`), the procedure template, knowledge, neutral
-  scripts, and contract tests. `implementations/<host>/build.mjs` renders it into that
-  host's own recommended form, following the pinned contract in
-  `implementations/<host>/HOST.md`. `dist/<host>/` is generated (`pnpm build`) and
-  committed; `pnpm check:dist` fails on drift. Edit `core/` for content and
-  `implementations/` for host form; never edit `dist/`, and never name a host in `core/`.
-  When a host changes, update its HOST.md and build.mjs from that host's current docs.
+- **Core spec and host implementations.** `core/<id>/SPEC.md` (with `knowledge/`,
+  `scripts/`, `scenarios/`) is the interface the user maintains. `claude/plugins/` and
+  `codex/plugins/` are maintained implementations in each host's recommended form, with
+  their own eval suites. When a spec changes, run the `implementing-core` skill
+  (`.agents/skills/implementing-core`, also linked under `.claude/skills`); its host
+  recipes live in its `references/`. `pnpm check:core` fails when an implementation is
+  stale, a copied resource differs from core, a scenario has no eval case, or a
+  scenario's golden result does not prove its checks. Never name a host in `core/`.
   Capabilities not yet migrated still live in `packages/*`.
 
 - Read `docs/standards.md` before changing resource formats, package boundaries,

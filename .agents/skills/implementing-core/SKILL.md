@@ -37,8 +37,9 @@ implementations). The user maintains only core; you keep the implementations in 
    `evals` entries for this capability in each `IMPLEMENTS.json`, then run
    `node .agents/skills/implementing-core/scripts/check.mjs --sync`. It copies the
    resources and records the current spec hash.
-5. **Verify without models.** Run `pnpm check` and
-   `claude plugin validate claude/plugins/<plugin> --strict`. Fix every failure.
+5. **Verify without models.** Activate the repository's Python environment first
+   (`. .venv/bin/activate`; the Agent Skills validator needs it), then run `pnpm check`
+   and `claude plugin validate claude/plugins/<plugin> --strict`. Fix every failure.
 6. **Verify with each host's eval tool** for the scenarios the change affects (all of
    them for a new capability), using the commands in each host reference. These calls
    cost money; run each scenario once first and three times before reporting a pass rate.
