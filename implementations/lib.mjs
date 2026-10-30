@@ -53,3 +53,9 @@ export function expectationKind(expectation) {
 	assert.equal(kinds.length, 1, `expectation ${expectation.id} has exactly one kind`);
 	return kinds[0];
 }
+
+// Build-time helper for presenting a contract change: copy the base, apply the patch with
+// git, and write the full change to CHANGE.diff. Hosts whose run sandbox can use git may
+// present a branch instead; that choice belongs to the implementation.
+export const presentChangeAsDiff = (c) => ({ changedTree: { base: `${c.dir}/${c.base}`, patch: `${c.dir}/${c.change}`, diffFile: "CHANGE.diff" } });
+export const presentChangeSentence = "The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. ";

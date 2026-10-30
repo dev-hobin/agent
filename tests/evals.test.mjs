@@ -162,26 +162,39 @@ test("shared lens copies cannot drift from their source", async (t) => {
 
 test("core contract expectations accept the golden result and reject wrong ones", async (t) => {
 	const { checkCase } = await import("../scripts/contract-check.mjs");
+	const fs = await import("node:fs/promises");
+	const presented = join(repositoryRoot, "dist/codex/evals/hobin-review");
 	const contracts = join(repositoryRoot, "core/review/contract");
 	for (const id of await readdir(contracts)) {
 		const caseFile = join(contracts, id, "case.yaml");
+		const baseline = join(presented, id, "workspace");
 		const untouched = await temporaryDirectory(t);
-		await cp(join(contracts, id, "workspace"), untouched, { recursive: true });
-		assert.ok(checkCase(caseFile, untouched).some((r) => !r.passed), `${id}: untouched workspace must fail`);
+		await cp(baseline, untouched, { recursive: true });
+		assert.ok(checkCase(caseFile, untouched, baseline).some((r) => !r.passed), `${id}: untouched workspace must fail`);
 		const golden = await temporaryDirectory(t);
-		await cp(join(contracts, id, "workspace"), golden, { recursive: true });
+		await cp(baseline, golden, { recursive: true });
 		await cp(join(contracts, id, "golden"), golden, { recursive: true });
-		const results = checkCase(caseFile, golden);
+		const results = checkCase(caseFile, golden, baseline);
 		assert.deepEqual(results.filter((r) => !r.passed).map((r) => r.id), [], `${id}: golden result must pass`);
 		const spec = parse(await readFile(caseFile, "utf8"));
 		for (const e of spec.expect.filter((x) => x.file_lacks)) {
 			const wrong = await temporaryDirectory(t);
 			await cp(golden, wrong, { recursive: true });
-			const flagged = e.file_lacks.pattern.replace(/\\\[P\[01\]\\\]\[\^\\n\]\*/, "");
-			await (await import("node:fs/promises")).appendFile(join(wrong, e.file_lacks.path), `[P1] ${flagged.replace(/[\\()|]/g, " ")} is wrong — src/x.js:1\n`);
-			assert.equal(checkCase(caseFile, wrong).find((r) => r.id === e.id).passed, false, `${id}: ${e.id} must reject a flagged non-defect`);
+			const term = e.file_lacks.pattern.split("]*").pop().replace(/[\\()|]/g, " ");
+			await fs.appendFile(join(wrong, e.file_lacks.path), `[P1] ${term} is wrong — src/x.js:1\n`);
+			assert.equal(checkCase(caseFile, wrong, baseline).find((r) => r.id === e.id).passed, false, `${id}: ${e.id} must reject a flagged non-defect`);
 		}
-		await (await import("node:fs/promises")).writeFile(join(golden, "package.json"), "{}\n");
-		assert.equal(checkCase(caseFile, golden).find((r) => r.id === "no-other-changes").passed, false, `${id}: edits to other files must fail`);
+		await fs.writeFile(join(golden, "package.json"), "{}\n");
+		assert.equal(checkCase(caseFile, golden, baseline).find((r) => r.id === "no-other-changes").passed, false, `${id}: edits to other files must fail`);
+	}
+});
+
+test("every implementation declares how it meets each core guarantee", async () => {
+	for (const host of ["claude", "codex", "portable"]) {
+		const declared = JSON.parse(await readFile(join(repositoryRoot, "dist", host, "conformance", "review.json"), "utf8"));
+		for (const [id, entry] of Object.entries(declared)) {
+			assert.ok(["enforced", "instructed", "unsupported"].includes(entry.level), `${host}: ${id}`);
+			if (id === "no-code-changes") assert.notEqual(entry.level, "unsupported", `${host}: the no-change guarantee cannot be unsupported`);
+		}
 	}
 });

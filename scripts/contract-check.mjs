@@ -1,10 +1,11 @@
 // Check a workspace against the file-based expectations of a core contract case.
-// Usage: node contract-check.mjs <case.yaml> [workspace=.]   — exit 0 when every check passes.
+// Usage: node contract-check.mjs <case.yaml> <baseline> [workspace=.] — exit 0 when every check passes.
+// <baseline> is the workspace as the implementation presented it to the run.
 // Used directly by hosts whose eval tools run verifier commands (Codex plugin-eval), and by
 // tests that prove the expectations accept a correct result and reject a wrong one.
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
@@ -17,9 +18,8 @@ function files(root, dir = root) {
 }
 const digest = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
-export function checkCase(casePath, workspace) {
+export function checkCase(casePath, workspace, original) {
 	const spec = parse(readFileSync(casePath, "utf8"));
-	const original = join(dirname(casePath), "workspace");
 	const results = [];
 	for (const expectation of spec.expect) {
 		const [kind, value] = Object.entries(expectation).find(([key]) => key !== "id");
@@ -43,8 +43,8 @@ export function checkCase(casePath, workspace) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-	const [casePath, workspace = "."] = process.argv.slice(2);
-	const results = checkCase(resolve(casePath), resolve(workspace));
+	const [casePath, baseline, workspace = "."] = process.argv.slice(2);
+	const results = checkCase(resolve(casePath), resolve(workspace), resolve(baseline));
 	for (const r of results) console.log(`${r.passed ? "pass" : "FAIL"} ${r.id}`);
 	process.exit(results.every((r) => r.passed) ? 0 : 1);
 }

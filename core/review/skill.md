@@ -13,9 +13,6 @@ Find the defects that would hurt users or data, prove each one, and say nothing 
   not touch. Check siblings before reporting the change as complete or the bug as fixed.
 - Reviewers drift into style and naming nits when nothing serious is found. "No
   findings" is a valid result.
-- Doing the review alone because the change looks small is the most common way this
-  procedure fails: a single pass misses what a focused perspective catches. Run every
-  selected perspective (step 4), even for a short diff, and say if a step could not run.
 
 ## Procedure
 
@@ -32,7 +29,8 @@ Find the defects that would hurt users or data, prove each one, and say nothing 
 
 {{perspective_list}}
 
-4. **Review per perspective.** {{delegate}}
+4. **Review per perspective.** Work through each selected perspective's questions. For a
+   change that is large or spans several perspectives, {{delegate}}
 5. **Verify every candidate.** Reproduce it with a test, a command, or an exact trace
    through the code. Drop candidates you cannot turn into a concrete scenario of input
    or state leading to a wrong outcome. Merge duplicates found by several reviewers.

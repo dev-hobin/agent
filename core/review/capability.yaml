@@ -18,13 +18,13 @@ short: Review a change for verified correctness defects
 invocation: explicit          # explicit: only the user starts it; implicit: the model may choose it
 argument: "[what to review: a branch, diff, pull request, or named scope]"
 
-# One independent reviewer per perspective. Each sees only its perspective, the
-# reviewer role, and the collected context; reviewers never edit files.
-delegation:
+# Strategy, not a promise: for a change that spans several perspectives, an independent
+# reviewer per perspective (with only its perspective, the reviewer role, and the
+# context) is recommended. Implementations offer it in their host's form; the run decides.
+strategy:
   role: reviewer.md
   per: perspectives
-  parallel: preferred
-  read_only: true
+  when: the change is large or spans several perspectives
 perspectives:
   - id: contract
     source: sources/lenses/contract.md
@@ -41,6 +41,21 @@ perspectives:
   - id: evidence
     source: sources/lenses/evidence.md
     summary: whether tests and checks actually observe the claims the change makes
+
+# What the capability promises, independent of host. Each implementation declares in its
+# build how strongly it meets each one: enforced (the host guarantees it), instructed (the
+# skill asks for it and contract runs measure adherence), or unsupported.
+# Guarantees are observable outcomes only; how a host achieves them is its own detail.
+guarantees:
+  - id: explicit-invocation
+    level: required
+    means: only the user starts the capability; the model never selects it on its own
+  - id: no-code-changes
+    level: required
+    means: the review leaves the reviewed code unchanged and writes only its report
+  - id: verified-findings
+    level: required
+    means: findings follow the fixed format and each names a concrete failure scenario
 
 scripts:
   - file: scripts/collect-context.sh

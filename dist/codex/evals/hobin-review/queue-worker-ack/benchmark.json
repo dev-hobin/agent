@@ -10,7 +10,7 @@
     "extraArgs": []
   },
   "workspace": {
-    "sourcePath": "core/review/contract/queue-worker-ack/workspace",
+    "sourcePath": "dist/codex/evals/hobin-review/queue-worker-ack/workspace",
     "setupMode": "copy",
     "preserve": "on-failure"
   },
@@ -19,7 +19,7 @@
   },
   "verifiers": {
     "commands": [
-      "node \"$HOBIN_AGENT_ROOT/scripts/contract-check.mjs\" \"$HOBIN_AGENT_ROOT/core/review/contract/queue-worker-ack/case.yaml\" ."
+      "node \"$HOBIN_AGENT_ROOT/scripts/contract-check.mjs\" \"$HOBIN_AGENT_ROOT/core/review/contract/queue-worker-ack/case.yaml\" \"$HOBIN_AGENT_ROOT/dist/codex/evals/hobin-review/queue-worker-ack/workspace\" ."
     ]
   },
   "notes": [
@@ -30,7 +30,7 @@
       "id": "queue-worker-ack",
       "title": "queue-worker-ack",
       "purpose": "Contract test from core",
-      "userInput": "$hobin-review:reviewing-code Review this change before I merge. Context from the author: \"Fixes redelivery storms on slow jobs by acking early, and adds in-place retries for transient ledger errors.\" This working tree is the `feature` branch; `CHANGE.diff` is its full diff against `main`. Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file.",
+      "userInput": "$hobin-review:reviewing-code The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. Review this change before I merge. Context from the author: \"Fixes redelivery storms on slow jobs by acking early, and adds in-place retries for transient ledger errors.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file.",
       "successChecklist": [
         "review-written",
         "finds-early-ack",

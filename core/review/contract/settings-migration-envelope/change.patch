@@ -1,0 +1,102 @@
+diff --git a/src/render.js b/src/render.js
+index 4b7f3a4..0dee81f 100644
+--- a/src/render.js
++++ b/src/render.js
+@@ -1,4 +1,6 @@
+-export function render(template, vars) {
+-  const text = template.payload.body.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? '');
+-  return template.payload.footer ? `${text}\n${template.payload.footer}` : text;
++const PLACEHOLDER = /\{(\w+)\}/g;
++
++export function render(template, vars, { signature = '' } = {}) {
++  const text = template.payload.body.replace(PLACEHOLDER, (_, key) => vars[key] ?? '');
++  return signature ? `${text}\n${signature}` : text;
+ }
+diff --git a/src/templates.js b/src/templates.js
+index ca99cfa..ae0dfb0 100644
+--- a/src/templates.js
++++ b/src/templates.js
+@@ -1,8 +1,20 @@
+-export const TEMPLATE_SCHEMA_VERSION = 1;
++export const TEMPLATE_SCHEMA_VERSION = 2;
+ 
+-// A template body with {placeholders} and an optional per-template footer
+-// (for example, legal or opt-out text that differs between templates).
+-export function createTemplate({ id, body, footer }) {
++// v2: footers moved to the workspace-level signature (see render.js), so a
++// template carries only its body.
++export function createTemplate({ id, body }) {
+   if (!id || typeof body !== 'string') throw new Error('id and body are required');
+-  return { id, version: TEMPLATE_SCHEMA_VERSION, payload: { body, footer: footer ?? null } };
++  return { id, version: TEMPLATE_SCHEMA_VERSION, payload: { body } };
++}
++
++// Brings stored v1 records to the v2 shape.
++export function migrateStoredTemplates(store) {
++  let migrated = 0;
++  for (const record of store.list()) {
++    if (record.version >= TEMPLATE_SCHEMA_VERSION) continue;
++    const { footer, ...payload } = record.payload;
++    store.put({ ...record, version: TEMPLATE_SCHEMA_VERSION, payload });
++    migrated += 1;
++  }
++  return migrated;
+ }
+diff --git a/src/upstream.js b/src/upstream.js
+index 0d35a25..9417df2 100644
+--- a/src/upstream.js
++++ b/src/upstream.js
+@@ -1,7 +1,5 @@
+-// The upstream catalog API answers { rows: [...] } on success.
++// The upstream catalog API answers { rows: [...] } on success. It sometimes
++// answers {} when the catalog is empty, so treat a missing list as empty.
+ export function parseRows(body) {
+-  if (!body || !Array.isArray(body.rows)) {
+-    throw new Error('upstream response is missing the rows envelope');
+-  }
+-  return body.rows;
++  return Array.isArray(body?.rows) ? body.rows : [];
+ }
+diff --git a/test/templates.test.js b/test/templates.test.js
+index f774f41..49faa5e 100644
+--- a/test/templates.test.js
++++ b/test/templates.test.js
+@@ -1,18 +1,32 @@
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { createStore } from '../src/store.js';
+-import { createTemplate } from '../src/templates.js';
++import { createTemplate, migrateStoredTemplates } from '../src/templates.js';
+ import { render } from '../src/render.js';
+ import { parseRows } from '../src/upstream.js';
+ import { syncTemplates } from '../src/sync.js';
+ 
+-test('render fills placeholders and appends the footer', () => {
+-  const t = createTemplate({ id: 'welcome', body: 'Hi {name}', footer: 'Reply STOP to opt out' });
+-  assert.equal(render(t, { name: 'Ada' }), 'Hi Ada\nReply STOP to opt out');
++test('render fills placeholders and appends the workspace signature', () => {
++  const t = createTemplate({ id: 'welcome', body: 'Hi {name}' });
++  assert.equal(render(t, { name: 'Ada' }, { signature: 'Team Example' }), 'Hi Ada\nTeam Example');
+ });
+ 
+-test('parseRows rejects a body without the rows envelope', () => {
+-  assert.throws(() => parseRows({ error: 'maintenance' }));
++test('render reuses the placeholder pattern across calls', () => {
++  const t = createTemplate({ id: 'a', body: '{x}-{x}' });
++  assert.equal(render(t, { x: '1' }), '1-1');
++  assert.equal(render(t, { x: '2' }), '2-2');
++});
++
++test('parseRows treats an empty catalog body as no rows', () => {
++  assert.deepEqual(parseRows({}), []);
++});
++
++test('migration brings v1 records to v2', () => {
++  const store = createStore([
++    { id: 'legacy', version: 1, payload: { body: 'x', footer: 'Reply STOP to opt out' } },
++  ]);
++  assert.equal(migrateStoredTemplates(store), 1);
++  assert.deepEqual(store.get('legacy'), { id: 'legacy', version: 2, payload: { body: 'x' } });
+ });
+ 
+ test('sync removes templates the catalog no longer lists', async () => {

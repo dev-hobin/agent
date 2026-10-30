@@ -2,7 +2,14 @@
 // Follows the host contract in HOST.md: an explicit-only skill (disable-model-invocation),
 // one plugin subagent per perspective dispatched in parallel through the Agent tool,
 // bundled scripts pre-approved through allowed-tools, and `claude plugin eval` cases.
-import { expectationKind, fill, yamlString } from "../lib.mjs";
+import { expectationKind, fill, presentChangeAsDiff, presentChangeSentence, yamlString } from "../lib.mjs";
+
+// How strongly this implementation meets each core guarantee (see capability.yaml).
+export const conformance = {
+	"explicit-invocation": { level: "enforced", by: "disable-model-invocation: true" },
+	"no-code-changes": { level: "instructed", by: "the skill writes only its report; reviewer agents get tools without Edit or Write; checked by the contract" },
+	"verified-findings": { level: "instructed", by: "the procedure's verify step and fixed format; checked by the contract" },
+};
 
 const author = { name: "dev-hobin", url: "https://github.com/dev-hobin" };
 
@@ -28,9 +35,9 @@ function skillMarkdown(cap) {
 	const body = fill(cap.skill, {
 		context_command: `\`\${CLAUDE_SKILL_DIR}/${cap.scripts[0].file} ${cap.scripts[0].usage}\``,
 		perspective_list: cap.perspectives.map((p) => `   - **${p.id}** (\`${cap.plugin}:${agentName(p)}\`): ${p.summary}`).join("\n"),
-		delegate: "In a single message, dispatch the reviewer agent of every selected perspective\n"
-			+ "   with the Agent tool so they run in parallel. Give each the review target and the\n"
-			+ "   context from step 2. The reviewers have read-only tools and return candidate\n"
+		delegate: "dispatch the reviewer agents of the selected perspectives with the Agent\n"
+			+ "   tool in a single message so they run in parallel, and give each the review target\n"
+			+ "   and the context from step 2. They have read-only tools and return candidate\n"
 			+ "   findings only.",
 	});
 	return front + body.replace("## Procedure\n", "## Procedure\n\nReview target: $ARGUMENTS\n");
@@ -42,7 +49,7 @@ function agentMarkdown(cap, p) {
 		`name: ${agentName(p)}`,
 		`description: ${yamlString(`Reviews a code change from the ${p.id} perspective (${p.summary}) and returns candidate findings. Dispatched by the ${cap.id} skill; not for direct invocation.`)}`,
 		"model: inherit",
-		`tools: ${cap.delegation.read_only ? "Read, Grep, Glob, Bash" : "Read, Grep, Glob, Bash, Edit, Write"}`,
+		"tools: Read, Grep, Glob, Bash",
 		"---",
 		"",
 		cap.reviewer.trim(),
@@ -58,9 +65,11 @@ function agentMarkdown(cap, p) {
 function evalCase(cap, c) {
 	const files = {};
 	files["case.yaml"] = `schema_version: "1.1"\nname: ${c.id}\ncontext:\n  scaffold_script: scaffold.sh\n`;
+	// The eval sandbox cannot run git on every machine (macOS xcrun shim), so the change is
+	// presented as the changed tree plus CHANGE.diff.
 	files["scaffold.sh"] = "#!/bin/bash\n# Seed the workspace with the contract fixture.\nset -euo pipefail\ncp -R \"$(cd \"$(dirname \"$0\")\" && pwd)/workspace/.\" .\n";
 	const invoke = cap.invocation === "explicit" ? `/${cap.plugin}:${cap.id} ` : "";
-	files["prompt.md"] = `---\ntags: [${(c.tags ?? []).join(", ")}]\nmax_turns: 60\ntimeout_seconds: 1200\nallowed_tools: [Read, Glob, Grep, Agent, Bash, Write]\n---\n\n${invoke}${c.request}\n`;
+	files["prompt.md"] = `---\ntags: [${(c.tags ?? []).join(", ")}]\nmax_turns: 60\ntimeout_seconds: 1200\nallowed_tools: [Read, Glob, Grep, Agent, Bash, Write]\n---\n\n${invoke}${presentChangeSentence}${c.request}\n`;
 	const graders = {};
 	for (const e of c.expect) {
 		const kind = expectationKind(e), v = e[kind];
@@ -75,7 +84,6 @@ function evalCase(cap, c) {
 		}
 		else if (kind === "ran_command") graders[e.id] = ["type: tool_used", "tool: Bash", `input_match: ${yamlString(v)}`];
 	}
-	graders["reviewers-dispatched"] = ["type: tool_used", "tool: Agent", `input_match: ${yamlString(`${cap.plugin}:`)}`, "arm: with-only"];
 	for (const [name, lines] of Object.entries(graders)) files[`graders/${name}.md`] = `---\n${lines.join("\n")}\n---\n`;
 	return files;
 }
@@ -93,7 +101,7 @@ export function build(cap) {
 		for (const [path, content] of Object.entries(evalCase(cap, c))) {
 			out[`${root}/evals/${c.id}/${path}`] = path === "scaffold.sh" ? { text: content, mode: 0o755 } : content;
 		}
-		out[`${root}/evals/${c.id}/workspace`] = { copyDir: `${c.dir}/workspace` };
+		out[`${root}/evals/${c.id}/workspace`] = presentChangeAsDiff(c);
 	}
 	return out;
 }

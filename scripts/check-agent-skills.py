@@ -38,7 +38,7 @@ def canonical_skills() -> list[Path]:
     # Built outputs that use only specification fields: Codex plugins and portable Skills.
     # Claude outputs carry Claude frontmatter and are checked by `claude plugin validate`.
     roots += sorted(path / "skills" for path in (ROOT / "dist/codex").iterdir() if (path / "plugin.json").is_file())
-    roots += [ROOT / "dist/portable"]
+    roots += [ROOT / "dist/portable/skills"]
     return [
         child for root in roots for child in sorted(root.iterdir()) if child.is_dir()
     ]

@@ -2,7 +2,9 @@
 // `--check` fails when dist/ differs from what the implementations produce (content,
 // file set, or executable bit), so the committed outputs always match core.
 import assert from "node:assert/strict";
-import { chmod, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { chmod, cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,7 +35,29 @@ async function expand(path, value) {
 		}
 		return entries;
 	}
+	if (value.changedTree) {
+		const { base, patch, diffFile } = value.changedTree;
+		const dir = await mkdtemp(join(tmpdir(), "hobin-change-"));
+		try {
+			await cp(base, dir, { recursive: true });
+			const git = (...args) => execFileSync("git", ["-c", "user.name=build", "-c", "user.email=build@example.invalid", ...args], { cwd: dir });
+			git("init", "-q"); git("add", "-A"); git("commit", "-q", "-m", "base");
+			git("apply", patch); git("add", "-A");
+			await writeFile(join(dir, diffFile), git("diff", "--cached", "--no-color"));
+			await rm(join(dir, ".git"), { recursive: true, force: true });
+			return await expand(path, { copyDir: dir });
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	}
 	throw new Error(`Unknown output for ${path}`);
+}
+
+async function pruneEmpty(dir) {
+	for (const entry of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
+		if (entry.isDirectory()) await pruneEmpty(join(dir, entry.name));
+	}
+	if (dir !== distRoot && (await readdir(dir)).length === 0) await rm(dir, { recursive: true });
 }
 
 export async function expectedOutputs() {
@@ -41,9 +65,16 @@ export async function expectedOutputs() {
 		.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
 	const expected = new Map();
 	for (const name of implementations) {
-		const { build } = await import(`../implementations/${name}/build.mjs`);
+		const { build, conformance } = await import(`../implementations/${name}/build.mjs`);
 		for (const capName of capabilities) {
 			const cap = await loadCapability(capName);
+			const declared = Object.keys(conformance ?? {}).sort(), promised = (cap.guarantees ?? []).map((g) => g.id).sort();
+			assert.deepEqual(declared, promised, `${name}: conformance must declare exactly the guarantees of core/${capName}`);
+			for (const [id, entry] of Object.entries(conformance)) {
+				assert.ok(["enforced", "instructed", "unsupported"].includes(entry.level), `${name}: ${id} level`);
+			}
+			expected.set(join(distRoot, name, "conformance", `${capName}.json`), { bytes: Buffer.from(JSON.stringify(
+				Object.fromEntries((cap.guarantees ?? []).map((g) => [g.id, { level: g.level, means: g.means, ...conformance[g.id] }])), null, 2) + "\n"), mode: 0o644 });
 			for (const [path, value] of Object.entries(build(cap))) {
 				for (const [file, content] of await expand(join(distRoot, name, path), value)) {
 					assert.ok(!expected.has(file), `${relative(repositoryRoot, file)} is produced twice`);
@@ -74,6 +105,7 @@ export async function buildImplementations({ check = false } = {}) {
 			await chmod(file, mode);
 		}
 	}
+	if (!check) await pruneEmpty(distRoot);
 	assert.deepEqual(drift, [], `dist/ drift:\n${drift.join("\n")}\nRun node scripts/build-implementations.mjs`);
 	return expected.size;
 }
