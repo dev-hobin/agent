@@ -1,0 +1,9 @@
+{
+  "name": "shop-pricing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check-money.mjs && node --test"
+  }
+}

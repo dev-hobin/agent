@@ -1,0 +1,4 @@
+// Added after the convention was enforced.
+export function lineTotalWithTaxCents(line, rate) {
+  return Math.round(line.price * line.qty * (1 + rate) * 100);
+}

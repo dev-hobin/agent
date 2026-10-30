@@ -1,0 +1,52 @@
+{
+  "skill": "enforcing-conventions",
+  "plugin": "hobin-stances",
+  "tasks": [
+    {
+      "id": "money-to-cents",
+      "prompt": "The money rule in CONVENTIONS.md keeps getting broken and reviewers catch it by hand. Enforce it so it can't regress. Wire whatever check you add into `npm run check` in package.json, and fix the code that currently violates it.",
+      "fixture": "fixtures/money-to-cents",
+      "assertions": [
+        {
+          "id": "fixes-both-violations",
+          "text": "The diff converts both existing violations (`subtotalCents` in src/cart.js and `memberPriceCents` in src/discount.js) to integer-cent arithmetic via `toCents()`, and the visible tests still pass."
+        },
+        {
+          "id": "automatic-not-prose",
+          "text": "The enforcement is an automatic check run by `npm run check` (lint rule, script, test, type or construction boundary), not only an added sentence in CONVENTIONS.md or agent instructions."
+        },
+        {
+          "id": "actionable-message",
+          "text": "The check's failure message names the file and line and tells the reader how to fix it (convert with `toCents()` and do arithmetic on cents), not just that a rule was violated."
+        },
+        {
+          "id": "proves-with-violating-sample",
+          "text": "The final answer shows the check failing on a violating sample (with its message) and passing on the fixed code, both through `npm run check`."
+        },
+        {
+          "id": "explains-cheapest-choice",
+          "text": "The final answer explains why the chosen mechanism is the cheapest one that catches this violation, and names at least one alternative it rejected (e.g. a Money type, an ESLint dependency, or a hook) with the reason."
+        },
+        {
+          "id": "states-coverage-limits",
+          "text": "The final answer states what the check does not catch (e.g. prices held in local variables not named like `price`, or arithmetic split across lines)."
+        },
+        {
+          "id": "no-new-dependencies",
+          "text": "No npm dependencies are added to package.json."
+        },
+        {
+          "id": "pointer-in-conventions",
+          "text": "CONVENTIONS.md's money rule now points to the check (e.g. 'enforced by `npm run check`'), instead of only repeating the prose."
+        }
+      ],
+      "checks": [
+        {
+          "id": "hidden-tests",
+          "command": "node --test hidden/enforcement.check.mjs"
+        }
+      ],
+      "notes": "The hidden check runs `npm run check` on the fixed code (must pass) and again after dropping a new `line.price * line.qty` violation into src/ (must fail with output mentioning toCents). No-skill runs tend to fix the two call sites and add a sentence to the docs or a narrow unit test of the two functions, which leaves the new violation undetected; others add an ESLint dependency or a check whose message says only 'forbidden pattern'."
+    }
+  ]
+}

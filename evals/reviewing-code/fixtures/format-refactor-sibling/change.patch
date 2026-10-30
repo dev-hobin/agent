@@ -1,0 +1,58 @@
+diff --git a/src/csv.js b/src/csv.js
+index 579bbd0..8cc139d 100644
+--- a/src/csv.js
++++ b/src/csv.js
+@@ -2,6 +2,6 @@ import { formatAmount } from './format.js';
+ 
+ // Export consumed by the accounting import, which splits lines on commas.
+ export function toCsv(rows) {
+-  const lines = rows.map((row) => `${row.id},${formatAmount(row.cents)}`);
++  const lines = rows.map(({ id, cents }) => `${id},${formatAmount(cents)}`);
+   return ['id,amount', ...lines].join('\n');
+ }
+diff --git a/src/format.js b/src/format.js
+index 8fdfec8..6c0c9c9 100644
+--- a/src/format.js
++++ b/src/format.js
+@@ -1,13 +1,19 @@
+ // Amounts are integer cents.
+ 
+-// Display amount for statements, for example 123450 -> "1234.50".
++const THOUSANDS = /\B(?=(\d{3})+(?!\d))/g;
++
++function splitCents(cents) {
++  return { whole: Math.floor(cents / 100), frac: String(cents % 100).padStart(2, '0') };
++}
++
++// Display amount for statements, for example 123450 -> "1,234.50".
+ export function formatAmount(cents) {
+-  const whole = Math.trunc(Math.abs(cents) / 100);
+-  const frac = String(Math.abs(cents) % 100).padStart(2, '0');
+-  return `${cents < 0 ? '-' : ''}${whole}.${frac}`;
++  const { whole, frac } = splitCents(cents);
++  return `${String(whole).replace(THOUSANDS, ',')}.${frac}`;
+ }
+ 
+ // Adjustment lines always show a sign: 1250 -> "+12.50", -1250 -> "-12.50".
+ export function formatSigned(cents) {
+-  return `${cents < 0 ? '-' : '+'}${formatAmount(Math.abs(cents))}`;
++  const { whole, frac } = splitCents(cents);
++  return `${cents < 0 ? '' : '+'}${whole}.${frac}`;
+ }
+diff --git a/test/format-grouping.test.js b/test/format-grouping.test.js
+new file mode 100644
+index 0000000..166ad9e
+--- /dev/null
++++ b/test/format-grouping.test.js
+@@ -0,0 +1,11 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { formatAmount } from '../src/format.js';
++
++test('formatAmount groups thousands', () => {
++  assert.equal(formatAmount(123456789), '1,234,567.89');
++});
++
++test('formatAmount leaves small amounts ungrouped', () => {
++  assert.equal(formatAmount(99), '0.99');
++});

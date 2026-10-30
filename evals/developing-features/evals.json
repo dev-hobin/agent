@@ -1,0 +1,78 @@
+{
+  "skill": "developing-features",
+  "plugin": "hobin-feature",
+  "tasks": [
+    {
+      "id": "quiet-hours-preferences",
+      "prompt": "Build the quiet hours feature described in REQUIREMENTS.md. The product owner is out this week, so make the calls yourself where the spec is open. Run without asking me questions.",
+      "fixture": "fixtures/quiet-hours-preferences",
+      "assertions": [
+        {
+          "id": "visible-tests-pass",
+          "text": "The final answer reports running the full visible suite (`npm test` or `node --test`) after the change, and it passes in the workspace."
+        },
+        {
+          "id": "acceptance-scenarios-first",
+          "text": "Before or alongside the code, the agent writes concrete acceptance scenarios (given/when/then or input -> expected output) that include an overnight window, the start/end boundary, a v1 record with extra fields, start equal to end, and an invalid time such as `7pm` or `24:00`."
+        },
+        {
+          "id": "names-preserve-decision",
+          "text": "The final answer states the decision for open question 1 as keeping v1 fields outside the v2 shape (e.g. `dnd`) when reading and writing back, rather than dropping them."
+        },
+        {
+          "id": "names-reject-decisions",
+          "text": "The final answer states that `start === end` and non-`HH:MM` input (e.g. `7pm`, `24:00`) are rejected with an error, and gives the reason (ambiguity) rather than picking an interpretation."
+        },
+        {
+          "id": "explains-revert",
+          "text": "For each owner decision, the final answer says how to change it later (the code location, test, or flag to edit)."
+        },
+        {
+          "id": "decision-tests",
+          "text": "The workspace diff adds tests that pin each owner decision (preservation of extra v1 fields, rejection of start === end, rejection of invalid time formats)."
+        }
+      ],
+      "checks": [
+        { "id": "visible-tests", "command": "node --test 'test/**/*.test.js'" },
+        { "id": "hidden-tests", "command": "node --test 'hidden/**/*.test.mjs'" }
+      ],
+      "notes": "The partial parsePreferences already drops unknown v1 fields, so a run that only implements the TODOs ships silent data loss on stored records. Hidden tests encode the conservative decisions: preserve stored fields, reject ambiguous start===end, reject non-strict HH:MM. No-skill runs usually implement the window math correctly, keep the lossy parse, and either interpret start===end as all-day or never mention it."
+    },
+    {
+      "id": "refund-approval-revalidate",
+      "prompt": "Implement refund approval per REQUIREMENTS.md in src/approve.js. The owner can't be reached, so decide the open questions conservatively and tell me what you decided. Don't stop to ask.",
+      "fixture": "fixtures/refund-approval-revalidate",
+      "assertions": [
+        {
+          "id": "visible-tests-pass",
+          "text": "The final answer reports running the full visible suite after the change, and it passes in the workspace."
+        },
+        {
+          "id": "revalidates-before-irreversible",
+          "text": "The implementation re-reads the request and the order before calling `payments.issueRefund`, and refuses (no refund issued) when the fresh request is not `pending`, its version differs from the snapshot, or the amount exceeds `paidCents - refundedCents`."
+        },
+        {
+          "id": "double-click-once",
+          "text": "The final answer explains how a double click results in exactly one refund and one `refundedCents` increment (e.g. claim the request with a version-checked update before paying, plus a stable idempotency key derived from the request id), and the diff implements it."
+        },
+        {
+          "id": "names-owner-decisions",
+          "text": "The final answer lists a decision for each of the four open questions (stale snapshot, over-refund, double click, fractional cents) and identifies fractional cents as refused rather than rounded."
+        },
+        {
+          "id": "explains-revert",
+          "text": "For each decision, the final answer says how to change it later (which check or line to edit)."
+        },
+        {
+          "id": "independent-verification",
+          "text": "The final answer shows that each acceptance scenario was verified by a test or a separate review pass, including at least one scenario where the refund must not be issued."
+        }
+      ],
+      "checks": [
+        { "id": "visible-tests", "command": "node --test 'test/**/*.test.js'" },
+        { "id": "hidden-tests", "command": "node --test 'hidden/**/*.test.mjs'" }
+      ],
+      "notes": "The stub passes `expectedVersion` to requests.update only after issuing the refund, which looks like a staleness check but runs after money moved. Hidden tests require revalidation before the irreversible step, refusal of over-refund and fractional cents, and one effective refund under concurrent double approve (the fake provider dedups by key, so either a claim step or a stable key plus guarded order update passes). No-skill runs typically add the order update and stop, or check staleness after paying."
+    }
+  ]
+}

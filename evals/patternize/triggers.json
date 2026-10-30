@@ -1,0 +1,26 @@
+{
+  "skill": "patternize",
+  "plugin": "hobin-learning",
+  "queries": [
+    {"id": "t01", "query": "Turn these three incident notes into a reusable workflow I can follow the next time a retry causes duplicates.", "should_trigger": true, "note": "Repeated cases into a workflow."},
+    {"id": "t02", "query": "이 사례들에서 반복되는 작업 흐름을 패턴으로 뽑아줘. 언제 쓰면 안 되는지도", "should_trigger": true, "note": "Pattern with boundary, Korean."},
+    {"id": "t03", "query": "I keep making the same judgment when splitting PRs. Here are five examples; extract a decision path.", "should_trigger": true, "note": "Repeated judgments into a decision path."},
+    {"id": "t04", "query": "From these postmortems, build a diagnostic path for 'deploy succeeded but the feature is off'.", "should_trigger": true, "note": "Diagnostic path from several cases."},
+    {"id": "t05", "query": "디버깅 기록 네 개 보고 공통 진단 절차를 만들어줘", "should_trigger": true, "note": "Diagnostic routine from cases, Korean."},
+    {"id": "t06", "query": "Make a checklist pattern out of these migration write-ups, with the check for each step and what goes wrong if a step is skipped.", "should_trigger": true, "note": "Checklist with checks and skipped-move failure."},
+    {"id": "t07", "query": "These code review judgments keep recurring. Is there a pattern I can run, or is it just a topic cluster?", "should_trigger": true, "note": "Recurrence test; 'no pattern yet' is valid."},
+    {"id": "t08", "query": "여러 프로젝트에서 잘 됐던 온보딩 방식을 재사용 가능한 패턴으로 정리해줘, 전이 사례 포함", "should_trigger": true, "note": "Reusable pattern with transfer case, Korean."},
+    {"id": "t09", "query": "Compose backpressure, bounded queues and load shedding into an operational routine for handling overload.", "should_trigger": true, "note": "Composition routine from concepts."},
+    {"id": "t10", "query": "Here are three cases where caching went wrong. Give me a decision flow for when to cache.", "should_trigger": true, "note": "Decision flow from cases."},
+    {"id": "f01", "query": "What single concept do these three notes share? Define it.", "should_trigger": false, "note": "One concept belongs to conceptualize."},
+    {"id": "f02", "query": "이 세 노트의 공통 개념 하나만 정의해줘", "should_trigger": false, "note": "Concept definition, Korean; conceptualize territory."},
+    {"id": "f03", "query": "Find the GoF design patterns used in this codebase", "should_trigger": false, "note": "Code design-pattern identification; shares the word pattern."},
+    {"id": "f04", "query": "ISO 날짜를 매치하는 정규식 패턴 써줘", "should_trigger": false, "note": "Regex pattern; keyword only."},
+    {"id": "f05", "query": "Make flashcards and practice drills for the retry pattern", "should_trigger": false, "note": "Practice belongs to exercise."},
+    {"id": "f06", "query": "이 문서 읽고 요약해줘", "should_trigger": false, "note": "Single-source reading."},
+    {"id": "f07", "query": "Refactor these three similar functions into one", "should_trigger": false, "note": "Code deduplication, not an operational pattern."},
+    {"id": "f08", "query": "Copy our deploy runbook from the wiki into markdown as-is", "should_trigger": false, "note": "Transcription with no recurrence analysis."},
+    {"id": "f09", "query": "Rust match 패턴 매칭 문법 설명해줘", "should_trigger": false, "note": "Language feature; keyword only."},
+    {"id": "f10", "query": "Is 'circuit breaker' a separate concept from 'bulkhead'? Draw the boundary.", "should_trigger": false, "note": "Concept boundary is conceptualize territory."}
+  ]
+}

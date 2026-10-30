@@ -1,0 +1,9 @@
+{
+  "name": "tiny-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "lint": "node scripts/lint.mjs"
+  }
+}
