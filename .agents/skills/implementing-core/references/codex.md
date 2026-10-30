@@ -32,6 +32,16 @@ codex/
 | §7 knowledge | `references/perspectives/<id>.md` inside the skill |
 | §4 guarantees | Explicit invocation: enforced. Read-only reviewers: instructed only (no per-agent sandbox). Anything the skill asks for: instructed |
 
+### Output contracts (self-checked)
+
+For a capability with `assets/output-contract.json`, copy
+`core/shared/scripts/output-contract.mjs` into each such skill's `scripts/` and the contract
+into its `assets/`. The skill procedure starts the result with
+`node <this skill's directory>/scripts/output-contract.mjs new <this skill's directory>/assets/output-contract.json <file>`
+and ends only when `… check …` passes. Plugin hooks run only for manually installed
+desktop plugins, so the guarantee is **instructed**, with a deterministic self-check. The
+`output_contract` scenario check runs in the plugin-eval verifier.
+
 The bundled Codex skill `review-agent` exists; keep skill names distinct from it.
 
 ## Scenarios as plugin-eval benchmarks

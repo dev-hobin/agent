@@ -1,0 +1,62 @@
+{
+  "id": "exercise-workbook",
+  "required": [
+    {
+      "label": "Target",
+      "hint": "the practice target and the observable learning objective"
+    },
+    {
+      "label": "Worked example",
+      "hint": "one fully worked example before any prediction on an unfamiliar mechanism"
+    },
+    {
+      "label": "Prediction",
+      "aliases": [
+        "Predict"
+      ],
+      "hint": "a prediction task on a changed case"
+    },
+    {
+      "label": "Misconception trap",
+      "aliases": [
+        "Misconception",
+        "Near miss"
+      ],
+      "hint": "a trap or near miss that exposes a wrong model"
+    },
+    {
+      "label": "Answer key",
+      "aliases": [
+        "Answer keys"
+      ],
+      "hint": "answers that explain why plausible wrong answers are wrong"
+    },
+    {
+      "label": "Hint",
+      "aliases": [
+        "Hints"
+      ],
+      "hint": "hints for the hardest task"
+    },
+    {
+      "label": "Retry",
+      "hint": "retry, simplify, and stop rules"
+    },
+    {
+      "label": "Transfer task",
+      "aliases": [
+        "Transfer"
+      ],
+      "hint": "a task outside the original context"
+    },
+    {
+      "label": "Mastery rubric",
+      "aliases": [
+        "Mastery",
+        "Rubric"
+      ],
+      "hint": "mastery evidence defined as observable behavior"
+    }
+  ],
+  "skeleton": "# Workbook: TODO: target\n\n## Exercise Design Brief\n\n- **Target:** TODO\n- **Learning objective:** TODO\n\n## Practice sequence\n\n### 1. Worked example\n\nTODO\n\n### 2. Prediction (changed case)\n\nTODO\n\n### 3. Misconception trap\n\nTODO\n\n### 4. Transfer task\n\nTODO\n\n## Answer keys and misconception diagnoses\n\nTODO\n\n## Hint and retry rules\n\n- **Hint:** TODO\n- **Retry:** TODO\n\n## Mastery rubric\n\nTODO\n"
+}

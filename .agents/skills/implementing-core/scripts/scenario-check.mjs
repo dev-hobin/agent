@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
+import { checkText } from "../../../../core/shared/scripts/output-contract.mjs";
+
 function files(root, dir = root) {
 	return readdirSync(dir).flatMap((name) => {
 		const path = join(dir, name);
@@ -50,6 +52,13 @@ export function checkScenario(casePath, workspace, original) {
 			if (value.files) cpSync(join(dirname(casePath), value.files), join(workspace, value.files), { recursive: true });
 			const { NODE_TEST_CONTEXT: _, ...env } = process.env;
 			try { execFileSync("sh", ["-c", value.command], { cwd: workspace, env, stdio: "pipe" }); passed = true; } catch { passed = false; }
+		} else if (kind === "output_contract") {
+			// The capability's own contract checker, the same one the skill runs on its result.
+			const capability = resolve(dirname(casePath), "../..");
+			const contract = JSON.parse(readFileSync(join(capability, value.contract), "utf8"));
+			let text = null;
+			try { text = readFileSync(join(workspace, value.file), "utf8"); } catch { passed = false; }
+			if (text !== null) passed = checkText(contract, text).length === 0;
 		} else continue; // trace-based expectations are checked by the host's own tool
 		results.push({ id: expectation.id, passed });
 	}

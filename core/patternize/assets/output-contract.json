@@ -1,0 +1,69 @@
+{
+  "id": "patternize-pattern",
+  "required": [
+    {
+      "label": "Recurring context and signals",
+      "aliases": [
+        "Context",
+        "Signals"
+      ],
+      "hint": "when the pattern applies and how to recognize it"
+    },
+    {
+      "label": "Axis",
+      "hint": "the one coordination axis that ties the cases together"
+    },
+    {
+      "label": "Cases compared",
+      "hint": "a table: case, context, problem, move that worked, what failed when skipped"
+    },
+    {
+      "label": "Forces",
+      "hint": "competing forces, with the tensions from the cases"
+    },
+    {
+      "label": "Roles",
+      "hint": "who or what takes part"
+    },
+    {
+      "label": "Moves",
+      "aliases": [
+        "Decision path"
+      ],
+      "hint": "ordered moves, each with a local check"
+    },
+    {
+      "label": "Checks",
+      "aliases": [
+        "Feedback"
+      ],
+      "hint": "how each move is confirmed"
+    },
+    {
+      "label": "Transfer case",
+      "aliases": [
+        "Transfer"
+      ],
+      "hint": "the pattern run on a case outside the sources' domains"
+    },
+    {
+      "label": "Boundary",
+      "aliases": [
+        "When not to use",
+        "Failure"
+      ],
+      "hint": "when not to use it and what happens when a move is skipped"
+    },
+    {
+      "label": "Falsifier / evidence gap",
+      "aliases": [
+        "Falsifier",
+        "Evidence gap"
+      ],
+      "hint": "what would disprove the pattern, or the evidence it lacks"
+    }
+  ],
+  "table": "the cases compared",
+  "orderedList": "the moves in order",
+  "skeleton": "# Pattern: TODO: name\n\n## Recurring context and signals\n\nTODO\n\n## Axis\n\nTODO\n\n## Cases compared\n\n| Case | Context | Problem | Move that worked | Failure when skipped |\n| --- | --- | --- | --- | --- |\n| TODO | | | | |\n\n## Forces\n\nTODO\n\n## Roles\n\nTODO\n\n## Moves / decision path\n\n1. TODO: move — check: TODO\n\n## Checks and feedback\n\nTODO\n\n## Transfer case\n\nTODO\n\n## Boundary and failure case\n\nTODO\n\n## Falsifier / evidence gap\n\nTODO\n"
+}

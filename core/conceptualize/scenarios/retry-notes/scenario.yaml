@@ -54,3 +54,7 @@ expect:
       flags: im
   - id: notes-unchanged
     unchanged: [notes]
+  - id: meets-output-contract
+    output_contract:
+      contract: assets/output-contract.json
+      file: out/concept.md

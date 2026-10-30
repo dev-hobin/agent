@@ -65,3 +65,7 @@ expect:
       - package.json
       - src
       - test
+  - id: meets-output-contract
+    output_contract:
+      contract: assets/output-contract.json
+      file: out/study.md

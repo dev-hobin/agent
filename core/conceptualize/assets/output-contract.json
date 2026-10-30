@@ -1,0 +1,45 @@
+{
+  "id": "conceptualize-concept",
+  "required": [
+    {
+      "label": "Definition",
+      "hint": "one sentence, independent of any one source"
+    },
+    {
+      "label": "Mechanism",
+      "hint": "the operation or distinction that makes the concept work"
+    },
+    {
+      "label": "Evidence",
+      "aliases": [
+        "Provenance"
+      ],
+      "hint": "how each source expresses the concept, cited"
+    },
+    {
+      "label": "Transfer case",
+      "aliases": [
+        "Transfer"
+      ],
+      "hint": "a case outside the sources' domains"
+    },
+    {
+      "label": "Counterexample / boundary",
+      "aliases": [
+        "Counterexample",
+        "Boundary",
+        "Near miss"
+      ],
+      "hint": "where the concept does not apply or changes"
+    },
+    {
+      "label": "Related concepts",
+      "aliases": [
+        "Relation",
+        "Connector"
+      ],
+      "hint": "nearby concepts and how they connect"
+    }
+  ],
+  "skeleton": "# Concept: TODO: name\n\n## Definition\n\nTODO: one sentence\n\n## Mechanism\n\nTODO\n\n## Cross-source evidence\n\nTODO: one entry per source, with its local expression\n\n## Transfer case\n\nTODO\n\n## Counterexample / boundary\n\nTODO\n\n## Related concepts and connector relations\n\nTODO\n"
+}

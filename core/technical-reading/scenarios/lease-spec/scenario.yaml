@@ -72,3 +72,7 @@ expect:
   - id: source-unchanged
     unchanged:
       - docs
+  - id: meets-output-contract
+    output_contract:
+      contract: assets/output-contract.json
+      file: out/insights.md

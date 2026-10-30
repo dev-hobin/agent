@@ -54,6 +54,19 @@ expect:                    # every check is deterministic
   - { id: <check>, ran_command: "<regex over shell commands>" }  # needs the run trace
 ```
 
+**Output contracts.** When a capability writes a Markdown result, its required parts live
+as data in `assets/output-contract.json` (`id`, `skeleton`, `required` parts with label,
+aliases and hint, optional `mentions`, `table`, `orderedList`). The shared
+`core/shared/scripts/output-contract.mjs` creates the skeleton (`new`) and checks a result
+(`check`, exit code plus fix-it messages). Scenarios use the same checker:
+
+```yaml
+  - { id: meets-output-contract, output_contract: { contract: assets/output-contract.json, file: out/x.md } }
+```
+
+Prefer a script over an instruction for anything that must always hold: generate it, or
+check it with a script that says how to fix it. Leave only judgment to instructions.
+
 Make the run leave everything that is judged in files (for example `REPORT.md`): not
 every host's eval tool can read the final reply.
 

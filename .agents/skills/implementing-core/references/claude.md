@@ -34,6 +34,28 @@ claude/
 Commands are merged into skills; do not add `commands/`. Avoid hooks unless the spec
 needs one.
 
+### Output contracts (enforced with a plugin hook)
+
+For a capability with `assets/output-contract.json`:
+
+- Copy `core/shared/scripts/output-contract.mjs` to `scripts/output-contract.mjs` at the
+  plugin root, and the contract into the skill's `assets/`.
+- The skill tells Claude to start the result with
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs new ${CLAUDE_SKILL_DIR}/assets/output-contract.json <file>`
+  and to finish only when `… check …` passes; pre-approve that script in `allowed-tools`.
+- Add `hooks/hooks.json` with a `PostToolUse` hook (matcher `Write|Edit`) running
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract-hook.mjs`. The hook script reads the
+  hook JSON from stdin, takes `tool_input.file_path`, and does nothing unless that file
+  starts with `<!-- output-contract: <id> -->`. It then finds the contract with that `id`
+  among `skills/*/assets/output-contract.json`, runs `checkText` from
+  `./output-contract.mjs`, and on problems writes them to stderr and exits 2, which Claude
+  Code feeds back to the model. Exit 0 otherwise; never fail the user's edit for an error
+  inside the hook (exit 0 on unexpected errors).
+- The contract guarantee is **enforced** on Claude (the hook checks every write of a
+  result started from the skeleton). The `output_contract` scenario check has no grader
+  equivalent (no custom-code graders); list it as covered by the hook in the case's
+  `description`, and keep the scenario's regex checks as graders.
+
 ## Scenarios as `claude plugin eval` cases
 
 ```text
