@@ -42,7 +42,8 @@
         "has-transfer-case",
         "has-boundary",
         "has-relations",
-        "notes-unchanged"
+        "notes-unchanged",
+        "meets-output-contract"
       ]
     }
   ]

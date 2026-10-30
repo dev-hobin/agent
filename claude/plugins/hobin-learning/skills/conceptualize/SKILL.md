@@ -2,6 +2,8 @@
 name: conceptualize
 description: "Forms and tests one source-independent concept from several source-bound insights, materials, examples, or observations. Use for comparing source-local language, stripping accidental detail, finding a transferable operation or distinction, separating nearby concepts and connector relations, and testing the candidate with transfer cases and counterexamples. Produces a complete concept result and, when requested, a self-contained plain Markdown artifact. Not for studying what one source says or turning several cases into a repeatable workflow."
 argument-hint: "[the notes, insights, or cases to compare, and where to save the result]"
+allowed-tools:
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs *)"
 ---
 
 # Conceptualize
@@ -89,8 +91,23 @@ no other file. It holds the definition, evidence, mechanism, transfer, boundary,
 sources, and assumes no archive structure or metadata schema. If the path is unknown, ask only
 for the path.
 
+## Output contract (saved results)
+
+The required parts of a saved result are data in `assets/output-contract.json`. Start the
+file from its skeleton, fill every part, and finish only when the check passes:
+
+```text
+node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs new ${CLAUDE_SKILL_DIR}/assets/output-contract.json <file>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs check ${CLAUDE_SKILL_DIR}/assets/output-contract.json <file>
+```
+
+Keep the skeleton's marker line and headings. If a part has nothing to report, keep it and
+write "none" with the reason. A plugin hook also runs the same check on every write of a
+result started from the skeleton and reports what to fix.
+
 ## Every result must
 
+- (When saved) pass the output contract check.
 - (When saved) be readable Markdown at the user's path, with no other file written.
 - Carry a definition, mechanism, per-source evidence with provenance, a transfer case, a
   counterexample or boundary, and related concepts and connector relations.

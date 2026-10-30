@@ -88,8 +88,22 @@ no other file. It holds the definition, evidence, mechanism, transfer, boundary,
 sources, and assumes no archive structure or metadata schema. If the path is unknown, ask only
 for the path.
 
+## Output contract (saved results)
+
+The required parts of a saved result are data in `assets/output-contract.json`. Start the
+file from its skeleton, fill every part, and finish only when the check passes:
+
+```text
+node <this skill's directory>/scripts/output-contract.mjs new <this skill's directory>/assets/output-contract.json <file>
+node <this skill's directory>/scripts/output-contract.mjs check <this skill's directory>/assets/output-contract.json <file>
+```
+
+Keep the skeleton's marker line and headings. If a part has nothing to report, keep it and
+write "none" with the reason. The check is deterministic and says what to fix.
+
 ## Every result must
 
+- (When saved) pass the output contract check.
 - (When saved) be readable Markdown at the user's path, with no other file written.
 - Carry a definition, mechanism, per-source evidence with provenance, a transfer case, a
   counterexample or boundary, and related concepts and connector relations.

@@ -45,7 +45,8 @@
         "has-boundary-or-misreading",
         "has-practical-consequence",
         "has-unresolved-question",
-        "source-unchanged"
+        "source-unchanged",
+        "meets-output-contract"
       ]
     }
   ]

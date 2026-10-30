@@ -2,6 +2,8 @@
 name: opensource-reading
 description: "Studies an open source repository through one evidence-backed code slice. Use for tracing a public API, module, test group, runtime flow, contract, invariant, failure mode, architecture boundary, or tradeoff across docs, tests, examples, and implementation code, and for producing complete source-bound engineering insights and optional plain Markdown artifacts. Not for touring a whole repository at once, a quick API lookup, or studying prose documents without code."
 argument-hint: "[repository path or URL, the slice to study, and where to save the result]"
+allowed-tools:
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs *)"
 ---
 
 # Open Source Reading
@@ -92,13 +94,25 @@ Open question:
 If saving was requested, write plain Markdown to the path the user gave, holding the exact
 slice, evidence paths, interpretation, gaps, and next move; assume no archive structure or
 metadata schema. Use a diagram only when it shows order, boundary, state, relation, or
-evidence more cheaply than prose. In the file, keep the English headings and labels shown above
-(for example `Slice:`, `Evidence path:`, `Evidence level:`) exactly as written, because people and
-other tools find each part by label; if a part has no content, keep its label and write "none"
-with the reason.
+evidence more cheaply than prose.
+
+## Output contract (saved results)
+
+The required parts of a saved result are data in `assets/output-contract.json`. Start the
+file from its skeleton, fill every part, and finish only when the check passes:
+
+```text
+node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs new ${CLAUDE_SKILL_DIR}/assets/output-contract.json <file>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs check ${CLAUDE_SKILL_DIR}/assets/output-contract.json <file>
+```
+
+Keep the skeleton's marker line and headings. If a part has nothing to report, keep it and
+write "none" with the reason. A plugin hook also runs the same check on every write of a
+result started from the skeleton and reports what to fix.
 
 ## Every result must
 
+- (When saved) pass the output contract check.
 - Name exactly one slice and what lies outside it.
 - State the caller-visible promise and support it with an evidence path of real file paths
   across docs, tests, and implementation.

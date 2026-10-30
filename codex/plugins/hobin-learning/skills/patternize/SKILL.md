@@ -84,12 +84,24 @@ Handoff:
 If saving was requested, write a plain Markdown pattern artifact to the path the user gave and
 no other file, holding context, cases, axis, forces, roles, moves, checks, transfer, boundary,
 and evidence gaps; assume no archive structure or metadata schema. If the path is unknown, ask
-only for the path. In the file, keep the English headings and labels shown above (for example
-`Axis:`, `Forces:`) exactly as written, because people and other tools find each part by label; if
-a part has no content, keep its label and write "none" with the reason.
+only for the path.
+
+## Output contract (saved results)
+
+The required parts of a saved result are data in `assets/output-contract.json`. Start the
+file from its skeleton, fill every part, and finish only when the check passes:
+
+```text
+node <this skill's directory>/scripts/output-contract.mjs new <this skill's directory>/assets/output-contract.json <file>
+node <this skill's directory>/scripts/output-contract.mjs check <this skill's directory>/assets/output-contract.json <file>
+```
+
+Keep the skeleton's marker line and headings. If a part has nothing to report, keep it and
+write "none" with the reason. The check is deterministic and says what to fix.
 
 ## Every result must
 
+- (When saved) pass the output contract check.
 - (When saved) be readable Markdown at the user's path, with no other file written.
 - Carry a case comparison table, context and signals, axis, forces, roles, ordered moves,
   checks, a transfer case, a boundary or failure case, and a falsifier or evidence gap.

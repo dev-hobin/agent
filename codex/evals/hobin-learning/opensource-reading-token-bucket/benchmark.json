@@ -43,7 +43,8 @@
         "has-invariant-or-tradeoff",
         "has-falsifier",
         "has-next-move",
-        "repository-unchanged"
+        "repository-unchanged",
+        "meets-output-contract"
       ]
     }
   ]

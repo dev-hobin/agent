@@ -91,13 +91,24 @@ method, including Checkpoint Mode. The essentials are below.
 If saving was requested, write a plain Markdown workbook, tutor script, diagnostic set,
 retrieval plan, or rubric to the path the user gave, preserving the problems, answer
 explanations, misconception diagnoses, transfer task, and mastery evidence; assume no archive
-structure or metadata schema. In the file, keep the English headings and labels shown above (for
-example `Exercise Design Brief`, `Answer keys and misconception diagnoses`) exactly as written,
-because people and other tools find each part by label; if a part has no content, keep its label
-and write "none" with the reason.
+structure or metadata schema.
+
+## Output contract (saved results)
+
+The required parts of a saved result are data in `assets/output-contract.json`. Start the
+file from its skeleton, fill every part, and finish only when the check passes:
+
+```text
+node <this skill's directory>/scripts/output-contract.mjs new <this skill's directory>/assets/output-contract.json <file>
+node <this skill's directory>/scripts/output-contract.mjs check <this skill's directory>/assets/output-contract.json <file>
+```
+
+Keep the skeleton's marker line and headings. If a part has nothing to report, keep it and
+write "none" with the reason. The check is deterministic and says what to fix.
 
 ## Every result must
 
+- (When saved) pass the output contract check.
 - Name the practice target and the observable learning objective.
 - Include a prediction task before any new case is explained; for an unfamiliar mechanism, a
   worked example comes first.

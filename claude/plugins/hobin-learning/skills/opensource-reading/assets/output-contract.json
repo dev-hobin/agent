@@ -1,0 +1,56 @@
+{
+  "id": "opensource-reading-study",
+  "required": [
+    {
+      "label": "Slice",
+      "hint": "the one API, module, flow, or test group studied, and what is out of scope"
+    },
+    {
+      "label": "Promise",
+      "aliases": [
+        "Contract"
+      ],
+      "hint": "the caller-facing promise, quoted from docs or tests"
+    },
+    {
+      "label": "Evidence path",
+      "hint": "docs → implementation → tests, with file paths"
+    },
+    {
+      "label": "Invariant or tradeoff",
+      "aliases": [
+        "Invariant",
+        "Tradeoff",
+        "Trade-off"
+      ],
+      "hint": "the invariant or tradeoff that explains the design"
+    },
+    {
+      "label": "Falsifier",
+      "aliases": [
+        "Missing check",
+        "Would prove"
+      ],
+      "hint": "evidence that would prove the reading wrong, or a check that is missing"
+    },
+    {
+      "label": "Next move",
+      "aliases": [
+        "Next slice",
+        "Handoff"
+      ],
+      "hint": "the next slice to study or where to hand off"
+    }
+  ],
+  "mentions": [
+    {
+      "pattern": "direct evidence",
+      "hint": "\"direct evidence\" for claims read straight from code, tests, or docs"
+    },
+    {
+      "pattern": "\\b(inference|hypothesis|gap)\\b",
+      "hint": "\"inference\", \"hypothesis\", or \"gap\" for claims that are not direct evidence"
+    }
+  ],
+  "skeleton": "# Repository study: TODO: slice in one line\n\n## Slice\n\n- **Project:** TODO\n- **Slice:** TODO: one API, module, flow, or test group\n- **Out of scope:** TODO\n\n## Promise\n\nTODO: the caller-facing promise, quoted from docs or tests\n\n## Evidence path\n\nTODO: docs → implementation → tests with file paths; label each claim direct evidence, inference, hypothesis, or gap\n\n## Invariant or tradeoff\n\nTODO\n\n## Falsifier\n\nTODO: what would prove this reading wrong, or a missing check\n\n## Next move\n\nTODO: next slice or handoff\n"
+}

@@ -42,7 +42,8 @@
         "has-retry-rule",
         "has-transfer-task",
         "has-mastery-rubric",
-        "notes-unchanged"
+        "notes-unchanged",
+        "meets-output-contract"
       ]
     }
   ]

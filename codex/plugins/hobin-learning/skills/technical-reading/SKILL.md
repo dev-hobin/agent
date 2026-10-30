@@ -53,10 +53,8 @@ full method. The essentials are below.
    coordination to `patternize`, practice to `exercise`. The result is complete without a handoff.
 6. **Deliver.** If saving was requested, write the finished result unchanged as plain Markdown
    to the path the user gave; if the path is unknown, ask only for the path. Assume no archive
-   structure, metadata schema, lifecycle, or external integration. In the file, keep the English
-   headings and field labels shown in the output shapes (for example `Scope`, `Unresolved
-   question`) exactly as written, because people and other tools find each part by label; if a
-   part has no content, keep its label and write "none" with the reason.
+   structure, metadata schema, lifecycle, or external integration. A saved result follows the
+   output contract below.
 
 ## Output shapes
 
@@ -92,8 +90,22 @@ full method. The essentials are below.
 Write headings and prose in the user's language; keep source titles, code, APIs, identifiers,
 and exact technical terms when needed.
 
+## Output contract (saved results)
+
+The required parts of a saved result are data in `assets/output-contract.json`. Start the
+file from its skeleton, fill every part, and finish only when the check passes:
+
+```text
+node <this skill's directory>/scripts/output-contract.mjs new <this skill's directory>/assets/output-contract.json <file>
+node <this skill's directory>/scripts/output-contract.mjs check <this skill's directory>/assets/output-contract.json <file>
+```
+
+Keep the skeleton's marker line and headings. If a part has nothing to report, keep it and
+write "none" with the reason. The check is deterministic and says what to fix.
+
 ## Every result must
 
+- (When saved) pass the output contract check.
 - Name the source and the sections or pages covered.
 - Mark the evidence level so source claims stay distinct from interpretation and hypothesis.
 - Give each insight source evidence (section, sentence, or term), a boundary or likely
