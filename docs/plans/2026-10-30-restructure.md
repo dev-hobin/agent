@@ -378,3 +378,17 @@ refund 3/3 · 3/3 · 3/3, money-to-cents 3/3 · 3/3 · 3/3.
 남은 것:
 1. review 외 플러그인의 Claude 평가 실행(비용 발생).
 2. Codex 평가는 `plugin-eval`이 외부 코드 실행이라 사용자 허용이 필요하다.
+
+### 13.1 Claude 회귀 평가 (Sonnet, 3회, $5.10)
+
+| 플러그인 / 시나리오 | 점수 | 흔들린 판정 |
+| --- | --- | --- |
+| hobin-stances: agents-md-overlap, money-to-cents | 1.00, 1.00 | — |
+| hobin-skill-eval: commit-message-evals | 1.00 | — |
+| hobin-feature: quiet-hours-preferences, refund-approval-revalidate | 1.00, 0.92 | 테스트 출력 저장 2/3 |
+| hobin-learning: conceptualize | 1.00 | — |
+| hobin-learning: exercise, opensource-reading, patternize | 0.97, 0.97, 0.98 | 풀이 예시 2/3, "direct evidence" 표기 2/3, 축(axis) 2/3 |
+| hobin-learning: technical-reading | 0.93 | 출처 범위 2/3, 열린 질문 1/3 |
+
+- 흔들린 항목은 모두 skill이 지시만 하는 산출물 요소다. 같은 출력에는 항상 같은 판정이 나오므로, 흔들림은 채점이 아니라 모델 행동에서 온다.
+- 다음 단계는 해당 명세에 Gotcha를 추가하거나 산출물 형식을 더 분명히 하고, `/implementing-core`로 반영하는 것이다. 예: technical-reading의 열린 질문 섹션.
