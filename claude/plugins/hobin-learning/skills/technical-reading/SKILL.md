@@ -54,7 +54,10 @@ full method. The essentials are below.
    coordination to `patternize`, practice to `exercise`. The result is complete without a handoff.
 6. **Deliver.** If saving was requested, write the finished result unchanged as plain Markdown
    to the path the user gave; if the path is unknown, ask only for the path. Assume no archive
-   structure, metadata schema, lifecycle, or external integration.
+   structure, metadata schema, lifecycle, or external integration. In the file, keep the English
+   headings and field labels shown in the output shapes (for example `Scope`, `Unresolved
+   question`) exactly as written, because people and other tools find each part by label; if a
+   part has no content, keep its label and write "none" with the reason.
 
 ## Output shapes
 

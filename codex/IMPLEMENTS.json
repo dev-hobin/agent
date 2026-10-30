@@ -51,7 +51,7 @@
     }
   },
   "technical-reading": {
-    "spec": "2d0674bb28f26c8f216aff33",
+    "spec": "425fb37013d56989216aff33",
     "plugin": "plugins/hobin-learning",
     "copies": {
       "knowledge": "plugins/hobin-learning/skills/technical-reading/references",
@@ -68,7 +68,7 @@
     }
   },
   "opensource-reading": {
-    "spec": "16b52c7b9df71779216aff33",
+    "spec": "a14159e35e466d76216aff33",
     "plugin": "plugins/hobin-learning",
     "copies": {
       "knowledge": "plugins/hobin-learning/skills/opensource-reading/references",
@@ -101,7 +101,7 @@
     }
   },
   "patternize": {
-    "spec": "65cfbfdb276f88ad216aff33",
+    "spec": "981b1f55fe1a753d216aff33",
     "plugin": "plugins/hobin-learning",
     "copies": {
       "knowledge": "plugins/hobin-learning/skills/patternize/references",
@@ -118,7 +118,7 @@
     }
   },
   "exercise": {
-    "spec": "b4d9ab643540fd12216aff33",
+    "spec": "16486d4cef6cec25216aff33",
     "plugin": "plugins/hobin-learning",
     "copies": {
       "knowledge": "plugins/hobin-learning/skills/exercise/references",

@@ -85,7 +85,9 @@ Handoff:
 If saving was requested, write a plain Markdown pattern artifact to the path the user gave and
 no other file, holding context, cases, axis, forces, roles, moves, checks, transfer, boundary,
 and evidence gaps; assume no archive structure or metadata schema. If the path is unknown, ask
-only for the path.
+only for the path. In the file, keep the English headings and labels shown above (for example
+`Axis:`, `Forces:`) exactly as written, because people and other tools find each part by label; if
+a part has no content, keep its label and write "none" with the reason.
 
 ## Every result must
 

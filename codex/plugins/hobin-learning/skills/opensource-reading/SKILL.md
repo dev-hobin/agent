@@ -91,7 +91,10 @@ Open question:
 If saving was requested, write plain Markdown to the path the user gave, holding the exact
 slice, evidence paths, interpretation, gaps, and next move; assume no archive structure or
 metadata schema. Use a diagram only when it shows order, boundary, state, relation, or
-evidence more cheaply than prose.
+evidence more cheaply than prose. In the file, keep the English headings and labels shown above
+(for example `Slice:`, `Evidence path:`, `Evidence level:`) exactly as written, because people and
+other tools find each part by label; if a part has no content, keep its label and write "none"
+with the reason.
 
 ## Every result must
 

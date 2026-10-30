@@ -92,7 +92,10 @@ method, including Checkpoint Mode. The essentials are below.
 If saving was requested, write a plain Markdown workbook, tutor script, diagnostic set,
 retrieval plan, or rubric to the path the user gave, preserving the problems, answer
 explanations, misconception diagnoses, transfer task, and mastery evidence; assume no archive
-structure or metadata schema.
+structure or metadata schema. In the file, keep the English headings and labels shown above (for
+example `Exercise Design Brief`, `Answer keys and misconception diagnoses`) exactly as written,
+because people and other tools find each part by label; if a part has no content, keep its label
+and write "none" with the reason.
 
 ## Every result must
 
