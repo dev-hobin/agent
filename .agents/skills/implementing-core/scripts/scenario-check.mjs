@@ -52,6 +52,11 @@ export function checkScenario(casePath, workspace, original) {
 			if (value.files) cpSync(join(dirname(casePath), value.files), join(workspace, value.files), { recursive: true });
 			const { NODE_TEST_CONTEXT: _, ...env } = process.env;
 			try { execFileSync("sh", ["-c", value.command], { cwd: workspace, env, stdio: "pipe" }); passed = true; } catch { passed = false; }
+		} else if (kind === "script_passes") {
+			// A capability script (resolved from core/<id>/) run in the workspace; exit 0 passes.
+			const capability = resolve(dirname(casePath), "../..");
+			const { NODE_TEST_CONTEXT: _, ...env } = process.env;
+			try { execFileSync("node", [join(capability, value.script), ...(value.args ?? [])], { cwd: workspace, env, stdio: "pipe" }); passed = true; } catch { passed = false; }
 		} else if (kind === "output_contract") {
 			// The capability's own contract checker, the same one the skill runs on its result.
 			const capability = resolve(dirname(casePath), "../..");

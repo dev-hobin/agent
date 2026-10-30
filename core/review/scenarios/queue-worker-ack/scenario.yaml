@@ -3,7 +3,7 @@ id: queue-worker-ack
 tags: [regression]
 base: base
 change: change.patch
-request: "Review this change before I merge. Context from the author: \"Fixes redelivery storms on slow jobs by acking early, and adds in-place retries for transient ledger errors.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file."
+request: "Review this change before I merge. Context from the author: \"Fixes redelivery storms on slow jobs by acking early, and adds in-place retries for transient ledger errors.\" Write the review to `REVIEW.md` in the repository root in the review report format: each finding as `[P0|P1] <defect> — <file>:<line>` followed by `Scenario:` and `Evidence:` lines, or the single line `No findings`. Do not change any other file."
 expect:
   - id: review-written
     file_exists: REVIEW.md
@@ -23,3 +23,7 @@ expect:
       pattern: "\\[P[01]\\][^\\n]*pendingCount"
   - id: no-other-changes
     unchanged_except: [REVIEW.md]
+  - id: report-format
+    script_passes:
+      script: scripts/check-report.mjs
+      args: [REVIEW.md]

@@ -72,7 +72,11 @@
   "verification": {
     "existing_tests": "npm test",
     "rounds": [
-      { "round": 1, "result": "all scenario checks and existing tests pass; no must-fix items" }
-    ]
+      {
+        "round": 1,
+        "result": "all scenario checks and existing tests pass; no must-fix items"
+      }
+    ],
+    "existing_tests_status": "pass"
   }
 }

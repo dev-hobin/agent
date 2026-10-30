@@ -3,7 +3,7 @@ id: format-refactor-sibling
 tags: [regression]
 base: base
 change: change.patch
-request: "Can you review this change before I merge? Author says: \"Refactored amount formatting into a shared helper and added thousands separators. The new grouping tests pass.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file."
+request: "Can you review this change before I merge? Author says: \"Refactored amount formatting into a shared helper and added thousands separators. The new grouping tests pass.\" Write the review to `REVIEW.md` in the repository root in the review report format: each finding as `[P0|P1] <defect> — <file>:<line>` followed by `Scenario:` and `Evidence:` lines, or the single line `No findings`. Do not change any other file."
 expect:
   - id: review-written
     file_exists: REVIEW.md
@@ -30,3 +30,7 @@ expect:
     unchanged_except: [REVIEW.md]
   - id: ran-the-suite
     ran_command: "node --test|npm (run )?test"
+  - id: report-format
+    script_passes:
+      script: scripts/check-report.mjs
+      args: [REVIEW.md]

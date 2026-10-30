@@ -52,6 +52,7 @@ expect:                    # every check is deterministic
   - { id: <check>, unchanged: [<paths or directories that must not change>] }
   - { id: <check>, command_passes: { command, files: hidden } } # hidden files added after the run
   - { id: <check>, ran_command: "<regex over shell commands>" }  # needs the run trace
+  - { id: <check>, script_passes: { script: scripts/<file>.mjs, args: [...] } }  # capability script, cwd = workspace
 ```
 
 **Output contracts.** When a capability writes a Markdown result, its required parts live

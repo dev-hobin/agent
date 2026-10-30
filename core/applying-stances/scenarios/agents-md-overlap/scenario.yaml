@@ -29,3 +29,7 @@ expect:
       pattern: "^(?![\\s\\S]*(?:^|\\n)\\+[^\\n]*(Before saying a change is done|run the checks that cover the changed code))"
   - id: no-other-changes
     unchanged_except: [PROPOSAL.md]
+  - id: block-valid
+    script_passes:
+      script: scripts/stances.mjs
+      args: [check, PROPOSAL.md]

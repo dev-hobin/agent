@@ -57,6 +57,10 @@ Without a check: <연결할 검사가 없는 입장들(enforcing-conventions 후
 - 설치 블록은 `<!-- hobin-stances:v1 -->`와 `<!-- /hobin-stances -->` 사이에 있다.
 - 검사가 있는 입장은 줄 끝에 `(checked by <경로 또는 명령>)`을 붙인다.
 
+**블록은 스크립트로.** 블록의 정확한 텍스트와 diff는 `scripts/stances.mjs block <대상> [--skip 번호] [--learning]`이
+만든다. 어떤 입장을 뺄지(중복·충돌)는 판단이고, 텍스트는 손으로 쓰지 않는다. 쓴 뒤에는
+`scripts/stances.mjs check <파일>`이 통과해야 한다.
+
 ## 4. 보장 (관찰 가능한 결과만)
 
 | ID | 보장 | 수준 |
@@ -68,6 +72,7 @@ Without a check: <연결할 검사가 없는 입장들(enforcing-conventions 후
 | G5 | 대상은 호스트가 실제로 읽는 파일이다. `CLAUDE.md`가 `AGENTS.md`를 import하지 않는데 `AGENTS.md`에 쓰면 `@AGENTS.md` 추가도 함께 제안한다 | 필수 |
 | G6 | 블록이 이미 있으면 그 자리에서 바꾸고, 지침 파일에 블록이 두 개 생기지 않는다 | 필수 |
 | G7 | `(checked by …)`는 프로젝트에 실제로 있는 검사에만 붙는다 | 필수 |
+| G8 | 제안과 기록한 블록은 `scripts/stances.mjs check`를 통과한다(블록 하나, 15줄 이하, 자산에 있는 입장만, 반복 없음) | 필수 |
 
 각 구현체는 보장마다 호스트가 **강제**하는지, skill이 **지시**만 하는지, **지원하지 않는지**를
 자기 `IMPLEMENTS.json`에 밝힌다.

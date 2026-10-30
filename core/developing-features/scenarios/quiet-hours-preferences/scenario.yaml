@@ -27,3 +27,7 @@ expect:
       flags: m
   - id: ran-the-suite
     ran_command: "node --test|npm (run )?test"
+  - id: scenario-record-complete
+    script_passes:
+      script: scripts/scenarios.mjs
+      args: [check]

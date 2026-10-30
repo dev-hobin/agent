@@ -3,7 +3,7 @@ id: settings-migration-envelope
 tags: [regression]
 base: base
 change: change.patch
-request: "Please review this change before I merge. Author's note: \"Template schema v2: footers move to the workspace signature, stored templates are migrated, and the catalog parser now tolerates the empty-body response upstream sometimes sends. Tests are green.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file."
+request: "Please review this change before I merge. Author's note: \"Template schema v2: footers move to the workspace signature, stored templates are migrated, and the catalog parser now tolerates the empty-body response upstream sometimes sends. Tests are green.\" Write the review to `REVIEW.md` in the repository root in the review report format: each finding as `[P0|P1] <defect> — <file>:<line>` followed by `Scenario:` and `Evidence:` lines, or the single line `No findings`. Do not change any other file."
 expect:
   - id: review-written
     file_exists: REVIEW.md
@@ -23,3 +23,7 @@ expect:
       pattern: "\\[P[01]\\][^\\n]*PLACEHOLDER"
   - id: no-other-changes
     unchanged_except: [REVIEW.md]
+  - id: report-format
+    script_passes:
+      script: scripts/check-report.mjs
+      args: [REVIEW.md]
