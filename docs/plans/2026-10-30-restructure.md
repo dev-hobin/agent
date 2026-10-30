@@ -220,3 +220,47 @@ subagent 기록을 채점기에 넘기고 판정 규칙을 명시했다.
 1. Opus 결과 평가: 판정이 경계에 있는 conceptualize, evaluating-skills, enforcing-conventions부터 돌린다.
 2. enforcing-conventions에서 모든 조건이 실패하는 두 assertion을 점검한다.
 3. conceptualize의 은퇴 또는 재작성을 결정한다.
+
+## 9. 평가 체계 재정비 (2026-10-30)
+
+사용자 지적: 채점은 jest처럼 통과/실패가 명확해야 하고, 실행마다 달라지는 세부사항이 아니라
+항상 같은 판정이 나오는 것을 재야 한다. 실제 성능은 벤치마크로 분리해야 한다.
+
+조사 결과 업계 기준과 같았다.
+- Anthropic: 가능하면 결정적 채점기를 쓴다. 회귀 suite는 거의 100%를 유지하고, 품질 측정(capability) suite는 따로 둔다.
+- Claude Code: `claude plugin eval`(regex, tool_used, tool_order, file_exists, threshold 게이트, 플러그인 없는 baseline)이 이미 있다.
+- OpenAI: JSONL trace에 결정적 검사를 먼저 하고, `plugin-eval`의 정적 평가(analyze)와 벤치마크(benchmark)를 분리한다.
+
+앞서 내가 잘못한 점:
+1. 공식 도구를 확인하지 않고 자체 실행기를 만들었다.
+2. 긴 답변을 judge 모델이 판정하는 assertion을 게이트처럼 썼다.
+3. 회귀와 벤치마크를 섞었다.
+
+§8의 수치 가운데 LLM이 판정한 항목은 참고값으로만 남긴다.
+
+### 새 구조
+
+| 층 | 위치 | 채점 | 게이트 |
+| --- | --- | --- | --- |
+| 구조 | `pnpm check`, `tests/evals.test.mjs` | 모델 없음. case 필드, 정규식 컴파일, scaffold 실행, 숨은 테스트(fixture에서 실패, reference에서 통과), 트리거 생성 드리프트 | 모든 변경 |
+| 회귀 | `packages/*/evals/<case>/` (`--tag regression`) | regex·tool_used·file_exists만 사용. 결과를 파일(`REVIEW.md`, `TEST_OUTPUT.txt`, 시나리오 JSON, `out/*.md`)에 쓰게 해서 판정한다 | threshold |
+| 트리거 | `packages/*/evals/triggers/` (`--tag trigger`, 질의 원본 JSON에서 생성) | Skill 도구만 허용, Skill 호출 여부 | threshold |
+| 벤치마크 | `claude plugin eval`의 Δ, `packages/*/benchmarks/` + `benchmark.mjs` | 숨은 테스트 exit code. judge 모델 없음 | 없음(기록) |
+
+결과 case는 프롬프트에서 skill을 이름으로 지정한다(내용 효과 측정). 선택 여부는 트리거 case가
+따로 잰다. 근거: 도구를 모두 준 상태에서 Sonnet이 "이 변경 리뷰해줘"를 skill 없이 처리했다.
+
+환경 결정: 이 Mac에서는 OS 샌드박스 안에서 `/usr/bin/git`(xcrun shim)이 실행되지 않는다.
+그래서 리뷰 case는 scaffold가 `CHANGE.diff`를 만들고 `.git`을 제거한다. 되돌리는 법: Linux CI라면
+scaffold에서 브랜치를 그대로 남긴다.
+
+### 스모크 결과 (Sonnet, 1회, 각 case)
+
+queue-worker-ack 6/6, format-refactor-sibling 7/8(skill을 썼지만 기존 테스트를 실행하지 않은 것이
+결정적으로 잡힘), refund-approval-revalidate 6/6, agents-md-overlap 6/6, money-to-cents 5/5,
+트리거 2건 정답. 비용 약 $0.8.
+
+### 다음
+
+1. 회귀와 트리거 suite를 패키지별로 3회 실행해서, 처음부터 흔들리는 case를 찾는다.
+2. 벤치마크(플러그인 유무 Δ, 숨은 테스트 3조건)를 Sonnet과 Opus로 돌린 뒤 §4 판정을 다시 한다. conceptualize 은퇴 판단도 이 결과로 한다.

@@ -1,0 +1,126 @@
+{
+  "skill": "developing-features",
+  "plugin": "hobin-feature",
+  "queries": [
+    {
+      "id": "t01",
+      "query": "Build the CSV contact import from docs/import.md. A lot of the edge cases aren't decided yet, so start with acceptance scenarios.",
+      "should_trigger": true,
+      "note": "Explicit build request with unsettled conditions."
+    },
+    {
+      "id": "t02",
+      "query": "이 요구사항으로 쿠폰 중복 적용 기능 개발해줘. 조건이 여러 개 겹치는데 아직 정리가 안 됐어",
+      "should_trigger": true,
+      "note": "Explicit feature request in Korean with interacting conditions."
+    },
+    {
+      "id": "t03",
+      "query": "Implement subscription pause/resume end to end. Billing, emails and the settings page all touch it and nobody has decided what happens to an in-flight invoice.",
+      "should_trigger": true,
+      "note": "Non-trivial feature with an open owner decision."
+    },
+    {
+      "id": "t04",
+      "query": "새 기능 개발 들어가자: 예약 취소 시 환불 규칙. 시나리오부터 잡고 단계별로 구현하고 검증해줘",
+      "should_trigger": true,
+      "note": "Explicit request for the checkpointed workflow in Korean."
+    },
+    {
+      "id": "t05",
+      "query": "Can you develop the team-invite feature from REQUIREMENTS.md? Write the acceptance scenarios and list the owner decisions you need before coding.",
+      "should_trigger": true,
+      "note": "Explicit feature request naming scenarios and owner decisions."
+    },
+    {
+      "id": "t06",
+      "query": "Fix the bug where recurring events disappear after a timezone change. It's not obvious what the right behavior is for events created before the DST switch, so work out the cases first.",
+      "should_trigger": true,
+      "note": "Behavior fix whose correct condition space is unsettled."
+    },
+    {
+      "id": "t07",
+      "query": "build out multi-currency support for invoices in src/billing/. scope is fuzzy, design it properly and verify each scenario",
+      "should_trigger": true,
+      "note": "Casual explicit feature request with unclear scope and design."
+    },
+    {
+      "id": "t08",
+      "query": "알림 묶음 발송 기능 만들어줘. 설계가 아직 안 정해졌으니 설계부터 하고 작게 나눠서 구현해",
+      "should_trigger": true,
+      "note": "Feature with undecided design, small slices requested."
+    },
+    {
+      "id": "t09",
+      "query": "We need soft delete for projects (restore within 30 days, purge after). Please develop it with checkpoints: scenarios, design, then small slices.",
+      "should_trigger": true,
+      "note": "Explicit request for checkpointed development."
+    },
+    {
+      "id": "t10",
+      "query": "Develop the 'export my data' feature from the ticket below. Deleted accounts, pending exports and rate limits all interact.",
+      "should_trigger": true,
+      "note": "Explicit feature request where combining conditions matter."
+    },
+    {
+      "id": "f01",
+      "query": "Change the default page size from 20 to 50 in src/config.js",
+      "should_trigger": false,
+      "note": "One-line change, explicitly excluded."
+    },
+    {
+      "id": "f02",
+      "query": "Rename getUsr to getUser everywhere and pull the validation into a helper. No behavior change.",
+      "should_trigger": false,
+      "note": "Pure refactor, explicitly excluded."
+    },
+    {
+      "id": "f03",
+      "query": "Review my implementation of the invite feature on branch feat/invites",
+      "should_trigger": false,
+      "note": "Reviewing an existing change belongs to reviewing-code."
+    },
+    {
+      "id": "f04",
+      "query": "README에 'recieve' 오타 하나 고쳐줘",
+      "should_trigger": false,
+      "note": "Trivial fix."
+    },
+    {
+      "id": "f05",
+      "query": "Write acceptance criteria for the export feature as a ticket. Don't implement anything.",
+      "should_trigger": false,
+      "note": "Feature-adjacent writing with no development requested."
+    },
+    {
+      "id": "f06",
+      "query": "동료가 만든 기능이 요구사항을 다 충족하는지 이 PR 봐줘",
+      "should_trigger": false,
+      "note": "Checking someone else's feature is a review."
+    },
+    {
+      "id": "f07",
+      "query": "Explain how the feature flag system in src/flags works",
+      "should_trigger": false,
+      "note": "Code explanation; shares the word feature only."
+    },
+    {
+      "id": "f08",
+      "query": "기존 결제 모듈 구조만 정리해줘. 동작은 바꾸지 말고",
+      "should_trigger": false,
+      "note": "Pure refactor in Korean."
+    },
+    {
+      "id": "f09",
+      "query": "Add a null check in formatDate so it stops crashing on undefined",
+      "should_trigger": false,
+      "note": "Small settled fix with no open conditions."
+    },
+    {
+      "id": "f10",
+      "query": "다중 통화 기능 개발하면 얼마나 걸릴지랑 리스크만 정리해줘",
+      "should_trigger": false,
+      "note": "Estimation about a feature, not building it."
+    }
+  ]
+}

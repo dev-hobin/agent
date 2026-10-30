@@ -86,6 +86,16 @@ at the pinned commit (upstream recommendations), and Claude's
 Where the Claude and Agent Skills guidance differ, the rule above records which part
 each one governs. Neither is relabeled as an upstream requirement.
 
+Evaluation follows Anthropic's "Demystifying evals for AI agents" (deterministic graders
+where possible; regression suites near 100% kept apart from capability benchmarks) and
+uses Claude Code's `claude plugin eval` case format as a **host contract**, reviewed
+2026-10-30 on Claude Code 2.1.314. Cases sit inside each plugin because the command reads
+`<plugin>/evals/`; npm packs exclude them, while marketplace installs copy them. Gating
+cases use only `regex`, `tool_used`, `tool_order`, and `file_exists` graders, checked by
+`tests/evals.test.mjs`. Hidden-test outcomes need a command after the run, which the host
+does not offer (it has no custom-code graders), so they run in the repository's
+benchmark script.
+
 ## Agent Plugins: applicable requirements and verification
 
 The specification text, not the JSON Schema alone, is authoritative. We adopt a
@@ -186,7 +196,8 @@ automatic context injection and hook APIs remain host-specific.
 | `packages/*/plugin.json` | Portable package identity; npm metadata is synchronized by repository checks |
 | `packages/*/skills/` | Canonical Agent Skills and contained supporting files |
 | `sources/lenses/` | Single source for lens files copied into Skills (`pnpm sync:sources`, `check:sources`) |
-| `evals/` | Trigger and outcome evaluation data, never packaged |
+| `packages/*/evals/` | `claude plugin eval` regression and trigger cases (host contract), deterministic graders only; excluded from npm packs |
+| `packages/*/benchmarks/` | Hidden-test benchmark tasks for `evaluating-skills/scripts/benchmark.mjs`; excluded from npm packs |
 | `archive/` | Retired resources kept for provenance; not packaged, discovered or checked |
 | `packages/*/.claude-plugin/plugin.json` | Claude Code host manifest, identity-only and synchronized; not a portable override |
 | `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json` | Claude and Codex distribution catalogs |

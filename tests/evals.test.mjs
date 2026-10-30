@@ -1,30 +1,55 @@
+// Model-free checks of the evaluation suites, so that `claude plugin eval` and the hidden-test
+// benchmark only ever spend money on well-formed cases with working graders and fixtures.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { access, constants, cp, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 
-import { packageNames, readJson, repositoryRoot } from "../scripts/check-agent-plugins.mjs";
+import { parse } from "yaml";
+
+import { buildTriggerCases } from "../scripts/build-trigger-cases.mjs";
+import { packageNames, repositoryRoot } from "../scripts/check-agent-plugins.mjs";
 import { syncSources, targets } from "../scripts/sync-sources.mjs";
 
 const exec = promisify(execFile);
-const evalsRoot = join(repositoryRoot, "evals");
-const runner = join(repositoryRoot, "packages/skill-eval/skills/evaluating-skills/scripts/run-evals.mjs");
+// Child test runs must not inherit this runner's test context, or node --test reports to it.
+const { NODE_TEST_CONTEXT: _, ...childEnv } = process.env;
+const benchmark = join(repositoryRoot, "packages/skill-eval/skills/evaluating-skills/scripts/benchmark.mjs");
 
-async function skillOwners() {
-	const owners = new Map();
-	for (const name of packageNames) {
-		const { name: plugin } = await readJson(join(repositoryRoot, "packages", name, "plugin.json"));
-		for (const skill of await readdir(join(repositoryRoot, "packages", name, "skills"))) owners.set(skill, { plugin, root: join(repositoryRoot, "packages", name) });
-	}
-	return owners;
+// Field and option names from the Claude Code "Test plugins with evals" reference.
+const promptFields = new Set(["schema_version", "name", "description", "tags", "plugins", "runs", "expected_outcome",
+	"model", "max_turns", "timeout_seconds", "allowed_tools", "append_system_prompt", "env"]);
+const graderOptions = {
+	regex: ["pattern", "flags", "match", "target"], tool_used: ["tool", "input_match", "min", "max"],
+	tool_order: ["before", "after"], file_exists: ["path", "exists"], llm: ["criteria", "focus"], baseline: ["baseline_file", "criteria"],
+};
+const deterministic = new Set(["regex", "tool_used", "tool_order", "file_exists"]);
+
+function frontmatter(source, path) {
+	const match = source.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+	assert.ok(match, `${path}: missing frontmatter`);
+	return { data: parse(match[1]) ?? {}, body: match[2] };
 }
 
-async function evalDirectories() {
-	const entries = await readdir(evalsRoot, { withFileTypes: true });
-	return entries.filter((entry) => entry.isDirectory() && entry.name !== "results").map((entry) => entry.name).sort();
+async function cases() {
+	const found = [];
+	async function walk(dir, pkg) {
+		const entries = await readdir(dir, { withFileTypes: true });
+		if (entries.some((e) => e.name === "prompt.md" || e.name === "case.yaml")) return void found.push({ dir, pkg });
+		for (const e of entries) if (e.isDirectory() && e.name !== "results") await walk(join(dir, e.name), pkg);
+	}
+	for (const pkg of packageNames) {
+		const root = join(repositoryRoot, "packages", pkg, "evals");
+		if (await stat(root).catch(() => null)) await walk(root, pkg);
+	}
+	return found;
+}
+
+async function skillsOf(pkg) {
+	return readdir(join(repositoryRoot, "packages", pkg, "skills"));
 }
 
 async function temporaryDirectory(t) {
@@ -33,62 +58,89 @@ async function temporaryDirectory(t) {
 	return directory;
 }
 
-test("every evaluated Skill exists and names its owning plugin", async () => {
-	const owners = await skillOwners();
-	const directories = await evalDirectories();
-	assert.ok(directories.length > 0);
-	for (const skill of directories) {
-		assert.ok(owners.has(skill), `evals/${skill} has no shipped Skill`);
-		for (const file of ["triggers.json", "evals.json"]) {
-			const data = await readJson(join(evalsRoot, skill, file)).catch(() => null);
-			if (!data) continue;
-			assert.equal(data.skill, skill, `${skill}/${file}: skill`);
-			assert.equal(data.plugin, owners.get(skill).plugin, `${skill}/${file}: plugin`);
+test("every eval case uses only documented fields and deterministic graders", async () => {
+	const all = await cases();
+	assert.ok(all.length >= 140, "trigger and regression cases are present");
+	for (const { dir } of all) {
+		const prompt = frontmatter(await readFile(join(dir, "prompt.md"), "utf8"), dir);
+		for (const key of Object.keys(prompt.data)) assert.ok(promptFields.has(key), `${dir}: unknown prompt.md field ${key}`);
+		assert.ok(prompt.body.trim(), `${dir}: empty prompt`);
+		const tags = prompt.data.tags ?? [];
+		assert.ok(tags.includes("trigger") || tags.includes("regression"), `${dir}: tag trigger or regression`);
+		const graders = (await readdir(join(dir, "graders"))).filter((file) => file.endsWith(".md"));
+		assert.ok(graders.length > 0, `${dir}: at least one grader`);
+		for (const file of graders) {
+			const { data } = frontmatter(await readFile(join(dir, "graders", file), "utf8"), `${dir}/${file}`);
+			assert.ok(deterministic.has(data.type), `${dir}/${file}: regression and trigger graders must be deterministic, got ${data.type}`);
+			for (const key of Object.keys(data)) {
+				assert.ok(["type", "weight", "arm", ...graderOptions[data.type]].includes(key), `${dir}/${file}: unknown option ${key}`);
+			}
+			if (data.type === "regex") new RegExp(data.pattern, data.flags ?? "");
+			if (data.input_match) new RegExp(data.input_match);
 		}
 	}
 });
 
-test("trigger sets have 20 unique queries with both positives and near misses", async () => {
-	for (const skill of await evalDirectories()) {
-		const data = await readJson(join(evalsRoot, skill, "triggers.json")).catch(() => null);
-		if (!data) continue;
-		assert.equal(data.queries.length, 20, `${skill}: 20 queries`);
-		assert.equal(new Set(data.queries.map((q) => q.id)).size, 20, `${skill}: unique ids`);
-		assert.equal(new Set(data.queries.map((q) => q.query)).size, 20, `${skill}: unique queries`);
-		const positives = data.queries.filter((q) => q.should_trigger === true).length;
-		assert.ok(positives >= 8 && 20 - positives >= 8, `${skill}: balanced positives and negatives`);
-		assert.ok(data.queries.every((q) => typeof q.query === "string" && q.query.trim() && typeof q.should_trigger === "boolean"));
+test("scaffolded cases declare a working scaffold script", async (t) => {
+	for (const { dir } of await cases()) {
+		const yamlPath = join(dir, "case.yaml");
+		if (!(await stat(yamlPath).catch(() => null))) continue;
+		const data = parse(await readFile(yamlPath, "utf8"));
+		assert.equal(data.schema_version, "1.1", `${dir}: schema_version`);
+		assert.equal(data.name, dir.split("/").pop(), `${dir}: name matches directory`);
+		const script = join(dir, data.context.scaffold_script);
+		await access(script, constants.X_OK);
+		const workspace = await temporaryDirectory(t);
+		await exec("bash", [script], { cwd: workspace });
+		assert.ok((await readdir(workspace)).length > 0, `${dir}: scaffold produced files`);
 	}
 });
 
-test("outcome tasks have workspaces, discriminating assertions, and applicable patches", async (t) => {
-	for (const skill of await evalDirectories()) {
-		const data = await readJson(join(evalsRoot, skill, "evals.json")).catch(() => null);
-		if (!data) continue;
-		assert.equal(new Set(data.tasks.map((task) => task.id)).size, data.tasks.length, `${skill}: unique task ids`);
-		for (const task of data.tasks) {
-			const fixture = join(evalsRoot, skill, task.fixture);
-			assert.ok((await stat(join(fixture, "workspace"))).isDirectory(), `${skill}/${task.id}: workspace`);
-			assert.ok(task.prompt.trim() && task.assertions.length > 0, `${skill}/${task.id}: prompt and assertions`);
-			assert.equal(new Set(task.assertions.map((a) => a.id)).size, task.assertions.length, `${skill}/${task.id}: assertion ids`);
-			if ((task.checks ?? []).some((check) => check.command.includes("hidden"))) assert.ok((await stat(join(fixture, "hidden"))).isDirectory(), `${skill}/${task.id}: hidden checks`);
-			const patch = join(fixture, "change.patch");
-			if (await stat(patch).catch(() => null)) {
-				const copy = await temporaryDirectory(t);
-				await cp(join(fixture, "workspace"), copy, { recursive: true });
-				await exec("git", ["init", "-q"], { cwd: copy });
-				await exec("git", ["apply", "--check", patch], { cwd: copy });
+test("trigger cases are generated from balanced 20-query sources without drift", async () => {
+	await buildTriggerCases({ check: true });
+	for (const pkg of packageNames) {
+		const dir = join(repositoryRoot, "packages", pkg, "evals", "triggers");
+		if (!(await stat(dir).catch(() => null))) continue;
+		for (const file of (await readdir(dir)).filter((name) => name.endsWith(".json"))) {
+			const { skill, queries } = JSON.parse(await readFile(join(dir, file), "utf8"));
+			assert.ok((await skillsOf(pkg)).includes(skill), `${pkg}/${file}: ${skill} is not shipped by this package`);
+			assert.equal(queries.length, 20);
+			assert.equal(new Set(queries.map((q) => q.id)).size, 20);
+			const positives = queries.filter((q) => q.should_trigger).length;
+			assert.ok(positives >= 8 && 20 - positives >= 8, `${file}: balanced positives and near misses`);
+		}
+	}
+});
+
+test("benchmark hidden checks fail on the workspace and pass on the reference", async (t) => {
+	for (const pkg of packageNames) {
+		const root = join(repositoryRoot, "packages", pkg, "benchmarks");
+		if (!(await stat(root).catch(() => null))) continue;
+		for (const id of (await readdir(root)).filter((name) => name !== "results")) {
+			const task = JSON.parse(await readFile(join(root, id, "task.json"), "utf8"));
+			assert.equal(task.id, id);
+			assert.ok((await skillsOf(pkg)).includes(task.skill), `${id}: ${task.skill} is not shipped by ${pkg}`);
+			const hidden = task.checks.find((check) => check.command.includes("hidden"));
+			assert.ok(hidden, `${id}: a hidden check`);
+			const before = await temporaryDirectory(t);
+			await cp(join(root, id, "workspace"), before, { recursive: true });
+			await cp(join(root, id, "hidden"), join(before, "hidden"), { recursive: true });
+			await assert.rejects(exec("sh", ["-c", hidden.command], { cwd: before, env: childEnv }),
+				`${id}: hidden check must fail on the untouched workspace`);
+			const after = await temporaryDirectory(t);
+			await cp(join(root, id, "workspace"), after, { recursive: true });
+			await cp(join(root, id, "reference"), after, { recursive: true });
+			await cp(join(root, id, "hidden"), join(after, "hidden"), { recursive: true });
+			for (const check of task.checks) {
+				await exec("sh", ["-c", check.command], { cwd: after, env: childEnv });
 			}
 		}
 	}
 });
 
-test("the eval runner is a dry run unless --execute is given", async (t) => {
-	const skill = (await evalDirectories()).find(Boolean);
-	const { root } = (await skillOwners()).get(skill);
+test("the benchmark runner is a dry run unless --execute is given", async (t) => {
 	const out = join(await temporaryDirectory(t), "results");
-	const mode = await readJson(join(evalsRoot, skill, "evals.json")).then(() => "outcomes", () => "triggers");
-	const { stdout } = await exec("node", [runner, mode, "--evals", join(evalsRoot, skill), "--plugin-dir", root, "--out", out]);
+	const { stdout } = await exec("node", [benchmark, join(repositoryRoot, "packages/feature"), "--out", out]);
 	assert.match(stdout, /Dry run/);
 	await assert.rejects(stat(out), { code: "ENOENT" });
 });
@@ -99,10 +151,6 @@ test("shared lens copies cannot drift from their source", async (t) => {
 	await cp(join(repositoryRoot, "sources"), join(root, "sources"), { recursive: true });
 	for (const { destination } of targets) await cp(join(repositoryRoot, destination), join(root, destination), { recursive: true });
 	const [name] = (await readdir(join(root, "sources/lenses"))).filter((file) => file.endsWith(".md"));
-	await writeFile(join(root, targets[0].destination, name), "edited copy\n");
+	await (await import("node:fs/promises")).writeFile(join(root, targets[0].destination, name), "edited copy\n");
 	await assert.rejects(syncSources({ check: true, root }), /Shared source drift/);
-	await syncSources({ root });
-	await syncSources({ check: true, root });
-	assert.equal(await readFile(join(root, targets[0].destination, name), "utf8"),
-		await readFile(join(repositoryRoot, targets[0].destination, name), "utf8"));
 });

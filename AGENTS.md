@@ -35,9 +35,12 @@
 - Skill-local `agents/openai.yaml` is Codex metadata, not a subagent format. Stances
   meant for users' instructions ship as an asset of `applying-stances` and are
   written only with the user's approval.
-- Evaluation data lives in `evals/<skill>/` and is never packaged. The runner is
-  `packages/skill-eval/skills/evaluating-skills/scripts/run-evals.mjs`; it is a dry
-  run unless given `--execute`, which counts as a paid live-model evaluation.
+- Evaluations have three layers (see the `evaluating-skills` Skill). Regression and
+  trigger cases live in `packages/*/evals/` in the `claude plugin eval` format and use
+  deterministic graders only; trigger cases are generated from
+  `evals/triggers/<skill>.json` by `pnpm build:triggers`. Hidden-test benchmark tasks
+  live in `packages/*/benchmarks/` and run through `evaluating-skills/scripts/benchmark.mjs`.
+  npm packs exclude both. Any run that calls a model is a paid live-model evaluation.
 
 ## Authoring and checks
 

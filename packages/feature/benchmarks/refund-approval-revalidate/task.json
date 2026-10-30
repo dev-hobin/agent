@@ -1,0 +1,16 @@
+{
+  "skill": "developing-features",
+  "id": "refund-approval-revalidate",
+  "prompt": "Implement refund approval per REQUIREMENTS.md in src/approve.js. The owner can't be reached, so decide the open questions conservatively and tell me what you decided. Don't stop to ask.",
+  "checks": [
+    {
+      "id": "visible-tests",
+      "command": "node --test 'test/**/*.test.js'"
+    },
+    {
+      "id": "hidden-tests",
+      "command": "node --test 'hidden/**/*.test.mjs'"
+    }
+  ],
+  "notes": "The stub passes `expectedVersion` to requests.update only after issuing the refund, which looks like a staleness check but runs after money moved. Hidden tests require revalidation before the irreversible step, refusal of over-refund and fractional cents, and one effective refund under concurrent double approve (the fake provider dedups by key, so either a claim step or a stable key plus guarded order update passes). No-skill runs typically add the order update and stop, or check staleness after paying."
+}

@@ -1,0 +1,9 @@
+---
+tags: [trigger, patternize]
+runs: 3
+max_turns: 3
+timeout_seconds: 120
+allowed_tools: [Skill]
+---
+
+이 세 노트의 공통 개념 하나만 정의해줘

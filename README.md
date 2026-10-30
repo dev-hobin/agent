@@ -24,8 +24,9 @@ optional and point at the same originals.
 - **Stances belong in your instructions.** Default behaviors such as "preserve
   stored data" go into `AGENTS.md` or `CLAUDE.md` with your approval, and are
   promoted into checks when they keep being broken.
-- **Kept only if measured.** `evals/` holds trigger and outcome evaluations that
-  compare each Skill with no Skill and a length-matched control.
+- **Kept only if measured, with deterministic grading.** Each package's `evals/` holds
+  pass/fail regression and trigger cases graded by code, not by a judge model; a
+  separate benchmark compares each Skill with no Skill and a length-matched control.
 
 See the [standards register](./docs/standards.md) and the
 [restructure plan](./docs/plans/2026-10-30-restructure.md).
@@ -86,7 +87,7 @@ Instruction-only Skills need neither Node.js nor a specific host. Copy or expose
 each **whole Skill directory**, including `references/`, `scripts/`, and `assets/`,
 through any compatible host. `agents/openai.yaml` is Codex metadata and other hosts
 ignore it. Scripts need a POSIX shell (`collect-context.sh`) or Node.js 22
-(`run-evals.mjs`).
+(`benchmark.mjs`).
 
 ## Repository layout
 
@@ -94,7 +95,8 @@ ignore it. Scripts need a POSIX shell (`collect-context.sh`) or Node.js 22
 | --- | --- |
 | `packages/*/` | Plugins: `plugin.json`, `.claude-plugin/plugin.json`, `skills/` |
 | `sources/lenses/` | Single source for lens files copied into Skills (`pnpm sync:sources`) |
-| `evals/<skill>/` | Trigger sets, outcome tasks, fixtures; never packaged |
+| `packages/*/evals/` | `claude plugin eval` regression and trigger cases; excluded from npm packs |
+| `packages/*/benchmarks/` | Hidden-test benchmark tasks; excluded from npm packs |
 | `archive/` | Retired 0.2.2 resources kept for provenance |
 | `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json` | Claude Code and Codex catalogs |
 
@@ -114,15 +116,18 @@ pnpm check:install -- claude   # optional, isolated native install probe
 pnpm check:install -- codex
 ```
 
-Evaluations call models and cost money, so the runner is a dry run unless given
-`--execute`:
+Evaluations call models and cost money. They have three layers:
 
-```sh
-node packages/skill-eval/skills/evaluating-skills/scripts/run-evals.mjs \
-  outcomes --evals evals/reviewing-code --plugin-dir packages/review
-```
+| Layer | Command | Gate |
+| --- | --- | --- |
+| Structure | `pnpm check` (also validates eval cases, grader patterns, fixtures, and hidden tests without a model) | Every change |
+| Regression | `claude plugin eval packages/<name> --tag regression --ablation none --scaffold --allow-tools Bash Write Edit --model sonnet --threshold 1.0` | Exit code |
+| Triggers | `claude plugin eval packages/<name> --tag trigger --ablation none --model sonnet` | Exit code |
+| Benchmark | `claude plugin eval packages/<name> --tag regression --scaffold --allow-tools Bash Write Edit` (with and without the plugin) and `node packages/skill-eval/skills/evaluating-skills/scripts/benchmark.mjs packages/<name> --execute` (hidden tests) | None; record and compare |
 
-Structural checks do not prove model behavior; only evaluations do.
+Regression and trigger graders are deterministic (regex, tool used, file exists), so the
+same output always gets the same verdict. Model behavior still varies between runs; the
+benchmark measures that, the gates do not hide it.
 
 ## License
 

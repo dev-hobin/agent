@@ -1,93 +1,88 @@
 ---
 name: evaluating-skills
-description: "Builds and runs evaluations for an Agent Skill: trigger evals with should-trigger and near-miss queries, and outcome evals comparing with-skill, without-skill, and a length-matched control across models, then recommends keep, revise, merge, or retire. Use when creating or changing a skill, or deciding whether a skill earns its context cost. Not for testing application code or grading a single answer."
+description: "Builds evaluations for an Agent Skill in three layers: deterministic structure checks, a regression suite of pass/fail cases graded by code (trigger and outcome cases), and a separate benchmark that compares with-skill, without-skill, and a length-matched control. Use when creating or changing a skill, or deciding whether a skill earns its context cost. Not for testing application code or grading a single answer."
 metadata:
   version: "0.3.0"
 ---
 
 # Evaluating Skills
 
-Decide with evidence whether a Skill changes outcomes enough to justify its context cost.
+Keep three questions apart: is the Skill well-formed, does it still do what it did, and
+is it worth its context cost. Each has its own test, and only the first two gate changes.
+
+| Layer | Question | Graders | Gate |
+| --- | --- | --- | --- |
+| Structure | Is the Skill and its eval suite well-formed? | Validators and scripts; no model | Every change |
+| Regression | Does the Skill still trigger and still produce the required artifacts? | Deterministic: regex, tool used, tool order, file exists, test exit code | Score at or above a fixed threshold |
+| Benchmark | Is the Skill better than no Skill and than generic advice of the same length? | Same deterministic graders plus hidden tests; judge models only for short outputs, as a secondary signal | No gate; record and compare over time |
 
 ## Gotchas
 
-- Small, well-specified synthetic tasks hit a ceiling: strong models pass them with or
-  without the Skill, so the comparison shows nothing. Run the without-skill condition
-  first and keep only tasks it actually fails.
-- A hidden test can pin one implementation and fail a different correct fix. Validate
-  hidden checks against an alternative correct solution, not only the reference.
-- Globally installed plugins and user instructions leak into headless runs. Confirm the
-  loaded plugin list for every run; numbers from a contaminated run are void.
-- Headless runs rarely stop to ask. For tasks that hinge on an owner decision, assert
-  that the answer names the decision and its default, not that it asked.
-- A gain over no skill can come from extra prompt length alone. Compare against a
-  length-matched control before crediting the Skill's content.
-- Assertions that pass in every condition carry no information; remove or harden them.
-- A runner that applies the conditions by default hides them from the eval files.
-  Write the comparison (conditions, models, runs) and the decision rule into the eval
-  directory before running, so readers and later runs know what "better" means.
-- An LLM grader that sees only the final answer cannot judge process assertions
-  ("ran the existing tests", "used an independent reviewer") and tends to fail
-  negative ones ("did not flag X") for lack of evidence. Give it the commands and
-  subagents the run used, and tell it how to treat negative assertions.
+- A model run is not repeatable, but a grader must be: the same output must always get
+  the same verdict. A judge model reading a long answer is not repeatable; make the run
+  write its result to a file in a fixed format and grade that file with regex or tests.
+- Whether a Skill is chosen and what it adds are separate questions. Outcome cases name
+  the Skill in the prompt; trigger cases use natural phrasing and only the Skill tool,
+  so a run cannot explore an empty workspace and stop before deciding.
+- With all tools available, a model often does the task itself instead of loading an
+  explicit-use Skill. A near-zero difference with the Skill grader failing means the
+  Skill never ran, not that it adds nothing.
+- Small synthetic tasks hit a ceiling: strong models pass them with or without the
+  Skill. Run the without-skill condition first and keep only tasks it fails.
+- A hidden test can pin one implementation. Validate hidden checks against the untouched
+  workspace (must fail), the reference, and a second, differently written solution.
+- Trigger runs load the Skill on every query and add up quickly on large models.
+  Estimate cost from a few runs before running a full matrix.
 
 ## Procedure
 
-1. **State the claim.** Capability uplift ("does X better") or encoded preference
-   ("follows our workflow"). Preference Skills are judged on adherence to the workflow,
-   uplift Skills on task outcomes.
-2. **Trigger set.** Write 20 realistic queries: 10 that should trigger and 10 near
-   misses that share keywords but need something else. If you will tune the
-   description, split them 60/40 into train and validation and look only at train
-   failures while editing. Run each query 3 times; it passes when the trigger rate is
-   on the right side of 0.5.
-3. **Outcome tasks.** Write 2–3 realistic tasks with fixtures. Add assertions only after
-   a first run shows what outputs look like; each assertion must be checkable from the
-   answer or the workspace and must fail for a generic answer. Prefer code checks
-   (hidden tests, file checks) wherever possible.
-4. **Calibrate.** Run the without-skill condition once. Drop or harden tasks it already
-   passes completely.
-5. **Write the plan, then run the matrix.** In the eval directory's `README.md`, state
-   the conditions (with-skill, without-skill, control), the models (at least two), the
-   runs per cell (3), and the decision rule from step 7. Then run and record pass rates,
-   cost, tokens, and time. Estimate cost from a few runs first: trigger runs load the
-   Skill on every query and add up quickly on large models.
-6. **Analyze per assertion.** Look for assertions that pass only with the Skill, that
-   fail everywhere (broken assertion or task too hard), or that flip between runs
-   (flaky task or vague instruction). Read a few transcripts for each pattern.
-7. **Decide** using the table below and report the evidence behind it.
+1. **Structure.** Run the host's validator (`claude plugin validate --strict`, or the
+   Agent Skills reference validator) and add model-free tests for the eval suite itself:
+   case fields, grader patterns compile, fixtures scaffold, hidden checks fail before and
+   pass after the reference.
+2. **Trigger cases.** Write 20 realistic queries, 10 that should trigger and 10 near
+   misses that share vocabulary but need something else. Each becomes one case with only
+   the Skill tool and one grader: Skill invoked (min 1) or not invoked (max 0).
+3. **Outcome cases.** For 2–3 realistic tasks, make the run leave its result in files
+   (`REVIEW.md`, a scenarios file, `TEST_OUTPUT.txt`) and grade them with deterministic
+   graders: required findings present, known non-defects absent, required commands run,
+   forbidden edits absent. Name the Skill in the prompt.
+4. **Regression gate.** Run trigger and outcome cases with the Skill only, 3 runs, and
+   fail below a fixed threshold. Cases that score 1.0 for a while are the regression
+   suite; flaky cases go back to the benchmark until their graders are fixed.
+5. **Benchmark.** Run the same cases with and without the Skill, plus hidden-test tasks
+   in skill, none, and control conditions, on at least two models. Record pass rates,
+   cost, and time per condition.
+6. **Decide** from the benchmark, never from one run:
 
 | Decision | When |
 | --- | --- |
-| keep | Beats both without-skill and control on discriminating assertions in at least two models, at an acceptable cost increase |
-| revise | Beats without-skill but not control, or results flip between runs |
-| merge | Two Skills produce indistinguishable results on shared tasks, or their trigger sets fire for each other's queries |
+| keep | Beats both without-skill and control on deterministic graders in at least two models, at an acceptable cost increase |
+| revise | Beats without-skill but not control, or the Skill grader shows it is not loaded |
+| merge | Two Skills give indistinguishable results on shared tasks, or their trigger cases fire for each other's queries |
 | retire | No gain over without-skill in any model |
 
-## Scripts
+## Scripts and host tools
 
-`scripts/run-evals.mjs` runs both evaluation kinds through Claude Code (`claude -p`)
-with Node 22 built-ins only. It is a dry run by default and calls models only with
-`--execute`; `--max-budget-usd` caps each run.
-
-```sh
-node scripts/run-evals.mjs triggers --evals <evals/skill-dir> --plugin-dir <plugin-root>
-node scripts/run-evals.mjs outcomes --evals <evals/skill-dir> --plugin-dir <plugin-root> \
-  --models haiku,sonnet --runs 3 --execute
-```
-
-Results are written to `<evals/skill-dir>/results/<timestamp>/`: per run a transcript,
-the final answer, the workspace diff, the commands it ran, and a graded record; plus
-`summary.json`. On other hosts, follow the same procedure by hand
-or adapt the runner's `claude()` and `usedSkill()` functions.
+- Claude Code: `claude plugin eval <plugin-root>` runs cases written as
+  `evals/<case>/prompt.md` plus `graders/*.md`, with a no-plugin baseline arm, and exits 1
+  below `--threshold`. See [references/formats.md](references/formats.md).
+- Codex: `codex exec --json` writes a JSONL trace; apply the same deterministic checks
+  to the trace and the workspace.
+- `scripts/benchmark.mjs <plugin-root>` runs hidden-test tasks from
+  `benchmarks/<task>/` in skill, none, and control conditions through `claude -p`, then
+  grades only by check exit codes. It is a dry run unless given `--execute`.
 
 ## When to read more
 
-- [references/formats.md](references/formats.md) — read before writing
-  `triggers.json`, `evals.json`, or fixtures, for the file formats the runner expects.
+- [references/formats.md](references/formats.md) — before writing cases, graders,
+  trigger sources, or benchmark tasks.
 
 ## Sources
 
-Agent Skills [evaluating skills](https://github.com/agentskills/agentskills/blob/69ef37e9424c0a7ea9dd2293b559e43ec8176379/docs/skill-creation/evaluating-skills.mdx)
-and [optimizing descriptions](https://github.com/agentskills/agentskills/blob/69ef37e9424c0a7ea9dd2293b559e43ec8176379/docs/skill-creation/optimizing-descriptions.mdx);
-Anthropic skill-creator; the repository's `adversarial-eval` Skill (0.2.2).
+Anthropic, "Demystifying evals for AI agents" (deterministic graders first; regression
+versus capability suites; pass@k and pass^k). Claude Code, "Test plugins with evals".
+OpenAI, "Testing Agent Skills Systematically with Evals" (deterministic checks over the
+JSONL trace before rubric grading). Agent Skills
+[evaluating skills](https://github.com/agentskills/agentskills/blob/69ef37e9424c0a7ea9dd2293b559e43ec8176379/docs/skill-creation/evaluating-skills.mdx)
+and [optimizing descriptions](https://github.com/agentskills/agentskills/blob/69ef37e9424c0a7ea9dd2293b559e43ec8176379/docs/skill-creation/optimizing-descriptions.mdx).

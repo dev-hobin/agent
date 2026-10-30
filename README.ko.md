@@ -20,8 +20,9 @@ skill 평가, 학습을 다룹니다. Skill은 [Agent Skills](https://agentskill
   인수 시나리오 파일, 평가 실행기가 여기에 해당합니다.
 - **입장(stance)은 사용자의 지침 파일에 둡니다.** "저장된 데이터는 보존" 같은 기본 행동은
   승인을 받아 `AGENTS.md`나 `CLAUDE.md`에 넣습니다. 계속 어겨지면 자동 검사로 올립니다.
-- **측정된 것만 남깁니다.** `evals/`에는 각 skill을 skill 없음, 그리고 길이를 맞춘 대조군과
-  비교하는 트리거 평가와 결과 평가가 있습니다.
+- **측정된 것만 남기고, 채점은 결정적으로 합니다.** 각 패키지의 `evals/`에는 judge 모델이
+  아니라 코드로 판정하는 통과/실패 회귀 case와 트리거 case가 있습니다. 별도의 벤치마크가
+  각 skill을 skill 없음, 그리고 길이를 맞춘 대조군과 비교합니다.
 
 [표준 채택 기록](./docs/standards.md)과 [재구성 계획](./docs/plans/2026-10-30-restructure.md)을
 참고하세요.
@@ -80,7 +81,7 @@ Codex에서는 `$hobin-stances:applying-stances`를 실행합니다. `AGENTS.md`
 지침만으로 된 skill은 Node.js도, 특정 호스트도 필요하지 않습니다. 각 **skill 디렉터리를
 통째로**(`references/`, `scripts/`, `assets/` 포함) 호환 호스트에 노출하면 됩니다.
 `agents/openai.yaml`은 Codex 메타데이터이며 다른 호스트는 무시합니다. 스크립트에는
-POSIX shell(`collect-context.sh`)이나 Node.js 22(`run-evals.mjs`)가 필요합니다.
+POSIX shell(`collect-context.sh`)이나 Node.js 22(`benchmark.mjs`)가 필요합니다.
 
 ## 저장소 구조
 
@@ -88,7 +89,8 @@ POSIX shell(`collect-context.sh`)이나 Node.js 22(`run-evals.mjs`)가 필요합
 | --- | --- |
 | `packages/*/` | 플러그인: `plugin.json`, `.claude-plugin/plugin.json`, `skills/` |
 | `sources/lenses/` | 여러 skill에 복사되는 관점 파일의 단일 원본 (`pnpm sync:sources`) |
-| `evals/<skill>/` | 트리거 세트, 결과 과제, fixture. 배포하지 않음 |
+| `packages/*/evals/` | `claude plugin eval` 회귀·트리거 case. npm 배포에서 제외 |
+| `packages/*/benchmarks/` | 숨은 테스트 벤치마크 과제. npm 배포에서 제외 |
 | `archive/` | 출처 보존용으로 남긴 0.2.2 리소스 |
 | `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json` | Claude Code와 Codex 카탈로그 |
 
@@ -108,15 +110,18 @@ pnpm check:install -- claude   # 선택, 격리된 설치 검사
 pnpm check:install -- codex
 ```
 
-평가는 모델을 호출하므로 비용이 듭니다. 그래서 실행기는 `--execute`를 주지 않으면
-dry run만 합니다.
+평가는 모델을 호출하므로 비용이 듭니다. 평가는 세 층으로 나뉩니다.
 
-```sh
-node packages/skill-eval/skills/evaluating-skills/scripts/run-evals.mjs \
-  outcomes --evals evals/reviewing-code --plugin-dir packages/review
-```
+| 층 | 명령 | 게이트 |
+| --- | --- | --- |
+| 구조 | `pnpm check` (모델 없이 평가 case, 채점 정규식, fixture, 숨은 테스트까지 검증) | 모든 변경 |
+| 회귀 | `claude plugin eval packages/<name> --tag regression --ablation none --scaffold --allow-tools Bash Write Edit --model sonnet --threshold 1.0` | exit code |
+| 트리거 | `claude plugin eval packages/<name> --tag trigger --ablation none --model sonnet` | exit code |
+| 벤치마크 | `claude plugin eval packages/<name> --tag regression --scaffold --allow-tools Bash Write Edit` (플러그인 유무 비교)와 `node packages/skill-eval/skills/evaluating-skills/scripts/benchmark.mjs packages/<name> --execute` (숨은 테스트) | 없음. 기록하고 비교 |
 
-구조 검사가 통과해도 모델이 잘 동작한다는 증거는 아닙니다. 그것은 평가로만 확인할 수 있습니다.
+회귀와 트리거의 채점기는 결정적입니다(정규식, 도구 사용 여부, 파일 존재). 같은 출력에는
+항상 같은 판정이 나옵니다. 모델의 행동은 여전히 실행마다 달라지며, 그 변동은 벤치마크가
+측정합니다. 게이트가 변동을 가리지는 않습니다.
 
 ## 라이선스
 

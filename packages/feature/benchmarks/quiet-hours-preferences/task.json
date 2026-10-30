@@ -1,0 +1,16 @@
+{
+  "skill": "developing-features",
+  "id": "quiet-hours-preferences",
+  "prompt": "Build the quiet hours feature described in REQUIREMENTS.md. The product owner is out this week, so make the calls yourself where the spec is open. Run without asking me questions.",
+  "checks": [
+    {
+      "id": "visible-tests",
+      "command": "node --test 'test/**/*.test.js'"
+    },
+    {
+      "id": "hidden-tests",
+      "command": "node --test 'hidden/**/*.test.mjs'"
+    }
+  ],
+  "notes": "The partial parsePreferences already drops unknown v1 fields, so a run that only implements the TODOs ships silent data loss on stored records. Hidden tests encode the conservative decisions: preserve stored fields, reject ambiguous start===end, reject non-strict HH:MM. No-skill runs usually implement the window math correctly, keep the lossy parse, and either interpret start===end as all-day or never mention it."
+}

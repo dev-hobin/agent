@@ -1,0 +1,126 @@
+{
+  "skill": "applying-stances",
+  "plugin": "hobin-stances",
+  "queries": [
+    {
+      "id": "t01",
+      "query": "Apply the hobin stances to this repo's AGENTS.md.",
+      "should_trigger": true,
+      "note": "Direct explicit request."
+    },
+    {
+      "id": "t02",
+      "query": "이 프로젝트 CLAUDE.md에 엔지니어링 스탠스 세팅해줘",
+      "should_trigger": true,
+      "note": "Explicit setup request in Korean."
+    },
+    {
+      "id": "t03",
+      "query": "set up the engineering stances in my user-level ~/.claude/CLAUDE.md, show me the diff first",
+      "should_trigger": true,
+      "note": "User-level install with diff-first approval."
+    },
+    {
+      "id": "t04",
+      "query": "We bumped the stances package. Update the stances block in AGENTS.md to the new version.",
+      "should_trigger": true,
+      "note": "Explicit update of an installed stances block."
+    },
+    {
+      "id": "t05",
+      "query": "스탠스 적용해줘. AGENTS.md에 이미 비슷한 규칙이 있으니 중복 안 되게",
+      "should_trigger": true,
+      "note": "Explicit apply with overlap handling."
+    },
+    {
+      "id": "t06",
+      "query": "Install the stances into our agent instructions and link each one to the checks we already run in CI.",
+      "should_trigger": true,
+      "note": "Explicit install plus linking to existing checks."
+    },
+    {
+      "id": "t07",
+      "query": "add the hobin-stances defaults to AGENTS.md for this monorepo",
+      "should_trigger": true,
+      "note": "Casual explicit request naming the plugin."
+    },
+    {
+      "id": "t08",
+      "query": "AGENTS.md에 들어간 스탠스 블록을 최신 버전으로 갱신해줘",
+      "should_trigger": true,
+      "note": "Explicit update in Korean."
+    },
+    {
+      "id": "t09",
+      "query": "Can you put the standard engineering stances into this project's CLAUDE.md? I want to approve the exact text before it's written.",
+      "should_trigger": true,
+      "note": "Explicit request matching the approval step."
+    },
+    {
+      "id": "t10",
+      "query": "Refresh the stances section in AGENTS.md; one of them was renamed upstream.",
+      "should_trigger": true,
+      "note": "Explicit refresh of the stances block."
+    },
+    {
+      "id": "f01",
+      "query": "Write an AGENTS.md for this repo describing the build, the tests and the folder layout.",
+      "should_trigger": false,
+      "note": "General project documentation, explicitly excluded."
+    },
+    {
+      "id": "f02",
+      "query": "README에 프로젝트 설치 방법 정리해줘",
+      "should_trigger": false,
+      "note": "General documentation."
+    },
+    {
+      "id": "f03",
+      "query": "Our rule says never do float math on prices but people keep doing it. Add a lint rule for it.",
+      "should_trigger": false,
+      "note": "Enforcing a convention in code belongs to enforcing-conventions."
+    },
+    {
+      "id": "f04",
+      "query": "Add a pre-commit hook that runs the tests",
+      "should_trigger": false,
+      "note": "Automatic enforcement, not installing stances text."
+    },
+    {
+      "id": "f05",
+      "query": "What's your stance on tabs vs spaces? Pick a style guide for us.",
+      "should_trigger": false,
+      "note": "Shares the word stance; asks for a style choice."
+    },
+    {
+      "id": "f06",
+      "query": "CLAUDE.md에 커밋 메시지는 한국어로 쓰라는 규칙 한 줄 추가해줘",
+      "should_trigger": false,
+      "note": "Edits agent instructions with a custom rule, not the stances set."
+    },
+    {
+      "id": "f07",
+      "query": "우리 CLAUDE.md 각 줄이 무슨 뜻인지 설명해줘",
+      "should_trigger": false,
+      "note": "Explaining instructions, no install."
+    },
+    {
+      "id": "f08",
+      "query": "Summarize the engineering principles from this blog post into a doc for the team",
+      "should_trigger": false,
+      "note": "Principles-adjacent documentation."
+    },
+    {
+      "id": "f09",
+      "query": "이 컨벤션 계속 어겨지는데 자동으로 막는 방법 만들어줘",
+      "should_trigger": false,
+      "note": "Repeated violation needs enforcing-conventions."
+    },
+    {
+      "id": "f10",
+      "query": "Migrate our .cursorrules file into AGENTS.md",
+      "should_trigger": false,
+      "note": "Agent-instruction migration, not stances."
+    }
+  ]
+}
