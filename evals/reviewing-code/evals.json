@@ -22,14 +22,13 @@
         {
           "id": "no-flag-placeholder-constant",
           "text": "The review does not report hoisting the placeholder regex into the module-level `PLACEHOLDER` constant in `src/render.js` as a defect (for example, it does not claim a `lastIndex` bug: `String.prototype.replace` resets a global regex)."
-        },
-        {
-          "id": "no-code-edits",
-          "text": "The agent does not modify tracked source files; the result is a review, not a repair."
         }
       ],
       "checks": [
-        { "id": "no-edits", "command": "git diff --quiet HEAD" }
+        {
+          "id": "no-edits",
+          "command": "git diff --quiet HEAD"
+        }
       ],
       "notes": "Data-loss and absence-semantics perspectives. Both defects are locked in by new passing tests (the old envelope-rejection test was deleted), so a run that trusts green tests or reads only the diff hunks misses them; the sync deletion is only visible by following parseRows into the unchanged src/sync.js. Without the skill, runs tend to praise the tolerance change as robustness and to flag the regex constant as a speculative lastIndex bug."
     },
@@ -53,14 +52,13 @@
         {
           "id": "no-flag-pending-count",
           "text": "The review does not report the new `pendingCount()` method on the queue (or the `DEFAULT_ATTEMPTS` constant) as a defect."
-        },
-        {
-          "id": "no-code-edits",
-          "text": "The agent does not modify tracked source files."
         }
       ],
       "checks": [
-        { "id": "no-edits", "command": "git diff --quiet HEAD" }
+        {
+          "id": "no-edits",
+          "command": "git diff --quiet HEAD"
+        }
       ],
       "notes": "Async-flow / task-protocol perspective: message receipt vs business completion, and retry vs idempotency. The double credit needs a two-step scenario (credit succeeds, notify fails) across worker.js and the unchanged ledger.js. No-skill runs usually catch ack-before-process but accept the fresh-key comment at face value or describe retries only as 'may cause duplicates' without the concrete sequence."
     },
@@ -91,7 +89,10 @@
         }
       ],
       "checks": [
-        { "id": "no-edits", "command": "git diff --quiet HEAD" }
+        {
+          "id": "no-edits",
+          "command": "git diff --quiet HEAD"
+        }
       ],
       "notes": "Evidence perspective: claimed vs verified green, plus a sibling path changed by a shared helper. The failing old test is the strongest signal and is only found by running the whole suite; the formatSigned regression requires evaluating negative inputs that no test exercises; the CSV break requires following formatAmount's callers. No-skill runs tend to accept 'new tests pass', review only formatAmount, and may flag the harmless destructuring as a style issue."
     }
