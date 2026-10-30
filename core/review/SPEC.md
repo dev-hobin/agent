@@ -111,13 +111,13 @@ Not checked: <리뷰가 관찰할 수 없었던 것>
 
 | 관점 | 파일 | 다루는 것 |
 | --- | --- | --- |
-| contract | `knowledge/contract.md` | 요구사항, 부재·기본값 의미, 불변식, 소유자 결정, 경계 파싱 |
-| async-flow | `knowledge/async-flow.md` | 작업, 큐, 콜백, 재시도, 응답 확인, 취소, 오래된 상태 |
-| structure | `knowledge/structure.md` | 책임과 경계 배치, 추상화, 변이 메커니즘, 이름, 동작 변경이 섞인 리팩터 |
-| data-loss | `knowledge/data-loss.md` | 변환, 마이그레이션, 정규화, 직렬화, 저장된 데이터 삭제 |
-| evidence | `knowledge/evidence.md` | 테스트와 검사가 변경의 주장을 실제로 관찰하는지 |
+| contract | `../shared/lenses/contract.md` | 요구사항, 부재·기본값 의미, 불변식, 소유자 결정, 경계 파싱 |
+| async-flow | `../shared/lenses/async-flow.md` | 작업, 큐, 콜백, 재시도, 응답 확인, 취소, 오래된 상태 |
+| structure | `../shared/lenses/structure.md` | 책임과 경계 배치, 추상화, 변이 메커니즘, 이름, 동작 변경이 섞인 리팩터 |
+| data-loss | `../shared/lenses/data-loss.md` | 변환, 마이그레이션, 정규화, 직렬화, 저장된 데이터 삭제 |
+| evidence | `../shared/lenses/evidence.md` | 테스트와 검사가 변경의 주장을 실제로 관찰하는지 |
 
-지식 파일과 `scripts/`는 구현체에 그대로 복사된다(내용 동일).
+관점 지식은 다른 역량과 함께 쓰는 `core/shared/lenses/`에 있다. 지식 파일과 `scripts/`는 구현체에 그대로 복사된다(내용 동일).
 
 ## 8. 수용 시나리오
 

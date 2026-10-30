@@ -16,6 +16,9 @@ core/<id>/
                           queries: [{ id, query, should_trigger }]
 ```
 
+Knowledge used by several capabilities lives once in `core/shared/<topic>/`; a spec
+refers to it as `../shared/<topic>/…`, and a change there makes every implementation stale.
+
 One plugin can hold several capabilities: each `core/<id>/` is one skill, and capabilities
 with the same `plugin` share one plugin per host.
 

@@ -1,12 +1,12 @@
 {
   "review": {
-    "spec": "0c7e5b80205c5c85",
+    "spec": "044a8ed395002c12216aff33",
     "plugin": "plugins/hobin-review",
     "copies": {
-      "knowledge": "plugins/hobin-review/skills/reviewing-code/references/perspectives",
       "scripts/collect-context.sh": "plugins/hobin-review/skills/reviewing-code/scripts/collect-context.sh",
       "scenarios/{scenario}/base": "evals/hobin-review/{scenario}/base",
-      "scenarios/{scenario}/change.patch": "evals/hobin-review/{scenario}/change.patch"
+      "scenarios/{scenario}/change.patch": "evals/hobin-review/{scenario}/change.patch",
+      "../shared/lenses": "plugins/hobin-review/skills/reviewing-code/references/perspectives"
     },
     "evals": "evals/hobin-review/{scenario}/benchmark.json",
     "guarantees": {

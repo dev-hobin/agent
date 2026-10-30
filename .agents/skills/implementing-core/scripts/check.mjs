@@ -82,6 +82,8 @@ function proveScenario(id, scenarioDir) {
 }
 
 const problems = [];
+// core/shared/ holds knowledge several capabilities use; a change there makes every
+// implementation stale, because the hash covers it too.
 const capabilities = readdirSync(join(root, "core")).filter((id) => existsSync(join(root, "core", id, "SPEC.md"))).sort();
 for (const id of capabilities) {
 	const core = join(root, "core", id);
@@ -116,7 +118,7 @@ for (const id of capabilities) {
 		for (const g of promised) {
 			if (!/^(enforced|instructed|unsupported):/.test(entry.guarantees?.[g] ?? "")) problems.push(`${host}: core/${id} ${g} needs "enforced|instructed|unsupported: how" in IMPLEMENTS.json`);
 		}
-		const hash = specHash(core);
+		const hash = specHash(core) + (existsSync(join(root, "core/shared")) ? specHash(join(root, "core/shared")).slice(0, 8) : "");
 		if (sync) { entry.spec = hash; writeFileSync(recordPath, JSON.stringify(record, null, 2) + "\n"); }
 		else if (entry.spec !== hash) problems.push(`${host}: implements core/${id}@${entry.spec}, but core is now @${hash}; run the implementing-core skill`);
 	}
