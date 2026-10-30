@@ -23,17 +23,17 @@
     "check:standard:skills": "python scripts/check-agent-skills.py",
     "check:standard:plugins": "node scripts/check-agent-plugins.mjs",
     "check:standard": "pnpm check:standard:skills && pnpm check:standard:plugins",
-    "check:portable": "pnpm check:standard && pnpm check:sources && pnpm check:dist && pnpm check:evals && node --test tests/*.test.mjs && pnpm --filter @hobin/learning check:portable",
+    "check:portable": "pnpm check:standard && pnpm check:sources && pnpm check:core && pnpm check:evals && node --test tests/*.test.mjs && pnpm --filter @hobin/learning check:portable",
     "check:pi": "pnpm --filter @hobin/learning check:pi",
-    "check:claude": "claude plugin validate dist/claude/hobin-review --strict && claude plugin validate packages/feature --strict && claude plugin validate packages/stances --strict && claude plugin validate packages/skill-eval --strict && claude plugin validate packages/learning --strict && claude plugin validate .claude-plugin/marketplace.json --strict",
+    "check:claude": "claude plugin validate claude/plugins/hobin-review --strict && claude plugin validate packages/feature --strict && claude plugin validate packages/stances --strict && claude plugin validate packages/skill-eval --strict && claude plugin validate packages/learning --strict && claude plugin validate .claude-plugin/marketplace.json --strict",
     "check:install": "node scripts/check-plugin-installation.mjs",
     "check": "pnpm check:portable && pnpm check:pi",
     "check:sources": "node scripts/sync-sources.mjs --check",
     "sync:sources": "node scripts/sync-sources.mjs",
     "check:evals": "node scripts/build-trigger-cases.mjs --check",
     "build:triggers": "node scripts/build-trigger-cases.mjs",
-    "build": "node scripts/build-implementations.mjs",
-    "check:dist": "node scripts/build-implementations.mjs --check"
+    "check:core": "node .agents/skills/implementing-core/scripts/check.mjs",
+    "sync:core": "node .agents/skills/implementing-core/scripts/check.mjs --sync"
   },
   "devDependencies": {
     "ajv": "8.17.1",

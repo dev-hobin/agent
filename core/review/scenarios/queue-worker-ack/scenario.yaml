@@ -1,0 +1,25 @@
+# Acceptance scenario for core/review/SPEC.md §8. Hosts run it with their own eval tools.
+id: queue-worker-ack
+tags: [regression]
+base: base
+change: change.patch
+request: "Review this change before I merge. Context from the author: \"Fixes redelivery storms on slow jobs by acking early, and adds in-place retries for transient ledger errors.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file."
+expect:
+  - id: review-written
+    file_exists: REVIEW.md
+  - id: finds-early-ack
+    file_matches:
+      path: REVIEW.md
+      pattern: "\\[P[01]\\][^\\n]*\\b(ack|acknowledg)"
+      flags: i
+  - id: finds-retry-double-credit
+    file_matches:
+      path: REVIEW.md
+      pattern: "\\[P[01]\\][^\\n]*(idempot|double|twice|duplicate)"
+      flags: i
+  - id: no-flag-pending-count
+    file_lacks:
+      path: REVIEW.md
+      pattern: "\\[P[01]\\][^\\n]*pendingCount"
+  - id: no-other-changes
+    unchanged_except: [REVIEW.md]

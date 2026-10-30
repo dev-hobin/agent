@@ -8,3 +8,4 @@ coverage/
 __pycache__/
 packages/*/evals/results/
 packages/*/benchmarks/results/
+codex/evals/*/*/workspace/

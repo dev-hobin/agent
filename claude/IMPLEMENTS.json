@@ -1,0 +1,13 @@
+{
+  "review": {
+    "spec": "53143edaca1a3a5f",
+    "plugin": "plugins/hobin-review",
+    "copies": {
+      "knowledge": "plugins/hobin-review/knowledge",
+      "scripts/collect-context.sh": "plugins/hobin-review/skills/reviewing-code/scripts/collect-context.sh",
+      "scenarios/{scenario}/base": "plugins/hobin-review/evals/{scenario}/base",
+      "scenarios/{scenario}/change.patch": "plugins/hobin-review/evals/{scenario}/change.patch"
+    },
+    "evals": "plugins/hobin-review/evals/{scenario}/prompt.md"
+  }
+}

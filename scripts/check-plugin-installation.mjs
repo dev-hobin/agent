@@ -138,8 +138,8 @@ try {
 		expected.push({ name: plugin.name, version: plugin.version, packageName: name,
 			skillNames: skills.map((path) => basename(path)).sort() });
 	}
-	// Host implementations built from core are already plugin directories; copy them as-is.
-	for (const entry of catalog.plugins.filter((item) => item.source.startsWith("./dist/"))) {
+	// Host implementations of core specs are plugin directories; copy them as-is.
+	for (const entry of catalog.plugins.filter((item) => !item.source.startsWith("./packages/"))) {
 		const sourceDir = join(repositoryRoot, entry.source);
 		await cp(sourceDir, join(marketplace, entry.source), { recursive: true });
 		const manifest = await readJson(join(sourceDir, host === "claude" ? ".claude-plugin/plugin.json" : "plugin.json"));

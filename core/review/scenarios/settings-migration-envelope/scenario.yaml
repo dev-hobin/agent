@@ -1,0 +1,25 @@
+# Acceptance scenario for core/review/SPEC.md §8. Hosts run it with their own eval tools.
+id: settings-migration-envelope
+tags: [regression]
+base: base
+change: change.patch
+request: "Please review this change before I merge. Author's note: \"Template schema v2: footers move to the workspace signature, stored templates are migrated, and the catalog parser now tolerates the empty-body response upstream sometimes sends. Tests are green.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file."
+expect:
+  - id: review-written
+    file_exists: REVIEW.md
+  - id: finds-stored-footer-scrub
+    file_matches:
+      path: REVIEW.md
+      pattern: "\\[P[01]\\][^\\n]*footer"
+      flags: i
+  - id: finds-missing-envelope-as-empty
+    file_matches:
+      path: REVIEW.md
+      pattern: "\\[P[01]\\][^\\n]*(envelope|parseRows|empty (list|array|result|catalog)|\\[\\])"
+      flags: i
+  - id: no-flag-placeholder-constant
+    file_lacks:
+      path: REVIEW.md
+      pattern: "\\[P[01]\\][^\\n]*PLACEHOLDER"
+  - id: no-other-changes
+    unchanged_except: [REVIEW.md]

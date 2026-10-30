@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "hobin-review",
-      "source": "./dist/codex/hobin-review",
+      "source": "./codex/plugins/hobin-review",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"

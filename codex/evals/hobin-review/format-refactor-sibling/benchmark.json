@@ -1,0 +1,46 @@
+{
+  "kind": "plugin-eval-benchmark",
+  "targetKind": "plugin",
+  "targetName": "hobin-review",
+  "runner": {
+    "type": "codex-cli",
+    "model": "gpt-5.4",
+    "sandbox": "workspace-write",
+    "approvalPolicy": "never",
+    "extraArgs": []
+  },
+  "workspace": {
+    "sourcePath": "codex/evals/hobin-review/format-refactor-sibling/workspace",
+    "setupMode": "copy",
+    "preserve": "on-failure"
+  },
+  "targetProvisioning": {
+    "mode": "workspace-plugin-marketplace"
+  },
+  "verifiers": {
+    "commands": [
+      "node \"$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs\" \"$HOBIN_AGENT_ROOT/core/review/scenarios/format-refactor-sibling/scenario.yaml\" \"$HOBIN_AGENT_ROOT/codex/evals/hobin-review/format-refactor-sibling/workspace\" ."
+    ]
+  },
+  "notes": [
+    "Not checked by plugin-eval (needs the run trace): ran-the-suite",
+    "Run sh codex/evals/prepare.sh hobin-review format-refactor-sibling first, from the repository root, with HOBIN_AGENT_ROOT set to it; pass -m to choose the model."
+  ],
+  "scenarios": [
+    {
+      "id": "format-refactor-sibling",
+      "title": "format-refactor-sibling",
+      "purpose": "Acceptance scenario from core/review/SPEC.md \u00a78",
+      "userInput": "$hobin-review:reviewing-code The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. Can you review this change before I merge? Author says: \"Refactored amount formatting into a shared helper and added thousands separators. The new grouping tests pass.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> \u2014 <file>:<line>` or `[P1] <defect> \u2014 <file>:<line>`, or the single line `No findings`. Do not change any other file.",
+      "successChecklist": [
+        "review-written",
+        "finds-broken-existing-test",
+        "finds-untested-sibling",
+        "finds-csv-column-split",
+        "no-flag-destructuring",
+        "no-other-changes",
+        "ran-the-suite"
+      ]
+    }
+  ]
+}

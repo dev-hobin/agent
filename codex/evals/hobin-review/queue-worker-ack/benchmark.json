@@ -1,0 +1,43 @@
+{
+  "kind": "plugin-eval-benchmark",
+  "targetKind": "plugin",
+  "targetName": "hobin-review",
+  "runner": {
+    "type": "codex-cli",
+    "model": "gpt-5.4",
+    "sandbox": "workspace-write",
+    "approvalPolicy": "never",
+    "extraArgs": []
+  },
+  "workspace": {
+    "sourcePath": "codex/evals/hobin-review/queue-worker-ack/workspace",
+    "setupMode": "copy",
+    "preserve": "on-failure"
+  },
+  "targetProvisioning": {
+    "mode": "workspace-plugin-marketplace"
+  },
+  "verifiers": {
+    "commands": [
+      "node \"$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs\" \"$HOBIN_AGENT_ROOT/core/review/scenarios/queue-worker-ack/scenario.yaml\" \"$HOBIN_AGENT_ROOT/codex/evals/hobin-review/queue-worker-ack/workspace\" ."
+    ]
+  },
+  "notes": [
+    "Run sh codex/evals/prepare.sh hobin-review queue-worker-ack first, from the repository root, with HOBIN_AGENT_ROOT set to it; pass -m to choose the model."
+  ],
+  "scenarios": [
+    {
+      "id": "queue-worker-ack",
+      "title": "queue-worker-ack",
+      "purpose": "Acceptance scenario from core/review/SPEC.md \u00a78",
+      "userInput": "$hobin-review:reviewing-code The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. Review this change before I merge. Context from the author: \"Fixes redelivery storms on slow jobs by acking early, and adds in-place retries for transient ledger errors.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> \u2014 <file>:<line>` or `[P1] <defect> \u2014 <file>:<line>`, or the single line `No findings`. Do not change any other file.",
+      "successChecklist": [
+        "review-written",
+        "finds-early-ack",
+        "finds-retry-double-credit",
+        "no-flag-pending-count",
+        "no-other-changes"
+      ]
+    }
+  ]
+}

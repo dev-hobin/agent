@@ -9,9 +9,9 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 export const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 export const packageNames = ["feature", "stances", "skill-eval", "learning"];
-// Plugins built from core/ by implementations/<host>, listed per host catalog.
-export const implementationPlugins = { claude: [{ name: "hobin-review", source: "./dist/claude/hobin-review" }],
-	codex: [{ name: "hobin-review", source: "./dist/codex/hobin-review" }] };
+// Host implementations of core/ specs, maintained in claude/ and codex/.
+export const implementationPlugins = { claude: [{ name: "hobin-review", source: "./claude/plugins/hobin-review" }],
+	codex: [{ name: "hobin-review", source: "./codex/plugins/hobin-review" }] };
 const upstreamRoot = fileURLToPath(new URL("../schemas/upstream/agent-plugins/1.0.0/", import.meta.url));
 
 export async function readJson(path) {

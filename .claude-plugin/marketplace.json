@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "hobin-review",
-      "source": "./dist/claude/hobin-review",
+      "source": "./claude/plugins/hobin-review",
       "category": "Productivity"
     },
     {
