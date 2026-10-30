@@ -264,3 +264,27 @@ queue-worker-ack 6/6, format-refactor-sibling 7/8(skill을 썼지만 기존 테�
 
 1. 회귀와 트리거 suite를 패키지별로 3회 실행해서, 처음부터 흔들리는 case를 찾는다.
 2. 벤치마크(플러그인 유무 Δ, 숨은 테스트 3조건)를 Sonnet과 Opus로 돌린 뒤 §4 판정을 다시 한다. conceptualize 은퇴 판단도 이 결과로 한다.
+
+## 10. 결정적 채점 기준 벤치마크 결과 (Sonnet, 2026-10-30)
+
+회귀 case는 플러그인 유무 두 조건 × 3회, 숨은 테스트는 skill / 없음 / 대조군 × 3회로 돌렸다.
+총비용은 약 $13이다.
+
+| case | 회귀 점수 (플러그인 있음) | Δ (있음 − 없음) | 해석 |
+| --- | --- | --- | --- |
+| review: queue-worker-ack | 1.00 | 0.00 | 상한 도달. 없음 조건도 결함을 모두 찾음 |
+| review: settings-migration-envelope | 1.00 | 0.00 | 상한 도달 |
+| review: format-refactor-sibling | 0.95 | +0.10 | 테스트 실행 3/3 vs 0/3. 깨진 기존 테스트 보고는 2/3로 흔들림 |
+| feature: quiet-hours / refund | 0.89 / 0.89 | +0.22 / +0.22 | 결정과 되돌리는 법 기록 3/3 vs 1/3. 시나리오 파일·검증 subagent·테스트 저장이 흔들림 |
+| stances: agents-md-overlap / money-to-cents | 1.00 / 1.00 | +0.07 / +0.25 | 규칙을 검사 포인터로 교체 3/3 vs 0/3 |
+| skill-eval: commit-message-evals | 0.93 | +0.27 | 판정 규칙 기록 3/3 vs 0/3 |
+| learning: conceptualize / patternize | 1.00 / 1.00 | 0.00 / +0.20 | conceptualize는 1차 평가에 이어 이번에도 이득 없음 |
+
+숨은 테스트(모든 검사 통과 비율, skill / 없음 / 대조군): quiet-hours 3/3 · 1/3 · 2/3,
+refund 3/3 · 3/3 · 3/3, money-to-cents 3/3 · 3/3 · 3/3.
+
+시사점:
+1. review case 2개와 숨은 테스트 2개는 Sonnet에게 너무 쉽다(상한). 더 어려운 과제가 필요하다.
+2. 회귀 게이트에서 흔들리는 case(format, feature 2개, skill-eval)는 채점기나 과제를 손본 뒤에야 게이트에 넣는다.
+3. conceptualize 은퇴 근거가 강해졌다. 다만 판정 규칙의 "모델 2개 이상"은 아직 충족하지 못했다.
+4. 평가 도구 결함: 벤치마크가 실패한 Skill 호출("Unknown skill")도 skill 실행으로 셌다 → 수정함. 숨은 테스트 판정에는 영향이 없다.
