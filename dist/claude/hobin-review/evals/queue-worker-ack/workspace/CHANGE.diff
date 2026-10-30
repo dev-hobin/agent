@@ -1,0 +1,107 @@
+diff --git a/src/queue.js b/src/queue.js
+index 2f9bb64..078ba93 100644
+--- a/src/queue.js
++++ b/src/queue.js
+@@ -18,5 +18,6 @@ export function createQueue(jobs = []) {
+       if (job) pending.push(job);
+     },
+     inFlightCount: () => inFlight.size,
++    pendingCount: () => pending.length,
+   };
+ }
+diff --git a/src/retry.js b/src/retry.js
+new file mode 100644
+index 0000000..e162d33
+--- /dev/null
++++ b/src/retry.js
+@@ -0,0 +1,15 @@
++export const DEFAULT_ATTEMPTS = 3;
++
++// Calls fn until it resolves or attempts run out, doubling the delay each time.
++export async function retry(fn, { attempts = DEFAULT_ATTEMPTS, delayMs = 0 } = {}) {
++  let lastError;
++  for (let attempt = 0; attempt < attempts; attempt += 1) {
++    try {
++      return await fn(attempt);
++    } catch (err) {
++      lastError = err;
++      if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs * 2 ** attempt));
++    }
++  }
++  throw lastError;
++}
+diff --git a/src/worker.js b/src/worker.js
+index 2f544d5..01d1879 100644
+--- a/src/worker.js
++++ b/src/worker.js
+@@ -1,20 +1,23 @@
++import { randomUUID } from 'node:crypto';
++import { retry } from './retry.js';
++
+ export async function processJob(job, { ledger, notifier }) {
+-  const receipt = await ledger.credit(job.accountId, job.amount, { idempotencyKey: job.id });
++  // The ledger rejects a reused key, so every call gets a fresh one.
++  const receipt = await ledger.credit(job.accountId, job.amount, { idempotencyKey: randomUUID() });
+   await notifier.send(job.accountId, `Credited ${job.amount}`);
+   return receipt;
+ }
+ 
+-// Handles one job. The job is acknowledged only after it fully succeeds;
+-// on failure it is returned to the queue for redelivery.
+-export async function runOnce({ queue, ledger, notifier, log = () => {} }) {
++// Handles one job. Ack first so a slow job is not redelivered to another
++// worker while it is still running; transient failures are retried in place.
++export async function runOnce({ queue, ledger, notifier, log = () => {}, delayMs = 0 }) {
+   const job = queue.receive();
+   if (!job) return false;
++  queue.ack(job.id);
+   try {
+-    await processJob(job, { ledger, notifier });
+-    queue.ack(job.id);
++    await retry(() => processJob(job, { ledger, notifier }), { delayMs });
+   } catch (err) {
+-    log(`job ${job.id} failed: ${err.message}`);
+-    queue.nack(job.id);
++    log(`job ${job.id} failed after retries: ${err.message}`);
+   }
+   return true;
+ }
+diff --git a/test/worker.test.js b/test/worker.test.js
+index ca2c1e2..3b9b82a 100644
+--- a/test/worker.test.js
++++ b/test/worker.test.js
+@@ -11,12 +11,30 @@ test('credits the account and acknowledges the job', async () => {
+   const ledger = createLedger();
+   await runOnce({ queue, ledger, notifier: okNotifier });
+   assert.equal(ledger.balance('acct-1'), 500);
+-  assert.equal(queue.receive(), undefined);
++  assert.equal(queue.pendingCount(), 0);
++  assert.equal(queue.inFlightCount(), 0);
+ });
+ 
+-test('returns a failed job to the queue', async () => {
++test('retries a transient ledger failure', async () => {
++  const queue = createQueue([{ id: 'j1', accountId: 'acct-1', amount: 500 }]);
++  const ledger = createLedger();
++  let calls = 0;
++  const flaky = {
++    credit: async (...args) => {
++      calls += 1;
++      if (calls === 1) throw new Error('timeout');
++      return ledger.credit(...args);
++    },
++  };
++  await runOnce({ queue, ledger: flaky, notifier: okNotifier });
++  assert.equal(ledger.balance('acct-1'), 500);
++});
++
++test('logs a job that keeps failing instead of redelivering it forever', async () => {
+   const queue = createQueue([{ id: 'j1', accountId: 'acct-1', amount: 500 }]);
+   const failing = { credit: async () => { throw new Error('ledger down'); } };
+-  await runOnce({ queue, ledger: failing, notifier: okNotifier });
+-  assert.equal(queue.receive()?.id, 'j1');
++  const lines = [];
++  await runOnce({ queue, ledger: failing, notifier: okNotifier, log: (l) => lines.push(l) });
++  assert.match(lines[0], /j1 failed after retries/);
++  assert.equal(queue.pendingCount(), 0);
+ });

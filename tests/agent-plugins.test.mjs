@@ -103,9 +103,9 @@ test("our source packages own disjoint portable identities and unchanged immedia
 	for (const [index, name] of packageNames.entries()) {
 		const { pkg, skills } = await checkPluginPackage(join(repositoryRoot, "packages", name), seen);
 		assert.equal(pkg.name, `@hobin/${name}`);
-		assert.equal(skills.length, [1, 1, 2, 1, 5][index]);
+		assert.equal(skills.length, [1, 2, 1, 5][index]);
 	}
-	assert.deepEqual([...seen], ["hobin-review", "hobin-feature", "hobin-stances", "hobin-skill-eval", "hobin-learning"]);
+	assert.deepEqual([...seen], ["hobin-feature", "hobin-stances", "hobin-skill-eval", "hobin-learning"]);
 });
 
 test("host catalogs expose the same canonical roots without component overrides", async () => {

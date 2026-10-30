@@ -2,12 +2,12 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 
-import { checkPluginPackage, packageNames, pluginSchemaId, readJson, repositoryRoot } from "./check-agent-plugins.mjs";
+import { checkPluginPackage, checkPortablePlugin, packageNames, pluginSchemaId, readJson, repositoryRoot } from "./check-agent-plugins.mjs";
 
 const exec = promisify(execFile);
 const args = process.argv.slice(2).filter((argument) => argument !== "--");
@@ -138,6 +138,15 @@ try {
 		expected.push({ name: plugin.name, version: plugin.version, packageName: name,
 			skillNames: skills.map((path) => basename(path)).sort() });
 	}
+	// Host implementations built from core are already plugin directories; copy them as-is.
+	for (const entry of catalog.plugins.filter((item) => item.source.startsWith("./dist/"))) {
+		const sourceDir = join(repositoryRoot, entry.source);
+		await cp(sourceDir, join(marketplace, entry.source), { recursive: true });
+		const manifest = await readJson(join(sourceDir, host === "claude" ? ".claude-plugin/plugin.json" : "plugin.json"));
+		assert.equal(manifest.name, entry.name);
+		expected.push({ name: manifest.name, version: manifest.version, sourceDir,
+			skillNames: (await readdir(join(sourceDir, "skills"))).sort() });
+	}
 
 	// A different publisher/plugin owns another `reviewing-code`: installation must not overwrite ours.
 	const peer = join(marketplace, "fixtures/peer");
@@ -209,9 +218,10 @@ try {
 	for (const plugin of [...expected, peerExpected]) {
 		const installed = await realpath(installedPaths.get(plugin.name));
 		assertInside(installed, home);
-		const source = plugin.name === peerManifest.name ? peer : join(repositoryRoot, "packages", plugin.packageName);
+		const source = plugin.name === peerManifest.name ? peer : plugin.sourceDir ?? join(repositoryRoot, "packages", plugin.packageName);
 		await assertSameTree(join(source, "skills"), join(installed, "skills"));
-		if (plugin.name !== peerManifest.name) {
+		if (plugin.sourceDir && host === "codex") assert.equal((await checkPortablePlugin(installed)).plugin.name, plugin.name);
+		else if (plugin.name !== peerManifest.name && !plugin.sourceDir) {
 			const packed = await checkPluginPackage(installed);
 			assert.equal(packed.plugin.name, plugin.name);
 		}

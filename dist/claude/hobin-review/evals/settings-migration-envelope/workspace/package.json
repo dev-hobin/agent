@@ -1,0 +1,8 @@
+{
+  "name": "template-sync",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

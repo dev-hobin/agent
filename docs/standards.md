@@ -167,6 +167,18 @@ precede their activation. Do not build a runtime just to adopt a protocol.
   Draft (reviewed 2026-10-30). Observe; 1.0.0 stays the adopted baseline until a
   published release is reviewed through the procedure above.
 
+## Interface and host implementations
+
+Claude Code and Codex evolve independently, and no vendor-neutral standard covers
+invocation policy, subagent definitions, or evaluation formats
+([research, 2026-10-30](research/2026-10-30-neutral-standards.md)). The repository
+therefore keeps a host-neutral interface in `core/` and one implementation per host in
+`implementations/<host>/`, each rendering the interface in that host's recommended form
+and pinning its host contract in `HOST.md`. Agent Skills and Agent Plugins are used as
+notation where they fit (the portable implementation and the Codex manifest), not as a
+limit on what an implementation may use. Generated plugins live in `dist/<host>/` and
+are what the marketplace catalogs point to.
+
 ## Repository conventions and host contracts
 
 `references.json`, `judgment.json`, generated `Context Directions`, applicability,

@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 
 export const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 export const targets = [
-	{ source: "sources/lenses", destination: "packages/review/skills/reviewing-code/references/perspectives" },
 	{ source: "sources/lenses", destination: "packages/feature/skills/developing-features/references/lenses" },
 ];
 

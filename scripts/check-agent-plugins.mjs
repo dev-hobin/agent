@@ -8,7 +8,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 
 export const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
-export const packageNames = ["review", "feature", "stances", "skill-eval", "learning"];
+export const packageNames = ["feature", "stances", "skill-eval", "learning"];
+// Plugins built from core/ by implementations/<host>, listed per host catalog.
+export const implementationPlugins = { claude: [{ name: "hobin-review", source: "./dist/claude/hobin-review" }],
+	codex: [{ name: "hobin-review", source: "./dist/codex/hobin-review" }] };
 const upstreamRoot = fileURLToPath(new URL("../schemas/upstream/agent-plugins/1.0.0/", import.meta.url));
 
 export async function readJson(path) {
@@ -116,15 +119,15 @@ export async function checkPluginPackage(packageRoot, seen = new Set()) {
 	return { ...result, pkg };
 }
 
-export function assertMarketplaceCatalogs(claude, codex, entries) {
+export function assertMarketplaceCatalogs(claude, codex, entries, built = implementationPlugins) {
 	assert.equal(claude.name, "hobin");
 	assert.equal(codex.name, claude.name);
 	assert.equal(claude.owner.name, "dev-hobin");
 	assert.equal(typeof claude.description, "string");
 	assert.equal(codex.interface.displayName, "Hobin agent resources");
-	assert.deepEqual(claude.plugins, entries.map((entry) => ({ ...entry, category: "Productivity" })),
+	assert.deepEqual(claude.plugins, [...built.claude, ...entries].map((entry) => ({ ...entry, category: "Productivity" })),
 		"Repository policy: Claude catalog must point only at the canonical package roots");
-	assert.deepEqual(codex.plugins, entries.map((entry) => ({ ...entry,
+	assert.deepEqual(codex.plugins, [...built.codex, ...entries].map((entry) => ({ ...entry,
 		policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" }, category: "Productivity" })),
 		"Repository policy: Codex catalog must expose the same packages with explicit host policy");
 }
@@ -135,5 +138,9 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
 		const { skills } = await checkPortablePlugin(join(repositoryRoot, "packages", name));
 		count += skills.length;
 	}
-	console.log(`Agent Plugins 1.0.0: ${packageNames.length} manifests and ${count} immediate Skill directories passed schema/path checks`);
+	for (const { source } of implementationPlugins.codex) {
+		const { skills } = await checkPortablePlugin(join(repositoryRoot, source));
+		count += skills.length;
+	}
+	console.log(`Agent Plugins 1.0.0: ${packageNames.length + implementationPlugins.codex.length} manifests and ${count} immediate Skill directories passed schema/path checks`);
 }

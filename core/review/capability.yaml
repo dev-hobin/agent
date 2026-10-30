@@ -1,0 +1,48 @@
+# Interface of the code-review capability. Implementations under implementations/<host>/
+# render it into each host's native form; nothing here names a host.
+id: reviewing-code
+plugin: hobin-review
+version: 0.3.0
+title: Hobin Review
+summary: >-
+  Reviews a code change, or a bounded existing scope, for correctness defects by
+  running one focused pass per applicable perspective and reporting only verified,
+  high-confidence findings with concrete failure scenarios.
+use_when: >-
+  Use only when explicitly asked to review a diff, branch, or pull request, or to
+  diagnose a named module or feature slice.
+not_for: >-
+  Not for style feedback, automatic repair, environment setup checks, or
+  whole-repository rewrites.
+short: Review a change for verified correctness defects
+invocation: explicit          # explicit: only the user starts it; implicit: the model may choose it
+argument: "[what to review: a branch, diff, pull request, or named scope]"
+
+# One independent reviewer per perspective. Each sees only its perspective, the
+# reviewer role, and the collected context; reviewers never edit files.
+delegation:
+  role: reviewer.md
+  per: perspectives
+  parallel: preferred
+  read_only: true
+perspectives:
+  - id: contract
+    source: sources/lenses/contract.md
+    summary: requirements, absence and default semantics, invariants, owner decisions, boundary parsing
+  - id: async-flow
+    source: sources/lenses/async-flow.md
+    summary: jobs, queues, callbacks, retries, acknowledgement, cancellation, stale state
+  - id: structure
+    source: sources/lenses/structure.md
+    summary: responsibility and boundary placement, abstractions, variation mechanisms, names, refactors mixed with behavior
+  - id: data-loss
+    source: sources/lenses/data-loss.md
+    summary: transformations, migrations, normalization, serialization, scrubbing of stored data
+  - id: evidence
+    source: sources/lenses/evidence.md
+    summary: whether tests and checks actually observe the claims the change makes
+
+scripts:
+  - file: scripts/collect-context.sh
+    usage: "[base]"
+    summary: read-only; prints the range, changed files, nearby tests, instruction files, and the diff (git only)

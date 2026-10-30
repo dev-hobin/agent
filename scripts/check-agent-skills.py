@@ -35,6 +35,10 @@ def validator_is_pinned() -> bool:
 
 def canonical_skills() -> list[Path]:
     roots = sorted(path / "skills" for path in (ROOT / "packages").iterdir() if (path / "plugin.json").is_file())
+    # Built outputs that use only specification fields: Codex plugins and portable Skills.
+    # Claude outputs carry Claude frontmatter and are checked by `claude plugin validate`.
+    roots += sorted(path / "skills" for path in (ROOT / "dist/codex").iterdir() if (path / "plugin.json").is_file())
+    roots += [ROOT / "dist/portable"]
     return [
         child for root in roots for child in sorted(root.iterdir()) if child.is_dir()
     ]

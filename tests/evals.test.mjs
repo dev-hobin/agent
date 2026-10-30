@@ -45,6 +45,10 @@ async function cases() {
 		const root = join(repositoryRoot, "packages", pkg, "evals");
 		if (await stat(root).catch(() => null)) await walk(root, pkg);
 	}
+	for (const plugin of await readdir(join(repositoryRoot, "dist/claude"))) {
+		const root = join(repositoryRoot, "dist/claude", plugin, "evals");
+		if (await stat(root).catch(() => null)) await walk(root, plugin);
+	}
 	return found;
 }
 
@@ -60,12 +64,13 @@ async function temporaryDirectory(t) {
 
 test("every eval case uses only documented fields and deterministic graders", async () => {
 	const all = await cases();
-	assert.ok(all.length >= 140, "trigger and regression cases are present");
+	assert.ok(all.length >= 100, "trigger and regression cases are present");
 	for (const { dir } of all) {
 		const prompt = frontmatter(await readFile(join(dir, "prompt.md"), "utf8"), dir);
 		for (const key of Object.keys(prompt.data)) assert.ok(promptFields.has(key), `${dir}: unknown prompt.md field ${key}`);
 		assert.ok(prompt.body.trim(), `${dir}: empty prompt`);
 		const tags = prompt.data.tags ?? [];
+		if (dir.includes("/dist/claude/")) assert.ok(tags.includes("regression"), `${dir}: generated contract case`);
 		assert.ok(tags.includes("trigger") || tags.includes("regression"), `${dir}: tag trigger or regression`);
 		const graders = (await readdir(join(dir, "graders"))).filter((file) => file.endsWith(".md"));
 		assert.ok(graders.length > 0, `${dir}: at least one grader`);
@@ -153,4 +158,30 @@ test("shared lens copies cannot drift from their source", async (t) => {
 	const [name] = (await readdir(join(root, "sources/lenses"))).filter((file) => file.endsWith(".md"));
 	await (await import("node:fs/promises")).writeFile(join(root, targets[0].destination, name), "edited copy\n");
 	await assert.rejects(syncSources({ check: true, root }), /Shared source drift/);
+});
+
+test("core contract expectations accept the golden result and reject wrong ones", async (t) => {
+	const { checkCase } = await import("../scripts/contract-check.mjs");
+	const contracts = join(repositoryRoot, "core/review/contract");
+	for (const id of await readdir(contracts)) {
+		const caseFile = join(contracts, id, "case.yaml");
+		const untouched = await temporaryDirectory(t);
+		await cp(join(contracts, id, "workspace"), untouched, { recursive: true });
+		assert.ok(checkCase(caseFile, untouched).some((r) => !r.passed), `${id}: untouched workspace must fail`);
+		const golden = await temporaryDirectory(t);
+		await cp(join(contracts, id, "workspace"), golden, { recursive: true });
+		await cp(join(contracts, id, "golden"), golden, { recursive: true });
+		const results = checkCase(caseFile, golden);
+		assert.deepEqual(results.filter((r) => !r.passed).map((r) => r.id), [], `${id}: golden result must pass`);
+		const spec = parse(await readFile(caseFile, "utf8"));
+		for (const e of spec.expect.filter((x) => x.file_lacks)) {
+			const wrong = await temporaryDirectory(t);
+			await cp(golden, wrong, { recursive: true });
+			const flagged = e.file_lacks.pattern.replace(/\\\[P\[01\]\\\]\[\^\\n\]\*/, "");
+			await (await import("node:fs/promises")).appendFile(join(wrong, e.file_lacks.path), `[P1] ${flagged.replace(/[\\()|]/g, " ")} is wrong — src/x.js:1\n`);
+			assert.equal(checkCase(caseFile, wrong).find((r) => r.id === e.id).passed, false, `${id}: ${e.id} must reject a flagged non-defect`);
+		}
+		await (await import("node:fs/promises")).writeFile(join(golden, "package.json"), "{}\n");
+		assert.equal(checkCase(caseFile, golden).find((r) => r.id === "no-other-changes").passed, false, `${id}: edits to other files must fail`);
+	}
 });

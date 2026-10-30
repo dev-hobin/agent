@@ -1,0 +1,31 @@
+# Contract test for the review capability. Expectations are host-neutral; each
+# implementation runs them with its host's own eval tool.
+id: format-refactor-sibling
+tags: [regression]
+request: "Can you review this change before I merge? Author says: \"Refactored amount formatting into a shared helper and added thousands separators. The new grouping tests pass.\" This working tree is the `feature` branch; `CHANGE.diff` is its full diff against `main`. Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file."
+expect:
+  - id: review-written
+    file_exists: REVIEW.md
+  - id: finds-broken-existing-test
+    file_matches:
+      path: REVIEW.md
+      pattern: "\\[P[01]\\][^\\n]*(machine-readable|existing test|format\\.test|1,234\\.50)"
+      flags: i
+  - id: finds-untested-sibling
+    file_matches:
+      path: REVIEW.md
+      pattern: "\\[P[01]\\][^\\n]*formatSigned"
+  - id: finds-csv-column-split
+    file_matches:
+      path: REVIEW.md
+      pattern: "\\[P[01]\\][^\\n]*(csv|toCsv)"
+      flags: i
+  - id: no-flag-destructuring
+    file_lacks:
+      path: REVIEW.md
+      pattern: "\\[P[01]\\][^\\n]*destructur"
+      flags: i
+  - id: no-other-changes
+    unchanged_except: [REVIEW.md]
+  - id: ran-the-suite
+    ran_command: "node --test|npm (run )?test"

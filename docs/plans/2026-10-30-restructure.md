@@ -288,3 +288,33 @@ refund 3/3 · 3/3 · 3/3, money-to-cents 3/3 · 3/3 · 3/3.
 2. 회귀 게이트에서 흔들리는 case(format, feature 2개, skill-eval)는 채점기나 과제를 손본 뒤에야 게이트에 넣는다.
 3. conceptualize 은퇴 근거가 강해졌다. 다만 판정 규칙의 "모델 2개 이상"은 아직 충족하지 못했다.
 4. 평가 도구 결함: 벤치마크가 실패한 Skill 호출("Unknown skill")도 skill 실행으로 셌다 → 수정함. 숨은 테스트 판정에는 영향이 없다.
+
+## 11. 인터페이스·구현 구조와 review 수직 슬라이스 (2026-10-30)
+
+결정: 두 호스트는 표준으로 수렴하지 않는다고 보고 다음 구조로 간다.
+- `core/` = 인터페이스(호스트를 모름). 사용자는 여기만 본다.
+- `implementations/<host>/` = 각 호스트의 권장 방식으로 구현. 고정한 호스트 계약은 `HOST.md`에 둔다.
+- `dist/<host>/` = 생성물(커밋, 드리프트 검사).
+
+근거로 한 조사 원문 세 건은 `implementations/*/research/`, `docs/research/`에 보존했다.
+
+| 층 | review 슬라이스 |
+| --- | --- |
+| core | `capability.yaml`(호출 explicit, 관점별 읽기 전용 위임), `skill.md`(호스트 자리 3개), `reviewer.md`, `scripts/`, `contract/`(중립 기대: 파일 존재·패턴·부재, 다른 파일 미변경, 명령 실행) + 정답 예시 |
+| Claude | `disable-model-invocation`, `argument-hint`·`$ARGUMENTS`, `${CLAUDE_SKILL_DIR}` 스크립트와 `Agent(...)` 사전 허용, 관점별 `agents/*-reviewer.md`(읽기 전용 tools), `claude plugin eval` case |
+| Codex | 루트 `plugin.json`(Agent Plugins + `extensions.com.openai`), Codex가 읽는 필드만 둔 `SKILL.md`, `openai.yaml`(interface, implicit 금지), `spawn_agent` 지시, `plugin-eval` benchmark 설정(검증기 = `contract-check.mjs`) |
+| 범용 | 표준 필드만 쓴 Agent Skills 디렉터리, 순차 실행 fallback |
+
+검증:
+- 모델 호출 없음: `pnpm check`(dist 드리프트, skills-ref, Agent Plugins 스키마, 계약 검사기가 정답은 받고 오답은 거르는지), `check:claude --strict`, 설치 검사(Claude 2.1.314, Codex 0.165.0 모두 통과. Codex에서 `hobin-review:reviewing-code`로 노출).
+- Claude 스모크 3회(Sonnet): 결함 판정은 매번 맞았다. 리뷰어 subagent 위임은 1/3이었고, 위임한 회차에서 무해한 코드를 결함으로 보고한 경우가 1건 나왔다. "작아 보여서 혼자 리뷰"하는 실패가 반복되어 core Gotcha로 올렸다(관찰된 실패).
+
+결정 기록:
+- review 트리거 평가 제거: explicit 전용이라 양쪽 호스트 모두 모델이 스스로 고르지 않도록 설계했다. 되돌리는 법: `capability.yaml`의 invocation을 implicit로 바꾸고 트리거 원본을 git 이력에서 복원.
+- npm 배포는 review에서 제외(호스트별 생성물로 배포).
+- Codex 모델 실행(`plugin-eval benchmark`)은 아직 하지 않았다. OpenAI 사용량이 들고, 외부 코드 실행이 필요하다.
+
+다음:
+1. 위임 준수율과 위임 시 오탐을 벤치마크로 측정한다(Claude, 3회 이상).
+2. Codex benchmark를 승인받아 실행한다.
+3. 나머지 역량(feature, stances, skill-eval, learning)을 같은 구조로 옮긴다.

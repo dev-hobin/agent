@@ -1,0 +1,15 @@
+{
+  "name": "hobin-review",
+  "version": "0.3.0",
+  "description": "Reviews a code change, or a bounded existing scope, for correctness defects by running one focused pass per applicable perspective and reporting only verified, high-confidence findings with concrete failure scenarios.",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "homepage": "https://github.com/dev-hobin/agent",
+  "repository": "https://github.com/dev-hobin/agent",
+  "license": "MIT",
+  "keywords": [
+    "code-review"
+  ]
+}

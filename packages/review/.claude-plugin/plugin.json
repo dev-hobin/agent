@@ -1,9 +1,0 @@
-{
-  "name": "hobin-review",
-  "version": "0.3.0",
-  "description": "Agent Skill for reviewing code changes and bounded scopes through focused perspectives, reporting only verified high-confidence defects.",
-  "author": {
-    "name": "dev-hobin",
-    "url": "https://github.com/dev-hobin"
-  }
-}

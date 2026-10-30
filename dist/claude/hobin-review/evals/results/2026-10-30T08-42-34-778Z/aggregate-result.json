@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.314",
+  "startedAt": "2026-10-30T08:42:34.778Z",
+  "durationSeconds": 17,
+  "costUsd": 0.0806353,
+  "partial": false,
+  "suite": {
+    "root": "/Users/boostree/coding/agent/dist/claude/hobin-review",
+    "ablation": "none",
+    "modelOverride": "sonnet",
+    "caseFilter": "queue-worker-ack",
+    "threshold": 1,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "hobin-review",
+        "version": "0.3.0",
+        "path": "/Users/boostree/coding/agent/dist/claude/hobin-review"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "queue-worker-ack",
+      "dir": "evals/queue-worker-ack",
+      "source": "mixed",
+      "promptMarkdown": "/hobin-review:reviewing-code Review this change before I merge. Context from the author: \"Fixes redelivery storms on slow jobs by acking early, and adds in-place retries for transient ledger errors.\" This working tree is the `feature` branch; `CHANGE.diff` is its full diff against `main`. Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> — <file>:<line>` or `[P1] <defect> — <file>:<line>`, or the single line `No findings`. Do not change any other file.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 1200,
+      "maxTurns": 60,
+      "graders": [
+        {
+          "name": "finds-early-ack",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*\\b(ack|acknowledg)",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "finds-retry-double-credit",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*(idempot|double|twice|duplicate)",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "no-flag-pending-count",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "REVIEW.md"
+            },
+            "pattern": "\\[P[01]\\][^\\n]*pendingCount",
+            "flags": "",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "no-other-changes-write",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Write",
+            "input_match": "\"file_path\"\\s*:\\s*\"(?![^\"]*/(REVIEW\\.md)\")",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        },
+        {
+          "name": "no-other-changes",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Edit",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        },
+        {
+          "name": "review-written",
+          "type": "file_exists",
+          "weight": 1,
+          "config": {
+            "path": "REVIEW.md",
+            "exists": true
+          }
+        },
+        {
+          "name": "reviewers-dispatched",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Agent",
+            "input_match": "hobin-review:",
+            "arm": "with-only"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.8571428571428571,
+            "passed": false,
+            "turns": 6,
+            "costUsd": 0.0806353,
+            "judgeCostUsd": 0,
+            "durationSeconds": 17,
+            "startedAt": "2026-10-30T08:42:34.821Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-nfAPUq/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "finds-early-ack",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*\\b(ack|acknowledg)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "finds-retry-double-credit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \\[P[01]\\][^\\n]*(idempot|double|twice|duplicate)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-flag-pending-count",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes-write",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Write called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-other-changes",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Edit called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "review-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "REVIEW.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "reviewers-dispatched",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Agent called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.8571428571428571,
+        "passRate": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 0,
+    "overallScore": 0.8571428571428571,
+    "overallPassRate": 0
+  }
+}

@@ -2,6 +2,16 @@
 
 ## Source of truth
 
+- **Interface and implementations.** `core/<capability>/` is the host-neutral interface:
+  capability intent (`capability.yaml`), the procedure template, knowledge, neutral
+  scripts, and contract tests. `implementations/<host>/build.mjs` renders it into that
+  host's own recommended form, following the pinned contract in
+  `implementations/<host>/HOST.md`. `dist/<host>/` is generated (`pnpm build`) and
+  committed; `pnpm check:dist` fails on drift. Edit `core/` for content and
+  `implementations/` for host form; never edit `dist/`, and never name a host in `core/`.
+  When a host changes, update its HOST.md and build.mjs from that host's current docs.
+  Capabilities not yet migrated still live in `packages/*`.
+
 - Read `docs/standards.md` before changing resource formats, package boundaries,
   discovery, distribution, or portability checks. Before inventing a format,
   inspect the relevant official project indexes, normative references and
