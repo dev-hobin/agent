@@ -1,0 +1,9 @@
+{
+  "name": "hobin-skill-eval",
+  "version": "0.3.0",
+  "description": "Agent Skill for trigger and outcome evaluations of Agent Skills with with-skill, without-skill, and length-matched control comparisons.",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  }
+}

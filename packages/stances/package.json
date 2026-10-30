@@ -1,0 +1,46 @@
+{
+  "name": "@hobin/stances",
+  "version": "0.3.0",
+  "description": "Agent Skills for installing short engineering stances into agent instructions and promoting repeatedly broken conventions into automatic checks.",
+  "type": "module",
+  "keywords": [
+    "agent-skills",
+    "agent-instructions",
+    "conventions",
+    "pi-package",
+    "pi"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dev-hobin/agent.git",
+    "directory": "packages/stances"
+  },
+  "homepage": "https://github.com/dev-hobin/agent/tree/main/packages/stances#readme",
+  "bugs": {
+    "url": "https://github.com/dev-hobin/agent/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "plugin.json",
+    ".claude-plugin",
+    "skills",
+    "README.md",
+    "README.ko.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

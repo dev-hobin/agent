@@ -11,6 +11,7 @@ import {
 	parseLearningJudgmentPolicy,
 	renderLearningContextDirections,
 } from "../packages/learning/scripts/context-directions.mjs";
+import { packageNames } from "./check-agent-plugins.mjs";
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const schemaPath = new URL("../schemas/skill-references-v0.1.schema.json", import.meta.url);
@@ -26,7 +27,7 @@ function parseJson(source, path) {
 }
 
 export async function canonicalSkillDirectories() {
-	const roots = ["skills", "packages/developer/skills", "packages/learning/skills"];
+	const roots = packageNames.map((name) => `packages/${name}/skills`);
 	const catalogs = await Promise.all(roots.map(async (path) => {
 		const root = join(repositoryRoot, path);
 		const entries = await readdir(root, { withFileTypes: true });

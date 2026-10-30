@@ -59,9 +59,9 @@ test("a reference validator from a different upstream commit cannot pass", async
 		(error) => error.code === 1 && /does not match the pinned upstream source/.test(error.stderr));
 });
 
-test("all 26 canonical Skills have contained and consistent supporting resources", async () => {
+test("all 10 canonical Skills have contained and consistent supporting resources", async () => {
 	const directories = await canonicalSkillDirectories();
-	assert.equal(directories.length, 26);
+	assert.equal(directories.length, 10);
 	for (const directory of directories) await checkSkillResources(directory);
 });
 
@@ -126,7 +126,7 @@ test("the actual upstream checker rejects a name-directory mismatch", async (t) 
 		(error) => error.code === 1 && /must match skill name/.test(error.stderr));
 });
 
-for (const [name, count] of [["developer", 17], ["learning", 5]]) {
+for (const [name, count] of [["review", 1], ["feature", 1], ["stances", 2], ["skill-eval", 1], ["learning", 5]]) {
 	test(`${name}: packed plugin identity is stable and Skills relocate without host metadata`, async (t) => {
 		const directory = await temporaryDirectory(t);
 		const packageRoot = join(root, "packages", name);

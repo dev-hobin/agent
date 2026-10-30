@@ -81,6 +81,29 @@ Choose one:
 
 If the target is broad, split it into a short progression.
 
+## Checkpoint Mode
+
+Use this mode instead of a full practice set when the learner is inside authentic work,
+one mechanism or decision model has just been presented, and the next step is a single
+learner action.
+
+- **Model gate.** If no worked model covering the target was presented, return
+  `needs-model` with the smallest missing piece (actors, state, causal sequence,
+  invariant, or observer) and the smallest worked example needed. Do not ask for a
+  prediction about knowledge that was never presented.
+- **One critical act.** Choose exactly one: predict, explain one causal edge, critique a
+  recommendation, compare two viable options by one criterion, interpret an observed
+  result, repair one bounded defect, or transfer to a changed case. Prefer the act that
+  feeds the next real project decision.
+- **Output.** Target, current evidence state, one checkpoint prompt, why this act fits,
+  the evidence that would advance the state, the likely misconception, one hint for a
+  failed first attempt. No answer key before the learner responds; stop and wait.
+- **Evidence transitions.** `uncovered → covered` (a worked model was presented),
+  `covered → practiced` (one supported act exposed the learner's model),
+  `practiced → demonstrated` (a similar act succeeded with less support),
+  `demonstrated → transferred` (it succeeded in a changed context). A correct answer
+  advances only when its reasoning fits; acknowledgement alone stays `covered`.
+
 ## Default Workflow
 
 1. **Identify the input**

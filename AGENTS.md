@@ -9,8 +9,15 @@
   revision/license, adopted/excluded scope and a verifier in the adoption register.
   Pin upstream revisions; do not equate a foundation listing, example or SDK
   version with an adopted normative contract.
-- Keep canonical Agent Skills in `packages/*/skills/` and `skills/`; do not make
-  per-service copies of their methods.
+- Keep canonical Agent Skills in `packages/*/skills/`; do not make per-service
+  copies of their methods. Shared lens text lives once in `sources/lenses/` and is
+  copied into each Skill that ships it by `pnpm sync:sources`; never edit the copies.
+  `archive/` holds retired resources and is never packaged or linked.
+- Author Skills to `docs/plans/2026-10-30-restructure.md` §3: third-person
+  description with `Use when` and `Not for`, Gotchas only from observed failures,
+  procedures over principles, and reference files named with their read condition.
+  Entry-point Skills are explicit-use: say so in the description and set
+  `policy.allow_implicit_invocation: false` in `agents/openai.yaml`.
 - Distinguish upstream requirements, upstream recommendations, our own reference
   convention, and host constraints. See `docs/skill-references.md`.
 - Root `packages/*/plugin.json` owns the portable Agent Plugins identity; use
@@ -18,15 +25,19 @@
   `.claude-plugin/plugin.json` is Claude Code's host manifest, kept identity-only and
   synchronized with the portable manifest, not an alternative source of portable
   semantics.
-- Keep existing optional Pi components in package-local `adapters/pi/` and
-  preserve their behavior. They are legacy host components, not claimed Agent
+- Keep existing optional Pi components (Learning's `adapters/pi/`) and preserve
+  their behavior. They are legacy host components, not claimed Agent
   Plugins client extensions. New standard client extensions must follow the
   upstream reverse-domain namespace rules. None may be required for a core method.
 - Host marketplace files are distribution compatibility, not universal standards.
   Point them at the canonical package roots and check metadata drift. Keep adapter
   tests, native-install probes and live-evaluation drivers explicitly host-scoped.
-- `agents/` contains optional context fragments, not auto-installed policy or a
-  standardized subagent format.
+- Skill-local `agents/openai.yaml` is Codex metadata, not a subagent format. Stances
+  meant for users' instructions ship as an asset of `applying-stances` and are
+  written only with the user's approval.
+- Evaluation data lives in `evals/<skill>/` and is never packaged. The runner is
+  `packages/skill-eval/skills/evaluating-skills/scripts/run-evals.mjs`; it is a dry
+  run unless given `--execute`, which counts as a paid live-model evaluation.
 
 ## Authoring and checks
 

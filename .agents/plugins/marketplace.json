@@ -1,12 +1,39 @@
 {
-  "name": "hobin-agent",
+  "name": "hobin",
   "interface": {
     "displayName": "Hobin agent resources"
   },
   "plugins": [
     {
-      "name": "hobin-developer",
-      "source": "./packages/developer",
+      "name": "hobin-review",
+      "source": "./packages/review",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "hobin-feature",
+      "source": "./packages/feature",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "hobin-stances",
+      "source": "./packages/stances",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "hobin-skill-eval",
+      "source": "./packages/skill-eval",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"

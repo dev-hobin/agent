@@ -98,14 +98,14 @@ test("repository policy aligns npm, portable and legacy identities and exported 
 	}
 });
 
-test("our two source packages own disjoint portable identities and unchanged immediate catalogs", async () => {
+test("our source packages own disjoint portable identities and unchanged immediate catalogs", async () => {
 	const seen = new Set();
 	for (const [index, name] of packageNames.entries()) {
 		const { pkg, skills } = await checkPluginPackage(join(repositoryRoot, "packages", name), seen);
 		assert.equal(pkg.name, `@hobin/${name}`);
-		assert.equal(skills.length, [17, 5][index]);
+		assert.equal(skills.length, [1, 1, 2, 1, 5][index]);
 	}
-	assert.deepEqual([...seen], ["hobin-developer", "hobin-learning"]);
+	assert.deepEqual([...seen], ["hobin-review", "hobin-feature", "hobin-stances", "hobin-skill-eval", "hobin-learning"]);
 });
 
 test("host catalogs expose the same canonical roots without component overrides", async () => {

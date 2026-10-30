@@ -4,6 +4,12 @@ This is a repository-owned convention on top of Agent Skills, not an upstream
 reference-policy specification. The canonical method lives in `SKILL.md`;
 references refine that method only when materially relevant.
 
+Since 0.3.0 the shipped Skills follow the plain Agent Skills pattern: a
+`## When to read more` section in `SKILL.md` lists each reference with the
+condition for reading it. `references.json` remains a supported convention and is
+still validated when present (the retired Developer Skills used it); Learning keeps
+`judgment.json` and its generated Context Directions.
+
 ## Selection meaning
 
 1. Read the selected Skill's instructions.
@@ -64,8 +70,10 @@ one new runtime or a schema conversion merely for uniformity.
 
 ## Optional Pi disclosure
 
-`packages/developer/adapters/pi/skill-references/index.js` automatically supplies
-a selected Skill's sibling `references.json` through Pi lifecycle events. It
+The Developer package's Pi adapter (retired in 0.3.0, kept in
+`archive/developer-0.2.2/adapters/pi/`) automatically supplied a selected Skill's
+sibling `references.json` through Pi lifecycle events. The 0.3.0 Skills name each
+reference and its read condition in `SKILL.md` instead, so they need no adapter. It
 supports discovered Skills from any source, not just this package. It does not
 choose or read reference bodies.
 

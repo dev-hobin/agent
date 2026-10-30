@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "hobin-learning",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Five independent Agent Skills for technical reading, repository study, concepts, patterns, and practice.",
   "author": {
     "name": "dev-hobin",

@@ -1,0 +1,45 @@
+{
+  "name": "@hobin/feature",
+  "version": "0.3.0",
+  "description": "Agent Skill for developing features through acceptance scenarios, owner decisions, design, small verified slices, and independent verification.",
+  "type": "module",
+  "keywords": [
+    "agent-skills",
+    "feature-development",
+    "pi-package",
+    "pi"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dev-hobin/agent.git",
+    "directory": "packages/feature"
+  },
+  "homepage": "https://github.com/dev-hobin/agent/tree/main/packages/feature#readme",
+  "bugs": {
+    "url": "https://github.com/dev-hobin/agent/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "plugin.json",
+    ".claude-plugin",
+    "skills",
+    "README.md",
+    "README.ko.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

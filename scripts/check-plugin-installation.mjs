@@ -139,16 +139,16 @@ try {
 			skillNames: skills.map((path) => basename(path)).sort() });
 	}
 
-	// A different publisher/plugin owns another `model`: installation must not overwrite ours.
+	// A different publisher/plugin owns another `reviewing-code`: installation must not overwrite ours.
 	const peer = join(marketplace, "fixtures/peer");
-	await mkdir(join(peer, "skills/model"), { recursive: true });
+	await mkdir(join(peer, "skills/reviewing-code"), { recursive: true });
 	const peerManifest = { name: "hobin-probe-peer", version: "0.0.0", description: "Native namespace probe" };
 	await writeFile(join(peer, "plugin.json"), JSON.stringify({ $schema: pluginSchemaId, ...peerManifest }));
 	if (host === "claude") {
 		await mkdir(join(peer, ".claude-plugin"));
 		await writeFile(join(peer, ".claude-plugin/plugin.json"), JSON.stringify(peerManifest));
 	}
-	await writeFile(join(peer, "skills/model/SKILL.md"), "---\nname: model\ndescription: A harmless native namespace probe.\n---\n\nReport that this is the peer fixture.\n");
+	await writeFile(join(peer, "skills/reviewing-code/SKILL.md"), "---\nname: reviewing-code\ndescription: A harmless native namespace probe.\n---\n\nReport that this is the peer fixture.\n");
 	const peerEntry = { name: peerManifest.name, source: "./fixtures/peer", category: "Productivity" };
 	if (host === "codex") peerEntry.policy = { installation: "AVAILABLE", authentication: "ON_INSTALL" };
 	catalog.plugins.push(peerEntry);
@@ -160,7 +160,7 @@ try {
 	await run(host, ["plugin", "marketplace", "add", marketplace, ...(host === "claude" ? ["--scope", "user"] : ["--json"])]);
 	const installedPaths = new Map();
 	for (const name of [...expected.map((plugin) => plugin.name), peerManifest.name]) {
-		const result = await run(host, ["plugin", host === "claude" ? "install" : "add", `${name}@hobin-agent`,
+		const result = await run(host, ["plugin", host === "claude" ? "install" : "add", `${name}@hobin`,
 			...(host === "claude" ? ["--scope", "user"] : ["--json"])]);
 		if (host === "codex") installedPaths.set(name, JSON.parse(result.stdout).installedPath);
 	}
@@ -170,7 +170,7 @@ try {
 		const listed = JSON.parse(stdout);
 		const installed = host === "claude" ? listed : listed.installed;
 		for (const plugin of [...expected, peerManifest]) {
-			const entry = installed.find((item) => (item.id ?? item.pluginId) === `${plugin.name}@hobin-agent`);
+			const entry = installed.find((item) => (item.id ?? item.pluginId) === `${plugin.name}@hobin`);
 			assert.ok(entry, `Missing ${plugin.name} when starting from ${cwd}`);
 			assert.equal(entry.enabled, true);
 			assert.equal(entry.version, plugin.version);
@@ -181,11 +181,11 @@ try {
 		}
 	}
 
-	const peerExpected = { ...peerManifest, skillNames: ["model"] };
+	const peerExpected = { ...peerManifest, skillNames: ["reviewing-code"] };
 	if (host === "claude") {
 		for (const plugin of [...expected, peerExpected]) {
-			const { stdout } = await run("claude", ["plugin", "details", `${plugin.name}@hobin-agent`], projects[1]);
-			assert.ok(stdout.includes(`Source: ${plugin.name}@hobin-agent`));
+			const { stdout } = await run("claude", ["plugin", "details", `${plugin.name}@hobin`], projects[1]);
+			assert.ok(stdout.includes(`Source: ${plugin.name}@hobin`));
 			const inventory = stdout.match(/Skills \((\d+)\)\s+([^\n]+)/u);
 			assert.ok(inventory, `No native component inventory for ${plugin.name}`);
 			assert.equal(Number(inventory[1]), plugin.skillNames.length);
@@ -198,7 +198,7 @@ try {
 			assert.ok(inventory, "Codex did not return the requested workspace inventory");
 			assert.deepEqual(inventory.errors, []);
 			for (const plugin of [...expected, peerExpected]) {
-				const skills = inventory.skills.filter((skill) => skill.pluginId === `${plugin.name}@hobin-agent`);
+				const skills = inventory.skills.filter((skill) => skill.pluginId === `${plugin.name}@hobin`);
 				assert.deepEqual(skills.map((skill) => skill.name).sort(), plugin.skillNames.map((name) => `${plugin.name}:${name}`));
 				assert.ok(skills.every((skill) => skill.enabled && skill.scope === "user"));
 				for (const skill of skills) assertInside(await realpath(skill.path), home);

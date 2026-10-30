@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 
 export const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
-export const packageNames = ["developer", "learning"];
+export const packageNames = ["review", "feature", "stances", "skill-eval", "learning"];
 const upstreamRoot = fileURLToPath(new URL("../schemas/upstream/agent-plugins/1.0.0/", import.meta.url));
 
 export async function readJson(path) {
@@ -117,7 +117,7 @@ export async function checkPluginPackage(packageRoot, seen = new Set()) {
 }
 
 export function assertMarketplaceCatalogs(claude, codex, entries) {
-	assert.equal(claude.name, "hobin-agent");
+	assert.equal(claude.name, "hobin");
 	assert.equal(codex.name, claude.name);
 	assert.equal(claude.owner.name, "dev-hobin");
 	assert.equal(typeof claude.description, "string");

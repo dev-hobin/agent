@@ -65,8 +65,9 @@ template. `allowed-tools` remains experimental and host-dependent.
 
 Recommendations about 500 lines, token budgets and short reference chains are
 authoring guidance, not additional schema fields or unconditional failures.
-Canonical methods remain in `packages/*/skills/` and `skills/` without per-host
-copies. Four standalone Skills remain outside the two plugin catalogs.
+Canonical methods remain in `packages/*/skills/` without per-host copies. Shared
+lens text is authored once in `sources/lenses/` and copied into each Skill that ships
+it, because a Skill must stay self-contained; `check:sources` fails on drift.
 
 ### Skill authoring guidance (reviewed 2026-10-30)
 
@@ -95,7 +96,7 @@ Plugins client extensions. There is no custom loader or mandatory runtime.
 | --- | --- | --- |
 | §4.1, §5.1: root `plugin.json`, resolved package paths stay inside the plugin root | `check:standard:plugins`; negative manifest/Skill/resource symlink cases; actual extracted npm packs | These checks reject broken authored bundles; they are not a reimplementation of client failure handling |
 | §5.2–5.5: canonical `$schema`, required fields, types, closed manifest and name constraints | Unmodified pinned upstream schema; positive and negative schema tests | Schema validation is intentionally strict for authors. The client's report-and-ignore exceptions are not implemented as a runtime here |
-| §6–7.1: fixed `skills/`, immediate children only, Agent Skills validity | Layout checks, catalog counts, pinned skills-ref, relocated-bundle tests | Missing optional component directories are valid upstream; our two catalogs separately require 17 and 5 Skills |
+| §6–7.1: fixed `skills/`, immediate children only, Agent Skills validity | Layout checks, catalog counts, pinned skills-ref, relocated-bundle tests | Missing optional component directories are valid upstream; our five catalogs require 1, 1, 2, 1 and 5 Skills |
 | §7.2, §9: MCP configuration and subprocess behavior | Not applicable: our exported profile contains no `mcp.json` or MCP process | Adding an MCP component reopens adoption, schema and host verification; schema-only green checks are not evidence for it |
 | §8: reverse-domain client extensions | No `extensions` field or standard client-extension directory is shipped by our portable profile | New Agent Plugins extension data/files must follow §8 and the owning client's contract; do not invent a namespace for a client |
 | §10: schema version and plugin version distinction | Schema provenance and metadata-consistency tests | SemVer and SPDX are upstream recommendations, not new mandatory upstream syntax checks |
@@ -183,14 +184,17 @@ automatic context injection and hook APIs remain host-specific.
 | Location / command | Owner and supported claim |
 | --- | --- |
 | `packages/*/plugin.json` | Portable package identity; npm metadata is synchronized by repository checks |
-| `packages/*/skills/`, `skills/` | Canonical Agent Skills and contained supporting files |
+| `packages/*/skills/` | Canonical Agent Skills and contained supporting files |
+| `sources/lenses/` | Single source for lens files copied into Skills (`pnpm sync:sources`, `check:sources`) |
+| `evals/` | Trigger and outcome evaluation data, never packaged |
+| `archive/` | Retired resources kept for provenance; not packaged, discovered or checked |
 | `packages/*/.claude-plugin/plugin.json` | Claude Code host manifest, identity-only and synchronized; not a portable override |
 | `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json` | Claude and Codex distribution catalogs |
 | `packages/*/adapters/pi/` | Optional Pi-only components, not portable client extensions |
 | `schemas/`, `packages/learning/schemas/` | Repository-owned authoring schemas, except the attributed `schemas/upstream/` subtree |
-| `agents/` | Optional context fragments, not standardized subagent definitions |
+| `packages/*/skills/*/agents/openai.yaml` | Codex invocation policy for explicit-use Skills, ignored by other hosts |
 | `AGENTS.md` | Repository maintenance instructions, not consumers' auto-installed global policy |
-| `pnpm check:standard:skills` | Pinned upstream Skill frontmatter validation for all three catalogs |
+| `pnpm check:standard:skills` | Pinned upstream Skill frontmatter validation for every package catalog |
 | `pnpm check:standard:plugins` | Pinned manifest schema and applicable portable package/path checks |
 | `pnpm check:standard` | Both standard-resource checks, without a host executable |
 | `pnpm check:portable` | Standard checks plus repository policies, negative cases, actual npm packs and relocated resources |

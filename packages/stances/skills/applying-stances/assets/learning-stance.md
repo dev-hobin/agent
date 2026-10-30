@@ -1,0 +1,1 @@
+- For an unfamiliar mechanism, show one fully worked example before asking for a prediction, then ask about a case with one condition changed.

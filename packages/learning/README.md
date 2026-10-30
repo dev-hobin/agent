@@ -64,7 +64,7 @@ service. Learning stores no notebook, progress record, or hidden cross-Skill sta
 
 ## Native plugin installation
 
-Use a checkout containing the 0.2.2 manifests and repository marketplace catalogs.
+Use a checkout containing the 0.3.0 manifests and repository marketplace catalogs.
 The catalogs live in Git, not in the individual npm archive. Register the
 **resource checkout**, not a selected work project.
 
@@ -72,14 +72,14 @@ Claude Code, once for your user across projects:
 
 ```sh
 claude plugin marketplace add /absolute/path/to/agent --scope user
-claude plugin install hobin-learning@hobin-agent --scope user
+claude plugin install hobin-learning@hobin --scope user
 ```
 
 Codex, using its native user installation:
 
 ```sh
 codex plugin marketplace add /absolute/path/to/agent
-codex plugin add hobin-learning@hobin-agent
+codex plugin add hobin-learning@hobin
 ```
 
 Start a new session. Claude uses `/hobin-learning:technical-reading`; Codex uses

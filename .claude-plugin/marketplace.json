@@ -1,14 +1,29 @@
 {
-  "name": "hobin-agent",
+  "name": "hobin",
   "owner": {
     "name": "dev-hobin",
     "url": "https://github.com/dev-hobin"
   },
-  "description": "Independent engineering and learning methods from one canonical Agent Skills source.",
+  "description": "Code review, feature development, engineering stances, skill evaluation, and learning methods from one canonical Agent Skills source.",
   "plugins": [
     {
-      "name": "hobin-developer",
-      "source": "./packages/developer",
+      "name": "hobin-review",
+      "source": "./packages/review",
+      "category": "Productivity"
+    },
+    {
+      "name": "hobin-feature",
+      "source": "./packages/feature",
+      "category": "Productivity"
+    },
+    {
+      "name": "hobin-stances",
+      "source": "./packages/stances",
+      "category": "Productivity"
+    },
+    {
+      "name": "hobin-skill-eval",
+      "source": "./packages/skill-eval",
       "category": "Productivity"
     },
     {

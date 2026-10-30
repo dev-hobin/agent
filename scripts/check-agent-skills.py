@@ -34,11 +34,7 @@ def validator_is_pinned() -> bool:
 
 
 def canonical_skills() -> list[Path]:
-    roots = [
-        ROOT / "skills",
-        ROOT / "packages/developer/skills",
-        ROOT / "packages/learning/skills",
-    ]
+    roots = sorted(path / "skills" for path in (ROOT / "packages").iterdir() if (path / "plugin.json").is_file())
     return [
         child for root in roots for child in sorted(root.iterdir()) if child.is_dir()
     ]

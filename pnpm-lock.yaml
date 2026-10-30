@@ -15,17 +15,7 @@ importers:
         specifier: 2.9.0
         version: 2.9.0
 
-  packages/developer:
-    devDependencies:
-      '@earendil-works/pi-ai':
-        specifier: 0.83.0
-        version: 0.83.0(ws@8.21.3)(zod@4.4.3)
-      '@earendil-works/pi-coding-agent':
-        specifier: 0.83.0
-        version: 0.83.0(ws@8.21.3)(zod@4.4.3)
-      ajv:
-        specifier: 8.17.1
-        version: 8.17.1
+  packages/feature: {}
 
   packages/learning:
     devDependencies:
@@ -38,6 +28,12 @@ importers:
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
+
+  packages/review: {}
+
+  packages/skill-eval: {}
+
+  packages/stances: {}
 
 packages:
 

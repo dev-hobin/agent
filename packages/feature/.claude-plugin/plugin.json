@@ -1,0 +1,9 @@
+{
+  "name": "hobin-feature",
+  "version": "0.3.0",
+  "description": "Agent Skill for developing features through acceptance scenarios, owner decisions, design, small verified slices, and independent verification.",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  }
+}
