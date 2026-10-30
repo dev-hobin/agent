@@ -6,7 +6,7 @@
 //   node run-evals.mjs outcomes --evals <dir> --plugin-dir <plugin> [options]
 //
 // Options: --models haiku,sonnet,opus  --runs 3  --conditions skill,none,control
-//          --task <id>  --grader-model sonnet  --max-budget-usd 2  --out <dir>  --execute
+//          --task <id>  --query <id>  --grader-model sonnet  --max-budget-usd 2  --out <dir>  --execute
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -17,7 +17,7 @@ import { parseArgs } from "node:util";
 const { values: opts, positionals } = parseArgs({
 	allowPositionals: true,
 	options: {
-		evals: { type: "string" }, "plugin-dir": { type: "string" }, task: { type: "string" },
+		evals: { type: "string" }, "plugin-dir": { type: "string" }, task: { type: "string" }, query: { type: "string" },
 		models: { type: "string", default: "haiku,sonnet,opus" }, runs: { type: "string" },
 		conditions: { type: "string" }, "grader-model": { type: "string", default: "sonnet" },
 		"max-budget-usd": { type: "string", default: "2" }, out: { type: "string" },
@@ -78,7 +78,7 @@ function workspace(task) {
 }
 
 function claude(prompt, cwd, model, plugins, extraArgs = []) {
-	const args = ["-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose",
+	const args = ["-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose", "--no-session-persistence",
 		"--setting-sources", "project", "--max-budget-usd", opts["max-budget-usd"], ...extraArgs];
 	for (const plugin of plugins) args.push("--plugin-dir", plugin);
 	const started = Date.now();
@@ -89,10 +89,11 @@ function claude(prompt, cwd, model, plugins, extraArgs = []) {
 	return { events, init, result, ms: Date.now() - started, stderr: child.stderr?.slice(-4000) };
 }
 
-// Abort rather than report numbers from a contaminated environment.
+// Abort rather than report numbers from a contaminated environment. Built-in plugins
+// ship with the host and are part of every user's real environment, so they are allowed.
 function assertIsolated(init, expected) {
 	if (!Array.isArray(init.plugins)) return "init event did not list plugins; isolation unverified";
-	const names = init.plugins.map((p) => p.name ?? p);
+	const names = init.plugins.filter((p) => p.path !== "builtin").map((p) => p.name ?? p);
 	const unexpected = names.filter((name) => !expected.includes(name));
 	assert.deepEqual(unexpected, [], `Unexpected plugins loaded: ${unexpected.join(", ")}. Disable user plugins or use a clean config.`);
 	return null;
@@ -133,7 +134,7 @@ ${diff.slice(0, 60_000)}`;
 const matrix = [];
 if (mode === "triggers") {
 	const { skill, queries } = load("triggers.json");
-	for (const q of queries) for (const model of models) for (let n = 1; n <= runs; n++) matrix.push({ skill, q, model, n, condition: "skill" });
+	for (const q of queries.filter((q) => !opts.query || q.id === opts.query)) for (const model of models) for (let n = 1; n <= runs; n++) matrix.push({ skill, q, model, n, condition: "skill" });
 } else {
 	const { skill, tasks } = load("evals.json");
 	for (const task of tasks.filter((t) => !opts.task || t.id === opts.task))
@@ -152,7 +153,7 @@ for (const item of matrix) {
 	const ws = workspace(item.task);
 	const plugins = { skill: [pluginDir], control: control ? [control] : [], none: [] }[item.condition];
 	const prompt = item.q ? item.q.query : item.condition === "none" ? item.task.prompt : `/${pluginName}:${item.skill} ${item.task.prompt}`;
-	const tools = item.q ? [] : ["--permission-mode", "acceptEdits", "--allowedTools", "Bash(node *)", "Bash(npm *)", "Bash(git *)", "Read", "Edit", "Write", "Grep", "Glob", "Agent", "Skill"];
+	const tools = item.q ? [] : ["--permission-mode", "acceptEdits", "--allowedTools", "Bash(node *)", "Bash(npm *)", "Bash(git *)", "Bash(sh *)", "Bash(bash *)", "Bash(ls *)", "Bash(cat *)", "Bash(grep *)", "Bash(find *)", "Bash(head *)", "Bash(wc *)", "Read", "Edit", "Write", "Grep", "Glob", "Agent", "Skill"];
 	const run = claude(prompt, ws, item.model, plugins, tools);
 	const warning = assertIsolated(run.init, item.condition === "none" ? [] : [pluginName]);
 	const record = { mode, skill: item.skill, id: item.q?.id ?? item.task.id, condition: item.condition, model: item.model, run: item.n,
