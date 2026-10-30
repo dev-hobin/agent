@@ -1,6 +1,6 @@
 ---
 name: claim-evidence
-description: Judge exactly what concrete evidence supports about one or more completion, correctness, compatibility, safety, learning, or source-backed claims. Use when a green check, implementation report, explanation, citation, or multi-turn follow-up may be broader than what was actually observed, especially when evidence for one field, branch, participant, or path is generalized to an unobserved sibling. Not for a routine bounded completion report whose stated observer directly matches the claim and no broader inference is disputed. Produce a bounded support judgment and residual gap; do not repair or execute the work.
+description: "Judges exactly what concrete evidence supports about one or more completion, correctness, compatibility, safety, learning, or source-backed claims. Use when a green check, implementation report, explanation, citation, or multi-turn follow-up may be broader than what was actually observed, especially when evidence for one field, branch, participant, or path is generalized to an unobserved sibling. Not for a routine bounded completion report whose stated observer directly matches the claim and no broader inference is disputed. Produces a bounded support judgment and residual gap; does not repair or execute the work."
 metadata:
   version: "0.1.0"
 ---

@@ -8,7 +8,7 @@ its default `user` scope is not tied to a chosen work repository.
 
 Each package's root `plugin.json` declares its Agent Plugins identity.
 `.claude-plugin/plugin.json` retains the matching name, version, description and
-author solely for Claude's legacy discovery format. The same `skills/` directories
+author for Claude Code's host manifest location. The same `skills/` directories
 supply every host; there are no per-host Skill copies or reference loaders.
 
 | npm package | Portable / Claude name | Claude invocation |

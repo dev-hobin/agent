@@ -74,8 +74,8 @@ codex plugin add hobin-developer@hobin-agent
 ```
 
 새 세션에서 Claude는 `/hobin-developer:model`, Codex는 `$hobin-developer:model`처럼
-사용합니다. `.claude-plugin/plugin.json`은 공통 manifest와 동기화한 기존 Claude
-형식의 호환 파일이며 공통 원본을 대체하지 않습니다. 두 호스트 모두 같은 `skills/`를
+사용합니다. `.claude-plugin/plugin.json`은 공통 manifest와 동기화한 Claude Code
+호스트 manifest이며 공통 원본을 대체하지 않습니다. 두 호스트 모두 같은 `skills/`를
 사용합니다.
 
 `claude --plugin-dir /absolute/path/to/agent/packages/developer`는 개발용 세션 로드이며

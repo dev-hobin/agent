@@ -1,11 +1,17 @@
 ---
 name: specify
-description: "Clarify product meaning, scope, invariants, constraints, counterexamples, and blocking unknowns from a requirement, bug report, code behavior, or implementation request. Use when implementation could be mechanically correct while still being wrong about what must be true."
+description: "Clarifies product meaning, scope, invariants, constraints, counterexamples, and blocking unknowns from a requirement, bug report, code behavior, or implementation request. Use when implementation could be mechanically correct while still being wrong about what must be true. Not for building a full condition model, designing the implementation, or verifying completion."
 ---
 
 # Specify
 
 Clarify what must be true without deciding how to build it.
+
+## Gotchas
+
+- A request that describes new behavior often leaves open what happens to data
+  already stored under the old behavior. Name it as an owner decision (keep,
+  migrate, or scrub) instead of resolving it silently.
 
 ## Core Question
 

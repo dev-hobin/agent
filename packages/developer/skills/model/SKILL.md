@@ -1,11 +1,17 @@
 ---
 name: model
-description: "Model unresolved condition space behind a requirement, invariant, bug, policy, workflow, or code behavior using cases, predicates, rules, forbidden states, transitions, objectives, guarantee placement, and verification targets. Use when correctness depends on combinations, absence or default semantics, contracts, replacement, state, time, or policy interaction that must be settled before design. Supplied laws or invariants that only need an interface shape belong directly to sketch."
+description: "Models unresolved condition space behind a requirement, invariant, bug, policy, workflow, or code behavior using cases, predicates, rules, forbidden states, transitions, objectives, guarantee placement, and verification targets. Use when correctness depends on combinations, absence or default semantics, contracts, replacement, state, time, or policy interaction that must be settled before design. Not for supplied laws or invariants that only need an interface shape, deciding product scope, or the final evidence judgment."
 ---
 
 # Model
 
 Expose the condition space a valid implementation must satisfy.
+
+## Gotchas
+
+- Missing, empty, and malformed external responses are separate states. Folding
+  them into an empty-but-valid result accepts invalid input; reject or surface
+  them unless an owner has decided otherwise.
 
 ## Core Question
 
@@ -31,22 +37,13 @@ into a catalog of solvers or languages.
 - Existing cases, tests, examples, and counterexamples
 - Data shapes, states, transitions, and external constraints when relevant
 
-## Supporting Materials
+## When to read more
 
-The core method is complete without supporting material. Supporting material may
-refine the current question; it is guidance, not authority.
-
-If the host has supplied a bounded selection for this invocation, use it as the
-current selection. Apply each material only to the question it actually
-addresses and preserve any visible mismatch as a limitation. Do not rediscover
-alternatives unless the selection is explicitly incomplete.
-
-Otherwise, inspect the colocated [Skill References](references.json). Use the root
-`when` and `unless` conditions to confirm that this method applies; exclusions win. If an
-exclusion applies, return `not-applicable` rather than forcing the method. Then
-evaluate every Reference's `when` conditions and read the smallest materially
-applicable set before producing the result. Broad topic similarity alone is not
-sufficient. If no Reference applies, proceed with the core method alone.
+Before producing the result, read the colocated [Skill References](references.json).
+If a root `unless` condition applies, return `not-applicable`. Otherwise read only
+the References whose `when` condition materially applies; topic similarity is not
+enough. A host-supplied selection replaces this lookup. With no applicable
+Reference, the core method stands alone; References are guidance, not authority.
 
 ## Output
 

@@ -32,7 +32,7 @@
 | [`packages/learning/skills/`](./packages/learning/skills) | 읽기, 저장소 학습, 개념, 패턴, 연습을 위한 독립 Skill 5개 |
 | [`skills/`](./skills) | 두 패키지 밖에서 제공하는 협업 Skill 4개 |
 | [`agents/`](./agents) | 선택적인 프로젝트 지침 조각이며 표준 subagent 정의가 아님 |
-| `packages/*/.claude-plugin/plugin.json` | 식별 정보만 담은 기존 Claude 형식의 호환 파일 |
+| `packages/*/.claude-plugin/plugin.json` | 식별 정보만 담은 Claude Code 호스트 manifest |
 | `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json` | 같은 패키지 루트를 가리키는 호스트별 카탈로그 |
 | `packages/*/adapters/pi/` | 선택적인 기존 Pi lifecycle 연동과 선택기 |
 

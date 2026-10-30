@@ -15,8 +15,9 @@
   convention, and host constraints. See `docs/skill-references.md`.
 - Root `packages/*/plugin.json` owns the portable Agent Plugins identity; use
   the existing `skills/` catalogs. Keep it aligned with npm release metadata.
-  `.claude-plugin/plugin.json` is identity-only legacy compatibility, synchronized
-  with the portable manifest, not an alternative source of portable semantics.
+  `.claude-plugin/plugin.json` is Claude Code's host manifest, kept identity-only and
+  synchronized with the portable manifest, not an alternative source of portable
+  semantics.
 - Keep existing optional Pi components in package-local `adapters/pi/` and
   preserve their behavior. They are legacy host components, not claimed Agent
   Plugins client extensions. New standard client extensions must follow the

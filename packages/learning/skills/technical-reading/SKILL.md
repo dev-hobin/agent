@@ -1,11 +1,12 @@
 ---
 name: technical-reading
 description: >-
-  Study technical prose whose primary evidence is a book, article,
+  Studies technical prose whose primary evidence is a book, article,
   documentation page, specification, tutorial, PDF, or webpage. Use for
   faithful translation separated from coaching, source-intent reconstruction,
   source-grounded questions, and organizing a source's claims, examples,
-  boundaries, and practical consequences into reusable insight candidates.
+  boundaries, and practical consequences into reusable insight candidates. Not
+  for code-first repository study or designing practice exercises.
 ---
 
 # Technical Reading

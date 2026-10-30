@@ -1,6 +1,6 @@
 ---
 name: delegation-gate
-description: Decide whether one concrete proposed agent action should proceed, pause for a user-owned choice, be narrowed, or be declined. Use before destructive, hard-to-reverse, externally visible, security/privacy/credential, durable-data, public-contract, costly, or presently unevaluable actions. Do not use for routine reversible work or to orchestrate an entire task.
+description: "Decides whether one concrete proposed agent action should proceed, pause for a user-owned choice, be narrowed, or be declined. Use before destructive, hard-to-reverse, externally visible, security/privacy/credential, durable-data, public-contract, costly, or presently unevaluable actions. Not for routine reversible work or orchestrating an entire task."
 metadata:
   version: "0.1.0"
 ---

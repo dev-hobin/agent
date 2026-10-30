@@ -1,12 +1,14 @@
 ---
 name: conceptualize
 description: >-
-  Form and test one source-independent concept from several source-bound
-  insights, materials, examples, or observations. Use for comparing source-local
-  language, stripping accidental detail, finding a transferable operation or
-  distinction, separating nearby concepts and connector relations, and testing
-  the candidate with transfer cases and counterexamples. Produce a complete
-  concept result and, when requested, a self-contained plain Markdown artifact.
+  Forms and tests one source-independent concept from several source-bound
+  insights, materials, examples, or observations. Use for comparing source-
+  local language, stripping accidental detail, finding a transferable
+  operation or distinction, separating nearby concepts and connector
+  relations, and testing the candidate with transfer cases and
+  counterexamples. Produces a complete concept result and, when requested, a
+  self-contained plain Markdown artifact. Not for studying what one source
+  says or turning several cases into a repeatable workflow.
 ---
 
 # Conceptualize

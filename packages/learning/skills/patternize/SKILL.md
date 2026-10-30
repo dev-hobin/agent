@@ -1,12 +1,13 @@
 ---
 name: patternize
 description: >-
-  Discover and test a reusable operational pattern across several materials,
+  Discovers and tests a reusable operational pattern across several materials,
   cases, concepts, diagnostics, or repeated judgments. Use when recurring
   context and forces should become a workflow, decision path, diagnostic path,
   composition routine, checklist, or execution model with transfer and failure
-  checks. Produce a complete pattern result and, when requested, a
-  self-contained plain Markdown artifact.
+  checks. Produces a complete pattern result and, when requested, a self-
+  contained plain Markdown artifact. Not for forming a single transferable
+  concept or studying one source.
 ---
 
 # Patternize

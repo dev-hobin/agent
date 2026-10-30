@@ -1,12 +1,18 @@
 ---
 name: information-loss-judgment
-description: "Judge whether a concrete data transformation adds, discards, or reorganizes information deliberately by tracing accrete, reduce, and reshape steps, preserved observers, equivalence classes, provenance, and recovery needs. Use when summaries, normalization, grouping, projections, metrics, serialization, or representation changes may erase consequential distinctions."
+description: "Judges whether a concrete data transformation adds, discards, or reorganizes information deliberately by tracing accrete, reduce, and reshape steps, preserved observers, equivalence classes, provenance, and recovery needs. Use when summaries, normalization, grouping, projections, metrics, serialization, or representation changes may erase consequential distinctions. Not for choosing storage technology, designing the implementation API, or settling product equivalence that only an owner can decide."
 ---
 
 # Information Loss Judgment
 
 Make information gain, loss, and reorganization explicit before a downstream
 representation becomes authoritative.
+
+## Gotchas
+
+- Scrubbing or rewriting data that is already stored is irreversible loss, not
+  cleanup. Preserve it by default and name removal as an owner decision, even
+  when the new representation no longer needs the field.
 
 ## Core Question
 
@@ -34,22 +40,13 @@ irrelevant.
 - Required provenance, audit, replay, explanation, or recovery behavior
 - Examples that differ before transformation and may coincide afterward
 
-## Supporting Materials
+## When to read more
 
-The core method is complete without supporting material. Supporting material may
-refine the current question; it is guidance, not authority.
-
-If the host has supplied a bounded selection for this invocation, use it as the
-current selection. Apply each material only to the question it actually
-addresses and preserve any visible mismatch as a limitation. Do not rediscover
-alternatives unless the selection is explicitly incomplete.
-
-Otherwise, inspect the colocated [Skill References](references.json). Use the root
-`when` and `unless` conditions to confirm that this method applies; exclusions win. If an
-exclusion applies, return `not-applicable` rather than forcing the method. Then
-evaluate every Reference's `when` conditions and read the smallest materially
-applicable set before producing the result. Broad topic similarity alone is not
-sufficient. If no Reference applies, proceed with the core method alone.
+Before producing the result, read the colocated [Skill References](references.json).
+If a root `unless` condition applies, return `not-applicable`. Otherwise read only
+the References whose `when` condition materially applies; topic similarity is not
+enough. A host-supplied selection replaces this lookup. With no applicable
+Reference, the core method stands alone; References are guidance, not authority.
 
 ## Output
 

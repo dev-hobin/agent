@@ -78,8 +78,8 @@ codex plugin add hobin-developer@hobin-agent
 
 Start a new session. Use `/hobin-developer:model` in Claude or
 `$hobin-developer:model` in Codex instead of an unqualified Skill name.
-`.claude-plugin/plugin.json` is synchronized legacy Claude metadata, not the
-portable source of truth. Both routes use the same `skills/` directory.
+`.claude-plugin/plugin.json` is the synchronized Claude Code host manifest, not
+the portable source of truth. Both routes use the same `skills/` directory.
 
 `claude --plugin-dir /absolute/path/to/agent/packages/developer` is a session-only
 development shortcut, not persistent installation. Ordinary flat `skills add`

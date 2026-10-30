@@ -32,7 +32,7 @@ published specifications, conditional candidates, host contracts and our rules.
 | [`packages/learning/skills/`](./packages/learning/skills) | Five independent reading, repository-study, concept, pattern and practice Skills |
 | [`skills/`](./skills) | Four standalone collaboration Skills, outside both package catalogs |
 | [`agents/`](./agents) | Optional project-context fragments, not standardized subagent definitions |
-| `packages/*/.claude-plugin/plugin.json` | Identity-only legacy Claude compatibility |
+| `packages/*/.claude-plugin/plugin.json` | Identity-only Claude Code host manifest |
 | `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json` | Host-specific catalogs pointing at the same two package roots |
 | `packages/*/adapters/pi/` | Optional existing Pi lifecycle and chooser components |
 

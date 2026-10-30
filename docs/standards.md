@@ -68,6 +68,23 @@ authoring guidance, not additional schema fields or unconditional failures.
 Canonical methods remain in `packages/*/skills/` and `skills/` without per-host
 copies. Four standalone Skills remain outside the two plugin catalogs.
 
+### Skill authoring guidance (reviewed 2026-10-30)
+
+Sources: Agent Skills [best practices](https://github.com/agentskills/agentskills/blob/69ef37e9424c0a7ea9dd2293b559e43ec8176379/docs/skill-creation/best-practices.mdx)
+and [optimizing descriptions](https://github.com/agentskills/agentskills/blob/69ef37e9424c0a7ea9dd2293b559e43ec8176379/docs/skill-creation/optimizing-descriptions.mdx)
+at the pinned commit (upstream recommendations), and Claude's
+[Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+(host recommendation, unversioned). None of these is a schema requirement.
+
+| Decision | Classification and basis | Verifier |
+| --- | --- | --- |
+| A description states what the Skill does in the third person, then `Use when …`, then `Not for …` near misses | The third person follows the Claude guidance ("Always write in third person"). The imperative `Use when` follows the Agent Skills guidance. Upstream recommends near-miss *test queries*; writing them into the description is our **repository convention** | Human review now; trigger evals with near-miss queries (planned) |
+| A `## Gotchas` section, placed directly after the introduction, holds only failures that were observed or corrected | Upstream recommendation ("Gotchas sections"); the evidence-only rule is our **repository convention**. Provenance is recorded in the change's plan, not in the Skill | Human review; each entry cites an observation in `docs/plans/` |
+| One short `## When to read more` section replaces the repeated reference-lookup boilerplate | **Repository convention**, following the upstream advice to spend context only on what the agent lacks. The `references.json` contract in [conditional references](skill-references.md) is unchanged | `check:portable` link and resource checks |
+
+Where the Claude and Agent Skills guidance differ, the rule above records which part
+each one governs. Neither is relabeled as an upstream requirement.
+
 ## Agent Plugins: applicable requirements and verification
 
 The specification text, not the JSON Schema alone, is authoritative. We adopt a
@@ -89,7 +106,7 @@ pins live under `schemas/upstream/agent-plugins/1.0.0/`. The checker verifies lo
 bytes and performs no schema download. Upstream files must not be edited or
 relicensed as our MIT work.
 
-### Common identity and legacy compatibility
+### Common identity and host-specific manifests
 
 Each package's root `plugin.json` owns the portable identity. Our convention maps
 `@hobin/<package>` to `hobin-<package>` and keeps its release metadata aligned
@@ -97,11 +114,13 @@ with npm. This mapping, disjoint names within our catalogs, identity-only
 manifests and npm export rules are **repository conventions**, not upstream
 requirements or a global registry.
 
-Existing `.claude-plugin/plugin.json` and `package.json`'s `pi` fields are parallel
-legacy host-format compatibility, not portable manifest overrides or claimed §8
+`.claude-plugin/plugin.json` is Claude Code's current manifest location, a host
+contract rather than a deprecated format, and `package.json`'s `pi` fields are Pi
+package metadata. We keep both identity-only and synchronized: they are
+host-specific compatibility, not portable manifest overrides or claimed §8
 client extensions. Existing Pi adapter components remain outside the v1
 component types (§7); their discovery and behavior belong only to Pi. New
-standard client extensions must use §8 rather than copying these legacy paths.
+standard client extensions must use §8 rather than copying these host-specific paths.
 The portable core does not discover or execute them. Native compatibility checks
 remain separate, and the same canonical Skill directories supply every route.
 
@@ -133,6 +152,10 @@ precede their activation. Do not build a runtime just to adopt a protocol.
   runnable agents/flows. Our independent methods are not executable agent-loop
   definitions, so this is outside the present model.
 
+- [Agent Plugins 1.1.0](https://agent-plugins.org/specification) is a Working
+  Draft (reviewed 2026-10-30). Observe; 1.0.0 stays the adopted baseline until a
+  published release is reviewed through the procedure above.
+
 ## Repository conventions and host contracts
 
 `references.json`, `judgment.json`, generated `Context Directions`, applicability,
@@ -161,7 +184,7 @@ automatic context injection and hook APIs remain host-specific.
 | --- | --- |
 | `packages/*/plugin.json` | Portable package identity; npm metadata is synchronized by repository checks |
 | `packages/*/skills/`, `skills/` | Canonical Agent Skills and contained supporting files |
-| `packages/*/.claude-plugin/plugin.json` | Legacy Claude identity compatibility, not a portable override |
+| `packages/*/.claude-plugin/plugin.json` | Claude Code host manifest, identity-only and synchronized; not a portable override |
 | `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json` | Claude and Codex distribution catalogs |
 | `packages/*/adapters/pi/` | Optional Pi-only components, not portable client extensions |
 | `schemas/`, `packages/learning/schemas/` | Repository-owned authoring schemas, except the attributed `schemas/upstream/` subtree |

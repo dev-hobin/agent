@@ -1,6 +1,6 @@
 ---
 name: visualize
-description: "Choose and shape the smallest visual surface that materially lowers the cost of inspecting a decision, model, evidence set, architecture relation, UI state, quantitative comparison, or workflow. Use when relationships, cases, sequence, hierarchy, or repeated mappings are materially harder to judge in prose."
+description: "Chooses and shapes the smallest visual surface that materially lowers the cost of inspecting a decision, model, evidence set, architecture relation, UI state, quantitative comparison, or workflow. Use when relationships, cases, sequence, hierarchy, or repeated mappings are materially harder to judge in prose. Not for decorating a report or content that reads clearly as prose or a short list."
 ---
 
 # Visualize

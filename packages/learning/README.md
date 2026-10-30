@@ -84,8 +84,8 @@ codex plugin add hobin-learning@hobin-agent
 
 Start a new session. Claude uses `/hobin-learning:technical-reading`; Codex uses
 `$hobin-learning:technical-reading`. Both consume the same canonical `skills/`.
-The synchronized `.claude-plugin/plugin.json` is legacy compatibility, not an
-alternative portable manifest. No `.codex-plugin` descriptor is needed here.
+The synchronized `.claude-plugin/plugin.json` is Claude Code's host manifest, not
+an alternative portable manifest. No `.codex-plugin` descriptor is needed here.
 
 `claude --plugin-dir /absolute/path/to/agent/packages/learning` is for one-session
 development only. Flat `skills add` does not apply plugin namespaces or remove

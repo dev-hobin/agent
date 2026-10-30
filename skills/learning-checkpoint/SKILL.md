@@ -1,6 +1,6 @@
 ---
 name: learning-checkpoint
-description: Choose the next single learner action inside authentic work after one target mechanism or decision model has been adequately presented. Use only when the input identifies that prior worked model; do not auto-activate to teach, to diagnose a pre-model prediction request, or merely because learning is mentioned. Turn explanation into observable architecture, contract, debugging, evidence, or transfer judgment without requiring code typing. When explicitly invoked without an adequate model, return needs-model instead of asking the learner to guess.
+description: "Chooses the next single learner action inside authentic work after one target mechanism or decision model has been adequately presented. Use only when the input identifies that prior worked model. Not for teaching, diagnosing a pre-model prediction request, or activating merely because learning is mentioned. Turns explanation into observable architecture, contract, debugging, evidence, or transfer judgment without requiring code typing. When explicitly invoked without an adequate model, returns needs-model instead of asking the learner to guess."
 metadata:
   version: "0.1.0"
 ---

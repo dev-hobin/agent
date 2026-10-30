@@ -82,8 +82,8 @@ codex plugin add hobin-learning@hobin-agent
 
 새 세션에서 Claude는 `/hobin-learning:technical-reading`, Codex는
 `$hobin-learning:technical-reading`처럼 사용합니다. 두 호스트가 같은 `skills/`를
-사용합니다. `.claude-plugin/plugin.json`은 공통 manifest와 동기화한 기존 Claude
-호환 파일이며, 여기서는 `.codex-plugin` 파일이 필요하지 않습니다.
+사용합니다. `.claude-plugin/plugin.json`은 공통 manifest와 동기화한 Claude Code
+호스트 manifest이며, 여기서는 `.codex-plugin` 파일이 필요하지 않습니다.
 
 `claude --plugin-dir /absolute/path/to/agent/packages/learning`은 개발용 세션 로드입니다.
 일반 flat `skills add`가 namespace를 적용하거나 기존 사본을 제거하지도 않습니다.

@@ -1,11 +1,13 @@
 ---
 name: exercise
 description: >-
-  Turn a learned concept, connection, pattern, reading insight, or repository
-  study result into deliberate practice and observable mastery evidence. Use for
-  prediction tasks, misconception diagnostics, worked and faded examples,
+  Turns a learned concept, connection, pattern, reading insight, or repository
+  study result into deliberate practice and observable mastery evidence. Use
+  for prediction tasks, misconception diagnostics, worked and faded examples,
   contrast sets, repair tasks, transfer problems, tutor scripts, spaced
-  retrieval plans, mastery rubrics, and optional plain Markdown workbooks.
+  retrieval plans, mastery rubrics, and optional plain Markdown workbooks. Not
+  for first teaching a mechanism the learner has not seen, or explanation
+  without an observable mastery objective.
 ---
 
 # Exercise
@@ -50,7 +52,9 @@ Prepared references are independent candidates, never requirements or authority:
 
 1. Name the smallest practice target before writing exercises.
 2. Expose the learner's prior model through prediction or explanation before a
-   polished answer.
+   polished answer. Ask for prediction only about material already presented;
+   for an unfamiliar mechanism, fully work one example first and ask for a
+   prediction about a changed case.
 3. Require mechanism, not terminology alone.
 4. Use worked examples and scaffolding for novices, then fade support.
 5. Include contrasts, near misses, and misconception diagnostics.
@@ -177,7 +181,8 @@ storage layout or metadata schema.
 A useful practice result:
 
 - tests the target mechanism rather than source trivia;
-- obtains at least one prediction before explanation;
+- obtains at least one prediction before explaining a new case, after a worked
+  example when the mechanism is unfamiliar;
 - includes a misconception trap or near miss;
 - provides appropriate scaffolding and fading;
 - includes diagnostic answer keys;

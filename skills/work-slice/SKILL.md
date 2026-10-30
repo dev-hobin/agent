@@ -1,6 +1,6 @@
 ---
 name: work-slice
-description: Select the next smallest authentic and inspectable slice of a broad, tangled, or fragmented task. Use when work is being organized by files, layers, or topics; when a local change may lose its connection to the user-visible outcome; or when one consequential focus and its reconnect edge must be chosen before design or execution. Not for trivial work or full implementation planning.
+description: "Selects the next smallest authentic and inspectable slice of a broad, tangled, or fragmented task. Use when work is being organized by files, layers, or topics; when a local change may lose its connection to the user-visible outcome; or when one consequential focus and its reconnect edge must be chosen before design or execution. Not for trivial work or full implementation planning."
 metadata:
   version: "0.1.0"
 ---

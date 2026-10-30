@@ -1,6 +1,6 @@
 ---
 name: module-judgment
-description: "Judge whether a concrete module remains useful in its environment by separating model, interface, invariants, assumptions, drift, participant pressure, and replacement boundaries. Use when module cohesion, boundary size, shared assumptions, interface stability, split or merge pressure, or environmental mismatch is consequential."
+description: "Judges whether a concrete module remains useful in its environment by separating model, interface, invariants, assumptions, drift, participant pressure, and replacement boundaries. Use when module cohesion, boundary size, shared assumptions, interface stability, split or merge pressure, or environmental mismatch is consequential. Not for designing an original interface, naming a single identifier, or scheduling a reorganization."
 ---
 
 # Module Judgment
@@ -33,22 +33,13 @@ matches its assumptions.
 - Internal invariants and construction or transition owners
 - Omitted environmental facts, known drift, and expected change
 
-## Supporting Materials
+## When to read more
 
-The core method is complete without supporting material. Supporting material may
-refine the current question; it is guidance, not authority.
-
-If the host has supplied a bounded selection for this invocation, use it as the
-current selection. Apply each material only to the question it actually
-addresses and preserve any visible mismatch as a limitation. Do not rediscover
-alternatives unless the selection is explicitly incomplete.
-
-Otherwise, inspect the colocated [Skill References](references.json). Use the root
-`when` and `unless` conditions to confirm that this method applies; exclusions win. If an
-exclusion applies, return `not-applicable` rather than forcing the method. Then
-evaluate every Reference's `when` conditions and read the smallest materially
-applicable set before producing the result. Broad topic similarity alone is not
-sufficient. If no Reference applies, proceed with the core method alone.
+Before producing the result, read the colocated [Skill References](references.json).
+If a root `unless` condition applies, return `not-applicable`. Otherwise read only
+the References whose `when` condition materially applies; topic similarity is not
+enough. A host-supplied selection replaces this lookup. With no applicable
+Reference, the core method stands alone; References are guidance, not authority.
 
 ## Output
 

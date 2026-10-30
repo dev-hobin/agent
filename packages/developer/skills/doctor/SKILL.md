@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: "Diagnose a user-selected or explicitly bounded existing codebase scope and produce an evidence-backed improvement plan. Use for repository, package, directory, module, runtime-flow, boundary, or feature-slice review when behavior to preserve, invariant risk, structural pressure, evidence gaps, and justified now/next/later/leave-alone work must be assessed together. Not for pull-request diff review, environment setup checks, speculative cleanup, or automatic repair."
+description: "Diagnoses a user-selected or explicitly bounded existing codebase scope and produces an evidence-backed improvement plan. Use for repository, package, directory, module, runtime-flow, boundary, or feature-slice review when behavior to preserve, invariant risk, structural pressure, evidence gaps, and justified now/next/later/leave-alone work must be assessed together. Not for pull-request diff review, environment setup checks, speculative cleanup, or automatic repair."
 ---
 
 # Doctor

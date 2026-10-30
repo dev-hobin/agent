@@ -1,11 +1,13 @@
 ---
 name: opensource-reading
 description: >-
-  Study an open source repository through one evidence-backed code slice. Use
-  for tracing a public API, module, test group, runtime flow, contract,
+  Studies an open source repository through one evidence-backed code slice.
+  Use for tracing a public API, module, test group, runtime flow, contract,
   invariant, failure mode, architecture boundary, or tradeoff across docs,
-  tests, examples, and implementation code, and for producing complete
-  source-bound engineering insights and optional plain Markdown artifacts.
+  tests, examples, and implementation code, and for producing complete source-
+  bound engineering insights and optional plain Markdown artifacts. Not for
+  touring a whole repository at once, a quick API lookup, or studying prose
+  documents without code.
 ---
 
 # Open Source Reading
@@ -45,8 +47,10 @@ Prepared references are independent candidates, never requirements or authority:
 1. Do not explain the whole repository at once.
 2. Narrow the target to one public API, feature, module, test group, state
    transition, or runtime path.
-3. Ask for a learner hypothesis before giving a polished explanation when the
-   task is interactive learning rather than a direct lookup.
+3. In interactive learning rather than a direct lookup, ask what problem or
+   risk the learner expects the slice to address before giving a polished
+   explanation. For an unfamiliar mechanism, trace one worked path first and
+   ask for a prediction only about a changed case.
 4. Prefer design, contract, invariant, and evidence questions over syntax tours.
 5. Use docs, examples, types, tests, implementation, fixtures, issues, and
    decision records as evidence.
