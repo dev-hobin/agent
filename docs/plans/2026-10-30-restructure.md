@@ -1,6 +1,6 @@
 # 저장소 재구성 계획 (2026-10-30)
 
-상태: P1·P2·P3 완료, P5 준비 완료(릴리스 전). P4(모델 평가 실행)는 승인 대기. 브랜치 작업만 하며 배포, 원격 push, 유료 평가는 하지 않는다.
+상태: P1·P2·P3 완료, P4 1차(Sonnet 결과 평가, 3개 모델 트리거 평가) 완료, P5 준비 완료(릴리스 전). 브랜치 작업만 하며 배포, 원격 push, 유료 평가는 하지 않는다.
 P4 평가 실행과 P5 릴리스는 각각 별도 승인을 받는다.
 
 ## 0. 원칙
@@ -162,3 +162,61 @@ type-transitions(sketch), topology-resolution-routing의 동적 토폴로지 부
 
 1. 실행기 격리: 실행기는 init 이벤트의 plugin 목록을 검사하고, 예상하지 않은 plugin이 있으면 중단한다. 사용자 전역 설치 플러그인(`hobin-developer` 0.2.2)이 `--setting-sources project`에서 실제로 빠지는지는 첫 smoke 실행으로 확인한다.
 2. 비용: 결과 평가는 과제 수 × 조건 3 × 모델 2~3 × 3회다. 실행 전에 dry run 출력으로 실행 횟수를 보여 주고 상한을 승인받는다.
+
+## 8. P4 1차 결과 (2026-10-30)
+
+조건: 결과 평가는 Sonnet만, 조건(skill / skill 없음 / 길이를 맞춘 대조군)마다 3회.
+트리거 평가는 Haiku·Sonnet·Opus, 질의 20개 × 3회. 표본이 작고 결과 평가는 모델 하나이므로
+판정은 잠정적이다. 판정 규칙(§4)이 요구하는 "모델 2개 이상"은 아직 충족하지 못했다.
+
+### 결과 평가 (assertion 통과 수: skill / 없음 / 대조군)
+
+| skill | 결과 | 차이를 만든 assertion | 판정 |
+| --- | --- | --- | --- |
+| reviewing-code | 39/39 · 28/39 · 32/39 | 깨진 기존 테스트 보고 3/3 · 0/3 · 0/3, 전체 suite 실행 3/3 · 0/3 · 0/3 | keep |
+| developing-features | 30/36 · 26/36 · 23/36 | 숨은 테스트는 같음(6/6 · 6/6 · 5/6). 독립 검증을 거의 건너뜀 → Gotcha 추가 후 검증 subagent 실행 1/6 → 6/6 | keep, 수정함 |
+| applying-stances | 16/18 · 2/18 · 11/18 | 정확한 diff 제시 3/3 · 0/3 · 0/3, 중복 규칙 회피 3/3 · 0/3 · 1/3 | keep |
+| enforcing-conventions | 18/24 · 14/24 · 15/24 | 지침의 산문 규칙을 검사 포인터로 교체 3/3 · 0/3 · 0/3. 두 assertion이 모든 조건에서 실패해 점검 필요 | keep (약함) |
+| evaluating-skills | 15/21 · 19/21 · 21/21 | skill 조건이 비교 조건과 판정 규칙을 적지 않음 → 계획 기록 단계 추가 후 21/21 | 수정함. 대조군을 넘는다는 증거는 아직 없음 |
+| patternize | 27/27 · 15/27 · 17/27 | 사례 표, 점검이 붙은 순서 있는 절차 3/3 · 0~1/3 · 0/3 | keep |
+| conceptualize | 20/24 · 20/24 · 21/24 | 이득 없음 | 은퇴 후보 (삭제 보류) |
+
+conceptualize와 patternize의 병합: 트리거에서 서로의 질의를 고른 사례가 0건이고, 결과도
+patternize만 이득이 있다. 병합 근거가 없으므로 병합하지 않는다. conceptualize는 두 번째 모델
+확인 후 은퇴 또는 재작성을 결정한다.
+
+### 트리거 평가 (정답 질의 수 / 20)
+
+| skill | Haiku | Sonnet | Opus |
+| --- | --- | --- | --- |
+| reviewing-code | 16 | 20 | 18 |
+| developing-features | 17 | 19 | 20 |
+| applying-stances | 20 | 20 | 20 |
+| enforcing-conventions | 16 | 20 | 20 |
+| evaluating-skills | 19 | 19 | 20 |
+| conceptualize | 13 | 19 | 19 |
+| patternize | 11 | 18 | 18 |
+
+- Sonnet과 Opus에서는 오탐률이 0.07 이하다. Haiku는 learning skill에서 recall이 낮다(0.13~0.40).
+- developing-features는 "구현하지 말고 인수 조건만 써 달라"는 near-miss에 Sonnet이 3/3으로 반응했다. description의 `Not for`에 이 범주를 추가한 뒤 1/3이 됐다.
+
+### 평가 도구에서 발견해 고친 것
+
+빈 workspace에서는 트리거 측정이 교란됐다 → 트리거 실행에는 Skill 도구만 준다.
+채점기가 실행 기록을 보지 못하고, 부정형 assertion을 증거 부족으로 실패시켰다 → 명령과
+subagent 기록을 채점기에 넘기고 판정 규칙을 명시했다.
+실행 조건마다 도구가 달라 skill의 스크립트를 쓸 수 없었다 → 모든 조건에 같은 도구를 준다.
+
+남은 한계: headless 실행에서 subagent의 shell 호출이 거부되어, 독립 검증자가 시나리오 명령을
+실행하지 못한다. 평가 환경의 한계이며 skill 수정으로 해결할 문제가 아니다.
+
+### 비용
+
+총 약 $114. 트리거 평가가 약 $89로 대부분이다. 실행할 때마다 skill이 로드되고 Opus 실행이 비싸다.
+결과 평가는 실행당 $0.1~0.4로 약 $24다.
+
+### 다음
+
+1. Opus 결과 평가: 판정이 경계에 있는 conceptualize, evaluating-skills, enforcing-conventions부터 돌린다.
+2. enforcing-conventions에서 모든 조건이 실패하는 두 assertion을 점검한다.
+3. conceptualize의 은퇴 또는 재작성을 결정한다.

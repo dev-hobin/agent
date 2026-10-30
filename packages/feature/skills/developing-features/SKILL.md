@@ -1,6 +1,6 @@
 ---
 name: developing-features
-description: "Develops a feature or behavior change through checkpoints: write acceptance scenarios and owner decisions, model combining conditions, design the surface, implement in small verified slices, and verify every scenario with an independent reviewer. Use only when explicitly asked to build a non-trivial feature or fix where scope, conditions, or design are unsettled. Not for one-line fixes, pure refactors, or reviewing someone else's change."
+description: "Develops a feature or behavior change through checkpoints: write acceptance scenarios and owner decisions, model combining conditions, design the surface, implement in small verified slices, and verify every scenario with an independent reviewer. Use only when explicitly asked to build a non-trivial feature or fix where scope, conditions, or design are unsettled. Not for one-line fixes, pure refactors, reviewing someone else's change, or writing a ticket or acceptance criteria without implementing."
 metadata:
   version: "0.3.0"
 ---
@@ -20,6 +20,9 @@ passes and an independent reviewer agrees.
   step runs. Revalidate right before the irreversible step.
 - New tests passing is not completion. Existing tests around the changed code must
   still pass, and every scenario must have been run, not just written.
+- The independent verification in step 6 is the step most often skipped, usually with
+  "my tests pass" as the reason. Your own tests share your blind spots; the report is
+  not complete without the verifier's result or an explicit reason it could not run.
 - Project instructions (`AGENTS.md`, `CLAUDE.md`) record decisions that outrank the
   defaults below.
 

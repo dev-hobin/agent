@@ -23,6 +23,9 @@ Decide with evidence whether a Skill changes outcomes enough to justify its cont
 - A gain over no skill can come from extra prompt length alone. Compare against a
   length-matched control before crediting the Skill's content.
 - Assertions that pass in every condition carry no information; remove or harden them.
+- A runner that applies the conditions by default hides them from the eval files.
+  Write the comparison (conditions, models, runs) and the decision rule into the eval
+  directory before running, so readers and later runs know what "better" means.
 - An LLM grader that sees only the final answer cannot judge process assertions
   ("ran the existing tests", "used an independent reviewer") and tends to fail
   negative ones ("did not flag X") for lack of evidence. Give it the commands and
@@ -44,8 +47,11 @@ Decide with evidence whether a Skill changes outcomes enough to justify its cont
    (hidden tests, file checks) wherever possible.
 4. **Calibrate.** Run the without-skill condition once. Drop or harden tasks it already
    passes completely.
-5. **Run the matrix.** Conditions with-skill, without-skill, and control, on at least
-   two models, 3 runs each. Record pass rates, cost, tokens, and time.
+5. **Write the plan, then run the matrix.** In the eval directory's `README.md`, state
+   the conditions (with-skill, without-skill, control), the models (at least two), the
+   runs per cell (3), and the decision rule from step 7. Then run and record pass rates,
+   cost, tokens, and time. Estimate cost from a few runs first: trigger runs load the
+   Skill on every query and add up quickly on large models.
 6. **Analyze per assertion.** Look for assertions that pass only with the Skill, that
    fail everywhere (broken assertion or task too hard), or that flip between runs
    (flaky task or vague instruction). Read a few transcripts for each pattern.
