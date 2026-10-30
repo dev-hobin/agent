@@ -1,6 +1,6 @@
 ---
 tags: [regression]
-description: "Not covered on Claude: hidden-tests, visible-tests (command_passes; claude plugin eval runs nothing after the run). The same case is proven on Codex and by the core scenario check."
+description: "Not covered on Claude: hidden-tests, visible-tests (command_passes; claude plugin eval runs nothing after the run). The same case is proven on Codex and by the core scenario check. Not covered by graders (claude plugin eval has no custom-code graders): scenario-record-complete (scenarios.mjs check)."
 max_turns: 80
 timeout_seconds: 1800
 allowed_tools: [Read, Glob, Grep, Agent, Bash, Write, Edit]

@@ -1,4 +1,5 @@
 ---
+description: "Not covered by graders (claude plugin eval has no custom-code graders): report-format (check-report.mjs; enforced in the run by the plugin hook)."
 tags: [regression]
 max_turns: 60
 timeout_seconds: 1200

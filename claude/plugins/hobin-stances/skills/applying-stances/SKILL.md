@@ -2,6 +2,8 @@
 name: applying-stances
 description: "Installs a short set of engineering stances into a project's or user's agent instructions (CLAUDE.md or AGENTS.md) after showing the exact diff and getting approval, and links each stance to an existing check where one exists. Use only when explicitly asked to set up or update these stances. Not for writing general project documentation or enforcing a convention in code."
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(node ${CLAUDE_SKILL_DIR}/scripts/stances.mjs *)"
 ---
 
 # Applying Stances
@@ -39,8 +41,11 @@ exact diff.
    it can be checked, and append `(checked by <path or command>)` only when that check
    really exists in the project. List stances without a check as candidates for enforcing
    conventions.
-4. **Write the proposal.** If the marker block `<!-- hobin-stances:v1 -->` exists, replace
-   it in place (never leave two blocks); otherwise append the block. Write the proposal to
+4. **Write the proposal.** Generate the exact diff with
+   `node ${CLAUDE_SKILL_DIR}/scripts/stances.mjs block <target> [--skip <numbers of dropped stances>] [--learning]`
+   (numbers as listed in `assets/stances.md`); it replaces an existing block in place or
+   appends one. Do not write the block text by hand. Run `node ${CLAUDE_SKILL_DIR}/scripts/stances.mjs check <proposal file>`
+   and fix what it reports. Write the proposal to
    the file the request names, or in the reply if it names none, in this form, then ask
    for approval. In a non-interactive run, stop here.
 
@@ -53,7 +58,7 @@ exact diff.
    Without a check: <stances with no check to link (enforcing-conventions candidates)>
    <approval request>
    ```
-5. **Write and report** only after approval: the files changed, stances skipped as
+5. **Write and report** only after approval, then run `node ${CLAUDE_SKILL_DIR}/scripts/stances.mjs check <target>`: the files changed, stances skipped as
    duplicates or conflicts, and stances without a check. Until then change no file other
    than the proposal file the request names.
 

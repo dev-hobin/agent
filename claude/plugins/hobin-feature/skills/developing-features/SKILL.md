@@ -5,6 +5,7 @@ argument-hint: "[the feature or behavior change to build, or the path of its req
 disable-model-invocation: true
 allowed-tools:
   - "Agent(hobin-feature:independent-verifier)"
+  - "Bash(node ${CLAUDE_SKILL_DIR}/scripts/scenarios.mjs *)"
 ---
 
 # Developing Features
@@ -58,8 +59,10 @@ Request: $ARGUMENTS (if empty, take it from the conversation)
    scenario command and the existing tests and returns only must-fix items. Fix them and
    repeat, at most 3 rounds; report what is still open. If the agent cannot be used,
    do a fresh pass that rereads only those same inputs and say so in the report.
-7. **Report** in this form, and set each scenario's `status` and
-   `verification.rounds` in the scenario file to the last result. Write it to the file
+7. **Report** in this form. Scenario results come only from `node ${CLAUDE_SKILL_DIR}/scripts/scenarios.mjs run`,
+   which runs every scenario check and the existing tests and writes the results into the
+   record; never edit `status` by hand. Finish only when `node ${CLAUDE_SKILL_DIR}/scripts/scenarios.mjs check`
+   passes; it prints what is incomplete. Write it to the file
    the request names, otherwise in the answer:
 
 ```text

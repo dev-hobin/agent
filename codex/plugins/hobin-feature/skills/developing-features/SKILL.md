@@ -56,8 +56,10 @@ passes and an independent reviewer agrees.
    existing tests and returns only must-fix items. Fix them and repeat, at most 3 rounds;
    report what is still open. If subagents are unavailable, do a fresh pass that rereads
    only those same inputs and say so in the report.
-7. **Report** in this form, and set each scenario's `status` and `verification.rounds` in
-   the scenario file to the last result. Write it to the file the request names,
+7. **Report** in this form. Scenario results come only from
+   `node <this skill's directory>/scripts/scenarios.mjs run`, which runs every scenario check
+   and the existing tests and writes the results into the record; never edit `status` by
+   hand. Finish only when `node <this skill's directory>/scripts/scenarios.mjs check` passes. Write it to the file the request names,
    otherwise in the answer:
 
 ```text

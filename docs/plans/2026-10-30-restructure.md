@@ -409,3 +409,37 @@ refund 3/3 · 3/3 · 3/3, money-to-cents 3/3 · 3/3 · 3/3.
 
 - **이전 수치와의 차이:** description은 이전과 같다. 이전 수치(자체 실행기, Sonnet 18~20/20)와의 차이는 측정 환경의 차이로 보고, 이번 값을 공식 도구 기준의 기준선으로 삼는다.
 - **개선 방법:** description 개선은 Agent Skills의 optimizing-descriptions 방식(학습/검증 질의 분리, 과적합 금지)으로 따로 한다.
+
+## 14. 반드시 지켜야 할 부분은 스크립트로 (2026-10-30)
+
+사용자 지적("너무 ai가 잘 해주길 기대하는 방식")에 따라, 항상 성립해야 하는 결과는 지시문이
+아니라 스크립트로 만들고(생성), 검사하고(종료 코드와 고치는 법), 호스트가 허용하면 hook으로
+강제한다. 판단만 지시문에 남긴다.
+
+| 역량 | 스크립트 | 보장 | Claude | Codex |
+| --- | --- | --- | --- | --- |
+| learning 5종 | `core/shared/scripts/output-contract.mjs` (`new`/`check`) + `assets/output-contract.json` | 각 G5~G8 | enforced (PostToolUse hook) | instructed (자기 검사) |
+| review | `scripts/check-report.mjs` (형식, 실재하는 file:line, Scenario/Evidence) | G4 | enforced (PostToolUse hook) | instructed |
+| developing-features | `scripts/scenarios.mjs` (`run`이 결과 기록, `check`가 완결성 검사) | G6 | instructed (결과는 스크립트만 기록) | instructed |
+| applying-stances | `scripts/stances.mjs` (`block`이 diff 생성, `check`가 블록 검사) | G8 | instructed | instructed |
+
+- 시나리오 검사 종류 `output_contract`, `script_passes`를 추가했다. `pnpm check`가 정답은
+  통과하고 손대지 않은 작업 공간·빈 양식은 실패함을 증명한다.
+- `claude plugin eval`에는 코드 채점기가 없으므로, 이 검사들은 case `description`에
+  "채점기 미지원(hook 또는 자기 검사로 보장)"으로 적었다. Codex 벤치마크는 verifier
+  명령(`scenario-check.mjs`)이 같은 검사를 실행한다.
+- 변환 skill 참조(`references/claude.md`, `codex.md`)에 "Capability check scripts" 절을
+  추가해, 다음 명세 변경부터 같은 방식으로 반영되게 했다.
+- learning 회귀(Sonnet): output contract + hook 적용 후 conceptualize, exercise,
+  opensource-reading, patternize 1.00. technical-reading은 조직 월 사용 한도에 걸려 1회만
+  실행했다(통과).
+- review·feature·stances 구현체 반영은 사용 한도 때문에 변환 세션 대신 이 세션에서
+  변환 skill 레시피대로 직접 했다. 검증: `pnpm check`(10개 역량 증명, 테스트 19개),
+  `pnpm check:claude`(6개 통과), 설치 probe(Claude 2.1.314, Codex 0.166.0), review hook
+  pipe 테스트(잘못된 보고서 exit 2, 올바른 보고서·무관 파일·깨진 입력 exit 0).
+
+### 남은 일
+
+- 모델 평가 재실행(review·feature·stances 새 검사 반영 후): 사용 한도 해제 후.
+- Codex 평가(plugin-eval): 외부 코드 실행이라 사용자 허가가 필요하다.
+- 트리거 description 개선: 학습/검증 분리 방식으로 따로.

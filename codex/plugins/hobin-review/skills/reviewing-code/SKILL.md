@@ -53,7 +53,10 @@ Do not change the reviewed code; write only the report.
 6. **Rank.** P0: data loss, security exposure, or a crash on a main path. P1: wrong
    behavior on a realistic path. Report P2 and below only when asked.
 7. **Report** in the file the request names, or in the reply. In scope diagnosis, end
-   with a plan ordered now, next, later, and leave alone, each with the reason.
+   with a plan ordered now, next, later, and leave alone, each with the reason. For a
+   report file, run `node <this skill's directory>/scripts/check-report.mjs <file>` from the repository root and fix
+   every problem it prints (format, cited file:line that does not exist, missing
+   `Scenario:` or `Evidence:` line) before finishing.
 
 ```text
 [P0|P1] <one-line defect> — <file>:<line>

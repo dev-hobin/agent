@@ -44,6 +44,14 @@ desktop plugins, so the guarantee is **instructed**, with a deterministic self-c
 
 The bundled Codex skill `review-agent` exists; keep skill names distinct from it.
 
+### Capability check scripts (self-checked)
+
+When the spec ships a check script in `scripts/`, copy it into the skill's `scripts/` with
+any assets it reads. The skill runs it at the step the spec names and finishes only when
+it exits 0. Plugin hooks load only for desktop manual installs, so the guarantee is
+**instructed** (a deterministic self-check). The benchmark verifier runs the same check
+through `scenario-check.mjs`.
+
 ## Scenarios as plugin-eval benchmarks
 
 ```text

@@ -1,26 +1,29 @@
 {
   "review": {
-    "spec": "044a8ed395002c12a6ae576d",
+    "spec": "bd3ae634feefd90fa6ae576d",
     "plugin": "plugins/hobin-review",
     "copies": {
       "scripts/collect-context.sh": "plugins/hobin-review/skills/reviewing-code/scripts/collect-context.sh",
       "scenarios/{scenario}/base": "evals/hobin-review/{scenario}/base",
       "scenarios/{scenario}/change.patch": "evals/hobin-review/{scenario}/change.patch",
-      "../shared/lenses": "plugins/hobin-review/skills/reviewing-code/references/perspectives"
+      "../shared/lenses": "plugins/hobin-review/skills/reviewing-code/references/perspectives",
+      "scripts/check-report.mjs": "plugins/hobin-review/skills/reviewing-code/scripts/check-report.mjs"
     },
     "evals": "evals/hobin-review/{scenario}/benchmark.json",
     "guarantees": {
       "G1": "enforced: agents/openai.yaml policy.allow_implicit_invocation: false",
       "G2": "instructed: the skill writes only its report and tells subagents not to edit (no per-agent sandbox)",
-      "G3": "instructed: verify step and fixed format, checked by the scenarios"
+      "G3": "instructed: verify step and fixed format, checked by the scenarios",
+      "G4": "instructed: the skill runs check-report.mjs before finishing (deterministic self-check; plugin hooks are desktop-only)"
     }
   },
   "applying-stances": {
-    "spec": "ba145b48c7f2af68a6ae576d",
+    "spec": "6912d4646cefc729a6ae576d",
     "plugin": "plugins/hobin-stances",
     "copies": {
       "assets": "plugins/hobin-stances/skills/applying-stances/assets",
-      "scenarios/{scenario}/base": "evals/hobin-stances/{scenario}/base"
+      "scenarios/{scenario}/base": "evals/hobin-stances/{scenario}/base",
+      "scripts/stances.mjs": "plugins/hobin-stances/skills/applying-stances/scripts/stances.mjs"
     },
     "evals": "evals/hobin-stances/{scenario}/benchmark.json",
     "guarantees": {
@@ -30,7 +33,8 @@
       "G4": "instructed: step 2 drops duplicates and reports conflicts; checked by the scenario",
       "G5": "instructed: step 1 target rules",
       "G6": "instructed: step 4 replaces an existing marker block in place",
-      "G7": "instructed: step 3 appends checks only when they exist in the project"
+      "G7": "instructed: step 3 appends checks only when they exist in the project",
+      "G8": "instructed: the block comes from stances.mjs block and the skill runs stances.mjs check"
     }
   },
   "enforcing-conventions": {
@@ -151,13 +155,14 @@
     }
   },
   "developing-features": {
-    "spec": "31666ab12abd62afa6ae576d",
+    "spec": "74062855a06a26e1a6ae576d",
     "plugin": "plugins/hobin-feature",
     "copies": {
       "knowledge": "plugins/hobin-feature/skills/developing-features/references/knowledge",
       "../shared/lenses": "plugins/hobin-feature/skills/developing-features/references/lenses",
       "assets": "plugins/hobin-feature/skills/developing-features/assets",
-      "scenarios/{scenario}/base": "evals/hobin-feature/{scenario}/base"
+      "scenarios/{scenario}/base": "evals/hobin-feature/{scenario}/base",
+      "scripts/scenarios.mjs": "plugins/hobin-feature/skills/developing-features/scripts/scenarios.mjs"
     },
     "evals": "evals/hobin-feature/{scenario}/benchmark.json",
     "guarantees": {
@@ -165,7 +170,8 @@
       "G2": "instructed: step 1 and the report form; checked by the scenarios-recorded scenario check",
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
-      "G5": "instructed: steps 5 to 7; the verifier subagent is instructed not to edit (no per-agent sandbox); checked by the hidden and visible tests and the tests-saved-and-passing scenario check"
+      "G5": "instructed: steps 5 to 7; the verifier subagent is instructed not to edit (no per-agent sandbox); checked by the hidden and visible tests and the tests-saved-and-passing scenario check",
+      "G6": "instructed: results are written by scenarios.mjs run and the skill finishes only when scenarios.mjs check passes"
     }
   },
   "evaluating-skills": {

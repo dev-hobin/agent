@@ -56,6 +56,23 @@ For a capability with `assets/output-contract.json`:
   equivalent (no custom-code graders); list it as covered by the hook in the case's
   `description`, and keep the scenario's regex checks as graders.
 
+### Capability check scripts (`script_passes`)
+
+When the spec ships a check script in `scripts/` (a `script_passes` scenario check):
+
+- Copy it into the skill's `scripts/` with any assets it reads, and pre-approve
+  `Bash(node ${CLAUDE_SKILL_DIR}/scripts/<script> *)` in `allowed-tools`.
+- The skill runs it at the step the spec names and finishes only when it exits 0.
+- If the checked result is a file Claude writes and the file can be recognized from its
+  content (for example a review report whose first line is `[P0]`/`[P1]` or
+  `No findings`), add a `PostToolUse` hook (matcher `Write|Edit`) in `hooks/hooks.json`
+  running a small `scripts/<name>-hook.mjs` that imports the check, runs it with
+  `cwd` set to the hook input's `cwd`, and exits 2 with the problems on stderr. Exit 0 for
+  unrelated files and on unexpected errors. Mark that guarantee **enforced**; otherwise
+  it is **instructed** (a deterministic self-check).
+- The check has no grader equivalent; name it in the case's `description` as not
+  covered by graders.
+
 ## Scenarios as `claude plugin eval` cases
 
 ```text

@@ -5,6 +5,7 @@ argument-hint: "[what to review: a branch, diff, pull request, or named scope]"
 disable-model-invocation: true
 allowed-tools:
   - "Bash(${CLAUDE_SKILL_DIR}/scripts/collect-context.sh *)"
+  - "Bash(node ${CLAUDE_SKILL_DIR}/scripts/check-report.mjs *)"
   - "Agent(hobin-review:contract-reviewer, hobin-review:async-flow-reviewer, hobin-review:structure-reviewer, hobin-review:data-loss-reviewer, hobin-review:evidence-reviewer)"
 ---
 
@@ -57,7 +58,11 @@ Review target: $ARGUMENTS
 6. **Rank.** P0: data loss, security exposure, or a crash on a main path. P1: wrong
    behavior on a realistic path. Report P2 and below only when asked.
 7. **Report** in the file the request names, or in the reply. In scope diagnosis, end
-   with a plan ordered now, next, later, and leave alone, each with the reason.
+   with a plan ordered now, next, later, and leave alone, each with the reason. For a
+   report file, run `node ${CLAUDE_SKILL_DIR}/scripts/check-report.mjs <file>` from the repository root and fix
+   every problem it prints (format, cited file:line that does not exist, missing
+   `Scenario:` or `Evidence:` line) before finishing. A plugin hook runs the
+   same check whenever the report file is written.
 
 ```text
 [P0|P1] <one-line defect> — <file>:<line>

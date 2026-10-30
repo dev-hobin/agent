@@ -1,4 +1,5 @@
 ---
+description: "Not covered by graders (claude plugin eval has no custom-code graders): block-valid (stances.mjs check)."
 tags: [regression]
 max_turns: 60
 timeout_seconds: 1200
