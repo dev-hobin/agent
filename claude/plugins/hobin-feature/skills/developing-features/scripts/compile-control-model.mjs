@@ -229,25 +229,93 @@ export function compileDecisions(record) {
 	return { errors: [], model };
 }
 
-// Evidence is "path:line", "path:12-14", or "path:12,40", relative to the project root or
-// to the record. The quote must appear in the cited lines (whitespace collapsed).
-function evidenceProblems(item, at, recordDir, root) {
-	const problems = [];
-	const match = typeof item.evidence === "string" ? /^(.+?):(\d+(?:[-,]\d+)*)$/.exec(item.evidence.trim()) : null;
-	if (!match) return [`${at}: evidence must be "path:line" (or path:12-14, path:12,40)`];
-	if (typeof item.quote !== "string" || !item.quote.trim()) return [`${at}: quote the cited code in "quote"`];
+// Evidence is "path:line", "path:12-14", or "path:12,40", relative to the project root or to
+// the record. A symbol is the code name or literal a fact is about; it must appear on the
+// cited lines as a whole token, so a citation names what it points at instead of copying text.
+const IDENT = /^[A-Za-z_$][\w$]*$/;
+const squash = (text) => text.replace(/\s+/g, " ").trim();
+const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export const mentions = (text, symbol) =>
+	IDENT.test(symbol) ? new RegExp(`(?<![\\w$])${escape(symbol)}(?![\\w$])`).test(text) : squash(text).includes(squash(symbol));
+
+function cited(evidence, at, recordDir, root) {
+	const match = typeof evidence === "string" ? /^(.+?):(\d+(?:[-,]\d+)*)$/.exec(evidence.trim()) : null;
+	if (!match) return { problems: [`${at}: evidence must be "path:line" (or path:12-14, path:12,40)`] };
 	const file = [resolve(root, match[1]), resolve(recordDir, match[1])].find((f) => existsSync(f) && statSync(f).isFile());
-	if (!file) return [`${at}: ${match[1]} does not exist`];
+	if (!file) return { problems: [`${at}: ${match[1]} does not exist`] };
 	const lines = readFileSync(file, "utf8").split("\n");
 	const numbers = match[2].split(",").flatMap((part) => {
 		const [from, to = from] = part.split("-").map(Number);
 		return Array.from({ length: Math.max(0, to - from + 1) }, (_, k) => from + k);
 	});
 	const outside = numbers.filter((n) => n < 1 || n > lines.length);
-	if (outside.length) return [`${at}: ${match[1]} has ${lines.length} lines; line ${outside[0]} does not exist`];
-	const squash = (text) => text.replace(/\s+/g, " ").trim();
-	if (!squash(numbers.map((n) => lines[n - 1]).join(" ")).includes(squash(item.quote)))
-		problems.push(`${at}: the quote is not in ${match[1]} line ${match[2]}; copy it from those lines or fix the line`);
+	if (outside.length) return { problems: [`${at}: ${match[1]} has ${lines.length} lines; line ${outside[0]} does not exist`] };
+	return { problems: [], text: numbers.map((n) => lines[n - 1]).join("\n"), where: `${match[1]} line ${match[2]}` };
+}
+
+function symbolProblems(item, at, recordDir, root) {
+	if (typeof item.symbol !== "string" || !item.symbol.trim()) return [`${at}: name the code it points at in "symbol" (an identifier or a literal on the cited lines)`];
+	const { problems, text, where } = cited(item.evidence, at, recordDir, root);
+	if (problems.length) return problems;
+	return mentions(text, item.symbol) ? [] : [`${at}: "${item.symbol}" is not on ${where}; cite the lines where it appears`];
+}
+
+// Names a line writes: this.x = / this.x++ / x.current = (fields and refs), and setX( (React state).
+function writtenNames(text) {
+	const names = new Set();
+	for (const m of text.matchAll(/this\.([A-Za-z_$][\w$]*)\s*(?:=(?!=)|\+\+|--|\+=|-=)/g)) names.add(m[1]);
+	for (const m of text.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\.current\s*=(?!=)/g)) names.add(m[1]);
+	for (const m of text.matchAll(/(?<![\w$.])set([A-Z][\w$]*)\s*\(/g)) names.add(m[1][0].toLowerCase() + m[1].slice(1));
+	return names;
+}
+
+// Every rule (and every `arrives`) cites the code it copies. The cited lines must mention the
+// symbol of each variable the rule reads or writes, and every name they write must be some
+// fact's symbol, so state the record leaves out cannot hide behind a rule.
+function ruleProblems(record, recordDir, root) {
+	const problems = [];
+	const symbolsOf = new Map();
+	const add = (name, symbol) => symbol && symbolsOf.set(name, new Set([...(symbolsOf.get(name) ?? []), symbol]));
+	const covered = new Set();
+	for (const fact of record.facts ?? []) {
+		if (fact.symbol) covered.add(fact.symbol);
+		for (const part of fact.from ?? []) if (part.symbol) covered.add(part.symbol);
+		if (!["variable", "input"].includes(fact.answer)) continue;
+		for (const name of [].concat(fact.as ?? [])) {
+			add(name, fact.symbol);
+			for (const part of fact.from ?? []) add(name, part.symbol);
+		}
+	}
+	const known = { ...(record.variables ?? {}), ...(record.inputs ?? {}) };
+	const namesIn = (source) => {
+		try {
+			const out = new Set();
+			const walk = (n) => { if (n.name) out.add(n.name); for (const c of [n.left, n.right, n.operand]) if (c) walk(c); };
+			walk(parseExpression(String(source)));
+			return [...out].filter((n) => n in known);
+		} catch {
+			return [];
+		}
+	};
+	const check = (evidence, at, needed) => {
+		if (evidence === undefined) return problems.push(`${at}: cite the code it copies in "evidence"`);
+		const { problems: p, text, where } = cited(evidence, at, recordDir, root);
+		if (p.length) return problems.push(...p);
+		for (const name of needed) {
+			const symbols = [...(symbolsOf.get(name) ?? [])];
+			if (symbols.length && !symbols.some((symbol) => mentions(text, symbol)))
+				problems.push(`${at}: reads or writes ${name}, but ${where} mentions none of ${symbols.map((x) => `"${x}"`).join(", ")}`);
+		}
+		for (const name of writtenNames(text))
+			if (![...covered].some((symbol) => symbol === name || mentions(symbol, name)))
+				problems.push(`${at}: ${where} writes ${name}, which no fact covers; add it as a variable or an excluded fact`);
+	};
+	for (const [event, spec] of Object.entries(record.events ?? {})) {
+		if (spec.arrives !== undefined) check(spec.evidence, `events.${event}.arrives`, namesIn(spec.arrives));
+		(spec.rules ?? []).forEach((rule, i) =>
+			check(rule.evidence, `events.${event}.rules[${i}]`, [...new Set([...namesIn(rule.when ?? "true"), ...Object.keys(rule.then ?? {})])]),
+		);
+	}
 	return problems;
 }
 
@@ -262,15 +330,18 @@ function findRecords(dir = ".") {
 
 // The pass/fail check for one record. Findings are facts about the code (a dead end, two
 // events that behave alike); the record passes only when it acknowledges each one by id.
+// The gate checks structure: that evidence exists and names what it points at. Whether a
+// rule reads the code correctly is for tests and benchmarks.
 export function gateRecord(record, { recordDir = ".", root = "." } = {}) {
 	const problems = [];
 	(record.facts ?? []).forEach((fact, i) => {
-		problems.push(...evidenceProblems(fact, `facts[${i}]`, recordDir, root));
+		problems.push(...symbolProblems(fact, `facts[${i}]`, recordDir, root));
 		if (fact.answer === "input") {
-			if (!Array.isArray(fact.from) || !fact.from.length) problems.push(`facts[${i}]: an input lists the conditions it stands for in "from", each with evidence and quote`);
-			else fact.from.forEach((part, k) => problems.push(...evidenceProblems(part, `facts[${i}].from[${k}]`, recordDir, root)));
+			if (!Array.isArray(fact.from) || !fact.from.length) problems.push(`facts[${i}]: an input lists the conditions it stands for in "from", each with evidence and symbol`);
+			else fact.from.forEach((part, k) => problems.push(...symbolProblems(part, `facts[${i}].from[${k}]`, recordDir, root)));
 		}
 	});
+	problems.push(...ruleProblems(record, recordDir, root));
 	const first = compileDecisions(record);
 	if (first.errors.length) return [...problems, ...first.errors];
 	const second = compileDecisions(structuredClone(record));

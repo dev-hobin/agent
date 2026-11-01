@@ -97,7 +97,8 @@ not stop work the server already accepted.
    | Otherwise: state the code owns that decides what is accepted | `variable`, abstracted to a few values |
 
 3. Give each variable its initial value. For each event, write rules that copy
-   its handler:
+   its handler, each citing the lines it copies in `evidence`; those lines mention
+   every variable the rule reads or writes:
    - `then` lists the assignments the code makes; a variable not assigned keeps its value;
    - `arrives` says when a result can belong to the current attempt;
    - `refuse` covers a disabled or absent control;

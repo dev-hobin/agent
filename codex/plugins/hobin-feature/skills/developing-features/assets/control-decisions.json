@@ -11,70 +11,70 @@
     {
       "code": "<busy (useState)>",
       "evidence": "<File.tsx:12>",
-      "quote": "<the exact text on that line, e.g. const [busy, setBusy] = useState(false);>",
+      "symbol": "<the code name or literal on that line, e.g. busy>",
       "answer": "variable",
       "as": "busy"
     },
     {
       "code": "<result (useState)>",
       "evidence": "<File.tsx:13>",
-      "quote": "<the exact text on that line, e.g. const [result, setResult] = useState('none');>",
+      "symbol": "<the code name or literal on that line, e.g. result>",
       "answer": "variable",
       "as": "result"
     },
     {
       "code": "<ready prop>",
       "evidence": "<File.tsx:5>",
-      "quote": "<the exact text on that line, e.g. ready: boolean;>",
+      "symbol": "<the code name or literal on that line, e.g. ready>",
       "answer": "input",
       "as": "ready",
       "from": [
         {
           "code": "<a condition this input stands for>",
           "evidence": "<File.tsx:30>",
-          "quote": "<the exact text on that line>"
+          "symbol": "<its code name on that line>"
         }
       ]
     },
     {
       "code": "<error message text>",
       "evidence": "<File.tsx:14>",
-      "quote": "<the exact text on that line, e.g. the cited code>",
+      "symbol": "<the code name or literal on that line, e.g. message>",
       "answer": "excluded",
       "reason": "display"
     },
     {
       "code": "<start button handler>",
       "evidence": "<File.tsx:40>",
-      "quote": "<the exact text on that line, e.g. onClick={start}>",
+      "symbol": "<the code name or literal on that line, e.g. start>",
       "answer": "event",
       "as": "START"
     },
     {
       "code": "<request resolves>",
       "evidence": "<File.tsx:44>",
-      "quote": "<the exact text on that line, e.g. setResult('ok');>",
+      "symbol": "<the code name or literal on that line, e.g. 'ok'>",
       "answer": "event",
       "as": "SUCCEEDED"
     },
     {
       "code": "<request rejects>",
       "evidence": "<File.tsx:48>",
-      "quote": "<the exact text on that line, e.g. setResult('error');>",
+      "symbol": "<the code name or literal on that line, e.g. 'error'>",
       "answer": "event",
       "as": "FAILED"
     },
     {
       "code": "<reset button handler>",
       "evidence": "<File.tsx:60>",
-      "quote": "<the exact text on that line, e.g. onClick={reset}>",
+      "symbol": "<the code name or literal on that line, e.g. reset>",
       "answer": "event",
       "as": "RESET"
     },
     {
       "code": "<the server finishes accepted work>",
       "evidence": "<api.ts:30>",
-      "quote": "<the exact text on that line, e.g. the cited code>",
+      "symbol": "<the code name or literal on that line, e.g. message>",
       "answer": "outside",
       "as": "assumption"
     }
@@ -103,35 +103,41 @@
           "then": {
             "busy": "true",
             "result": "\"none\""
-          }
+          },
+          "evidence": "<File.tsx:40-42: the lines this rule copies; they mention each variable it reads or writes>"
         },
         {
           "when": "busy || result == \"ok\" || !ready",
-          "refuse": "guarantee"
+          "refuse": "guarantee",
+          "evidence": "<File.tsx:40-42: the lines this rule copies; they mention each variable it reads or writes>"
         }
       ]
     },
     "SUCCEEDED": {
       "source": "response",
       "arrives": "busy",
+      "evidence": "<File.tsx:44: the line that ignores a result of an ended attempt>",
       "rules": [
         {
           "then": {
             "busy": "false",
             "result": "\"ok\""
-          }
+          },
+          "evidence": "<File.tsx:40-42: the lines this rule copies; they mention each variable it reads or writes>"
         }
       ]
     },
     "FAILED": {
       "source": "response",
       "arrives": "busy",
+      "evidence": "<File.tsx:44: the line that ignores a result of an ended attempt>",
       "rules": [
         {
           "then": {
             "busy": "false",
             "result": "\"error\""
-          }
+          },
+          "evidence": "<File.tsx:40-42: the lines this rule copies; they mention each variable it reads or writes>"
         }
       ]
     },
@@ -140,17 +146,20 @@
       "rules": [
         {
           "when": "busy",
-          "question": "D1: may RESET abandon a request that is still running?"
+          "question": "D1: may RESET abandon a request that is still running?",
+          "evidence": "<File.tsx:40-42: the lines this rule copies; they mention each variable it reads or writes>"
         },
         {
           "when": "!busy && result == \"none\"",
-          "refuse": "guarantee"
+          "refuse": "guarantee",
+          "evidence": "<File.tsx:40-42: the lines this rule copies; they mention each variable it reads or writes>"
         },
         {
           "when": "!busy && result != \"none\"",
           "then": {
             "result": "\"none\""
-          }
+          },
+          "evidence": "<File.tsx:40-42: the lines this rule copies; they mention each variable it reads or writes>"
         }
       ]
     }

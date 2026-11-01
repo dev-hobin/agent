@@ -7,8 +7,8 @@
 // Without a record argument, every acceptance-scenarios*.json under the current directory
 // (outside node_modules) is used. Results come only from `run`, never from hand edits.
 import { execSync } from "node:child_process";
-import { accessSync, constants, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { delimiter, join, relative } from "node:path";
+import { accessSync, constants, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { delimiter, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const placeholder = (value) => typeof value !== "string" || !value.trim() || /<[^>]+>/.test(value);
@@ -37,6 +37,16 @@ function runCommand(command) {
 	}
 }
 
+// A record must run in anyone's checkout: a command may not name a home path or an existing
+// file outside the project (system directories such as /usr are fine).
+const SYSTEM = /^\/(usr|bin|sbin|opt|etc|dev|System|Library)\//;
+export function outsideProject(command, root = process.cwd()) {
+	const base = resolve(root);
+	return [...String(command).matchAll(/(?:^|[\s"'=(])((?:~\/|\/)[^\s"';)]+)/g)]
+		.map((m) => m[1])
+		.filter((path) => path.startsWith("~/") || (isAbsolute(path) && !path.startsWith(`${base}/`) && !SYSTEM.test(path) && existsSync(path)));
+}
+
 export function checkRecord(record) {
 	const problems = [];
 	if (!Array.isArray(record.scenarios) || !record.scenarios.length) problems.push("Add at least one scenario.");
@@ -45,6 +55,7 @@ export function checkRecord(record) {
 			if (placeholder(s[field])) problems.push(`Scenario ${s.id ?? "?"}: fill "${field}" (no <placeholders>).`);
 		}
 		if (s.status !== "pass") problems.push(`Scenario ${s.id ?? "?"}: status is "${s.status}"; fix the code or the check, then run "scenarios.mjs run".`);
+		for (const path of outsideProject(s.check ?? "")) problems.push(`Scenario ${s.id ?? "?"}: the check names ${path}, outside the project; use a path inside it so the record runs anywhere.`);
 	}
 	for (const d of record.decisions ?? []) {
 		for (const field of ["question", "decision", "reason", "revert"]) {
@@ -53,7 +64,10 @@ export function checkRecord(record) {
 	}
 	const v = record.verification ?? {};
 	if (placeholder(v.existing_tests)) problems.push('Set "verification.existing_tests" to the command for the existing suites around the change.');
-	else if (v.existing_tests_status !== "pass") problems.push(`Existing tests status is "${v.existing_tests_status}"; run "scenarios.mjs run" after fixing them.`);
+	else {
+		for (const path of outsideProject(v.existing_tests)) problems.push(`Existing tests: the command names ${path}, outside the project; use a path inside it.`);
+		if (v.existing_tests_status !== "pass") problems.push(`Existing tests status is "${v.existing_tests_status}"; run "scenarios.mjs run" after fixing them.`);
+	}
 	return problems;
 }
 

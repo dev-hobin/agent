@@ -19,12 +19,12 @@ same record always compiles to the same model, whatever order it is written in.
 
 | Field | Shape | Checked |
 | --- | --- | --- |
-| `facts` | `[{"code": "...", "evidence": "file:line", "quote": "...", "answer": "variable" \| "input" \| "event" \| "excluded" \| "outside", ...}]` | every fact has evidence, a quote of the cited code, and one answer. An `input` lists the conditions it stands for in `from`, each with its own evidence and quote. `variable`, `input`, and `event` name their target in `as`. `excluded` needs `reason`: display, derived, owned, unbounded, or server. `outside` needs `as`: assumption, function, or wait. Every declared variable, input, and event rests on a fact |
+| `facts` | `[{"code": "...", "evidence": "file:line", "symbol": "...", "answer": "variable" \| "input" \| "event" \| "excluded" \| "outside", ...}]` | every fact has evidence, a `symbol` (the code name or literal it is about, found on the cited lines as a whole token), and one answer. An `input` lists the conditions it stands for in `from`, each with its own evidence and symbol. `variable`, `input`, and `event` name their target in `as`. `excluded` needs `reason`: display, derived, owned, unbounded, or server. `outside` needs `as`: assumption, function, or wait. Every declared variable, input, and event rests on a fact |
 | `variables` | `{"busy": "bool", "failure": ["none", "review"]}` | state the code owns; the states are their reachable combinations |
 | `inputs` | same shape | data another owner keeps. A rule that reads an input splits that event into declared guards, one per combination of the inputs it reads |
 | `initial` | `{"busy": false, ...}` | a value for every variable |
-| `events.NAME` | `{"source": "...", "arrives": "expression", "rules": [...]}` | `arrives`, read over variables, says when a result belongs to the current attempt. Outside it the cell is a dropped stale result |
-| a rule | `{"when": "expression", "then": {"var": "expression"}}`, or `refuse`, `ignore`, or `question` in place of `then` | exactly one rule holds for each reachable combination. `then` values stay inside the variable's values. A rule that changes nothing is `ignore`, unless it says `restart: true` |
+| `events.NAME` | `{"source": "...", "arrives": "expression", "evidence": "file:lines", "rules": [...]}` | `arrives`, read over variables, says when a result belongs to the current attempt. Outside it the cell is a dropped stale result. `evidence` cites the line that drops it |
+| a rule | `{"when": "expression", "then": {"var": "expression"}, "evidence": "file:lines"}`, or `refuse`, `ignore`, or `question` in place of `then` | exactly one rule holds for each reachable combination. `then` values stay inside the variable's values. A rule that changes nothing is `ignore`, unless it says `restart: true`. `evidence` cites the lines the rule copies |
 | `variants`, `assumptions`, `invariants` | as in the model | passed through. Invariants are written over variables |
 | `findings` | `[{"id": "dead-end:...", "note": "..."}]` | every finding the check computes is acknowledged by id, and no other id is listed |
 | `progress` | `{"when": "expression", "assuming": "K1"}` | `when` becomes the list of matching states |
@@ -35,7 +35,9 @@ computed, and so is the `unreachable` entry (`by: "computed"`).
 `--gate` is the pass/fail check for a record. Without a path it checks every
 `control-decisions*.json` under the current directory. With none found it passes,
 or fails under `--require`. It fails when:
-- evidence does not resolve: the file or line is missing, or the quote is not on the cited lines;
+- evidence does not resolve: the file or line is missing, or the symbol is not on the cited lines;
+- a rule or an `arrives` has no evidence, or its cited lines mention none of the symbols of a variable it reads or writes;
+- a cited line writes state (`this.x =`, `x.current =`, `setX(`) that no fact's symbol covers;
 - the record does not compile;
 - the compiled model has an error or a warning, or an invariant fails;
 - a computed finding is not acknowledged, or an acknowledged one no longer occurs;
@@ -43,6 +45,10 @@ or fails under `--require`. It fails when:
 
 A finding is a fact about the code, not a failure of the record. Acknowledging it
 records that someone saw it.
+
+The gate checks structure: that each citation exists and names what it points at.
+A citation that exists but is read wrongly passes. Hidden tests and benchmarks
+judge that.
 
 ## Events
 

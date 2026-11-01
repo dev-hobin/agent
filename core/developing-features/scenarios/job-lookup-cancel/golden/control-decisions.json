@@ -10,50 +10,50 @@
     {
       "code": "busy: a lookup is running",
       "evidence": "src/lookup.js:7",
-      "quote": "this.busy = false; // a lookup is running",
+      "symbol": "busy",
       "answer": "variable",
       "as": "busy"
     },
     {
       "code": "recovering: a recheck is running",
       "evidence": "src/lookup.js:8",
-      "quote": "this.recovering = false; // a recheck is running",
+      "symbol": "recovering",
       "answer": "variable",
       "as": "recovering"
     },
     {
       "code": "whether the job id of the running or unresolved lookup is known",
       "evidence": "src/lookup.js:9",
-      "quote": "this.jobId = null; // the server job of the running or unresolved lookup",
+      "symbol": "jobId",
       "answer": "variable",
       "as": "jobKnown"
     },
     {
       "code": "review: the outcome is unknown, with or without a job id",
       "evidence": "src/lookup.js:10",
-      "quote": "this.review = null; // 'withId' or 'withoutId' while the outcome is unknown",
+      "symbol": "review",
       "answer": "variable",
       "as": "review"
     },
     {
       "code": "the job id value",
       "evidence": "src/lookup.js:28",
-      "quote": "this.jobId = jobId;",
+      "symbol": "jobId",
       "answer": "excluded",
       "reason": "unbounded",
       "owner": "only whether it is known is the variable jobKnown"
     },
     {
       "code": "the result",
-      "evidence": "src/lookup.js:35",
-      "quote": "this.result = outcome.result;",
+      "evidence": "src/lookup.js:11",
+      "symbol": "result",
       "answer": "excluded",
       "reason": "display"
     },
     {
       "code": "the attempt number",
-      "evidence": "src/lookup.js:23",
-      "quote": "return ++this.attempt;",
+      "evidence": "src/lookup.js:6",
+      "symbol": "attempt",
       "answer": "excluded",
       "reason": "derived",
       "owner": "implements attempts; a result of an older attempt is dropped"
@@ -61,77 +61,77 @@
     {
       "code": "submit()",
       "evidence": "src/lookup.js:18",
-      "quote": "submit() {",
+      "symbol": "submit",
       "answer": "event",
       "as": "SUBMIT"
     },
     {
       "code": "jobCreated() for the current attempt",
       "evidence": "src/lookup.js:26",
-      "quote": "jobCreated(attempt, jobId) {",
+      "symbol": "jobCreated",
       "answer": "event",
       "as": "JOB_CREATED"
     },
     {
       "code": "settle() with a completed outcome",
       "evidence": "src/lookup.js:34",
-      "quote": "if (outcome.kind === 'completed') {",
+      "symbol": "'completed'",
       "answer": "event",
       "as": "COMPLETED"
     },
     {
       "code": "settle() with a failed outcome",
       "evidence": "src/lookup.js:37",
-      "quote": "} else if (outcome.kind === 'failed') {",
+      "symbol": "'failed'",
       "answer": "event",
       "as": "FAILED"
     },
     {
       "code": "settle() past the deadline",
       "evidence": "src/lookup.js:39",
-      "quote": "} else if (outcome.kind === 'deadline') {",
+      "symbol": "'deadline'",
       "answer": "event",
       "as": "DEADLINE"
     },
     {
       "code": "recheck()",
       "evidence": "src/lookup.js:48",
-      "quote": "recheck() {",
+      "symbol": "recheck",
       "answer": "event",
       "as": "RECHECK"
     },
     {
       "code": "settleRecheck() with completed or failed",
       "evidence": "src/lookup.js:57",
-      "quote": "if (status === 'completed' || status === 'failed') {",
+      "symbol": "'completed'",
       "answer": "event",
       "as": "RECHECK_SETTLED"
     },
     {
       "code": "settleRecheck() with any other status",
       "evidence": "src/lookup.js:54",
-      "quote": "settleRecheck(attempt, status) {",
+      "symbol": "settleRecheck",
       "answer": "event",
       "as": "RECHECK_PENDING"
     },
     {
       "code": "cancel()",
       "evidence": "src/lookup.js:70",
-      "quote": "cancel() {",
+      "symbol": "cancel",
       "answer": "event",
       "as": "CANCEL"
     },
     {
       "code": "reset()",
       "evidence": "src/lookup.js:82",
-      "quote": "reset() {",
+      "symbol": "reset",
       "answer": "event",
       "as": "RESET"
     },
     {
       "code": "the server job keeps running after cancel",
-      "evidence": "src/lookup.js:67",
-      "quote": "// The server job keeps running after a cancel, so its outcome stays unknown: a cancelled",
+      "evidence": "REQUIREMENTS.md:8",
+      "symbol": "not cancelled",
       "answer": "outside",
       "as": "assumption"
     }
@@ -161,11 +161,13 @@
           "then": {
             "busy": "true",
             "jobKnown": "false"
-          }
+          },
+          "evidence": "src/lookup.js:15,19-21"
         },
         {
           "when": "busy || recovering || review != \"none\"",
-          "refuse": "guarantee"
+          "refuse": "guarantee",
+          "evidence": "src/lookup.js:15,19"
         }
       ]
     },
@@ -176,9 +178,11 @@
         {
           "then": {
             "jobKnown": "true"
-          }
+          },
+          "evidence": "src/lookup.js:28"
         }
-      ]
+      ],
+      "evidence": "src/lookup.js:27"
     },
     "COMPLETED": {
       "source": "response",
@@ -188,9 +192,11 @@
           "then": {
             "busy": "false",
             "jobKnown": "false"
-          }
+          },
+          "evidence": "src/lookup.js:33,36"
         }
-      ]
+      ],
+      "evidence": "src/lookup.js:32"
     },
     "FAILED": {
       "source": "response",
@@ -200,9 +206,11 @@
           "then": {
             "busy": "false",
             "jobKnown": "false"
-          }
+          },
+          "evidence": "src/lookup.js:33,38"
         }
-      ]
+      ],
+      "evidence": "src/lookup.js:32"
     },
     "DEADLINE": {
       "source": "response",
@@ -213,16 +221,19 @@
           "then": {
             "busy": "false",
             "review": "\"withId\""
-          }
+          },
+          "evidence": "src/lookup.js:33,40"
         },
         {
           "when": "!jobKnown",
           "then": {
             "busy": "false",
             "review": "\"withoutId\""
-          }
+          },
+          "evidence": "src/lookup.js:33,40"
         }
-      ]
+      ],
+      "evidence": "src/lookup.js:32"
     },
     "RECHECK": {
       "source": "control",
@@ -231,11 +242,13 @@
           "when": "!busy && !recovering && review == \"withId\"",
           "then": {
             "recovering": "true"
-          }
+          },
+          "evidence": "src/lookup.js:45,50"
         },
         {
           "when": "busy || recovering || review != \"withId\"",
-          "refuse": "guarantee"
+          "refuse": "guarantee",
+          "evidence": "src/lookup.js:45,49"
         }
       ]
     },
@@ -248,9 +261,11 @@
             "recovering": "false",
             "review": "\"none\"",
             "jobKnown": "false"
-          }
+          },
+          "evidence": "src/lookup.js:56-59"
         }
-      ]
+      ],
+      "evidence": "src/lookup.js:55"
     },
     "RECHECK_PENDING": {
       "source": "response",
@@ -259,9 +274,11 @@
         {
           "then": {
             "recovering": "false"
-          }
+          },
+          "evidence": "src/lookup.js:56"
         }
-      ]
+      ],
+      "evidence": "src/lookup.js:55"
     },
     "CANCEL": {
       "source": "control",
@@ -271,24 +288,28 @@
           "then": {
             "busy": "false",
             "review": "\"withId\""
-          }
+          },
+          "evidence": "src/lookup.js:73-75"
         },
         {
           "when": "busy && !jobKnown",
           "then": {
             "busy": "false",
             "review": "\"withoutId\""
-          }
+          },
+          "evidence": "src/lookup.js:73-75"
         },
         {
           "when": "!busy && recovering",
           "then": {
             "recovering": "false"
-          }
+          },
+          "evidence": "src/lookup.js:73,77"
         },
         {
           "when": "!busy && !recovering",
-          "refuse": "guarantee"
+          "refuse": "guarantee",
+          "evidence": "src/lookup.js:64,71"
         }
       ]
     },
@@ -301,7 +322,8 @@
             "recovering": "false",
             "jobKnown": "false",
             "review": "\"none\""
-          }
+          },
+          "evidence": "src/lookup.js:83-88"
         }
       ]
     }

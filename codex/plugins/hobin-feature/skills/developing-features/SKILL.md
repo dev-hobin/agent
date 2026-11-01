@@ -48,7 +48,8 @@ passes and an independent reviewer agrees.
    fill it from the code, and fix it until
    `node <this skill's directory>/scripts/compile-control-model.mjs --gate` passes. The gate's
    findings are facts about the code: acknowledge each one, and raise the ones an owner must
-   decide as decisions in step 2.
+   decide as decisions in step 2. The Stop hook runs the gate, so do not add it as an
+   acceptance scenario; scenario commands must not name paths outside the project.
 4. **Design** when ownership, boundaries, data shape, or variation is unsettled: read
    [design-surface.md](references/knowledge/design-surface.md) and write the surface
    before coding. For the risky parts, read the lenses under "When to read more" that
