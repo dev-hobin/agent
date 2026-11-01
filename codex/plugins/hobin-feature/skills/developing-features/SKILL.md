@@ -24,6 +24,9 @@ passes and an independent reviewer agrees.
   still pass, and every scenario must have been run, not just written.
 - The independent verification in step 6 is the step most often skipped, usually with
   "my tests pass" as the reason. Your own tests share your blind spots.
+- Tests and scenario checks belong to the project. Importing or running the skill's own
+  scripts or the installed plugin's files from them breaks for anyone without the skill;
+  the gate's `covers` already ties the control model to the code.
 - Project instructions (`AGENTS.md`, contribution notes) record the team's decisions and
   outrank the defaults below.
 

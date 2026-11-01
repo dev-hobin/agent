@@ -7,7 +7,8 @@ test('a cancelled lookup does not allow a duplicate lookup for the same target',
   const panel = new LookupPanel();
   const attempt = panel.submit();
   panel.jobCreated(attempt, 'job-1');
-  assert.equal(panel.cancel(), true);
+  panel.cancel();
+  assert.equal(panel.busy, false);
   assert.equal(panel.canSubmit(), false);
   assert.equal(panel.submit(), null);
 });
@@ -41,8 +42,11 @@ test('a cancelled recheck leaves the review recheckable', () => {
   assert.equal(panel.canSubmit(), false);
 });
 
-test('cancel is not offered when nothing runs', () => {
+test('cancel is not offered when nothing runs, and changes nothing if called', () => {
   const panel = new LookupPanel();
   assert.equal(panel.canCancel(), false);
-  assert.equal(panel.cancel(), false);
+  panel.cancel();
+  assert.equal(panel.canSubmit(), true);
+  assert.equal(panel.busy, false);
+  assert.equal(panel.review, null);
 });
