@@ -1,6 +1,6 @@
 ---
 name: patternize
-description: "Discovers and tests a reusable operational pattern across several materials, cases, concepts, diagnostics, or repeated judgments. Use when recurring context and forces should become a workflow, decision path, diagnostic path, composition routine, checklist, or execution model with transfer and failure checks. Produces a complete pattern result and, when requested, a self-contained plain Markdown artifact. Not for forming a single transferable concept or studying one source."
+description: "Turns several cases, notes, postmortems, or repeated judgments into a reusable working pattern: a workflow, decision path or flow, diagnostic procedure, checklist, or operational routine, tested for transfer and failure. Use whenever the user wants a repeatable procedure or decision flow drawn from more than one example, even if they never say 'pattern' and even before the examples are shared. Produces a complete pattern result and, when requested, a self-contained plain Markdown artifact. Not for defining a single concept, studying one source, practice drills, or code-level design patterns and pattern matching."
 metadata:
   short-description: "Discover and test a reusable operational pattern across cases"
 ---

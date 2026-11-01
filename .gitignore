@@ -8,3 +8,4 @@ coverage/
 __pycache__/
 claude/plugins/*/evals/results/
 codex/evals/*/*/workspace/
+.plugin-eval/

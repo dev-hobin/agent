@@ -1,6 +1,6 @@
 ---
 name: conceptualize
-description: "Forms and tests one source-independent concept from several source-bound insights, materials, examples, or observations. Use for comparing source-local language, stripping accidental detail, finding a transferable operation or distinction, separating nearby concepts and connector relations, and testing the candidate with transfer cases and counterexamples. Produces a complete concept result and, when requested, a self-contained plain Markdown artifact. Not for studying what one source says or turning several cases into a repeatable workflow."
+description: "Forms and tests one source-independent concept from several sources, notes, insights, talks, or examples. Use whenever the user asks what single idea several materials or mechanisms share, whether two named ideas are one concept or two, or to strip source-specific detail and keep what transfers, even when the answer seems known from general knowledge and even before the materials are shared. Tests the candidate with transfer cases and counterexamples and separates it from nearby concepts. Produces a complete concept result and, when requested, a self-contained plain Markdown artifact. Not for explaining or summarizing one source or one term, turning cases into a step-by-step procedure or decision path, practice problems, or domain modeling."
 metadata:
   short-description: "Form and test one transferable concept from several sources"
 ---
