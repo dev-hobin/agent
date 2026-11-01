@@ -2,12 +2,14 @@
 // Usage: node scenario-check.mjs <scenario.yaml> <baseline> [workspace=.] [--ignore <path>]…
 // — exit 0 when all pass. <baseline> is the workspace as presented to the run, before the run
 // changed anything. --ignore drops paths the host's eval tool adds to the workspace (for
-// example the plugin it installs there) from the workspace listing.
+// example the plugin it installs there): every check, including capability scripts that scan
+// the workspace themselves, runs on a copy without them.
 // Used as a verifier command by hosts whose eval tools run commands (Codex plugin-eval) and
 // by check.mjs to prove each scenario accepts its golden result and rejects wrong ones.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,13 +31,17 @@ const glob = (pattern) => new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\
 
 export function checkScenario(casePath, workspace, original, ignore = []) {
 	const spec = parse(readFileSync(casePath, "utf8"));
-	const ignored = (path) => ignore.some((prefix) => path === prefix || path.startsWith(prefix.replace(/\/?$/, "/")));
-	const listed = () => files(workspace).filter((path) => !ignored(path));
+	if (ignore.length) {
+		const ignored = (path) => ignore.some((prefix) => path === prefix || path.startsWith(prefix.replace(/\/?$/, "/")));
+		const copy = join(mkdtempSync(join(tmpdir(), "scenario-check-")), "workspace");
+		cpSync(workspace, copy, { recursive: true, filter: (src) => !ignored(relative(workspace, src)) });
+		workspace = copy;
+	}
 	const results = [];
 	for (const expectation of spec.expect) {
 		const [kind, value] = Object.entries(expectation).find(([key]) => key !== "id");
 		let passed;
-		if (kind === "file_exists") passed = listed().some((path) => glob(value).test(path));
+		if (kind === "file_exists") passed = files(workspace).some((path) => glob(value).test(path));
 		else if (kind === "file_matches" || kind === "file_lacks") {
 			let text = "";
 			try { text = readFileSync(join(workspace, value.path), "utf8"); } catch { passed = false; }
@@ -45,11 +51,11 @@ export function checkScenario(casePath, workspace, original, ignore = []) {
 			}
 		} else if (kind === "unchanged_except") {
 			const before = new Map(files(original).map((path) => [path, digest(join(original, path))]));
-			const after = listed().filter((path) => !value.includes(path));
+			const after = files(workspace).filter((path) => !value.includes(path));
 			passed = after.length === before.size && after.every((path) => before.get(path) === digest(join(workspace, path)));
 		} else if (kind === "unchanged") {
 			const inScope = (path) => value.some((prefix) => path === prefix || path.startsWith(prefix.replace(/\/?$/, "/")));
-			const before = files(original).filter(inScope), after = listed().filter(inScope);
+			const before = files(original).filter(inScope), after = files(workspace).filter(inScope);
 			passed = before.length === after.length && before.every((path, i) => path === after[i] && digest(join(original, path)) === digest(join(workspace, path)));
 		} else if (kind === "command_passes") {
 			// Hidden files come from the scenario directory and are added only after the run.

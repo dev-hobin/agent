@@ -103,6 +103,10 @@ test("every Codex benchmark config is one plugin-eval accepts and verifies outsi
 		assert.ok(config.verifiers?.commands?.length > 0, `${where}: a verifier command`);
 		for (const command of config.verifiers.commands) {
 			for (const path of provisionedPaths) assert.ok(command.includes(`--ignore ${path}`), `${where}: verifier must ignore ${path}`);
+			await exec("sh", ["-n", "-c", command]).catch((error) => assert.fail(`${where}: verifier is not valid shell: ${error.stderr}`));
+			const scenario = /\$HOBIN_AGENT_ROOT\/(core\/[^"]+\/scenario\.yaml)/.exec(command)?.[1];
+			assert.ok(scenario, `${where}: verifier names a core scenario`);
+			await access(join(repositoryRoot, scenario), constants.R_OK);
 		}
 	}
 });

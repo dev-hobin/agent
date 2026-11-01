@@ -479,7 +479,25 @@ refund 3/3 · 3/3 · 3/3, money-to-cents 3/3 · 3/3 · 3/3.
 - description은 두 호스트에 같은 문장으로 반영했다. Codex는 트리거 평가 도구가 없어 측정하지 않았다.
 - 비용 약 $16.6.
 
+### 14.3 Codex 첫 평가 (plugin-eval, gpt-6-astra, 1회, 2026-11-01)
+
+권한 분류기가 외부 코드 실행을 막아 사용자가 `!`로 직접 실행했다. 처음 실행에서 우리 쪽
+설정 결함 넷이 드러났고, 모두 고친 뒤 재발 방지 검사를 넣었다.
+
+| 결함 | 증상 | 수정 | 재발 방지 |
+| --- | --- | --- | --- |
+| `schemaVersion` 누락 | 13개 모두 실행 전 거부 | `schemaVersion: 2` | `tests/evals.test.mjs`가 plugin-eval의 설정 검증과 같은 필드를 고정 |
+| 레시피의 `-m` | 옵션이 무시돼 `gpt-5.4`(ChatGPT 계정 미지원)로 실행 | `--model` | 레시피·benchmark 메모 수정 |
+| plugin-eval이 작업 공간에 설치한 플러그인 | `unchanged*`, `file_exists`, 작업 공간을 훑는 스크립트가 설치 파일까지 셈 | `scenario-check --ignore`: 제외 경로를 뺀 사본에서 모든 검사 실행 | 테스트가 `--ignore plugins/ .agents/plugins/`를 요구 |
+| learning 검증 명령의 따옴표 | `zsh: unmatched "`로 검사 미실행 | 정식 형식으로 재작성 | 테스트가 `sh -n`과 시나리오 경로 존재를 확인 |
+
+결과: 13개 중 6개가 첫 실행에서 통과했다(review 3, stances 2, skill-eval 1). 나머지 7개(feature 2,
+learning 5)는 검증 설정 결함 때문에 실패했다. 보존된 작업 공간을 고친 검증 명령으로 다시
+채점하니 **13/13 통과**했다(모델 재실행 없음). 실행 기록에는 skill별 검사 스크립트
+(check-report, scenarios, output-contract, stances) 실행이 남아 있다. 토큰은 약 481만 개를 썼다.
+
+- 한계: 시나리오당 1회 실행이다. 7개는 같은 실행을 다시 채점한 결과다.
+
 ### 남은 일
 
-- Codex 평가(plugin-eval): 사용자가 허가했지만 권한 분류기가 외부 코드 실행을 막는다.
-  사용자가 직접 실행하거나 허용 규칙을 추가해야 한다.
+- Codex 반복 실행(3회)으로 흔들림 확인: 필요할 때 사용자 실행.

@@ -21,7 +21,7 @@
   },
   "verifiers": {
     "commands": [
-      "node \"$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs\" \"$HOBIN_AGENT_ROOT/core/opensource-reading/scenarios/token-bucket/scenario.yaml\" \"$HOBIN_AGENT_ROOT/codex/evals/hobin-learning/opensource-reading-token-bucket/workspace\" .\" --ignore plugins/ --ignore .agents/plugins/"
+      "node \"$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs\" \"$HOBIN_AGENT_ROOT/core/opensource-reading/scenarios/token-bucket/scenario.yaml\" \"$HOBIN_AGENT_ROOT/codex/evals/hobin-learning/opensource-reading-token-bucket/workspace\" . --ignore plugins/ --ignore .agents/plugins/"
     ]
   },
   "notes": [
