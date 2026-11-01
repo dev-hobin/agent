@@ -438,8 +438,30 @@ refund 3/3 · 3/3 · 3/3, money-to-cents 3/3 · 3/3 · 3/3.
   `pnpm check:claude`(6개 통과), 설치 probe(Claude 2.1.314, Codex 0.166.0), review hook
   pipe 테스트(잘못된 보고서 exit 2, 올바른 보고서·무관 파일·깨진 입력 exit 0).
 
+### 14.1 한도 해제 후 회귀 평가 (Claude, Sonnet 3회, 2026-11-01)
+
+| 플러그인 / 시나리오 | 점수 | 비고 |
+| --- | --- | --- |
+| hobin-review: format-refactor-sibling, queue-worker-ack, settings-migration-envelope | 1.00, 1.00, 1.00 | 아래 두 수정 후 ($0.93) |
+| hobin-feature: quiet-hours-preferences, refund-approval-revalidate | 0.92, 1.00 | 테스트 출력 저장 2/3 (이전과 같은 흔들림) |
+| hobin-stances: agents-md-overlap, money-to-cents | 1.00, 1.00 | |
+| hobin-learning: technical-reading | 1.00 | 한도로 끊겼던 실행 재개 |
+
+- **누락 발견:** 이 세션에서 직접 반영할 때 review 평가 case의 요청문(Claude `prompt.md`,
+  Codex `benchmark.json`)을 새 보고서 형식으로 바꾸지 않았고, `check.mjs`도 이를 잡지
+  못했다. → `check.mjs`가 각 평가 case에 시나리오 `request`가 글자 그대로 들어 있는지
+  검사하도록 추가했다(나머지 역량은 모두 이미 일치). 변환 skill에도 같은 규칙을 적었다.
+- **채점 단위 수정:** 새 형식에서 한 결함은 머리줄 + `Scenario:` + `Evidence:` 블록인데,
+  `finds-*` 검사는 머리줄만 봤다. 모델은 같은 결함을 찾고도 깨진 기존 테스트를 Evidence
+  줄에, formatSigned를 Scenario 줄에 적어 0.75~0.875를 받았다.
+  - 결정: 긍정 검사(`finds-*`)는 결함 블록(머리줄부터 빈 줄 또는 다음 결함 전까지)에서
+    찾는다. 부정 검사(`no-flag-*`)는 머리줄만 본다(보고된 결함만 세므로).
+  - 근거: `check-report.mjs`의 결함 정의와 같다. 실제 실행 3건의 REVIEW.md로 먼저 재채점해
+    확인한 뒤 공식 평가를 다시 돌렸다.
+  - 되돌리기: review 시나리오 3개의 패턴을 `[^\n]*`로 되돌린다.
+- 이번 평가 비용 합계: 약 $5.9.
+
 ### 남은 일
 
-- 모델 평가 재실행(review·feature·stances 새 검사 반영 후): 사용 한도 해제 후.
 - Codex 평가(plugin-eval): 외부 코드 실행이라 사용자 허가가 필요하다.
 - 트리거 description 개선: 학습/검증 분리 방식으로 따로.

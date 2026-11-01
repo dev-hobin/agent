@@ -29,8 +29,8 @@
     {
       "id": "settings-migration-envelope",
       "title": "settings-migration-envelope",
-      "purpose": "Acceptance scenario from core/review/SPEC.md \u00a78",
-      "userInput": "$hobin-review:reviewing-code The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. Please review this change before I merge. Author's note: \"Template schema v2: footers move to the workspace signature, stored templates are migrated, and the catalog parser now tolerates the empty-body response upstream sometimes sends. Tests are green.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> \u2014 <file>:<line>` or `[P1] <defect> \u2014 <file>:<line>`, or the single line `No findings`. Do not change any other file.",
+      "purpose": "Acceptance scenario from core/review/SPEC.md §8",
+      "userInput": "$hobin-review:reviewing-code The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. Please review this change before I merge. Author's note: \"Template schema v2: footers move to the workspace signature, stored templates are migrated, and the catalog parser now tolerates the empty-body response upstream sometimes sends. Tests are green.\" Write the review to `REVIEW.md` in the repository root in the review report format: each finding as `[P0|P1] <defect> — <file>:<line>` followed by `Scenario:` and `Evidence:` lines, or the single line `No findings`. Do not change any other file.",
       "successChecklist": [
         "review-written",
         "finds-stored-footer-scrub",

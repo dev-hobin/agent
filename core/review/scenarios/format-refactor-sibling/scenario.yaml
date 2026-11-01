@@ -10,16 +10,16 @@ expect:
   - id: finds-broken-existing-test
     file_matches:
       path: REVIEW.md
-      pattern: "\\[P[01]\\][^\\n]*(machine-readable|existing test|format\\.test|1,234\\.50)"
+      pattern: "\\[P[01]\\](?:(?!\\n\\s*\\n|\\n\\[P)[\\s\\S])*?(machine-readable|existing test|format\\.test|1,234\\.50)"
       flags: i
   - id: finds-untested-sibling
     file_matches:
       path: REVIEW.md
-      pattern: "\\[P[01]\\][^\\n]*formatSigned"
+      pattern: "\\[P[01]\\](?:(?!\\n\\s*\\n|\\n\\[P)[\\s\\S])*?formatSigned"
   - id: finds-csv-column-split
     file_matches:
       path: REVIEW.md
-      pattern: "\\[P[01]\\][^\\n]*(csv|toCsv)"
+      pattern: "\\[P[01]\\](?:(?!\\n\\s*\\n|\\n\\[P)[\\s\\S])*?(csv|toCsv)"
       flags: i
   - id: no-flag-destructuring
     file_lacks:

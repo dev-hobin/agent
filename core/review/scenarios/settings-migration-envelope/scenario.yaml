@@ -10,12 +10,12 @@ expect:
   - id: finds-stored-footer-scrub
     file_matches:
       path: REVIEW.md
-      pattern: "\\[P[01]\\][^\\n]*footer"
+      pattern: "\\[P[01]\\](?:(?!\\n\\s*\\n|\\n\\[P)[\\s\\S])*?footer"
       flags: i
   - id: finds-missing-envelope-as-empty
     file_matches:
       path: REVIEW.md
-      pattern: "\\[P[01]\\][^\\n]*(envelope|parseRows|empty (list|array|result|catalog)|\\[\\])"
+      pattern: "\\[P[01]\\](?:(?!\\n\\s*\\n|\\n\\[P)[\\s\\S])*?(envelope|parseRows|empty (list|array|result|catalog)|\\[\\])"
       flags: i
   - id: no-flag-placeholder-constant
     file_lacks:

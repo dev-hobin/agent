@@ -1,6 +1,6 @@
 ---
 type: regex
 target: { source: file, path: REVIEW.md }
-pattern: "\\[P[01]\\][^\\n]*\\b(ack|acknowledg)"
+pattern: "\\[P[01]\\](?:(?!\\n\\s*\\n|\\n\\[P)[\\s\\S])*?\\b(ack|acknowledg)"
 flags: i
 ---

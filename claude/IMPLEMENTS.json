@@ -1,6 +1,6 @@
 {
   "review": {
-    "spec": "bd3ae634feefd90fa6ae576d",
+    "spec": "5f801dd87a9205a5a6ae576d",
     "plugin": "plugins/hobin-review",
     "copies": {
       "scripts/collect-context.sh": "plugins/hobin-review/skills/reviewing-code/scripts/collect-context.sh",

@@ -22,6 +22,9 @@ implementations). The user maintains only core; you keep the implementations in 
   (knowledge, scripts, scenario fixtures) must be copied into it; never reference `../`.
 - Knowledge and scripts must stay byte-identical to core. Copy them with
   `scripts/check.mjs --sync`; do not paraphrase them.
+- When a scenario's `request` or checks change, update every eval case built from it:
+  each case carries the request word for word (`check.mjs` fails otherwise), and Claude
+  graders repeat each check's pattern exactly.
 
 ## Procedure
 

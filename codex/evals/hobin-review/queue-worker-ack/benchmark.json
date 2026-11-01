@@ -29,8 +29,8 @@
     {
       "id": "queue-worker-ack",
       "title": "queue-worker-ack",
-      "purpose": "Acceptance scenario from core/review/SPEC.md \u00a78",
-      "userInput": "$hobin-review:reviewing-code The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. Review this change before I merge. Context from the author: \"Fixes redelivery storms on slow jobs by acking early, and adds in-place retries for transient ledger errors.\" Write the findings to `REVIEW.md` in the repository root, one per line as `[P0] <defect> \u2014 <file>:<line>` or `[P1] <defect> \u2014 <file>:<line>`, or the single line `No findings`. Do not change any other file.",
+      "purpose": "Acceptance scenario from core/review/SPEC.md §8",
+      "userInput": "$hobin-review:reviewing-code The working tree is the changed version, and `CHANGE.diff` holds the full change against the base. Review this change before I merge. Context from the author: \"Fixes redelivery storms on slow jobs by acking early, and adds in-place retries for transient ledger errors.\" Write the review to `REVIEW.md` in the repository root in the review report format: each finding as `[P0|P1] <defect> — <file>:<line>` followed by `Scenario:` and `Evidence:` lines, or the single line `No findings`. Do not change any other file.",
       "successChecklist": [
         "review-written",
         "finds-early-ack",

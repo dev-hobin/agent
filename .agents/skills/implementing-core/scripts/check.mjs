@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Deterministic checks between core specs and their host implementations. No model calls.
 //   node check.mjs          fail when an implementation is stale, a copy differs from core,
-//                           a scenario has no eval case, or a scenario's golden result
-//                           does not prove its checks
+//                           a scenario has no eval case or its case does not carry the
+//                           scenario's request, or a scenario's golden result does not
+//                           prove its checks
 //   node check.mjs --sync   copy core resources into implementations and record spec hashes
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -21,6 +22,21 @@ const hosts = ["claude", "codex"];
 const sync = process.argv.includes("--sync");
 // While writing a spec: prove its scenarios without requiring implementations yet.
 const scenariosOnly = process.argv.includes("--scenarios-only");
+
+// Text an eval case gives the model: its Markdown as written and every string in its JSON,
+// from the case file itself or the files directly in the case directory (not fixtures).
+function caseText(path) {
+	const strings = (v) => (typeof v === "string" ? [v] : v && typeof v === "object" ? Object.values(v).flatMap(strings) : []);
+	const paths = statSync(path).isDirectory()
+		? readdirSync(path).map((name) => join(path, name)).filter((f) => statSync(f).isFile())
+		: [path];
+	return paths.flatMap((f) => {
+		const text = readFileSync(f, "utf8");
+		if (f.endsWith(".md")) return [text];
+		if (f.endsWith(".json")) return strings(JSON.parse(text));
+		return [];
+	}).join("\n").replace(/\s+/g, " ");
+}
 
 function files(dir, base = dir) {
 	return readdirSync(dir).sort().flatMap((name) => {
@@ -105,7 +121,10 @@ for (const id of capabilities) {
 			}
 		}
 		for (const s of scenarios) {
-			if (!existsSync(join(root, host, entry.evals.replaceAll("{scenario}", s)))) problems.push(`${host}: no eval case for core/${id} scenario ${s}`);
+			const evalDir = join(root, host, entry.evals.replaceAll("{scenario}", s));
+			if (!existsSync(evalDir)) { problems.push(`${host}: no eval case for core/${id} scenario ${s}`); continue; }
+			const request = parse(readFileSync(join(core, "scenarios", s, "scenario.yaml"), "utf8")).request.replace(/\s+/g, " ").trim();
+			if (!caseText(evalDir).includes(request)) problems.push(`${host}: ${relative(root, evalDir)} does not carry the request of core/${id} scenario ${s} word for word`);
 		}
 		const triggersFile = join(core, "triggers.yaml");
 		if (existsSync(triggersFile)) {

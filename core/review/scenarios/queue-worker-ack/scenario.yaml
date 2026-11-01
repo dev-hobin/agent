@@ -10,12 +10,12 @@ expect:
   - id: finds-early-ack
     file_matches:
       path: REVIEW.md
-      pattern: "\\[P[01]\\][^\\n]*\\b(ack|acknowledg)"
+      pattern: "\\[P[01]\\](?:(?!\\n\\s*\\n|\\n\\[P)[\\s\\S])*?\\b(ack|acknowledg)"
       flags: i
   - id: finds-retry-double-credit
     file_matches:
       path: REVIEW.md
-      pattern: "\\[P[01]\\][^\\n]*(idempot|double|twice|duplicate)"
+      pattern: "\\[P[01]\\](?:(?!\\n\\s*\\n|\\n\\[P)[\\s\\S])*?(idempot|double|twice|duplicate)"
       flags: i
   - id: no-flag-pending-count
     file_lacks:
