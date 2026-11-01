@@ -9,8 +9,9 @@
 | S3 | A lookup cancelled before its job id arrived refuses both until reset | `node --test --test-name-pattern '^S3 ' test/cancel.test.js` | pass |
 | S4 | A late result of a cancelled lookup is dropped | `node --test --test-name-pattern '^S4 ' test/cancel.test.js` | pass |
 | S5 | A cancelled recheck keeps the review recheckable | `node --test --test-name-pattern '^S5 ' test/cancel.test.js` | pass |
+| S6 | Cancel is not offered while an outcome is unknown and nothing runs | `node --test --test-name-pattern '^S6 ' test/cancel.test.js` | pass |
 
-Full record: `acceptance-scenarios.json`. Control model: `control-decisions.json` (the gate passes; one finding acknowledged: completed and failed lookups differ only in what is shown).
+Full record: `acceptance-scenarios.json`. Control model: `control-decisions.json`, with `control-baseline.json` taken before the change. The six changed cells (all `CANCEL`) are covered by S1-S3, S5 and S6; the gate passes with one finding acknowledged (completed and failed lookups differ only in what is shown).
 
 ## Owner decisions
 

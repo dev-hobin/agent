@@ -8,7 +8,10 @@
       "when": "cancel is asked for",
       "then": "it is refused while nothing runs and offered while the lookup runs",
       "check": "node --test --test-name-pattern '^S1 ' test/cancel.test.js",
-      "status": "pass"
+      "status": "pass",
+      "covers": [
+        "CANCEL@busy=0,jobKnown=0,recovering=0,review=none"
+      ]
     },
     {
       "id": "S2",
@@ -16,7 +19,10 @@
       "when": "the user cancels",
       "then": "the panel stops waiting; a new lookup is refused and a recheck of that job is offered",
       "check": "node --test --test-name-pattern '^S2 ' test/cancel.test.js",
-      "status": "pass"
+      "status": "pass",
+      "covers": [
+        "CANCEL@busy=1,jobKnown=1,recovering=0,review=none"
+      ]
     },
     {
       "id": "S3",
@@ -24,7 +30,10 @@
       "when": "the user cancels",
       "then": "a new lookup and a recheck are refused until reset",
       "check": "node --test --test-name-pattern '^S3 ' test/cancel.test.js",
-      "status": "pass"
+      "status": "pass",
+      "covers": [
+        "CANCEL@busy=1,jobKnown=0,recovering=0,review=none"
+      ]
     },
     {
       "id": "S4",
@@ -40,7 +49,22 @@
       "when": "the user cancels it",
       "then": "the review stays recheckable and the late recheck result is dropped",
       "check": "node --test --test-name-pattern '^S5 ' test/cancel.test.js",
-      "status": "pass"
+      "status": "pass",
+      "covers": [
+        "CANCEL@busy=0,jobKnown=1,recovering=1,review=withId"
+      ]
+    },
+    {
+      "id": "S6",
+      "given": "an unknown outcome with or without a job id, and nothing running",
+      "when": "cancel is asked for",
+      "then": "it is not offered and does nothing",
+      "check": "node --test --test-name-pattern '^S6 ' test/cancel.test.js",
+      "status": "pass",
+      "covers": [
+        "CANCEL@busy=0,jobKnown=1,recovering=0,review=withId",
+        "CANCEL@busy=0,jobKnown=0,recovering=0,review=withoutId"
+      ]
     }
   ],
   "decisions": [

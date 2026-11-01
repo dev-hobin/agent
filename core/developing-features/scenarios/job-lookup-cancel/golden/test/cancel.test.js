@@ -52,3 +52,14 @@ test('S5 cancelling a recheck keeps the review recheckable', () => {
   panel.settleRecheck(recheck, 'completed');
   assert.equal(panel.review, 'withId');
 });
+
+test('S6 cancel is not offered while an outcome is unknown and nothing runs', () => {
+  const withId = running('job-1');
+  withId.panel.settle(withId.attempt, { kind: 'deadline' });
+  assert.equal(withId.panel.canCancel(), false);
+  assert.equal(withId.panel.cancel(), false);
+  const withoutId = running(null);
+  withoutId.panel.cancel();
+  assert.equal(withoutId.panel.canCancel(), false);
+  assert.equal(withoutId.panel.cancel(), false);
+});

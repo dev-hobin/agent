@@ -45,8 +45,11 @@ passes and an independent reviewer agrees.
    (an external job and polling, retries, rechecks or cancels, late results, flags that
    together block an action), read [control-model.md](references/knowledge/control-model.md),
    copy `assets/control-decisions.json` into the working tree as `control-decisions*.json`,
-   fill it from the code, and fix it until
-   `node <this skill's directory>/scripts/compile-control-model.mjs --gate` passes. The gate's
+   fill it from the current code, fix it until
+   `node <this skill's directory>/scripts/compile-control-model.mjs --gate` passes, and take a
+   baseline with `… --baseline` before changing the code. Then update the record with the
+   code: every cell that changed since the baseline needs an acceptance scenario that lists
+   it in `covers` and passes (`… --changes` prints them). The gate's
    findings are facts about the code: acknowledge each one, and raise the ones an owner must
    decide as decisions in step 2. The Stop hook runs the gate, so do not add it as an
    acceptance scenario; scenario commands must not name paths outside the project.
@@ -59,7 +62,9 @@ passes and an independent reviewer agrees.
    next slice. Keep behavior changes and structural cleanup in separate slices.
 6. **Verify independently.** Spawn a fresh subagent and give it the instructions in
    [references/verifier.md](references/verifier.md), the scenario file path, the diff,
-   and the project instructions, and nothing else from this conversation. Subagents share
+   the project instructions, and, with a control model, the output of
+   `node <this skill's directory>/scripts/compile-control-model.mjs --changes`, and nothing
+   else from this conversation. Subagents share
    your sandbox, so tell it not to edit files. It runs every scenario command and the
    existing tests and returns only must-fix items. Fix them and repeat, at most 3 rounds;
    report what is still open. If subagents are unavailable, do a fresh pass that rereads

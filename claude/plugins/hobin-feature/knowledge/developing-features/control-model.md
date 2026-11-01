@@ -108,7 +108,12 @@ not stop work the server already accepted.
    reports a gap or an overlap with the combination that shows it.
 4. Merge two raw outcomes into one event only when they lead to the same cell in
    every state. The check warns when they do.
-5. Compile, check, derive scenarios, and compare canonical forms (section 7).
+5. Before changing existing code, make the record pass the gate for the code as it
+   is and take a baseline (`--baseline`). Change the code and the record together.
+   Every cell whose behavior differs from the baseline needs an acceptance scenario
+   that names it in `covers` and passes; `--changes` lists them. A wrong reading of
+   the old code shows up as a failing scenario on the code it describes.
+6. Compile, check, derive scenarios, and compare canonical forms (section 7).
 
 For existing code, copy what it does, including what looks wrong. Put
 disagreements in `findings`, and use `question` only for behavior an owner has
@@ -158,7 +163,11 @@ a cell to make one go away; record it.
 
 A clean `--strict` check means every table, one per variant, is closed and
 consistent with its expressions. It does not prove that the code matches the
-model. The scenarios connect the two:
+model, and a model and code that share one misreading of the requirement agree
+with each other. Two things connect them to the truth: scenarios that run the
+changed cells against the code, and an independent reader who writes down from
+the requirement alone what each changed cell should do and compares. The
+scenarios connect model and code:
 - one per leaf of a breadth-first tree of transitions, asserting the state after every step;
 - one per state that sends every event the state must not react to, late results included;
 - for refusals, an assertion that the control is not offered, and that forcing the event changes nothing.

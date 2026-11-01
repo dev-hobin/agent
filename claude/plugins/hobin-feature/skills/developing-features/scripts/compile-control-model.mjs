@@ -8,13 +8,15 @@
 //
 //   node compile-control-model.mjs decisions.json [--canonical]
 //   node compile-control-model.mjs --gate [decisions.json] [--require]
+//   node compile-control-model.mjs --baseline [decisions.json]   before changing the code
+//   node compile-control-model.mjs --changes [decisions.json]    cells that differ from the baseline
 //
 // The same record always compiles to the same model. --gate is the pass/fail check for a
 // record: without a path it checks every control-decisions*.json under the current
 // directory, and passes when there is none unless --require is given.
 
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { canonicalize, checkModel, parseExpression } from "./check-control-model.mjs";
@@ -319,20 +321,70 @@ function ruleProblems(record, recordDir, root) {
 	return problems;
 }
 
-function findRecords(dir = ".") {
+function findFiles(pattern, dir = ".") {
 	return readdirSync(dir).flatMap((name) => {
 		if (name === "node_modules" || name.startsWith(".git")) return [];
 		const path = join(dir, name);
-		if (statSync(path).isDirectory()) return findRecords(path);
-		return /^control-decisions.*\.json$/.test(name) ? [relative(".", path)] : [];
+		if (statSync(path).isDirectory()) return findFiles(pattern, path);
+		return pattern.test(name) ? [path] : [];
 	});
+}
+const findRecords = (dir = ".") => findFiles(/^control-decisions.*\.json$/, dir);
+
+// The baseline sits next to its record: control-decisions.x.json -> control-baseline.x.json.
+export const baselinePathOf = (recordPath) => join(dirname(recordPath), basename(recordPath).replace(/^control-decisions/, "control-baseline"));
+
+// A cell's behavior without its free text, so a baseline and a later model compare by meaning.
+function behavior(cell) {
+	if (cell === undefined) return "absent";
+	if (Array.isArray(cell)) return cell.map((b) => `${b.guard}:${behavior({ ...b, guard: undefined })}`).sort().join("|");
+	if (cell.to !== undefined) return `to ${cell.to}${cell.reenter ? " (restart)" : ""}`;
+	if (cell.forbid !== undefined) return `refuse (${cell.forbid})`;
+	if (cell.question !== undefined) return "question";
+	return "no change";
+}
+const stale = (cell) => cell && !Array.isArray(cell) && typeof cell.ignore === "string" && cell.ignore.startsWith("stale");
+
+// Cells of the record's model whose behavior differs from the baseline taken before the code
+// changed (every cell, when there is no baseline). Each must be covered by an acceptance
+// scenario that `scenarios.mjs run` ran and recorded as passing.
+export function changedCells(model, baseline) {
+	const changed = [];
+	for (const [state, row] of Object.entries(model.cells)) {
+		for (const [event, cell] of Object.entries(row)) {
+			if (stale(cell)) continue;
+			const before = baseline?.cells?.[state]?.[event];
+			if (baseline && behavior(before) === behavior(cell)) continue;
+			changed.push({ id: `${event}@${state}`, before: baseline ? behavior(before) : "no baseline", after: behavior(cell) });
+		}
+	}
+	return changed;
+}
+
+function coverageProblems(model, recordPath, root) {
+	const baselinePath = baselinePathOf(recordPath);
+	const baseline = existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, "utf8")) : null;
+	const scenarios = findFiles(/^acceptance-scenarios.*\.json$/, root).flatMap((path) => {
+		try { return JSON.parse(readFileSync(path, "utf8")).scenarios ?? []; } catch { return []; }
+	});
+	const covered = new Set(scenarios.filter((s) => s.status === "pass").flatMap((s) => s.covers ?? []));
+	const cells = new Set(Object.entries(model.cells).flatMap(([state, row]) => Object.keys(row).map((event) => `${event}@${state}`)));
+	const problems = [];
+	for (const cell of changedCells(model, baseline))
+		if (!covered.has(cell.id))
+			problems.push(`cell ${cell.id} changed (${cell.before} -> ${cell.after}); no passing acceptance scenario covers it. Add "covers": ["${cell.id}"] to the scenario that tests it and run "scenarios.mjs run"${baseline ? "" : ` (there is no ${basename(baselinePath)}: take one with --baseline before changing the code, and only changed cells need scenarios)`}`);
+	for (const s of scenarios)
+		for (const id of s.covers ?? [])
+			if (typeof id !== "string" || (id.includes("@") && !cells.has(id) && model.events.includes(id.split("@")[0])))
+				problems.push(`scenario ${s.id ?? "?"} covers ${JSON.stringify(id)}, which is not a cell of the control model`);
+	return problems;
 }
 
 // The pass/fail check for one record. Findings are facts about the code (a dead end, two
 // events that behave alike); the record passes only when it acknowledges each one by id.
 // The gate checks structure: that evidence exists and names what it points at. Whether a
 // rule reads the code correctly is for tests and benchmarks.
-export function gateRecord(record, { recordDir = ".", root = "." } = {}) {
+export function gateRecord(record, { recordDir = ".", root = ".", recordPath = join(recordDir, "control-decisions.json"), coverage = true } = {}) {
 	const problems = [];
 	(record.facts ?? []).forEach((fact, i) => {
 		problems.push(...symbolProblems(fact, `facts[${i}]`, recordDir, root));
@@ -355,11 +407,40 @@ export function gateRecord(record, { recordDir = ".", root = "." } = {}) {
 		if (!acknowledged.has(f.id)) problems.push(`finding ${f.id} is not acknowledged: ${f.text}. Add {"id": "${f.id}", "note": "..."} to findings`);
 	const computed = new Set(findings.map((f) => f.id));
 	for (const id of acknowledged) if (!computed.has(id)) problems.push(`finding ${id} is in the record but no longer occurs; remove it`);
+	if (coverage) problems.push(...coverageProblems(first.model, recordPath, root));
 	return problems;
 }
 
 function main(argv) {
 	const files = argv.filter((a) => !a.startsWith("--"));
+	if (argv.includes("--baseline")) {
+		const records = files.length ? files : findRecords();
+		if (records.length !== 1) throw new Error("--baseline needs exactly one control-decisions*.json");
+		const [path] = records;
+		const record = JSON.parse(readFileSync(path, "utf8"));
+		const problems = gateRecord(record, { recordDir: dirname(resolve(path)), root: process.cwd(), recordPath: resolve(path), coverage: false });
+		if (problems.length) {
+			for (const problem of problems) console.error(`${path}: ${problem}`);
+			console.error("Fix the record of the current code first; a baseline is taken only from a record that passes the gate.");
+			return 1;
+		}
+		const { model } = compileDecisions(record);
+		const out = baselinePathOf(path);
+		writeFileSync(out, JSON.stringify({ baselineOf: basename(path), initial: model.initial, events: model.events, cells: model.cells }, null, 2) + "\n");
+		console.log(`${out}: baseline of the current behavior. Change the code and the record; the gate then asks for a scenario per changed cell.`);
+		return 0;
+	}
+	if (argv.includes("--changes")) {
+		const records = files.length ? files : findRecords();
+		for (const path of records) {
+			const { errors, model } = compileDecisions(JSON.parse(readFileSync(path, "utf8")));
+			if (errors.length) throw new Error(`${path}: ${errors[0]}`);
+			const baselinePath = baselinePathOf(path);
+			const baseline = existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, "utf8")) : null;
+			for (const cell of changedCells(model, baseline)) console.log(`${cell.id}: ${cell.before} -> ${cell.after}`);
+		}
+		return 0;
+	}
 	if (argv.includes("--gate")) {
 		const records = files.length ? files : findRecords();
 		if (!records.length) {
@@ -370,7 +451,7 @@ function main(argv) {
 		}
 		let ok = true;
 		for (const path of records) {
-			const problems = gateRecord(JSON.parse(readFileSync(path, "utf8")), { recordDir: dirname(resolve(path)), root: process.cwd() });
+			const problems = gateRecord(JSON.parse(readFileSync(path, "utf8")), { recordDir: dirname(resolve(path)), root: process.cwd(), recordPath: resolve(path) });
 			for (const problem of problems) console.error(`${path}: ${problem}`);
 			if (problems.length) ok = false;
 		}

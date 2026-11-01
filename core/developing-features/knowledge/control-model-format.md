@@ -5,6 +5,8 @@ print. The method behind each field is in [control-model.md](control-model.md).
 
 ```sh
 node scripts/compile-control-model.mjs --gate [control-decisions.json] [--require]
+node scripts/compile-control-model.mjs --baseline [control-decisions.json]
+node scripts/compile-control-model.mjs --changes [control-decisions.json]
 node scripts/compile-control-model.mjs control-decisions.json [--canonical] > control-model.json
 node scripts/check-control-model.mjs control-model.json [--strict] [--json]
 node scripts/check-control-model.mjs --compare a.json b.json
@@ -41,7 +43,15 @@ or fails under `--require`. It fails when:
 - the record does not compile;
 - the compiled model has an error or a warning, or an invariant fails;
 - a computed finding is not acknowledged, or an acknowledged one no longer occurs;
+- a cell whose behavior differs from the baseline (`control-baseline*.json`, next to the
+  record; without one every cell counts) has no acceptance scenario that names it in
+  `covers` and passed its last run, or a `covers` entry names no cell of the model;
 - compiling twice differs, or the canonical form is not stable.
+
+`--baseline` writes the compiled cells of a record that passes the gate to
+`control-baseline*.json`; take it before changing the code. `--changes` prints the
+changed cells as `EVENT@state: before -> after`. A cell is compared by behavior
+(target, refusal, question, or no change), not by its text.
 
 A finding is a fact about the code, not a failure of the record. Acknowledging it
 records that someone saw it.

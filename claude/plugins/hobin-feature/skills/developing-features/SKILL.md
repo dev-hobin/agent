@@ -58,8 +58,11 @@ Request: $ARGUMENTS (if empty, take it from the conversation)
    together block an action), read
    `${CLAUDE_PLUGIN_ROOT}/knowledge/developing-features/control-model.md`, copy
    `${CLAUDE_SKILL_DIR}/assets/control-decisions.json` into the working tree as
-   `control-decisions*.json`, fill it from the code, and fix it until
-   `node ${CLAUDE_SKILL_DIR}/scripts/compile-control-model.mjs --gate` passes. The gate's
+   `control-decisions*.json`, fill it from the current code, fix it until
+   `node ${CLAUDE_SKILL_DIR}/scripts/compile-control-model.mjs --gate` passes, and take a
+   baseline with `… --baseline` before changing the code. Then update the record with the
+   code: every cell that changed since the baseline needs an acceptance scenario that lists
+   it in `covers` and passes (`… --changes` prints them). The gate's
    findings are facts about the code: acknowledge each one, and raise the ones an owner
    must decide as decisions in step 2. The Stop hook runs the gate, so do not add it as an
    acceptance scenario; scenario commands must not name paths outside the project.
@@ -71,7 +74,8 @@ Request: $ARGUMENTS (if empty, take it from the conversation)
    that slice's scenario commands and the existing tests around the change before the
    next slice. Keep behavior changes and structural cleanup in separate slices.
 6. **Verify independently.** Dispatch the `hobin-feature:independent-verifier` agent with
-   only the scenario file path, the diff, and the project instructions. It runs every
+   only the scenario file path, the diff, the project instructions, and, with a control
+   model, the output of `node ${CLAUDE_SKILL_DIR}/scripts/compile-control-model.mjs --changes`. It runs every
    scenario command and the existing tests and returns only must-fix items. Fix them and
    repeat, at most 3 rounds; report what is still open. If the agent cannot be used,
    do a fresh pass that rereads only those same inputs and say so in the report.

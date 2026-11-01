@@ -8,7 +8,8 @@
       "when": "<the action or input>",
       "then": "<observable outcome>",
       "check": "<command that passes only when this holds, e.g. node --test test/feature.test.js --test-name-pattern S1>",
-      "status": "pending"
+      "status": "pending",
+      "covers": []
     },
     {
       "id": "S2",
@@ -16,7 +17,8 @@
       "when": "<a missing, empty, or malformed input>",
       "then": "<rejected or surfaced, never treated as valid-empty>",
       "check": "<command>",
-      "status": "pending"
+      "status": "pending",
+      "covers": []
     }
   ],
   "decisions": [

@@ -1,0 +1,191 @@
+{
+  "baselineOf": "control-decisions.json",
+  "initial": "busy=0,jobKnown=0,recovering=0,review=none",
+  "events": [
+    "COMPLETED",
+    "DEADLINE",
+    "FAILED",
+    "JOB_CREATED",
+    "RECHECK",
+    "RECHECK_PENDING",
+    "RECHECK_SETTLED",
+    "RESET",
+    "SUBMIT"
+  ],
+  "cells": {
+    "busy=0,jobKnown=0,recovering=0,review=none": {
+      "COMPLETED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "DEADLINE": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "FAILED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "JOB_CREATED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RECHECK_PENDING": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RECHECK_SETTLED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RESET": {
+        "ignore": "no change"
+      },
+      "SUBMIT": {
+        "to": "busy=1,jobKnown=0,recovering=0,review=none"
+      }
+    },
+    "busy=1,jobKnown=0,recovering=0,review=none": {
+      "COMPLETED": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=none"
+      },
+      "DEADLINE": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=withoutId"
+      },
+      "FAILED": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=none"
+      },
+      "JOB_CREATED": {
+        "to": "busy=1,jobKnown=1,recovering=0,review=none"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RECHECK_PENDING": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RECHECK_SETTLED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RESET": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=none"
+      },
+      "SUBMIT": {
+        "forbid": "guarantee"
+      }
+    },
+    "busy=0,jobKnown=0,recovering=0,review=withoutId": {
+      "COMPLETED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "DEADLINE": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "FAILED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "JOB_CREATED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RECHECK_PENDING": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RECHECK_SETTLED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RESET": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=none"
+      },
+      "SUBMIT": {
+        "forbid": "guarantee"
+      }
+    },
+    "busy=1,jobKnown=1,recovering=0,review=none": {
+      "COMPLETED": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=none"
+      },
+      "DEADLINE": {
+        "to": "busy=0,jobKnown=1,recovering=0,review=withId"
+      },
+      "FAILED": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=none"
+      },
+      "JOB_CREATED": {
+        "ignore": "no change"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RECHECK_PENDING": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RECHECK_SETTLED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RESET": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=none"
+      },
+      "SUBMIT": {
+        "forbid": "guarantee"
+      }
+    },
+    "busy=0,jobKnown=1,recovering=0,review=withId": {
+      "COMPLETED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "DEADLINE": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "FAILED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "JOB_CREATED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RECHECK": {
+        "to": "busy=0,jobKnown=1,recovering=1,review=withId"
+      },
+      "RECHECK_PENDING": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RECHECK_SETTLED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RESET": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=none"
+      },
+      "SUBMIT": {
+        "forbid": "guarantee"
+      }
+    },
+    "busy=0,jobKnown=1,recovering=1,review=withId": {
+      "COMPLETED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "DEADLINE": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "FAILED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "JOB_CREATED": {
+        "ignore": "stale: no attempt that produces this result is running"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RECHECK_PENDING": {
+        "to": "busy=0,jobKnown=1,recovering=0,review=withId"
+      },
+      "RECHECK_SETTLED": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=none"
+      },
+      "RESET": {
+        "to": "busy=0,jobKnown=0,recovering=0,review=none"
+      },
+      "SUBMIT": {
+        "forbid": "guarantee"
+      }
+    }
+  }
+}

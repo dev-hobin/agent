@@ -18,4 +18,8 @@ repository.
   - a stated requirement with no scenario
   - an owner decision that is not conservative: it loses stored data, accepts ambiguous or
     malformed input as valid, or checks state only after an irreversible step
+- If you also received the control model's changed cells, read the requirement the scenario
+  file names and, before reading each cell's new behavior, write down what the requirement
+  says should happen there. Each disagreement is a must-fix item (the model or the code reads
+  the requirement wrongly) or, when the requirement does not settle it, an owner question.
 - If nothing qualifies, return `No must-fix items` and the commands you ran.

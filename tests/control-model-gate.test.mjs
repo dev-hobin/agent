@@ -22,7 +22,9 @@ function workspace(t) {
 	return dir;
 }
 const recordIn = (dir) => JSON.parse(readFileSync(join(dir, "control-decisions.json"), "utf8"));
-const gate = (dir, record = recordIn(dir)) => gateRecord(record, { recordDir: dir, root: dir });
+const gate = (dir, record = recordIn(dir)) => gateRecord(record, { recordDir: dir, root: dir, recordPath: join(dir, "control-decisions.json") });
+const scenariosIn = (dir) => JSON.parse(readFileSync(join(dir, "acceptance-scenarios.json"), "utf8"));
+const writeScenarios = (dir, record) => writeFileSync(join(dir, "acceptance-scenarios.json"), JSON.stringify(record));
 
 test("the golden record passes the gate", (t) => {
 	assert.deepEqual(gate(workspace(t)), []);
@@ -95,6 +97,47 @@ test("a record whose invariant the rules break fails the gate", (t) => {
 	const record = recordIn(dir);
 	record.events.CANCEL.rules[0].then = { busy: "false", review: '"none"' };
 	assert.ok(gate(dir, record).some((p) => p.startsWith("invariants.I3: CANCEL from")));
+});
+
+test("every cell that changed since the baseline needs a passing scenario that covers it", (t) => {
+	const dir = workspace(t);
+	const scenarios = scenariosIn(dir);
+	const s6 = scenarios.scenarios.find((s) => s.id === "S6");
+	delete s6.covers;
+	writeScenarios(dir, scenarios);
+	const problems = gate(dir);
+	assert.equal(problems.filter((p) => p.startsWith("cell ")).length, 2);
+	assert.ok(problems.some((p) => p.startsWith("cell CANCEL@busy=0,jobKnown=1,recovering=0,review=withId changed (absent -> refuse (guarantee))")));
+});
+
+test("a covering scenario counts only when its last run passed", (t) => {
+	const dir = workspace(t);
+	const scenarios = scenariosIn(dir);
+	scenarios.scenarios.find((s) => s.id === "S1").status = "fail";
+	writeScenarios(dir, scenarios);
+	assert.ok(gate(dir).some((p) => p.startsWith("cell CANCEL@busy=0,jobKnown=0,recovering=0,review=none changed")));
+});
+
+test("without a baseline every cell is new, and covers must name real cells", (t) => {
+	const dir = workspace(t);
+	rmSync(join(dir, "control-baseline.json"));
+	const problems = gate(dir);
+	assert.ok(problems.filter((p) => p.startsWith("cell ")).length > 6);
+	assert.ok(problems.some((p) => p.includes("there is no control-baseline.json: take one with --baseline")));
+	const typo = workspace(t);
+	const scenarios = scenariosIn(typo);
+	scenarios.scenarios[0].covers.push("CANCEL@busy=2");
+	writeScenarios(typo, scenarios);
+	assert.ok(gate(typo).includes('scenario S1 covers "CANCEL@busy=2", which is not a cell of the control model'));
+});
+
+test("a baseline is taken only from a record that passes the gate", async (t) => {
+	const dir = mkdtempSync(join(tmpdir(), "control-baseline-"));
+	t.after(() => rmSync(dir, { recursive: true, force: true }));
+	cpSync(join(scenario, "base"), dir, { recursive: true });
+	const record = JSON.parse(readFileSync(join(scenario, "golden/control-decisions.json"), "utf8"));
+	writeFileSync(join(dir, "control-decisions.json"), JSON.stringify(record));
+	await assert.rejects(exec(process.execPath, [compiler, "--baseline"], { cwd: dir }), (error) => error.code === 1 && /a baseline is taken only from a record that passes the gate/.test(error.stderr));
 });
 
 test("the command passes without a record unless --require, and on the golden record", async (t) => {
