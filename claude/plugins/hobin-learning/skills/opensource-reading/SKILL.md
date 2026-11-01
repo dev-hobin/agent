@@ -10,6 +10,10 @@ hooks:
       hooks:
         - type: command
           command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/output-contract-hook.mjs\""
+  Stop:
+    - hooks:
+        - type: command
+          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/output-contract-hook.mjs\""
 ---
 
 # Open Source Reading

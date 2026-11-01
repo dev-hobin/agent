@@ -42,13 +42,14 @@ in its `hooks` frontmatter: Claude Code registers it when the skill is invoked a
 for the rest of the session. Every guarantee the spec backs with a script (an output
 contract or a `script_passes` check) gets one, and the guarantee is **enforced**:
 
-- `PostToolUse` (matcher `Write|Edit`) for a result file Claude writes:
-  `node "${CLAUDE_PLUGIN_ROOT}/scripts/<name>-hook.mjs"`. The script reads the hook JSON
-  from stdin, takes `tool_input.file_path`, acts only on files it recognizes by content (an
-  output-contract marker, a report whose first line is `[P0]`/`[P1]` or `No findings`, a
-  block marker), runs the check from the session `cwd`, and exits 2 with the problems on
-  stderr, which Claude Code feeds back to the model. Exit 0 for unrelated files and on
-  unexpected errors.
+- For a result file Claude writes, register the same script on `PostToolUse` (matcher
+  `Write|Edit`, quick feedback) and on `Stop` (the gate: files written by a shell command
+  never reach an edit-tool hook). The script calls `runHook` from the shared
+  `scripts/hook-input.mjs` with a `check(file, text)` that recognizes the skill's results by
+  content (an output-contract marker, a report whose first line is `[P0]`/`[P1]` or
+  `No findings`, a block marker). On Stop it checks every Markdown file under the project
+  changed since the session transcript was created. Problems go back with exit 2.
+  The hook scripts are byte-identical to the Codex plugin's.
 - `Stop` for "finish only when the check passes": exit 2 while the check fails sends Claude
   back to work. Let Claude stop after three blocks in a row (count per `session_id` in the
   temp directory) so a check that cannot pass never traps the session.

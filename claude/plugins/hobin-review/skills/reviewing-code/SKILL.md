@@ -13,6 +13,10 @@ hooks:
       hooks:
         - type: command
           command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/report-hook.mjs\""
+  Stop:
+    - hooks:
+        - type: command
+          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/report-hook.mjs\""
 ---
 
 # Reviewing Code

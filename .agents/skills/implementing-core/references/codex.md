@@ -53,11 +53,12 @@ and must act only on the skill's own results. Every guarantee the spec backs wit
 (an output contract or a `script_passes` check) gets one, and the guarantee is
 **enforced once the user trusts the plugin hooks**:
 
-- `PostToolUse` with matcher `apply_patch|Edit|Write` (file edits arrive as `apply_patch`):
-  `node "$PLUGIN_ROOT/scripts/<name>-hook.mjs"`. Take the written paths from the patch in
-  `tool_input.command` (`*** Add File:`, `*** Update File:`, `*** Move to:`) with
-  `scripts/hook-input.mjs`, act only on files recognized by content, and exit 2 with the
-  problems on stderr. Exit 0 for unrelated files and on unexpected errors.
+- For a result file, register `node "$PLUGIN_ROOT/scripts/<name>-hook.mjs"` on
+  `PostToolUse` with matcher `apply_patch|Edit|Write` (file edits arrive as `apply_patch`)
+  and on `Stop`. Codex often writes files with a shell command, which no edit-tool hook
+  sees; the Stop hook checks every Markdown file changed since the session transcript was
+  created, recognized by content. The scripts are the Claude plugin's, unchanged: the shared
+  `scripts/hook-input.mjs` reads both hosts' inputs.
 - `Stop` for "finish only when the check passes": act only when the session wrote the
   result (a record changed after the `transcript_path` file was created), exit 2 while the
   check fails, and let Codex stop after three blocks in a row.

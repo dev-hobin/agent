@@ -65,7 +65,7 @@ test("every Codex plugin hook runs a script the plugin ships", () => {
 			count++;
 		}
 	}
-	assert.equal(count, 4);
+	assert.equal(count, 7);
 });
 
 for (const [host, wrote] of hosts) test(`${host} review report hook: a valid report passes, a wrong one goes back to the model`, () => {
@@ -147,4 +147,53 @@ test("codex feature Stop hook: acts only on a record written in this session, th
 	cpSync(join(repositoryRoot, "core/developing-features/scenarios/quiet-hours-preferences/golden/acceptance-scenarios.json"), join(done, "acceptance-scenarios.json"));
 	assert.equal(stop(done, `done-${process.pid}-${Date.now()}`, older).status, 0);
 	assert.equal(stop(workspace(), `none-${process.pid}-${Date.now()}`, older).status, 0, "a session without a record is left alone");
+});
+
+test("result hooks are the same scripts on both hosts", () => {
+	const shared = {
+		"hobin-review": ["hook-input.mjs", "report-hook.mjs"],
+		"hobin-stances": ["hook-input.mjs", "stances-hook.mjs"],
+		"hobin-learning": ["hook-input.mjs", "output-contract-hook.mjs"],
+	};
+	for (const [plugin, scripts] of Object.entries(shared)) for (const script of scripts) {
+		assert.equal(readFileSync(join(plugins, plugin, "scripts", script), "utf8"), readFileSync(join(codexPlugins, plugin, "scripts", script), "utf8"), `${plugin}/scripts/${script}`);
+	}
+});
+
+// Stop checks every result changed in the session, however it was written (here: plain file
+// writes, as a shell command would do), and ignores files from before the session.
+for (const host of ["claude", "codex"]) test(`${host} result Stop hooks catch results written by a shell command`, async () => {
+	const cwd = workspace();
+	mkdirSync(join(cwd, "src"));
+	writeFileSync(join(cwd, "src/x.js"), "a\nb\nc\n");
+	writeFileSync(join(cwd, "OLD.md"), "[P1] stale — src/x.js:99\n");
+	await new Promise((r) => setTimeout(r, 20));
+	const transcript = join(workspace(), "transcript.jsonl");
+	writeFileSync(transcript, "");
+	await new Promise((r) => setTimeout(r, 20));
+	const stop = (plugin, script, session) => runHook(plugin, script, { hook_event_name: "Stop", cwd, session_id: session, transcript_path: transcript }, host);
+	const session = `${host}-${process.pid}-${Date.now()}`;
+
+	assert.equal(stop("hobin-review", "report-hook.mjs", `${session}-a`).status, 0, "a report from before the session is not checked");
+	writeFileSync(join(cwd, "REVIEW.md"), "[P1] wrong total — src/x.js:99\n");
+	const first = stop("hobin-review", "report-hook.mjs", `${session}-b`);
+	assert.equal(first.status, 2);
+	assert.match(first.stderr, /line 99 does not exist/);
+	assert.equal(stop("hobin-review", "report-hook.mjs", `${session}-b`).status, 2);
+	assert.equal(stop("hobin-review", "report-hook.mjs", `${session}-b`).status, 2);
+	assert.equal(stop("hobin-review", "report-hook.mjs", `${session}-b`).status, 0, "the fourth stop is let through");
+	writeFileSync(join(cwd, "REVIEW.md"), "[P1] wrong total — src/x.js:2\n  Scenario: s\n  Evidence: e\n");
+	assert.equal(stop("hobin-review", "report-hook.mjs", `${session}-c`).status, 0);
+
+	const contract = JSON.parse(readFileSync(join(repositoryRoot, "core/conceptualize/assets/output-contract.json"), "utf8"));
+	writeFileSync(join(cwd, "concept.md"), `<!-- output-contract: ${contract.id} -->\n\n${contract.skeleton}`);
+	assert.equal(stop("hobin-learning", "output-contract-hook.mjs", `${session}-d`).status, 2);
+
+	const golden = readFileSync(join(repositoryRoot, "core/applying-stances/scenarios/agents-md-overlap/golden/PROPOSAL.md"), "utf8");
+	writeFileSync(join(cwd, "PROPOSAL.md"), golden.replace("+<!-- /hobin-stances -->", "+- Always use tabs.\n+<!-- /hobin-stances -->"));
+	assert.equal(stop("hobin-stances", "stances-hook.mjs", `${session}-e`).status, 2);
+	assert.equal(stop("hobin-stances", "stances-hook.mjs", `${session}-f`).status, 2);
+
+	const noTranscript = runHook("hobin-review", "report-hook.mjs", { hook_event_name: "Stop", cwd, session_id: `${session}-g` }, host);
+	assert.equal(noTranscript.status, 0, "without a session start nothing is checked");
 });
