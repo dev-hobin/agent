@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Stop hook: when this session wrote an acceptance-scenario or control decision record (a record
-// under the working directory changed after the session transcript was created), Codex may finish
-// only when `scenarios.mjs check` and `compile-control-model.mjs --gate` pass (G6, G7). While it fails, exit 2 sends the problems back so Codex keeps
-// working. After three blocks in a row it lets Codex stop, so a check that cannot pass never
-// traps the session; the report must then say so (G5). Sessions that wrote no record are left
-// alone, since Codex plugin hooks apply to every session, not only the skill's. Exits 0 on any
-// unexpected error.
+// Stop hook, the same script on Claude Code and Codex: when this session wrote an
+// acceptance-scenario or control decision record (a record under the project changed after the
+// session transcript was created), the model may finish only when `scenarios.mjs check` and
+// `compile-control-model.mjs --gate` pass (G6, G7). While either fails, exit 2 sends the problems
+// back so the model keeps working. After three blocks in a row it lets the model stop, so a check
+// that cannot pass never traps the session; the report must then say so (G5). The hook is a plugin
+// hook, so it runs in every session however the skill was started; sessions that wrote no record
+// are left alone. Exits 0 on any unexpected error.
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,18 +16,21 @@ import { fileURLToPath } from "node:url";
 const scripts = join(dirname(fileURLToPath(import.meta.url)), "../skills/developing-features/scripts");
 const checks = [["scenarios.mjs", "check"], ["compile-control-model.mjs", "--gate"]];
 const MAX_BLOCKS = 3;
+const SKIP = new Set(["node_modules", ".git"]);
+const RECORD = /^(acceptance-scenarios|control-decisions).*\.json$/;
 
-function records(dir) {
-	return readdirSync(dir).flatMap((name) => {
-		if (name === "node_modules" || name.startsWith(".git")) return [];
-		const path = join(dir, name);
-		return statSync(path).isDirectory() ? records(path) : /^(acceptance-scenarios|control-decisions).*\.json$/.test(name) ? [path] : [];
+function records(dir, depth = 0) {
+	return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+		const path = join(dir, entry.name);
+		if (entry.isDirectory()) return depth < 6 && !SKIP.has(entry.name) ? records(path, depth + 1) : [];
+		return RECORD.test(entry.name) ? [path] : [];
 	});
 }
 
 try {
 	const input = JSON.parse(readFileSync(0, "utf8"));
-	const cwd = input.cwd ?? process.cwd();
+	// The project root: on Claude Code, input.cwd follows the model's `cd` in Bash.
+	const cwd = process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd();
 	let since = 0;
 	try { const t = statSync(input.transcript_path); since = t.birthtimeMs || t.ctimeMs; } catch {}
 	if (!records(cwd).some((path) => statSync(path).mtimeMs >= since)) process.exit(0);

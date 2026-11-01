@@ -16,7 +16,8 @@ claude/
     skills/<skill>/scripts/…             copies of core scripts
     knowledge/*.md                       copies of core knowledge
     agents/<role>.md                     only for a spec §6 strategy that delegates
-    scripts/<name>-hook.mjs              hook scripts registered by skills
+    hooks/hooks.json                     plugin hooks for must-hold results
+    scripts/<name>-hook.mjs              hook scripts, byte-identical to the Codex plugin's
     evals/<scenario>/                    one `claude plugin eval` case per spec §8 scenario
 claude/eval-support/verify/              eval-only plugin copied into every case as verify/
 ```
@@ -35,12 +36,17 @@ claude/eval-support/verify/              eval-only plugin copied into every case
 
 Commands are merged into skills; do not add `commands/`.
 
-### Must-hold results: skill hooks
+### Must-hold results: plugin hooks
 
-Claude Code's answer to "a rule that must hold every time" is a hook, kept with the skill
-in its `hooks` frontmatter: Claude Code registers it when the skill is invoked and runs it
-for the rest of the session. Every guarantee the spec backs with a script (an output
-contract or a `script_passes` check) gets one, and the guarantee is **enforced**:
+Claude Code's answer to "a rule that must hold every time" is a hook. Register it in the
+plugin's `hooks/hooks.json`, not in the skill's `hooks` frontmatter. A frontmatter hook is
+registered only once the skill is invoked, so a result written without invoking it goes
+unchecked; a plugin hook runs in every session, however the skill started (2026-11-02,
+when the entry skills became model-selectable). The scripts therefore check only results
+written in the session (changed since the session transcript was created) and leave other
+sessions alone, as the Codex plugin hooks always have. Every guarantee the spec backs with a
+script (an output contract or a `script_passes` check) gets one, and the guarantee is
+**enforced**:
 
 - For a result file Claude writes, register the same script on `PostToolUse` (matcher
   `Write|Edit`, quick feedback) and on `Stop` (the gate: files written by a shell command
@@ -54,7 +60,10 @@ contract or a `script_passes` check) gets one, and the guarantee is **enforced**
   back to work. Let Claude stop after three blocks in a row (count per `session_id` in the
   temp directory) so a check that cannot pass never traps the session.
 - Use `${CLAUDE_PLUGIN_ROOT}` in hook commands; `${CLAUDE_SKILL_DIR}` is not set for hooks.
-- `tests/hooks.test.mjs` proves each hook with a passing and a failing result.
+- Keep the events and timeouts the same as the Codex plugin's `hooks/hooks.json`; only the
+  plugin-root variable and the edit-tool matcher (`Write|Edit`) differ.
+- `tests/hooks.test.mjs` proves each hook with a passing and a failing result, and fails if a
+  skill registers a hook in its frontmatter.
 
 The skill still runs the check itself at the step the spec names, so the model learns the
 result before the hook has to send it back.

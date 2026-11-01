@@ -6,16 +6,6 @@ allowed-tools:
   - "Bash(${CLAUDE_SKILL_DIR}/scripts/collect-context.sh *)"
   - "Bash(node ${CLAUDE_SKILL_DIR}/scripts/check-report.mjs *)"
   - "Agent(hobin-review:contract-reviewer, hobin-review:async-flow-reviewer, hobin-review:structure-reviewer, hobin-review:data-loss-reviewer, hobin-review:evidence-reviewer)"
-hooks:
-  PostToolUse:
-    - matcher: "Write|Edit"
-      hooks:
-        - type: command
-          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/report-hook.mjs\""
-  Stop:
-    - hooks:
-        - type: command
-          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/report-hook.mjs\""
 ---
 
 # Reviewing Code

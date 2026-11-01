@@ -4,16 +4,6 @@ description: "Forms and tests one source-independent concept from several source
 argument-hint: "[the notes, insights, or cases to compare, and where to save the result]"
 allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs *)"
-hooks:
-  PostToolUse:
-    - matcher: "Write|Edit"
-      hooks:
-        - type: command
-          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/output-contract-hook.mjs\""
-  Stop:
-    - hooks:
-        - type: command
-          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/output-contract-hook.mjs\""
 ---
 
 # Conceptualize

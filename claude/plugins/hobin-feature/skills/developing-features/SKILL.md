@@ -7,11 +7,6 @@ allowed-tools:
   - "Bash(node ${CLAUDE_SKILL_DIR}/scripts/scenarios.mjs *)"
   - "Bash(node ${CLAUDE_SKILL_DIR}/scripts/compile-control-model.mjs *)"
   - "Bash(node ${CLAUDE_SKILL_DIR}/scripts/check-control-model.mjs *)"
-hooks:
-  Stop:
-    - hooks:
-        - type: command
-          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\""
 ---
 
 # Developing Features

@@ -3,16 +3,6 @@ name: applying-stances
 description: "Installs a short set of engineering stances into a project's or user's agent instructions (CLAUDE.md or AGENTS.md) after showing the exact diff and getting approval, and links each stance to an existing check where one exists. Use when asked to set up, add, or update these stances, or default working stances, in agent instructions. Not for writing general project documentation, editing other parts of agent instructions, or enforcing a convention in code."
 allowed-tools:
   - "Bash(node ${CLAUDE_SKILL_DIR}/scripts/stances.mjs *)"
-hooks:
-  PostToolUse:
-    - matcher: "Write|Edit"
-      hooks:
-        - type: command
-          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\""
-  Stop:
-    - hooks:
-        - type: command
-          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\""
 ---
 
 # Applying Stances

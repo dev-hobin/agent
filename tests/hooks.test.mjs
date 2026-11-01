@@ -1,8 +1,8 @@
 // Model-free proof that the hooks enforce what each IMPLEMENTS.json says they enforce: every
 // hook points at a script the plugin ships, a correct result passes, a wrong one is sent back to
-// the model (exit 2), and unrelated files are left alone (exit 0). Claude hooks live in skill
-// frontmatter and get `tool_input.file_path`; Codex hooks live in the plugin's hooks/hooks.json
-// and get an apply_patch command.
+// the model (exit 2), and unrelated files are left alone (exit 0). Hooks live in each plugin's
+// hooks/hooks.json on both hosts, so they run however a skill was started. Claude hooks get
+// `tool_input.file_path`; Codex hooks get an apply_patch command.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -23,10 +23,12 @@ function frontmatter(path) {
 }
 
 // Run a plugin script as the host runs a hook: JSON on stdin, the plugin root in the environment.
+// The project is input.cwd: an inherited CLAUDE_PROJECT_DIR would point the hook elsewhere.
 function runHook(plugin, script, input, host = "claude") {
 	const root = join(host === "claude" ? plugins : codexPlugins, plugin);
+	const { CLAUDE_PROJECT_DIR: _, ...env } = process.env;
 	const result = spawnSync("node", [join(root, "scripts", script)], {
-		input: JSON.stringify(input), encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_ROOT: root, PLUGIN_ROOT: root },
+		input: JSON.stringify(input), encoding: "utf8", env: { ...env, CLAUDE_PLUGIN_ROOT: root, PLUGIN_ROOT: root },
 	});
 	return { status: result.status, stderr: result.stderr };
 }
@@ -35,22 +37,24 @@ const codexWrote = (cwd, file) => ({ hook_event_name: "PostToolUse", tool_name: 
 	tool_input: { command: `*** Begin Patch\n*** Add File: ${file}\n+...\n*** End Patch\n` } });
 const hosts = [["claude", claudeWrote], ["codex", codexWrote]];
 
-test("every skill hook command runs a script the plugin ships", () => {
+test("every Claude plugin hook runs a script the plugin ships, and no skill registers its own", () => {
 	let count = 0;
 	for (const plugin of readdirSync(plugins)) {
 		const skills = join(plugins, plugin, "skills");
-		if (!existsSync(skills)) continue;
-		for (const skill of readdirSync(skills)) {
-			const hooks = frontmatter(join(skills, skill, "SKILL.md")).hooks ?? {};
-			for (const groups of Object.values(hooks)) for (const group of groups) for (const hook of group.hooks) {
-				const script = /"\$\{CLAUDE_PLUGIN_ROOT\}\/([^"]+)"/.exec(hook.command)?.[1];
-				assert.ok(script, `${plugin}/${skill}: hook commands use "\${CLAUDE_PLUGIN_ROOT}/…" (CLAUDE_SKILL_DIR is not set for hooks)`);
-				assert.ok(existsSync(join(plugins, plugin, script)), `${plugin}/${skill}: ${script} is missing`);
-				count++;
-			}
+		if (existsSync(skills)) for (const skill of readdirSync(skills)) {
+			// A skill-frontmatter hook runs only after the skill is invoked, and twice next to the plugin hook.
+			assert.equal(frontmatter(join(skills, skill, "SKILL.md")).hooks, undefined, `${plugin}/${skill}: register hooks in hooks/hooks.json`);
+		}
+		const file = join(plugins, plugin, "hooks/hooks.json");
+		if (!existsSync(file)) continue;
+		for (const groups of Object.values(JSON.parse(readFileSync(file, "utf8")).hooks)) for (const group of groups) for (const hook of group.hooks) {
+			const script = /"\$\{CLAUDE_PLUGIN_ROOT\}\/([^"]+)"/.exec(hook.command)?.[1];
+			assert.ok(script, `${plugin}: hook commands use "\${CLAUDE_PLUGIN_ROOT}/…"`);
+			assert.ok(existsSync(join(plugins, plugin, script)), `${plugin}: ${script} is missing`);
+			count++;
 		}
 	}
-	assert.ok(count >= 8);
+	assert.equal(count, 7);
 });
 
 test("every Codex plugin hook runs a script the plugin ships", () => {
@@ -108,27 +112,7 @@ for (const [host, wrote] of hosts) test(`${host} stances hook: the golden propos
 	assert.match(wrong.stderr, /Not a stance from assets\/stances\.md/);
 });
 
-test("claude feature Stop hook: blocks while the record is incomplete, at most three times in a row", () => {
-	const done = workspace();
-	cpSync(join(repositoryRoot, "core/developing-features/scenarios/quiet-hours-preferences/golden/acceptance-scenarios.json"), join(done, "acceptance-scenarios.json"));
-	const stop = (cwd, session) => runHook("hobin-feature", "scenarios-stop-hook.mjs", { hook_event_name: "Stop", cwd, session_id: session });
-	assert.equal(stop(done, `done-${process.pid}`).status, 0);
-
-	const open = workspace();
-	cpSync(join(repositoryRoot, "core/developing-features/assets/acceptance-scenarios.json"), join(open, "acceptance-scenarios.json"));
-	const session = `open-${process.pid}-${Date.now()}`;
-	const first = stop(open, session);
-	assert.equal(first.status, 2);
-	assert.match(first.stderr, /scenarios\.mjs check/);
-	assert.equal(stop(open, session).status, 2);
-	assert.equal(stop(open, session).status, 2);
-	assert.equal(stop(open, session).status, 0, "the fourth stop is let through");
-
-	const empty = workspace();
-	assert.equal(stop(empty, `empty-${process.pid}-${Date.now()}`).status, 2, "no record at all is incomplete");
-});
-
-test("codex feature Stop hook: acts only on a record written in this session, then blocks at most three times", async () => {
+for (const host of ["claude", "codex"]) test(`${host} feature Stop hook: acts only on a record written in this session, then blocks at most three times`, async () => {
 	const open = workspace();
 	const older = join(workspace(), "older.jsonl");
 	writeFileSync(older, "");
@@ -137,10 +121,10 @@ test("codex feature Stop hook: acts only on a record written in this session, th
 	await new Promise((r) => setTimeout(r, 20));
 	const newer = join(workspace(), "newer.jsonl");
 	writeFileSync(newer, "");
-	const stop = (cwd, session, path) => runHook("hobin-feature", "scenarios-stop-hook.mjs", { hook_event_name: "Stop", cwd, session_id: session, transcript_path: path }, "codex");
+	const stop = (cwd, session, path) => runHook("hobin-feature", "scenarios-stop-hook.mjs", { hook_event_name: "Stop", cwd, session_id: session, transcript_path: path }, host);
 
 	assert.equal(stop(open, `old-${process.pid}-${Date.now()}`, newer).status, 0, "a record from before the session is not this session's");
-	const session = `new-${process.pid}-${Date.now()}`;
+	const session = `${host}-new-${process.pid}-${Date.now()}`;
 	assert.equal(stop(open, session, older).status, 2);
 	assert.equal(stop(open, session, older).status, 2);
 	assert.equal(stop(open, session, older).status, 2);
@@ -165,24 +149,16 @@ function controlWorkspace(gatePasses) {
 	return dir;
 }
 
-test("claude feature Stop hook: also blocks while a control decision record fails the gate", () => {
-	const stop = (cwd, session) => runHook("hobin-feature", "scenarios-stop-hook.mjs", { hook_event_name: "Stop", cwd, session_id: session });
-	assert.equal(stop(controlWorkspace(true), `gate-ok-${process.pid}-${Date.now()}`).status, 0);
-	const failing = stop(controlWorkspace(false), `gate-bad-${process.pid}-${Date.now()}`);
-	assert.equal(failing.status, 2);
-	assert.match(failing.stderr, /finding same-events:COMPLETED\|FAILED is not acknowledged/);
-});
-
-test("codex feature Stop hook: a control decision record written in this session must pass the gate", async () => {
+for (const host of ["claude", "codex"]) test(`${host} feature Stop hook: a control decision record written in this session must pass the gate`, async () => {
 	const older = join(workspace(), "older.jsonl");
 	writeFileSync(older, "");
 	await new Promise((r) => setTimeout(r, 20));
 	const bad = controlWorkspace(false);
-	const stop = (cwd, session) => runHook("hobin-feature", "scenarios-stop-hook.mjs", { hook_event_name: "Stop", cwd, session_id: session, transcript_path: older }, "codex");
-	const failing = stop(bad, `codex-gate-bad-${process.pid}-${Date.now()}`);
+	const stop = (cwd, session) => runHook("hobin-feature", "scenarios-stop-hook.mjs", { hook_event_name: "Stop", cwd, session_id: session, transcript_path: older }, host);
+	const failing = stop(bad, `${host}-gate-bad-${process.pid}-${Date.now()}`);
 	assert.equal(failing.status, 2);
-	assert.match(failing.stderr, /compile-control-model\.mjs --gate/);
-	assert.equal(stop(controlWorkspace(true), `codex-gate-ok-${process.pid}-${Date.now()}`).status, 0);
+	assert.match(failing.stderr, /finding same-events:COMPLETED\|FAILED is not acknowledged/);
+	assert.equal(stop(controlWorkspace(true), `${host}-gate-ok-${process.pid}-${Date.now()}`).status, 0);
 });
 
 test("result hooks are the same scripts on both hosts", () => {
@@ -190,6 +166,7 @@ test("result hooks are the same scripts on both hosts", () => {
 		"hobin-review": ["hook-input.mjs", "report-hook.mjs"],
 		"hobin-stances": ["hook-input.mjs", "stances-hook.mjs"],
 		"hobin-learning": ["hook-input.mjs", "output-contract-hook.mjs"],
+		"hobin-feature": ["scenarios-stop-hook.mjs"],
 	};
 	for (const [plugin, scripts] of Object.entries(shared)) for (const script of scripts) {
 		assert.equal(readFileSync(join(plugins, plugin, "scripts", script), "utf8"), readFileSync(join(codexPlugins, plugin, "scripts", script), "utf8"), `${plugin}/scripts/${script}`);

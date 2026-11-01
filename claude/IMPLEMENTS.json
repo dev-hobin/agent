@@ -15,7 +15,7 @@
     "guarantees": {
       "G2": "instructed: the skill writes only its report; reviewer agents are enforced read-only by their tools",
       "G3": "instructed: verify step and fixed format, checked by the scenarios",
-      "G4": "enforced: the skill registers a PostToolUse hook (skill frontmatter) that runs check-report.mjs on every written report and sends problems back (exit 2); graded by report-format through the eval verify plugin"
+      "G4": "enforced: the plugin's PostToolUse and Stop hooks (hooks/hooks.json) run on every result whichever way the skill started; the PostToolUse hook runs check-report.mjs on every written report and sends problems back (exit 2); graded by report-format through the eval verify plugin"
     }
   },
   "applying-stances": {
@@ -36,7 +36,7 @@
       "G5": "instructed: step 1 target rules",
       "G6": "instructed: step 4 replaces an existing marker block in place",
       "G7": "instructed: step 3 appends checks only when they exist in the project",
-      "G8": "enforced: the skill registers a PostToolUse hook that runs stances.mjs check on every written file with the stances block; graded by block-valid through the eval verify plugin"
+      "G8": "enforced: the plugin's PostToolUse and Stop hooks (hooks/hooks.json) run stances.mjs check on every written file with the stances block; graded by block-valid through the eval verify plugin"
     }
   },
   "enforcing-conventions": {
@@ -74,7 +74,7 @@
       "G4": "instructed: the Unresolved question field; checked by the lease-spec scenario",
       "G5": "instructed: the fixed reading-progress order; not covered by the scenario",
       "G6": "instructed: the skill writes only the requested artifact; checked by the source-unchanged scenario check",
-      "G7": "enforced: the skill registers a PostToolUse hook that checks every written result starting with the output-contract marker and sends fixes back (exit 2); graded by meets-output-contract through the eval verify plugin"
+      "G7": "enforced: the plugin's PostToolUse and Stop hooks (hooks/hooks.json) check every written result starting with the output-contract marker and send fixes back (exit 2); graded by meets-output-contract through the eval verify plugin"
     }
   },
   "opensource-reading": {
@@ -95,7 +95,7 @@
       "G4": "instructed: step 5 and the invariant-or-tradeoff and falsifier rules; checked by the token-bucket scenario",
       "G5": "instructed: step 7; checked by the token-bucket scenario",
       "G6": "instructed: the skill writes only the requested artifact; checked by the repository-unchanged scenario check",
-      "G7": "enforced: the skill registers a PostToolUse hook that checks every written result starting with the output-contract marker and sends fixes back (exit 2); graded by meets-output-contract through the eval verify plugin"
+      "G7": "enforced: the plugin's PostToolUse and Stop hooks (hooks/hooks.json) check every written result starting with the output-contract marker and send fixes back (exit 2); graded by meets-output-contract through the eval verify plugin"
     }
   },
   "conceptualize": {
@@ -115,7 +115,7 @@
       "G2": "instructed: the Output fields and 'Every result must'; checked by the retry-notes scenario",
       "G3": "instructed: the skill writes only the requested artifact; checked by the notes-unchanged scenario check",
       "G4": "instructed: 'Every result must' source-independence gap rule; not covered by the scenario",
-      "G5": "enforced: the skill registers a PostToolUse hook that checks every written result starting with the output-contract marker and sends fixes back (exit 2); graded by meets-output-contract through the eval verify plugin"
+      "G5": "enforced: the plugin's PostToolUse and Stop hooks (hooks/hooks.json) check every written result starting with the output-contract marker and send fixes back (exit 2); graded by meets-output-contract through the eval verify plugin"
     }
   },
   "patternize": {
@@ -136,7 +136,7 @@
       "G3": "instructed: the skill writes only the requested artifact; checked by the notes-unchanged scenario check",
       "G4": "instructed: step 2 pattern gate ('no pattern yet'); not covered by the scenario",
       "G5": "instructed: step 8 diagram rule",
-      "G6": "enforced: the skill registers a PostToolUse hook that checks every written result starting with the output-contract marker and sends fixes back (exit 2); graded by meets-output-contract through the eval verify plugin"
+      "G6": "enforced: the plugin's PostToolUse and Stop hooks (hooks/hooks.json) check every written result starting with the output-contract marker and send fixes back (exit 2); graded by meets-output-contract through the eval verify plugin"
     }
   },
   "exercise": {
@@ -158,7 +158,7 @@
       "G5": "instructed: the Hint and retry rules output; checked by the fencing-note scenario",
       "G6": "instructed: the checkpoint rule (one question, stop and wait); not covered by the scenario",
       "G7": "instructed: the skill writes only the requested artifact; checked by the notes-unchanged scenario check",
-      "G8": "enforced: the skill registers a PostToolUse hook that checks every written result starting with the output-contract marker and sends fixes back (exit 2); graded by meets-output-contract through the eval verify plugin"
+      "G8": "enforced: the plugin's PostToolUse and Stop hooks (hooks/hooks.json) check every written result starting with the output-contract marker and send fixes back (exit 2); graded by meets-output-contract through the eval verify plugin"
     }
   },
   "developing-features": {
@@ -181,8 +181,8 @@
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
       "G5": "instructed: steps 5 to 7; the independent-verifier agent is enforced read-only by its tools; checked by the hidden and visible tests and by scenario-record-complete (existing tests run and recorded by scenarios.mjs)",
-      "G6": "enforced: the skill registers a Stop hook that sends Claude back while scenarios.mjs check fails (up to three times in a row, then the report must say so); graded by scenario-record-complete through the eval verify plugin",
-      "G7": "enforced: the skill's Stop hook also runs compile-control-model.mjs --gate and sends Claude back while a control decision record fails it (up to three times in a row); graded by control-model-gate through the eval verify plugin"
+      "G6": "enforced: the plugin's Stop hook (hooks/hooks.json) sends Claude back while a record written in the session fails scenarios.mjs check (up to three times in a row, then the report must say so); graded by scenario-record-complete through the eval verify plugin",
+      "G7": "enforced: the plugin's Stop hook also runs compile-control-model.mjs --gate and sends Claude back while a control decision record fails it (up to three times in a row); graded by control-model-gate through the eval verify plugin"
     }
   },
   "evaluating-skills": {
