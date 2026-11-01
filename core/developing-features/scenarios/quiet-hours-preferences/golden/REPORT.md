@@ -28,7 +28,7 @@ The product owner was unavailable, so each open question got the conservative, r
 
 ## Checks run
 
-- `npm test`: 8 tests, 0 failures (output in `TEST_OUTPUT.txt`).
+- `npm test`: 8 tests, 0 failures.
 - Independent re-check of every scenario command and the existing suite: no must-fix items.
 
 ## Not verified

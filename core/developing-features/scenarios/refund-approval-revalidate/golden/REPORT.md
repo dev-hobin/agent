@@ -36,7 +36,7 @@ default. Every refusal happens before `issueRefund`, the step that cannot be und
 
 ## Checks run
 
-- `npm test`: 9 tests, 0 failures (output in `TEST_OUTPUT.txt`).
+- `npm test`: 9 tests, 0 failures.
 - Independent re-check of every scenario command and the existing suite: no must-fix items.
 
 ## Not verified

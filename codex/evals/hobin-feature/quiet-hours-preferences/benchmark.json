@@ -32,13 +32,12 @@
       "id": "quiet-hours-preferences",
       "title": "quiet-hours-preferences",
       "purpose": "Acceptance scenario from core/developing-features/SPEC.md §8",
-      "userInput": "$hobin-feature:developing-features Build the quiet hours feature described in REQUIREMENTS.md. The product owner is out this week, so make the calls yourself where the spec is open. Run without asking me questions. Write `REPORT.md` in the repository root listing each decision you made, with its reason and how to revert it. When you are done, run `npm test` and save its full output to `TEST_OUTPUT.txt`.",
+      "userInput": "$hobin-feature:developing-features Build the quiet hours feature described in REQUIREMENTS.md. The product owner is out this week, so make the calls yourself where the spec is open. Run without asking me questions. Write `REPORT.md` in the repository root listing each decision you made, with its reason and how to revert it.",
       "successChecklist": [
         "hidden-tests",
         "visible-tests",
         "scenarios-recorded",
-        "decisions-with-revert",
-        "tests-saved-and-passing"
+        "decisions-with-revert"
       ]
     }
   ]

@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "f9954bfe0cb4183fa6ae576d",
+    "spec": "2133062518d23741a6ae576d",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {
@@ -178,7 +178,7 @@
       "G2": "instructed: step 1 and the report form; checked by the scenarios-recorded scenario check",
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
-      "G5": "instructed: steps 5 to 7; the independent-verifier agent is enforced read-only by its tools; checked by the hidden and visible tests and the tests-saved-and-passing scenario check",
+      "G5": "instructed: steps 5 to 7; the independent-verifier agent is enforced read-only by its tools; checked by the hidden and visible tests and by scenario-record-complete (existing tests run and recorded by scenarios.mjs)",
       "G6": "enforced: the skill registers a Stop hook that sends Claude back while scenarios.mjs check fails (up to three times in a row, then the report must say so); graded by scenario-record-complete through the eval verify plugin"
     }
   },

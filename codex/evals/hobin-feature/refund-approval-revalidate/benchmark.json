@@ -32,13 +32,12 @@
       "id": "refund-approval-revalidate",
       "title": "refund-approval-revalidate",
       "purpose": "Acceptance scenario from core/developing-features/SPEC.md §8",
-      "userInput": "$hobin-feature:developing-features Implement refund approval per REQUIREMENTS.md in src/approve.js. The owner can't be reached, so decide the open questions conservatively. Don't stop to ask. Write `REPORT.md` in the repository root listing each decision you made, with its reason and how to revert it. When you are done, run `npm test` and save its full output to `TEST_OUTPUT.txt`.",
+      "userInput": "$hobin-feature:developing-features Implement refund approval per REQUIREMENTS.md in src/approve.js. The owner can't be reached, so decide the open questions conservatively. Don't stop to ask. Write `REPORT.md` in the repository root listing each decision you made, with its reason and how to revert it.",
       "successChecklist": [
         "hidden-tests",
         "visible-tests",
         "scenarios-recorded",
-        "decisions-with-revert",
-        "tests-saved-and-passing"
+        "decisions-with-revert"
       ]
     }
   ]

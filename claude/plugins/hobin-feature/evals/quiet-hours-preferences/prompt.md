@@ -8,4 +8,4 @@ env:
   EVAL_SCENARIO: core/developing-features/scenarios/quiet-hours-preferences/scenario.yaml
 ---
 
-/hobin-feature:developing-features Build the quiet hours feature described in REQUIREMENTS.md. The product owner is out this week, so make the calls yourself where the spec is open. Run without asking me questions. Write `REPORT.md` in the repository root listing each decision you made, with its reason and how to revert it. When you are done, run `npm test` and save its full output to `TEST_OUTPUT.txt`.
+/hobin-feature:developing-features Build the quiet hours feature described in REQUIREMENTS.md. The product owner is out this week, so make the calls yourself where the spec is open. Run without asking me questions. Write `REPORT.md` in the repository root listing each decision you made, with its reason and how to revert it.
