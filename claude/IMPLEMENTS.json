@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "2133062518d23741a6ae576d",
+    "spec": "4fada8c9f997c781a6ae576d",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {
@@ -170,7 +170,9 @@
       "../shared/lenses": "plugins/hobin-feature/knowledge/lenses",
       "assets": "plugins/hobin-feature/skills/developing-features/assets",
       "scenarios/{scenario}/base": "plugins/hobin-feature/evals/{scenario}/base",
-      "scripts/scenarios.mjs": "plugins/hobin-feature/skills/developing-features/scripts/scenarios.mjs"
+      "scripts/scenarios.mjs": "plugins/hobin-feature/skills/developing-features/scripts/scenarios.mjs",
+      "scripts/compile-control-model.mjs": "plugins/hobin-feature/skills/developing-features/scripts/compile-control-model.mjs",
+      "scripts/check-control-model.mjs": "plugins/hobin-feature/skills/developing-features/scripts/check-control-model.mjs"
     },
     "evals": "plugins/hobin-feature/evals/{scenario}/prompt.md",
     "guarantees": {
@@ -179,7 +181,8 @@
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
       "G5": "instructed: steps 5 to 7; the independent-verifier agent is enforced read-only by its tools; checked by the hidden and visible tests and by scenario-record-complete (existing tests run and recorded by scenarios.mjs)",
-      "G6": "enforced: the skill registers a Stop hook that sends Claude back while scenarios.mjs check fails (up to three times in a row, then the report must say so); graded by scenario-record-complete through the eval verify plugin"
+      "G6": "enforced: the skill registers a Stop hook that sends Claude back while scenarios.mjs check fails (up to three times in a row, then the report must say so); graded by scenario-record-complete through the eval verify plugin",
+      "G7": "enforced: the skill's Stop hook also runs compile-control-model.mjs --gate and sends Claude back while a control decision record fails it (up to three times in a row); graded by control-model-gate through the eval verify plugin"
     }
   },
   "evaluating-skills": {

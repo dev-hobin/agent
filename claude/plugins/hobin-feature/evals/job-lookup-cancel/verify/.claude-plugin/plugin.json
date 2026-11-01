@@ -1,0 +1,5 @@
+{
+  "name": "hobin-eval-verify",
+  "version": "0.3.0",
+  "description": "Eval-only helper for claude plugin eval cases: runs a core scenario's code-based checks when the run stops and writes the results for the case's graders. Not a user plugin."
+}

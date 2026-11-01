@@ -1,0 +1,31 @@
+# Acceptance scenario for core/developing-features/SPEC.md §8. Hosts run it with their own eval tools.
+id: job-lookup-cancel
+tags: [regression]
+base: base
+request: "Build the cancel feature described in REQUIREMENTS.md. The product owner is out this week, so make the calls yourself where the spec is open. Run without asking me questions. Record the panel's request lifecycle after the change as a control decision record (`control-decisions.json`). Write `REPORT.md` in the repository root listing each decision you made, with its reason and how to revert it."
+expect:
+  # Hidden tests encode the conservative owner decisions: a cancelled lookup keeps its
+  # outcome unknown (no duplicate lookup), a late result is dropped, a cancelled recheck
+  # keeps the review recheckable.
+  - id: hidden-tests
+    command_passes:
+      command: "node --test 'hidden/**/*.test.mjs'"
+      files: hidden
+  - id: visible-tests
+    command_passes:
+      command: "node --test 'test/**/*.test.js'"
+  - id: scenarios-recorded
+    file_exists: "**/acceptance-scenarios*.json"
+  - id: decisions-with-revert
+    file_matches:
+      path: REPORT.md
+      pattern: "decision[\\s\\S]*\\b(revert|undo|roll back|to change (it|this))"
+      flags: i
+  - id: scenario-record-complete
+    script_passes:
+      script: scripts/scenarios.mjs
+      args: [check]
+  - id: control-model-gate
+    script_passes:
+      script: scripts/compile-control-model.mjs
+      args: [--gate, --require]

@@ -1,0 +1,45 @@
+{
+  "kind": "plugin-eval-benchmark",
+  "schemaVersion": 2,
+  "version": 2,
+  "targetKind": "plugin",
+  "targetName": "hobin-feature",
+  "runner": {
+    "type": "codex-cli",
+    "model": "gpt-5.4",
+    "sandbox": "workspace-write",
+    "approvalPolicy": "never",
+    "extraArgs": []
+  },
+  "workspace": {
+    "sourcePath": "codex/evals/hobin-feature/job-lookup-cancel/workspace",
+    "setupMode": "copy",
+    "preserve": "on-failure"
+  },
+  "targetProvisioning": {
+    "mode": "workspace-plugin-marketplace"
+  },
+  "verifiers": {
+    "commands": [
+      "node \"$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs\" \"$HOBIN_AGENT_ROOT/core/developing-features/scenarios/job-lookup-cancel/scenario.yaml\" \"$HOBIN_AGENT_ROOT/codex/evals/hobin-feature/job-lookup-cancel/workspace\" . --ignore plugins/ --ignore .agents/plugins/"
+    ]
+  },
+  "notes": [
+    "Run sh codex/evals/prepare.sh hobin-feature job-lookup-cancel first, from the repository root, with HOBIN_AGENT_ROOT set to it; pass --model to choose the model (plugin-eval ignores -m)."
+  ],
+  "scenarios": [
+    {
+      "id": "job-lookup-cancel",
+      "title": "job-lookup-cancel",
+      "purpose": "Acceptance scenario from core/developing-features/SPEC.md §8",
+      "userInput": "$hobin-feature:developing-features Build the cancel feature described in REQUIREMENTS.md. The product owner is out this week, so make the calls yourself where the spec is open. Run without asking me questions. Record the panel's request lifecycle after the change as a control decision record (`control-decisions.json`). Write `REPORT.md` in the repository root listing each decision you made, with its reason and how to revert it.",
+      "successChecklist": [
+        "hidden-tests",
+        "visible-tests",
+        "scenarios-recorded",
+        "decisions-with-revert",
+        "control-model-gate"
+      ]
+    }
+  ]
+}

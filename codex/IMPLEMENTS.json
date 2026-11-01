@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "2133062518d23741a6ae576d",
+    "spec": "4fada8c9f997c781a6ae576d",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {
@@ -170,7 +170,9 @@
       "../shared/lenses": "plugins/hobin-feature/skills/developing-features/references/lenses",
       "assets": "plugins/hobin-feature/skills/developing-features/assets",
       "scenarios/{scenario}/base": "evals/hobin-feature/{scenario}/base",
-      "scripts/scenarios.mjs": "plugins/hobin-feature/skills/developing-features/scripts/scenarios.mjs"
+      "scripts/scenarios.mjs": "plugins/hobin-feature/skills/developing-features/scripts/scenarios.mjs",
+      "scripts/compile-control-model.mjs": "plugins/hobin-feature/skills/developing-features/scripts/compile-control-model.mjs",
+      "scripts/check-control-model.mjs": "plugins/hobin-feature/skills/developing-features/scripts/check-control-model.mjs"
     },
     "evals": "evals/hobin-feature/{scenario}/benchmark.json",
     "guarantees": {
@@ -179,7 +181,8 @@
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
       "G5": "instructed: steps 5 to 7; the verifier subagent is instructed not to edit (no per-agent sandbox); checked by the hidden and visible tests and by scenario-record-complete (existing tests run and recorded by scenarios.mjs)",
-      "G6": "enforced: once the user trusts the plugin hooks (/hooks), a Stop hook sends Codex back while scenarios.mjs check fails for a record written in the session (up to three times in a row); the skill also runs it before finishing"
+      "G6": "enforced: once the user trusts the plugin hooks (/hooks), a Stop hook sends Codex back while scenarios.mjs check fails for a record written in the session (up to three times in a row); the skill also runs it before finishing",
+      "G7": "enforced: once the user trusts the plugin hooks (/hooks), the Stop hook also runs compile-control-model.mjs --gate for a record written in the session and sends Codex back while it fails (up to three times in a row); the skill also runs it before finishing"
     }
   },
   "evaluating-skills": {

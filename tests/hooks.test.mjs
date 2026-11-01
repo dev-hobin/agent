@@ -152,6 +152,39 @@ test("codex feature Stop hook: acts only on a record written in this session, th
 	assert.equal(stop(workspace(), `none-${process.pid}-${Date.now()}`, older).status, 0, "a session without a record is left alone");
 });
 
+// G7: a control decision record in the workspace must pass compile-control-model.mjs --gate.
+function controlWorkspace(gatePasses) {
+	const dir = workspace();
+	const scenario = join(repositoryRoot, "core/developing-features/scenarios/job-lookup-cancel");
+	cpSync(join(scenario, "base"), dir, { recursive: true });
+	cpSync(join(scenario, "golden"), dir, { recursive: true });
+	if (!gatePasses) {
+		const record = JSON.parse(readFileSync(join(dir, "control-decisions.json"), "utf8"));
+		writeFileSync(join(dir, "control-decisions.json"), JSON.stringify({ ...record, findings: [] }));
+	}
+	return dir;
+}
+
+test("claude feature Stop hook: also blocks while a control decision record fails the gate", () => {
+	const stop = (cwd, session) => runHook("hobin-feature", "scenarios-stop-hook.mjs", { hook_event_name: "Stop", cwd, session_id: session });
+	assert.equal(stop(controlWorkspace(true), `gate-ok-${process.pid}-${Date.now()}`).status, 0);
+	const failing = stop(controlWorkspace(false), `gate-bad-${process.pid}-${Date.now()}`);
+	assert.equal(failing.status, 2);
+	assert.match(failing.stderr, /finding same-events:COMPLETED\|FAILED is not acknowledged/);
+});
+
+test("codex feature Stop hook: a control decision record written in this session must pass the gate", async () => {
+	const older = join(workspace(), "older.jsonl");
+	writeFileSync(older, "");
+	await new Promise((r) => setTimeout(r, 20));
+	const bad = controlWorkspace(false);
+	const stop = (cwd, session) => runHook("hobin-feature", "scenarios-stop-hook.mjs", { hook_event_name: "Stop", cwd, session_id: session, transcript_path: older }, "codex");
+	const failing = stop(bad, `codex-gate-bad-${process.pid}-${Date.now()}`);
+	assert.equal(failing.status, 2);
+	assert.match(failing.stderr, /compile-control-model\.mjs --gate/);
+	assert.equal(stop(controlWorkspace(true), `codex-gate-ok-${process.pid}-${Date.now()}`).status, 0);
+});
+
 test("result hooks are the same scripts on both hosts", () => {
 	const shared = {
 		"hobin-review": ["hook-input.mjs", "report-hook.mjs"],

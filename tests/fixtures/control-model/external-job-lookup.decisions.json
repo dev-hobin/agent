@@ -1,0 +1,396 @@
+{
+  "feature": "external job lookup (synthetic, as-is analysis)",
+  "semantics": {
+    "step": "one event is handled to completion before the next",
+    "exit": "leaving a lookup or recheck aborts the request; the server job keeps running",
+    "stale": "each attempt has a sequence number; a result whose number is not current is dropped",
+    "conflict": "two rules that hold for the same combination are an error"
+  },
+  "facts": [
+    {
+      "code": "busy (useState)",
+      "evidence": "LookupPanel.tsx:76",
+      "answer": "variable",
+      "as": "busy"
+    },
+    {
+      "code": "recovering (useState)",
+      "evidence": "LookupPanel.tsx:77",
+      "answer": "variable",
+      "as": "recovering"
+    },
+    {
+      "code": "failure {message, requiresReview, lookupId} (useState)",
+      "evidence": "LookupPanel.tsx:78",
+      "answer": "variable",
+      "as": "failure"
+    },
+    {
+      "code": "freshResult (useState)",
+      "evidence": "LookupPanel.tsx:59",
+      "answer": "variable",
+      "as": "result"
+    },
+    {
+      "code": "failure.message",
+      "evidence": "LookupPanel.tsx:79",
+      "answer": "excluded",
+      "reason": "display"
+    },
+    {
+      "code": "failure.lookupId value",
+      "evidence": "LookupPanel.tsx:81",
+      "answer": "excluded",
+      "reason": "unbounded",
+      "owner": "data attached to the review failure; its presence is failure == review"
+    },
+    {
+      "code": "canLookup",
+      "evidence": "LookupPanel.tsx:113",
+      "answer": "excluded",
+      "reason": "derived"
+    },
+    {
+      "code": "active (AbortController ref), sequence (ref)",
+      "evidence": "LookupPanel.tsx:83",
+      "answer": "excluded",
+      "reason": "derived",
+      "owner": "implements attempts; see semantics.stale"
+    },
+    {
+      "code": "recent result query",
+      "evidence": "LookupPanel.tsx:62",
+      "answer": "excluded",
+      "reason": "owned",
+      "owner": "TanStack Query"
+    },
+    {
+      "code": "submit() on the lookup form",
+      "evidence": "LookupPanel.tsx:125",
+      "answer": "event",
+      "as": "SUBMIT"
+    },
+    {
+      "code": "recoverResult() on the recheck button",
+      "evidence": "LookupPanel.tsx:180",
+      "answer": "event",
+      "as": "RECHECK"
+    },
+    {
+      "code": "resetRequest() from client select, clear, and date change",
+      "evidence": "LookupPanel.tsx:93",
+      "answer": "event",
+      "as": "RESET"
+    },
+    {
+      "code": "lookup() resolves",
+      "evidence": "LookupPanel.tsx:137",
+      "answer": "event",
+      "as": "JOB_COMPLETED"
+    },
+    {
+      "code": "lookup() rejects with a code outside the review set",
+      "evidence": "LookupPanel.tsx:149",
+      "answer": "event",
+      "as": "JOB_FAILED"
+    },
+    {
+      "code": "lookup() rejects with LOOKUP_EXPIRED",
+      "evidence": "LookupPanel.tsx:152",
+      "answer": "event",
+      "as": "JOB_EXPIRED"
+    },
+    {
+      "code": "lookup() rejects with LOOKUP_RESULT_REVIEW_REQUIRED",
+      "evidence": "LookupPanel.tsx:150",
+      "answer": "event",
+      "as": "DEADLINE"
+    },
+    {
+      "code": "lookup() rejects with LOOKUP_RESULT_INVALID",
+      "evidence": "LookupPanel.tsx:151",
+      "answer": "event",
+      "as": "RESPONSE_INVALID"
+    },
+    {
+      "code": "recover() returns COMPLETED with a result",
+      "evidence": "LookupPanel.tsx:195",
+      "answer": "event",
+      "as": "RECHECK_COMPLETED"
+    },
+    {
+      "code": "recover() returns CREATED or REDEEMED",
+      "evidence": "LookupPanel.tsx:218",
+      "answer": "event",
+      "as": "RECHECK_PENDING"
+    },
+    {
+      "code": "recover() returns FAILED or EXPIRED",
+      "evidence": "LookupPanel.tsx:207",
+      "answer": "event",
+      "as": "RECHECK_FAILED"
+    },
+    {
+      "code": "recover() rejects",
+      "evidence": "LookupPanel.tsx:226",
+      "answer": "event",
+      "as": "RECHECK_ERROR"
+    },
+    {
+      "code": "server job status",
+      "evidence": "api/lookup.ts:128",
+      "answer": "outside",
+      "as": "assumption"
+    },
+    {
+      "code": "response parsing",
+      "evidence": "api/lookup.ts:171",
+      "answer": "outside",
+      "as": "function"
+    }
+  ],
+  "variables": {
+    "busy": "bool",
+    "recovering": "bool",
+    "result": "bool",
+    "failure": [
+      "none",
+      "other",
+      "review",
+      "reviewNoId"
+    ]
+  },
+  "initial": {
+    "busy": false,
+    "recovering": false,
+    "result": false,
+    "failure": "none"
+  },
+  "events": {
+    "SUBMIT": {
+      "source": "control",
+      "rules": [
+        {
+          "when": "busy || recovering || failure == \"review\" || failure == \"reviewNoId\"",
+          "refuse": "guarantee"
+        },
+        {
+          "when": "!busy && !recovering && result && failure == \"none\"",
+          "question": "D1: allow a new lookup while a valid result is still shown?"
+        },
+        {
+          "when": "!busy && !recovering && !result && (failure == \"none\" || failure == \"other\")",
+          "then": {
+            "busy": "true",
+            "failure": "\"none\"",
+            "result": "false"
+          }
+        }
+      ]
+    },
+    "JOB_COMPLETED": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "then": {
+            "busy": "false",
+            "result": "true"
+          }
+        }
+      ]
+    },
+    "JOB_FAILED": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "then": {
+            "busy": "false",
+            "failure": "\"other\""
+          }
+        }
+      ]
+    },
+    "JOB_EXPIRED": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "question": "D2: the same server EXPIRED ends here without a reference but allows a new lookup after a recheck"
+        }
+      ]
+    },
+    "DEADLINE": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "then": {
+            "busy": "false",
+            "failure": "\"review\""
+          }
+        }
+      ]
+    },
+    "RESPONSE_INVALID": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "then": {
+            "busy": "false",
+            "failure": "\"reviewNoId\""
+          }
+        }
+      ]
+    },
+    "RECHECK": {
+      "source": "control",
+      "rules": [
+        {
+          "when": "!busy && !recovering && failure == \"review\"",
+          "then": {
+            "recovering": "true"
+          }
+        },
+        {
+          "when": "busy || recovering || failure != \"review\"",
+          "refuse": "guarantee"
+        }
+      ]
+    },
+    "RECHECK_COMPLETED": {
+      "source": "response",
+      "arrives": "recovering",
+      "rules": [
+        {
+          "then": {
+            "recovering": "false",
+            "failure": "\"none\"",
+            "result": "true"
+          }
+        }
+      ]
+    },
+    "RECHECK_PENDING": {
+      "source": "response",
+      "arrives": "recovering",
+      "rules": [
+        {
+          "then": {
+            "recovering": "false"
+          }
+        }
+      ]
+    },
+    "RECHECK_FAILED": {
+      "source": "response",
+      "arrives": "recovering",
+      "rules": [
+        {
+          "then": {
+            "recovering": "false",
+            "failure": "\"other\""
+          }
+        }
+      ]
+    },
+    "RECHECK_ERROR": {
+      "source": "response",
+      "arrives": "recovering",
+      "rules": [
+        {
+          "then": {
+            "recovering": "false"
+          }
+        }
+      ]
+    },
+    "RESET": {
+      "source": "control",
+      "rules": [
+        {
+          "when": "failure == \"review\" || failure == \"reviewNoId\"",
+          "question": "D3: clearing an unknown outcome allows a second job for the same target (see K1)"
+        },
+        {
+          "when": "!busy && !recovering && !result && failure == \"none\"",
+          "ignore": "nothing to clear"
+        },
+        {
+          "when": "(busy || result || failure == \"other\") && failure != \"review\" && failure != \"reviewNoId\"",
+          "then": {
+            "busy": "false",
+            "recovering": "false",
+            "result": "false",
+            "failure": "\"none\""
+          }
+        }
+      ]
+    }
+  },
+  "variants": {
+    "embedded": {
+      "without": [
+        "RESET"
+      ],
+      "note": "the parent fixes the target and remounts on change"
+    }
+  },
+  "assumptions": [
+    {
+      "id": "K1",
+      "kind": "world",
+      "text": "the server rejects a second outstanding job for the same target",
+      "status": "unverified",
+      "evidence": ""
+    },
+    {
+      "id": "K2",
+      "kind": "eventual",
+      "text": "the lookup and the recheck calls settle within their deadlines",
+      "status": "verified",
+      "evidence": "gateway deadline and request timeouts"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "I1",
+      "text": "at most one outstanding job per target",
+      "reliesOn": [
+        "K1"
+      ]
+    },
+    {
+      "id": "I2",
+      "text": "one request at a time",
+      "holds": "!(busy && recovering)"
+    },
+    {
+      "id": "I3",
+      "text": "no new lookup while an outcome may be outstanding",
+      "refuses": {
+        "event": "SUBMIT",
+        "when": "busy || recovering || failure == \"review\" || failure == \"reviewNoId\""
+      }
+    },
+    {
+      "id": "I4",
+      "text": "RESET returns to the empty state where no outcome is unknown",
+      "step": {
+        "event": "RESET",
+        "from": "failure != \"review\" && failure != \"reviewNoId\"",
+        "to": "!busy && !recovering && !result && failure == \"none\""
+      }
+    }
+  ],
+  "progress": [
+    {
+      "id": "P1",
+      "when": "busy || recovering",
+      "text": "a lookup or recheck ends",
+      "assuming": "K2"
+    }
+  ]
+}

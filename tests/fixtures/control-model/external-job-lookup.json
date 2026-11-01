@@ -1,0 +1,347 @@
+{
+  "feature": "external job lookup (synthetic, as-is analysis)",
+  "semantics": {
+    "step": "one event is handled to completion before the next",
+    "exit": "leaving lookingUp or rechecking aborts the request; the server job keeps running",
+    "stale": "each attempt has a sequence number; a result whose number is not current is dropped",
+    "conflict": "two enabled transitions for the same state and event are an error, not resolved by order"
+  },
+  "outside": [
+    {
+      "item": "server job status",
+      "as": "event",
+      "note": "JOB_* and RECHECK_* events carry the observed status"
+    },
+    {
+      "item": "server rejects a second outstanding job for the same target",
+      "as": "assumption",
+      "note": "K1"
+    },
+    {
+      "item": "response parsing",
+      "as": "function",
+      "note": "a parse failure arrives as RESPONSE_INVALID or RECHECK_ERROR"
+    }
+  ],
+  "excluded": [
+    {
+      "item": "result payload",
+      "reason": "no event depends on it",
+      "owner": "data attached to succeeded"
+    },
+    {
+      "item": "canSubmit",
+      "reason": "derived",
+      "owner": "computed from the state"
+    },
+    {
+      "item": "job id",
+      "reason": "unbounded",
+      "owner": "data attached to unknown and rechecking"
+    }
+  ],
+  "initial": "idle",
+  "states": {
+    "idle": {},
+    "lookingUp": {
+      "owns": [
+        "JOB_COMPLETED",
+        "JOB_FAILED",
+        "JOB_EXPIRED",
+        "DEADLINE",
+        "RESPONSE_INVALID"
+      ]
+    },
+    "succeeded": {},
+    "failed": {},
+    "unknown": {},
+    "unknownNoRef": {},
+    "rechecking": {
+      "owns": [
+        "RECHECK_COMPLETED",
+        "RECHECK_PENDING",
+        "RECHECK_FAILED",
+        "RECHECK_ERROR"
+      ]
+    }
+  },
+  "events": [
+    "SUBMIT",
+    "JOB_COMPLETED",
+    "JOB_FAILED",
+    "JOB_EXPIRED",
+    "DEADLINE",
+    "RESPONSE_INVALID",
+    "RECHECK",
+    "RECHECK_COMPLETED",
+    "RECHECK_PENDING",
+    "RECHECK_FAILED",
+    "RECHECK_ERROR",
+    "RESET"
+  ],
+  "sources": {
+    "SUBMIT": "control",
+    "RECHECK": "control",
+    "RESET": "control",
+    "JOB_COMPLETED": "response",
+    "JOB_FAILED": "response",
+    "JOB_EXPIRED": "response",
+    "DEADLINE": "response",
+    "RESPONSE_INVALID": "response",
+    "RECHECK_COMPLETED": "response",
+    "RECHECK_PENDING": "response",
+    "RECHECK_FAILED": "response",
+    "RECHECK_ERROR": "response"
+  },
+  "cells": {
+    "idle": {
+      "SUBMIT": {
+        "to": "lookingUp"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RESET": {
+        "ignore": "nothing to clear"
+      }
+    },
+    "lookingUp": {
+      "SUBMIT": {
+        "forbid": "guarantee"
+      },
+      "JOB_COMPLETED": {
+        "to": "succeeded"
+      },
+      "JOB_FAILED": {
+        "to": "failed"
+      },
+      "JOB_EXPIRED": {
+        "question": "D2: the same server EXPIRED ends here without a reference but allows a new lookup after a recheck"
+      },
+      "DEADLINE": {
+        "to": "unknown"
+      },
+      "RESPONSE_INVALID": {
+        "to": "unknownNoRef"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RESET": {
+        "to": "idle"
+      }
+    },
+    "succeeded": {
+      "SUBMIT": {
+        "question": "D1: allow a new lookup while a valid result is still shown?"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RESET": {
+        "to": "idle"
+      }
+    },
+    "failed": {
+      "SUBMIT": {
+        "to": "lookingUp"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RESET": {
+        "to": "idle"
+      }
+    },
+    "unknown": {
+      "SUBMIT": {
+        "forbid": "guarantee"
+      },
+      "RECHECK": {
+        "to": "rechecking"
+      },
+      "RESET": {
+        "question": "D3: clearing an unknown outcome allows a second job for the same target (see K1)"
+      }
+    },
+    "unknownNoRef": {
+      "SUBMIT": {
+        "forbid": "guarantee"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RESET": {
+        "question": "D3: clearing an unknown outcome allows a second job for the same target (see K1)"
+      }
+    },
+    "rechecking": {
+      "SUBMIT": {
+        "forbid": "guarantee"
+      },
+      "RECHECK": {
+        "forbid": "guarantee"
+      },
+      "RECHECK_COMPLETED": {
+        "to": "succeeded"
+      },
+      "RECHECK_PENDING": {
+        "to": "unknown"
+      },
+      "RECHECK_FAILED": {
+        "to": "failed"
+      },
+      "RECHECK_ERROR": {
+        "to": "unknown"
+      },
+      "RESET": {
+        "question": "D3: clearing an unknown outcome allows a second job for the same target (see K1)"
+      }
+    }
+  },
+  "variants": {
+    "embedded": {
+      "without": [
+        "RESET"
+      ],
+      "note": "the parent fixes the target and remounts on change"
+    }
+  },
+  "assumptions": [
+    {
+      "id": "K1",
+      "kind": "world",
+      "text": "the server rejects a second outstanding job for the same target",
+      "status": "unverified",
+      "evidence": ""
+    },
+    {
+      "id": "K2",
+      "kind": "eventual",
+      "text": "the lookup and the recheck calls settle within their deadlines",
+      "status": "verified",
+      "evidence": "gateway deadline and request timeouts"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "I1",
+      "text": "at most one outstanding job per target",
+      "reliesOn": [
+        "K1"
+      ]
+    },
+    {
+      "id": "I2",
+      "text": "one request at a time",
+      "holds": "!(busy && recovering)"
+    },
+    {
+      "id": "I3",
+      "text": "no new lookup while an outcome may be outstanding",
+      "refuses": {
+        "event": "SUBMIT",
+        "when": "in(lookingUp, rechecking, unknown, unknownNoRef)"
+      }
+    },
+    {
+      "id": "I4",
+      "text": "RESET returns to idle where no outcome is unknown",
+      "step": {
+        "event": "RESET",
+        "from": "!in(unknown, unknownNoRef, rechecking)",
+        "to": "in(idle)"
+      }
+    },
+    {
+      "id": "I5",
+      "text": "the flags follow the state",
+      "holds": "busy == in(lookingUp) && recovering == in(rechecking) && result == in(succeeded)"
+    }
+  ],
+  "progress": [
+    {
+      "id": "P1",
+      "states": [
+        "lookingUp",
+        "rechecking"
+      ],
+      "text": "a lookup or recheck ends",
+      "assuming": "K2"
+    }
+  ],
+  "refinement": [
+    {
+      "implementation": "!busy && !recovering && !failure && !result",
+      "when": "!busy && !recovering && !result && failure == \"none\"",
+      "state": "idle"
+    },
+    {
+      "implementation": "busy",
+      "when": "busy && !recovering && !result && failure == \"none\"",
+      "state": "lookingUp"
+    },
+    {
+      "implementation": "result",
+      "when": "!busy && !recovering && result && failure == \"none\"",
+      "state": "succeeded"
+    },
+    {
+      "implementation": "failure && !failure.requiresReview",
+      "when": "!busy && !recovering && !result && failure == \"other\"",
+      "state": "failed"
+    },
+    {
+      "implementation": "failure.requiresReview && failure.lookupId && !recovering",
+      "when": "!busy && !recovering && !result && failure == \"review\"",
+      "state": "unknown"
+    },
+    {
+      "implementation": "failure.requiresReview && !failure.lookupId",
+      "when": "!busy && !recovering && !result && failure == \"reviewNoId\"",
+      "state": "unknownNoRef"
+    },
+    {
+      "implementation": "recovering",
+      "when": "!busy && recovering && !result && failure == \"review\"",
+      "state": "rechecking"
+    }
+  ],
+  "unreachable": [
+    {
+      "when": "busy && recovering",
+      "reason": "both handlers return while a request is active",
+      "by": "invariant",
+      "invariant": "I2"
+    },
+    {
+      "when": "busy && (result || failure != \"none\")",
+      "reason": "submit clears the result and the failure",
+      "by": "invariant",
+      "invariant": "I5"
+    },
+    {
+      "when": "recovering && (result || failure != \"review\")",
+      "reason": "a recheck starts only from a review failure",
+      "by": "invariant",
+      "invariant": "I5"
+    },
+    {
+      "when": "!busy && !recovering && result && failure != \"none\"",
+      "reason": "a result is set only together with clearing the failure",
+      "by": "invariant",
+      "invariant": "I5"
+    }
+  ],
+  "variables": {
+    "busy": "bool",
+    "recovering": "bool",
+    "result": "bool",
+    "failure": [
+      "none",
+      "other",
+      "review",
+      "reviewNoId"
+    ]
+  }
+}

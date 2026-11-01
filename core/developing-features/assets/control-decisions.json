@@ -1,0 +1,196 @@
+{
+  "feature": "<short name; same as acceptance-scenarios.json>",
+  "note": "A small generic example. Replace the facts, variables, inputs, and rules with what the feature's code does.",
+  "semantics": {
+    "step": "one event is handled to completion before the next",
+    "exit": "<what leaving a state does to work it started: abort, ignore its result, or let it finish>",
+    "stale": "<how a result from an ended attempt is recognized and dropped>",
+    "conflict": "two rules that hold for the same combination are an error"
+  },
+  "facts": [
+    {
+      "code": "<busy (useState)>",
+      "evidence": "<File.tsx:12>",
+      "quote": "<the exact text on that line, e.g. const [busy, setBusy] = useState(false);>",
+      "answer": "variable",
+      "as": "busy"
+    },
+    {
+      "code": "<result (useState)>",
+      "evidence": "<File.tsx:13>",
+      "quote": "<the exact text on that line, e.g. const [result, setResult] = useState('none');>",
+      "answer": "variable",
+      "as": "result"
+    },
+    {
+      "code": "<ready prop>",
+      "evidence": "<File.tsx:5>",
+      "quote": "<the exact text on that line, e.g. ready: boolean;>",
+      "answer": "input",
+      "as": "ready",
+      "from": [
+        {
+          "code": "<a condition this input stands for>",
+          "evidence": "<File.tsx:30>",
+          "quote": "<the exact text on that line>"
+        }
+      ]
+    },
+    {
+      "code": "<error message text>",
+      "evidence": "<File.tsx:14>",
+      "quote": "<the exact text on that line, e.g. the cited code>",
+      "answer": "excluded",
+      "reason": "display"
+    },
+    {
+      "code": "<start button handler>",
+      "evidence": "<File.tsx:40>",
+      "quote": "<the exact text on that line, e.g. onClick={start}>",
+      "answer": "event",
+      "as": "START"
+    },
+    {
+      "code": "<request resolves>",
+      "evidence": "<File.tsx:44>",
+      "quote": "<the exact text on that line, e.g. setResult('ok');>",
+      "answer": "event",
+      "as": "SUCCEEDED"
+    },
+    {
+      "code": "<request rejects>",
+      "evidence": "<File.tsx:48>",
+      "quote": "<the exact text on that line, e.g. setResult('error');>",
+      "answer": "event",
+      "as": "FAILED"
+    },
+    {
+      "code": "<reset button handler>",
+      "evidence": "<File.tsx:60>",
+      "quote": "<the exact text on that line, e.g. onClick={reset}>",
+      "answer": "event",
+      "as": "RESET"
+    },
+    {
+      "code": "<the server finishes accepted work>",
+      "evidence": "<api.ts:30>",
+      "quote": "<the exact text on that line, e.g. the cited code>",
+      "answer": "outside",
+      "as": "assumption"
+    }
+  ],
+  "variables": {
+    "busy": "bool",
+    "result": [
+      "none",
+      "ok",
+      "error"
+    ]
+  },
+  "inputs": {
+    "ready": "bool"
+  },
+  "initial": {
+    "busy": false,
+    "result": "none"
+  },
+  "events": {
+    "START": {
+      "source": "control",
+      "rules": [
+        {
+          "when": "!busy && result != \"ok\" && ready",
+          "then": {
+            "busy": "true",
+            "result": "\"none\""
+          }
+        },
+        {
+          "when": "busy || result == \"ok\" || !ready",
+          "refuse": "guarantee"
+        }
+      ]
+    },
+    "SUCCEEDED": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "then": {
+            "busy": "false",
+            "result": "\"ok\""
+          }
+        }
+      ]
+    },
+    "FAILED": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "then": {
+            "busy": "false",
+            "result": "\"error\""
+          }
+        }
+      ]
+    },
+    "RESET": {
+      "source": "control",
+      "rules": [
+        {
+          "when": "busy",
+          "question": "D1: may RESET abandon a request that is still running?"
+        },
+        {
+          "when": "!busy && result == \"none\"",
+          "refuse": "guarantee"
+        },
+        {
+          "when": "!busy && result != \"none\"",
+          "then": {
+            "result": "\"none\""
+          }
+        }
+      ]
+    }
+  },
+  "assumptions": [
+    {
+      "id": "K1",
+      "kind": "eventual",
+      "text": "the request settles within its timeout",
+      "status": "unverified",
+      "evidence": "<api.ts:12>"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "I1",
+      "text": "one request at a time",
+      "refuses": {
+        "event": "START",
+        "when": "busy"
+      }
+    },
+    {
+      "id": "I2",
+      "text": "a running request shows no result",
+      "holds": "!busy || result == \"none\""
+    }
+  ],
+  "progress": [
+    {
+      "id": "P1",
+      "when": "busy",
+      "text": "a request ends",
+      "assuming": "K1"
+    }
+  ],
+  "findings": [
+    {
+      "id": "<a finding id the gate reports, e.g. same-events:FAILED|SUCCEEDED>",
+      "note": "<why it is acceptable, or what will be done>"
+    }
+  ]
+}

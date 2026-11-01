@@ -1,0 +1,77 @@
+{
+  "feature": "cancel a running lookup",
+  "request": "Build the cancel feature described in REQUIREMENTS.md. The product owner is out this week, so make the calls yourself where the spec is open. Run without asking me questions. Record the panel's request lifecycle after the change as a control decision record (`control-decisions.json`). Write `REPORT.md` in the repository root listing each decision you made, with its reason and how to revert it.",
+  "scenarios": [
+    {
+      "id": "S1",
+      "given": "a panel with nothing running, then a running lookup",
+      "when": "cancel is asked for",
+      "then": "it is refused while nothing runs and offered while the lookup runs",
+      "check": "node --test --test-name-pattern '^S1 ' test/cancel.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S2",
+      "given": "a running lookup whose job id is known",
+      "when": "the user cancels",
+      "then": "the panel stops waiting; a new lookup is refused and a recheck of that job is offered",
+      "check": "node --test --test-name-pattern '^S2 ' test/cancel.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S3",
+      "given": "a running lookup whose job id has not arrived",
+      "when": "the user cancels",
+      "then": "a new lookup and a recheck are refused until reset",
+      "check": "node --test --test-name-pattern '^S3 ' test/cancel.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S4",
+      "given": "a cancelled lookup",
+      "when": "its result arrives late",
+      "then": "the result is dropped and the review stays",
+      "check": "node --test --test-name-pattern '^S4 ' test/cancel.test.js",
+      "status": "pass"
+    },
+    {
+      "id": "S5",
+      "given": "a recheck running for a review with a job id",
+      "when": "the user cancels it",
+      "then": "the review stays recheckable and the late recheck result is dropped",
+      "check": "node --test --test-name-pattern '^S5 ' test/cancel.test.js",
+      "status": "pass"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "May the user submit a new lookup right after cancelling one?",
+      "owner": "product owner",
+      "decision": "No. A cancelled lookup becomes a review: recheck it when the job id is known, otherwise reset first.",
+      "reason": "The server job keeps running and may still finish; a new lookup could create a duplicate job.",
+      "revert": "In cancel() in src/lookup.js, set review to null instead of withId/withoutId."
+    },
+    {
+      "id": "D2",
+      "question": "What happens to a result that arrives after its lookup was cancelled?",
+      "owner": "product owner",
+      "decision": "It is dropped.",
+      "reason": "The user chose to stop waiting; a recheck can still read the outcome.",
+      "revert": "Remove this.attempt++ from cancel() so the late result is accepted."
+    },
+    {
+      "id": "D3",
+      "question": "What does cancel do during a recheck?",
+      "owner": "product owner",
+      "decision": "It stops waiting for the recheck and keeps the review recheckable.",
+      "reason": "A recheck does not change the job; its outcome is still unknown.",
+      "revert": "In cancel(), clear review when cancelling a recheck."
+    }
+  ],
+  "verification": {
+    "existing_tests": "node --test 'test/**/*.test.js'",
+    "existing_tests_status": "pass",
+    "rounds": []
+  }
+}

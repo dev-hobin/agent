@@ -41,7 +41,14 @@ passes and an independent reviewer agrees.
    scenario file.
 3. **Model conditions** when several conditions combine or order matters: read
    [condition-modeling.md](references/knowledge/condition-modeling.md) and derive extra
-   scenarios from the table rows.
+   scenarios from the table rows. When what the user or system may do depends on a mode
+   (an external job and polling, retries, rechecks or cancels, late results, flags that
+   together block an action), read [control-model.md](references/knowledge/control-model.md),
+   copy `assets/control-decisions.json` into the working tree as `control-decisions*.json`,
+   fill it from the code, and fix it until
+   `node <this skill's directory>/scripts/compile-control-model.mjs --gate` passes. The gate's
+   findings are facts about the code: acknowledge each one, and raise the ones an owner must
+   decide as decisions in step 2.
 4. **Design** when ownership, boundaries, data shape, or variation is unsettled: read
    [design-surface.md](references/knowledge/design-surface.md) and write the surface
    before coding. For the risky parts, read the lenses under "When to read more" that
@@ -59,7 +66,9 @@ passes and an independent reviewer agrees.
 7. **Report** in this form. Scenario results come only from
    `node <this skill's directory>/scripts/scenarios.mjs run`, which runs every scenario check
    and the existing tests and writes the results into the record; never edit `status` by
-   hand. Finish only when `node <this skill's directory>/scripts/scenarios.mjs check` passes. Write it to the file the request names,
+   hand. Finish only when `node <this skill's directory>/scripts/scenarios.mjs check` passes,
+   and `node <this skill's directory>/scripts/compile-control-model.mjs --gate` too when a
+   control decision record exists. Write it to the file the request names,
    otherwise in the answer:
 
 ```text
@@ -77,6 +86,12 @@ Not verified:     <what could not be observed>
 - `assets/acceptance-scenarios.json` — the scenario and decision record to copy and fill.
 - [condition-modeling.md](references/knowledge/condition-modeling.md) — several
   conditions combine, absence or defaults matter, or order and time matter.
+- `assets/control-decisions.json` — the control decision record to copy and fill when the
+  allowed actions depend on a mode.
+- [control-model.md](references/knowledge/control-model.md) — what the user or system may
+  do depends on a mode, an external job, or a late result.
+- [control-model-format.md](references/knowledge/control-model-format.md) — filling the
+  decision record or reading what the scripts print.
 - [design-surface.md](references/knowledge/design-surface.md) — the data shape,
   ownership, interfaces, or variation mechanism are not settled yet.
 - Lenses, only those that apply: [contract](references/lenses/contract.md)

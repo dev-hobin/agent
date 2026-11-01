@@ -1,0 +1,348 @@
+{
+  "feature": "job lookup panel: cancel",
+  "semantics": {
+    "step": "one call is handled to completion before the next",
+    "exit": "cancel and reset move the attempt on; the server job keeps running",
+    "stale": "a result whose attempt is not the current one is dropped",
+    "conflict": "two rules that hold for the same combination are an error"
+  },
+  "facts": [
+    {
+      "code": "busy: a lookup is running",
+      "evidence": "src/lookup.js:7",
+      "quote": "this.busy = false; // a lookup is running",
+      "answer": "variable",
+      "as": "busy"
+    },
+    {
+      "code": "recovering: a recheck is running",
+      "evidence": "src/lookup.js:8",
+      "quote": "this.recovering = false; // a recheck is running",
+      "answer": "variable",
+      "as": "recovering"
+    },
+    {
+      "code": "whether the job id of the running or unresolved lookup is known",
+      "evidence": "src/lookup.js:9",
+      "quote": "this.jobId = null; // the server job of the running or unresolved lookup",
+      "answer": "variable",
+      "as": "jobKnown"
+    },
+    {
+      "code": "review: the outcome is unknown, with or without a job id",
+      "evidence": "src/lookup.js:10",
+      "quote": "this.review = null; // 'withId' or 'withoutId' while the outcome is unknown",
+      "answer": "variable",
+      "as": "review"
+    },
+    {
+      "code": "the job id value",
+      "evidence": "src/lookup.js:28",
+      "quote": "this.jobId = jobId;",
+      "answer": "excluded",
+      "reason": "unbounded",
+      "owner": "only whether it is known is the variable jobKnown"
+    },
+    {
+      "code": "the result",
+      "evidence": "src/lookup.js:35",
+      "quote": "this.result = outcome.result;",
+      "answer": "excluded",
+      "reason": "display"
+    },
+    {
+      "code": "the attempt number",
+      "evidence": "src/lookup.js:23",
+      "quote": "return ++this.attempt;",
+      "answer": "excluded",
+      "reason": "derived",
+      "owner": "implements attempts; a result of an older attempt is dropped"
+    },
+    {
+      "code": "submit()",
+      "evidence": "src/lookup.js:18",
+      "quote": "submit() {",
+      "answer": "event",
+      "as": "SUBMIT"
+    },
+    {
+      "code": "jobCreated() for the current attempt",
+      "evidence": "src/lookup.js:26",
+      "quote": "jobCreated(attempt, jobId) {",
+      "answer": "event",
+      "as": "JOB_CREATED"
+    },
+    {
+      "code": "settle() with a completed outcome",
+      "evidence": "src/lookup.js:34",
+      "quote": "if (outcome.kind === 'completed') {",
+      "answer": "event",
+      "as": "COMPLETED"
+    },
+    {
+      "code": "settle() with a failed outcome",
+      "evidence": "src/lookup.js:37",
+      "quote": "} else if (outcome.kind === 'failed') {",
+      "answer": "event",
+      "as": "FAILED"
+    },
+    {
+      "code": "settle() past the deadline",
+      "evidence": "src/lookup.js:39",
+      "quote": "} else if (outcome.kind === 'deadline') {",
+      "answer": "event",
+      "as": "DEADLINE"
+    },
+    {
+      "code": "recheck()",
+      "evidence": "src/lookup.js:48",
+      "quote": "recheck() {",
+      "answer": "event",
+      "as": "RECHECK"
+    },
+    {
+      "code": "settleRecheck() with completed or failed",
+      "evidence": "src/lookup.js:57",
+      "quote": "if (status === 'completed' || status === 'failed') {",
+      "answer": "event",
+      "as": "RECHECK_SETTLED"
+    },
+    {
+      "code": "settleRecheck() with any other status",
+      "evidence": "src/lookup.js:54",
+      "quote": "settleRecheck(attempt, status) {",
+      "answer": "event",
+      "as": "RECHECK_PENDING"
+    },
+    {
+      "code": "cancel()",
+      "evidence": "src/lookup.js:70",
+      "quote": "cancel() {",
+      "answer": "event",
+      "as": "CANCEL"
+    },
+    {
+      "code": "reset()",
+      "evidence": "src/lookup.js:82",
+      "quote": "reset() {",
+      "answer": "event",
+      "as": "RESET"
+    },
+    {
+      "code": "the server job keeps running after cancel",
+      "evidence": "src/lookup.js:67",
+      "quote": "// The server job keeps running after a cancel, so its outcome stays unknown: a cancelled",
+      "answer": "outside",
+      "as": "assumption"
+    }
+  ],
+  "variables": {
+    "busy": "bool",
+    "recovering": "bool",
+    "jobKnown": "bool",
+    "review": [
+      "none",
+      "withId",
+      "withoutId"
+    ]
+  },
+  "initial": {
+    "busy": false,
+    "recovering": false,
+    "jobKnown": false,
+    "review": "none"
+  },
+  "events": {
+    "SUBMIT": {
+      "source": "control",
+      "rules": [
+        {
+          "when": "!busy && !recovering && review == \"none\"",
+          "then": {
+            "busy": "true",
+            "jobKnown": "false"
+          }
+        },
+        {
+          "when": "busy || recovering || review != \"none\"",
+          "refuse": "guarantee"
+        }
+      ]
+    },
+    "JOB_CREATED": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "then": {
+            "jobKnown": "true"
+          }
+        }
+      ]
+    },
+    "COMPLETED": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "then": {
+            "busy": "false",
+            "jobKnown": "false"
+          }
+        }
+      ]
+    },
+    "FAILED": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "then": {
+            "busy": "false",
+            "jobKnown": "false"
+          }
+        }
+      ]
+    },
+    "DEADLINE": {
+      "source": "response",
+      "arrives": "busy",
+      "rules": [
+        {
+          "when": "jobKnown",
+          "then": {
+            "busy": "false",
+            "review": "\"withId\""
+          }
+        },
+        {
+          "when": "!jobKnown",
+          "then": {
+            "busy": "false",
+            "review": "\"withoutId\""
+          }
+        }
+      ]
+    },
+    "RECHECK": {
+      "source": "control",
+      "rules": [
+        {
+          "when": "!busy && !recovering && review == \"withId\"",
+          "then": {
+            "recovering": "true"
+          }
+        },
+        {
+          "when": "busy || recovering || review != \"withId\"",
+          "refuse": "guarantee"
+        }
+      ]
+    },
+    "RECHECK_SETTLED": {
+      "source": "response",
+      "arrives": "recovering",
+      "rules": [
+        {
+          "then": {
+            "recovering": "false",
+            "review": "\"none\"",
+            "jobKnown": "false"
+          }
+        }
+      ]
+    },
+    "RECHECK_PENDING": {
+      "source": "response",
+      "arrives": "recovering",
+      "rules": [
+        {
+          "then": {
+            "recovering": "false"
+          }
+        }
+      ]
+    },
+    "CANCEL": {
+      "source": "control",
+      "rules": [
+        {
+          "when": "busy && jobKnown",
+          "then": {
+            "busy": "false",
+            "review": "\"withId\""
+          }
+        },
+        {
+          "when": "busy && !jobKnown",
+          "then": {
+            "busy": "false",
+            "review": "\"withoutId\""
+          }
+        },
+        {
+          "when": "!busy && recovering",
+          "then": {
+            "recovering": "false"
+          }
+        },
+        {
+          "when": "!busy && !recovering",
+          "refuse": "guarantee"
+        }
+      ]
+    },
+    "RESET": {
+      "source": "control",
+      "rules": [
+        {
+          "then": {
+            "busy": "false",
+            "recovering": "false",
+            "jobKnown": "false",
+            "review": "\"none\""
+          }
+        }
+      ]
+    }
+  },
+  "assumptions": [
+    {
+      "id": "K1",
+      "kind": "world",
+      "text": "the server job keeps running after the panel stops waiting",
+      "status": "verified",
+      "evidence": "REQUIREMENTS.md"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "I1",
+      "text": "one call at a time",
+      "holds": "!(busy && recovering)"
+    },
+    {
+      "id": "I2",
+      "text": "no new lookup while an outcome may be outstanding",
+      "refuses": {
+        "event": "SUBMIT",
+        "when": "busy || recovering || review != \"none\""
+      }
+    },
+    {
+      "id": "I3",
+      "text": "a cancelled lookup leaves its outcome unknown",
+      "step": {
+        "event": "CANCEL",
+        "from": "busy",
+        "to": "review != \"none\""
+      }
+    }
+  ],
+  "findings": [
+    {
+      "id": "same-events:COMPLETED|FAILED",
+      "note": "a completed and a failed lookup differ only in what is shown (the result); the requirement keeps them apart, so both events stay"
+    }
+  ]
+}
