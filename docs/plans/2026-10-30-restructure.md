@@ -513,3 +513,36 @@ learning 5)는 검증 설정 결함 때문에 실패했다. 보존된 작업 공
   `command_passes`를 hook이나 자기 검사로만 보장하고, Codex 검증 명령은 이를 직접 실행하지만
   `ran_command`(실행 기록 기반)는 보지 않는다.
 - Codex feature 시나리오는 실행이 길다(5~10분, 최대 약 196만 토큰).
+
+## 15. 한계로 남긴 것들을 구조로 해결 (2026-11-01)
+
+사용자 지적: 실패 상태를 그대로 두지 말고, 구조로 통과하게 만들거나 불필요한 검사로 없애야
+한다. 그리고 "한계"로 적은 것 대부분은 각 호스트 인프라를 끝까지 쓰지 않아 생긴 것이다.
+
+| 남겼던 한계 | 해결 |
+| --- | --- |
+| Claude 평가가 코드 검사(숨은 테스트, 스크립트, 산출물 계약)를 채점 못 함 | case `plugins` 필드로 평가 전용 verify 플러그인을 싣는다. 그 Stop hook이 `scenario-check --kinds`로 코드 검사를 작업 공간 사본에서 돌려 `SCENARIO_CHECK.txt`에 쓰고, 기본 regex 채점기가 읽는다. 숨은 파일은 사본에만 생긴다. 실험으로 확인: 보조 플러그인은 case 하위 디렉터리여야 하고, SessionEnd는 채점 전에 끝나지 않으며 Stop은 끝난다 |
+| Claude에서 feature·stances 스크립트 검사가 "지시" | Claude 권장대로 skill frontmatter hook으로 강제(PostToolUse: review·learning·stances, Stop: feature). hook 명령은 `${CLAUDE_PLUGIN_ROOT}`(실험: `${CLAUDE_SKILL_DIR}`은 hook에서 안 바뀜) |
+| Codex 스크립트 검사가 "지시"(플러그인 hook 미지원으로 알고 있었음) | Codex 문서 재확인: 플러그인 `hooks/hooks.json` 지원, 기본 켜짐, 사용자가 `/hooks`에서 신뢰. 같은 검사를 `apply_patch` 입력으로 강제. Codex는 skill 범위 hook이 없어 feature Stop hook은 이번 세션이 쓴 기록에만 작동 |
+| Codex가 실행 기록 검사(`ran_command`)를 못 봄 | 과정 검사 자체를 삭제(보장은 결과만). enforcing-conventions G6(과정)도 삭제. 결과 검사가 이미 증명한다 |
+| enforcing-conventions t08 (1/3) | 명세 §1이 다루는 범주("잘못된 값을 만들 수 없게")를 description이 못 다룸 → 명세와 두 구현체를 고치고 새 검증 질의 4개 추가 → 24/24 |
+
+이 과정에서 드러난 결함과 재발 방지:
+
+- **description이 명세와 어긋남:** 지난번 description 개선을 구현체에만 넣었다. `check.mjs`가 SKILL.md description과 명세 §1을 비교하게 했고, IMPLEMENTS에 `skill` 경로를 둔다.
+- **sandbox PATH:** Claude 평가 sandbox에서 접근 금지 PATH 항목 때문에 PATH 탐색(`sh`, `node`, npm의 shebang)이 EPERM으로 실패해 `scenarios.mjs run`이 모든 시나리오를 실패로 기록했다(실험으로 확인). 접근 가능한 PATH 항목만으로 기본 셸에서 실행하도록 고쳤다.
+- **hook cwd:** hook 입력 `cwd`는 모델의 `cd`를 따라간다. Claude hook은 `CLAUDE_PROJECT_DIR`을 쓴다.
+- **technical-reading 용어 보존:** 산출물 계약에 `Source terms`(원천 용어 그대로, 원천 정의와 함께)를 필수로 넣어 hook이 강제한다(G3 문구도 갱신).
+- **feature `tests-saved-and-passing`:** sandbox에서 npm이 실행되는지를 재고 있었다. 기존 테스트 통과는 `scenario-record-complete`와 verify의 visible/hidden 테스트가 증명하므로 삭제.
+- 과거 평가 결과 폴더가 git에 추적되던 것을 해제.
+
+검증:
+
+- `pnpm check`: 10개 역량 증명, 테스트 31개(hook 테스트 두 호스트, verify 복사본·채점기 일치, Codex 설정).
+- Claude 회귀(Sonnet, 3회): 13개 시나리오 모두 1.00. 트리거: enforcing-conventions 24/24.
+- 비용: 약 $16 (회귀 $6.85 + $4.39 + $1.66, 트리거 $2.33, 실험 약 $0.05).
+
+남은 일:
+
+- Codex 3회 재평가: 사용자가 `!`로 실행(외부 코드 실행은 권한 분류기가 막는다).
+- Codex 플러그인 hook의 실제 로딩 확인: 신뢰는 Codex 설계상 사용자 결정이다. `/hooks`에서 신뢰한 세션에서 한 번 확인한다(평가 설정에 신뢰 우회 옵션을 넣는 것은 권한 분류기가 막았다).
