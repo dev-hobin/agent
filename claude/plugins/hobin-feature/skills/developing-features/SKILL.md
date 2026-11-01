@@ -6,6 +6,11 @@ disable-model-invocation: true
 allowed-tools:
   - "Agent(hobin-feature:independent-verifier)"
   - "Bash(node ${CLAUDE_SKILL_DIR}/scripts/scenarios.mjs *)"
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\""
 ---
 
 # Developing Features

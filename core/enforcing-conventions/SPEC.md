@@ -22,11 +22,14 @@ skill로 반영한다.
 
 설명문(호스트가 skill 목록에 보여 줄 문장, 영어):
 
-> Turns a coding convention that keeps being violated into the cheapest automatic
-> enforcement that catches it — a type, construction boundary, lint rule, test, or hook —
-> with an error message that tells the reader how to fix it. Use when a convention or
-> agent-instruction rule keeps being broken, or a stance needs an automatic check. Not for
-> choosing a style guide or fixing a one-off violation.
+> Turns a rule that keeps being broken into the cheapest automatic enforcement that
+> catches it — a type or construction boundary that makes the wrong value impossible to
+> create, a lint rule, a test, or a hook — with an error message that tells the reader how
+> to fix it. Use whenever the user wants a convention, invariant, or agent-instruction
+> rule to fail automatically or become impossible to break, or a stance needs an automatic
+> check, even if they never call it a convention. Not for installing or updating the
+> stances in agent instructions (applying-stances does that), choosing a style guide,
+> writing a one-off validation, or fixing a single violation.
 
 짧은 설명: Turn a repeatedly broken convention into a check
 표시 이름: Enforcing Conventions
@@ -58,7 +61,6 @@ skill로 반영한다.
 | G3 | 변경 후의 코드에서 표준 검사 명령이 통과한다. 기존 위반은 같은 변경에서 고치거나 명시적 baseline으로 남긴다 | 필수 |
 | G4 | 프로젝트에 이미 있는 도구로 구현하고 의존성을 새로 들이지 않는다 | 필수 |
 | G5 | 규칙이 지침 문서(`AGENTS.md`, `CLAUDE.md`, 기여 안내 같은 관례 문서)에서 왔으면 그 산문을 검사를 가리키는 한 줄로 바꾼다 | 필수 |
-| G6 | 끝났다고 말하기 전에 표준 검사 명령을 실행한다 | 필수 |
 
 각 구현체는 보장마다 호스트가 **강제**하는지, skill이 **지시**만 하는지, **지원하지 않는지**를
 자기 `IMPLEMENTS.json`에 밝힌다.

@@ -16,8 +16,6 @@ expect:
     file_lacks:
       path: package.json
       pattern: "ependencies\""
-  - id: ran-the-check
-    ran_command: "npm run check"
   # hidden/enforcement.check.mjs runs `npm run check` on the result (must pass), then adds a
   # new `line.price * line.qty` file to src/ (must fail with output naming toCents).
   - id: catches-new-violation

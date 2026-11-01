@@ -1,6 +1,6 @@
 // Check a workspace against the file-based checks of a core scenario (scenario.yaml).
 // Usage: node scenario-check.mjs <scenario.yaml> <baseline> [workspace=.] [--ignore <path>]…
-// — exit 0 when all pass. <baseline> is the workspace as presented to the run, before the run
+//        [--kinds <kind,…>] — exit 0 when all pass. --kinds runs only those check kinds. <baseline> is the workspace as presented to the run, before the run
 // changed anything. --ignore drops paths the host's eval tool adds to the workspace (for
 // example the plugin it installs there): every check, including capability scripts that scan
 // the workspace themselves, runs on a copy without them.
@@ -29,7 +29,7 @@ const glob = (pattern) => new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\
 	.replace(/\*\*\//g, "\u0000").replace(/\*\*/g, "\u0001").replace(/\*/g, "[^/]*")
 	.replace(/\u0000/g, "(?:.*/)?").replace(/\u0001/g, ".*")}$`);
 
-export function checkScenario(casePath, workspace, original, ignore = []) {
+export function checkScenario(casePath, workspace, original, ignore = [], kinds = null) {
 	const spec = parse(readFileSync(casePath, "utf8"));
 	if (ignore.length) {
 		const ignored = (path) => ignore.some((prefix) => path === prefix || path.startsWith(prefix.replace(/\/?$/, "/")));
@@ -40,6 +40,7 @@ export function checkScenario(casePath, workspace, original, ignore = []) {
 	const results = [];
 	for (const expectation of spec.expect) {
 		const [kind, value] = Object.entries(expectation).find(([key]) => key !== "id");
+		if (kinds && !kinds.includes(kind)) continue;
 		let passed;
 		if (kind === "file_exists") passed = files(workspace).some((path) => glob(value).test(path));
 		else if (kind === "file_matches" || kind === "file_lacks") {
@@ -74,7 +75,7 @@ export function checkScenario(casePath, workspace, original, ignore = []) {
 			let text = null;
 			try { text = readFileSync(join(workspace, value.file), "utf8"); } catch { passed = false; }
 			if (text !== null) passed = checkText(contract, text).length === 0;
-		} else continue; // trace-based expectations are checked by the host's own tool
+		} else throw new Error(`${casePath}: unknown check kind "${kind}" in ${expectation.id}`);
 		results.push({ id: expectation.id, passed });
 	}
 	return results;
@@ -82,9 +83,11 @@ export function checkScenario(casePath, workspace, original, ignore = []) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
 	const args = process.argv.slice(2);
-	const ignore = args.flatMap((arg, i) => (args[i - 1] === "--ignore" ? [arg] : []));
-	const [casePath, baseline, workspace = "."] = args.filter((arg, i) => arg !== "--ignore" && args[i - 1] !== "--ignore");
-	const results = checkScenario(resolve(casePath), resolve(workspace), resolve(baseline), ignore);
+	const option = (name) => args.flatMap((arg, i) => (args[i - 1] === name ? [arg] : []));
+	const ignore = option("--ignore");
+	const kinds = option("--kinds").flatMap((list) => list.split(","));
+	const [casePath, baseline, workspace = "."] = args.filter((arg, i) => !arg.startsWith("--") && !args[i - 1]?.startsWith("--"));
+	const results = checkScenario(resolve(casePath), resolve(workspace), resolve(baseline), ignore, kinds.length ? kinds : null);
 	for (const r of results) console.log(`${r.passed ? "pass" : "FAIL"} ${r.id}`);
 	process.exit(results.every((r) => r.passed) ? 0 : 1);
 }

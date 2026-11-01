@@ -43,7 +43,7 @@ tags: [regression]
 base: base                 # directory with the state before the change
 change: change.patch       # optional patch applied to base to produce the reviewed state
 request: "<what the user asks>"
-expect:                    # every check is deterministic
+expect:                    # every check is deterministic and looks at the outcome only
   - { id: <check>, file_exists: <path> }
   - { id: <check>, file_matches: { path, pattern, flags } }   # JavaScript regex
   - { id: <check>, file_lacks: { path, pattern, flags } }
@@ -51,9 +51,13 @@ expect:                    # every check is deterministic
   - { id: <check>, unchanged_except: [<paths the run may write>] }
   - { id: <check>, unchanged: [<paths or directories that must not change>] }
   - { id: <check>, command_passes: { command, files: hidden } } # hidden files added after the run
-  - { id: <check>, ran_command: "<regex over shell commands>" }  # needs the run trace
   - { id: <check>, script_passes: { script: scripts/<file>.mjs, args: [...] } }  # capability script, cwd = workspace
 ```
+
+Checks look at outcomes: files, their contents, and exit codes. How the run got there (the
+commands it ran, the tools or agents it used) is not a check; if running something matters,
+check the outcome that only running it produces, such as a saved test output or a record a
+script wrote.
 
 **Output contracts.** When a capability writes a Markdown result, its required parts live
 as data in `assets/output-contract.json` (`id`, `skeleton`, `required` parts with label,

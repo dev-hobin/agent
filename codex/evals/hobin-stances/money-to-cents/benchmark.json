@@ -25,8 +25,7 @@
     ]
   },
   "notes": [
-    "Run sh codex/evals/prepare.sh hobin-stances money-to-cents first, from the repository root, with HOBIN_AGENT_ROOT set to it; pass --model to choose the model (plugin-eval ignores -m).",
-    "ran-the-check needs the run trace and is not checked by the verifier command; confirm that the run executed npm run check."
+    "Run sh codex/evals/prepare.sh hobin-stances money-to-cents first, from the repository root, with HOBIN_AGENT_ROOT set to it; pass --model to choose the model (plugin-eval ignores -m)."
   ],
   "scenarios": [
     {
@@ -38,7 +37,6 @@
         "check-script-added",
         "rule-points-to-check",
         "no-new-dependencies",
-        "ran-the-check",
         "catches-new-violation"
       ]
     }

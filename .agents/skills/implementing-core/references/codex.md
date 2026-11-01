@@ -32,25 +32,39 @@ codex/
 | §7 knowledge | `references/perspectives/<id>.md` inside the skill |
 | §4 guarantees | Explicit invocation: enforced. Read-only reviewers: instructed only (no per-agent sandbox). Anything the skill asks for: instructed |
 
-### Output contracts (self-checked)
+### Output contracts
 
 For a capability with `assets/output-contract.json`, copy
 `core/shared/scripts/output-contract.mjs` into each such skill's `scripts/` and the contract
 into its `assets/`. The skill procedure starts the result with
 `node <this skill's directory>/scripts/output-contract.mjs new <this skill's directory>/assets/output-contract.json <file>`
-and ends only when `… check …` passes. Plugin hooks run only for manually installed
-desktop plugins, so the guarantee is **instructed**, with a deterministic self-check. The
-`output_contract` scenario check runs in the plugin-eval verifier.
+and ends only when `… check …` passes. The plugin's `scripts/output-contract-hook.mjs`
+enforces it as described below. The `output_contract` scenario check runs in the
+plugin-eval verifier.
 
 The bundled Codex skill `review-agent` exists; keep skill names distinct from it.
 
-### Capability check scripts (self-checked)
+### Must-hold results: plugin hooks
 
-When the spec ships a check script in `scripts/`, copy it into the skill's `scripts/` with
-any assets it reads. The skill runs it at the step the spec names and finishes only when
-it exits 0. Plugin hooks load only for desktop manual installs, so the guarantee is
-**instructed** (a deterministic self-check). The benchmark verifier runs the same check
-through `scenario-check.mjs`.
+Codex loads lifecycle hooks bundled with an enabled plugin from its `hooks/hooks.json`
+(on by default; the user trusts them once with `/hooks`, and Codex records trust against
+the hook's hash). Codex has no skill-scoped hooks, so plugin hooks apply to every session
+and must act only on the skill's own results. Every guarantee the spec backs with a script
+(an output contract or a `script_passes` check) gets one, and the guarantee is
+**enforced once the user trusts the plugin hooks**:
+
+- `PostToolUse` with matcher `apply_patch|Edit|Write` (file edits arrive as `apply_patch`):
+  `node "$PLUGIN_ROOT/scripts/<name>-hook.mjs"`. Take the written paths from the patch in
+  `tool_input.command` (`*** Add File:`, `*** Update File:`, `*** Move to:`) with
+  `scripts/hook-input.mjs`, act only on files recognized by content, and exit 2 with the
+  problems on stderr. Exit 0 for unrelated files and on unexpected errors.
+- `Stop` for "finish only when the check passes": act only when the session wrote the
+  result (a record changed after the `transcript_path` file was created), exit 2 while the
+  check fails, and let Codex stop after three blocks in a row.
+- `tests/hooks.test.mjs` proves each hook with an apply_patch input.
+
+The skill still runs the check itself at the step the spec names. Copy each spec script
+into the skill's `scripts/` with any assets it reads.
 
 ## Scenarios as plugin-eval benchmarks
 
@@ -71,10 +85,9 @@ CHANGE.diff, gitignored) before a run. The verifier command is
 `node "$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs" "$HOBIN_AGENT_ROOT/core/<id>/scenarios/<scenario>/scenario.yaml" "$HOBIN_AGENT_ROOT/codex/evals/<plugin>/<scenario>/workspace" . --ignore plugins/ --ignore .agents/plugins/`
 — exit 0 when every file-based check passes. plugin-eval installs the plugin into the run's
 workspace (`plugins/<plugin>/`, `.agents/plugins/marketplace.json`); `--ignore` keeps those
-out of `unchanged*` and `file_exists` checks. `tests/evals.test.mjs` pins these fields. `command_passes` runs there too (the
-checker copies the scenario's hidden files in first). `ran_command` checks need the trace
-and are listed in the benchmark `notes` instead. A scenario without `change` is prepared by
-copying `base/` only.
+out of every check. `tests/evals.test.mjs` pins these fields. `command_passes` runs there
+too (the checker copies the scenario's hidden files in first). A scenario without `change`
+is prepared by copying `base/` only.
 
 Triggers: plugin-eval has no skill-selection verifier. List `triggers.yaml` as not covered
 on Codex in `IMPLEMENTS.json` (`"triggers": "unsupported: …"`) rather than inventing one.

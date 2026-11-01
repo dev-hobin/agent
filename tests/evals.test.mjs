@@ -110,3 +110,38 @@ test("every Codex benchmark config is one plugin-eval accepts and verifies outsi
 		}
 	}
 });
+
+// Code-based scenario checks reach Claude's graders through the eval verify plugin.
+const codeKinds = ["command_passes", "script_passes", "output_contract"];
+const verifyTemplate = join(repositoryRoot, "claude/eval-support/verify");
+
+async function tree(dir, base = dir) {
+	const out = {};
+	for (const entry of await readdir(dir, { withFileTypes: true })) {
+		const path = join(dir, entry.name);
+		if (entry.isDirectory()) Object.assign(out, await tree(path, base));
+		else out[path.slice(base.length)] = await readFile(path, "utf8");
+	}
+	return out;
+}
+
+test("every Claude regression case loads the verify plugin and grades each code-based check", async () => {
+	const template = await tree(verifyTemplate);
+	const regression = [];
+	for (const dir of await cases()) {
+		const prompt = frontmatter(await readFile(join(dir, "prompt.md"), "utf8"), dir).data;
+		if (!(prompt.tags ?? []).includes("regression")) continue;
+		regression.push(dir);
+		assert.deepEqual(prompt.plugins, ["../..", "verify"], `${dir}: plugins`);
+		assert.deepEqual(await tree(join(dir, "verify")), template, `${dir}: verify/ must match claude/eval-support/verify`);
+		const scenario = prompt.env?.EVAL_SCENARIO;
+		assert.ok(scenario, `${dir}: env.EVAL_SCENARIO`);
+		const checks = parse(await readFile(join(repositoryRoot, scenario), "utf8")).expect;
+		for (const check of checks.filter((c) => codeKinds.some((k) => k in c))) {
+			const { data } = frontmatter(await readFile(join(dir, "graders", `${check.id}.md`), "utf8"), `${dir}/${check.id}`);
+			assert.equal(data.target?.path, "SCENARIO_CHECK.txt", `${dir}/${check.id}`);
+			assert.equal(data.pattern, `^pass ${check.id}$`, `${dir}/${check.id}`);
+		}
+	}
+	assert.ok(regression.length >= 13);
+});

@@ -47,7 +47,8 @@ codex plugin add hobin-review@hobin
 
 Start a new session after installing. Explicit-only skills are started as
 `/hobin-review:reviewing-code` in Claude Code and `$hobin-review:reviewing-code` in
-Codex. See [installation](./docs/installation.md).
+Codex. In Codex, trust the bundled hooks once with `/hooks` so the result checks run
+automatically. See [installation](./docs/installation.md).
 
 ## Changing a capability
 

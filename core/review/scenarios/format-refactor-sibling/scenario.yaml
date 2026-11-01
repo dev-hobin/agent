@@ -28,8 +28,6 @@ expect:
       flags: i
   - id: no-other-changes
     unchanged_except: [REVIEW.md]
-  - id: ran-the-suite
-    ran_command: "node --test|npm (run )?test"
   - id: report-format
     script_passes:
       script: scripts/check-report.mjs

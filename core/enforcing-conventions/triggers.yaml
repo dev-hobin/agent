@@ -61,3 +61,16 @@ queries:
   - id: f10
     query: "프로젝트에 prettier 설치하고 포맷 맞춰줘"
     should_trigger: false  # Formatter setup and style choice.
+  # Held out on 2026-11-01 to validate the description change for t08's category.
+  - id: t11
+    query: "Order quantities keep showing up negative from different call sites. Make it impossible to create an order line with a negative quantity."
+    should_trigger: true  # Invariant made unconstructable after repeated violations.
+  - id: t12
+    query: "UserId 자리에 아무 문자열이나 넘기는 실수가 계속 나와. 컴파일 단계에서 막히게 해줘"
+    should_trigger: true  # Type boundary for a repeated mistake, Korean.
+  - id: f11
+    query: "Write a function that validates email addresses and returns true or false"
+    should_trigger: false  # A one-off validation helper, no rule to enforce.
+  - id: f12
+    query: "TypeScript가 string을 Email 타입에 할당할 수 없다고 에러를 내. 이 한 줄 고쳐줘"
+    should_trigger: false  # Fixing one error the existing enforcement reported.

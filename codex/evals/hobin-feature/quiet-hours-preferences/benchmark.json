@@ -25,8 +25,7 @@
     ]
   },
   "notes": [
-    "Run sh codex/evals/prepare.sh hobin-feature quiet-hours-preferences first, from the repository root, with HOBIN_AGENT_ROOT set to it; pass --model to choose the model (plugin-eval ignores -m).",
-    "ran-the-suite needs the run trace and is not checked by the verifier command; confirm that the run executed the test suite."
+    "Run sh codex/evals/prepare.sh hobin-feature quiet-hours-preferences first, from the repository root, with HOBIN_AGENT_ROOT set to it; pass --model to choose the model (plugin-eval ignores -m)."
   ],
   "scenarios": [
     {
@@ -39,8 +38,7 @@
         "visible-tests",
         "scenarios-recorded",
         "decisions-with-revert",
-        "tests-saved-and-passing",
-        "ran-the-suite"
+        "tests-saved-and-passing"
       ]
     }
   ]

@@ -4,6 +4,12 @@ description: "Installs a short set of engineering stances into a project's or us
 disable-model-invocation: true
 allowed-tools:
   - "Bash(node ${CLAUDE_SKILL_DIR}/scripts/stances.mjs *)"
+hooks:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      hooks:
+        - type: command
+          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\""
 ---
 
 # Applying Stances

@@ -4,6 +4,12 @@ description: "Turns several cases, notes, postmortems, or repeated judgments int
 argument-hint: "[the cases, notes, or judgments to compare, and where to save the result]"
 allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs *)"
+hooks:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      hooks:
+        - type: command
+          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/output-contract-hook.mjs\""
 ---
 
 # Patternize

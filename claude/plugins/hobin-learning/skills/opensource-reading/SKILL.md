@@ -4,6 +4,12 @@ description: "Studies an open source repository through one evidence-backed code
 argument-hint: "[repository path or URL, the slice to study, and where to save the result]"
 allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs *)"
+hooks:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      hooks:
+        - type: command
+          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/output-contract-hook.mjs\""
 ---
 
 # Open Source Reading

@@ -1,9 +1,11 @@
 ---
-description: "Not covered by graders: meets-output-contract (output_contract has no grader equivalent); the plugin hook enforces it on every write of a result started from the skeleton."
 tags: [regression]
 max_turns: 60
 timeout_seconds: 1200
 allowed_tools: [Read, Glob, Grep, Agent, Bash, Write]
+plugins: ["../..", "verify"]
+env:
+  EVAL_SCENARIO: core/patternize/scenarios/retry-notes/scenario.yaml
 ---
 
 /hobin-learning:patternize Use the patternize skill for this.

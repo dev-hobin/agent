@@ -16,7 +16,9 @@ claude/
     skills/<skill>/scripts/…             copies of core scripts
     knowledge/*.md                       copies of core knowledge
     agents/<role>.md                     only for a spec §6 strategy that delegates
+    scripts/<name>-hook.mjs              hook scripts registered by skills
     evals/<scenario>/                    one `claude plugin eval` case per spec §8 scenario
+claude/eval-support/verify/              eval-only plugin copied into every case as verify/
 ```
 
 ## Spec to Claude form
@@ -31,10 +33,32 @@ claude/
 | §7 knowledge | `knowledge/` at the plugin root, read through `${CLAUDE_PLUGIN_ROOT}` |
 | §4 guarantees | Explicit invocation: enforced. Read-only agents: enforced by `tools`. Anything the skill text asks for: instructed |
 
-Commands are merged into skills; do not add `commands/`. Avoid hooks unless the spec
-needs one.
+Commands are merged into skills; do not add `commands/`.
 
-### Output contracts (enforced with a plugin hook)
+### Must-hold results: skill hooks
+
+Claude Code's answer to "a rule that must hold every time" is a hook, kept with the skill
+in its `hooks` frontmatter: Claude Code registers it when the skill is invoked and runs it
+for the rest of the session. Every guarantee the spec backs with a script (an output
+contract or a `script_passes` check) gets one, and the guarantee is **enforced**:
+
+- `PostToolUse` (matcher `Write|Edit`) for a result file Claude writes:
+  `node "${CLAUDE_PLUGIN_ROOT}/scripts/<name>-hook.mjs"`. The script reads the hook JSON
+  from stdin, takes `tool_input.file_path`, acts only on files it recognizes by content (an
+  output-contract marker, a report whose first line is `[P0]`/`[P1]` or `No findings`, a
+  block marker), runs the check from the session `cwd`, and exits 2 with the problems on
+  stderr, which Claude Code feeds back to the model. Exit 0 for unrelated files and on
+  unexpected errors.
+- `Stop` for "finish only when the check passes": exit 2 while the check fails sends Claude
+  back to work. Let Claude stop after three blocks in a row (count per `session_id` in the
+  temp directory) so a check that cannot pass never traps the session.
+- Use `${CLAUDE_PLUGIN_ROOT}` in hook commands; `${CLAUDE_SKILL_DIR}` is not set for hooks.
+- `tests/hooks.test.mjs` proves each hook with a passing and a failing result.
+
+The skill still runs the check itself at the step the spec names, so the model learns the
+result before the hook has to send it back.
+
+### Output contracts
 
 For a capability with `assets/output-contract.json`:
 
@@ -43,18 +67,10 @@ For a capability with `assets/output-contract.json`:
 - The skill tells Claude to start the result with
   `node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs new ${CLAUDE_SKILL_DIR}/assets/output-contract.json <file>`
   and to finish only when `… check …` passes; pre-approve that script in `allowed-tools`.
-- Add `hooks/hooks.json` with a `PostToolUse` hook (matcher `Write|Edit`) running
-  `node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract-hook.mjs`. The hook script reads the
-  hook JSON from stdin, takes `tool_input.file_path`, and does nothing unless that file
-  starts with `<!-- output-contract: <id> -->`. It then finds the contract with that `id`
-  among `skills/*/assets/output-contract.json`, runs `checkText` from
-  `./output-contract.mjs`, and on problems writes them to stderr and exits 2, which Claude
-  Code feeds back to the model. Exit 0 otherwise; never fail the user's edit for an error
-  inside the hook (exit 0 on unexpected errors).
-- The contract guarantee is **enforced** on Claude (the hook checks every write of a
-  result started from the skeleton). The `output_contract` scenario check has no grader
-  equivalent (no custom-code graders); list it as covered by the hook in the case's
-  `description`, and keep the scenario's regex checks as graders.
+- Register `scripts/output-contract-hook.mjs` as the skill's `PostToolUse` hook. It acts on
+  files that start with `<!-- output-contract: <id> -->`, finds the contract with that `id`
+  among `skills/*/assets/output-contract.json`, and runs `checkText` from
+  `./output-contract.mjs`.
 
 ### Capability check scripts (`script_passes`)
 
@@ -63,15 +79,7 @@ When the spec ships a check script in `scripts/` (a `script_passes` scenario che
 - Copy it into the skill's `scripts/` with any assets it reads, and pre-approve
   `Bash(node ${CLAUDE_SKILL_DIR}/scripts/<script> *)` in `allowed-tools`.
 - The skill runs it at the step the spec names and finishes only when it exits 0.
-- If the checked result is a file Claude writes and the file can be recognized from its
-  content (for example a review report whose first line is `[P0]`/`[P1]` or
-  `No findings`), add a `PostToolUse` hook (matcher `Write|Edit`) in `hooks/hooks.json`
-  running a small `scripts/<name>-hook.mjs` that imports the check, runs it with
-  `cwd` set to the hook input's `cwd`, and exits 2 with the problems on stderr. Exit 0 for
-  unrelated files and on unexpected errors. Mark that guarantee **enforced**; otherwise
-  it is **instructed** (a deterministic self-check).
-- The check has no grader equivalent; name it in the case's `description` as not
-  covered by graders.
+- Register a skill hook for it as described above.
 
 ## Scenarios as `claude plugin eval` cases
 
@@ -84,8 +92,27 @@ evals/<scenario>/
   scaffold.sh      executable; copies base/, applies change.patch with git, writes CHANGE.diff,
                    removes .git (the macOS eval sandbox cannot run /usr/bin/git)
   base/, change.patch   copies of the scenario fixture
+  verify/               copy of claude/eval-support/verify (an eval-only plugin)
   graders/<check>.md    one per scenario check
 ```
+
+Every case also loads the verify plugin and names its scenario in the `prompt.md`
+frontmatter:
+
+```yaml
+plugins: ["../..", "verify"]
+env:
+  EVAL_SCENARIO: core/<id>/scenarios/<scenario>/scenario.yaml
+```
+
+The verify plugin's `Stop` hook runs the scenario's code-based checks (`command_passes`,
+`script_passes`, `output_contract`) on a copy of the finished workspace with
+`scenario-check.mjs --kinds …` and writes `pass <id>` / `FAIL <id>` lines to
+`SCENARIO_CHECK.txt`. Hidden test files stay in the copy, out of the model's sight.
+`claude plugin eval` has no custom-code graders, so this is how those checks become
+ordinary regex graders. A case's helper plugin must sit in a subdirectory of the case
+(`claude plugin eval` loads nothing outside the plugin under test), which is why each
+case carries its own copy; `tests/evals.test.mjs` keeps the copies identical.
 
 Presentation sentence: "The working tree is the changed version, and `CHANGE.diff` holds
 the full change against the base. "
@@ -96,9 +123,8 @@ the full change against the base. "
 | `file_matches: {path, pattern, flags}` | `type: regex`, `target: { source: file, path: P }`, `pattern`, `flags` |
 | `file_lacks` | same as above plus `match: not_contains` |
 | `unchanged_except: [P…]` | `<check>.md`: `type: tool_used`, `tool: Edit`, `min: 0`, `max: 0`, `arm: both`; and `<check>-write.md`: `type: tool_used`, `tool: Write`, `input_match` matching a `file_path` that does not end in an allowed path, `min: 0`, `max: 0`, `arm: both` |
-| `ran_command: R` | `type: tool_used`, `tool: Bash`, `input_match: R` |
 | `unchanged: [P…]` | `tool_used` on `Edit` and on `Write` with `input_match` on a `file_path` under P, `min: 0`, `max: 0`, `arm: both` (one grader each) |
-| `command_passes` | Not supported: `claude plugin eval` has no custom-code graders and runs nothing after the run. Omit it and list it under "Not covered on Claude" in the case's `prompt.md` frontmatter `description` |
+| `command_passes`, `script_passes`, `output_contract` | `type: regex`, `target: { source: file, path: SCENARIO_CHECK.txt }`, `pattern: "^pass <check>$"`, `flags: m` (written by the verify plugin) |
 
 A scenario without `change` needs no patch step: the scaffold copies `base/` only.
 

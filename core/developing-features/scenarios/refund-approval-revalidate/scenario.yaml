@@ -25,8 +25,6 @@ expect:
       path: TEST_OUTPUT.txt
       pattern: "^(# fail 0|ℹ fail 0)$"
       flags: m
-  - id: ran-the-suite
-    ran_command: "node --test|npm (run )?test"
   - id: scenario-record-complete
     script_passes:
       script: scripts/scenarios.mjs

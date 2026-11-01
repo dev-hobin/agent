@@ -4,6 +4,12 @@ description: "Studies technical prose whose primary evidence is a book, article,
 argument-hint: "[source to read (pasted text, file, or URL), its scope, and where to save the result]"
 allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs *)"
+hooks:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      hooks:
+        - type: command
+          command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/output-contract-hook.mjs\""
 ---
 
 # Technical Reading

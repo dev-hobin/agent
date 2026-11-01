@@ -2,8 +2,8 @@
 // Deterministic checks between core specs and their host implementations. No model calls.
 //   node check.mjs          fail when an implementation is stale, a copy differs from core,
 //                           a scenario has no eval case or its case does not carry the
-//                           scenario's request, or a scenario's golden result does not
-//                           prove its checks
+//                           scenario's request, a skill's description differs from its
+//                           spec, or a scenario's golden result does not prove its checks
 //   node check.mjs --sync   copy core resources into implementations and record spec hashes
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -36,6 +36,15 @@ function caseText(path) {
 		if (f.endsWith(".json")) return strings(JSON.parse(text));
 		return [];
 	}).join("\n").replace(/\s+/g, " ");
+}
+
+// The description a spec gives in §1 (the blockquote after "설명문"), as one line. A line
+// that ends in a hyphen continues the word on the next line.
+function specDescription(core) {
+	const quote = /설명문[^\n]*\n\n((?:> [^\n]*\n?)+)/.exec(readFileSync(join(core, "SPEC.md"), "utf8"))?.[1];
+	if (!quote) return null;
+	return quote.trim().split("\n").map((line) => line.slice(2).trim())
+		.reduce((text, line) => (text.endsWith("-") ? text + line : `${text} ${line}`)).replace(/\s+/g, " ");
 }
 
 function files(dir, base = dir) {
@@ -132,6 +141,13 @@ for (const id of capabilities) {
 			else if (!entry.triggers.startsWith("unsupported:")) for (const q of parse(readFileSync(triggersFile, "utf8")).queries) {
 				if (!existsSync(join(root, host, entry.triggers.replaceAll("{trigger}", q.id)))) problems.push(`${host}: no trigger case for core/${id} query ${q.id}`);
 			}
+		}
+		const description = specDescription(core);
+		const skillFile = entry.skill && join(root, host, entry.skill);
+		if (!skillFile || !existsSync(skillFile)) problems.push(`${host}: core/${id} needs "skill" (the SKILL.md path) in IMPLEMENTS.json`);
+		else if (description) {
+			const frontmatter = parse(/^---\n([\s\S]*?)\n---/.exec(readFileSync(skillFile, "utf8"))[1]);
+			if (String(frontmatter.description ?? "").replace(/\s+/g, " ").trim() !== description) problems.push(`${host}: ${entry.skill} description differs from core/${id}/SPEC.md §1`);
 		}
 		const promised = [...readFileSync(join(core, "SPEC.md"), "utf8").matchAll(/^\| (G\d+) \|/gm)].map((m) => m[1]);
 		for (const g of promised) {

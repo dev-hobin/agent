@@ -1,6 +1,6 @@
 ---
 name: enforcing-conventions
-description: "Turns a coding convention that keeps being violated into the cheapest automatic enforcement that catches it — a type, construction boundary, lint rule, test, or hook — with an error message that tells the reader how to fix it. Use when a convention or agent-instruction rule keeps being broken, or a stance needs an automatic check. Not for installing or updating the stances in agent instructions (applying-stances does that), choosing a style guide, or fixing a one-off violation."
+description: "Turns a rule that keeps being broken into the cheapest automatic enforcement that catches it — a type or construction boundary that makes the wrong value impossible to create, a lint rule, a test, or a hook — with an error message that tells the reader how to fix it. Use whenever the user wants a convention, invariant, or agent-instruction rule to fail automatically or become impossible to break, or a stance needs an automatic check, even if they never call it a convention. Not for installing or updating the stances in agent instructions (applying-stances does that), choosing a style guide, writing a one-off validation, or fixing a single violation."
 argument-hint: "[the rule to enforce, or where it is written]"
 ---
 

@@ -36,6 +36,11 @@ Start a new session and mention a skill with `$`, for example
 `$hobin-review:reviewing-code review this branch against main`. Explicit-only skills set
 `policy.allow_implicit_invocation: false` in `agents/openai.yaml`.
 
+The plugins bundle hooks that check results which must always hold (review reports,
+learning results, the stances block, the acceptance-scenario record). Codex runs plugin
+hooks only after you trust them: open `/hooks` in a session, review the hobin hooks, and
+trust them. Until then the skills still run the same checks themselves.
+
 ## Model-free installation check
 
 ```sh
