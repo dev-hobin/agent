@@ -56,7 +56,8 @@ through `scenario-check.mjs`.
 
 ```text
 codex/evals/<plugin>/<scenario>/
-  benchmark.json    kind "plugin-eval-benchmark", targetKind "plugin", targetName <plugin>,
+  benchmark.json    kind "plugin-eval-benchmark", schemaVersion 2, version 2,
+                    targetKind "plugin", targetName <plugin>,
                     runner { type "codex-cli", model, sandbox "workspace-write", approvalPolicy "never" },
                     workspace { sourcePath "codex/evals/<plugin>/<scenario>/workspace", setupMode "copy" },
                     targetProvisioning { mode "workspace-plugin-marketplace" },
@@ -67,8 +68,10 @@ codex/evals/<plugin>/<scenario>/
 
 `codex/evals/prepare.sh <plugin> <scenario>` builds `workspace/` (changed tree plus
 CHANGE.diff, gitignored) before a run. The verifier command is
-`node "$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs" "$HOBIN_AGENT_ROOT/core/<id>/scenarios/<scenario>/scenario.yaml" "$HOBIN_AGENT_ROOT/codex/evals/<plugin>/<scenario>/workspace" .`
-— exit 0 when every file-based check passes. `command_passes` runs there too (the
+`node "$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs" "$HOBIN_AGENT_ROOT/core/<id>/scenarios/<scenario>/scenario.yaml" "$HOBIN_AGENT_ROOT/codex/evals/<plugin>/<scenario>/workspace" . --ignore plugins/ --ignore .agents/plugins/`
+— exit 0 when every file-based check passes. plugin-eval installs the plugin into the run's
+workspace (`plugins/<plugin>/`, `.agents/plugins/marketplace.json`); `--ignore` keeps those
+out of `unchanged*` and `file_exists` checks. `tests/evals.test.mjs` pins these fields. `command_passes` runs there too (the
 checker copies the scenario's hidden files in first). `ran_command` checks need the trace
 and are listed in the benchmark `notes` instead. A scenario without `change` is prepared by
 copying `base/` only.

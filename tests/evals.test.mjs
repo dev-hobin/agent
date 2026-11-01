@@ -1,5 +1,5 @@
-// Model-free checks of the Claude implementations' eval suites, so that `claude plugin eval`
-// only spends money on well-formed cases. Core scenarios themselves are proven by check.mjs.
+// Model-free checks of the hosts' eval suites, so that `claude plugin eval` and Codex
+// `plugin-eval` only spend money on well-formed cases. Core scenarios are proven by check.mjs.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { access, constants, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
@@ -73,5 +73,36 @@ test("scaffolded Claude eval cases build their workspace", async (t) => {
 		t.after(() => rm(workspace, { recursive: true, force: true }));
 		await exec("bash", [script], { cwd: workspace });
 		assert.ok((await readdir(workspace)).length > 0, `${dir}: scaffold produced files`);
+	}
+});
+
+// What plugin-eval's normalizeConfig requires of a benchmark config, and the paths its
+// "workspace-plugin-marketplace" provisioning adds to the workspace (openai/plugins
+// plugins/plugin-eval src/core/benchmark.js and benchmark-workspace.js at 0722921).
+const pluginEvalSchemaVersion = 2;
+const provisionedPaths = ["plugins/", ".agents/plugins/"];
+
+test("every Codex benchmark config is one plugin-eval accepts and verifies outside provisioned paths", async () => {
+	const root = join(repositoryRoot, "codex/evals");
+	const configs = [];
+	for (const plugin of await readdir(root, { withFileTypes: true })) {
+		if (!plugin.isDirectory()) continue;
+		for (const scenario of await readdir(join(root, plugin.name))) configs.push([plugin.name, scenario]);
+	}
+	assert.ok(configs.length > 0);
+	for (const [plugin, scenario] of configs) {
+		const where = `codex/evals/${plugin}/${scenario}/benchmark.json`;
+		const config = JSON.parse(await readFile(join(repositoryRoot, where), "utf8"));
+		assert.equal(config.kind, "plugin-eval-benchmark", where);
+		assert.equal(config.schemaVersion, pluginEvalSchemaVersion, `${where}: schemaVersion`);
+		assert.equal(config.targetName, plugin, where);
+		assert.equal(config.runner?.type, "codex-cli", where);
+		assert.equal(config.workspace?.sourcePath, `codex/evals/${plugin}/${scenario}/workspace`, where);
+		assert.equal(config.targetProvisioning?.mode, "workspace-plugin-marketplace", where);
+		assert.ok(config.scenarios?.length > 0 && config.scenarios.every((s) => s.userInput?.trim()), `${where}: scenarios with userInput`);
+		assert.ok(config.verifiers?.commands?.length > 0, `${where}: a verifier command`);
+		for (const command of config.verifiers.commands) {
+			for (const path of provisionedPaths) assert.ok(command.includes(`--ignore ${path}`), `${where}: verifier must ignore ${path}`);
+		}
 	}
 });

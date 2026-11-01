@@ -1,5 +1,7 @@
 {
   "kind": "plugin-eval-benchmark",
+  "schemaVersion": 2,
+  "version": 2,
   "targetKind": "plugin",
   "targetName": "hobin-stances",
   "runner": {
@@ -19,7 +21,7 @@
   },
   "verifiers": {
     "commands": [
-      "node \"$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs\" \"$HOBIN_AGENT_ROOT/core/enforcing-conventions/scenarios/money-to-cents/scenario.yaml\" \"$HOBIN_AGENT_ROOT/codex/evals/hobin-stances/money-to-cents/workspace\" ."
+      "node \"$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs\" \"$HOBIN_AGENT_ROOT/core/enforcing-conventions/scenarios/money-to-cents/scenario.yaml\" \"$HOBIN_AGENT_ROOT/codex/evals/hobin-stances/money-to-cents/workspace\" . --ignore plugins/ --ignore .agents/plugins/"
     ]
   },
   "notes": [

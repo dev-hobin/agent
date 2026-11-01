@@ -1,6 +1,8 @@
 // Check a workspace against the file-based checks of a core scenario (scenario.yaml).
-// Usage: node scenario-check.mjs <scenario.yaml> <baseline> [workspace=.] — exit 0 when all pass.
-// <baseline> is the workspace as presented to the run, before the run changed anything.
+// Usage: node scenario-check.mjs <scenario.yaml> <baseline> [workspace=.] [--ignore <path>]…
+// — exit 0 when all pass. <baseline> is the workspace as presented to the run, before the run
+// changed anything. --ignore drops paths the host's eval tool adds to the workspace (for
+// example the plugin it installs there) from the workspace listing.
 // Used as a verifier command by hosts whose eval tools run commands (Codex plugin-eval) and
 // by check.mjs to prove each scenario accepts its golden result and rejects wrong ones.
 import { createHash } from "node:crypto";
@@ -25,13 +27,15 @@ const glob = (pattern) => new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\
 	.replace(/\*\*\//g, "\u0000").replace(/\*\*/g, "\u0001").replace(/\*/g, "[^/]*")
 	.replace(/\u0000/g, "(?:.*/)?").replace(/\u0001/g, ".*")}$`);
 
-export function checkScenario(casePath, workspace, original) {
+export function checkScenario(casePath, workspace, original, ignore = []) {
 	const spec = parse(readFileSync(casePath, "utf8"));
+	const ignored = (path) => ignore.some((prefix) => path === prefix || path.startsWith(prefix.replace(/\/?$/, "/")));
+	const listed = () => files(workspace).filter((path) => !ignored(path));
 	const results = [];
 	for (const expectation of spec.expect) {
 		const [kind, value] = Object.entries(expectation).find(([key]) => key !== "id");
 		let passed;
-		if (kind === "file_exists") passed = files(workspace).some((path) => glob(value).test(path));
+		if (kind === "file_exists") passed = listed().some((path) => glob(value).test(path));
 		else if (kind === "file_matches" || kind === "file_lacks") {
 			let text = "";
 			try { text = readFileSync(join(workspace, value.path), "utf8"); } catch { passed = false; }
@@ -41,11 +45,11 @@ export function checkScenario(casePath, workspace, original) {
 			}
 		} else if (kind === "unchanged_except") {
 			const before = new Map(files(original).map((path) => [path, digest(join(original, path))]));
-			const after = files(workspace).filter((path) => !value.includes(path));
+			const after = listed().filter((path) => !value.includes(path));
 			passed = after.length === before.size && after.every((path) => before.get(path) === digest(join(workspace, path)));
 		} else if (kind === "unchanged") {
 			const inScope = (path) => value.some((prefix) => path === prefix || path.startsWith(prefix.replace(/\/?$/, "/")));
-			const before = files(original).filter(inScope), after = files(workspace).filter(inScope);
+			const before = files(original).filter(inScope), after = listed().filter(inScope);
 			passed = before.length === after.length && before.every((path, i) => path === after[i] && digest(join(original, path)) === digest(join(workspace, path)));
 		} else if (kind === "command_passes") {
 			// Hidden files come from the scenario directory and are added only after the run.
@@ -71,8 +75,10 @@ export function checkScenario(casePath, workspace, original) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-	const [casePath, baseline, workspace = "."] = process.argv.slice(2);
-	const results = checkScenario(resolve(casePath), resolve(workspace), resolve(baseline));
+	const args = process.argv.slice(2);
+	const ignore = args.flatMap((arg, i) => (args[i - 1] === "--ignore" ? [arg] : []));
+	const [casePath, baseline, workspace = "."] = args.filter((arg, i) => arg !== "--ignore" && args[i - 1] !== "--ignore");
+	const results = checkScenario(resolve(casePath), resolve(workspace), resolve(baseline), ignore);
 	for (const r of results) console.log(`${r.passed ? "pass" : "FAIL"} ${r.id}`);
 	process.exit(results.every((r) => r.passed) ? 0 : 1);
 }

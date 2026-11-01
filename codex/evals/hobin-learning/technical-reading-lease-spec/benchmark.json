@@ -1,5 +1,7 @@
 {
   "kind": "plugin-eval-benchmark",
+  "schemaVersion": 2,
+  "version": 2,
   "targetKind": "plugin",
   "targetName": "hobin-learning",
   "runner": {
@@ -19,7 +21,7 @@
   },
   "verifiers": {
     "commands": [
-      "node \"$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs\" \"$HOBIN_AGENT_ROOT/core/technical-reading/scenarios/lease-spec/scenario.yaml\" \"$HOBIN_AGENT_ROOT/codex/evals/hobin-learning/technical-reading-lease-spec/workspace\" .\""
+      "node \"$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs\" \"$HOBIN_AGENT_ROOT/core/technical-reading/scenarios/lease-spec/scenario.yaml\" \"$HOBIN_AGENT_ROOT/codex/evals/hobin-learning/technical-reading-lease-spec/workspace\" .\" --ignore plugins/ --ignore .agents/plugins/"
     ]
   },
   "notes": [
