@@ -23,7 +23,8 @@
         "defaultPrompt": [
           "Use $hobin-feature:developing-features to build this feature through acceptance scenarios."
         ]
-      }
+      },
+      "hooks": "./hooks/hooks.json"
     }
   }
 }

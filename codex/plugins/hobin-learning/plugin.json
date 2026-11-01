@@ -28,7 +28,8 @@
           "Use $hobin-learning:conceptualize to form one concept from these notes and test whether it transfers.",
           "Use $hobin-learning:exercise to turn this note into a practice workbook with a mastery rubric."
         ]
-      }
+      },
+      "hooks": "./hooks/hooks.json"
     }
   }
 }

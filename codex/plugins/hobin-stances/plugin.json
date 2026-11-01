@@ -24,7 +24,8 @@
           "Use $hobin-stances:applying-stances to set up the engineering stances for this project.",
           "Use $hobin-stances:enforcing-conventions to turn a repeatedly broken rule into a check."
         ]
-      }
+      },
+      "hooks": "./hooks/hooks.json"
     }
   }
 }

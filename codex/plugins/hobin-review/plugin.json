@@ -22,7 +22,8 @@
         "defaultPrompt": [
           "Use $hobin-review:reviewing-code to review this branch against main."
         ]
-      }
+      },
+      "hooks": "./hooks/hooks.json"
     }
   }
 }

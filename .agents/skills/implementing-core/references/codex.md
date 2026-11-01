@@ -46,9 +46,11 @@ The bundled Codex skill `review-agent` exists; keep skill names distinct from it
 
 ### Must-hold results: plugin hooks
 
-Codex loads lifecycle hooks bundled with an enabled plugin from its `hooks/hooks.json`
-(on by default; the user trusts them once with `/hooks`, and Codex records trust against
-the hook's hash). Codex has no skill-scoped hooks, so plugin hooks apply to every session
+Codex loads lifecycle hooks bundled with an enabled plugin (on by default; the user trusts
+them once with `/hooks`, and Codex records trust against the hook's hash). Declare the file
+in the root manifest, `"extensions": {"com.openai": {"hooks": "./hooks/hooks.json"}}`: the
+packaging guide says `hooks/hooks.json` is found by default, but Codex 0.166 did not load it
+next to a root `plugin.json` until it was declared. Codex has no skill-scoped hooks, so plugin hooks apply to every session
 and must act only on the skill's own results. Every guarantee the spec backs with a script
 (an output contract or a `script_passes` check) gets one, and the guarantee is
 **enforced once the user trusts the plugin hooks**:
