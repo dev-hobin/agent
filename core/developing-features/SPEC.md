@@ -2,7 +2,7 @@
 id: developing-features
 plugin: hobin-feature
 skill: developing-features
-version: 0.3.0
+version: 0.4.0
 ---
 
 # developing-features — 기능 개발
