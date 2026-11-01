@@ -75,8 +75,12 @@ Host evaluations call models and cost money:
 
 ```sh
 claude plugin eval claude/plugins/<plugin> --tag regression --ablation none --scaffold \
-  --allow-tools Bash Write Edit --model sonnet --runs 3 --trust-plugin --no-publish
+  --allow-tools Bash Write Edit --model sonnet --runs 3 --trust-plugin --no-publish --keep-temp
 ```
+
+`--keep-temp` keeps what a failed run needs for diagnosis. The JSON result names each run's
+`tracePath`. The run's workspace is `../sealed/home/cwd` next to that trace; `chmod u+rx` the
+`sealed` directory to read it. Rerun the failed check there, such as the hidden tests.
 
 Codex benchmarks use OpenAI's `plugin-eval`; see
 `.agents/skills/implementing-core/references/codex.md`.
