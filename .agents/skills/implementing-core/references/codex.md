@@ -86,7 +86,7 @@ pnpm check:standard                      # Agent Plugins schema and Agent Skills
 pnpm check:install -- codex              # model-free native install and skill listing
 HOBIN_AGENT_ROOT="$PWD" sh codex/evals/prepare.sh <plugin> <scenario> && \
   HOBIN_AGENT_ROOT="$PWD" plugin-eval benchmark codex/plugins/<plugin> \
-  --config codex/evals/<plugin>/<scenario>/benchmark.json -m <model>
+  --config codex/evals/<plugin>/<scenario>/benchmark.json --model <model>
 ```
 
 `plugin-eval` comes from `openai/plugins` (plugins/plugin-eval); running it executes that
