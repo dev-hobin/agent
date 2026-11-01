@@ -558,5 +558,7 @@ learning 5)는 검증 설정 결함 때문에 실패했다. 보존된 작업 공
   검사가 실패하게 했다. Agent Plugins 검증기·스키마는 복귀를 위해 남겼다.
 - 네 번째 실행(사용자 실행, 격리 홈, 이 실행에만 신뢰): Stop hook이 "line 99 does not exist"를
   세 번 돌려보냈고 네 번째에 종료를 허용했다. **Codex hook 동작 확인 완료.**
+- manifest를 옮긴 뒤 Codex 재평가(plugin-eval, gpt-6-astra, 13개 × 3회): **39/39 통과**, 토큰 약
+  1,590만 개. Claude 회귀(hook이 붙은 review·learning·stances 재실행 포함)는 13개 모두 1.00.
 - 사용자의 평소 Codex에는 GitHub main의 예전 hobin 플러그인이 설치돼 있어, 새 hook은 이
   브랜치가 반영된 뒤 플러그인을 갱신하고 `/hooks`에서 신뢰해야 쓸 수 있다.
