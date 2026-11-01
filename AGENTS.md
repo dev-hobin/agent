@@ -32,8 +32,8 @@
 ## Checks
 
 - Activate the Python environment first (`. .venv/bin/activate`); see README.md.
-- `pnpm check` runs the pinned Agent Skills validator, the Agent Plugins schema check on
-  Codex manifests, `check:core` (no implementation stale, copies identical to core, an
+- `pnpm check` runs the pinned Agent Skills validator, the Codex manifest check
+  (`.codex-plugin/plugin.json` only, so Codex loads plugin hooks), `check:core` (no implementation stale, copies identical to core, an
   eval case for every scenario and trigger, every guarantee declared, every scenario's
   golden result proving its checks), and the tests. Run it before reporting completion.
 - `pnpm check:claude` validates every Claude plugin and the catalog with

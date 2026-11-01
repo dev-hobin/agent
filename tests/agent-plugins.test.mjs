@@ -7,6 +7,7 @@ import test from "node:test";
 import {
 	assertMarketplaceCatalogs,
 	assertPluginManifest,
+	checkCodexPlugin,
 	checkPortablePlugin,
 	loadPluginSchema,
 	pluginSchemaId,
@@ -78,7 +79,7 @@ test("both host catalogs list the same plugins at their host implementation dire
 	const { claude, codex } = await readCatalogs();
 	assertMarketplaceCatalogs(claude, codex);
 	for (const entry of codex.plugins) {
-		const { plugin, skills } = await checkPortablePlugin(join(repositoryRoot, entry.source));
+		const { plugin, skills } = await checkCodexPlugin(join(repositoryRoot, entry.source));
 		assert.equal(plugin.name, entry.name);
 		assert.ok(skills.length > 0, `${entry.name}: at least one skill`);
 		assert.equal((await readJson(join(repositoryRoot, `claude/plugins/${entry.name}/.claude-plugin/plugin.json`))).name, entry.name);
@@ -139,3 +140,16 @@ for (const target of ["plugin.json", "skills", "skills/direct/escape.md"]) {
 		await assert.rejects(checkPortablePlugin(directory), /escapes plugin root/);
 	});
 }
+
+test("a Codex implementation ships only .codex-plugin/plugin.json, so Codex loads its hooks", async (t) => {
+	const directory = await temporaryDirectory(t);
+	await cp(join(repositoryRoot, "codex/plugins/hobin-review"), directory, { recursive: true });
+	assert.equal((await checkCodexPlugin(directory)).plugin.name, "hobin-review");
+	await writeFile(join(directory, "plugin.json"), JSON.stringify(minimal));
+	await assert.rejects(checkCodexPlugin(directory), /hides the plugin's hooks/);
+	await rm(join(directory, "plugin.json"));
+	const manifest = await readJson(join(directory, ".codex-plugin/plugin.json"));
+	delete manifest.hooks;
+	await writeFile(join(directory, ".codex-plugin/plugin.json"), JSON.stringify(manifest));
+	await assert.rejects(checkCodexPlugin(directory), /declare hooks\/hooks\.json/);
+});

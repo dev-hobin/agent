@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 
-import { checkPortablePlugin, pluginSchemaId, readJson, repositoryRoot } from "./check-agent-plugins.mjs";
+import { checkCodexPlugin, readJson, repositoryRoot } from "./check-agent-plugins.mjs";
 
 const exec = promisify(execFile);
 const args = process.argv.slice(2).filter((argument) => argument !== "--");
@@ -131,7 +131,7 @@ try {
 	for (const entry of catalog.plugins) {
 		const sourceDir = join(repositoryRoot, entry.source);
 		await cp(sourceDir, join(marketplace, entry.source), { recursive: true });
-		const manifest = await readJson(join(sourceDir, host === "claude" ? ".claude-plugin/plugin.json" : "plugin.json"));
+		const manifest = await readJson(join(sourceDir, host === "claude" ? ".claude-plugin/plugin.json" : ".codex-plugin/plugin.json"));
 		assert.equal(manifest.name, entry.name);
 		expected.push({ name: manifest.name, version: manifest.version, sourceDir,
 			skillNames: (await readdir(join(sourceDir, "skills"))).sort() });
@@ -141,11 +141,10 @@ try {
 	const peer = join(marketplace, "fixtures/peer");
 	await mkdir(join(peer, "skills/reviewing-code"), { recursive: true });
 	const peerManifest = { name: "hobin-probe-peer", version: "0.0.0", description: "Native namespace probe" };
-	await writeFile(join(peer, "plugin.json"), JSON.stringify({ $schema: pluginSchemaId, ...peerManifest }));
-	if (host === "claude") {
-		await mkdir(join(peer, ".claude-plugin"));
-		await writeFile(join(peer, ".claude-plugin/plugin.json"), JSON.stringify(peerManifest));
-	}
+	const peerManifestDir = host === "claude" ? ".claude-plugin" : ".codex-plugin";
+	await mkdir(join(peer, peerManifestDir));
+	await writeFile(join(peer, peerManifestDir, "plugin.json"), JSON.stringify(host === "claude" ? peerManifest
+		: { ...peerManifest, skills: "./skills/", interface: { displayName: "Hobin probe peer" } }));
 	await writeFile(join(peer, "skills/reviewing-code/SKILL.md"), "---\nname: reviewing-code\ndescription: A harmless native namespace probe.\n---\n\nReport that this is the peer fixture.\n");
 	const peerEntry = { name: peerManifest.name, source: "./fixtures/peer", category: "Productivity" };
 	if (host === "codex") peerEntry.policy = { installation: "AVAILABLE", authentication: "ON_INSTALL" };
@@ -209,7 +208,7 @@ try {
 		assertInside(installed, home);
 		const source = plugin.name === peerManifest.name ? peer : plugin.sourceDir;
 		await assertSameTree(join(source, "skills"), join(installed, "skills"));
-		if (plugin.sourceDir && host === "codex") assert.equal((await checkPortablePlugin(installed)).plugin.name, plugin.name);
+		if (plugin.sourceDir && host === "codex") assert.equal((await checkCodexPlugin(installed)).plugin.name, plugin.name);
 	}
 	console.log(JSON.stringify({ host, version, isolated: true,
 		plugins: expected.map((plugin) => ({ name: plugin.name, version: plugin.version, skillCount: plugin.skillNames.length })),

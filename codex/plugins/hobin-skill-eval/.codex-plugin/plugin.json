@@ -1,0 +1,25 @@
+{
+  "name": "hobin-skill-eval",
+  "version": "0.3.0",
+  "description": "Builds trigger, outcome, and benchmark evaluations for Agent Skills with without-skill and length-matched control comparisons.",
+  "author": {
+    "name": "dev-hobin",
+    "url": "https://github.com/dev-hobin"
+  },
+  "homepage": "https://github.com/dev-hobin/agent",
+  "repository": "https://github.com/dev-hobin/agent",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "evals"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Hobin Skill Eval",
+    "shortDescription": "Evaluate whether an Agent Skill earns its cost",
+    "developerName": "dev-hobin",
+    "defaultPrompt": [
+      "Use $hobin-skill-eval:evaluating-skills to build evals for this skill."
+    ]
+  }
+}

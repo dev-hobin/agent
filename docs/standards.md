@@ -119,8 +119,13 @@ relicensed as our MIT work.
 
 ### Host manifests
 
-Codex implementations use the root Agent Plugins `plugin.json` (Codex's canonical
-format), checked against the pinned schema. Claude Code implementations use
+Codex implementations use `.codex-plugin/plugin.json`, which OpenAI documents as the
+compatibility manifest that may declare `hooks`. The packaging guide names the root Agent
+Plugins `plugin.json` as canonical, but Codex 0.166 does not load a plugin's hooks when a root
+manifest exists (verified 2026-11-01 with the app-server's `plugin/read` and `hooks/list`), and
+the implementations rely on hooks for results that must always hold. The Agent Plugins
+validator and pinned schema stay for the return to the root manifest once Codex reads hooks
+from it. Claude Code implementations use
 `.claude-plugin/plugin.json`, Claude Code's manifest location, checked with
 `claude plugin validate --strict`. Neither is an override of the other: each is that
 host's implementation of the same core spec.

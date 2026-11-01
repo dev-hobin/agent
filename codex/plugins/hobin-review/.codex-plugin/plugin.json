@@ -1,5 +1,4 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "hobin-review",
   "version": "0.3.0",
   "description": "Reviews a code change, or a bounded existing scope, for correctness defects by running one focused pass per applicable perspective and reporting only verified, high-confidence findings with concrete failure scenarios.",
@@ -7,23 +6,20 @@
     "name": "dev-hobin",
     "url": "https://github.com/dev-hobin"
   },
-  "license": "MIT",
   "homepage": "https://github.com/dev-hobin/agent",
   "repository": "https://github.com/dev-hobin/agent",
+  "license": "MIT",
   "keywords": [
     "code-review"
   ],
-  "extensions": {
-    "com.openai": {
-      "interface": {
-        "displayName": "Hobin Review",
-        "shortDescription": "Review a change for verified correctness defects",
-        "developerName": "dev-hobin",
-        "defaultPrompt": [
-          "Use $hobin-review:reviewing-code to review this branch against main."
-        ]
-      },
-      "hooks": "./hooks/hooks.json"
-    }
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Hobin Review",
+    "shortDescription": "Review a change for verified correctness defects",
+    "developerName": "dev-hobin",
+    "defaultPrompt": [
+      "Use $hobin-review:reviewing-code to review this branch against main."
+    ]
   }
 }

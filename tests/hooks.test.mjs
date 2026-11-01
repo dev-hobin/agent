@@ -58,9 +58,9 @@ test("every Codex plugin hook runs a script the plugin ships", () => {
 	for (const plugin of readdirSync(codexPlugins)) {
 		const file = join(codexPlugins, plugin, "hooks/hooks.json");
 		if (!existsSync(file)) continue;
-		// Declared explicitly: Codex does not discover hooks/hooks.json next to a root plugin.json.
-		const manifest = JSON.parse(readFileSync(join(codexPlugins, plugin, "plugin.json"), "utf8"));
-		assert.equal(manifest.extensions?.["com.openai"]?.hooks, "./hooks/hooks.json", `${plugin}: extensions.com.openai.hooks`);
+		// Codex 0.166 loads plugin hooks only from .codex-plugin/plugin.json (see checkCodexPlugin).
+		const manifest = JSON.parse(readFileSync(join(codexPlugins, plugin, ".codex-plugin/plugin.json"), "utf8"));
+		assert.equal(manifest.hooks, "./hooks/hooks.json", `${plugin}: .codex-plugin/plugin.json hooks`);
 		for (const groups of Object.values(JSON.parse(readFileSync(file, "utf8")).hooks)) for (const group of groups) for (const hook of group.hooks) {
 			const script = /"\$PLUGIN_ROOT\/([^"]+)"/.exec(hook.command)?.[1];
 			assert.ok(script, `${plugin}: hook commands use "$PLUGIN_ROOT/…"`);

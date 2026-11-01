@@ -11,7 +11,8 @@ When Codex changes, update this file first, then re-run the skill for every capa
 codex/
   IMPLEMENTS.json                          spec hash, copies, and eval paths per capability
   plugins/<plugin>/
-    plugin.json                            Agent Plugins manifest (canonical in Codex docs)
+    .codex-plugin/plugin.json              Codex manifest (no root plugin.json; see below)
+    hooks/hooks.json, scripts/<name>-hook.mjs   hooks for results that must always hold
     skills/<skill>/SKILL.md
     skills/<skill>/agents/openai.yaml
     skills/<skill>/references/…            role text and copies of core knowledge
@@ -23,7 +24,7 @@ codex/
 
 | Spec | Codex form |
 | --- | --- |
-| identity | Root `plugin.json` with `$schema: https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`, `name`, `version`, `description`, `author`, `license`, `homepage`, `repository`, `keywords`, and `extensions.com.openai.interface` (`displayName`, `shortDescription`, `developerName`, `defaultPrompt` ≤ 3 × 128 chars). Codex reads only these root fields |
+| identity | `.codex-plugin/plugin.json` with `name`, `version`, `description`, `author`, `license`, `homepage`, `repository`, `keywords`, `skills: "./skills/"`, `hooks: "./hooks/hooks.json"` when the plugin has hooks, and `interface` (`displayName`, `shortDescription`, `developerName`, `defaultPrompt` ≤ 3 × 128 chars). No root `plugin.json`: Codex 0.166 hides a plugin's hooks when a root Agent Plugins manifest exists, whatever its `extensions.com.openai.hooks` says (checked with the app-server's `plugin/read` and `hooks/list`). When Codex reads hooks from the root manifest, return to the root Agent Plugins `plugin.json`; `checkPortablePlugin` and the pinned schema are kept for that |
 | §1 description | `SKILL.md` frontmatter `name`, `description`, `metadata.short-description`; Codex reads nothing else |
 | §1 display | `agents/openai.yaml` `interface.display_name`, `short_description`, `default_prompt` |
 | §2 explicit only | `agents/openai.yaml` `policy.allow_implicit_invocation: false`; the user runs `$<plugin>:<skill>` |
@@ -47,10 +48,9 @@ The bundled Codex skill `review-agent` exists; keep skill names distinct from it
 ### Must-hold results: plugin hooks
 
 Codex loads lifecycle hooks bundled with an enabled plugin (on by default; the user trusts
-them once with `/hooks`, and Codex records trust against the hook's hash). Declare the file
-in the root manifest, `"extensions": {"com.openai": {"hooks": "./hooks/hooks.json"}}`: the
-packaging guide says `hooks/hooks.json` is found by default, but Codex 0.166 did not load it
-next to a root `plugin.json` until it was declared. Codex has no skill-scoped hooks, so plugin hooks apply to every session
+them once with `/hooks`, and Codex records trust against the hook's hash). Declare them as
+`hooks` in `.codex-plugin/plugin.json`. To see what Codex discovered without a model call, ask
+`codex app-server` for `plugin/read` (the plugin's `hooks`) and `hooks/list` (trust status). Codex has no skill-scoped hooks, so plugin hooks apply to every session
 and must act only on the skill's own results. Every guarantee the spec backs with a script
 (an output contract or a `script_passes` check) gets one, and the guarantee is
 **enforced once the user trusts the plugin hooks**:

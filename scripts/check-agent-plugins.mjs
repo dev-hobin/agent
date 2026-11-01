@@ -1,6 +1,7 @@
 // Development-time checks; not a plugin loader, installer, or client conformance suite.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { lstat, readFile, readdir, realpath, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -88,6 +89,32 @@ export async function checkPortablePlugin(packageRoot) {
 	return { plugin, skills: skills.sort() };
 }
 
+// A Codex implementation's manifest. Codex 0.166 loads a plugin's hooks only from
+// `.codex-plugin/plugin.json` with no root `plugin.json` beside it (a root Agent Plugins manifest
+// hides them, whatever its `extensions.com.openai.hooks` says), so Codex implementations ship that
+// manifest alone. checkPortablePlugin stays for the day Codex reads hooks from the root manifest.
+export async function checkCodexPlugin(packageRoot) {
+	const root = await realpath(packageRoot);
+	await assert.rejects(lstat(join(root, "plugin.json")), { code: "ENOENT" },
+		"A root plugin.json hides the plugin's hooks from Codex; keep only .codex-plugin/plugin.json");
+	const manifestPath = await containedPath(root, join(root, ".codex-plugin/plugin.json"));
+	assert.ok((await stat(manifestPath)).isFile(), ".codex-plugin/plugin.json must be a regular file");
+	const plugin = await readJson(manifestPath);
+	for (const field of ["name", "version", "description"]) assert.equal(typeof plugin[field], "string", `${field} must be a string`);
+	assert.match(plugin.version, /^\d+\.\d+\.\d+$/, "version must be semver");
+	assert.equal(plugin.skills, "./skills/", "skills must be ./skills/");
+	assert.equal(typeof plugin.interface?.displayName, "string", "interface.displayName must be a string");
+	if (existsSync(join(root, "hooks/hooks.json"))) assert.equal(plugin.hooks, "./hooks/hooks.json", "declare hooks/hooks.json as hooks");
+	else assert.equal(plugin.hooks, undefined, "hooks names a missing file");
+	const skillsRoot = await containedPath(root, join(root, "skills"));
+	await checkTree(root, skillsRoot);
+	const skills = [];
+	for (const name of await readdir(skillsRoot)) {
+		if (existsSync(join(skillsRoot, name, "SKILL.md"))) skills.push(join(skillsRoot, name));
+	}
+	return { plugin, skills: skills.sort() };
+}
+
 // Repository conventions: both host catalogs list the same plugins, each pointing at
 // that host's implementation directory.
 export function assertMarketplaceCatalogs(claude, codex) {
@@ -119,9 +146,9 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
 	assertMarketplaceCatalogs(claude, codex);
 	let count = 0;
 	for (const entry of codex.plugins) {
-		const { plugin, skills } = await checkPortablePlugin(join(repositoryRoot, entry.source));
+		const { plugin, skills } = await checkCodexPlugin(join(repositoryRoot, entry.source));
 		assert.equal(plugin.name, entry.name);
 		count += skills.length;
 	}
-	console.log(`Agent Plugins 1.0.0: ${codex.plugins.length} Codex manifests and ${count} immediate Skill directories passed schema/path checks`);
+	console.log(`Codex: ${codex.plugins.length} .codex-plugin manifests and ${count} immediate Skill directories passed manifest/path checks`);
 }
