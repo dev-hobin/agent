@@ -2,7 +2,7 @@
 id: developing-features
 plugin: hobin-feature
 skill: developing-features
-version: 0.4.0
+version: 0.5.0
 ---
 
 # developing-features — 기능 개발
@@ -24,18 +24,20 @@ version: 0.4.0
 
 > Develops a feature or behavior change through checkpoints: write acceptance scenarios
 > and owner decisions, model combining conditions, design the surface, implement in small
-> verified slices, and verify every scenario with an independent reviewer. Use only when
-> explicitly asked to build a non-trivial feature or fix where scope, conditions, or design
-> are unsettled. Not for one-line fixes, pure refactors, reviewing someone else's change,
-> or writing a ticket or acceptance criteria without implementing.
+> verified slices, and verify every scenario with an independent reviewer. Use when asked
+> to build or change a feature, or fix a behavior, where scope, conditions, or design are
+> not settled yet (combining conditions, stored data, external jobs, retries, cancellation,
+> late results). Start it before exploring the code, even if the request never mentions
+> scenarios. Not for one-line fixes, pure refactors, reviewing someone else's change,
+> explaining code, or writing a ticket or acceptance criteria without implementing.
 
 짧은 설명: Build a feature through verified acceptance scenarios
 표시 이름: Hobin Feature
 
 ## 2. 호출
 
-- **사용자가 명시적으로 부를 때만** 동작한다. 모델이 스스로 고르지 않는다. 그래서
-  `triggers.yaml`이 없다.
+- **모델이 스스로 고를 수 있다.** 사용자가 명시적으로 불러도 된다. 골라야 할 요청과 고르면 안 되는
+  요청은 `triggers.yaml`에 있다.
 - 인자: 만들 기능이나 고칠 동작에 대한 요청(요구사항 문서 경로를 포함할 수 있다).
 
 ## 3. 산출물
@@ -75,7 +77,6 @@ Not verified:     <관찰하지 못한 것>
 
 | ID | 보장 | 수준 |
 | --- | --- | --- |
-| G1 | 사용자가 명시적으로 부를 때만 시작한다 | 필수 |
 | G2 | 작업 트리에 3절 형식의 시나리오 파일이 남고, 시나리오마다 확인 명령이 있다 | 필수 |
 | G3 | 요청·코드·문서가 정하지 않은 결정은 모두 결정, 이유, 되돌리는 법과 함께 보고에 기록된다 | 필수 |
 | G4 | 소유자에게 물을 수 없을 때의 결정은 보수적이고 되돌릴 수 있다: 저장된 데이터를 보존하고, 모호하거나 잘못된 입력은 유효한 값으로 받지 않고 거부하며, 되돌릴 수 없는 단계 직전에 상태를 다시 확인한다 | 필수 |

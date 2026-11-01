@@ -1,6 +1,6 @@
 {
   "review": {
-    "spec": "99fdd67ba7f0a1eda6ae576d",
+    "spec": "bdba1d594695e0c3a6ae576d",
     "plugin": "plugins/hobin-review",
     "skill": "plugins/hobin-review/skills/reviewing-code/SKILL.md",
     "copies": {
@@ -11,15 +11,15 @@
       "scripts/check-report.mjs": "plugins/hobin-review/skills/reviewing-code/scripts/check-report.mjs"
     },
     "evals": "evals/hobin-review/{scenario}/benchmark.json",
+    "triggers": "unsupported: plugin-eval has no skill-selection verifier",
     "guarantees": {
-      "G1": "enforced: agents/openai.yaml policy.allow_implicit_invocation: false",
       "G2": "instructed: the skill writes only its report and tells subagents not to edit (no per-agent sandbox)",
       "G3": "instructed: verify step and fixed format, checked by the scenarios",
       "G4": "enforced: once the user trusts the plugin hooks (/hooks), a PostToolUse hook runs check-report.mjs on every report written through apply_patch and sends problems back (exit 2); the skill also runs it before finishing"
     }
   },
   "applying-stances": {
-    "spec": "6912d4646cefc729a6ae576d",
+    "spec": "8f062eca7107a001a6ae576d",
     "plugin": "plugins/hobin-stances",
     "skill": "plugins/hobin-stances/skills/applying-stances/SKILL.md",
     "copies": {
@@ -28,8 +28,8 @@
       "scripts/stances.mjs": "plugins/hobin-stances/skills/applying-stances/scripts/stances.mjs"
     },
     "evals": "evals/hobin-stances/{scenario}/benchmark.json",
+    "triggers": "unsupported: plugin-eval has no skill-selection verifier",
     "guarantees": {
-      "G1": "enforced: agents/openai.yaml policy.allow_implicit_invocation: false",
       "G2": "instructed: the skill writes only the proposal file the request names until the user approves",
       "G3": "instructed: the proposal form in step 4, checked by the scenario",
       "G4": "instructed: step 2 drops duplicates and reports conflicts; checked by the scenario",
@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "2632eea1e53ec4b1a6ae576d",
+    "spec": "8be22a05e3f91909a6ae576d",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {
@@ -175,8 +175,8 @@
       "scripts/check-control-model.mjs": "plugins/hobin-feature/skills/developing-features/scripts/check-control-model.mjs"
     },
     "evals": "evals/hobin-feature/{scenario}/benchmark.json",
+    "triggers": "unsupported: plugin-eval has no skill-selection verifier",
     "guarantees": {
-      "G1": "enforced: agents/openai.yaml policy.allow_implicit_invocation: false",
       "G2": "instructed: step 1 and the report form; checked by the scenarios-recorded scenario check",
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",

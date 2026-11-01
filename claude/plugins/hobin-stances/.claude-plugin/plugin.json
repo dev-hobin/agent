@@ -1,6 +1,6 @@
 {
   "name": "hobin-stances",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "description": "Installs short engineering stances into agent instructions and turns repeatedly broken conventions into automatic checks.",
   "author": {
     "name": "dev-hobin",

@@ -1,6 +1,6 @@
 ---
 name: developing-features
-description: "Develops a feature or behavior change through checkpoints: write acceptance scenarios and owner decisions, model combining conditions, design the surface, implement in small verified slices, and verify every scenario with an independent reviewer. Use only when explicitly asked to build a non-trivial feature or fix where scope, conditions, or design are unsettled. Not for one-line fixes, pure refactors, reviewing someone else's change, or writing a ticket or acceptance criteria without implementing."
+description: "Develops a feature or behavior change through checkpoints: write acceptance scenarios and owner decisions, model combining conditions, design the surface, implement in small verified slices, and verify every scenario with an independent reviewer. Use when asked to build or change a feature, or fix a behavior, where scope, conditions, or design are not settled yet (combining conditions, stored data, external jobs, retries, cancellation, late results). Start it before exploring the code, even if the request never mentions scenarios. Not for one-line fixes, pure refactors, reviewing someone else's change, explaining code, or writing a ticket or acceptance criteria without implementing."
 metadata:
   short-description: "Build a feature through verified acceptance scenarios"
 ---

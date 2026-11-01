@@ -1,0 +1,24 @@
+# Trigger queries for core/applying-stances (model-selectable, SPEC.md §2).
+# 10 should trigger: install or update the working stances in agent instructions. 10 near
+# misses touch the same files or ideas but ask for other edits, docs, or enforcement.
+queries:
+  - { id: t01, query: "Set up the hobin engineering stances in this project's AGENTS.md.", should_trigger: true } # Named stances, project scope.
+  - { id: t02, query: "CLAUDE.md에 기본 작업 원칙(stance) 블록 넣어줘", should_trigger: true } # Stance block, Korean.
+  - { id: t03, query: "Update the stances block in our AGENTS.md to the latest version.", should_trigger: true } # Update an existing block.
+  - { id: t04, query: "Add the default working stances to my user-level CLAUDE.md.", should_trigger: true } # User scope.
+  - { id: t05, query: "에이전트 지침에 stance들 설치하고, 이미 있는 검사랑 연결해줘", should_trigger: true } # Install and link checks, Korean.
+  - { id: t06, query: "Our AGENTS.md has an old working-stances block. Refresh it and point each stance at a check we already have.", should_trigger: true } # Refresh and link.
+  - { id: t07, query: "새 프로젝트야. 에이전트들이 따를 기본 엔지니어링 입장을 AGENTS.md에 깔아줘", should_trigger: true } # New project setup, Korean.
+  - { id: t08, query: "Install the short engineering stances into CLAUDE.md. Show me the diff first.", should_trigger: true } # Install with diff.
+  - { id: t09, query: "Codex가 읽는 AGENTS.md에도 working stances 블록 추가해줘", should_trigger: true } # Codex instructions, Korean.
+  - { id: t10, query: "Put working stances like 'run the checks before saying done' and 'preserve stored data' into our agent instructions.", should_trigger: true } # Stances by content.
+  - { id: t11, query: "Write a CONTRIBUTING.md for this repository.", should_trigger: false } # General docs.
+  - { id: t12, query: "README에 설치 방법 섹션 추가해줘", should_trigger: false } # General docs, Korean.
+  - { id: t13, query: "Add a line to AGENTS.md saying we use pnpm, not npm.", should_trigger: false } # Other agent-instruction edit.
+  - { id: t14, query: "Make the 'no default exports' rule fail lint automatically.", should_trigger: false } # Enforcing a convention.
+  - { id: t15, query: "CLAUDE.md에 테스트 실행 명령어 적어줘", should_trigger: false } # Other agent-instruction edit, Korean.
+  - { id: t16, query: "Explain what CLAUDE.md is used for.", should_trigger: false } # Question.
+  - { id: t17, query: "Summarize our AGENTS.md.", should_trigger: false } # Reading.
+  - { id: t18, query: "Delete the outdated Yarn 1 section from CLAUDE.md.", should_trigger: false } # Other agent-instruction edit.
+  - { id: t19, query: "Set up Husky pre-commit hooks that run lint.", should_trigger: false } # Tooling.
+  - { id: t20, query: "이 저장소 구조를 설명하는 CLAUDE.md를 새로 만들어줘", should_trigger: false } # Project overview doc, Korean.

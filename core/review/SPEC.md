@@ -2,7 +2,7 @@
 id: review
 plugin: hobin-review
 skill: reviewing-code
-version: 0.3.0
+version: 0.5.0
 ---
 
 # review — 코드 리뷰
@@ -22,17 +22,19 @@ version: 0.3.0
 설명문(호스트가 skill 목록에 보여 줄 문장, 영어):
 
 > Reviews a code change, or a bounded existing scope, for correctness defects and reports
-> only verified, high-confidence findings with concrete failure scenarios. Use only when
-> explicitly asked to review a diff, branch, or pull request, or to diagnose a named
-> module or feature slice. Not for style feedback, automatic repair, environment setup
-> checks, or whole-repository rewrites.
+> only verified, high-confidence findings with concrete failure scenarios. Use when asked
+> to review a diff, branch, commit, or pull request, to check a change for bugs before it
+> merges, or to diagnose a named module or feature slice for defects. Not for style
+> feedback, automatic repair, explaining code, environment setup checks, or
+> whole-repository rewrites.
 
 짧은 설명: Review a change for verified correctness defects
 표시 이름: Hobin Review
 
 ## 2. 호출
 
-- **사용자가 명시적으로 부를 때만** 동작한다. 모델이 스스로 고르지 않는다.
+- **모델이 스스로 고를 수 있다.** 사용자가 명시적으로 불러도 된다. 골라야 할 요청과 고르면 안 되는
+  요청은 `triggers.yaml`에 있다.
 - 인자: 리뷰할 대상(브랜치, diff, PR, 범위). 없으면 현재 브랜치를 기준 브랜치와 비교한다.
 
 ## 3. 산출물
@@ -60,7 +62,6 @@ Not checked: <리뷰가 관찰할 수 없었던 것>
 
 | ID | 보장 | 수준 |
 | --- | --- | --- |
-| G1 | 사용자가 명시적으로 부를 때만 시작한다 | 필수 |
 | G2 | 리뷰는 대상 코드를 바꾸지 않는다. 쓰는 것은 보고서뿐이다 | 필수 |
 | G3 | 결함은 3절 형식을 따르고, 각각 구체적인 실패 시나리오를 단다 | 필수 |
 | G4 | 보고서가 파일이면 `scripts/check-report.mjs` 검사를 통과한다(형식, 실재하는 file:line, 시나리오·근거 줄) | 필수 |

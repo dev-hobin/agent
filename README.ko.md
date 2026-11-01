@@ -43,8 +43,8 @@ codex plugin marketplace add /absolute/path/to/agent
 codex plugin add hobin-review@hobin
 ```
 
-설치 후 새 세션을 시작하세요. 명시 호출 전용 skill은 Claude Code에서
-`/hobin-review:reviewing-code`, Codex에서 `$hobin-review:reviewing-code`로 시작합니다.
+설치 후 새 세션을 시작하세요. 요청이 맞으면 에이전트가 skill을 스스로 고릅니다. 직접 시작하려면
+Claude Code에서 `/hobin-review:reviewing-code`, Codex에서 `$hobin-review:reviewing-code`를 씁니다.
 Codex에서는 `/hooks`에서 함께 설치된 hook을 한 번 신뢰해야 결과 검사가 자동으로 실행됩니다.
 자세한 내용은 [설치](./docs/installation.md)에 있습니다.
 

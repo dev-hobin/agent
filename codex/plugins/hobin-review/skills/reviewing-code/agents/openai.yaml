@@ -2,5 +2,3 @@ interface:
   display_name: "Hobin Review"
   short_description: "Review a change for verified correctness defects"
   default_prompt: "Use $hobin-review:reviewing-code to review this branch against main."
-policy:
-  allow_implicit_invocation: false

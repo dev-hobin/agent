@@ -1,0 +1,24 @@
+# Trigger queries for core/review (model-selectable, SPEC.md §2).
+# 10 should trigger: review a change or diagnose a named scope for defects. 10 near misses
+# share vocabulary but ask for fixes, style, setup, tests, rewrites, or non-code review.
+queries:
+  - { id: t01, query: "Review my current branch against main before I open the PR.", should_trigger: true } # Branch review.
+  - { id: t02, query: "이 PR 머지해도 되는지 버그 위주로 봐줘: https://github.com/acme/shop/pull/412", should_trigger: true } # PR review, Korean.
+  - { id: t03, query: "Look over the diff in the last commit and tell me if anything will break.", should_trigger: true } # Commit review.
+  - { id: t04, query: "결제 모듈(src/payments)에 숨은 결함이 있는지 진단해줘", should_trigger: true } # Named scope diagnosis, Korean.
+  - { id: t05, query: "Check this change for correctness problems. It touches the acknowledgement logic of the queue worker.", should_trigger: true } # Correctness review of a change.
+  - { id: t06, query: "staged 변경사항 리뷰해줘", should_trigger: true } # Staged diff review, Korean.
+  - { id: t07, query: "Diagnose the order-sync feature slice. We have intermittent data loss and I want defects with evidence.", should_trigger: true } # Feature slice diagnosis.
+  - { id: t08, query: "before merging feature/refund-revalidate, review it for anything that could hurt users or data", should_trigger: true } # Pre-merge review.
+  - { id: t09, query: "내가 방금 고친 거 리뷰 좀 해줘. 마이그레이션이 기존 데이터를 날리지 않는지 특히 봐줘", should_trigger: true } # Change review with data focus, Korean.
+  - { id: t10, query: "Do a code review of everything between v2.3.0 and HEAD.", should_trigger: true } # Range review.
+  - { id: t11, query: "Reformat this file with prettier and fix the lint warnings.", should_trigger: false } # Formatting.
+  - { id: t12, query: "이 함수가 뭘 하는지 설명해줘", should_trigger: false } # Explanation, Korean.
+  - { id: t13, query: "Fix the checkout total; it counts discounts twice.", should_trigger: false } # Repair, not review.
+  - { id: t14, query: "Set up ESLint and Prettier for this repository.", should_trigger: false } # Tooling setup.
+  - { id: t15, query: "Rewrite the whole backend in Go.", should_trigger: false } # Rewrite.
+  - { id: t16, query: "Review my resume and suggest improvements.", should_trigger: false } # Not code.
+  - { id: t17, query: "Is my Node version right for this project? Check my environment setup.", should_trigger: false } # Environment check.
+  - { id: t18, query: "변수 이름이 너무 짧은데 스타일 좀 다듬어줘", should_trigger: false } # Style, Korean.
+  - { id: t19, query: "Write unit tests for the cart reducer.", should_trigger: false } # Test writing.
+  - { id: t20, query: "Implement the refund approval feature with manager sign-off.", should_trigger: false } # Building a feature.

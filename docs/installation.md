@@ -20,8 +20,9 @@ options. Start a new session or run `/reload-plugins`. Skills are namespaced by 
 /hobin-feature:developing-features add CSV export to the orders page
 ```
 
-Explicit-only skills set `disable-model-invocation`, so Claude never starts them on its
-own. During development, `claude --plugin-dir claude/plugins/<plugin>` loads one plugin
+Claude also picks a skill on its own when a request fits its description; each
+model-selectable capability's `triggers.yaml` fixes which requests should and should not
+start it. During development, `claude --plugin-dir claude/plugins/<plugin>` loads one plugin
 for a single session.
 
 ## Codex
@@ -33,8 +34,8 @@ codex plugin list --json
 ```
 
 Start a new session and mention a skill with `$`, for example
-`$hobin-review:reviewing-code review this branch against main`. Explicit-only skills set
-`policy.allow_implicit_invocation: false` in `agents/openai.yaml`.
+`$hobin-review:reviewing-code review this branch against main`. Codex also picks a skill
+on its own when a request fits its description.
 
 The plugins bundle hooks that check results which must always hold (review reports,
 learning results, the stances block, the acceptance-scenario record). Codex runs plugin

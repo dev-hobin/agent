@@ -1,0 +1,25 @@
+# Trigger queries for core/developing-features (model-selectable, SPEC.md §2).
+# 10 should trigger: building or changing behavior with unsettled conditions. 10 near misses
+# share vocabulary but are one-line fixes, refactors, reviews, explanations, tickets, or
+# another skill's job.
+queries:
+  - { id: t01, query: "Add a cancel button to the report export. Exports run as server jobs that can take minutes, and the job keeps running on the server after we stop waiting.", should_trigger: true } # Cancellation with an external job.
+  - { id: t02, query: "주문 환불에 매니저 승인 단계를 추가해줘. 승인을 기다리는 동안 주문 내용이 바뀔 수도 있어.", should_trigger: true } # Approval step with stale state, Korean.
+  - { id: t03, query: "Implement retries with backoff for the webhook sender. Failed deliveries are retried up to 5 times, and a delivery must never be sent twice.", should_trigger: true } # Retries and duplicates.
+  - { id: t04, query: "알림 설정에 방해 금지 시간을 추가해줘. 이미 저장된 설정을 어떻게 할지는 아직 안 정했어.", should_trigger: true } # Stored data under new behavior, Korean.
+  - { id: t05, query: "Build bulk invites: admins upload a CSV, some rows may be invalid or duplicated, and invites that already went out must not be sent again.", should_trigger: true } # Invalid and duplicate input.
+  - { id: t06, query: "재고 조회가 오래 걸리면 polling하다가 타임아웃이 나는데, 재확인 버튼이랑 늦게 도착한 결과 처리를 넣어줘", should_trigger: true } # Polling, recheck, late results, Korean.
+  - { id: t07, query: "Checkout should be disabled while the inventory sync is stale, but admins can override that. Implement it.", should_trigger: true } # Combining conditions block an action.
+  - { id: t08, query: "Change subscription renewals: when a payment fails, keep access for 3 days, then downgrade. Renewals that already failed need handling too.", should_trigger: true } # Behavior change with existing records.
+  - { id: t09, query: "검색 자동완성 붙여줘. 입력이 빠르면 이전 요청 결과가 나중에 도착해서 화면을 덮어쓰는 문제가 있어.", should_trigger: true } # Late results overwrite, Korean.
+  - { id: t10, query: "implement draft autosave for the editor; it must not overwrite a newer version saved from another tab", should_trigger: true } # Concurrent writers.
+  - { id: t11, query: "Fix the typo in the README heading: 'Instalation' should be 'Installation'.", should_trigger: false } # One-line fix.
+  - { id: t12, query: "이 함수 이름을 getUser에서 fetchUser로 바꾸고 호출하는 곳도 다 바꿔줘", should_trigger: false } # Pure rename, Korean.
+  - { id: t13, query: "Review this pull request for bugs before I merge it.", should_trigger: false } # Review, not building.
+  - { id: t14, query: "이 useEffect가 왜 두 번 실행되는지 설명해줘", should_trigger: false } # Explanation, Korean.
+  - { id: t15, query: "Write acceptance criteria for the password reset ticket. Don't implement anything.", should_trigger: false } # Ticket only.
+  - { id: t16, query: "Extract the date formatting into a shared util. Behavior must stay exactly the same.", should_trigger: false } # Pure refactor.
+  - { id: t17, query: "Change the login button color to #2563eb.", should_trigger: false } # Trivial change.
+  - { id: t18, query: "package.json에서 lodash를 4.17.21로 올려줘", should_trigger: false } # Dependency bump, Korean.
+  - { id: t19, query: "What's the difference between useMemo and useCallback?", should_trigger: false } # Question.
+  - { id: t20, query: "People keep calling the database straight from request handlers. Make that fail CI.", should_trigger: false } # Enforcing a convention.

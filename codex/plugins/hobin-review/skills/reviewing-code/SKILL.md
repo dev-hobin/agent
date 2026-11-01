@@ -1,6 +1,6 @@
 ---
 name: reviewing-code
-description: "Reviews a code change, or a bounded existing scope, for correctness defects and reports only verified, high-confidence findings with concrete failure scenarios. Use only when explicitly asked to review a diff, branch, or pull request, or to diagnose a named module or feature slice. Not for style feedback, automatic repair, environment setup checks, or whole-repository rewrites."
+description: "Reviews a code change, or a bounded existing scope, for correctness defects and reports only verified, high-confidence findings with concrete failure scenarios. Use when asked to review a diff, branch, commit, or pull request, to check a change for bugs before it merges, or to diagnose a named module or feature slice for defects. Not for style feedback, automatic repair, explaining code, environment setup checks, or whole-repository rewrites."
 metadata:
   short-description: "Review a change for verified correctness defects"
 ---

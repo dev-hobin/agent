@@ -2,7 +2,7 @@
 id: applying-stances
 plugin: hobin-stances
 skill: applying-stances
-version: 0.3.0
+version: 0.5.0
 ---
 
 # applying-stances — 엔지니어링 입장 반영
@@ -24,16 +24,19 @@ skill로 반영한다.
 
 > Installs a short set of engineering stances into a project's or user's agent
 > instructions (CLAUDE.md or AGENTS.md) after showing the exact diff and getting approval,
-> and links each stance to an existing check where one exists. Use only when explicitly
-> asked to set up or update these stances. Not for writing general project documentation
-> or enforcing a convention in code.
+> and links each stance to an existing check where one exists. Use when asked to set up,
+> add, or update these stances, or default working stances, in agent instructions. Not for
+> writing general project documentation, editing other parts of agent instructions, or
+> enforcing a convention in code.
 
 짧은 설명: Install engineering stances into agent instructions
 표시 이름: Applying Stances
 
 ## 2. 호출
 
-- **사용자가 명시적으로 부를 때만** 동작한다. 모델이 스스로 고르지 않는다(`triggers.yaml` 없음).
+- **모델이 스스로 고를 수 있다.** 사용자가 명시적으로 불러도 된다. 골라야 할 요청과 고르면 안 되는
+  요청은 `triggers.yaml`에 있다. 승인 전에는 아무것도 쓰지 않으므로(G2) 스스로 골라도 지침
+  파일이 몰래 바뀌지 않는다.
 - 인자: 없음. 범위는 기본이 프로젝트이고, 사용자가 요청할 때만 사용자 범위
   (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`)를 쓴다.
 
@@ -65,7 +68,6 @@ Without a check: <연결할 검사가 없는 입장들(enforcing-conventions 후
 
 | ID | 보장 | 수준 |
 | --- | --- | --- |
-| G1 | 사용자가 명시적으로 부를 때만 시작한다 | 필수 |
 | G2 | 승인 전에는 지침 파일을 포함해 어떤 파일도 바꾸지 않는다. 쓰는 것은 요청이 지정한 제안 파일뿐이다 | 필수 |
 | G3 | 제안은 대상 파일, 정확한 diff, 변경 후 크기를 보이고 승인을 요청한다 | 필수 |
 | G4 | 프로젝트가 이미 같은 말을 하는 입장은 다시 넣지 않고, 다른 말을 하는 입장은 넣지 않고 충돌로 보고한다 | 필수 |

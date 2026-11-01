@@ -2,5 +2,3 @@ interface:
   display_name: "Hobin Feature"
   short_description: "Build a feature through verified acceptance scenarios"
   default_prompt: "Use $hobin-feature:developing-features to build this feature through acceptance scenarios."
-policy:
-  allow_implicit_invocation: false
