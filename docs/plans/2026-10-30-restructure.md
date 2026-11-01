@@ -546,4 +546,17 @@ learning 5)는 검증 설정 결함 때문에 실패했다. 보존된 작업 공
   **39/39 통과**(다시 채점한 결과 없음). 토큰 약 1,600만 개.
 
 남은 일:
-- Codex 플러그인 hook의 실제 로딩 확인: 신뢰는 Codex 설계상 사용자 결정이다. `/hooks`에서 신뢰한 세션에서 한 번 확인한다(평가 설정에 신뢰 우회 옵션을 넣는 것은 권한 분류기가 막았다).
+### 15.1 Codex hook 실제 동작 확인 (2026-11-01)
+
+- 첫 실행: Codex는 보고서를 셸 명령(`printf … > REVIEW.md`)으로 썼고, 편집 도구에만 걸린
+  hook은 이를 보지 못했다 → review·learning·stances에 Stop 관문을 추가(세션 중 바뀐 결과를
+  내용으로 찾아 검사, 연속 3회까지 차단). hook 스크립트는 두 호스트가 같은 파일을 쓴다.
+- 두 번째·세 번째 실행: hook이 아예 로드되지 않았다. app-server의 `plugin/read`·`hooks/list`로
+  모델 없이 시험하니, 루트 `plugin.json`이 있으면 선언 방식과 무관하게 hook이 0개였고
+  `.codex-plugin/plugin.json`만 있을 때 인식됐다(OpenAI 가이드와 다름, MemVault 보고와 같음).
+  → Codex manifest를 `.codex-plugin/plugin.json`으로 옮기고, 루트 manifest가 다시 생기면
+  검사가 실패하게 했다. Agent Plugins 검증기·스키마는 복귀를 위해 남겼다.
+- 네 번째 실행(사용자 실행, 격리 홈, 이 실행에만 신뢰): Stop hook이 "line 99 does not exist"를
+  세 번 돌려보냈고 네 번째에 종료를 허용했다. **Codex hook 동작 확인 완료.**
+- 사용자의 평소 Codex에는 GitHub main의 예전 hobin 플러그인이 설치돼 있어, 새 hook은 이
+  브랜치가 반영된 뒤 플러그인을 갱신하고 `/hooks`에서 신뢰해야 쓸 수 있다.
