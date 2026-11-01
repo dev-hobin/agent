@@ -86,6 +86,7 @@ full method. The essentials are below.
 
   ```text
   Source scope
+  Source terms (the source's own key terms, verbatim, with its definitions)
   Faithful claim or model
   Insight
   Source evidence
@@ -97,7 +98,8 @@ full method. The essentials are below.
   ```
 
 Write headings and prose in the user's language; keep source titles, code, APIs, identifiers,
-and exact technical terms when needed.
+and exact technical terms when needed. Copy the terms the source defines into Source terms
+exactly as the source writes them, and use those words, not paraphrases, in the insights.
 
 ## Output contract (saved results)
 

@@ -7,7 +7,7 @@
 // Used as a verifier command by hosts whose eval tools run commands (Codex plugin-eval) and
 // by check.mjs to prove each scenario accepts its golden result and rejects wrong ones.
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
@@ -62,12 +62,12 @@ export function checkScenario(casePath, workspace, original, ignore = [], kinds 
 			// Hidden files come from the scenario directory and are added only after the run.
 			if (value.files) cpSync(join(dirname(casePath), value.files), join(workspace, value.files), { recursive: true });
 			const { NODE_TEST_CONTEXT: _, ...env } = process.env;
-			try { execFileSync("sh", ["-c", value.command], { cwd: workspace, env, stdio: "pipe" }); passed = true; } catch { passed = false; }
+			try { execSync(value.command, { cwd: workspace, env, stdio: "pipe" }); passed = true; } catch { passed = false; }
 		} else if (kind === "script_passes") {
 			// A capability script (resolved from core/<id>/) run in the workspace; exit 0 passes.
 			const capability = resolve(dirname(casePath), "../..");
 			const { NODE_TEST_CONTEXT: _, ...env } = process.env;
-			try { execFileSync("node", [join(capability, value.script), ...(value.args ?? [])], { cwd: workspace, env, stdio: "pipe" }); passed = true; } catch { passed = false; }
+			try { execFileSync(process.execPath, [join(capability, value.script), ...(value.args ?? [])], { cwd: workspace, env, stdio: "pipe" }); passed = true; } catch { passed = false; }
 		} else if (kind === "output_contract") {
 			// The capability's own contract checker, the same one the skill runs on its result.
 			const capability = resolve(dirname(casePath), "../..");

@@ -14,14 +14,15 @@ const RESULT = "SCENARIO_CHECK.txt";
 
 try {
 	const input = JSON.parse(readFileSync(0, "utf8"));
-	const cwd = input.cwd ?? process.cwd();
+	// The project root: input.cwd follows the model's `cd` in Bash.
+	const cwd = process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd();
 	let root = process.env.CLAUDE_PLUGIN_ROOT ?? "";
 	while (root !== dirname(root) && !existsSync(join(root, CHECKER))) root = dirname(root);
 	const scenario = process.env.EVAL_SCENARIO;
 	if (!scenario || !existsSync(join(root, CHECKER))) {
 		writeFileSync(join(cwd, RESULT), `error: EVAL_SCENARIO is not set or ${CHECKER} was not found\n`);
 	} else {
-		const run = spawnSync("node", [join(root, CHECKER), join(root, scenario), cwd, cwd,
+		const run = spawnSync(process.execPath, [join(root, CHECKER), join(root, scenario), cwd, cwd,
 			"--ignore", RESULT, "--kinds", "command_passes,script_passes,output_contract"], { encoding: "utf8" });
 		writeFileSync(join(cwd, RESULT), `${run.stdout}${run.stderr ? `stderr: ${run.stderr}` : ""}`);
 	}

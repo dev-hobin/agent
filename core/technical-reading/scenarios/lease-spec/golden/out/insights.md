@@ -9,6 +9,14 @@ workers, coordinator, and storage).
 Source intent: make the reader see that a lease alone does not keep a shard
 safe; the storage check on the fencing token does.
 
+## Source terms
+
+- **Lease** (§2): "a grant from the coordinator that lets one worker process one shard
+  until the lease expires."
+- **TTL** (§2): "the lease duration, measured by the coordinator's clock."
+- **Fencing token** (§2): "an integer the coordinator returns with every grant", greater
+  than any token issued before for that shard; every write carries it (§4.1).
+
 ## Insight 1: Safety lives in storage, not in the worker
 
 - **Faithful claim or model** (source claim): every write carries the fencing

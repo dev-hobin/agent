@@ -9,6 +9,14 @@
       "hint": "source name, version, and the sections or pages covered"
     },
     {
+      "label": "Source terms",
+      "aliases": [
+        "Key terms",
+        "Terms"
+      ],
+      "hint": "the source's own key terms, copied verbatim (not paraphrased), each with the source's definition and where it appears"
+    },
+    {
       "label": "Insight",
       "hint": "one heading per insight, each with the fields below"
     },
@@ -64,5 +72,5 @@
       "hint": "\"interpretation\" or \"hypothesis\" for what goes beyond the source"
     }
   ],
-  "skeleton": "# Reading insights: TODO: source name\n\n## Source scope\n\nTODO: source name, version, and the sections or pages covered\n\n## Insight 1: TODO: one-line insight\n\n- **Source evidence:** TODO: section, sentence, or term\n- **Example or contrast:** TODO: a concrete case\n- **Boundary / likely misreading:** TODO: where it stops applying\n- **Practical consequence:** TODO: what to do differently\n- **Evidence level:** TODO: source claim, interpretation, or hypothesis\n\n## Unresolved question\n\nTODO: what the source leaves open, or none and why\n"
+  "skeleton": "# Reading insights: TODO: source name\n\n## Source scope\n\nTODO: source name, version, and the sections or pages covered\n\n## Source terms\n\nTODO: the source's own key terms, verbatim, each with its definition and section.\n\n## Insight 1: TODO: one-line insight\n\n- **Source evidence:** TODO: section, sentence, or term\n- **Example or contrast:** TODO: a concrete case\n- **Boundary / likely misreading:** TODO: where it stops applying\n- **Practical consequence:** TODO: what to do differently\n- **Evidence level:** TODO: source claim, interpretation, or hypothesis\n\n## Unresolved question\n\nTODO: what the source leaves open, or none and why\n"
 }

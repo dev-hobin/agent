@@ -57,7 +57,7 @@
     }
   },
   "technical-reading": {
-    "spec": "693e8780bac2c3dda6ae576d",
+    "spec": "bac5d3f56e350621a6ae576d",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/technical-reading/SKILL.md",
     "copies": {
@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "a54b8ef32a40a122a6ae576d",
+    "spec": "f9954bfe0cb4183fa6ae576d",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {

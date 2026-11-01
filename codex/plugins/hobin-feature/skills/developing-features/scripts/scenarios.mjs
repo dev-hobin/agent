@@ -6,9 +6,9 @@
 //                                       passed; otherwise print what to fix
 // Without a record argument, every acceptance-scenarios*.json under the current directory
 // (outside node_modules) is used. Results come only from `run`, never from hand edits.
-import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { execSync } from "node:child_process";
+import { accessSync, constants, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { delimiter, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const placeholder = (value) => typeof value !== "string" || !value.trim() || /<[^>]+>/.test(value);
@@ -22,13 +22,18 @@ function findRecords(dir = ".") {
 	});
 }
 
+// Commands run through the default shell with only the PATH directories this process can reach:
+// in a sandbox that denies one PATH directory, every lookup behind it fails (EPERM), even for a
+// program such as node or npm that lives in a later directory.
 function runCommand(command) {
 	const { NODE_TEST_CONTEXT: _, ...env } = process.env;
+	const reachable = (dir) => { try { accessSync(dir, constants.X_OK); return true; } catch { return false; } };
+	env.PATH = (env.PATH ?? "").split(delimiter).filter((dir) => dir && reachable(dir)).join(delimiter);
 	try {
-		const output = execFileSync("sh", ["-c", command], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+		const output = execSync(command, { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 		return { status: "pass", output };
 	} catch (error) {
-		return { status: "fail", output: `${error.stdout ?? ""}${error.stderr ?? ""}` };
+		return { status: "fail", output: `${error.stdout ?? ""}${error.stderr ?? ""}` || String(error.message) };
 	}
 }
 

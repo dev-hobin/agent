@@ -32,7 +32,7 @@ try {
 	const counter = join(tmpdir(), `hobin-feature-stop-${String(input.session_id ?? "session").replace(/[^\w-]/g, "")}`);
 	let problems = "";
 	try {
-		execFileSync("node", [script, "check"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+		execFileSync(process.execPath, [script, "check"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 	} catch (error) {
 		problems = `${error.stderr ?? ""}`.trim() || `${error.stdout ?? ""}`.trim() || "scenarios.mjs check failed.";
 	}

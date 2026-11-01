@@ -14,7 +14,8 @@ try {
 	const text = readFileSync(file, "utf8");
 	const first = text.split("\n").find((line) => line.trim()) ?? "";
 	if (!/^\[P\d\]|^No findings\b/.test(first)) process.exit(0);
-	if (input.cwd) process.chdir(input.cwd);
+	// Findings cite paths from the project root; input.cwd follows the model's `cd` in Bash.
+	process.chdir(process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd());
 	const problems = checkReport(text);
 	if (problems.length) {
 		console.error(`${file} does not follow the review report format:\n${problems.map((p) => `- ${p}`).join("\n")}`);
