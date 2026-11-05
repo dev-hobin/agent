@@ -8,7 +8,7 @@
       "PostToolUse/PostToolUseFailure of a shell command that names no .md file -> nothing, no walk (R6)",
       "shell command naming a .md file, stamp usable -> the .md files it names, found by name under its cwd too, changed since stamp - 1s: check now; results -> ledger (R4, R5, R7, R15); unnamed files under the cwd never count (R18)",
       "shell command naming a .md file, no usable stamp (no PreToolUse, no tool_use_id, unreadable) -> only named .md files changed since session start (R10)",
-      "a shell command's candidate that git tracks, still holds as committed, and last committed before the call (or, without a stamp, before the session) -> written by a checkout, a worktree, a pull: not the command's (R17); git words in the command text change nothing (R19); a new or changed file written in the same command as a checkout counts (R20); a file the command wrote and committed counts (R21)",
+      "a shell command's candidate that git tracks, still holds as committed, and last committed before the call (or, without a stamp, before the session) -> written by a checkout, a worktree, a pull: not the command's (R17); git words in the command text change nothing (R19); a new or changed file written in the same command as a checkout counts (R20); a file the command wrote and committed counts (R21); a file in a git-ignored folder counts (R22)",
       "Stop -> check only ledger results that still exist (R1, R2, R11); three blocks in a row at most (R9)",
       "a check that throws -> the hook's own error: exit 1, never 2 (R13)",
       "no session_id -> PostToolUse still checks the written file; nothing enters a ledger; Stop exits 0 (R14)"
@@ -203,6 +203,15 @@
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R21 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
       "status": "pass",
       "covers": []
+    },
+    {
+      "id": "R22",
+      "given": "A git repository that ignores out/; a shell command writes an invalid report to out/REVIEW.md",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "Both exit 2: an ignored file is not git's write, so it counts (E6)",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R22 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
     }
   ],
   "decisions": [
@@ -279,6 +288,13 @@
           "a result written and committed in the same command is tracked and unchanged, so the git rule dropped it unchecked"
         ],
         "resolution": "checkedOut now also needs the file's last commit to predate the call (or the session); R21 and F25 added and fail on the round-2 rule. This fix came after the third and last verification round, so no independent verifier has reviewed it"
+      },
+      {
+        "round": 4,
+        "must_fix": [
+          "E6 says ignored files count, but no scenario put a result in a git-ignored path (the code already counted it)"
+        ],
+        "resolution": "Review after the 0.5.1 release; it found no defect in the round-3 commit-time rule. R22 added here and F26 in the hobin-feature record"
       }
     ],
     "existing_tests_status": "pass"

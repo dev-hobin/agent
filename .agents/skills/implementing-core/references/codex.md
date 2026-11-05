@@ -57,8 +57,8 @@ and must act only on the skill's own results. Every guarantee the spec backs wit
 
 - For a result file, register `node "$PLUGIN_ROOT/scripts/<name>-hook.mjs"` on `PreToolUse`,
   `PostToolUse`, and `Stop`, without a matcher: file edits arrive as `apply_patch`, Codex
-  often writes files with a shell command, and the shell tool's name in hook input is not
-  documented (0.166), so the script decides by the input's shape. The shared
+  often writes files with a shell command, and a missing matcher keeps the hooks working if
+  a tool is renamed; the script decides by the input's shape. The shared
   `scripts/hook-input.mjs` reads both hosts' inputs: it checks what an apply_patch wrote and
   what a shell command naming a `.md` file named (found by name under its cwd too) and
   changed since its `PreToolUse` stamp, records the results in the session's ledger, and on
@@ -72,9 +72,15 @@ and must act only on the skill's own results. Every guarantee the spec backs wit
   not this session's. It keeps a per-session ledger instead: `PreToolUse` stamps a shell
   command that names a record or record script, `PostToolUse` adds the records an
   apply_patch wrote and the records that command named or changed under its cwd since the
-  stamp, and `Stop` checks only the ledger. Register both without a matcher: the shell
-  tool's name in hook input is not documented (0.166, 2026-11-05), so the script decides by
-  the input's shape. A checker that throws exits 1, never 2.
+  stamp, and `Stop` checks only the ledger. Register both without a matcher; the script
+  decides by the input's shape. A checker that throws exits 1, never 2.
+- Hook input, observed in Codex 0.166 (2026-11-05): the model runs shell commands through
+  the code-mode `exec` tool (`tools.exec_command({cmd})`), but hooks receive them as
+  `tool_name: "Bash"` with `tool_input.command`. `apply_patch` arrives as `apply_patch` with
+  the patch text in `tool_input.command`. Every tool call has a `tool_use_id`, and
+  `session_id` is the thread id. `codex exec` runs plugin hooks only with
+  `--dangerously-bypass-hook-trust`; trust stored through `/hooks` (and shown as `trusted` by
+  the app-server's `hooks/list`) did not make it run them.
 - `tests/hooks.test.mjs` proves each hook with an apply_patch input;
   `tests/feature-stop-hook.test.mjs` proves the ledger hook scenario by scenario.
 

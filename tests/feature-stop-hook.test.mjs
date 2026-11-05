@@ -427,6 +427,20 @@ for (const host of HOSTS) test(`F25 ${host}: a record written and committed in t
 	assert.equal(s.stop().status, 2);
 });
 
+for (const host of HOSTS) test(`F26 ${host}: a record written into a git-ignored folder is the session's`, () => {
+	const cwd = workspace();
+	put(cwd, ".gitignore", "plans/\n");
+	const git = (...args) => spawnSync("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", env: { ...process.env, ...PAST } });
+	git("init", "-q");
+	git("add", ".");
+	git("commit", "-q", "-m", "ignore plans/");
+	const s = session(host, cwd);
+	s.shell(`mkdir -p plans && cp "${TEMPLATE}" plans/acceptance-scenarios.json`);
+	const result = s.stop();
+	assert.equal(result.status, 2);
+	assert.match(result.stderr, /\/plans\/acceptance-scenarios\.json: Scenario S1/);
+});
+
 test("F19 skill: every scenarios.mjs run/check and --gate the procedure names passes the record path", () => {
 	for (const host of HOSTS) {
 		const text = readFileSync(join(pluginRoot(host), "skills/developing-features/SKILL.md"), "utf8");

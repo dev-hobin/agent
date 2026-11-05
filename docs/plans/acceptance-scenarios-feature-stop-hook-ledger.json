@@ -9,7 +9,7 @@
       "Bash, command names no record file and no record script -> nothing, no walk (F15)",
       "Bash, command names a record or script, stamp present -> record paths in the command and records under the call's cwd changed since stamp - 1s -> ledger (F7, F8, F9)",
       "Bash that failed (Claude delivers PostToolUseFailure, not PostToolUse) -> the same rules as a successful command (F20)",
-      "a shell command's candidate record that git tracks, still holds as committed, and last committed before the call -> written by a checkout, a worktree, a pull: not the command's (F23); git words in the command text change nothing, a record written in the same command as a checkout counts (F24), and a record the command wrote and committed counts (F25)",
+      "a shell command's candidate record that git tracks, still holds as committed, and last committed before the call -> written by a checkout, a worktree, a pull: not the command's (F23); git words in the command text change nothing, a record written in the same command as a checkout counts (F24), and a record the command wrote and committed counts (F25); a record in a git-ignored folder counts (F26)",
       "Bash, stamp unreadable or empty, or call without tool_use_id -> treated as stamp missing (F22)",
       "Bash, command names a record or script, stamp missing -> only record paths named in the command and changed since session start; no walk (F17)",
       "no session_id -> nothing; Stop exits 0 (F16)",
@@ -240,6 +240,15 @@
       "when": "Pre/PostToolUse, then Stop",
       "then": "Stop exits 2: a commit made during the call is the session's write",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F25 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F26",
+      "given": "A git repository that ignores plans/; a shell command copies the record template to plans/acceptance-scenarios.json",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "Stop exits 2: an ignored record is the session's",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F26 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
       "status": "pass",
       "covers": []
     }

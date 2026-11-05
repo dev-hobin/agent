@@ -350,6 +350,20 @@ for (const host of HOSTS) test(`R21 ${host}: a result written and committed in t
 	assert.equal(s.stop().status, 2);
 });
 
+for (const host of HOSTS) test(`R22 ${host}: a result written into a git-ignored folder is checked`, () => {
+	const cwd = project();
+	put(cwd, ".gitignore", "out/\n");
+	const git = (...args) => spawnSync("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", env: { ...process.env, ...PAST } });
+	git("init", "-q");
+	git("add", ".");
+	git("commit", "-q", "-m", "ignore out/");
+	const s = session(host, REVIEW, cwd);
+	assert.equal(s.shell(`mkdir -p out && cp "${source(REVIEW.bad)}" out/REVIEW.md`).status, 2);
+	const stop = s.stop();
+	assert.equal(stop.status, 2);
+	assert.match(stop.stderr, /\/out\/REVIEW\.md:/);
+});
+
 test("R16 hooks: every result plugin registers the ledger events and runs its own script; hook-input.mjs is one file", () => {
 	const shared = readFileSync(join(pluginRoot("claude", "hobin-review"), "scripts/hook-input.mjs"), "utf8");
 	for (const host of HOSTS) for (const kind of PLUGINS) {
