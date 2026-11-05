@@ -1,6 +1,6 @@
 {
   "name": "hobin-review",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Reviews a code change, or a bounded existing scope, for correctness defects by running one focused pass per applicable perspective and reporting only verified, high-confidence findings with concrete failure scenarios.",
   "author": {
     "name": "dev-hobin",
