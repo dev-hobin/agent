@@ -91,6 +91,9 @@ function controlProject(dir, { gatePasses = true, plans = "" } = {}) {
 	return dir;
 }
 
+// Commits a checkout brings in were made before the session: date the fixtures' commit an hour back.
+const PAST = { GIT_AUTHOR_DATE: new Date(Date.now() - 3600_000).toISOString(), GIT_COMMITTER_DATE: new Date(Date.now() - 3600_000).toISOString() };
+
 const script = (name, args, cwd) => spawnSync("node", [join(coreScripts, name), ...args], { cwd, encoding: "utf8" });
 
 for (const host of HOSTS) test(`F1 ${host}: a broken symbolic link does not crash Stop; only the session record is reported`, () => {
@@ -377,6 +380,51 @@ for (const host of HOSTS) test(`F22 ${host}: an unreadable stamp, or a call with
 	t.shell("node scenarios.mjs check --help > /dev/null 2>&1", { withId: false, during: () => put(other, "theirs/acceptance-scenarios.json", TEMPLATE) });
 	const noId = t.stop();
 	assert.equal(noId.status, 0, noId.stderr);
+});
+
+for (const host of HOSTS) test(`F23 ${host}: a git command that rewrites the working tree adds no record it checked out`, () => {
+	const cwd = workspace();
+	put(cwd, "docs/acceptance-scenarios.json", TEMPLATE);
+	const git = (...args) => spawnSync("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", env: { ...process.env, ...PAST } });
+	git("init", "-q");
+	git("add", ".");
+	git("commit", "-q", "-m", "records");
+	const s = session(host, cwd);
+	s.shell(`git worktree add -q wt -b side && node "${join(coreScripts, "scenarios.mjs")}" check wt/docs/acceptance-scenarios.json`);
+	const result = s.stop();
+	assert.equal(result.status, 0, result.stderr);
+});
+
+for (const host of HOSTS) test(`F24 ${host}: git in a command does not exempt a record the command wrote`, () => {
+	const repo = () => {
+		const cwd = workspace();
+		put(cwd, "docs/acceptance-scenarios.json", COMPLETE);
+		const git = (...args) => spawnSync("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", env: { ...process.env, ...PAST } });
+		git("init", "-q");
+		git("add", ".");
+		git("commit", "-q", "-m", "records");
+		return cwd;
+	};
+	const a = repo();
+	const s = session(host, a);
+	s.shell(`git -c user.email=t@example.com -c user.name=t commit -q --allow-empty -m "I am done" && mkdir -p docs/plans && cp "${TEMPLATE}" docs/plans/acceptance-scenarios-x.json`);
+	assert.equal(s.stop().status, 2, "a new record next to a commit");
+	const b = repo();
+	const t = session(host, b);
+	t.shell(`git switch -q -c x && cp "${TEMPLATE}" docs/acceptance-scenarios.json`);
+	assert.equal(t.stop().status, 2, "a tracked record the command changed after a switch");
+});
+
+for (const host of HOSTS) test(`F25 ${host}: a record written and committed in the same command is the session's`, () => {
+	const cwd = workspace();
+	put(cwd, "README.md", "readme\n");
+	const git = (...args) => spawnSync("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", env: { ...process.env, ...PAST } });
+	git("init", "-q");
+	git("add", ".");
+	git("commit", "-q", "-m", "base");
+	const s = session(host, cwd);
+	s.shell(`mkdir -p docs && cp "${TEMPLATE}" docs/acceptance-scenarios.json && git add docs && git -c user.email=t@example.com -c user.name=t commit -qm record`);
+	assert.equal(s.stop().status, 2);
 });
 
 test("F19 skill: every scenarios.mjs run/check and --gate the procedure names passes the record path", () => {

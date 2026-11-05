@@ -12,11 +12,14 @@
 //   names and those under its cwd changed since PreToolUse stamped the same call (by tool_use_id).
 //   Without a usable stamp only the records it names count, and only if they changed after the
 //   session started.
+//   A record git tracks and still holds as committed from before the call was written by git (a
+//   checkout, a worktree, a pull), not by the session, and does not count.
 // - Stop checks only the ledger's records. While one fails, exit 2 sends the problems back; after
 //   three blocks in a row the model may stop, so a check that cannot pass never traps the session
 //   (G5: the report must then say so). A record that is not JSON is a record problem. A checker
 //   that throws is the hook's own failure: exit 1, shown to the user, never sent to the model.
 // Any other unexpected error exits 0: the hook never fails the user's work because of itself.
+import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -57,6 +60,17 @@ function editedRecords(input, root) {
 		.filter(isRecord);
 }
 
+// A file git tracks, still holds as committed, and last committed before `since` was written by
+// git (a checkout, a worktree, a pull), not by the session. A commit made since then may be the
+// session's own (a write and a commit in one command), so its files count. Outside a git
+// repository, or when git cannot tell, a file counts.
+function checkedOut(path, since) {
+	const git = (...args) => spawnSync("git", ["-C", dirname(path), ...args], { encoding: "utf8" });
+	const status = git("status", "--porcelain", "--ignored=matching", "--untracked-files=all", "--", basename(path));
+	if (status.status !== 0 || status.stdout !== "") return false;
+	const committed = Number(git("log", "-1", "--format=%ct", "--", basename(path)).stdout.trim());
+	return committed > 0 && committed * 1000 < since;
+}
 function shellRecords(input, root, stamp) {
 	const text = commandText(input);
 	if (!MENTIONS.test(text)) return [];
@@ -64,10 +78,10 @@ function shellRecords(input, root, stamp) {
 	const named = [...text.matchAll(NAMED)].map((m) => resolve(cwd, m[0].replace(/^~(?=\/)/, process.env.HOME ?? "~")));
 	if (stamp === undefined) {
 		const start = sessionStart(input);
-		return start === undefined ? [] : named.filter((path) => mtime(path) >= start - SLACK_MS);
+		return start === undefined ? [] : named.filter((path) => mtime(path) >= start - SLACK_MS && !checkedOut(path, start - SLACK_MS));
 	}
 	const since = stamp - SLACK_MS;
-	return [...named, ...findFiles(RECORD, cwd).map((path) => resolve(path))].filter((path) => mtime(path) >= since);
+	return [...new Set([...named, ...findFiles(RECORD, cwd).map((path) => resolve(path))])].filter((path) => mtime(path) >= since && !checkedOut(path, since));
 }
 
 function ledger(session) {
