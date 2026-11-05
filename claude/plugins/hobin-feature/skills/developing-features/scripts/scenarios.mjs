@@ -7,20 +7,15 @@
 // Without a record argument, every acceptance-scenarios*.json under the current directory
 // (outside node_modules) is used. Results come only from `run`, never from hand edits.
 import { execSync } from "node:child_process";
-import { accessSync, constants, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { delimiter, isAbsolute, join, relative, resolve } from "node:path";
+import { accessSync, constants, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { delimiter, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { SCENARIO_RECORD, findFiles } from "./records.mjs";
 
 const placeholder = (value) => typeof value !== "string" || !value.trim() || /<[^>]+>/.test(value);
 
-function findRecords(dir = ".") {
-	return readdirSync(dir).flatMap((name) => {
-		if (name === "node_modules" || name.startsWith(".git")) return [];
-		const path = join(dir, name);
-		if (statSync(path).isDirectory()) return findRecords(path);
-		return /^acceptance-scenarios.*\.json$/.test(name) ? [relative(".", path)] : [];
-	});
-}
+const findRecords = (dir = ".") => findFiles(SCENARIO_RECORD, dir).map((path) => relative(".", path));
 
 // Commands run through the default shell with only the PATH directories this process can reach:
 // in a sandbox that denies one PATH directory, every lookup behind it fails (EPERM), even for a

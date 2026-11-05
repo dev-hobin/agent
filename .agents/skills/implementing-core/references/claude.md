@@ -58,10 +58,19 @@ script (an output contract or a `script_passes` check) gets one, and the guarant
   The hook scripts are byte-identical to the Codex plugin's.
 - `Stop` for "finish only when the check passes": exit 2 while the check fails sends Claude
   back to work. Let Claude stop after three blocks in a row (count per `session_id` in the
-  temp directory) so a check that cannot pass never traps the session.
+  temp directory) so a check that cannot pass never traps the session. A gate over records
+  (hobin-feature) keeps a per-session ledger of the records the session's own tool calls
+  wrote instead of comparing mtimes, which would claim other sessions' records: `PreToolUse`
+  (matcher `Bash`) stamps a command that names a record or record script, `PostToolUse`
+  (matcher `Write|Edit|MultiEdit|Bash`) adds what an edit tool wrote and what that command
+  named or changed under its cwd since the stamp, `PostToolUseFailure` (matcher `Bash`) does
+  the same for a command that exited non-zero, and `Stop` checks only the ledger. A
+  checker that throws is the hook's own failure: exit 1 (shown to the user), never 2.
 - Use `${CLAUDE_PLUGIN_ROOT}` in hook commands; `${CLAUDE_SKILL_DIR}` is not set for hooks.
-- Keep the events and timeouts the same as the Codex plugin's `hooks/hooks.json`; only the
-  plugin-root variable and the edit-tool matcher (`Write|Edit`) differ.
+- Keep the events and timeouts the same as the Codex plugin's `hooks/hooks.json`, except
+  `PostToolUseFailure`, which Codex does not document; only the plugin-root variable and the
+  matchers differ otherwise (Claude `Write|Edit`, plus `Bash` for a
+  ledger hook; Codex `apply_patch|Edit|Write`, or none for a ledger hook).
 - `tests/hooks.test.mjs` proves each hook with a passing and a failing result, and fails if a
   skill registers a hook in its frontmatter.
 

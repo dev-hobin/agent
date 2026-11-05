@@ -1,0 +1,311 @@
+{
+  "feature": "hobin-feature Stop hook: session ledger and safe record discovery",
+  "request": "Fix the hobin-feature Stop hook at the root. P1: record discovery follows symbolic links and crashes on ENOENT/ELOOP. P2: a checker crash and an incomplete record both exit 2. P3: the hook checks every record under the cwd tree, not only the session's. P4: mtime attribution treats another session's writes as this session's. P5: scenarios.mjs run without a path runs the whole tree. Decisions: D1 attribute records with a ledger filled by Pre/PostToolUse and check only ledger records on Stop; D2 leave the sibling hook-input.mjs hooks to a separate PR; D3 keep the no-argument behavior of scenarios.mjs and make the skill pass the record path.",
+  "condition_table": {
+    "note": "Ledger attribution (PostToolUse unless stated). Stamp = time PreToolUse(Bash) saw the same call, keyed by tool_use_id; a call without tool_use_id gets no stamp, and a stamp that is not a positive time no later than now is no stamp. Session start = transcript creation time.",
+    "rows": [
+      "edit tool (Write/Edit/MultiEdit, apply_patch Add/Update/Move to) on a record name -> ledger += path (F10); NotebookEdit is not watched: it edits .ipynb, never a .json record",
+      "edit tool on any other name, or apply_patch Delete File -> nothing (F10)",
+      "Bash, command names no record file and no record script -> nothing, no walk (F15)",
+      "Bash, command names a record or script, stamp present -> record paths in the command and records under the call's cwd changed since stamp - 1s -> ledger (F7, F8, F9)",
+      "Bash that failed (Claude delivers PostToolUseFailure, not PostToolUse) -> the same rules as a successful command (F20)",
+      "Bash, stamp unreadable or empty, or call without tool_use_id -> treated as stamp missing (F22)",
+      "Bash, command names a record or script, stamp missing -> only record paths named in the command and changed since session start; no walk (F17)",
+      "no session_id -> nothing; Stop exits 0 (F16)",
+      "Stop: ledger path no longer exists -> dropped, exit 0 when nothing else is left (F21)",
+      "Stop: record is not JSON -> record problem, exit 2 (F11); checker throws -> internal error, exit 1, never 2 (F12)"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "F1",
+      "given": "A project containing a broken symbolic link and an incomplete acceptance record that this session wrote",
+      "when": "The Stop hook runs",
+      "then": "It exits 2 and reports only that record's problems; no ENOENT and no crash",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F1 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F2",
+      "given": "A project with a directory symlink that points at its own ancestor, plus one complete acceptance record and one control decision record",
+      "when": "scenarios.mjs check and compile-control-model.mjs --gate run without a path",
+      "then": "Both finish without ELOOP and find each record exactly once",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F2 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F3",
+      "given": "A project with an unreadable directory and a complete record elsewhere",
+      "when": "scenarios.mjs check runs without a path",
+      "then": "The unreadable directory is skipped, the record is found, and no EACCES escapes",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F3 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F4",
+      "given": "An incomplete record inside a dot directory (.plans/feature/)",
+      "when": "The session writes it, then Stop runs; and scenarios.mjs check runs without a path",
+      "then": "Both find and check it (dot directories other than .git* are not skipped)",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F4 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F5",
+      "given": "An incomplete record changed after this session started by something other than this session's tools (another session)",
+      "when": "The Stop hook runs",
+      "then": "It exits 0 and does not mention the record",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F5 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F6",
+      "given": "This session wrote complete record A; the same project holds failing record B the session never touched",
+      "when": "The Stop hook runs",
+      "then": "It exits 0; B is not checked",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F6 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F7",
+      "given": "A shell command (PreToolUse and PostToolUse Bash) copies the record template to docs/plans/acceptance-scenarios-x.json, including after a cd inside the command",
+      "when": "The Stop hook runs",
+      "then": "The copy is in the ledger and Stop exits 2 for its placeholders; the template source outside the project is not",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F7 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F8",
+      "given": "An old incomplete record that a shell command only reads (cat) during the session",
+      "when": "The Stop hook runs",
+      "then": "It exits 0: reading is not writing",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F8 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F9",
+      "given": "Two records under the cwd; a shell command runs scenarios.mjs run without a path and rewrites one of them",
+      "when": "PostToolUse for that command, then Stop",
+      "then": "Only the rewritten record enters the ledger and is checked",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F9 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F10",
+      "given": "Claude Write, Edit, and MultiEdit inputs and Codex apply_patch Add File, Update File, and Move to naming records, plus edits of a non-record file and a deleted record",
+      "when": "PostToolUse runs for each, then Stop",
+      "then": "Every written record (Write, Edit, MultiEdit; Add, Update, Move to target) is in the ledger and checked; the non-record, the move source, and the deletion are ignored",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F10 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F11",
+      "given": "This session wrote a record that is not valid JSON",
+      "when": "The Stop hook runs",
+      "then": "It exits 2 naming the file as not valid JSON",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F11 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F12",
+      "given": "This session wrote a control decision record whose shape makes the gate throw (facts is a number)",
+      "when": "The Stop hook runs",
+      "then": "It exits 1 with an internal-error message, never 2, so the model is not sent back for the hook's own failure",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F12 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F13",
+      "given": "An incomplete session record",
+      "when": "Stop runs four times, then the record is completed and Stop runs again",
+      "then": "Exit 2, 2, 2, then 0 (three blocks in a row at most); after the fix exit 0 and the counter resets",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F13 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F14",
+      "given": "The hook's cwd is a parent folder outside any git repository; the session wrote a passing control decision record inside a child repository whose evidence paths are relative to that repository",
+      "when": "The Stop hook runs",
+      "then": "The gate resolves evidence against the child repository and Stop exits 0",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F14 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F15",
+      "given": "A shell command that names no record or record script (ls) while an incomplete record changes underneath it",
+      "when": "Pre/PostToolUse run for it, then Stop",
+      "then": "Nothing enters the ledger and Stop exits 0",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F15 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F16",
+      "given": "A Stop input without session_id, and a session with no ledger, each next to an incomplete record",
+      "when": "The Stop hook runs",
+      "then": "It exits 0 in both cases",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F16 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F17",
+      "given": "PostToolUse Bash without a matching PreToolUse stamp; the command names two records, one changed after the session started and one older",
+      "when": "PostToolUse runs, then Stop",
+      "then": "Only the record changed after the session started enters the ledger",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F17 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F18",
+      "given": "The hobin-feature plugin on both hosts",
+      "when": "Its hooks.json is read",
+      "then": "PreToolUse (shell), PostToolUse (edit tools and shell), PostToolUseFailure (shell, Claude only: Codex documents no such event), and Stop run the same shipped script, byte-identical on both hosts",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F18 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F19",
+      "given": "The developing-features skill on both hosts",
+      "when": "Its procedure tells the model to run scenarios.mjs run/check and the gate",
+      "then": "Each command passes the record path",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F19 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F20",
+      "given": "A shell command that rewrites a record and then exits 1 (a failing scenarios.mjs run), which Claude reports as PostToolUseFailure",
+      "when": "The failure event arrives, then Stop",
+      "then": "The rewritten record is in the ledger and Stop checks it",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F20 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F21",
+      "given": "A record this session wrote and later deleted",
+      "when": "The Stop hook runs",
+      "then": "The missing path is dropped and Stop exits 0 with no output",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F21 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F22",
+      "given": "A shell call whose PreToolUse stamp file is empty, and a shell call without tool_use_id, while another session writes a record under the cwd",
+      "when": "PostToolUse for each, then Stop",
+      "then": "Both fall back to named records changed since the session started: no walk, nothing of the other session's enters the ledger, Stop exits 0",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F22 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "How does the Stop hook decide which records belong to this session?",
+      "owner": "user",
+      "decision": "A per-session ledger filled by PreToolUse/PostToolUse hooks; Stop checks only ledger records and never walks the tree",
+      "reason": "mtime attribution checked other sessions' records (701 records under a parent folder) and walked large trees on every stop",
+      "revert": "Restore the mtime walk in scenarios-stop-hook.mjs, drop the PreToolUse/PostToolUse entries from both hooks.json files, and update F5, F6, F15"
+    },
+    {
+      "id": "D2",
+      "question": "Do the sibling hooks sharing hook-input.mjs (review, stances, learning) change in this PR?",
+      "owner": "user",
+      "decision": "No; a separate PR",
+      "reason": "Keep this change to one plugin and its guarantees",
+      "revert": "Not applicable; the follow-up PR applies the same walker to hook-input.mjs"
+    },
+    {
+      "id": "D3",
+      "question": "What does scenarios.mjs run/check do without a path?",
+      "owner": "user",
+      "decision": "Unchanged (every record under the cwd); the skill now passes the record path",
+      "reason": "Existing users rely on the no-argument form; a refusal would break them",
+      "revert": "Make the no-argument form refuse more than one record and update F19"
+    },
+    {
+      "id": "D4",
+      "question": "What does Stop do when a checker throws (not a record problem)?",
+      "owner": "team",
+      "decision": "Exit 1 with a message naming it an internal error: visible to the user, never blocking the model",
+      "reason": "A hook must not send the model back for the hook's own failure; exit 0 would hide it",
+      "revert": "Change the exit code in scenarios-stop-hook.mjs and F12"
+    },
+    {
+      "id": "D5",
+      "question": "Which root does a record get checked against?",
+      "owner": "team",
+      "decision": "The hook root when it lies inside a git work tree and contains the record (unchanged behavior); otherwise the record's nearest ancestor holding .git; otherwise the hook root",
+      "reason": "Keeps every in-repository session exactly as before and fixes the parent-folder case",
+      "revert": "Always use the hook root in scenarios-stop-hook.mjs and drop F14"
+    },
+    {
+      "id": "D6",
+      "question": "What counts for a shell command without a usable stamp (no PreToolUse, no tool_use_id, or an unreadable stamp)?",
+      "owner": "team",
+      "decision": "Only record paths named in the command and changed since the session started; no walk",
+      "reason": "Without a trustworthy start time a walk cannot tell this call's writes from anyone else's; a shared or empty stamp would claim every record under the cwd",
+      "revert": "Change readStamp and the fallback in scenarios-stop-hook.mjs and F17, F22"
+    },
+    {
+      "id": "D7",
+      "question": "Do record discovery walks follow symbolic links?",
+      "owner": "team",
+      "decision": "No; symlinked directories and files are skipped, and an unreadable entry is skipped",
+      "reason": "Following links is what crashed (ENOENT, ELOOP); a record behind a link is still checked when named by path",
+      "revert": "Follow links with a visited-realpath set in core/developing-features/scripts/records.mjs"
+    },
+    {
+      "id": "D8",
+      "question": "Where does the ledger live, and what happens if it is lost?",
+      "owner": "team",
+      "decision": "Append-only file per session_id in the OS temp directory; losing it (reboot, cleanup) only means the hook stops enforcing for that session",
+      "reason": "Appends are safe across parallel tool calls; losing the ledger fails open, never blocking unrelated work",
+      "revert": "Move the ledger path in scenarios-stop-hook.mjs"
+    }
+  ],
+  "verification": {
+    "existing_tests": ". .venv/bin/activate && pnpm -s check",
+    "rounds": [
+      {
+        "round": 1,
+        "must_fix": [
+          "condition_table named NotebookEdit, which the hook neither watches nor tests"
+        ],
+        "resolution": "NotebookEdit removed from the table (it edits .ipynb, never a .json record). Also added F20: Claude reports a failed shell command as PostToolUseFailure, now registered"
+      },
+      {
+        "round": 2,
+        "must_fix": [
+          "condition-table row 'ledger path no longer exists' had no scenario; F10 covered only Write and Add File",
+          "an empty stamp parsed as 0 and a missing tool_use_id shared one stamp, so a walk could claim every record under the cwd"
+        ],
+        "resolution": "Added F21 and widened F10 (MultiEdit, Update File, Move to). Stamps now need tool_use_id and a positive time no later than now, otherwise the D6 fallback applies; F22 fails on the previous handling and passes now"
+      },
+      {
+        "round": 3,
+        "must_fix": [],
+        "resolution": "No must-fix items: F1-F22 and pnpm check (129 tests) pass"
+      }
+    ],
+    "existing_tests_status": "pass"
+  }
+}

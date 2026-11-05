@@ -5,7 +5,7 @@
 // `tool_input.file_path`; Codex hooks get an apply_patch command.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -54,7 +54,7 @@ test("every Claude plugin hook runs a script the plugin ships, and no skill regi
 			count++;
 		}
 	}
-	assert.equal(count, 7);
+	assert.equal(count, 10);
 });
 
 test("every Codex plugin hook runs a script the plugin ships", () => {
@@ -72,7 +72,7 @@ test("every Codex plugin hook runs a script the plugin ships", () => {
 			count++;
 		}
 	}
-	assert.equal(count, 7);
+	assert.equal(count, 9);
 });
 
 for (const [host, wrote] of hosts) test(`${host} review report hook: a valid report passes, a wrong one goes back to the model`, () => {
@@ -112,54 +112,8 @@ for (const [host, wrote] of hosts) test(`${host} stances hook: the golden propos
 	assert.match(wrong.stderr, /Not a stance from assets\/stances\.md/);
 });
 
-for (const host of ["claude", "codex"]) test(`${host} feature Stop hook: acts only on a record written in this session, then blocks at most three times`, async () => {
-	const open = workspace();
-	const older = join(workspace(), "older.jsonl");
-	writeFileSync(older, "");
-	await new Promise((r) => setTimeout(r, 20));
-	cpSync(join(repositoryRoot, "core/developing-features/assets/acceptance-scenarios.json"), join(open, "acceptance-scenarios.json"));
-	await new Promise((r) => setTimeout(r, 20));
-	const newer = join(workspace(), "newer.jsonl");
-	writeFileSync(newer, "");
-	const stop = (cwd, session, path) => runHook("hobin-feature", "scenarios-stop-hook.mjs", { hook_event_name: "Stop", cwd, session_id: session, transcript_path: path }, host);
-
-	assert.equal(stop(open, `old-${process.pid}-${Date.now()}`, newer).status, 0, "a record from before the session is not this session's");
-	const session = `${host}-new-${process.pid}-${Date.now()}`;
-	assert.equal(stop(open, session, older).status, 2);
-	assert.equal(stop(open, session, older).status, 2);
-	assert.equal(stop(open, session, older).status, 2);
-	assert.equal(stop(open, session, older).status, 0, "the fourth stop is let through");
-
-	const done = workspace();
-	cpSync(join(repositoryRoot, "core/developing-features/scenarios/quiet-hours-preferences/golden/acceptance-scenarios.json"), join(done, "acceptance-scenarios.json"));
-	assert.equal(stop(done, `done-${process.pid}-${Date.now()}`, older).status, 0);
-	assert.equal(stop(workspace(), `none-${process.pid}-${Date.now()}`, older).status, 0, "a session without a record is left alone");
-});
-
-// G7: a control decision record in the workspace must pass compile-control-model.mjs --gate.
-function controlWorkspace(gatePasses) {
-	const dir = workspace();
-	const scenario = join(repositoryRoot, "core/developing-features/scenarios/job-lookup-cancel");
-	cpSync(join(scenario, "base"), dir, { recursive: true });
-	cpSync(join(scenario, "golden"), dir, { recursive: true });
-	if (!gatePasses) {
-		const record = JSON.parse(readFileSync(join(dir, "control-decisions.json"), "utf8"));
-		writeFileSync(join(dir, "control-decisions.json"), JSON.stringify({ ...record, findings: [] }));
-	}
-	return dir;
-}
-
-for (const host of ["claude", "codex"]) test(`${host} feature Stop hook: a control decision record written in this session must pass the gate`, async () => {
-	const older = join(workspace(), "older.jsonl");
-	writeFileSync(older, "");
-	await new Promise((r) => setTimeout(r, 20));
-	const bad = controlWorkspace(false);
-	const stop = (cwd, session) => runHook("hobin-feature", "scenarios-stop-hook.mjs", { hook_event_name: "Stop", cwd, session_id: session, transcript_path: older }, host);
-	const failing = stop(bad, `${host}-gate-bad-${process.pid}-${Date.now()}`);
-	assert.equal(failing.status, 2);
-	assert.match(failing.stderr, /finding same-events:COMPLETED\|FAILED is not acknowledged/);
-	assert.equal(stop(controlWorkspace(true), `${host}-gate-ok-${process.pid}-${Date.now()}`).status, 0);
-});
+// The hobin-feature hook (ledger attribution, Stop checks, the gate, at most three blocks) is proven
+// scenario by scenario in feature-stop-hook.test.mjs.
 
 test("result hooks are the same scripts on both hosts", () => {
 	const shared = {

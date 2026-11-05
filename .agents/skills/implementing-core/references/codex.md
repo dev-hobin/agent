@@ -61,10 +61,18 @@ and must act only on the skill's own results. Every guarantee the spec backs wit
   sees; the Stop hook checks every Markdown file changed since the session transcript was
   created, recognized by content. The scripts are the Claude plugin's, unchanged: the shared
   `scripts/hook-input.mjs` reads both hosts' inputs.
-- `Stop` for "finish only when the check passes": act only when the session wrote the
-  result (a record changed after the `transcript_path` file was created), exit 2 while the
-  check fails, and let Codex stop after three blocks in a row.
-- `tests/hooks.test.mjs` proves each hook with an apply_patch input.
+- `Stop` for "finish only when the check passes": act only on records the session wrote,
+  exit 2 while the check fails, and let Codex stop after three blocks in a row. A gate over
+  records (hobin-feature) cannot decide "the session wrote it" from mtimes: another session
+  under the same folder writes records too, and the check would then block on work that is
+  not this session's. It keeps a per-session ledger instead: `PreToolUse` stamps a shell
+  command that names a record or record script, `PostToolUse` adds the records an
+  apply_patch wrote and the records that command named or changed under its cwd since the
+  stamp, and `Stop` checks only the ledger. Register both without a matcher: the shell
+  tool's name in hook input is not documented (0.166, 2026-11-05), so the script decides by
+  the input's shape. A checker that throws exits 1, never 2.
+- `tests/hooks.test.mjs` proves each hook with an apply_patch input;
+  `tests/feature-stop-hook.test.mjs` proves the ledger hook scenario by scenario.
 
 The skill still runs the check itself at the step the spec names. Copy each spec script
 into the skill's `scripts/` with any assets it reads.

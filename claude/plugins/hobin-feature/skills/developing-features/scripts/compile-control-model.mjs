@@ -15,9 +15,11 @@
 // record: without a path it checks every control-decisions*.json under the current
 // directory, and passes when there is none unless --require is given.
 
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+
+import { CONTROL_RECORD, SCENARIO_RECORD, findFiles } from "./records.mjs";
 
 import { canonicalize, checkModel, parseExpression } from "./check-control-model.mjs";
 
@@ -321,15 +323,7 @@ function ruleProblems(record, recordDir, root) {
 	return problems;
 }
 
-function findFiles(pattern, dir = ".") {
-	return readdirSync(dir).flatMap((name) => {
-		if (name === "node_modules" || name.startsWith(".git")) return [];
-		const path = join(dir, name);
-		if (statSync(path).isDirectory()) return findFiles(pattern, path);
-		return pattern.test(name) ? [path] : [];
-	});
-}
-const findRecords = (dir = ".") => findFiles(/^control-decisions.*\.json$/, dir);
+const findRecords = (dir = ".") => findFiles(CONTROL_RECORD, dir);
 
 // The baseline sits next to its record: control-decisions.x.json -> control-baseline.x.json.
 export const baselinePathOf = (recordPath) => join(dirname(recordPath), basename(recordPath).replace(/^control-decisions/, "control-baseline"));
@@ -364,7 +358,7 @@ export function changedCells(model, baseline) {
 function coverageProblems(model, recordPath, root) {
 	const baselinePath = baselinePathOf(recordPath);
 	const baseline = existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, "utf8")) : null;
-	const scenarios = findFiles(/^acceptance-scenarios.*\.json$/, root).flatMap((path) => {
+	const scenarios = findFiles(SCENARIO_RECORD, root).flatMap((path) => {
 		try { return JSON.parse(readFileSync(path, "utf8")).scenarios ?? []; } catch { return []; }
 	});
 	const covered = new Set(scenarios.filter((s) => s.status === "pass").flatMap((s) => s.covers ?? []));

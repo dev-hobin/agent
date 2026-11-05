@@ -49,7 +49,7 @@ passes and an independent reviewer agrees.
    together block an action), read [control-model.md](references/knowledge/control-model.md),
    copy `assets/control-decisions.json` into the working tree as `control-decisions*.json`,
    fill it from the current code, fix it until
-   `node <this skill's directory>/scripts/compile-control-model.mjs --gate` passes, and take a
+   `node <this skill's directory>/scripts/compile-control-model.mjs --gate <record>` passes, and take a
    baseline with `… --baseline` before changing the code. Then update the record with the
    code: every cell that changed since the baseline needs an acceptance scenario that lists
    it in `covers` and passes (`… --changes` prints them). The gate's
@@ -73,12 +73,14 @@ passes and an independent reviewer agrees.
    report what is still open. If subagents are unavailable, do a fresh pass that rereads
    only those same inputs and say so in the report.
 7. **Report** in this form. Scenario results come only from
-   `node <this skill's directory>/scripts/scenarios.mjs run`, which runs every scenario check
+   `node <this skill's directory>/scripts/scenarios.mjs run <record>`, which runs every scenario check
    and the existing tests and writes the results into the record; never edit `status` by
-   hand. Finish only when `node <this skill's directory>/scripts/scenarios.mjs check` passes,
-   and `node <this skill's directory>/scripts/compile-control-model.mjs --gate` too when a
-   control decision record exists. Write it to the file the request names,
-   otherwise in the answer:
+   hand. Finish only when `node <this skill's directory>/scripts/scenarios.mjs check <record>` passes,
+   and `node <this skill's directory>/scripts/compile-control-model.mjs --gate <record>` too when a
+   control decision record exists. `<record>` is the path of the record you wrote (the
+   acceptance record for `scenarios.mjs`, the control decision record for `--gate`); without
+   it they take every record under the current directory, other features' and other
+   sessions' included. Write it to the file the request names, otherwise in the answer:
 
 ```text
 Scenarios:        <id> <then summary> — <check command> — pass | fail | not run

@@ -1,5 +1,27 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "node \"$PLUGIN_ROOT/scripts/scenarios-stop-hook.mjs\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 60,
+            "command": "node \"$PLUGIN_ROOT/scripts/scenarios-stop-hook.mjs\""
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
