@@ -43,19 +43,26 @@ plugin's `hooks/hooks.json`, not in the skill's `hooks` frontmatter. A frontmatt
 registered only once the skill is invoked, so a result written without invoking it goes
 unchecked; a plugin hook runs in every session, however the skill started (2026-11-02,
 when the entry skills became model-selectable). The scripts therefore check only results
-written in the session (changed since the session transcript was created) and leave other
-sessions alone, as the Codex plugin hooks always have. Every guarantee the spec backs with a
+written in the session and leave other
+sessions alone, as the Codex plugin hooks always have. "Written in the session" means
+written by the session's own tool calls, kept in a per-session ledger: file times cannot tell,
+since a checkout, a worktree, or another session under the same folder writes files too
+(2026-11-05). Every guarantee the spec backs with a
 script (an output contract or a `script_passes` check) gets one, and the guarantee is
 **enforced**:
 
-- For a result file Claude writes, register the same script on `PostToolUse` (matcher
-  `Write|Edit`, quick feedback) and on `Stop` (the gate: files written by a shell command
-  never reach an edit-tool hook). The script calls `runHook` from the shared
-  `scripts/hook-input.mjs` with a `check(file, text)` that recognizes the skill's results by
-  content (an output-contract marker, a report whose first line is `[P0]`/`[P1]` or
-  `No findings`, a block marker). On Stop it checks every Markdown file under the project
-  changed since the session transcript was created. Problems go back with exit 2.
-  The hook scripts are byte-identical to the Codex plugin's.
+- For a result file Claude writes, register the same script on `PreToolUse` (matcher
+  `Bash`), `PostToolUse` (matcher `Write|Edit|MultiEdit|Bash`, quick feedback),
+  `PostToolUseFailure` (matcher `Bash`: a command that exited non-zero arrives there), and
+  `Stop` (the gate). The script calls `runHook` from the shared `scripts/hook-input.mjs`
+  with a `check(file, text)` that recognizes the skill's results by content (an
+  output-contract marker, a report whose first line is `[P0]`/`[P1]` or `No findings`, a
+  block marker). `runHook` checks what an edit tool wrote, and what a shell command naming a
+  `.md` file named (found by name under its cwd too) and changed since its `PreToolUse`
+  stamp; it records the results in the session's ledger, and on Stop checks only the ledger.
+  A file git tracks and still holds as committed from before the call was written by a
+  checkout or a pull, not the session, and does not count. Problems go back with exit 2; a
+  check that throws exits 1. The hook scripts are byte-identical to the Codex plugin's.
 - `Stop` for "finish only when the check passes": exit 2 while the check fails sends Claude
   back to work. Let Claude stop after three blocks in a row (count per `session_id` in the
   temp directory) so a check that cannot pass never traps the session. A gate over records
@@ -69,8 +76,7 @@ script (an output contract or a `script_passes` check) gets one, and the guarant
 - Use `${CLAUDE_PLUGIN_ROOT}` in hook commands; `${CLAUDE_SKILL_DIR}` is not set for hooks.
 - Keep the events and timeouts the same as the Codex plugin's `hooks/hooks.json`, except
   `PostToolUseFailure`, which Codex does not document; only the plugin-root variable and the
-  matchers differ otherwise (Claude `Write|Edit`, plus `Bash` for a
-  ledger hook; Codex `apply_patch|Edit|Write`, or none for a ledger hook).
+  matchers differ otherwise (Claude `Bash` and `Write|Edit|MultiEdit|Bash`; Codex none).
 - `tests/hooks.test.mjs` proves each hook with a passing and a failing result, and fails if a
   skill registers a hook in its frontmatter.
 

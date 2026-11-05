@@ -1,0 +1,286 @@
+{
+  "feature": "hobin result hooks (review, stances, learning): session ledger and safe walk",
+  "request": "Fix the result hooks that share hook-input.mjs the same way the hobin-feature hook was fixed. Q1: Stop treats every Markdown file changed since the session started as this session's result, so a git checkout or worktree created in the session, or another session's writes, are checked and block the model (observed: untouched eval fixtures core/review/scenarios/*/golden/REVIEW.md and core/applying-stances/SPEC.md after git worktree add). Q2: the Stop walk calls statSync on every Markdown entry, so one dangling link or unreadable directory throws and the hook exits 0 silently, turning the check off. Q3: Stop walks the whole tree on every stop.",
+  "condition_table": {
+    "note": "Per plugin hook (review, stances, learning), same rules as the hobin-feature ledger. A result is a file the hook's check recognizes (check returns non-null). Stamp = PreToolUse time of the same call, keyed by tool_use_id; only a positive time no later than now counts. Session start = transcript creation time.",
+    "rows": [
+      "PostToolUse of an edit tool (Write/Edit/MultiEdit, apply_patch Add/Update/Move to) -> check the file now (exit 2 on problems); if it is a result, ledger += path (R3, R12)",
+      "PostToolUse/PostToolUseFailure of a shell command that names no .md file -> nothing, no walk (R6)",
+      "shell command naming a .md file, stamp usable -> the .md files it names, found by name under its cwd too, changed since stamp - 1s: check now; results -> ledger (R4, R5, R7, R15); unnamed files under the cwd never count (R18)",
+      "shell command naming a .md file, no usable stamp (no PreToolUse, no tool_use_id, unreadable) -> only named .md files changed since session start (R10)",
+      "a shell command's candidate that git tracks, still holds as committed, and last committed before the call (or, without a stamp, before the session) -> written by a checkout, a worktree, a pull: not the command's (R17); git words in the command text change nothing (R19); a new or changed file written in the same command as a checkout counts (R20); a file the command wrote and committed counts (R21)",
+      "Stop -> check only ledger results that still exist (R1, R2, R11); three blocks in a row at most (R9)",
+      "a check that throws -> the hook's own error: exit 1, never 2 (R13)",
+      "no session_id -> PostToolUse still checks the written file; nothing enters a ledger; Stop exits 0 (R14)"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "R1",
+      "given": "Invalid results (a review report citing missing files, a stances block that fails, a bare output-contract skeleton) that appear under the project after the session started without any tool call of the session (a git checkout or worktree created then)",
+      "when": "Each plugin's Stop hook runs",
+      "then": "All exit 0",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R1 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R2",
+      "given": "This session wrote a valid report; another session writes an invalid report under the same folder",
+      "when": "The Stop hook runs",
+      "then": "It exits 0",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R2 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R3",
+      "given": "An invalid result written by an edit tool (Claude Write, Edit, MultiEdit; Codex apply_patch Add, Update, Move to)",
+      "when": "PostToolUse, then Stop",
+      "then": "PostToolUse exits 2 with the problems; Stop exits 2 for the same file",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R3 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R4",
+      "given": "An invalid result written by a shell command (cat > REVIEW.md with a here-document), for each plugin",
+      "when": "PreToolUse, the command, PostToolUse, then Stop",
+      "then": "PostToolUse exits 2 and Stop exits 2 for that file",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R4 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R5",
+      "given": "A shell command that cds into a subfolder and writes an invalid report there by a relative name",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "The report is found (walk of the cwd since the stamp) and Stop exits 2",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R5 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R6",
+      "given": "A shell command that names no .md file (ls) while an invalid report appears under the cwd",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "Nothing is checked or recorded; both exit 0",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R6 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R7",
+      "given": "An old invalid report that a shell command only reads (cat REVIEW.md)",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "Both exit 0: reading is not writing",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R7 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R8",
+      "given": "A project containing a dangling symbolic link named x.md and an unreadable directory; the session writes an invalid report by a shell command naming it",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "Stop exits 2 for the report: a bad entry no longer turns the check off",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R8 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R9",
+      "given": "An invalid report in the ledger",
+      "when": "Stop runs four times, then the report is fixed and Stop runs, then broken again",
+      "then": "Exit 2, 2, 2, 0; after the fix 0; broken again 2 (the count started over)",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R9 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R10",
+      "given": "Shell calls with no PreToolUse, with an empty stamp file, and without tool_use_id, each naming an old invalid report and a new one, while another session writes an invalid report under the cwd",
+      "when": "PostToolUse, then Stop",
+      "then": "Only the named report changed since the session started is checked and recorded; the old one and the other session's are not",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R10 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R11",
+      "given": "An invalid report in the ledger that was later deleted",
+      "when": "Stop runs",
+      "then": "It exits 0",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R11 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R12",
+      "given": "The session writes a Markdown file that is not a result (notes.md), then a shell command later turns it into an invalid report",
+      "when": "PostToolUse for each, then Stop",
+      "then": "The first write records nothing; after the second, Stop exits 2 for it",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R12 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R13",
+      "given": "A hook built on hook-input.mjs whose check throws (a test hook, since no shipped checker can be made to throw from a file's content)",
+      "when": "PostToolUse and Stop",
+      "then": "Exit 1 with an internal-error message, never 2",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R13 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R14",
+      "given": "Hook inputs without session_id",
+      "when": "An edit tool writes an invalid report, then Stop",
+      "then": "PostToolUse still exits 2; Stop exits 0",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R14 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R15",
+      "given": "A shell command that writes an invalid report and exits 1 (Claude: PostToolUseFailure)",
+      "when": "The failure event, then Stop",
+      "then": "The report is recorded and Stop exits 2",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R15 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R16",
+      "given": "The review, stances, and learning plugins on both hosts",
+      "when": "Their hooks.json files are read",
+      "then": "Claude: PreToolUse Bash, PostToolUse Write|Edit|MultiEdit|Bash, PostToolUseFailure Bash, Stop; Codex: PreToolUse, PostToolUse (no matcher), Stop; every command runs the plugin's own hook script, and hook-input.mjs is byte-identical in all six plugins",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R16 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R17",
+      "given": "A git repository whose committed tree holds an invalid review fixture; the session's own shell command creates a worktree or checks out a branch and names a .md file",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "Both exit 0: files the checkout wrote are tracked and unchanged from the commit, so they are not the session's results (the observed Q1 case)",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R17 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R18",
+      "given": "A command that names only notes.md (unchanged) while another session writes an invalid report under the same cwd",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "Both exit 0: unnamed files under the cwd are not the command's",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R18 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R19",
+      "given": "An invalid report written by a here-document whose body says 'git reset', and one written after a git commit whose message contains 'am'",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "Both exit 2: git words in a command's text exempt nothing",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R19 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R20",
+      "given": "A git repository; one command switches branches and writes a new invalid report, another switches and overwrites a tracked fixture with different invalid content",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "Both exit 2: what the command wrote is new or differs from the commit, so it is checked",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R20 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R21",
+      "given": "An invalid report that one shell command writes, adds, and commits",
+      "when": "Pre/PostToolUse, then Stop",
+      "then": "Both exit 2: a commit made during the call is the session's write",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R21 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "status": "pass",
+      "covers": []
+    }
+  ],
+  "decisions": [
+    {
+      "id": "E1",
+      "question": "How do the result hooks decide which files are this session's results?",
+      "owner": "user",
+      "decision": "The hobin-feature ledger approach: tool calls of the session record the results they wrote; Stop checks only those",
+      "reason": "mtime attribution blocked sessions on checked-out fixtures and other sessions' files",
+      "revert": "Restore sessionFiles in hook-input.mjs and drop the PreToolUse/PostToolUseFailure entries from the three plugins' hooks.json"
+    },
+    {
+      "id": "E2",
+      "question": "Which shell commands can write a result?",
+      "owner": "team",
+      "decision": "Only commands whose text names a .md file; others are not inspected",
+      "reason": "Results are Markdown and a shell write names its target; inspecting every command would walk the tree on every call",
+      "revert": "Widen MENTIONS in hook-input.mjs and update R6"
+    },
+    {
+      "id": "E3",
+      "question": "Which files enter the ledger?",
+      "owner": "team",
+      "decision": "Only files the hook's check recognizes as its results (check returns non-null); a later write that makes a file a result records it then",
+      "reason": "Keeps each plugin's ledger to its own results; non-results are never checked on Stop",
+      "revert": "Record every written .md file in runHook and update R12"
+    },
+    {
+      "id": "E4",
+      "question": "Does the hobin-feature hook move onto hook-input.mjs in this change?",
+      "owner": "team",
+      "decision": "No; the two ledgers stay separate here and can be merged later as a structural change",
+      "reason": "Keep the behavior change for the result hooks apart from restructuring code reviewed in the previous change",
+      "revert": "Not applicable"
+    },
+    {
+      "id": "E5",
+      "question": "What does a check that throws do?",
+      "owner": "team",
+      "decision": "Exit 1 with an internal-error message, never 2 (same as D4 of the hobin-feature change); before, any error exited 0 silently",
+      "reason": "The model must not be sent back for the hook's own failure, and a silent exit hides that the check is off",
+      "revert": "Exit 0 in runHook and update R13"
+    },
+    {
+      "id": "E6",
+      "question": "Which files a shell command touched are not its writes, and which unnamed files under the cwd count?",
+      "owner": "team",
+      "decision": "A candidate that git tracks, still holds as committed, and last committed before the call (before the session when there is no stamp) was written by git, not the session, and does not count; untracked, ignored, changed, and newly committed files count; outside a repository everything counts. A shell command's cwd walk keeps only files matching a name the command contains. The hobin-feature hook gets the same git rule (F23-F25) but keeps its unnamed-record walk, which scenarios.mjs run without a path needs (F9)",
+      "reason": "Checkouts and other sessions write files the session did not write (round 1). Matching git commands in the command text exempted the session's own results whenever a here-document or a commit message mentioned a git word, and exempted a result written in the same command as a checkout (round 2); the file's own state against the commit decides it without reading the text. A session that writes and commits in one command leaves its result tracked and unchanged, so the commit's time decides it as well (round 3)",
+      "revert": "Drop checkedOut and the name filter in hook-input.mjs (and checkedOut in scenarios-stop-hook.mjs); update R17-R21, F23-F25"
+    }
+  ],
+  "verification": {
+    "existing_tests": ". .venv/bin/activate && pnpm -s check",
+    "rounds": [
+      {
+        "round": 1,
+        "must_fix": [
+          "a session shell command that creates a worktree or checkout and names a .md file still claimed every checked-out .md file through the cwd walk (reproduced: git worktree add -q wt -b side && cat wt/README.md -> Stop exit 2)"
+        ],
+        "resolution": "Git working-tree commands record nothing and the walk keeps only named files (E6); R17, R18 added; the same git rule added to the hobin-feature hook with F23"
+      },
+      {
+        "round": 2,
+        "must_fix": [
+          "the git rule matched git words anywhere in the command text (a here-document saying 'git reset', a commit message with 'am'), exempting the session's own invalid result",
+          "a command that both switched branches and wrote a result exempted the result"
+        ],
+        "resolution": "Replaced the command-text rule with the file's git state: a candidate tracked and unchanged from the commit is git's write; R19, R20, F24 added (each fails on the text rule)"
+      },
+      {
+        "round": 3,
+        "must_fix": [
+          "a result written and committed in the same command is tracked and unchanged, so the git rule dropped it unchecked"
+        ],
+        "resolution": "checkedOut now also needs the file's last commit to predate the call (or the session); R21 and F25 added and fail on the round-2 rule. This fix came after the third and last verification round, so no independent verifier has reviewed it"
+      }
+    ],
+    "existing_tests_status": "pass"
+  }
+}

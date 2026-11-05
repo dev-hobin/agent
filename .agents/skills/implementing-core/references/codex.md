@@ -55,12 +55,16 @@ and must act only on the skill's own results. Every guarantee the spec backs wit
 (an output contract or a `script_passes` check) gets one, and the guarantee is
 **enforced once the user trusts the plugin hooks**:
 
-- For a result file, register `node "$PLUGIN_ROOT/scripts/<name>-hook.mjs"` on
-  `PostToolUse` with matcher `apply_patch|Edit|Write` (file edits arrive as `apply_patch`)
-  and on `Stop`. Codex often writes files with a shell command, which no edit-tool hook
-  sees; the Stop hook checks every Markdown file changed since the session transcript was
-  created, recognized by content. The scripts are the Claude plugin's, unchanged: the shared
-  `scripts/hook-input.mjs` reads both hosts' inputs.
+- For a result file, register `node "$PLUGIN_ROOT/scripts/<name>-hook.mjs"` on `PreToolUse`,
+  `PostToolUse`, and `Stop`, without a matcher: file edits arrive as `apply_patch`, Codex
+  often writes files with a shell command, and the shell tool's name in hook input is not
+  documented (0.166), so the script decides by the input's shape. The shared
+  `scripts/hook-input.mjs` reads both hosts' inputs: it checks what an apply_patch wrote and
+  what a shell command naming a `.md` file named (found by name under its cwd too) and
+  changed since its `PreToolUse` stamp, records the results in the session's ledger, and on
+  Stop checks only the ledger; a file git tracks and still holds as committed from before
+  the call was written by git, not the session (file times would claim a checkout's or
+  another session's files). The scripts are the Claude plugin's, unchanged.
 - `Stop` for "finish only when the check passes": act only on records the session wrote,
   exit 2 while the check fails, and let Codex stop after three blocks in a row. A gate over
   records (hobin-feature) cannot decide "the session wrote it" from mtimes: another session

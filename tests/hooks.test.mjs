@@ -54,7 +54,7 @@ test("every Claude plugin hook runs a script the plugin ships, and no skill regi
 			count++;
 		}
 	}
-	assert.equal(count, 10);
+	assert.equal(count, 16);
 });
 
 test("every Codex plugin hook runs a script the plugin ships", () => {
@@ -72,7 +72,7 @@ test("every Codex plugin hook runs a script the plugin ships", () => {
 			count++;
 		}
 	}
-	assert.equal(count, 9);
+	assert.equal(count, 12);
 });
 
 for (const [host, wrote] of hosts) test(`${host} review report hook: a valid report passes, a wrong one goes back to the model`, () => {
@@ -127,40 +127,5 @@ test("result hooks are the same scripts on both hosts", () => {
 	}
 });
 
-// Stop checks every result changed in the session, however it was written (here: plain file
-// writes, as a shell command would do), and ignores files from before the session.
-for (const host of ["claude", "codex"]) test(`${host} result Stop hooks catch results written by a shell command`, async () => {
-	const cwd = workspace();
-	mkdirSync(join(cwd, "src"));
-	writeFileSync(join(cwd, "src/x.js"), "a\nb\nc\n");
-	writeFileSync(join(cwd, "OLD.md"), "[P1] stale — src/x.js:99\n");
-	await new Promise((r) => setTimeout(r, 20));
-	const transcript = join(workspace(), "transcript.jsonl");
-	writeFileSync(transcript, "");
-	await new Promise((r) => setTimeout(r, 20));
-	const stop = (plugin, script, session) => runHook(plugin, script, { hook_event_name: "Stop", cwd, session_id: session, transcript_path: transcript }, host);
-	const session = `${host}-${process.pid}-${Date.now()}`;
-
-	assert.equal(stop("hobin-review", "report-hook.mjs", `${session}-a`).status, 0, "a report from before the session is not checked");
-	writeFileSync(join(cwd, "REVIEW.md"), "[P1] wrong total — src/x.js:99\n");
-	const first = stop("hobin-review", "report-hook.mjs", `${session}-b`);
-	assert.equal(first.status, 2);
-	assert.match(first.stderr, /line 99 does not exist/);
-	assert.equal(stop("hobin-review", "report-hook.mjs", `${session}-b`).status, 2);
-	assert.equal(stop("hobin-review", "report-hook.mjs", `${session}-b`).status, 2);
-	assert.equal(stop("hobin-review", "report-hook.mjs", `${session}-b`).status, 0, "the fourth stop is let through");
-	writeFileSync(join(cwd, "REVIEW.md"), "[P1] wrong total — src/x.js:2\n  Scenario: s\n  Evidence: e\n");
-	assert.equal(stop("hobin-review", "report-hook.mjs", `${session}-c`).status, 0);
-
-	const contract = JSON.parse(readFileSync(join(repositoryRoot, "core/conceptualize/assets/output-contract.json"), "utf8"));
-	writeFileSync(join(cwd, "concept.md"), `<!-- output-contract: ${contract.id} -->\n\n${contract.skeleton}`);
-	assert.equal(stop("hobin-learning", "output-contract-hook.mjs", `${session}-d`).status, 2);
-
-	const golden = readFileSync(join(repositoryRoot, "core/applying-stances/scenarios/agents-md-overlap/golden/PROPOSAL.md"), "utf8");
-	writeFileSync(join(cwd, "PROPOSAL.md"), golden.replace("+<!-- /hobin-stances -->", "+- Always use tabs.\n+<!-- /hobin-stances -->"));
-	assert.equal(stop("hobin-stances", "stances-hook.mjs", `${session}-e`).status, 2);
-	assert.equal(stop("hobin-stances", "stances-hook.mjs", `${session}-f`).status, 2);
-
-	const noTranscript = runHook("hobin-review", "report-hook.mjs", { hook_event_name: "Stop", cwd, session_id: `${session}-g` }, host);
-	assert.equal(noTranscript.status, 0, "without a session start nothing is checked");
-});
+// Which results are the session's (edit tools, shell commands, Stop) is proven scenario by scenario
+// in result-hooks-ledger.test.mjs.
