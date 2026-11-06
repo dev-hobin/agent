@@ -251,6 +251,51 @@
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F26 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
       "status": "pass",
       "covers": []
+    },
+    {
+      "id": "F27",
+      "given": "the session cwd is one project and another repository exists outside it",
+      "when": "a shell command cd's into the other repository and writes a record there by relative path",
+      "then": "the record is in the session ledger and Stop checks it (the 0.5.1 hook missed it)",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F27 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F28",
+      "given": "another repository the command names holds an old record",
+      "when": "a shell command cd's there and only reads the record",
+      "then": "the record is not the session's; Stop passes",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F28 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F29",
+      "given": "a session record holds running results",
+      "when": "Stop runs with a live run marker, a dead-pid marker, and no marker",
+      "then": "it blocks every time and says still running (pid, started) for the live one and interrupted for the others",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F29 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R1",
+      "given": "a record whose results all passed in an earlier run",
+      "when": "scenarios.mjs run is killed during its first check",
+      "then": "every result reads running, check reports it, and the marker names a dead process; no earlier pass survives",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern 'killed midway' tests/scenarios-record.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R2",
+      "given": "the same record",
+      "when": "scenarios.mjs run finishes",
+      "then": "every result is saved and the run marker is removed",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern 'finishes saves every result' tests/scenarios-record.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
+      "status": "pass",
+      "covers": []
     }
   ],
   "decisions": [
@@ -317,6 +362,30 @@
       "decision": "Append-only file per session_id in the OS temp directory; losing it (reboot, cleanup) only means the hook stops enforcing for that session",
       "reason": "Appends are safe across parallel tool calls; losing the ledger fails open, never blocking unrelated work",
       "revert": "Move the ledger path in scenarios-stop-hook.mjs"
+    },
+    {
+      "id": "D-cross-repo",
+      "question": "How should the ledger find a record written after a cd out of the hook cwd?",
+      "owner": "team",
+      "decision": "Also look under every existing directory the command text names (token split, unquote, after =), with the same stamp and checked-out filters; never walk /, $HOME or system folders",
+      "reason": "Deterministic, no shell interpretation; requiring absolute paths relies on the model",
+      "revert": "Drop namedDirectories from shellRecords"
+    },
+    {
+      "id": "D-run-state",
+      "question": "What should a record show while scenarios.mjs run is in progress or after it was killed?",
+      "owner": "team",
+      "decision": "Mark every result running first and save after each; keep a temp-dir marker {pid, startedAt}; Stop still blocks and says still running or interrupted",
+      "reason": "An interrupted run must never leave earlier passes that check accepts (G6); stopping the gate during a run would weaken G6",
+      "revert": "Restore the single write at the end of run and drop the marker"
+    },
+    {
+      "id": "D-no-only",
+      "question": "Should run accept an --only list of scenario ids?",
+      "owner": "team",
+      "decision": "No",
+      "reason": "A partial run cannot show the other scenarios still pass after a code change (G5 last run)",
+      "revert": "Add --only together with a code fingerprint per result"
     }
   ],
   "verification": {

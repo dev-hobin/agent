@@ -9,12 +9,17 @@
 // - PostToolUse of an edit tool (Write/Edit/MultiEdit, a Codex apply_patch) adds the record it
 //   wrote.
 // - A shell command that names a record or a record script adds the records it changed: those it
-//   names and those under its cwd changed since PreToolUse stamped the same call (by tool_use_id).
+//   names and those under its cwd, or under any directory the command names (`cd /other/repo &&`,
+//   `git -C dir`), changed since PreToolUse stamped the same call (by tool_use_id). The hook's cwd
+//   does not follow a `cd` out of the project, so a record written by relative path there would
+//   otherwise be missed.
 //   Without a usable stamp only the records it names count, and only if they changed after the
 //   session started.
 //   A record git tracks and still holds as committed from before the call was written by git (a
 //   checkout, a worktree, a pull), not by the session, and does not count.
-// - Stop checks only the ledger's records. While one fails, exit 2 sends the problems back; after
+// - Stop checks only the ledger's records. A record a `scenarios.mjs run` is still working on (or a
+//   run killed midway left) holds "running" results; Stop says which, from the run's marker.
+//   While one fails, exit 2 sends the problems back; after
 //   three blocks in a row the model may stop, so a check that cannot pass never traps the session
 //   (G5: the report must then say so). A record that is not JSON is a record problem. A checker
 //   that throws is the hook's own failure: exit 1, shown to the user, never sent to the model.
@@ -25,7 +30,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { RECORD, SCENARIO_RECORD, findFiles } from "../skills/developing-features/scripts/records.mjs";
+import { RECORD, SCENARIO_RECORD, findFiles, readRunMarker } from "../skills/developing-features/scripts/records.mjs";
 
 const scripts = join(dirname(fileURLToPath(import.meta.url)), "../skills/developing-features/scripts");
 const MAX_BLOCKS = 3;
@@ -71,17 +76,44 @@ function checkedOut(path, since) {
 	const committed = Number(git("log", "-1", "--format=%ct", "--", basename(path)).stdout.trim());
 	return committed > 0 && committed * 1000 < since;
 }
+const home = (token) => token.replace(/^~(?=\/|$)/, process.env.HOME ?? "~");
+const isDirectory = (path) => { try { return statSync(path).isDirectory(); } catch { return false; } };
+// Directories too broad to walk for one command: the file system root, the home directory and
+// system folders. A command naming one of them still has its named records checked.
+const TOO_BROAD = /^\/(?:usr|bin|sbin|opt|etc|dev|System|Library|private|var|tmp)?$/;
+
+// Directories the command text names, as written (absolute, ~/ or relative to the cwd), without
+// interpreting the shell: a token is split on shell punctuation, unquoted, and taken after a `=`
+// (`--dir=/x`). Only tokens that are existing directories count.
+function namedDirectories(text, cwd) {
+	const dirs = new Set();
+	for (const raw of text.split(/[\s;&|()<>`]+/)) {
+		const token = home(raw.replace(/^['"]+|['"]+$/g, "").replace(/^[^=]*=/, ""));
+		if (!token || token.startsWith("-")) continue;
+		const dir = resolve(cwd, token);
+		if (dir === resolve(cwd) || dir === resolve(process.env.HOME ?? "/") || TOO_BROAD.test(dir)) continue;
+		if (isDirectory(dir)) dirs.add(dir);
+	}
+	return [...dirs];
+}
+
 function shellRecords(input, root, stamp) {
 	const text = commandText(input);
 	if (!MENTIONS.test(text)) return [];
 	const cwd = input?.cwd ?? root;
-	const named = [...text.matchAll(NAMED)].map((m) => resolve(cwd, m[0].replace(/^~(?=\/)/, process.env.HOME ?? "~")));
+	const bases = [cwd, ...namedDirectories(text, cwd)];
+	// A relative record path may be relative to the cwd or to a directory the command moved into.
+	const named = [...text.matchAll(NAMED)].flatMap((m) => {
+		const path = home(m[0]);
+		return isAbsolute(path) ? [path] : bases.map((base) => resolve(base, path));
+	});
 	if (stamp === undefined) {
 		const start = sessionStart(input);
 		return start === undefined ? [] : named.filter((path) => mtime(path) >= start - SLACK_MS && !checkedOut(path, start - SLACK_MS));
 	}
 	const since = stamp - SLACK_MS;
-	return [...new Set([...named, ...findFiles(RECORD, cwd).map((path) => resolve(path))])].filter((path) => mtime(path) >= since && !checkedOut(path, since));
+	const walked = bases.flatMap((base) => findFiles(RECORD, base).map((path) => resolve(path)));
+	return [...new Set([...named, ...walked])].filter((path) => mtime(path) >= since && !checkedOut(path, since));
 }
 
 function ledger(session) {
@@ -105,6 +137,17 @@ function projectRoot(record, root) {
 	return insideGit(dirname(record)) ?? root;
 }
 
+const hasRunning = (record) =>
+	(record.scenarios ?? []).some((s) => s?.status === "running") || record.verification?.existing_tests_status === "running";
+
+// What the "running" results mean for this record: a run still in progress, or one that ended
+// without finishing (killed, or the machine stopped).
+function runState(path) {
+	const marker = readRunMarker(path);
+	if (marker?.alive) return `scenarios.mjs run is still running (pid ${marker.pid}, started ${marker.startedAt}); wait for it to finish, do not start another.`;
+	return "a scenarios.mjs run on this record was interrupted before it finished; run it again.";
+}
+
 async function checkRecords(records, root) {
 	const { checkRecord } = await import(pathToFileURL(join(scripts, "scenarios.mjs")).href);
 	const { gateRecord } = await import(pathToFileURL(join(scripts, "compile-control-model.mjs")).href);
@@ -123,6 +166,7 @@ async function checkRecords(records, root) {
 				? checkRecord(record)
 				: gateRecord(record, { recordDir: dirname(path), root: base, recordPath: path });
 			problems.push(...found.map((p) => `${path}: ${p}`));
+			if (SCENARIO_RECORD.test(basename(path)) && hasRunning(record)) problems.push(`${path}: ${runState(path)}`);
 		} catch (error) {
 			errors.push(`${path}: ${error?.stack ?? error}`);
 		}
