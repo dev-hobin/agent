@@ -57,7 +57,7 @@
     {
       "id": "F5",
       "given": "two sessions in the same folder",
-      "when": "the other session runs scenarios.mjs init with its own session id",
+      "when": "the other session's command runs scenarios.mjs init and its output reaches only the other session's hook",
       "then": "this session's Stop passes; the other session's Stop gates the record",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F5 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
@@ -74,9 +74,9 @@
     },
     {
       "id": "F7",
-      "given": "a session whose hook cwd is one project",
-      "when": "a shell command cd's into another directory and runs scenarios.mjs init with a relative path",
-      "then": "the record is registered and Stop checks it at its absolute path",
+      "given": "a session whose hook cwd is one folder",
+      "when": "a command cd's into another folder and, with its own TMPDIR, runs scenarios.mjs init with a relative path; its real stdout is the tool response (Claude Bash object, Codex JSON string)",
+      "then": "init prints a hobin-feature-record line with the absolute path, the hook registers it from the output, and Stop gates it",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F7 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
@@ -92,9 +92,9 @@
     },
     {
       "id": "F9",
-      "given": "two template records a/ and b/",
+      "given": "two incomplete records a/ and b/",
       "when": "scenarios.mjs check a/acceptance-scenarios.json runs in the session; another session runs check without a path",
-      "then": "only a/ is registered and gated; a walk without a path registers nothing",
+      "then": "the first prints and registers only a/ (Stop names a/, not b/); the walk prints no marker and registers nothing",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F9 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
@@ -146,9 +146,9 @@
     },
     {
       "id": "F15",
-      "given": "no session id in the environment",
-      "when": "scenarios.mjs init and decline run",
-      "then": "init registers nothing (Stop passes); decline exits 1 saying no session id",
+      "given": "a record and a non-record JSON file exist",
+      "when": "a command prints markers with a relative path, a missing record path, a non-record path, an indented marker and a marker mid-line",
+      "then": "none registers; Stop passes silently",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F15 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
@@ -164,18 +164,18 @@
     },
     {
       "id": "F17",
-      "given": "a control decision record whose gate fails, in a child repository",
-      "when": "compile-control-model.mjs --gate control-decisions.json runs in the session",
-      "then": "the record is registered and Stop reports the unacknowledged finding",
+      "given": "an incomplete control decision record in a child repository",
+      "when": "compile-control-model.mjs --gate control-decisions.json runs there in the session",
+      "then": "it prints the record marker, the hook registers it, and Stop reports the unacknowledged finding",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F17 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "F18",
-      "given": "both hosts' hooks.json",
+      "given": "both hooks.json files and the shared hook script",
       "when": "they are read",
-      "then": "UserPromptSubmit, PostToolUse (Write|Edit|MultiEdit|Skill on Claude, unmatched on Codex) and Stop run the same identical script; the hook holds no shell, tree or git inference",
+      "then": "Claude wires UserPromptSubmit, PostToolUse, PostToolUseFailure and Stop, Codex UserPromptSubmit, PostToolUse and Stop, none with a matcher, all to the same script; no session env, pid, tree or shell inference is left",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F18 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
@@ -191,9 +191,9 @@
     },
     {
       "id": "F20",
-      "given": "a complete record whose check runs scenarios.mjs init on a fixture",
-      "when": "scenarios.mjs run runs in the session",
-      "then": "the check gets no session id, so the fixture is not registered and Stop passes",
+      "given": "a record whose check runs scenarios.mjs init on a fixture and then passes or fails",
+      "when": "scenarios.mjs run runs in the session and its output reaches the hook",
+      "then": "only the run's own record line starts a line; a failing check's re-printed output has the fixture marker prefixed '(from a check) '; the fixture is never registered",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F20 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
@@ -210,17 +210,17 @@
     {
       "id": "F22",
       "given": "developing-features started in the session",
-      "when": "a shell program alone writes a record",
-      "then": "Stop blocks asking for scenarios.mjs init or decline --reason; once the record is registered with check, Stop passes",
+      "when": "a shell program alone copies a record into place",
+      "then": "Stop blocks asking for init (new record), a foreground check (existing record; background output is not seen) or decline; a foreground check then releases it",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F22 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "F23",
-      "given": "developing-features started and no record",
-      "when": "decline runs with no, empty or blank reason, then with a reason",
-      "then": "empty reasons are rejected (exit 2) and Stop still blocks; a reason releases Stop and Stop prints it",
+      "given": "developing-features started in the session",
+      "when": "decline runs with no, empty or blank reason, then with a multi-line reason",
+      "then": "the rejected forms exit 2 and print no marker; the accepted one prints one hobin-feature-decline line, Stop passes and reports the reason",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F23 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
@@ -263,10 +263,28 @@
     },
     {
       "id": "F29",
-      "given": "a session record holds running results",
-      "when": "Stop runs with a live run marker, a dead-pid marker, and no marker",
-      "then": "it blocks every time and says still running (pid, started) for the live one and interrupted for the others",
+      "given": "a session record with a slow first check",
+      "when": "scenarios.mjs run is killed midway, then run again with quick checks",
+      "then": "the killed run leaves verification.run {startedAt, lastProgressAt} and running results; Stop and check say it has not finished (wait or run again); the finished run removes verification.run and Stop passes",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F29 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F30",
+      "given": "a log file holding a record marker line",
+      "when": "the session reads it (Claude Read tool response, Codex nested content)",
+      "then": "the named record registers and Stop gates it (fail-safe)",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F30 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "F31",
+      "given": "a record per response shape",
+      "when": "the marker arrives as a plain string, an {output} object, a Claude {stdout} object, a JSON string, a nested array, or a PostToolUseFailure error",
+      "then": "every shape registers its record and Stop gates it",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F31 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
@@ -274,7 +292,7 @@
       "id": "R1",
       "given": "a record whose results all passed in an earlier run",
       "when": "scenarios.mjs run is killed during its first check",
-      "then": "every result reads running, check reports it, and the marker names a dead process; no earlier pass survives",
+      "then": "every result reads running, verification.run keeps startedAt and lastProgressAt, check reports them in the fixed wording with no liveness claim; no earlier pass survives",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern 'killed midway' tests/scenarios-record.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
@@ -283,8 +301,17 @@
       "id": "R2",
       "given": "the same record",
       "when": "scenarios.mjs run finishes",
-      "then": "every result is saved and the run marker is removed",
+      "then": "every result is saved and verification.run is removed",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern 'finishes saves every result' tests/scenarios-record.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
+      "id": "R3",
+      "given": "a record whose check fails, then one whose scenarios are not a list",
+      "when": "scenarios.mjs run fails, then throws",
+      "then": "verification.run is removed both times",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern 'fails, or throws' tests/scenarios-record.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     }
@@ -350,7 +377,7 @@
       "id": "D8",
       "question": "Where does the ledger live, and what happens if it is lost?",
       "owner": "team",
-      "decision": "Append-only file per session_id in the OS temp directory; losing it (reboot, cleanup) only means the hook stops enforcing for that session",
+      "decision": "Append-only file per session_id in the hook process's own temp directory, written only by the hook; losing it (reboot, cleanup) only means the hook stops enforcing for that session",
       "reason": "Appends are safe across parallel tool calls; losing the ledger fails open, never blocking unrelated work",
       "revert": "Move the ledger path in scenarios-stop-hook.mjs"
     },
@@ -358,9 +385,9 @@
       "id": "D-run-state",
       "question": "What should a record show while scenarios.mjs run is in progress or after it was killed?",
       "owner": "team",
-      "decision": "Mark every result running first and save after each; keep a temp-dir marker {pid, startedAt}; Stop still blocks and says still running or interrupted",
-      "reason": "An interrupted run must never leave earlier passes that check accepts (G6); stopping the gate during a run would weaken G6",
-      "revert": "Restore the single write at the end of run and drop the marker"
+      "decision": "Mark every result running and write verification.run {startedAt, lastProgressAt} first, save after each scenario and the existing tests, delete verification.run when the run ends (also on a throw); check and Stop treat a present verification.run as incomplete and say: wait if still running, run again if stopped; no liveness claim",
+      "reason": "An interrupted run must never leave earlier passes that check accepts (G6); state in the record needs no temp directory shared with the hook, and a pid check could not be trusted across machines or pid reuse",
+      "revert": "Restore the single write at the end of run"
     },
     {
       "id": "D-no-only",
@@ -374,9 +401,9 @@
       "id": "D-structural",
       "question": "How does the hook know a record is the session's, wherever it lives?",
       "owner": "user",
-      "decision": "The record scripts register it from the host session id (CLAUDE_CODE_SESSION_ID / CODEX_THREAD_ID); edit tools register their exact path; no shell text or tree inference",
-      "reason": "Directory inference measured 2.7 s and 4.6 s with 743 false records and still misses computed paths; the user rejected inference",
-      "revert": "Restore shell-text attribution (0.5.1 stamps and named records) in the hook"
+      "decision": "The record tools print a hobin-feature-record line with the absolute path (decline prints a hobin-feature-decline line with the reason); the hook reads every string of every tool's output (PostToolUse, PostToolUseFailure) and registers absolute, existing record paths in its own ledger; edit tools register their exact path; no session environment, no shared temp directory, no shell text or tree inference",
+      "reason": "Directory inference measured 2.7 s and 4.6 s with 743 false records and still misses computed paths; the session-id-plus-shared-TMPDIR revision depended on host environment details the plugin does not own. The user asked for that assumption to be removed, not documented",
+      "revert": "Restore registration from CLAUDE_CODE_SESSION_ID / CODEX_THREAD_ID in records.mjs and the scripts, and the env strip in scenarios.mjs run"
     },
     {
       "id": "D-obligation",
@@ -393,6 +420,22 @@
       "decision": "No; it lifts only the 'no record yet' obligation",
       "reason": "Conservative: a registered record that fails is still unverified work",
       "revert": "Skip checkRecords when a decline exists"
+    },
+    {
+      "id": "D-background",
+      "question": "What about a record touched only by a background run, whose output the hook never sees?",
+      "owner": "team",
+      "decision": "Not registered; the Stop message and SKILL.md step 1 ask for a foreground scenarios.mjs check with the record path (or init, or decline)",
+      "reason": "Deterministic recovery without sharing state with the command; the block is visible, never a silent pass",
+      "revert": "Not applicable without shared state between the hook and the command"
+    },
+    {
+      "id": "D-read-registers",
+      "question": "Does a marker inside a file the session reads (Read tool, cat) register the record?",
+      "owner": "team",
+      "decision": "Yes, when the path is absolute, exists and names a record",
+      "reason": "Fail-safe: the worst case is an extra record the session must make pass, never a record silently left ungated",
+      "revert": "Limit marker parsing to shell tool responses in printedMarkers"
     }
   ],
   "verification": {

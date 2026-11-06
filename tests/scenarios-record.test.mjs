@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
 import { checkRecord, outsideProject } from "../core/developing-features/scripts/scenarios.mjs";
-import { SESSION_ENV, readRunMarker, runMarkerPath } from "../core/developing-features/scripts/records.mjs";
 
 test("a scenario command may not name a home path or an existing file outside the project", (t) => {
 	const project = mkdtempSync(join(tmpdir(), "scenario-project-"));
@@ -21,9 +20,8 @@ test("a scenario command may not name a home path or an existing file outside th
 });
 
 const SCENARIOS = join(repositoryRoot, "core/developing-features/scripts/scenarios.mjs");
-// Without the host session id: these tests run inside agent sessions, and the script would
-// otherwise register its fixture into that session's ledger.
-const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !SESSION_ENV.includes(name)));
+const { NODE_TEST_CONTEXT: _, ...env } = process.env;
+const RUN_WORDING = /^a scenarios\.mjs run started at (\S+) \(last progress (\S+)\) has not finished; if it is still running wait for it, do not start another; if it stopped, run it again\.$/;
 // A complete record whose results all passed in an earlier run; `slow` makes S1's check take a while.
 function passedRecord(project, { slow = false } = {}) {
 	const record = {
@@ -40,19 +38,16 @@ function passedRecord(project, { slow = false } = {}) {
 	return path;
 }
 
-test("a run that is killed midway leaves running results and a dead marker, never the earlier passes", async (t) => {
+test("a run that is killed midway leaves verification.run and running results, never the earlier passes", async (t) => {
 	const project = mkdtempSync(join(tmpdir(), "scenario-run-"));
 	const path = passedRecord(project, { slow: true });
-	t.after(() => { rmSync(project, { recursive: true, force: true }); rmSync(runMarkerPath(path), { force: true }); });
+	t.after(() => rmSync(project, { recursive: true, force: true }));
 	const child = spawn("node", [SCENARIOS, "run", path], { cwd: project, stdio: "ignore", env });
 	const deadline = Date.now() + 10_000;
-	while (!readFileSync(path, "utf8").includes('"running"')) {
-		assert.ok(Date.now() < deadline, "the run marks results running before it starts the first check");
+	while (!JSON.parse(readFileSync(path, "utf8")).verification.run) {
+		assert.ok(Date.now() < deadline, "the run records itself before it starts the first check");
 		await new Promise((done) => setTimeout(done, 50));
 	}
-	const marker = readRunMarker(path);
-	assert.equal(marker?.pid, child.pid);
-	assert.equal(marker.alive, true);
 	const exited = new Promise((done) => child.on("exit", done));
 	child.kill("SIGKILL");
 	await exited;
@@ -60,13 +55,17 @@ test("a run that is killed midway leaves running results and a dead marker, neve
 	const record = JSON.parse(readFileSync(path, "utf8"));
 	assert.deepEqual(record.scenarios.map((s) => s.status), ["running", "running"]);
 	assert.equal(record.verification.existing_tests_status, "running");
+	const { startedAt, lastProgressAt } = record.verification.run;
+	assert.ok(!Number.isNaN(Date.parse(startedAt)) && !Number.isNaN(Date.parse(lastProgressAt)), JSON.stringify(record.verification.run));
 	const problems = checkRecord(record);
-	assert.ok(problems.some((p) => /S1: status is "running"; a scenarios\.mjs run is still going or was interrupted/.test(p)), problems.join("\n"));
+	assert.ok(problems.some((p) => /S1: status is "running"; the run that set it has not finished/.test(p)), problems.join("\n"));
 	assert.ok(problems.some((p) => /Existing tests status is "running"/.test(p)));
-	assert.equal(readRunMarker(path)?.alive, false, "the killed run's marker names a process that no longer exists");
+	const wording = problems.map((p) => p.match(RUN_WORDING)).find(Boolean);
+	assert.deepEqual(wording?.slice(1), [startedAt, lastProgressAt], problems.join("\n"));
+	assert.ok(problems.every((p) => !/pid|alive|process/.test(p)), "no liveness claim");
 });
 
-test("a run that finishes saves every result and removes its marker", (t) => {
+test("a run that finishes saves every result, records progress and removes verification.run", (t) => {
 	const project = mkdtempSync(join(tmpdir(), "scenario-run-"));
 	const path = passedRecord(project);
 	t.after(() => rmSync(project, { recursive: true, force: true }));
@@ -75,6 +74,24 @@ test("a run that finishes saves every result and removes its marker", (t) => {
 	const record = JSON.parse(readFileSync(path, "utf8"));
 	assert.deepEqual(record.scenarios.map((s) => s.status), ["pass", "pass"]);
 	assert.equal(record.verification.existing_tests_status, "pass");
-	assert.equal(existsSync(runMarkerPath(path)), false);
+	assert.equal("run" in record.verification, false);
 	assert.deepEqual(checkRecord(record), []);
+});
+
+test("a run that fails, or throws, still removes verification.run", (t) => {
+	const project = mkdtempSync(join(tmpdir(), "scenario-run-"));
+	const path = passedRecord(project);
+	t.after(() => rmSync(project, { recursive: true, force: true }));
+	const record = JSON.parse(readFileSync(path, "utf8"));
+	record.scenarios[0].check = "exit 3";
+	writeFileSync(path, JSON.stringify(record));
+	const result = spawnSync("node", [SCENARIOS, "run", path], { cwd: project, encoding: "utf8", env });
+	assert.equal(result.status, 1);
+	assert.equal("run" in JSON.parse(readFileSync(path, "utf8")).verification, false);
+
+	writeFileSync(path, JSON.stringify({ ...record, scenarios: "not a list" }));
+	const thrown = spawnSync("node", [SCENARIOS, "run", path], { cwd: project, encoding: "utf8", env });
+	assert.notEqual(thrown.status, 0);
+	assert.match(thrown.stderr, /TypeError/, "the run threw");
+	assert.equal("run" in JSON.parse(readFileSync(path, "utf8")).verification, false);
 });

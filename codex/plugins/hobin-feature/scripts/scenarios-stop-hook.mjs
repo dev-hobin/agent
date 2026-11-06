@@ -11,11 +11,15 @@
 //   `/hobin-feature:developing-features`, a Codex prompt that mentions `$developing-features`, or a
 //   Codex shell command that reads this plugin's skills/developing-features/SKILL.md.
 // - Registration: `scenarios.mjs init|run|check <record>` and `compile-control-model.mjs
-//   --baseline|--changes|--gate <record>` append the record to the session ledger themselves
-//   (session id from CLAUDE_CODE_SESSION_ID or CODEX_THREAD_ID). Edit tools (Write, Edit,
-//   MultiEdit; apply_patch Add/Update/Move to) register the record path they wrote.
-// - Release: `scenarios.mjs decline --reason "..."`. It lifts only the "no record yet" obligation;
-//   records already registered must still pass.
+//   --baseline|--changes|--gate <record>` print `hobin-feature-record: <absolute path>`. After any
+//   tool call this hook reads every string in the tool's response (and a failure's error text),
+//   and registers each marked path that is absolute, exists and names a record file, in its own
+//   ledger. Nothing is shared with the scripts: no session id, no common temp directory. A
+//   background run's output never reaches the hook, so the Stop message asks for a foreground
+//   `check`. Edit tools (Write, Edit, MultiEdit; apply_patch Add/Update/Move to) register the
+//   record path they wrote.
+// - Release: `scenarios.mjs decline --reason "..."` prints `hobin-feature-decline: <reason>`. It
+//   lifts only the "no record yet" obligation; records already registered must still pass.
 //
 // Stop: registered records are checked; while one fails exit 2 sends the problems back. With an
 // obligation, no registered record and no decline, exit 2 asks for one. After three blocks in a
@@ -28,8 +32,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
-	RECORD, SCENARIO_RECORD, readDecline, readLedger, readObligation, readRunMarker, registerRecord,
-	sessionStatePath, startObligation,
+	RECORD, SCENARIO_RECORD, parseMarkers, readDecline, readLedger, readObligation, recordDecline,
+	registerRecord, sessionStatePath, startObligation,
 } from "../skills/developing-features/scripts/records.mjs";
 
 const pluginRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -91,15 +95,31 @@ function projectRoot(record, root) {
 	return insideGit(dirname(record)) ?? root;
 }
 
-const hasRunning = (record) =>
-	(record.scenarios ?? []).some((s) => s?.status === "running") || record.verification?.existing_tests_status === "running";
+// Every string inside a tool response, whatever its shape. A string that is itself JSON is walked
+// too, so output serialized into one string still yields its lines.
+function strings(value, out = [], depth = 0) {
+	if (depth > 20) return out;
+	if (typeof value === "string") {
+		out.push(value);
+		const t = value.trimStart();
+		if (t.startsWith("{") || t.startsWith("[") || t.startsWith('"')) {
+			try { strings(JSON.parse(value), out, depth + 1); } catch {}
+		}
+	} else if (Array.isArray(value)) for (const item of value) strings(item, out, depth + 1);
+	else if (value && typeof value === "object") for (const item of Object.values(value)) strings(item, out, depth + 1);
+	return out;
+}
 
-// What "running" results mean for this record: a run still in progress, or one that ended
-// without finishing (killed, or the machine stopped).
-function runState(path) {
-	const marker = readRunMarker(path);
-	if (marker?.alive) return `scenarios.mjs run is still running (pid ${marker.pid}, started ${marker.startedAt}); wait for it to finish, do not start another.`;
-	return "a scenarios.mjs run on this record was interrupted before it finished; run it again.";
+// The record paths and decline reasons the record tools printed in this tool call's output.
+function printedMarkers(input) {
+	const records = [];
+	const declines = [];
+	for (const text of strings([input?.tool_response, input?.error])) {
+		const found = parseMarkers(text);
+		records.push(...found.records);
+		declines.push(...found.declines);
+	}
+	return { records: records.filter((path) => isAbsolute(path) && isRecord(path) && existsSync(path)), declines };
 }
 
 async function checkRecords(records, root) {
@@ -121,7 +141,6 @@ async function checkRecords(records, root) {
 				? checkRecord(record)
 				: gateRecord(record, { recordDir: dirname(path), root: base, recordPath: path });
 			problems.push(...found.map((p) => `${path}: ${p}`));
-			if (scenarioRecord && hasRunning(record)) problems.push(`${path}: ${runState(path)}`);
 		} catch (error) {
 			errors.push(`${path}: ${error?.stack ?? error}`);
 		}
@@ -141,7 +160,7 @@ async function stop(input, root) {
 	const { problems, errors } = records.length ? await checkRecords(records, root) : { problems: [], errors: [] };
 	if (!records.length && !decline) {
 		const init = join(scripts, "scenarios.mjs");
-		problems.push(`developing-features started in this session (${obligation.source}) but no acceptance-scenario record is registered. Create one with \`node "${init}" init <path>/acceptance-scenarios-<name>.json\`, or, if this work needs none, run \`node "${init}" decline --reason "<why>"\` and state the reason in the report.`);
+		problems.push(`developing-features started in this session (${obligation.source}) but no acceptance-scenario record is registered. For a new record run \`node "${init}" init <path>/acceptance-scenarios-<name>.json\`. For a record that already exists run \`node "${init}" check <path>\` in the foreground: this hook sees only the output of foreground commands, not of background runs. If this work needs no record, run \`node "${init}" decline --reason "<why>"\` and state the reason in the report.`);
 	}
 	if (!problems.length) {
 		rmSync(counter, { force: true });
@@ -165,7 +184,12 @@ function event(input, root) {
 	const source = obligationSource(input);
 	if (source && !readObligation(session)) startObligation(session, source);
 	if (input.hook_event_name === "UserPromptSubmit") return 0;
-	for (const path of new Set(editedRecords(input, root))) if (existsSync(path)) registerRecord(path, session);
+	const printed = printedMarkers(input);
+	const known = new Set(readLedger(session));
+	for (const path of new Set([...editedRecords(input, root), ...printed.records])) {
+		if (existsSync(path) && !known.has(resolve(path))) registerRecord(path, session);
+	}
+	if (printed.declines.length) recordDecline(session, printed.declines.at(-1));
 	return 0;
 }
 

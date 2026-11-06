@@ -3,9 +3,10 @@
 //   node scenarios.mjs init  <record>   copy the template to <record>; refuses to overwrite
 //   node scenarios.mjs run   [record]   run every scenario check and the existing tests, write
 //                                       each result into the record, exit 0 when all pass.
-//                                       It first marks every result "running" and saves after
-//                                       each one, so an interrupted run leaves "running", never
-//                                       the passes of an earlier run.
+//                                       It first marks every result "running", records the run
+//                                       in verification.run and saves after each result, so an
+//                                       interrupted run leaves "running" and verification.run,
+//                                       never the passes of an earlier run.
 //   node scenarios.mjs check [record]   exit 0 when the record is complete and every result
 //                                       passed; otherwise print what to fix
 //   node scenarios.mjs decline --reason "<why>"
@@ -13,15 +14,16 @@
 // Without a record argument, every acceptance-scenarios*.json under the current directory
 // (outside node_modules) is used. Results come only from `run`, never from hand edits.
 //
-// Inside a host session (CLAUDE_CODE_SESSION_ID or CODEX_THREAD_ID set) init, run and check with
-// a record path add that record to the session ledger, so the plugin's Stop hook checks it
-// wherever it lives; decline records the reason for the session. Outside a session they do not.
+// init, and run or check with a record path, print `hobin-feature-record: <absolute path>`; decline
+// prints `hobin-feature-decline: <reason>`. The plugin hook reads those lines from the tool
+// output and keeps the session's ledger itself. A walk without a record path prints no marker:
+// the records it finds may be other sessions'.
 import { execSync } from "node:child_process";
-import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { SCENARIO_RECORD, SESSION_ENV, findFiles, recordDecline, registerRecord, runMarkerPath, sessionFromEnv } from "./records.mjs";
+import { SCENARIO_RECORD, declineLine, findFiles, neutralizeMarkers, recordLine } from "./records.mjs";
 
 const placeholder = (value) => typeof value !== "string" || !value.trim() || /<[^>]+>/.test(value);
 
@@ -30,11 +32,8 @@ const findRecords = (dir = ".") => findFiles(SCENARIO_RECORD, dir).map((path) =>
 // Commands run through the default shell with only the PATH directories this process can reach:
 // in a sandbox that denies one PATH directory, every lookup behind it fails (EPERM), even for a
 // program such as node or npm that lives in a later directory.
-// A check runs without the session id, so a check that runs these scripts on fixtures never
-// registers them as the session's records.
 function runCommand(command) {
 	const { NODE_TEST_CONTEXT: _, ...env } = process.env;
-	for (const name of SESSION_ENV) delete env[name];
 	const reachable = (dir) => { try { accessSync(dir, constants.X_OK); return true; } catch { return false; } };
 	env.PATH = (env.PATH ?? "").split(delimiter).filter((dir) => dir && reachable(dir)).join(delimiter);
 	try {
@@ -62,7 +61,7 @@ export function checkRecord(record) {
 		for (const field of ["id", "given", "when", "then", "check"]) {
 			if (placeholder(s[field])) problems.push(`Scenario ${s.id ?? "?"}: fill "${field}" (no <placeholders>).`);
 		}
-		if (s.status === "running") problems.push(`Scenario ${s.id ?? "?"}: status is "running"; a scenarios.mjs run is still going or was interrupted. Wait for it to finish, or run it again.`);
+		if (s.status === "running") problems.push(`Scenario ${s.id ?? "?"}: status is "running"; the run that set it has not finished.`);
 		else if (s.status !== "pass") problems.push(`Scenario ${s.id ?? "?"}: status is "${s.status}"; fix the code or the check, then run "scenarios.mjs run".`);
 		for (const path of outsideProject(s.check ?? "")) problems.push(`Scenario ${s.id ?? "?"}: the check names ${path}, outside the project; use a path inside it so the record runs anywhere.`);
 	}
@@ -75,11 +74,17 @@ export function checkRecord(record) {
 	if (placeholder(v.existing_tests)) problems.push('Set "verification.existing_tests" to the command for the existing suites around the change.');
 	else {
 		for (const path of outsideProject(v.existing_tests)) problems.push(`Existing tests: the command names ${path}, outside the project; use a path inside it.`);
-		if (v.existing_tests_status === "running") problems.push('Existing tests status is "running"; a scenarios.mjs run is still going or was interrupted. Wait for it to finish, or run it again.');
+		if (v.existing_tests_status === "running") problems.push('Existing tests status is "running"; the run that set it has not finished.');
 		else if (v.existing_tests_status !== "pass") problems.push(`Existing tests status is "${v.existing_tests_status}"; run "scenarios.mjs run" after fixing them.`);
 	}
+	if (v.run) problems.push(runNotFinished(v.run));
 	return problems;
 }
+
+// A record still holding verification.run: a run is in progress, or one stopped without finishing.
+// Only the record is known here, not whether that process still exists.
+export const runNotFinished = (run) =>
+	`a scenarios.mjs run started at ${run?.startedAt ?? "?"} (last progress ${run?.lastProgressAt ?? "?"}) has not finished; if it is still running wait for it, do not start another; if it stopped, run it again.`;
 
 const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), "../assets/acceptance-scenarios.json");
 
@@ -89,7 +94,7 @@ function init(file) {
 	if (existsSync(file)) { console.error(`${file} already exists; init never overwrites a record. Edit it, or pick another name.`); return 1; }
 	mkdirSync(dirname(resolve(file)), { recursive: true });
 	copyFileSync(TEMPLATE, file);
-	registerRecord(file);
+	console.log(recordLine(file));
 	console.log(`${file}: created from the template. Fill every scenario and decision, then run "scenarios.mjs run ${file}".`);
 	return 0;
 }
@@ -98,10 +103,8 @@ function decline(args) {
 	const at = args.indexOf("--reason");
 	const reason = at >= 0 ? String(args[at + 1] ?? "").trim() : "";
 	if (!reason || reason.startsWith("--")) { console.error('Usage: scenarios.mjs decline --reason "<why this session writes no acceptance-scenario record>"'); return 2; }
-	const session = sessionFromEnv();
-	if (!session) { console.error(`No session id (${SESSION_ENV.join(" or ")}) in the environment; nothing was recorded.`); return 1; }
-	recordDecline(session, reason);
-	console.log(`Declined for this session: ${reason}. Records already registered must still pass.`);
+	console.log(declineLine(reason));
+	console.log("Declined for this session. Records already registered must still pass; give the reason in the report.");
 	return 0;
 }
 
@@ -113,34 +116,36 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 	const records = file ? [file] : findRecords();
 	if (!records.length) { console.error('No acceptance-scenarios*.json found; create one with "scenarios.mjs init <path>".'); process.exit(1); }
 	// A record named on the command line is the session's; records found by walking are not.
-	if (file && existsSync(file)) registerRecord(file);
+	if (file && existsSync(file)) console.log(recordLine(file));
 	let ok = true;
 	for (const path of records) {
 		const record = JSON.parse(readFileSync(path, "utf8"));
 		if (mode === "run") {
 			const save = () => writeFileSync(path, JSON.stringify(record, null, 2) + "\n");
-			const marker = runMarkerPath(path);
-			writeFileSync(marker, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString(), record: resolve(path) }));
+			const v = (record.verification ??= {});
+			const now = () => new Date().toISOString();
+			const progress = () => { v.run.lastProgressAt = now(); save(); };
+			const testsDeclared = !placeholder(v.existing_tests);
+			v.run = { startedAt: now(), lastProgressAt: now() };
 			try {
-				const v = (record.verification ??= {});
-				const testsDeclared = !placeholder(v.existing_tests);
 				for (const s of record.scenarios ?? []) s.status = "running";
 				if (testsDeclared) v.existing_tests_status = "running";
 				save();
 				for (const s of record.scenarios ?? []) {
 					const result = runCommand(s.check);
 					s.status = result.status;
-					save();
-					if (result.status !== "pass") { ok = false; console.error(`${path} ${s.id}: fail\n${result.output.slice(-2000)}`); }
+					progress();
+					if (result.status !== "pass") { ok = false; console.error(`${path} ${s.id}: fail\n${neutralizeMarkers(result.output.slice(-2000))}`); }
 				}
 				if (testsDeclared) {
 					const result = runCommand(v.existing_tests);
 					v.existing_tests_status = result.status;
-					save();
-					if (result.status !== "pass") { ok = false; console.error(`${path} existing tests: fail\n${result.output.slice(-2000)}`); }
+					progress();
+					if (result.status !== "pass") { ok = false; console.error(`${path} existing tests: fail\n${neutralizeMarkers(result.output.slice(-2000))}`); }
 				}
 			} finally {
-				rmSync(marker, { force: true });
+				delete v.run;
+				save();
 			}
 		}
 		const problems = checkRecord(record);
