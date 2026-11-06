@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 // Run and check the acceptance-scenario record (assets/acceptance-scenarios.json format).
 //   node scenarios.mjs run   [record]   run every scenario check and the existing tests, write
-//                                       each result into the record, exit 0 when all pass
+//                                       each result into the record, exit 0 when all pass.
+//                                       It first marks every result "running" and saves after
+//                                       each one, so an interrupted run leaves "running", never
+//                                       the passes of an earlier run.
 //   node scenarios.mjs check [record]   exit 0 when the record is complete and every result
 //                                       passed; otherwise print what to fix
 // Without a record argument, every acceptance-scenarios*.json under the current directory
 // (outside node_modules) is used. Results come only from `run`, never from hand edits.
 import { execSync } from "node:child_process";
-import { accessSync, constants, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { delimiter, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { SCENARIO_RECORD, findFiles } from "./records.mjs";
+import { SCENARIO_RECORD, findFiles, runMarkerPath } from "./records.mjs";
 
 const placeholder = (value) => typeof value !== "string" || !value.trim() || /<[^>]+>/.test(value);
 
@@ -49,7 +52,8 @@ export function checkRecord(record) {
 		for (const field of ["id", "given", "when", "then", "check"]) {
 			if (placeholder(s[field])) problems.push(`Scenario ${s.id ?? "?"}: fill "${field}" (no <placeholders>).`);
 		}
-		if (s.status !== "pass") problems.push(`Scenario ${s.id ?? "?"}: status is "${s.status}"; fix the code or the check, then run "scenarios.mjs run".`);
+		if (s.status === "running") problems.push(`Scenario ${s.id ?? "?"}: status is "running"; a scenarios.mjs run is still going or was interrupted. Wait for it to finish, or run it again.`);
+		else if (s.status !== "pass") problems.push(`Scenario ${s.id ?? "?"}: status is "${s.status}"; fix the code or the check, then run "scenarios.mjs run".`);
 		for (const path of outsideProject(s.check ?? "")) problems.push(`Scenario ${s.id ?? "?"}: the check names ${path}, outside the project; use a path inside it so the record runs anywhere.`);
 	}
 	for (const d of record.decisions ?? []) {
@@ -61,7 +65,8 @@ export function checkRecord(record) {
 	if (placeholder(v.existing_tests)) problems.push('Set "verification.existing_tests" to the command for the existing suites around the change.');
 	else {
 		for (const path of outsideProject(v.existing_tests)) problems.push(`Existing tests: the command names ${path}, outside the project; use a path inside it.`);
-		if (v.existing_tests_status !== "pass") problems.push(`Existing tests status is "${v.existing_tests_status}"; run "scenarios.mjs run" after fixing them.`);
+		if (v.existing_tests_status === "running") problems.push('Existing tests status is "running"; a scenarios.mjs run is still going or was interrupted. Wait for it to finish, or run it again.');
+		else if (v.existing_tests_status !== "pass") problems.push(`Existing tests status is "${v.existing_tests_status}"; run "scenarios.mjs run" after fixing them.`);
 	}
 	return problems;
 }
@@ -75,18 +80,30 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 	for (const path of records) {
 		const record = JSON.parse(readFileSync(path, "utf8"));
 		if (mode === "run") {
-			for (const s of record.scenarios ?? []) {
-				const result = runCommand(s.check);
-				s.status = result.status;
-				if (result.status !== "pass") { ok = false; console.error(`${path} ${s.id}: fail\n${result.output.slice(-2000)}`); }
+			const save = () => writeFileSync(path, JSON.stringify(record, null, 2) + "\n");
+			const marker = runMarkerPath(path);
+			writeFileSync(marker, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString(), record: resolve(path) }));
+			try {
+				const v = (record.verification ??= {});
+				const testsDeclared = !placeholder(v.existing_tests);
+				for (const s of record.scenarios ?? []) s.status = "running";
+				if (testsDeclared) v.existing_tests_status = "running";
+				save();
+				for (const s of record.scenarios ?? []) {
+					const result = runCommand(s.check);
+					s.status = result.status;
+					save();
+					if (result.status !== "pass") { ok = false; console.error(`${path} ${s.id}: fail\n${result.output.slice(-2000)}`); }
+				}
+				if (testsDeclared) {
+					const result = runCommand(v.existing_tests);
+					v.existing_tests_status = result.status;
+					save();
+					if (result.status !== "pass") { ok = false; console.error(`${path} existing tests: fail\n${result.output.slice(-2000)}`); }
+				}
+			} finally {
+				rmSync(marker, { force: true });
 			}
-			const v = (record.verification ??= {});
-			if (!placeholder(v.existing_tests)) {
-				const result = runCommand(v.existing_tests);
-				v.existing_tests_status = result.status;
-				if (result.status !== "pass") { ok = false; console.error(`${path} existing tests: fail\n${result.output.slice(-2000)}`); }
-			}
-			writeFileSync(path, JSON.stringify(record, null, 2) + "\n");
 		}
 		const problems = checkRecord(record);
 		for (const p of problems) console.error(`${path}: ${p}`);

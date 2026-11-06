@@ -12,6 +12,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
+import { runMarkerPath } from "../core/developing-features/scripts/records.mjs";
 
 const HOSTS = ["claude", "codex"];
 const pluginRoot = (host) => join(repositoryRoot, host === "claude" ? "claude/plugins" : "codex/plugins", "hobin-feature");
@@ -447,5 +448,52 @@ test("F19 skill: every scenarios.mjs run/check and --gate the procedure names pa
 		const commands = [...text.matchAll(/scenarios\.mjs (?:run|check)[^`\n]*|compile-control-model\.mjs --gate[^`\n]*/g)].map((m) => m[0]);
 		assert.ok(commands.length >= 3, `${host}: ${commands}`);
 		for (const command of commands) assert.match(command, / <record>$/, `${host}: ${command}`);
+	}
+});
+
+for (const host of HOSTS) test(`F27 ${host}: a record a shell command writes by relative path after a cd out of the project is the session's`, () => {
+	const cwd = workspace();
+	const other = workspace();
+	const s = session(host, cwd);
+	s.shell(`cd "${other}" && mkdir -p docs && cp "${TEMPLATE}" docs/acceptance-scenarios-z.json`);
+	const result = s.stop();
+	assert.equal(result.status, 2);
+	assert.match(result.stderr, new RegExp(`${other.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/docs/acceptance-scenarios-z\\.json: Scenario S1`));
+});
+
+for (const host of HOSTS) test(`F28 ${host}: a record a shell command only reads in another directory it names is not the session's`, () => {
+	const cwd = workspace();
+	const other = workspace();
+	age(put(other, "docs/acceptance-scenarios.json", TEMPLATE));
+	const s = session(host, cwd);
+	s.shell(`cd "${other}" && cat docs/acceptance-scenarios.json > /dev/null`);
+	assert.equal(s.stop().status, 0);
+});
+
+for (const host of HOSTS) test(`F29 ${host}: Stop tells a run still in progress from an interrupted one`, () => {
+	const cwd = workspace();
+	const record = JSON.parse(readFileSync(COMPLETE, "utf8"));
+	for (const scenario of record.scenarios) scenario.status = "running";
+	const path = put(cwd, "acceptance-scenarios.json", JSON.stringify(record));
+	const marker = runMarkerPath(path);
+	const s = session(host, cwd);
+	s.wrote("acceptance-scenarios.json");
+	try {
+		writeFileSync(marker, JSON.stringify({ pid: process.pid, startedAt: "2026-11-06T00:00:00.000Z" }));
+		const live = s.stop();
+		assert.equal(live.status, 2, "a running record still blocks");
+		assert.match(live.stderr, new RegExp(`scenarios\\.mjs run is still running \\(pid ${process.pid}, started 2026-11-06T00:00:00\\.000Z\\); wait for it to finish, do not start another`));
+
+		const gone = spawnSync("node", ["-e", "process.stdout.write(String(process.pid))"], { encoding: "utf8" });
+		writeFileSync(marker, JSON.stringify({ pid: Number(gone.stdout), startedAt: "2026-11-06T00:00:00.000Z" }));
+		const dead = s.stop();
+		assert.equal(dead.status, 2);
+		assert.match(dead.stderr, /a scenarios\.mjs run on this record was interrupted before it finished; run it again/);
+		assert.doesNotMatch(dead.stderr, /still running/);
+
+		rmSync(marker, { force: true });
+		assert.match(s.stop().stderr, /was interrupted before it finished/, "no marker at all reads as interrupted");
+	} finally {
+		rmSync(marker, { force: true });
 	}
 });

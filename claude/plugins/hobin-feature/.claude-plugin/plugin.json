@@ -1,6 +1,6 @@
 {
   "name": "hobin-feature",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Develops features through acceptance scenarios, owner decisions, design, small verified slices, and independent verification.",
   "author": {
     "name": "dev-hobin",
