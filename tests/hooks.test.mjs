@@ -54,8 +54,9 @@ test("every Claude plugin hook runs a script the plugin ships, and no skill regi
 			count++;
 		}
 	}
-	// hobin-feature: UserPromptSubmit, PostToolUse (edit tools, Skill, its records server), Stop, SessionEnd.
-	assert.equal(count, 16);
+	// hobin-feature: UserPromptSubmit, PreToolUse (allow its record tools), PostToolUse (edit tools,
+	// Skill, its records server), Stop, SessionEnd.
+	assert.equal(count, 17);
 });
 
 test("every Codex plugin hook runs a script the plugin ships", () => {

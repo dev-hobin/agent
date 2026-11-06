@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "02cc4feeece18359a6ae576d",
+    "spec": "7bcbfc2a3deb44dda6ae576d",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {
@@ -183,7 +183,7 @@
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
       "G5": "instructed: steps 5 to 7; the independent-verifier agent is enforced read-only by its tools; checked by the hidden and visible tests and by scenario-record-complete (existing tests run and recorded by scenarios.mjs)",
-      "G6": "enforced: the plugin's stdio MCP server (.mcp.json, server hobin_feature) exposes init, register, check and decline; a successful call of mcp__plugin_hobin-feature_hobin_feature__init|register|check (PostToolUse, structured tool_input.path) registers the record in a per-session ledger in ${CLAUDE_PLUGIN_DATA}, as do Write/Edit/MultiEdit of a record; on Stop the hook (hooks/hooks.json) sends Claude back while a ledger record fails scenarios.mjs check or still holds verification.run (and says when background_tasks are still running), up to three times in a row, then the report must say so; SessionEnd removes the session's state; no shell text, command output, environment variable, shared temp directory or file tree is used; graded by scenario-record-complete through the eval verify plugin",
+      "G6": "enforced: the plugin's stdio MCP server (.mcp.json, server hobin_feature) exposes init, register, check and decline; a successful call of mcp__plugin_hobin-feature_hobin_feature__init|register|check (PostToolUse, structured tool_input.path) registers the record in a per-session ledger in ${CLAUDE_PLUGIN_DATA}, as do Write/Edit/MultiEdit of a record; on Stop the hook (hooks/hooks.json) sends Claude back while a ledger record fails scenarios.mjs check or still holds verification.run (and says when background_tasks are still running), up to three times in a row, then the report must say so; the plugin's PreToolUse hook allows exactly the four records tools without a permission prompt (deny and ask rules still apply); SessionEnd removes the session's state; no shell text, command output, environment variable, shared temp directory or file tree is used; graded by scenario-record-complete through the eval verify plugin",
       "G7": "enforced: compile-control-model.mjs --baseline|--changes|--gate <record> register the control decision record in the same ledger, as do edit tools; the Stop hook runs the gate on each against the record's project root and sends Claude back while it fails (up to three times in a row); graded by control-model-gate through the eval verify plugin"
     }
   },

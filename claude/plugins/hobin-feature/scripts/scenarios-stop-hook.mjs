@@ -19,6 +19,10 @@
 //   "no record yet" obligation; records already registered must still pass.
 // - SessionEnd removes the session's state; state older than seven days is pruned on Stop and
 //   SessionEnd.
+// - PreToolUse (Claude Code): the four record tools of this plugin, by exact name, are allowed
+//   without a permission prompt. They only create or read record files and run no command; any
+//   other tool is left to the host's permission system. Codex runs them without asking through
+//   their annotations and the server's approval mode in .mcp.json.
 //
 // Stop: registered records are checked; while one fails exit 2 sends the problems back. With an
 // obligation, no registered record and no decline, exit 2 asks for one. After three blocks in a
@@ -45,6 +49,18 @@ const MAX_BLOCKS = 3;
 const TOOL_PREFIX = { claude: "mcp__plugin_hobin-feature_hobin_feature__", codex: "mcp__hobin_feature__" };
 const host = process.argv[2] === "codex" ? "codex" : "claude";
 const toolName = (tool) => `${TOOL_PREFIX[host]}${tool}`;
+const RECORD_TOOLS = ["init", "register", "check", "decline"];
+
+// A PreToolUse decision that lets this plugin's own record tools run without a prompt.
+function preToolUse(input) {
+	if (host !== "claude" || !RECORD_TOOLS.some((tool) => input?.tool_name === toolName(tool))) return 0;
+	process.stdout.write(JSON.stringify({ hookSpecificOutput: {
+		hookEventName: "PreToolUse",
+		permissionDecision: "allow",
+		permissionDecisionReason: "hobin-feature record tool: reads or creates a record file only, runs no command",
+	} }));
+	return 0;
+}
 
 const isRecord = (path) => RECORD.test(basename(path));
 const isRecordFile = (path) => { try { return isRecord(path) && statSync(path).isFile(); } catch { return false; } };
@@ -92,7 +108,7 @@ function recordToolCall(input, root) {
 		const reason = typeof args.reason === "string" ? args.reason.trim() : "";
 		return reason ? { decline: reason } : undefined;
 	}
-	if (!["init", "register", "check"].includes(tool) || typeof args.path !== "string") return undefined;
+	if (!RECORD_TOOLS.includes(tool) || tool === "decline" || typeof args.path !== "string") return undefined;
 	const path = resolve(input.cwd ?? root, args.path);
 	return isRecordFile(path) ? { record: path } : undefined;
 }
@@ -204,7 +220,9 @@ try {
 	const input = JSON.parse(readFileSync(0, "utf8"));
 	// The project root: on Claude Code, input.cwd follows the model's `cd` in Bash.
 	const root = resolve(process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd());
-	process.exitCode = input.hook_event_name === "Stop" ? await stop(input, root) : event(input, root);
+	process.exitCode = input.hook_event_name === "Stop" ? await stop(input, root)
+		: input.hook_event_name === "PreToolUse" ? preToolUse(input)
+		: event(input, root);
 } catch {
 	process.exitCode = 0;
 }

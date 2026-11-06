@@ -41,8 +41,21 @@
 Re-read for this revision at the tag: `plugin_config.rs`, `manifest.rs`, `loader.rs`
 (`.mcp.json` default, `mcpServers` path), `handlers/mcp.rs` (hook tool name and payloads),
 `codex-mcp/src/tools.rs` and `mcp/mod.rs` (namespace sanitizing), and the `hooks/src/events`
-listing. The sandbox, session id, plugin data, timeout and approval rows are taken from the
-research brief and were not re-read.
+listing; then `rmcp-client/src/stdio_server_launcher.rs:451-480` (the server is a plain
+`Command` with the configured cwd and env, no sandbox wrapper), `core/src/hook_runtime.rs:207`
+(`session_id` from the session), `hooks/src/engine/discovery.rs:311-319` (`PLUGIN_DATA`,
+`CLAUDE_PLUGIN_DATA`), `core/src/mcp_tool_call.rs:1655-1663,2545-2576` (`never` denies a call that
+needs approval; `requires_mcp_tool_approval` and the `auto|prompt|writes|approve` modes) and
+`config/src/mcp_types.rs:27-35,289,443` (`AppToolApproval`, `default_tools_approval_mode`) with
+`codex-mcp/src/server.rs:486-518` (per-server approval mode used for each call). The default tool timeout was not re-read; the config sets it.
+
+Live on this machine (Claude Code 2.1.316, `claude -p --model haiku --plugin-dir
+claude/plugins/hobin-feature`, the installed 0.5.1 plugin disabled, default permission mode):
+the model loaded `…__check` through ToolSearch and called it with no permission denial
+(`permission_denials: []`); a second run called `…__init`, said DONE, and the Stop hook sent it back
+with "A record this session registered is not complete…" naming the new record. Not run live:
+Codex `codex exec` (it needs either the user's Codex auth in an isolated home or this branch
+installed into the user's Codex, plus hook trust).
 
 Checked on this machine: an isolated `codex plugin add` then `codex mcp list --json` lists
 `hobin_feature` (stdio, `node ./scripts/records-mcp-server.mjs`, `cwd` the installed plugin root,
@@ -69,12 +82,37 @@ root on Codex, not the project).
 | Run state | in the record: `verification.run = { startedAt, lastProgressAt }` while `run` works, results `running`, saved after each scenario and the existing tests, deleted when the run ends (also on a throw). `check` and Stop report "a scenarios.mjs run started at … (last progress …) has not finished; if it is still running wait for it, do not start another; if it stopped, run it again." No liveness claim. On Claude, Stop adds "background tasks are still running" when `background_tasks` is non-empty |
 | Stop without a record | names this host's `init`, `register` and `decline` tools exactly, and says shell `scenarios.mjs` registers nothing |
 
-**Approval.** Tool annotations: `check` `readOnlyHint: true`; `init`, `register`, `decline`
-`destructiveHint: false`, `openWorldHint: false`. Codex's `auto` MCP approval therefore runs them
-without asking, and a `never` policy with a restricted sandbox does not deny them. Claude Code asks
-for MCP tool permission per its own permission settings; a user can allow
-`mcp__plugin_hobin-feature_hobin_feature__*`. A denied call registers nothing and Stop then asks
-for the tool again (a visible block).
+**No permission prompt.** The record tools run on every feature session, so a prompt per call
+is not acceptable.
+- Claude Code: a PreToolUse hook matched to exactly
+  `mcp__plugin_hobin-feature_hobin_feature__(init|register|check|decline)` returns
+  `permissionDecision: "allow"`. The docs: allow "skips the permission prompt", and deny and ask
+  rules still apply ("PreToolUse hook decisions don't bypass permission rules", permissions.md),
+  so a user's deny rule still wins. Other ways were checked and rejected: a plugin `settings.json`
+  cannot carry permissions ("Only two keys take effect from a plugin, `agent` and
+  `subagentStatusLine`", plugins/components.md); SKILL.md `allowed-tools` grants only "during the
+  turn that invokes the skill" and clears on the next message (skills.md); `readOnlyHint` changes
+  only parallelism, not permission (mcp.md).
+- Codex: `check` is `readOnlyHint: true` and the others `destructiveHint: false`,
+  `openWorldHint: false`, which the default `auto` mode runs without asking; the plugin's server
+  config also sets `default_tools_approval_mode: "approve"`, so a `never` policy does not deny them.
+  The mode comes from the server's effective config (`codex-mcp/src/server.rs:486-518`,
+  `binding.rs:343-346`), so a user's own `mcp_servers.hobin_feature` settings can still change it.
+
+**Alternatives to MCP, considered.**
+- Claude Skill tool with arguments: its input schema and any `args` are not documented, and it is
+  listed "Permission required: Yes" (tools-reference.md). Codex has no skill tool at all (skills are
+  read as files).
+- Slash commands and LSP servers: user-typed or diagnostics-only; not model-callable operations.
+- Edit tools only (Write/Edit, apply_patch): already structured and kept, but `register` of an
+  existing record would need a pointless edit, `decline` a file in the work tree, and `init` the
+  model retyping the template.
+- Shell, its output, transcripts: inference (revisions 1–3), and transcripts are explicitly
+  unstable (sessions.md).
+So a plugin MCP server is the only mechanism both hosts offer for a model-called operation with
+structured arguments that hooks observe. Its costs: one small node process per session, tools
+deferred behind ToolSearch on Claude (the model loads them first; SKILL.md names them exactly),
+and the 2-minute auto-background threshold (the tools return in milliseconds).
 
 **Kept for people.** `scenarios.mjs init|check|decline` stay on the command line; they register
 nothing, and the CLI `decline` says so.
@@ -113,12 +151,14 @@ run"); the record has no code fingerprint to tell a code change from a record-on
   the plugin data directory; F31 server round trip (initialize, tools/list annotations, each tool,
   unknown tool and method); F18 wiring (Claude matcher with the full MCP prefix, Codex config as
   Codex resolves it, identical scripts, no session env, pid or marker left, no `child_process` in
-  the record tools); F29 a run killed midway is reported (and background tasks on Claude); kept
+  the record tools; the Codex server config sets `default_tools_approval_mode: "approve"`); F32
+  Claude PreToolUse allows exactly the four record tools and nothing else, Codex prints nothing;
+  F29 a run killed midway is reported (and background tasks on Claude); kept
   F1–F4, F6, F10–F14, F16, F19, F21, F25–F27.
 - `tests/scenarios-record.test.mjs`: killed, finished, failing and throwing runs.
 - Mutation checks on the Codex hook copy: ignoring `isError` fails F8/F15; skipping the
   SessionEnd clear or the Stop prune fails F30; matching any `mcp__…__<tool>` fails F15.
-- `pnpm check`: 188 tests pass, 0 fail. `pnpm check:claude` passes (only the existing icon warnings);
+- `pnpm check`: 189 tests pass, 0 fail. `pnpm check:claude` passes (only the existing icon warnings);
   `pnpm check:install -- claude` and `-- codex` pass. The record
   `docs/plans/acceptance-scenarios-feature-stop-hook-ledger.json` passes `scenarios.mjs run`.
 - Not run: paid host evals; a live model session calling the tools.
