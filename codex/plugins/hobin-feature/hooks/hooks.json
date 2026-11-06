@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "timeout": 30,
+            "timeout": 3,
             "command": "node \"$PLUGIN_ROOT/scripts/scenarios-stop-hook.mjs\" codex"
           }
         ]

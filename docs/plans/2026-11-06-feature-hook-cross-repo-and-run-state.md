@@ -53,9 +53,15 @@ Live on this machine (Claude Code 2.1.316, `claude -p --model haiku --plugin-dir
 claude/plugins/hobin-feature`, the installed 0.5.1 plugin disabled, default permission mode):
 the model loaded `…__check` through ToolSearch and called it with no permission denial
 (`permission_denials: []`); a second run called `…__init`, said DONE, and the Stop hook sent it back
-with "A record this session registered is not complete…" naming the new record. Not run live:
-Codex `codex exec` (it needs either the user's Codex auth in an isolated home or this branch
-installed into the user's Codex, plus hook trust).
+with "A record this session registered is not complete…" naming the new record. Live on Codex 0.166 (`codex exec --dangerously-bypass-hook-trust -c approval_policy=never`
+in an isolated `CODEX_HOME` with a copy of the user's auth, removed afterwards; run at the user's
+request): the model called `init` (status completed, so no approval was needed under `never`),
+said DONE, and Stop sent it back three times (MAX_BLOCKS) for the new incomplete record. A
+capture hook beside the real one recorded the PostToolUse input: `tool_name`
+`mcp__hobin_feature__init` / `mcp__hobin_feature__decline`, `tool_input` the arguments as an
+object, `tool_response` the MCP result object `{"content": [...], "isError": false}`. A refused
+`init` (status failed) fired no PostToolUse at all. Codex clamps a SessionEnd hook timeout to 3 s;
+the Codex hooks.json now says 3.
 
 Checked on this machine: an isolated `codex plugin add` then `codex mcp list --json` lists
 `hobin_feature` (stdio, `node ./scripts/records-mcp-server.mjs`, `cwd` the installed plugin root,
