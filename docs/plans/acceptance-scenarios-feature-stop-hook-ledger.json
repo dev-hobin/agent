@@ -56,10 +56,10 @@
     },
     {
       "id": "F5",
-      "given": "An incomplete record changed after this session started by something other than this session's tools (another session)",
-      "when": "The Stop hook runs",
-      "then": "It exits 0 and does not mention the record",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F5 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "two sessions in the same folder",
+      "when": "the other session runs scenarios.mjs init with its own session id",
+      "then": "this session's Stop passes; the other session's Stop gates the record",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F5 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
@@ -74,28 +74,28 @@
     },
     {
       "id": "F7",
-      "given": "A shell command (PreToolUse and PostToolUse Bash) copies the record template to docs/plans/acceptance-scenarios-x.json, including after a cd inside the command",
-      "when": "The Stop hook runs",
-      "then": "The copy is in the ledger and Stop exits 2 for its placeholders; the template source outside the project is not",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F7 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "a session whose hook cwd is one project",
+      "when": "a shell command cd's into another directory and runs scenarios.mjs init with a relative path",
+      "then": "the record is registered and Stop checks it at its absolute path",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F7 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "F8",
-      "given": "An old incomplete record that a shell command only reads (cat) during the session",
-      "when": "The Stop hook runs",
-      "then": "It exits 0: reading is not writing",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F8 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "a complete record exists",
+      "when": "scenarios.mjs init targets it, or a file not named acceptance-scenarios*.json",
+      "then": "init refuses (exit 1 / 2) and nothing is overwritten or created",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F8 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "F9",
-      "given": "Two records under the cwd; a shell command runs scenarios.mjs run without a path and rewrites one of them",
-      "when": "PostToolUse for that command, then Stop",
-      "then": "Only the rewritten record enters the ledger and is checked",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F9 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "two template records a/ and b/",
+      "when": "scenarios.mjs check a/acceptance-scenarios.json runs in the session; another session runs check without a path",
+      "then": "only a/ is registered and gated; a walk without a path registers nothing",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F9 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
@@ -146,10 +146,10 @@
     },
     {
       "id": "F15",
-      "given": "A shell command that names no record or record script (ls) while an incomplete record changes underneath it",
-      "when": "Pre/PostToolUse run for it, then Stop",
-      "then": "Nothing enters the ledger and Stop exits 0",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F15 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "no session id in the environment",
+      "when": "scenarios.mjs init and decline run",
+      "then": "init registers nothing (Stop passes); decline exits 1 saying no session id",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F15 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
@@ -164,19 +164,19 @@
     },
     {
       "id": "F17",
-      "given": "PostToolUse Bash without a matching PreToolUse stamp; the command names two records, one changed after the session started and one older",
-      "when": "PostToolUse runs, then Stop",
-      "then": "Only the record changed after the session started enters the ledger",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F17 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "a control decision record whose gate fails, in a child repository",
+      "when": "compile-control-model.mjs --gate control-decisions.json runs in the session",
+      "then": "the record is registered and Stop reports the unacknowledged finding",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F17 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "F18",
-      "given": "The hobin-feature plugin on both hosts",
-      "when": "Its hooks.json is read",
-      "then": "PreToolUse (shell), PostToolUse (edit tools and shell), PostToolUseFailure (shell, Claude only: Codex documents no such event), and Stop run the same shipped script, byte-identical on both hosts",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F18 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "both hosts' hooks.json",
+      "when": "they are read",
+      "then": "UserPromptSubmit, PostToolUse (Write|Edit|MultiEdit|Skill on Claude, unmatched on Codex) and Stop run the same identical script; the hook holds no shell, tree or git inference",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F18 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
@@ -191,10 +191,10 @@
     },
     {
       "id": "F20",
-      "given": "A shell command that rewrites a record and then exits 1 (a failing scenarios.mjs run), which Claude reports as PostToolUseFailure",
-      "when": "The failure event arrives, then Stop",
-      "then": "The rewritten record is in the ledger and Stop checks it",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F20 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "a complete record whose check runs scenarios.mjs init on a fixture",
+      "when": "scenarios.mjs run runs in the session",
+      "then": "the check gets no session id, so the fixture is not registered and Stop passes",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F20 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
@@ -209,64 +209,55 @@
     },
     {
       "id": "F22",
-      "given": "A shell call whose PreToolUse stamp file is empty, and a shell call without tool_use_id, while another session writes a record under the cwd",
-      "when": "PostToolUse for each, then Stop",
-      "then": "Both fall back to named records changed since the session started: no walk, nothing of the other session's enters the ledger, Stop exits 0",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F22 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "developing-features started in the session",
+      "when": "a shell program alone writes a record",
+      "then": "Stop blocks asking for scenarios.mjs init or decline --reason; once the record is registered with check, Stop passes",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F22 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "F23",
-      "given": "A git repository with a committed incomplete record; the session's shell command creates a worktree and runs scenarios.mjs check on the checked-out copy",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Stop exits 0: records the checkout wrote are tracked and unchanged from the commit, so they are not the session's",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F23 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "developing-features started and no record",
+      "when": "decline runs with no, empty or blank reason, then with a reason",
+      "then": "empty reasons are rejected (exit 2) and Stop still blocks; a reason releases Stop and Stop prints it",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F23 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "F24",
-      "given": "A git repository with a committed complete record; one command commits with the message 'I am done' and copies the template to a new record, another switches branches and overwrites the tracked record with the template",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Both exit 2: the new or changed record is the session's",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F24 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "developing-features started and a template record registered with init",
+      "when": "the session declines",
+      "then": "Stop still blocks on the registered record",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F24 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "F25",
-      "given": "A git repository; one shell command copies the record template, adds, and commits it",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Stop exits 2: a commit made during the call is the session's write",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F25 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "an unrelated prompt, another plugin's skill and a shell read; a template record exists but is not registered",
+      "when": "Stop runs",
+      "then": "Stop passes silently",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F25 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "F26",
-      "given": "A git repository that ignores plans/; a shell command copies the record template to plans/acceptance-scenarios.json",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Stop exits 2: an ignored record is the session's",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F26 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "Claude sessions",
+      "when": "the Skill tool runs developing-features (with or without plugin prefix), or the prompt starts with the slash command; or other skills/prompts",
+      "then": "only the developing-features Skill and slash prompts start the obligation",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F26 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "F27",
-      "given": "the session cwd is one project and another repository exists outside it",
-      "when": "a shell command cd's into the other repository and writes a record there by relative path",
-      "then": "the record is in the session ledger and Stop checks it (the 0.5.1 hook missed it)",
+      "given": "Codex sessions",
+      "when": "a prompt mentions $developing-features, a shell reads this plugin's SKILL.md by path; or similar text, a relative path, or an apply_patch edit of it",
+      "then": "only the mention and the read by this plugin's path start the obligation",
       "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F27 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
-      "status": "pass",
-      "covers": []
-    },
-    {
-      "id": "F28",
-      "given": "another repository the command names holds an old record",
-      "when": "a shell command cd's there and only reads the record",
-      "then": "the record is not the session's; Stop passes",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F28 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
@@ -364,14 +355,6 @@
       "revert": "Move the ledger path in scenarios-stop-hook.mjs"
     },
     {
-      "id": "D-cross-repo",
-      "question": "How should the ledger find a record written after a cd out of the hook cwd?",
-      "owner": "team",
-      "decision": "Also look under every existing directory the command text names (token split, unquote, after =), with the same stamp and checked-out filters; never walk /, $HOME or system folders",
-      "reason": "Deterministic, no shell interpretation; requiring absolute paths relies on the model",
-      "revert": "Drop namedDirectories from shellRecords"
-    },
-    {
       "id": "D-run-state",
       "question": "What should a record show while scenarios.mjs run is in progress or after it was killed?",
       "owner": "team",
@@ -386,6 +369,30 @@
       "decision": "No",
       "reason": "A partial run cannot show the other scenarios still pass after a code change (G5 last run)",
       "revert": "Add --only together with a code fingerprint per result"
+    },
+    {
+      "id": "D-structural",
+      "question": "How does the hook know a record is the session's, wherever it lives?",
+      "owner": "user",
+      "decision": "The record scripts register it from the host session id (CLAUDE_CODE_SESSION_ID / CODEX_THREAD_ID); edit tools register their exact path; no shell text or tree inference",
+      "reason": "Directory inference measured 2.7 s and 4.6 s with 743 false records and still misses computed paths; the user rejected inference",
+      "revert": "Restore shell-text attribution (0.5.1 stamps and named records) in the hook"
+    },
+    {
+      "id": "D-obligation",
+      "question": "When must the session produce a record?",
+      "owner": "user",
+      "decision": "Once developing-features starts by a fixed identifier (Claude Skill tool / slash prompt, Codex $mention / SKILL.md read); released only by a registered record or decline --reason",
+      "reason": "A record written outside the tools would otherwise silently escape the gate",
+      "revert": "Drop the obligation branch in stop() and the UserPromptSubmit/Skill hooks"
+    },
+    {
+      "id": "D-decline",
+      "question": "Does a decline exempt records already registered?",
+      "owner": "team",
+      "decision": "No; it lifts only the 'no record yet' obligation",
+      "reason": "Conservative: a registered record that fails is still unverified work",
+      "revert": "Skip checkRecords when a decline exists"
     }
   ],
   "verification": {

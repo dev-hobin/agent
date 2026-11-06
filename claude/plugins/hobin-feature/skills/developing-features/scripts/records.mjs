@@ -5,7 +5,7 @@
 // unreadable directory never hides the records elsewhere. Dot directories are searched (records
 // often live in planning folders such as .plans/); node_modules and .git* are not.
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readdirSync } from "node:fs";
+import { appendFileSync, lstatSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -50,4 +50,50 @@ export function readRunMarker(recordPath) {
 	const pid = Number(marker?.pid);
 	if (!Number.isInteger(pid) || pid <= 0) return null;
 	return { pid, startedAt: String(marker.startedAt ?? ""), alive: processAlive(pid) };
+}
+
+// Session state shared by the plugin hook and the record scripts, all in the temp directory and
+// named by the host's session id (the hook's `session_id`, which the host also gives commands as
+// CLAUDE_CODE_SESSION_ID on Claude Code and CODEX_THREAD_ID on Codex):
+// - ledger: the absolute paths of the records this session registered, one per line;
+// - obligation: the session started developing-features (the hook writes it);
+// - decline: the session declined writing a record, with the reason (scenarios.mjs decline).
+export const SESSION_ENV = ["CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID"];
+const safe = (value) => String(value ?? "").replace(/[^\w-]/g, "");
+export const sessionStatePath = (kind, session) => join(tmpdir(), `hobin-feature-${kind}-${safe(session)}`);
+
+// The session id the host gave this command, read at call time; undefined outside a session.
+export function sessionFromEnv(env = process.env) {
+	for (const name of SESSION_ENV) if (typeof env[name] === "string" && env[name].trim()) return env[name].trim();
+	return undefined;
+}
+
+// Adds `recordPath` to the session's ledger. Without a session id this is a no-op.
+export function registerRecord(recordPath, session = sessionFromEnv()) {
+	if (!session) return false;
+	appendFileSync(sessionStatePath("ledger", session), `${resolve(recordPath)}\n`);
+	return true;
+}
+
+export function readLedger(session) {
+	try {
+		return [...new Set(readFileSync(sessionStatePath("ledger", session), "utf8").split("\n").filter(Boolean))];
+	} catch { return []; }
+}
+
+export function startObligation(session, source) {
+	writeFileSync(sessionStatePath("obligation", session), JSON.stringify({ source, at: new Date().toISOString() }));
+}
+
+const readJson = (path) => { try { return JSON.parse(readFileSync(path, "utf8")); } catch { return null; } };
+export const readObligation = (session) => readJson(sessionStatePath("obligation", session));
+
+export function recordDecline(session, reason) {
+	writeFileSync(sessionStatePath("decline", session), JSON.stringify({ reason, at: new Date().toISOString() }));
+}
+
+// The session's decline, or null. A decline without a non-empty reason is not one.
+export function readDecline(session) {
+	const decline = readJson(sessionStatePath("decline", session));
+	return typeof decline?.reason === "string" && decline.reason.trim() ? decline : null;
 }

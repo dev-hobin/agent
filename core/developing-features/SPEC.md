@@ -2,7 +2,7 @@
 id: developing-features
 plugin: hobin-feature
 skill: developing-features
-version: 0.5.0
+version: 0.6.0
 ---
 
 # developing-features — 기능 개발
@@ -43,10 +43,12 @@ version: 0.5.0
 ## 3. 산출물
 
 1. **코드 변경.** 요청한 기능과, 시나리오를 확인하는 테스트.
-2. **시나리오 파일.** `assets/acceptance-scenarios.json`을 작업 트리(기능 옆이나 프로젝트의
-   계획 폴더)에 `acceptance-scenarios*.json` 이름으로 복사해 채운다.
+2. **시나리오 파일.** `scripts/scenarios.mjs init <경로>`로 작업 트리(기능 옆이나 프로젝트의
+   계획 폴더)에 `acceptance-scenarios*.json`을 만들고 채운다. `init`은 `assets/acceptance-scenarios.json`을
+   복사하고, 이미 있는 파일은 덮어쓰지 않는다.
    - `scenarios[]`: `id`, `given`(저장된 데이터를 포함한 이전 상태), `when`, `then`(관찰 가능한
-     결과), `check`(그 결과가 성립할 때만 통과하는 명령), `status`(`pending | pass | fail`).
+     결과), `check`(그 결과가 성립할 때만 통과하는 명령), `status`(`pending | running | pass | fail`).
+     `running`은 `run`이 실행 중이거나 중간에 끊긴 결과다.
    - `decisions[]`: `id`, `question`, `owner`, `decision`, `reason`, `revert`.
    - `verification`: `existing_tests`(변경 주변 기존 테스트 명령), `rounds[]`.
 3. **보고.** 요청이 지정한 파일, 지정이 없으면 답변에 다음을 쓴다.
@@ -71,13 +73,22 @@ Not verified:     <관찰하지 못한 것>
    그 칸을 `covers`에 적은 수용 시나리오가 있어야 한다.
 
 **기록은 스크립트로.** 시나리오 결과는 손으로 적지 않는다. `scripts/scenarios.mjs run`이 각 시나리오의
-명령과 기존 테스트를 실행해 기록하고, `scripts/scenarios.mjs check`가 통과해야 완료다.
+명령과 기존 테스트를 실행해 기록하고, `scripts/scenarios.mjs check`가 통과해야 완료다. `run`은 먼저 모든
+결과를 `running`으로 바꾸고 하나씩 끝날 때마다 저장한다. 그래서 중간에 끊긴 실행은 이전 실행의 통과를
+남기지 않는다.
+
+**이 작업의 기록.** 이 역량을 시작한 작업은 기록을 하나 이상 남기거나, 남기지 않는 이유를
+`scripts/scenarios.mjs decline --reason "<이유>"`로 밝혀야 끝낼 수 있다. 어떤 기록이 이 작업의 것인지는
+기록 도구가 정한다. `scenarios.mjs init|run|check <기록>`과 `compile-control-model.mjs --baseline|--changes|--gate <기록>`,
+그리고 기록 파일을 직접 쓴 편집이 그 기록을 이 작업의 것으로 남긴다. 셸 명령이 다른 방법으로 쓴 파일은
+이 작업의 기록이 아니다. 거절은 "기록이 아직 없음"만 풀고, 이미 남긴 기록은 여전히 통과해야 한다.
+보고는 거절한 이유를 밝힌다.
 
 ## 4. 보장 (관찰 가능한 결과만)
 
 | ID | 보장 | 수준 |
 | --- | --- | --- |
-| G2 | 작업 트리에 3절 형식의 시나리오 파일이 남고, 시나리오마다 확인 명령이 있다 | 필수 |
+| G2 | 작업 트리에 3절 형식의 시나리오 파일이 남고, 시나리오마다 확인 명령이 있다. 기록을 남기지 않기로 거절했다면(`decline --reason`) 그 이유가 보고에 있다 | 필수 |
 | G3 | 요청·코드·문서가 정하지 않은 결정은 모두 결정, 이유, 되돌리는 법과 함께 보고에 기록된다 | 필수 |
 | G4 | 소유자에게 물을 수 없을 때의 결정은 보수적이고 되돌릴 수 있다: 저장된 데이터를 보존하고, 모호하거나 잘못된 입력은 유효한 값으로 받지 않고 거부하며, 되돌릴 수 없는 단계 직전에 상태를 다시 확인한다 | 필수 |
 | G5 | 완료를 보고할 때 모든 시나리오 명령과 변경 주변의 기존 테스트가 통과한 상태이고, 보고는 그 마지막 결과와 검증하지 못한 것을 밝힌다 | 필수 |
@@ -111,7 +122,7 @@ Not verified:     <관찰하지 못한 것>
 
 ### 단계
 
-1. **시나리오.** `assets/acceptance-scenarios.json`을 작업 트리에 복사하고 채운다. 관찰 가능한
+1. **시나리오.** `scripts/scenarios.mjs init <경로>`로 시나리오 파일을 만들고 채운다. 관찰 가능한
    동작마다 시나리오 하나. 해당하면 없음, 비어 있음, 잘못됨, 중복, 동시 실행 경우를 넣는다.
    시나리오마다 확인 명령을 단다.
 2. **소유자 결정.** 요청, 코드, 문서가 정하지 않은 결정을 모두 적는다. 사용자가 있으면 가장 작은
@@ -173,11 +184,12 @@ Not verified:     <관찰하지 못한 것>
 | evidence | `../shared/lenses/evidence.md` | 검사가 실제로 무엇을 증명하는지 |
 
 자산:
-- `assets/acceptance-scenarios.json` — 복사해 채우는 시나리오·결정 기록(3절 2).
+- `assets/acceptance-scenarios.json` — `scenarios.mjs init`이 복사하는 시나리오·결정 기록 틀(3절 2).
 - `assets/control-decisions.json` — 복사해 채우는 제어 모델 결정 기록(3절 4).
 
 스크립트:
-- `scripts/scenarios.mjs` — 시나리오 기록을 실행해 적고(`run`) 완결을 검사한다(`check`).
+- `scripts/scenarios.mjs` — 시나리오 기록을 만들고(`init`), 실행해 적고(`run`), 완결을 검사하고(`check`),
+  기록을 남기지 않는 이유를 밝힌다(`decline --reason`).
 - `scripts/compile-control-model.mjs` — 결정 기록을 상태머신 정의로 컴파일하고, `--gate`로 통과/실패를 판정한다.
 - `scripts/check-control-model.mjs` — 상태머신 정의를 검사하고, 정규형(`--canonical`), 비교(`--compare`),
   테스트 시나리오 도출(`--scenarios`)을 낸다. 컴파일러가 함께 쓴다.

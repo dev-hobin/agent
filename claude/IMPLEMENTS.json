@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "ee812161c0563d65a6ae576d",
+    "spec": "f8fb220feea4aa35a6ae576d",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {
@@ -178,12 +178,12 @@
     "evals": "plugins/hobin-feature/evals/{scenario}/prompt.md",
     "triggers": "plugins/hobin-feature/evals/triggers/developing-features-{trigger}/prompt.md",
     "guarantees": {
-      "G2": "instructed: step 1 and the report form; checked by the scenarios-recorded scenario check",
+      "G2": "instructed: step 1 (scenarios.mjs init, or decline --reason) and the report form; enforced in part: once developing-features starts (Skill tool or the /developing-features prompt, recorded by UserPromptSubmit and PostToolUse hooks) the Stop hook sends Claude back while no record is registered and no reason was declined; checked by the scenarios-recorded scenario check",
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
       "G5": "instructed: steps 5 to 7; the independent-verifier agent is enforced read-only by its tools; checked by the hidden and visible tests and by scenario-record-complete (existing tests run and recorded by scenarios.mjs)",
-      "G6": "enforced: the plugin's hook (hooks/hooks.json) keeps a per-session ledger of the records the session's own tool calls wrote (PostToolUse of Write/Edit/MultiEdit; Bash commands naming a record or a record script, stamped by PreToolUse and read on PostToolUse or PostToolUseFailure) and on Stop sends Claude back while a ledger record fails scenarios.mjs check (up to three times in a row, then the report must say so); records other sessions wrote are left alone; graded by scenario-record-complete through the eval verify plugin",
-      "G7": "enforced: the same Stop hook runs the compile-control-model.mjs gate on each control decision record in the ledger, against the record's project root, and sends Claude back while it fails (up to three times in a row); graded by control-model-gate through the eval verify plugin"
+      "G6": "enforced: scenarios.mjs init|run|check <record> register the record in a per-session ledger (session id from CLAUDE_CODE_SESSION_ID), as do Write/Edit/MultiEdit of a record (PostToolUse); on Stop the hook (hooks/hooks.json) sends Claude back while a ledger record fails scenarios.mjs check or holds running results (live or interrupted run), up to three times in a row, then the report must say so; no shell text or file tree is inferred; graded by scenario-record-complete through the eval verify plugin",
+      "G7": "enforced: compile-control-model.mjs --baseline|--changes|--gate <record> register the control decision record in the same ledger, as do edit tools; the Stop hook runs the gate on each against the record's project root and sends Claude back while it fails (up to three times in a row); graded by control-model-gate through the eval verify plugin"
     }
   },
   "evaluating-skills": {
