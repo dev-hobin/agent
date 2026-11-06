@@ -6,8 +6,8 @@
 // tools' exact file paths. Record tool calls here go through the real records server over stdio,
 // and the hook gets the host's PostToolUse input for that call: Claude names the tool
 // mcp__plugin_hobin-feature_hobin_feature__<tool> and sends failures to PostToolUseFailure (which
-// the hook does not receive); Codex names it mcp__hobin_feature__<tool> and hands the MCP result
-// as the response. Each test is named after the acceptance scenario it checks
+// the hook does not receive); Codex names it mcp__hobin_feature__<tool>, hands the MCP result
+// object ({content, isError}) and fires no PostToolUse for a failed call (observed live, 0.166). Each test is named after the acceptance scenario it checks
 // (docs/plans/acceptance-scenarios-feature-stop-hook-ledger.json) and runs on both hosts' inputs.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -87,7 +87,8 @@ function session(host, cwd, tag = "s") {
 				? { hook_event_name: "PostToolUseFailure", tool_name: toolName, tool_input: args, error: result.content[0].text }
 				: { hook_event_name: "PostToolUse", tool_name: toolName, tool_input: args, tool_response: result.content });
 		} else {
-			run({ hook_event_name: "PostToolUse", tool_name: toolName, tool_input: args, tool_response: JSON.stringify(result) });
+			// Codex 0.166 fires PostToolUse only for a successful MCP call, with the result object.
+			if (!result.isError) run({ hook_event_name: "PostToolUse", tool_name: toolName, tool_input: args, tool_response: result });
 		}
 		return result;
 	};

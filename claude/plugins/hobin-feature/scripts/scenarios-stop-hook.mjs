@@ -89,8 +89,10 @@ function editedRecords(input, root) {
 		.filter(isRecord);
 }
 
-// A tool result the host marks as failed. Claude sends failures to PostToolUseFailure, which this
-// hook does not receive; Codex hands the MCP result, possibly as a JSON string.
+// A tool result the host marks as failed. Neither host sends a failed MCP call to PostToolUse
+// (Claude uses PostToolUseFailure, which this hook does not receive; Codex 0.166 fires no
+// PostToolUse for it); Codex hands a successful result as {content, isError: false}. This check
+// stays as a guard should either host change, and also reads a result serialized as a string.
 function failed(response) {
 	let value = response;
 	if (typeof value === "string") { try { value = JSON.parse(value); } catch { return false; } }
