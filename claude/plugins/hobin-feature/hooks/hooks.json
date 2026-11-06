@@ -13,7 +13,17 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit|Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 60,
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\""
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
         "hooks": [
           {
             "type": "command",

@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "f8fb220feea4aa35a6ae576d",
+    "spec": "c93e96f849e30a31a6ae576d",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {
@@ -178,11 +178,11 @@
     "evals": "evals/hobin-feature/{scenario}/benchmark.json",
     "triggers": "unsupported: plugin-eval has no skill-selection verifier",
     "guarantees": {
-      "G2": "instructed: step 1 (scenarios.mjs init, or decline --reason) and the report form; enforced in part once the user trusts the plugin hooks (/hooks): a $developing-features prompt (UserPromptSubmit) or reading this plugin's SKILL.md (PostToolUse) starts the obligation, and Stop sends Codex back while no record is registered and no reason was declined; checked by the scenarios-recorded scenario check",
+      "G2": "instructed: step 1 (scenarios.mjs init, or decline --reason) and the report form; enforced in part once the user trusts the plugin hooks (/hooks): a $developing-features prompt (UserPromptSubmit) or reading this plugin's SKILL.md (PostToolUse) starts the obligation, and Stop sends Codex back while no record is registered and no hobin-feature-decline line with a reason was printed; checked by the scenarios-recorded scenario check",
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
       "G5": "instructed: steps 5 to 7; the verifier subagent is instructed not to edit (no per-agent sandbox); checked by the hidden and visible tests and by scenario-record-complete (existing tests run and recorded by scenarios.mjs)",
-      "G6": "enforced: once the user trusts the plugin hooks (/hooks), scenarios.mjs init|run|check <record> register the record in a per-session ledger (session id from CODEX_THREAD_ID), as do apply_patch edits of a record; on Stop the hook sends Codex back while a ledger record fails scenarios.mjs check or holds running results, up to three times in a row; no shell text or file tree is inferred; the skill also runs it before finishing",
+      "G6": "enforced: once the user trusts the plugin hooks (/hooks), scenarios.mjs init|run|check <record> and compile-control-model.mjs --baseline|--changes|--gate <record> print a hobin-feature-record line; the PostToolUse hook reads it from any tool's output into its own per-session ledger, as it does for apply_patch edits of a record; on Stop the hook sends Codex back while a ledger record fails scenarios.mjs check or still holds verification.run, up to three times in a row; no session environment, shared temp directory, shell text or file tree is used; a background run's output is not seen, so the Stop message asks for a foreground check; the skill also runs it before finishing",
       "G7": "enforced: once the user trusts the plugin hooks (/hooks), compile-control-model.mjs --baseline|--changes|--gate <record> register the control decision record in the same ledger, as do apply_patch edits; the Stop hook runs the gate on each against the record's project root and sends Codex back while it fails (up to three times in a row); the skill also runs it before finishing"
     }
   },

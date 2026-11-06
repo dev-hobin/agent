@@ -19,7 +19,7 @@ import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 
 import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { CONTROL_RECORD, SCENARIO_RECORD, findFiles, registerRecord } from "./records.mjs";
+import { CONTROL_RECORD, SCENARIO_RECORD, findFiles, recordLine } from "./records.mjs";
 
 import { canonicalize, checkModel, parseExpression } from "./check-control-model.mjs";
 
@@ -410,7 +410,7 @@ function main(argv) {
 	// Inside a host session, a control decision record named with --baseline, --changes or --gate is
 	// the session's: the plugin's Stop hook gates it wherever it lives. Records found by walking are not.
 	if (["--baseline", "--changes", "--gate"].some((flag) => argv.includes(flag))) {
-		for (const file of files) if (existsSync(file) && CONTROL_RECORD.test(basename(file))) registerRecord(file);
+		for (const file of files) if (existsSync(file) && CONTROL_RECORD.test(basename(file))) console.log(recordLine(file));
 	}
 	if (argv.includes("--baseline")) {
 		const records = files.length ? files : findRecords();

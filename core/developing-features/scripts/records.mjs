@@ -4,7 +4,6 @@
 // and a dangling one cannot be read (ENOENT). An entry that cannot be read is skipped, so one
 // unreadable directory never hides the records elsewhere. Dot directories are searched (records
 // often live in planning folders such as .plans/); node_modules and .git* are not.
-import { createHash } from "node:crypto";
 import { appendFileSync, lstatSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -30,49 +29,39 @@ export function findFiles(pattern, dir = ".") {
 	});
 }
 
-// While `scenarios.mjs run` works on a record it leaves a marker in the temp directory, keyed by the
-// record's absolute path: {pid, startedAt}. The run removes it when it ends; a run killed before
-// that leaves the marker of a process that no longer exists. Hooks read it to tell a run still in
-// progress from an interrupted one.
-export function runMarkerPath(recordPath) {
-	const key = createHash("sha256").update(resolve(recordPath)).digest("hex").slice(0, 16);
-	return join(tmpdir(), `hobin-feature-run-${key}.json`);
+// Output protocol. The record tools print one line per record they handled and the reason of a
+// decline; the plugin hook reads these lines from the tool output it is given (PostToolUse
+// tool_response) and keeps its own ledger. Nothing is shared between the command and the hook but
+// that output: no environment variable, no file in a common temp directory.
+export const RECORD_MARKER = "hobin-feature-record:";
+export const DECLINE_MARKER = "hobin-feature-decline:";
+const MARKER_LINE = /^hobin-feature-(record|decline): (.*\S)\s*$/gm;
+
+export const recordLine = (recordPath) => `${RECORD_MARKER} ${resolve(recordPath)}`;
+// A reason is one line: a newline would end the marker.
+export const declineLine = (reason) => `${DECLINE_MARKER} ${String(reason).replace(/\s+/g, " ").trim()}`;
+
+// The marker lines in `text`: absolute record paths and decline reasons, in order. A marker must
+// start its line; the hook further checks that a path exists and names a record file.
+export function parseMarkers(text) {
+	const records = [];
+	const declines = [];
+	for (const [, kind, value] of String(text ?? "").matchAll(MARKER_LINE)) (kind === "record" ? records : declines).push(value.trim());
+	return { records, declines };
 }
 
-function processAlive(pid) {
-	try { process.kill(pid, 0); return true; } catch (error) { return error?.code === "EPERM"; }
-}
+// Output of a command run by `scenarios.mjs run`, made safe to re-print: its marker lines no longer
+// start a line, so fixtures a check creates are never registered as the session's records.
+export const neutralizeMarkers = (text) => String(text ?? "").replace(/^(hobin-feature-(?:record|decline):)/gm, "(from a check) $1");
 
-// The marker of the run on `recordPath`, with whether its process is still alive; null without one.
-export function readRunMarker(recordPath) {
-	let marker;
-	try { marker = JSON.parse(readFileSync(runMarkerPath(recordPath), "utf8")); } catch { return null; }
-	const pid = Number(marker?.pid);
-	if (!Number.isInteger(pid) || pid <= 0) return null;
-	return { pid, startedAt: String(marker.startedAt ?? ""), alive: processAlive(pid) };
-}
-
-// Session state shared by the plugin hook and the record scripts, all in the temp directory and
-// named by the host's session id (the hook's `session_id`, which the host also gives commands as
-// CLAUDE_CODE_SESSION_ID on Claude Code and CODEX_THREAD_ID on Codex):
-// - ledger: the absolute paths of the records this session registered, one per line;
-// - obligation: the session started developing-features (the hook writes it);
-// - decline: the session declined writing a record, with the reason (scenarios.mjs decline).
-export const SESSION_ENV = ["CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID"];
+// The hook's own session state, in the hook process's temp directory; only the hook reads and
+// writes it: the ledger of registered records, the obligation (developing-features started) and
+// the decline reason.
 const safe = (value) => String(value ?? "").replace(/[^\w-]/g, "");
 export const sessionStatePath = (kind, session) => join(tmpdir(), `hobin-feature-${kind}-${safe(session)}`);
 
-// The session id the host gave this command, read at call time; undefined outside a session.
-export function sessionFromEnv(env = process.env) {
-	for (const name of SESSION_ENV) if (typeof env[name] === "string" && env[name].trim()) return env[name].trim();
-	return undefined;
-}
-
-// Adds `recordPath` to the session's ledger. Without a session id this is a no-op.
-export function registerRecord(recordPath, session = sessionFromEnv()) {
-	if (!session) return false;
+export function registerRecord(recordPath, session) {
 	appendFileSync(sessionStatePath("ledger", session), `${resolve(recordPath)}\n`);
-	return true;
 }
 
 export function readLedger(session) {
