@@ -6,7 +6,7 @@
           {
             "type": "command",
             "timeout": 30,
-            "command": "node \"$PLUGIN_ROOT/scripts/scenarios-stop-hook.mjs\""
+            "command": "node \"$PLUGIN_ROOT/scripts/scenarios-stop-hook.mjs\" codex"
           }
         ]
       }
@@ -17,7 +17,7 @@
           {
             "type": "command",
             "timeout": 60,
-            "command": "node \"$PLUGIN_ROOT/scripts/scenarios-stop-hook.mjs\""
+            "command": "node \"$PLUGIN_ROOT/scripts/scenarios-stop-hook.mjs\" codex"
           }
         ]
       }
@@ -28,7 +28,18 @@
           {
             "type": "command",
             "timeout": 300,
-            "command": "node \"$PLUGIN_ROOT/scripts/scenarios-stop-hook.mjs\""
+            "command": "node \"$PLUGIN_ROOT/scripts/scenarios-stop-hook.mjs\" codex"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "node \"$PLUGIN_ROOT/scripts/scenarios-stop-hook.mjs\" codex"
           }
         ]
       }

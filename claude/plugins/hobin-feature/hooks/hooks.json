@@ -6,29 +6,19 @@
           {
             "type": "command",
             "timeout": 30,
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\" claude"
           }
         ]
       }
     ],
     "PostToolUse": [
       {
+        "matcher": "Write|Edit|MultiEdit|Skill|mcp__plugin_hobin-feature_hobin_feature__.*",
         "hooks": [
           {
             "type": "command",
             "timeout": 60,
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\""
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 60,
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\" claude"
           }
         ]
       }
@@ -39,7 +29,18 @@
           {
             "type": "command",
             "timeout": 300,
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\" claude"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/scenarios-stop-hook.mjs\" claude"
           }
         ]
       }

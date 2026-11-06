@@ -1,4 +1,4 @@
-# 2026-11-06 hobin-feature: structural record registration and run state
+# 2026-11-06 hobin-feature: record tools observed by hooks, and run state
 
 ## What was observed (hobin-feature 0.5.1, one CRM session on Claude Code)
 
@@ -11,55 +11,73 @@
    the record once at the end: a 20-minute run read `pending` on every Stop, and a run killed
    midway left the previous run's `pass` for `check` to accept.
 
-## First attempt, rejected: inferring directories from shell text
+## Approaches dropped, and why
 
-PR #8's first revision also walked every existing directory a command named. Measured walk cost
-(reported by the user's review): 2.7 s on `/private/tmp/claude-501`; 4.6 s and 743 records that
-were not the session's on the macOS temp directory. Any heuristic over shell text either misses
-(`python3 -c` writing a computed path) or over-claims (a named parent folder). The user rejected
-inference: what counts must come from fixed identifiers and from the record tools themselves.
+| Revision | Registration came from | Dropped because |
+|---|---|---|
+| 1 | Shell text: directories a command named, walked for records | Measured walk cost (user review): 2.7 s on `/private/tmp/claude-501`; 4.6 s and 743 records that were not the session's on the macOS temp directory. A heuristic over shell text either misses (`python3 -c` writing a computed path) or over-claims (a named parent folder). The user rejected inference |
+| 2 | The scripts appending to the hook's ledger, with the session id from `CLAUDE_CODE_SESSION_ID` / `CODEX_THREAD_ID` and the ledger in an `os.tmpdir()` both had to share | Depends on host details the plugin does not own: a sandbox that gives commands their own `TMPDIR`, a renamed variable or `env -i` silently stops registration; checks run by `run` had to strip the id. The user asked for the shared-TMPDIR assumption to be removed, not documented |
+| 3 | Marker lines (`hobin-feature-record: <path>`) printed by the scripts, parsed from every tool's output | Still inference, over text: any output or file the session reads can carry a marker, re-printed check output had to be neutralized, background runs are invisible, and output truncation or a different response shape breaks it |
 
-## Second attempt, replaced: session id in the environment plus a shared temp directory
+## Research (host sources, read for this design)
 
-PR #8's second revision had the record scripts append to the hook's ledger themselves: the
-session id came from the command environment (`CLAUDE_CODE_SESSION_ID`, `CODEX_THREAD_ID`) and
-the ledger lived in `os.tmpdir()`, which the hook and the command had to share. Both were
-assumptions about the host, not contracts of this plugin: a sandbox that gives commands their own
-`TMPDIR`, a host that stops exporting the variable or names it differently, or a command run
-under `env -i` would silently stop registration. Checks run by `run` also had to strip the id so
-that fixtures did not register. The user asked for the shared-TMPDIR assumption to be removed,
-not documented.
+| Host fact | Source |
+|---|---|
+| Claude Code plugins can bundle a stdio MCP server (`.mcp.json` at the plugin root, `${CLAUDE_PLUGIN_ROOT}` expanded); its tools are named `mcp__plugin_<plugin>_<server>__<tool>` | code.claude.com/docs/en/plugins/components.md, mcp.md |
+| PreToolUse / PostToolUse / PostToolUseFailure fire for MCP tools with structured `tool_input`; a matcher must name the full `mcp__plugin_<plugin>_<server>__` prefix, a bare server name never matches | code.claude.com/docs/en/hooks.md |
+| Hooks get `${CLAUDE_PLUGIN_DATA}` (`~/.claude/plugins/data/<id>/`, persistent across sessions and updates) | hooks.md, plugins reference |
+| Stop input carries `background_tasks` | hooks.md |
+| The transcript format is explicitly unstable: never parse it | sessions.md |
+| MCP calls longer than 2 min move to the background (`CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS`) | mcp.md |
+| Codex 0.166 (`rust-v0.166.0`): `.codex-plugin/plugin.json` `mcpServers` (a `./` path or inline) or `<plugin_root>/.mcp.json`; the file may be `{"mcpServers": {...}}` or a bare map | `core-plugins/src/manifest.rs:48-74`, `core-plugins/src/loader.rs:76,1150-1163`, `codex-mcp/src/plugin_config.rs:44-71` |
+| A relative `cwd` resolves against the plugin root; the legacy format does not expand `${PLUGIN_ROOT}` | `codex-mcp/src/plugin_config.rs:322-331` |
+| Stdio MCP servers run outside the sandbox | `rmcp-client/src/stdio_server_launcher.rs:451-480` |
+| PreToolUse and PostToolUse fire for MCP tools with `tool_name` `mcp__<server>__<tool>` (server name sanitized to `[A-Za-z0-9_]`, hash-suffixed only on a collision) and structured `tool_input` | `core/src/tools/handlers/mcp.rs:139-161,493-545,592-598`, `codex-mcp/src/tools.rs:113-150,228-234`, `codex-mcp/src/mcp/mod.rs:603-618` |
+| The hook `session_id` is the root thread id; hooks get `PLUGIN_DATA` and `CLAUDE_PLUGIN_DATA` | `core/src/hook_runtime.rs:207`, `hooks/src/engine/discovery.rs:311-319` |
+| Codex has a SessionEnd hook event | `hooks/src/events/session_end.rs` |
+| Default MCP tool timeout 300 s in source, 60 s in the docs: set `tool_timeout_sec` / `startup_timeout_sec` explicitly | Codex config docs; source default |
+| Approval: under `auto`, an MCP tool needs approval unless `readOnlyHint: true`, or `destructiveHint: false` and `openWorldHint: false`; with approval policy `never` and a restricted sandbox, a tool that needs approval is denied | `core/src/mcp_tool_call.rs:2545-2576,1655-1663` |
 
-## Design (0.6.0): the record tools print, the hook reads tool output
+Re-read for this revision at the tag: `plugin_config.rs`, `manifest.rs`, `loader.rs`
+(`.mcp.json` default, `mcpServers` path), `handlers/mcp.rs` (hook tool name and payloads),
+`codex-mcp/src/tools.rs` and `mcp/mod.rs` (namespace sanitizing), and the `hooks/src/events`
+listing. The sandbox, session id, plugin data, timeout and approval rows are taken from the
+research brief and were not re-read.
+
+Checked on this machine: an isolated `codex plugin add` then `codex mcp list --json` lists
+`hobin_feature` (stdio, `node ./scripts/records-mcp-server.mjs`, `cwd` the installed plugin root,
+timeouts 20 s / 60 s); an isolated `claude plugin install` then `claude mcp list` reports
+`plugin:hobin-feature:hobin_feature … ✔ Connected`.
+
+## Design (0.6.0): record operations are plugin tools observed by hooks
+
+**The tool/shell split.** Record operations (`init`, `register`, `check`, `decline`) are tools of
+a stdio MCP server the plugin ships (`scripts/records-mcp-server.mjs`, the same file on both
+hosts; the logic lives in core `scripts/record-tools.mjs`, shared with the CLI). Stdio MCP
+servers run outside the host sandbox, so the server must never execute project commands: it
+only reads and creates record files and keeps no session state. Running scenario checks and the
+existing tests stays `scenarios.mjs run <record>` in the shell, under the host's sandbox and
+approvals. Paths given to the tools are absolute (the server's working directory is the plugin
+root on Codex, not the project).
 
 | Concern | Source of truth |
 |---|---|
-| The session started the skill (obligation) | Claude: PostToolUse `Skill` with `tool_input.skill` matching `(^\|:)developing-features$`; UserPromptSubmit `prompt` starting `/developing-features` or `/hobin-feature:developing-features`. Codex: UserPromptSubmit `prompt` containing `$developing-features`; a shell command whose text contains this plugin's `skills/developing-features/SKILL.md` path |
-| A record is the session's | `scenarios.mjs init\|run\|check <record>` and `compile-control-model.mjs --baseline\|--changes\|--gate <record>` print `hobin-feature-record: <absolute path>` on stdout, one line per record. On PostToolUse and PostToolUseFailure of every tool the hook walks every string in `tool_response` (and a failure's `error`), shape-agnostically, including strings that are themselves JSON, and matches lines anchored at line start. A path counts when it is absolute, exists and has a record file name. Edit tools still register their exact `file_path` / apply_patch path |
-| Which session | the hook input's `session_id`; the ledger is the hook's own file in the hook process's temp directory. The scripts know nothing about sessions |
-| Release without a record | `scenarios.mjs decline --reason "<why>"` prints `hobin-feature-decline: <reason>` (non-empty, one line). It lifts only the "no record yet" obligation; records already registered must still pass (conservative). Stop prints the reason so the report can state it |
-| Run state | in the record: `verification.run = { startedAt, lastProgressAt }` while `run` works, results `running`, saved after each scenario and after the existing tests; deleted when the run ends, also on a throw. `check` and Stop treat a present `verification.run` as incomplete: "a scenarios.mjs run started at … (last progress …) has not finished; if it is still running wait for it, do not start another; if it stopped, run it again." No liveness claim: only the record is known |
+| The session started the skill (obligation) | unchanged: Claude PostToolUse `Skill` with `tool_input.skill` matching `(^\|:)developing-features$`, UserPromptSubmit starting `/developing-features` or `/hobin-feature:developing-features`; Codex UserPromptSubmit containing `$developing-features`, a shell command containing this plugin's SKILL.md path |
+| A record is the session's | a successful PostToolUse for `mcp__plugin_hobin-feature_hobin_feature__(init\|register\|check)` (Claude) or `mcp__hobin_feature__(init\|register\|check)` (Codex; hooks.json passes the host to the script), by `tool_input.path`, which must name an existing record file; a Codex result marked `isError` does not count (Claude sends failures to PostToolUseFailure, which this hook does not receive). Edit tools register their exact path. Nothing else: no shell text, output, environment, shared directory or tree |
+| Release without a record | a successful `decline` call with a non-empty `tool_input.reason`; lifts only the "no record yet" obligation |
+| Where state lives | the host's plugin data directory (`CLAUDE_PLUGIN_DATA`; Codex `PLUGIN_DATA` / `CLAUDE_PLUGIN_DATA`), `hobin-feature-sessions/<kind>-<session_id>`; `os.tmpdir()` only when neither is set. SessionEnd deletes the session's files; Stop and SessionEnd prune files older than 7 days |
+| Run state | in the record: `verification.run = { startedAt, lastProgressAt }` while `run` works, results `running`, saved after each scenario and the existing tests, deleted when the run ends (also on a throw). `check` and Stop report "a scenarios.mjs run started at … (last progress …) has not finished; if it is still running wait for it, do not start another; if it stopped, run it again." No liveness claim. On Claude, Stop adds "background tasks are still running" when `background_tasks` is non-empty |
+| Stop without a record | names this host's `init`, `register` and `decline` tools exactly, and says shell `scenarios.mjs` registers nothing |
 
-Why output rather than shared state: the tool's output is the one thing every host already hands
-the hook for the same call, in the same session, without either side assuming an environment
-variable or a common directory. The scripts stay session-agnostic, and running them outside any
-host has no side effect.
+**Approval.** Tool annotations: `check` `readOnlyHint: true`; `init`, `register`, `decline`
+`destructiveHint: false`, `openWorldHint: false`. Codex's `auto` MCP approval therefore runs them
+without asking, and a `never` policy with a restricted sandbox does not deny them. Claude Code asks
+for MCP tool permission per its own permission settings; a user can allow
+`mcp__plugin_hobin-feature_hobin_feature__*`. A denied call registers nothing and Stop then asks
+for the tool again (a visible block).
 
-What stays out:
-- A walk without a record path prints no marker: it may find other sessions' records.
-- `run` re-prints a failing check's output with its marker lines prefixed `(from a check) `, so a
-  check that creates fixture records never registers them; a passing check's output is not
-  printed at all.
-- A marker in a file the session reads (Read tool, `cat`) registers that record. This is
-  deliberate fail-safe: the worst case is an extra record the session must make pass, never a
-  record silently left ungated.
-
-### Limitation: background runs
-
-A command started in the background returns before it prints, so its output never reaches the
-hook. The recovery is deterministic: the Stop message for "skill started, no record registered"
-says to run `scenarios.mjs init <path>` for a new record or `scenarios.mjs check <path>` in the
-foreground for an existing one (or `decline --reason`), and SKILL.md step 1 says the same.
+**Kept for people.** `scenarios.mjs init|check|decline` stay on the command line; they register
+nothing, and the CLI `decline` says so.
 
 ## Not added: `run --only`
 
@@ -68,36 +86,39 @@ run"); the record has no code fingerprint to tell a code change from a record-on
 
 ## What host changes would break this
 
-- The hook input stops carrying tool output (`tool_response`, or `error` on Claude's
-  PostToolUseFailure), or the output is truncated before the marker line. Then registration from
-  the record tools stops and Stop asks for a record (a visible block with the recovery command,
-  not a silent pass). Edit-tool registration is unaffected.
+- The MCP tool naming (`mcp__plugin_<plugin>_<server>__<tool>`, `mcp__<server>__<tool>`), or
+  PostToolUse no longer firing for MCP tools / no longer carrying `tool_input`. Then records stop
+  registering and Stop asks for the tools (a visible block, not a silent pass). Edit-tool
+  registration is unaffected.
+- Codex dropping `mcpServers` / `.mcp.json` loading or plugin-root `cwd` resolution: the server
+  does not start; same visible block.
+- The plugin data variables disappearing: state falls back to the OS temp directory, which only
+  the hook uses, so it still works within a session.
 - The Skill tool's name or `tool_input.skill`, the UserPromptSubmit `prompt` field, the Codex
-  `$skill` mention syntax, or the SKILL.md install path. Then the obligation does not start and
-  only registered records are gated (as in 0.5.1).
-
-No environment variable and no directory shared between the hook and the command is assumed.
+  `$skill` mention syntax, or the SKILL.md install path: the obligation does not start and only
+  registered records are gated (as in 0.5.1).
 
 ## Verification
 
-- `tests/feature-stop-hook.test.mjs` (both hosts; every script runs with its own `TMPDIR`, the
-  hook with another, and the script's real stdout is fed as `tool_response` in the host's shape:
-  Claude Bash `{stdout, stderr}` or PostToolUseFailure `error`, Codex a JSON string): F7 `init`
-  after a cd out of the hook cwd is registered from its printed line and gated; F9 run/check
-  print and register only the named record, a walk prints nothing; F15 a relative, missing or
-  non-record path, or a marker not at line start, is ignored; F30 a marker in a read file
-  registers (fail-safe); F31 markers register from string, object, JSON-string, nested and
-  failure shapes; F5 another session's output does not register here; F17 the compiler prints
-  and registers; F20 checks run by `run` never register (passing output not shown, failing output
-  neutralized); F22 a record written only by a shell program after the skill starts → Stop asks
-  for init, a foreground check or a decline; F23 a printed decline releases and reports, an empty
-  reason is rejected; F24 decline does not exempt a registered record; F25 no start and no record
-  → allow; F26/F27 obligation sources; F18 hook wiring (every tool, no session env or pid left);
-  F29 a run killed midway leaves `verification.run` and Stop/check report it, a finished run
-  clears it; kept F1–F4, F6, F10–F14, F16, F19, F21.
-- `tests/scenarios-record.test.mjs`: R1 a killed run leaves `verification.run` and `running`, the
-  wording carries its times and no liveness claim; R2 a finished run removes it; R3 a failing or
-  throwing run removes it.
-- Mutation checks: an identity `neutralizeMarkers` fails F20; dropping `error` from the walked
-  strings fails F31 on Claude; dropping the JSON-string walk fails F7 on Codex.
-- `pnpm check`: 187 tests pass, 0 fail. The record `docs/plans/acceptance-scenarios-feature-stop-hook-ledger.json` passes `scenarios.mjs run`.
+- `tests/feature-stop-hook.test.mjs` (both hosts). Record tool calls go through the real server
+  over stdio, and the hook gets that host's PostToolUse input. The hook's TMPDIR changes on every
+  call and no shell is involved in registration. F7 init registers a record outside the hook cwd;
+  F8 refused calls (overwrite, bad name, relative path) register nothing; F9 register and check
+  register only the named record, check reports problems as a successful call; F15 another
+  host's tool name, a bare server name, other servers, unknown tools, missing or non-record paths
+  and an `isError` result register nothing; F17 check registers a control record; F20 shell
+  `scenarios.mjs` and the compiler register nothing, whatever they print; F22 a shell-only record
+  after the skill starts → Stop names this host's tools; F23 decline (empty reason rejected), CLI
+  decline records nothing; F24 decline does not exempt; F30 SessionEnd cleanup and 7-day prune in
+  the plugin data directory; F31 server round trip (initialize, tools/list annotations, each tool,
+  unknown tool and method); F18 wiring (Claude matcher with the full MCP prefix, Codex config as
+  Codex resolves it, identical scripts, no session env, pid or marker left, no `child_process` in
+  the record tools); F29 a run killed midway is reported (and background tasks on Claude); kept
+  F1–F4, F6, F10–F14, F16, F19, F21, F25–F27.
+- `tests/scenarios-record.test.mjs`: killed, finished, failing and throwing runs.
+- Mutation checks on the Codex hook copy: ignoring `isError` fails F8/F15; skipping the
+  SessionEnd clear or the Stop prune fails F30; matching any `mcp__…__<tool>` fails F15.
+- `pnpm check`: 188 tests pass, 0 fail. `pnpm check:claude` passes (only the existing icon warnings);
+  `pnpm check:install -- claude` and `-- codex` pass. The record
+  `docs/plans/acceptance-scenarios-feature-stop-hook-ledger.json` passes `scenarios.mjs run`.
+- Not run: paid host evals; a live model session calling the tools.

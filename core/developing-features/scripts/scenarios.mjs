@@ -10,20 +10,20 @@
 //   node scenarios.mjs check [record]   exit 0 when the record is complete and every result
 //                                       passed; otherwise print what to fix
 //   node scenarios.mjs decline --reason "<why>"
-//                                       this session writes no record, for the stated reason
+//                                       validates a reason; records nothing for any session
 // Without a record argument, every acceptance-scenarios*.json under the current directory
 // (outside node_modules) is used. Results come only from `run`, never from hand edits.
 //
-// init, and run or check with a record path, print `hobin-feature-record: <absolute path>`; decline
-// prints `hobin-feature-decline: <reason>`. The plugin hook reads those lines from the tool
-// output and keeps the session's ledger itself. A walk without a record path prints no marker:
-// the records it finds may be other sessions'.
+// This command line is for people and for `run`, which executes project commands and so belongs
+// in the host's shell, under its sandbox and approvals. It registers nothing: the plugin's Stop
+// hook learns a session's records only from the plugin's record tools (record-tools.mjs, served
+// over MCP: init, register, check, decline) and from edit tools that write a record.
 import { execSync } from "node:child_process";
 import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { SCENARIO_RECORD, declineLine, findFiles, neutralizeMarkers, recordLine } from "./records.mjs";
+import { SCENARIO_RECORD, findFiles } from "./records.mjs";
 
 const placeholder = (value) => typeof value !== "string" || !value.trim() || /<[^>]+>/.test(value);
 
@@ -88,23 +88,28 @@ export const runNotFinished = (run) =>
 
 const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), "../assets/acceptance-scenarios.json");
 
-function init(file) {
-	if (!file) { console.error("Usage: scenarios.mjs init <path>/acceptance-scenarios<name>.json"); return 2; }
-	if (!SCENARIO_RECORD.test(file.split(/[\\/]/).pop())) { console.error(`${file}: the record's file name must match acceptance-scenarios*.json.`); return 2; }
-	if (existsSync(file)) { console.error(`${file} already exists; init never overwrites a record. Edit it, or pick another name.`); return 1; }
+// Creates a record from the template: { status: 0 } created, 1 exists (never overwritten), 2 bad
+// name; `message` says what happened. Shared by the init command and the init tool.
+export function createRecord(file) {
+	if (!SCENARIO_RECORD.test(String(file).split(/[\\/]/).pop())) return { status: 2, message: `${file}: the record's file name must match acceptance-scenarios*.json.` };
+	if (existsSync(file)) return { status: 1, message: `${file} already exists; init never overwrites a record. Edit it, or pick another name.` };
 	mkdirSync(dirname(resolve(file)), { recursive: true });
 	copyFileSync(TEMPLATE, file);
-	console.log(recordLine(file));
-	console.log(`${file}: created from the template. Fill every scenario and decision, then run "scenarios.mjs run ${file}".`);
-	return 0;
+	return { status: 0, message: `${file}: created from the template. Fill every scenario and decision, then run "scenarios.mjs run ${file}".` };
+}
+
+function init(file) {
+	if (!file) { console.error("Usage: scenarios.mjs init <path>/acceptance-scenarios<name>.json"); return 2; }
+	const { status, message } = createRecord(file);
+	(status ? console.error : console.log)(message);
+	return status;
 }
 
 function decline(args) {
 	const at = args.indexOf("--reason");
 	const reason = at >= 0 ? String(args[at + 1] ?? "").trim() : "";
 	if (!reason || reason.startsWith("--")) { console.error('Usage: scenarios.mjs decline --reason "<why this session writes no acceptance-scenario record>"'); return 2; }
-	console.log(declineLine(reason));
-	console.log("Declined for this session. Records already registered must still pass; give the reason in the report.");
+	console.log("Nothing recorded: this command line belongs to no session. In a host session, call the plugin's decline tool with this reason; records already registered must still pass.");
 	return 0;
 }
 
@@ -115,8 +120,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 	if (!["run", "check"].includes(mode)) { console.error("Usage: scenarios.mjs <init|run|check> [record] | decline --reason \"<why>\""); process.exit(2); }
 	const records = file ? [file] : findRecords();
 	if (!records.length) { console.error('No acceptance-scenarios*.json found; create one with "scenarios.mjs init <path>".'); process.exit(1); }
-	// A record named on the command line is the session's; records found by walking are not.
-	if (file && existsSync(file)) console.log(recordLine(file));
 	let ok = true;
 	for (const path of records) {
 		const record = JSON.parse(readFileSync(path, "utf8"));
@@ -135,13 +138,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 					const result = runCommand(s.check);
 					s.status = result.status;
 					progress();
-					if (result.status !== "pass") { ok = false; console.error(`${path} ${s.id}: fail\n${neutralizeMarkers(result.output.slice(-2000))}`); }
+					if (result.status !== "pass") { ok = false; console.error(`${path} ${s.id}: fail\n${result.output.slice(-2000)}`); }
 				}
 				if (testsDeclared) {
 					const result = runCommand(v.existing_tests);
 					v.existing_tests_status = result.status;
 					progress();
-					if (result.status !== "pass") { ok = false; console.error(`${path} existing tests: fail\n${neutralizeMarkers(result.output.slice(-2000))}`); }
+					if (result.status !== "pass") { ok = false; console.error(`${path} existing tests: fail\n${result.output.slice(-2000)}`); }
 				}
 			} finally {
 				delete v.run;
