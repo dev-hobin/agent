@@ -38,18 +38,19 @@ Request: $ARGUMENTS (if empty, take it from the conversation)
 
 ## Procedure
 
-1. **Scenarios.** Create the record with
-   `node ${CLAUDE_SKILL_DIR}/scripts/scenarios.mjs init <path>/acceptance-scenarios<name>.json`
-   (next to the feature or in the project's planning folder; it copies the template and never
-   overwrites) and fill it: one scenario per observable behavior, including absent, empty,
+1. **Scenarios.** Create the record by calling this plugin's records tool `init` (`mcp__plugin_hobin-feature_hobin_feature__init`)
+   with the record's absolute path, `<path>/acceptance-scenarios<name>.json` (next to the
+   feature or in the project's planning folder; it copies the template and never
+   overwrites), and fill it: one scenario per observable behavior, including absent, empty,
    invalid, duplicate, and concurrent cases where they apply. Every scenario names the
-   command that checks it. `init`, `run` and `check` with the record path print a `hobin-feature-record:` line
-   that marks it as this session's record, so the Stop hook checks it wherever it lives; a
-   file a shell program writes some other way is not. The hook sees only foreground output:
-   run these in the foreground, and after a background run, run `check <record>` in the
-   foreground. If this work truly needs no record, run
-   `node ${CLAUDE_SKILL_DIR}/scripts/scenarios.mjs decline --reason "<why>"` and give the
-   reason in the report; records already made must still pass.
+   command that checks it. The records tools (`mcp__plugin_hobin-feature_hobin_feature__init`, `…__register`, `…__check`, `…__decline`) are how
+   this session's records are known: `init`, `register` (a record that already exists) and
+   `check` make a record this session's, so the Stop hook checks it wherever it lives.
+   Writing the record with the edit tools also counts. Shell commands register nothing,
+   `scenarios.mjs` included, and neither does a file a shell program writes. If this work truly needs no record, call `decline` with the reason and
+   give the reason in the report; records already made must still pass. Running the
+   scenario checks stays in the shell (`scenarios.mjs run <record>`, step 7): the records
+   tools never execute project commands.
 2. **Owner decisions.** List every decision the request, code, and documents do not
    settle. If the user is available, ask the smallest question. If not, take the
    conservative reversible default (preserve stored data, reject ambiguous or malformed
@@ -106,7 +107,7 @@ Not verified:     <what could not be observed>
 ## When to read more
 
 - `${CLAUDE_SKILL_DIR}/assets/acceptance-scenarios.json` — the scenario and decision
-  record template `scenarios.mjs init` copies.
+  record template the `init` tool copies.
 - `${CLAUDE_PLUGIN_ROOT}/knowledge/developing-features/condition-modeling.md` — several
   conditions combine, absence or defaults matter, or order and time matter.
 - `${CLAUDE_SKILL_DIR}/assets/control-decisions.json` — the control decision record to copy

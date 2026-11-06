@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "hobin_feature": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/records-mcp-server.mjs"]
+    }
+  }
+}
