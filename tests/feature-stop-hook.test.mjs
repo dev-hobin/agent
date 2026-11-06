@@ -77,7 +77,7 @@ function session(host, cwd, tag = "s") {
 			input: JSON.stringify({ session_id: id, cwd, ...input }),
 			encoding: "utf8", env: cleanEnv({ CLAUDE_PLUGIN_ROOT: root, PLUGIN_ROOT: root, ...data, TMPDIR: workspace() }),
 		});
-		return { status: result.status, stderr: result.stderr };
+		return { status: result.status, stderr: result.stderr, stdout: result.stdout };
 	};
 	// A record tool call: the real server answers, then the host's post-call hook input.
 	const tool = (name, args, toolName = `${TOOL_PREFIX[host]}${name}`) => {
@@ -567,11 +567,11 @@ test("F31 server: initialize, tools/list with annotations, and each tool over a 
 });
 
 test("F18 hooks and server: per-host wiring, the same shipped scripts, and a records server config each host loads", () => {
-	const expected = ["PostToolUse", "SessionEnd", "Stop", "UserPromptSubmit"];
+	const expected = { claude: ["PostToolUse", "PreToolUse", "SessionEnd", "Stop", "UserPromptSubmit"], codex: ["PostToolUse", "SessionEnd", "Stop", "UserPromptSubmit"] };
 	for (const host of HOSTS) {
 		const root = pluginRoot(host);
 		const hooks = JSON.parse(readFileSync(join(root, "hooks/hooks.json"), "utf8")).hooks;
-		assert.deepEqual(Object.keys(hooks).sort(), expected, host);
+		assert.deepEqual(Object.keys(hooks).sort(), expected[host], host);
 		for (const [event, groups] of Object.entries(hooks)) {
 			assert.equal(groups.length, 1, `${host} ${event}`);
 			const [hook] = groups[0].hooks;
@@ -604,16 +604,39 @@ test("F18 hooks and server: per-host wiring, the same shipped scripts, and a rec
 	assert.ok(existsSync(join(cwd, server.args[0])), "the server script resolves from cwd");
 	assert.equal(typeof server.startup_timeout_sec, "number");
 	assert.equal(typeof server.tool_timeout_sec, "number");
+	assert.equal(server.default_tools_approval_mode, "approve", "Codex never asks before these local record tools");
 
 	for (const file of ["scenarios-stop-hook.mjs", "records-mcp-server.mjs"]) {
 		assert.equal(readFileSync(join(pluginRoot("claude"), "scripts", file), "utf8"), readFileSync(join(codexRoot, "scripts", file), "utf8"), file);
 	}
 	const hook = readFileSync(join(pluginRoot("claude"), "scripts/scenarios-stop-hook.mjs"), "utf8");
-	assert.doesNotMatch(hook, /PreToolUse|findFiles|mtime|spawnSync|execSync|tool_response\)\s*\{|parseMarkers|hobin-feature-record/, "no shell, output, tree or git inference is left in the hook");
+	assert.doesNotMatch(hook, /findFiles|mtime|spawnSync|execSync|tool_response\)\s*\{|parseMarkers|hobin-feature-record/, "no shell, output, tree or git inference is left in the hook");
 	for (const file of [hook, ...["records.mjs", "scenarios.mjs", "record-tools.mjs"].map((name) => readFileSync(join(coreScripts, name), "utf8"))]) {
 		assert.doesNotMatch(file, /CLAUDE_CODE_SESSION_ID|CODEX_THREAD_ID|process\.pid|hobin-feature-record:/, "no session id, pid or output marker");
 	}
 	assert.doesNotMatch(readFileSync(join(coreScripts, "record-tools.mjs"), "utf8"), /child_process/, "the record tools execute no command");
+});
+
+test("F32 claude: PreToolUse allows exactly this plugin's four record tools without a prompt; nothing else, and nothing on Codex", () => {
+	const cwd = workspace();
+	const claude = session("claude", cwd);
+	const preMatcher = new RegExp(`^(?:${JSON.parse(readFileSync(join(pluginRoot("claude"), "hooks/hooks.json"), "utf8")).hooks.PreToolUse[0].matcher})$`);
+	for (const tool of ["init", "register", "check", "decline"]) {
+		const name = `${TOOL_PREFIX.claude}${tool}`;
+		assert.ok(preMatcher.test(name), name);
+		const result = claude.run({ hook_event_name: "PreToolUse", tool_name: name, tool_input: { path: join(cwd, "acceptance-scenarios.json") } });
+		assert.equal(result.status, 0);
+		assert.deepEqual(JSON.parse(result.stdout).hookSpecificOutput, { hookEventName: "PreToolUse", permissionDecision: "allow",
+			permissionDecisionReason: "hobin-feature record tool: reads or creates a record file only, runs no command" }, name);
+	}
+	for (const name of ["Bash", "Write", `${TOOL_PREFIX.claude}run`, `${TOOL_PREFIX.claude}init_all`, `${TOOL_PREFIX.codex}init`, "mcp__plugin_other_hobin_feature__init"]) {
+		assert.ok(!preMatcher.test(name) || name.startsWith(TOOL_PREFIX.claude), name);
+		const result = claude.run({ hook_event_name: "PreToolUse", tool_name: name, tool_input: {} });
+		assert.equal(result.stdout, "", name);
+	}
+	const codex = session("codex", cwd);
+	assert.equal(codex.run({ hook_event_name: "PreToolUse", tool_name: `${TOOL_PREFIX.codex}init`, tool_input: {} }).stdout, "");
+	assert.equal(claude.stop().status, 0, "allowing a call registers nothing by itself");
 });
 
 const RUN_WORDING = /a scenarios\.mjs run started at \S+ \(last progress \S+\) has not finished; if it is still running wait for it, do not start another; if it stopped, run it again\./;

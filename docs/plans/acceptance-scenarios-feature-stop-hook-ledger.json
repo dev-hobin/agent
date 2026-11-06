@@ -289,6 +289,15 @@
       "covers": []
     },
     {
+      "id": "F32",
+      "given": "the Claude hook and the Codex hook",
+      "when": "PreToolUse arrives for each of the four record tools by exact name, and for Bash, Write, other names under the prefix, the Codex name and another plugin's server",
+      "then": "Claude returns permissionDecision allow for exactly the four tools and nothing for the rest; Codex prints nothing; allowing registers nothing",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^F32 ' tests/feature-stop-hook.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
+      "status": "pass",
+      "covers": []
+    },
+    {
       "id": "R1",
       "given": "a record whose results all passed in an earlier run",
       "when": "scenarios.mjs run is killed during its first check",
@@ -447,11 +456,11 @@
     },
     {
       "id": "D-approval",
-      "question": "Should the tools need approval on each call?",
-      "owner": "team",
-      "decision": "No on Codex: check is readOnlyHint, the others destructiveHint false and openWorldHint false, which auto approval accepts; Claude follows the user's permission settings",
-      "reason": "A denied or prompted call under approval policy never would block every feature session; the tools only touch record files",
-      "revert": "Change the annotations in record-tools.mjs"
+      "question": "Should the records tools ask for permission on each call?",
+      "owner": "user",
+      "decision": "Never: on Claude a PreToolUse hook allows exactly the four tools (deny and ask rules still apply); on Codex the annotations plus default_tools_approval_mode approve",
+      "reason": "The user: a permission prompt on every MCP call makes the plugin unusable. Plugin settings cannot carry permissions, and skill allowed-tools clears after the turn",
+      "revert": "Drop the PreToolUse entry from the Claude hooks.json and default_tools_approval_mode from the Codex .mcp.json"
     }
   ],
   "verification": {
