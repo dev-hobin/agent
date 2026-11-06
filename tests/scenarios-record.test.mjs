@@ -7,7 +7,7 @@ import test from "node:test";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
 import { checkRecord, outsideProject } from "../core/developing-features/scripts/scenarios.mjs";
-import { readRunMarker, runMarkerPath } from "../core/developing-features/scripts/records.mjs";
+import { SESSION_ENV, readRunMarker, runMarkerPath } from "../core/developing-features/scripts/records.mjs";
 
 test("a scenario command may not name a home path or an existing file outside the project", (t) => {
 	const project = mkdtempSync(join(tmpdir(), "scenario-project-"));
@@ -21,6 +21,9 @@ test("a scenario command may not name a home path or an existing file outside th
 });
 
 const SCENARIOS = join(repositoryRoot, "core/developing-features/scripts/scenarios.mjs");
+// Without the host session id: these tests run inside agent sessions, and the script would
+// otherwise register its fixture into that session's ledger.
+const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !SESSION_ENV.includes(name)));
 // A complete record whose results all passed in an earlier run; `slow` makes S1's check take a while.
 function passedRecord(project, { slow = false } = {}) {
 	const record = {
@@ -41,7 +44,7 @@ test("a run that is killed midway leaves running results and a dead marker, neve
 	const project = mkdtempSync(join(tmpdir(), "scenario-run-"));
 	const path = passedRecord(project, { slow: true });
 	t.after(() => { rmSync(project, { recursive: true, force: true }); rmSync(runMarkerPath(path), { force: true }); });
-	const child = spawn("node", [SCENARIOS, "run", path], { cwd: project, stdio: "ignore" });
+	const child = spawn("node", [SCENARIOS, "run", path], { cwd: project, stdio: "ignore", env });
 	const deadline = Date.now() + 10_000;
 	while (!readFileSync(path, "utf8").includes('"running"')) {
 		assert.ok(Date.now() < deadline, "the run marks results running before it starts the first check");
@@ -67,7 +70,7 @@ test("a run that finishes saves every result and removes its marker", (t) => {
 	const project = mkdtempSync(join(tmpdir(), "scenario-run-"));
 	const path = passedRecord(project);
 	t.after(() => rmSync(project, { recursive: true, force: true }));
-	const result = spawnSync("node", [SCENARIOS, "run", path], { cwd: project, encoding: "utf8" });
+	const result = spawnSync("node", [SCENARIOS, "run", path], { cwd: project, encoding: "utf8", env });
 	assert.equal(result.status, 0, result.stderr);
 	const record = JSON.parse(readFileSync(path, "utf8"));
 	assert.deepEqual(record.scenarios.map((s) => s.status), ["pass", "pass"]);

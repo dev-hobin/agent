@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Run and check the acceptance-scenario record (assets/acceptance-scenarios.json format).
+// Create, run and check the acceptance-scenario record (assets/acceptance-scenarios.json format).
+//   node scenarios.mjs init  <record>   copy the template to <record>; refuses to overwrite
 //   node scenarios.mjs run   [record]   run every scenario check and the existing tests, write
 //                                       each result into the record, exit 0 when all pass.
 //                                       It first marks every result "running" and saves after
@@ -7,14 +8,20 @@
 //                                       the passes of an earlier run.
 //   node scenarios.mjs check [record]   exit 0 when the record is complete and every result
 //                                       passed; otherwise print what to fix
+//   node scenarios.mjs decline --reason "<why>"
+//                                       this session writes no record, for the stated reason
 // Without a record argument, every acceptance-scenarios*.json under the current directory
 // (outside node_modules) is used. Results come only from `run`, never from hand edits.
+//
+// Inside a host session (CLAUDE_CODE_SESSION_ID or CODEX_THREAD_ID set) init, run and check with
+// a record path add that record to the session ledger, so the plugin's Stop hook checks it
+// wherever it lives; decline records the reason for the session. Outside a session they do not.
 import { execSync } from "node:child_process";
-import { accessSync, constants, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { delimiter, isAbsolute, relative, resolve } from "node:path";
+import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { SCENARIO_RECORD, findFiles, runMarkerPath } from "./records.mjs";
+import { SCENARIO_RECORD, SESSION_ENV, findFiles, recordDecline, registerRecord, runMarkerPath, sessionFromEnv } from "./records.mjs";
 
 const placeholder = (value) => typeof value !== "string" || !value.trim() || /<[^>]+>/.test(value);
 
@@ -23,8 +30,11 @@ const findRecords = (dir = ".") => findFiles(SCENARIO_RECORD, dir).map((path) =>
 // Commands run through the default shell with only the PATH directories this process can reach:
 // in a sandbox that denies one PATH directory, every lookup behind it fails (EPERM), even for a
 // program such as node or npm that lives in a later directory.
+// A check runs without the session id, so a check that runs these scripts on fixtures never
+// registers them as the session's records.
 function runCommand(command) {
 	const { NODE_TEST_CONTEXT: _, ...env } = process.env;
+	for (const name of SESSION_ENV) delete env[name];
 	const reachable = (dir) => { try { accessSync(dir, constants.X_OK); return true; } catch { return false; } };
 	env.PATH = (env.PATH ?? "").split(delimiter).filter((dir) => dir && reachable(dir)).join(delimiter);
 	try {
@@ -71,11 +81,39 @@ export function checkRecord(record) {
 	return problems;
 }
 
+const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), "../assets/acceptance-scenarios.json");
+
+function init(file) {
+	if (!file) { console.error("Usage: scenarios.mjs init <path>/acceptance-scenarios<name>.json"); return 2; }
+	if (!SCENARIO_RECORD.test(file.split(/[\\/]/).pop())) { console.error(`${file}: the record's file name must match acceptance-scenarios*.json.`); return 2; }
+	if (existsSync(file)) { console.error(`${file} already exists; init never overwrites a record. Edit it, or pick another name.`); return 1; }
+	mkdirSync(dirname(resolve(file)), { recursive: true });
+	copyFileSync(TEMPLATE, file);
+	registerRecord(file);
+	console.log(`${file}: created from the template. Fill every scenario and decision, then run "scenarios.mjs run ${file}".`);
+	return 0;
+}
+
+function decline(args) {
+	const at = args.indexOf("--reason");
+	const reason = at >= 0 ? String(args[at + 1] ?? "").trim() : "";
+	if (!reason || reason.startsWith("--")) { console.error('Usage: scenarios.mjs decline --reason "<why this session writes no acceptance-scenario record>"'); return 2; }
+	const session = sessionFromEnv();
+	if (!session) { console.error(`No session id (${SESSION_ENV.join(" or ")}) in the environment; nothing was recorded.`); return 1; }
+	recordDecline(session, reason);
+	console.log(`Declined for this session: ${reason}. Records already registered must still pass.`);
+	return 0;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
 	const [mode, file] = process.argv.slice(2);
+	if (mode === "init") process.exit(init(file));
+	if (mode === "decline") process.exit(decline(process.argv.slice(3)));
+	if (!["run", "check"].includes(mode)) { console.error("Usage: scenarios.mjs <init|run|check> [record] | decline --reason \"<why>\""); process.exit(2); }
 	const records = file ? [file] : findRecords();
-	if (!["run", "check"].includes(mode)) { console.error("Usage: scenarios.mjs <run|check> [record]"); process.exit(2); }
-	if (!records.length) { console.error("No acceptance-scenarios*.json found; copy the template from assets/ and fill it."); process.exit(1); }
+	if (!records.length) { console.error('No acceptance-scenarios*.json found; create one with "scenarios.mjs init <path>".'); process.exit(1); }
+	// A record named on the command line is the session's; records found by walking are not.
+	if (file && existsSync(file)) registerRecord(file);
 	let ok = true;
 	for (const path of records) {
 		const record = JSON.parse(readFileSync(path, "utf8"));

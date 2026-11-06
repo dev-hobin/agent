@@ -19,7 +19,7 @@ import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 
 import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { CONTROL_RECORD, SCENARIO_RECORD, findFiles } from "./records.mjs";
+import { CONTROL_RECORD, SCENARIO_RECORD, findFiles, registerRecord } from "./records.mjs";
 
 import { canonicalize, checkModel, parseExpression } from "./check-control-model.mjs";
 
@@ -407,6 +407,11 @@ export function gateRecord(record, { recordDir = ".", root = ".", recordPath = j
 
 function main(argv) {
 	const files = argv.filter((a) => !a.startsWith("--"));
+	// Inside a host session, a control decision record named with --baseline, --changes or --gate is
+	// the session's: the plugin's Stop hook gates it wherever it lives. Records found by walking are not.
+	if (["--baseline", "--changes", "--gate"].some((flag) => argv.includes(flag))) {
+		for (const file of files) if (existsSync(file) && CONTROL_RECORD.test(basename(file))) registerRecord(file);
+	}
 	if (argv.includes("--baseline")) {
 		const records = files.length ? files : findRecords();
 		if (records.length !== 1) throw new Error("--baseline needs exactly one control-decisions*.json");
@@ -439,7 +444,7 @@ function main(argv) {
 		const records = files.length ? files : findRecords();
 		if (!records.length) {
 			const message = "No control-decisions*.json found.";
-			if (argv.includes("--require")) console.error(`${message} Copy the template from assets/ and fill it.`);
+			if (argv.includes("--require")) console.error(`${message} Copy assets/control-decisions.json into the project and fill it.`);
 			else console.log(`${message} Nothing to check.`);
 			return argv.includes("--require") ? 1 : 0;
 		}
