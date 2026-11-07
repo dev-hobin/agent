@@ -3,20 +3,20 @@
 // SessionEnd/Stop, and the session's state in the plugin data directory. The hooks' own tests
 // (feature-stop-hook, result-hooks-registry) drive the same code through the shipped hooks.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 const { hookSession, registryPath } = await import(pathToFileURL(join(repositoryRoot, "core/shared/scripts/session-registry.mjs")).href);
 
 const NAME = ".probe";
-const scratch = [];
-const workspace = () => { const dir = realpathSync(mkdtempSync(join(tmpdir(), "hook-session-"))); scratch.push(dir); return dir; };
-test.after(() => { for (const dir of scratch) rmSync(dir, { recursive: true, force: true }); });
+const workspace = () => temp.dir("hook-session");
 let counter = 0;
 const newId = () => `s-${process.pid}-${counter++}`;
 const EIGHT_DAYS_AGO = Date.now() / 1000 - 8 * 24 * 3600;

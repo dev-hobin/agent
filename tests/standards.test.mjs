@@ -1,20 +1,20 @@
 // The pinned Agent Skills validator must be the one the standards register names.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 const exec = promisify(execFile);
 const checker = join(repositoryRoot, "scripts/check-agent-skills.py");
 
 async function skill(t, name = "fixture", body = "---\nname: fixture\ndescription: A fixture\n---\n\nBody.\n") {
-	const dir = await mkdtemp(join(tmpdir(), "agent-standards-"));
-	t.after(() => rm(dir, { recursive: true, force: true }));
+	const dir = temp.dir("agent-standards");
 	await mkdir(join(dir, name));
 	await writeFile(join(dir, name, "SKILL.md"), body);
 	return join(dir, name);
@@ -28,8 +28,7 @@ test("the standards register and the installed validator share one upstream pin"
 });
 
 test("a validator from a different upstream commit cannot pass", async (t) => {
-	const dir = await mkdtemp(join(tmpdir(), "agent-standards-"));
-	t.after(() => rm(dir, { recursive: true, force: true }));
+	const dir = temp.dir("agent-standards");
 	await mkdir(join(dir, "scripts"));
 	await cp(checker, join(dir, "scripts/check-agent-skills.py"));
 	const requirements = await readFile(join(repositoryRoot, "requirements-skills.txt"), "utf8");
@@ -39,7 +38,7 @@ test("a validator from a different upstream commit cannot pass", async (t) => {
 });
 
 test("the pinned validator rejects a name-directory mismatch", async (t) => {
-	await exec("python", [checker, await skill(t)], { cwd: tmpdir() });
+	await exec("python", [checker, await skill(t)], { cwd: temp.root });
 	const bad = await skill(t, "fixture", "---\nname: other\ndescription: Fixture\n---\n");
-	await assert.rejects(exec("python", [checker, bad], { cwd: tmpdir() }), (error) => error.code === 1 && /must match skill name/.test(error.stderr));
+	await assert.rejects(exec("python", [checker, bad], { cwd: temp.root }), (error) => error.code === 1 && /must match skill name/.test(error.stderr));
 });

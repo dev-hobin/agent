@@ -5,18 +5,19 @@
 // `tool_input.file_path`; Codex hooks get an apply_patch command.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
 import { parse } from "yaml";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 const plugins = join(repositoryRoot, "claude/plugins");
 const codexPlugins = join(repositoryRoot, "codex/plugins");
-const workspace = () => mkdtempSync(join(tmpdir(), "claude-hook-"));
+const workspace = () => temp.dir("claude-hook");
 
 function frontmatter(path) {
 	return parse(/^---\n([\s\S]*?)\n---\n/.exec(readFileSync(path, "utf8"))[1]);

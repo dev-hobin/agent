@@ -9,21 +9,21 @@
 // hosts' inputs, for every plugin where the scenario is about results in general.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 const HOSTS = ["claude", "codex"];
 const SESSION_VAR = { claude: "CLAUDE_CODE_SESSION_ID", codex: "CODEX_SESSION_ID" };
 const pluginRoot = (host, plugin) => join(repositoryRoot, host === "claude" ? "claude/plugins" : "codex/plugins", plugin);
 // Real paths: a command's cwd is resolved through links (/var is /private/var on macOS).
-const workspace = () => realpathSync(mkdtempSync(join(tmpdir(), "result-hook-")));
+const workspace = () => temp.dir("result-hook");
 const DATA = workspace();
-test.after(() => rmSync(DATA, { recursive: true, force: true }));
 let counter = 0;
 const lines = (path) => readFileSync(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
 

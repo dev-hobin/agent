@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
 import { checkRecord, outsideProject } from "../core/developing-features/scripts/scenarios.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 test("a scenario command may not name a home path or an existing file outside the project", (t) => {
-	const project = mkdtempSync(join(tmpdir(), "scenario-project-"));
-	t.after(() => rmSync(project, { recursive: true, force: true }));
+	const project = temp.dir("scenario-project");
 	const outside = join(repositoryRoot, "package.json");
 	assert.deepEqual(outsideProject(`node ${outside} --gate`, project), [outside]);
 	assert.deepEqual(outsideProject("node ~/tools/check.mjs", project), ["~/tools/check.mjs"]);
@@ -39,9 +39,8 @@ function passedRecord(project, { slow = false } = {}) {
 }
 
 test("a run that is killed midway leaves verification.run and running results, never the earlier passes", async (t) => {
-	const project = mkdtempSync(join(tmpdir(), "scenario-run-"));
+	const project = temp.dir("scenario-run");
 	const path = passedRecord(project, { slow: true });
-	t.after(() => rmSync(project, { recursive: true, force: true }));
 	const child = spawn("node", [SCENARIOS, "run", path], { cwd: project, stdio: "ignore", env });
 	const deadline = Date.now() + 10_000;
 	while (!JSON.parse(readFileSync(path, "utf8")).verification.run) {
@@ -66,9 +65,8 @@ test("a run that is killed midway leaves verification.run and running results, n
 });
 
 test("a run that finishes saves every result, records progress and removes verification.run", (t) => {
-	const project = mkdtempSync(join(tmpdir(), "scenario-run-"));
+	const project = temp.dir("scenario-run");
 	const path = passedRecord(project);
-	t.after(() => rmSync(project, { recursive: true, force: true }));
 	const result = spawnSync("node", [SCENARIOS, "run", path], { cwd: project, encoding: "utf8", env });
 	assert.equal(result.status, 0, result.stderr);
 	const record = JSON.parse(readFileSync(path, "utf8"));
@@ -79,9 +77,8 @@ test("a run that finishes saves every result, records progress and removes verif
 });
 
 test("a run that fails, or throws, still removes verification.run", (t) => {
-	const project = mkdtempSync(join(tmpdir(), "scenario-run-"));
+	const project = temp.dir("scenario-run");
 	const path = passedRecord(project);
-	t.after(() => rmSync(project, { recursive: true, force: true }));
 	const record = JSON.parse(readFileSync(path, "utf8"));
 	record.scenarios[0].check = "exit 3";
 	writeFileSync(path, JSON.stringify(record));
