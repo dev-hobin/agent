@@ -2,18 +2,21 @@
 // Deterministic checks between core specs and their host implementations. No model calls.
 //   node check.mjs          fail when an implementation is stale, a copy differs from core,
 //                           a scenario has no eval case or its case does not carry the
-//                           scenario's request or a Codex benchmark's successChecklist is not the
-//                           scenario's check ids, a skill's description differs from its
-//                           spec, or a scenario's golden result does not prove its checks
+//                           scenario's request, a Codex benchmark's successChecklist is not
+//                           the scenario's check ids, a Claude regex grader differs from its
+//                           file_matches / file_lacks check, a skill's description differs
+//                           from its spec, or a scenario's golden result does not prove its checks
 //   node check.mjs --sync   copy core resources into implementations, write each Codex
-//                           benchmark's successChecklist and record spec hashes
+//                           benchmark's successChecklist and each Claude case's regex graders,
+//                           and record spec hashes
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 import { parse } from "yaml";
 
@@ -68,6 +71,36 @@ function sameTree(a, b) {
 		&& (statSync(a).mode & 0o111) === (statSync(b).mode & 0o111);
 	const left = files(a), right = files(b);
 	return left.length === right.length && left.every((f, i) => f === right[i] && sameTree(join(a, f), join(b, f)));
+}
+
+// A Claude eval case grades each file_matches / file_lacks check of its scenario with a regex
+// grader of the same id (references/claude.md). --sync writes these graders from scenario.yaml
+// and removes the ones whose check is gone; other graders (tool_used, file_exists, the
+// SCENARIO_CHECK.txt regexes of code-based checks) stay hand-written. A grader counts as
+// current when its frontmatter means the same, so either quoting style passes.
+const graderData = (text) => parse(/^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? "") ?? {};
+const sameGrader = (a, b) => isDeepStrictEqual({ ...a, flags: a.flags || undefined }, { ...b, flags: b.flags || undefined });
+function regexGrader(check) {
+	const { path, pattern, flags } = check.file_matches ?? check.file_lacks;
+	return ["---", 'type: "regex"', `target: { source: "file", path: ${JSON.stringify(path)} }`, `pattern: ${JSON.stringify(pattern)}`,
+		...(flags ? [`flags: ${JSON.stringify(flags)}`] : []), ...(check.file_lacks ? ['match: "not_contains"'] : []), "---", ""].join("\n");
+}
+function syncRegexGraders(dir, scenario, name) {
+	const problems = [];
+	const want = new Map(scenario.expect.filter((c) => c.file_matches || c.file_lacks).map((c) => [`${c.id}.md`, regexGrader(c)]));
+	for (const file of existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".md")) : []) {
+		const data = graderData(readFileSync(join(dir, file), "utf8"));
+		if (data.type !== "regex" || data.target?.path === "SCENARIO_CHECK.txt" || want.has(file)) continue;
+		if (sync) rmSync(join(dir, file));
+		else problems.push(`claude: ${relative(root, join(dir, file))} grades no file_matches/file_lacks check of ${name}; run check.mjs --sync`);
+	}
+	for (const [file, text] of want) {
+		const path = join(dir, file);
+		if (existsSync(path) && sameGrader(graderData(readFileSync(path, "utf8")), graderData(text))) continue;
+		if (sync) writeFileSync(path, text);
+		else problems.push(`claude: ${relative(root, path)} differs from its check in ${name}; run check.mjs --sync`);
+	}
+	return problems;
 }
 
 // The reviewed state of a scenario: base with change.patch applied.
@@ -149,6 +182,7 @@ for (const id of capabilities) {
 					} else problems.push(`${host}: ${relative(root, evalDir)} successChecklist differs from the check ids of core/${id} scenario ${s}; run check.mjs --sync`);
 				}
 			}
+			if (evalDir.endsWith("prompt.md")) problems.push(...syncRegexGraders(join(dirname(evalDir), "graders"), scenario, `core/${id} scenario ${s}`));
 		}
 		const triggersFile = join(core, "triggers.yaml");
 		if (existsSync(triggersFile)) {

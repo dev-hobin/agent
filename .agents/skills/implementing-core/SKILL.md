@@ -23,8 +23,9 @@ implementations). The user maintains only core; you keep the implementations in 
 - Knowledge and scripts must stay byte-identical to core. Copy them with
   `scripts/check.mjs --sync`; do not paraphrase them.
 - When a scenario's `request` or checks change, update every eval case built from it:
-  each case carries the request word for word (`check.mjs` fails otherwise), and Claude
-  graders repeat each check's pattern exactly.
+  each case carries the request word for word (`check.mjs` fails otherwise), and the
+  hand-written graders follow the checks. `check.mjs --sync` writes the Claude regex graders
+  of `file_matches`/`file_lacks` checks and each Codex `successChecklist`.
 
 ## Procedure
 
