@@ -45,10 +45,9 @@ passes and an independent reviewer agrees.
    `node <this skill's directory>/scripts/scenarios.mjs register <record>`. If this work truly needs no record, run
    `node <this skill's directory>/scripts/scenarios.mjs decline <absolute path>/acceptance-scenarios<name>.json --reason "<why>"`
    and give the reason in the report; other records of this session must still pass.
-   If `scenarios.mjs` stops with "No hobin-feature registry for this agent session", first
-   `cd` back to the start directory; if the plugin's hooks are not active (trust them in /hooks; an evaluation that does not install the plugin), add
-   `--no-gate`, check the record yourself with `scenarios.mjs check <record>`, and say in the
-   report that no Stop gate covered it.
+   If `scenarios.mjs` stops with "No hobin-feature registry for this agent session", `cd` back to
+   the directory the session started in and run it again; follow the rest of that message only if
+   it still stops there.
 2. **Owner decisions.** List every decision the request, code, and documents do not
    settle. If the user is available, ask the smallest question. If not, take the
    conservative reversible default (preserve stored data, reject ambiguous or malformed

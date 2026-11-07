@@ -415,7 +415,6 @@ test("F19 skill: every scenarios.mjs run/check and --gate the procedure names pa
 		assert.ok(commands.length >= 3, `${host}: ${commands}`);
 		for (const command of commands) assert.match(command, / <record>$/, `${host}: ${command}`);
 		for (const mode of ["init", "register", "decline"]) assert.match(text, new RegExp(`scenarios\\.mjs ${mode} <`), `${host}: names ${mode}`);
-		assert.match(text, /--no-gate/, `${host}: says what to do without the hooks`);
 		assert.doesNotMatch(text, /mcp__|records tool|--no-session/, `${host}: no MCP tools`);
 	}
 });
@@ -651,5 +650,30 @@ test("F35 scripts: with both hosts' session variables (Codex started from a Clau
 		});
 		assert.equal(result.status, 0, `${host}: ${result.stderr}`);
 		assert.deepEqual(lines(s.registry).map((line) => line.file), [record], `${host}: registered in this session's registry`);
+	}
+});
+
+test("F36 scripts: --no-gate is refused where this session's registry is found, and proceeds only where none is", () => {
+	for (const host of ["claude", "codex"]) {
+		const start = repository();
+		const s = session(host, start);
+		const inside = join(start, "docs/acceptance-scenarios-nogate.json");
+		const refused = s.scenarios("init", inside, "--no-gate");
+		assert.equal(refused.status, 2, `${host}: ${refused.stdout}${refused.stderr}`);
+		assert.match(refused.stderr, /--no-gate refused/);
+		assert.equal(existsSync(inside), false, `${host}: nothing created`);
+		assert.deepEqual(lines(s.registry), [], `${host}: nothing registered`);
+		const away = workspace();
+		const outside = join(away, "acceptance-scenarios-away.json");
+		const allowed = s.scenariosIn(away, "init", outside, "--no-gate");
+		assert.equal(allowed.status, 0, `${host}: ${allowed.stderr}`);
+		assert.match(allowed.stdout, /no Stop gate covers this record/);
+	}
+});
+
+test("F37 skill: SKILL.md never offers --no-gate", () => {
+	for (const host of ["claude", "codex"]) {
+		const text = readFileSync(join(pluginRoot(host), "skills/developing-features/SKILL.md"), "utf8");
+		assert.doesNotMatch(text, /no-gate/, `${host}: only the scripts' refusal message mentions it`);
 	}
 });
