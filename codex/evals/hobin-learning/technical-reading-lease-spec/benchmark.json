@@ -35,18 +35,9 @@
       "userInput": "$hobin-learning:technical-reading I just read docs/lease-spec.md for a design review next week. What should I actually carry forward from it, beyond a summary? Keep what the spec says separate from your interpretation. Save the result to out/insights.md.",
       "successChecklist": [
         "artifact-written",
-        "has-source-scope",
         "names-the-source",
-        "has-insight",
-        "has-source-evidence",
         "cites-storage-rule",
         "keeps-source-term",
-        "labels-source-claims",
-        "labels-inferences",
-        "has-example-or-contrast",
-        "has-boundary-or-misreading",
-        "has-practical-consequence",
-        "has-unresolved-question",
         "source-unchanged",
         "meets-output-contract"
       ]

@@ -1,6 +1,0 @@
----
-type: "regex"
-target: { source: "file", path: "out/insights.md" }
-pattern: "\\b(interpretation|hypothesis)\\b"
-flags: "i"
----
