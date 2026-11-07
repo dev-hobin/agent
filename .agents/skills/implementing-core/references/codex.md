@@ -104,9 +104,11 @@ codex/evals/<plugin>/<scenario>/
 `codex/evals/prepare.sh <plugin> <scenario>` builds `workspace/` (changed tree plus
 CHANGE.diff, gitignored) before a run. The verifier command is
 `node "$HOBIN_AGENT_ROOT/.agents/skills/implementing-core/scripts/scenario-check.mjs" "$HOBIN_AGENT_ROOT/core/<id>/scenarios/<scenario>/scenario.yaml" "$HOBIN_AGENT_ROOT/codex/evals/<plugin>/<scenario>/workspace" . --ignore plugins/ --ignore .agents/plugins/`
-— exit 0 when every file-based check passes. plugin-eval installs the plugin into the run's
+— exit 0 when every file-based check passes. plugin-eval copies the plugin into the run's
 workspace (`plugins/<plugin>/`, `.agents/plugins/marketplace.json`); `--ignore` keeps those
-out of every check. `tests/evals.test.mjs` pins these fields. `command_passes` runs there
+out of every check. It lists the plugin as available but never installs it, so the plugin's
+hooks never run there: a run measures the skill only. Hook-enforced guarantees are checked by
+`pnpm check:live -- codex` instead. `tests/evals.test.mjs` pins these fields. `command_passes` runs there
 too (the checker copies the scenario's hidden files in first). A scenario without `change`
 is prepared by copying `base/` only.
 

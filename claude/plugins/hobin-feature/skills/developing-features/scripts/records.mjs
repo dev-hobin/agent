@@ -1,10 +1,10 @@
-// Finds record files (acceptance-scenarios*.json, control-decisions*.json) under a directory.
-// Shared by scenarios.mjs, compile-control-model.mjs, record-tools.mjs and the plugin hook so every
-// caller sees the same set. Symbolic links are not followed: a link to an ancestor would never end (ELOOP)
+// Record files (acceptance-scenarios*.json, control-decisions*.json) and the plugin hook's session
+// state. findFiles finds records under a directory for scenarios.mjs and
+// compile-control-model.mjs, so both see the same set. Symbolic links are not followed: a link to an ancestor would never end (ELOOP)
 // and a dangling one cannot be read (ENOENT). An entry that cannot be read is skipped, so one
 // unreadable directory never hides the records elsewhere. Dot directories are searched (records
 // often live in planning folders such as .plans/); node_modules and .git* are not.
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -38,12 +38,11 @@ export function gitRoot(dir) {
 	}
 }
 
-// The plugin hook's session state: the ledger of registered records, the obligation
-// (developing-features started), the decline reason and the Stop block counter. Only the hook
-// reads and writes it, in the host's persistent plugin data directory (CLAUDE_PLUGIN_DATA on
-// Claude Code; PLUGIN_DATA or CLAUDE_PLUGIN_DATA on Codex), or the OS temp directory when the
-// host gives none (tests, older hosts).
-const KINDS = ["ledger", "obligation", "decline", "stop"];
+// The plugin hook's session state: the session's start directory, the obligation
+// (developing-features started) and the Stop block counter. Only the hook reads and writes it, in the
+// host's persistent plugin data directory (CLAUDE_PLUGIN_DATA on Claude Code; PLUGIN_DATA or
+// CLAUDE_PLUGIN_DATA on Codex), or the OS temp directory when the host gives none (tests, older hosts).
+const KINDS = ["start", "obligation", "stop"];
 const safe = (value) => String(value ?? "").replace(/[^\w-]/g, "");
 export const stateDir = (env = process.env) =>
 	join(env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA || tmpdir(), "hobin-feature-sessions");
@@ -52,14 +51,11 @@ export function sessionStatePath(kind, session) {
 	return join(stateDir(), `${kind}-${safe(session)}`);
 }
 
-export function registerRecord(recordPath, session) {
-	appendFileSync(sessionStatePath("ledger", session), `${resolve(recordPath)}\n`);
+export function rememberStart(session, dir) {
+	writeFileSync(sessionStatePath("start", session), resolve(dir));
 }
-
-export function readLedger(session) {
-	try {
-		return [...new Set(readFileSync(sessionStatePath("ledger", session), "utf8").split("\n").filter(Boolean))];
-	} catch { return []; }
+export function readStart(session) {
+	try { return readFileSync(sessionStatePath("start", session), "utf8").trim() || undefined; } catch { return undefined; }
 }
 
 export function startObligation(session, source) {
@@ -69,24 +65,13 @@ export function startObligation(session, source) {
 const readJson = (path) => { try { return JSON.parse(readFileSync(path, "utf8")); } catch { return null; } };
 export const readObligation = (session) => readJson(sessionStatePath("obligation", session));
 
-export function recordDecline(session, reason) {
-	writeFileSync(sessionStatePath("decline", session), JSON.stringify({ reason, at: new Date().toISOString() }));
-}
-
-// The session's decline, or null. A decline without a non-empty reason is not one.
-export function readDecline(session) {
-	const decline = readJson(sessionStatePath("decline", session));
-	return typeof decline?.reason === "string" && decline.reason.trim() ? decline : null;
-}
-
 // SessionEnd: the session's state is no longer needed.
 export function clearSession(session) {
 	for (const kind of KINDS) rmSync(sessionStatePath(kind, session), { force: true });
 }
 
-// State of sessions that never sent SessionEnd (killed, crashed) is removed after `maxAgeMs`.
-export const STATE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-export function pruneSessions(maxAgeMs = STATE_MAX_AGE_MS, now = Date.now()) {
+// State of sessions that never sent SessionEnd (killed, crashed) is removed after a week.
+export function pruneSessions(maxAgeMs = 7 * 24 * 60 * 60 * 1000, now = Date.now()) {
 	let names;
 	try { names = readdirSync(stateDir()); } catch { return; }
 	for (const name of names) {
