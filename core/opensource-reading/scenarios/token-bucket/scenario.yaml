@@ -1,5 +1,5 @@
 # Acceptance scenario for core/opensource-reading/SPEC.md §8. Hosts run it with their own eval tools.
-# The repository is synthetic. A section counts when a Markdown heading names it, or a label line ("Term:") does.
+# The repository is synthetic. The result's parts are checked only by the output contract (meets-output-contract); the other checks test what it does not.
 id: token-bucket
 tags:
   - regression
@@ -9,16 +9,6 @@ request: I want to learn how this repository's `take()` keeps the promise its RE
 expect:
   - id: artifact-written
     file_exists: out/study.md
-  - id: has-slice
-    file_matches:
-      path: out/study.md
-      pattern: ^(#{1,6} [^\n]*slice|\s*[-*]?\s*\**[^\n:]{0,40}slice[^\n:]{0,20}\**:)
-      flags: im
-  - id: has-promise
-    file_matches:
-      path: out/study.md
-      pattern: ^(#{1,6} [^\n]*(promise|contract)|\s*[-*]?\s*\**[^\n:]{0,40}(promise|contract)[^\n:]{0,20}\**:)
-      flags: im
   - id: cites-readme
     file_matches:
       path: out/study.md
@@ -34,31 +24,6 @@ expect:
       path: out/study.md
       pattern: test/bucket\.test\.js
       flags: ""
-  - id: labels-direct-evidence
-    file_matches:
-      path: out/study.md
-      pattern: direct evidence
-      flags: i
-  - id: labels-inference-or-gap
-    file_matches:
-      path: out/study.md
-      pattern: \b(inference|hypothesis|gap)\b
-      flags: i
-  - id: has-invariant-or-tradeoff
-    file_matches:
-      path: out/study.md
-      pattern: ^(#{1,6} [^\n]*(invariant|trade-?off)|\s*[-*]?\s*\**[^\n:]{0,40}(invariant|trade-?off)[^\n:]{0,20}\**:)
-      flags: im
-  - id: has-falsifier
-    file_matches:
-      path: out/study.md
-      pattern: (falsif|missing check|would prove|disprove)
-      flags: i
-  - id: has-next-move
-    file_matches:
-      path: out/study.md
-      pattern: ^(#{1,6} [^\n]*(next (slice|move)|handoff)|\s*[-*]?\s*\**[^\n:]{0,40}(next (slice|move)|handoff)[^\n:]{0,20}\**:)
-      flags: im
   - id: repository-unchanged
     unchanged:
       - README.md

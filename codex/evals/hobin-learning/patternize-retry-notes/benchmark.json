@@ -35,19 +35,9 @@
       "userInput": "$hobin-learning:patternize Use the patternize skill for this.\n\nThe three notes in notes/ come from different incidents. Turn what they have in common into a reusable pattern I can follow the next time a call with side effects might be retried, and check it against cases it should and shouldn't cover. Save the result to out/pattern.md.",
       "successChecklist": [
         "artifact-written",
-        "has-case-table",
-        "has-context",
-        "has-axis",
-        "has-forces",
-        "has-roles",
-        "has-ordered-moves",
-        "has-checks",
         "cites-order-note",
         "cites-label-note",
         "cites-payout-note",
-        "has-transfer-case",
-        "has-boundary",
-        "has-falsifier",
         "notes-unchanged",
         "meets-output-contract"
       ]

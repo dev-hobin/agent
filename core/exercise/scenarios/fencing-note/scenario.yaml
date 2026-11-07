@@ -1,5 +1,5 @@
 # Acceptance scenario for core/exercise/SPEC.md §8. Hosts run it with their own eval tools.
-# The concept note is synthetic. A section counts when a Markdown heading names it, or a label line ("Term:") does.
+# The concept note is synthetic. The result's parts are checked only by the output contract (meets-output-contract); the other checks test what it does not.
 id: fencing-note
 tags:
   - regression
@@ -9,51 +9,6 @@ request: I wrote up notes/fencing-tokens.md after reading about leases. Make me 
 expect:
   - id: artifact-written
     file_exists: out/exercise.md
-  - id: names-target
-    file_matches:
-      path: out/exercise.md
-      pattern: ^(#{1,6} [^\n]*target|\s*[-*]?\s*\**[^\n:]{0,40}target[^\n:]{0,20}\**:)
-      flags: im
-  - id: has-prediction-task
-    file_matches:
-      path: out/exercise.md
-      pattern: predict
-      flags: i
-  - id: has-worked-example
-    file_matches:
-      path: out/exercise.md
-      pattern: worked example
-      flags: i
-  - id: has-misconception-trap
-    file_matches:
-      path: out/exercise.md
-      pattern: (misconception|near miss|near-miss)
-      flags: i
-  - id: has-answer-key
-    file_matches:
-      path: out/exercise.md
-      pattern: ^(#{1,6} [^\n]*answer key|\s*[-*]?\s*\**[^\n:]{0,40}answer key[^\n:]{0,20}\**:)
-      flags: im
-  - id: has-hint
-    file_matches:
-      path: out/exercise.md
-      pattern: \bhint
-      flags: i
-  - id: has-retry-rule
-    file_matches:
-      path: out/exercise.md
-      pattern: \bretry\b
-      flags: i
-  - id: has-transfer-task
-    file_matches:
-      path: out/exercise.md
-      pattern: ^(#{1,6} [^\n]*transfer|\s*[-*]?\s*\**[^\n:]{0,40}transfer[^\n:]{0,20}\**:)
-      flags: im
-  - id: has-mastery-rubric
-    file_matches:
-      path: out/exercise.md
-      pattern: ^(#{1,6} [^\n]*(mastery|rubric)|\s*[-*]?\s*\**[^\n:]{0,40}(mastery|rubric)[^\n:]{0,20}\**:)
-      flags: im
   - id: notes-unchanged
     unchanged:
       - notes

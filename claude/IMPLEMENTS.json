@@ -59,7 +59,7 @@
     }
   },
   "technical-reading": {
-    "spec": "b304205c00f01c8a6d8b43e6",
+    "spec": "97acd5edd609c40f6d8b43e6",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/technical-reading/SKILL.md",
     "copies": {
@@ -81,7 +81,7 @@
     }
   },
   "opensource-reading": {
-    "spec": "358d55f4a331207e6d8b43e6",
+    "spec": "c956a7a32732e1916d8b43e6",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/opensource-reading/SKILL.md",
     "copies": {
@@ -103,7 +103,7 @@
     }
   },
   "conceptualize": {
-    "spec": "08d4bd1f75a8f2646d8b43e6",
+    "spec": "e26e0660bc6aac956d8b43e6",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/conceptualize/SKILL.md",
     "copies": {
@@ -124,7 +124,7 @@
     }
   },
   "patternize": {
-    "spec": "eff0d758eed744266d8b43e6",
+    "spec": "cb1af1a33a6783f56d8b43e6",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/patternize/SKILL.md",
     "copies": {
@@ -146,7 +146,7 @@
     }
   },
   "exercise": {
-    "spec": "305a4685d239bb1f6d8b43e6",
+    "spec": "138031b10f6af8cd6d8b43e6",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/exercise/SKILL.md",
     "copies": {

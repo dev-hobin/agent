@@ -1,5 +1,5 @@
 # Acceptance scenario for core/technical-reading/SPEC.md §8. Hosts run it with their own eval tools.
-# The source is synthetic. A section counts when a Markdown heading names it, or a label line ("Term:") does.
+# The source is synthetic. The result's parts are checked only by the output contract (meets-output-contract); the other checks test what it does not.
 id: lease-spec
 tags:
   - regression
@@ -9,26 +9,11 @@ request: I just read docs/lease-spec.md for a design review next week. What shou
 expect:
   - id: artifact-written
     file_exists: out/insights.md
-  - id: has-source-scope
-    file_matches:
-      path: out/insights.md
-      pattern: ^(#{1,6} [^\n]*scope|\s*[-*]?\s*\**[^\n:]{0,40}scope[^\n:]{0,20}\**:)
-      flags: im
   - id: names-the-source
     file_matches:
       path: out/insights.md
       pattern: (lease-spec|Shard Lease Protocol)
       flags: i
-  - id: has-insight
-    file_matches:
-      path: out/insights.md
-      pattern: ^(#{1,6} [^\n]*insight|\s*[-*]?\s*\**[^\n:]{0,40}insight[^\n:]{0,20}\**:)
-      flags: im
-  - id: has-source-evidence
-    file_matches:
-      path: out/insights.md
-      pattern: ^(#{1,6} [^\n]*evidence|\s*[-*]?\s*\**[^\n:]{0,40}evidence[^\n:]{0,20}\**:)
-      flags: im
   - id: cites-storage-rule
     file_matches:
       path: out/insights.md
@@ -39,36 +24,6 @@ expect:
       path: out/insights.md
       pattern: fencing token
       flags: i
-  - id: labels-source-claims
-    file_matches:
-      path: out/insights.md
-      pattern: source claim
-      flags: i
-  - id: labels-inferences
-    file_matches:
-      path: out/insights.md
-      pattern: \b(interpretation|hypothesis)\b
-      flags: i
-  - id: has-example-or-contrast
-    file_matches:
-      path: out/insights.md
-      pattern: ^(#{1,6} [^\n]*(example|contrast)|\s*[-*]?\s*\**[^\n:]{0,40}(example|contrast)[^\n:]{0,20}\**:)
-      flags: im
-  - id: has-boundary-or-misreading
-    file_matches:
-      path: out/insights.md
-      pattern: ^(#{1,6} [^\n]*(boundary|misreading)|\s*[-*]?\s*\**[^\n:]{0,40}(boundary|misreading)[^\n:]{0,20}\**:)
-      flags: im
-  - id: has-practical-consequence
-    file_matches:
-      path: out/insights.md
-      pattern: ^(#{1,6} [^\n]*consequence|\s*[-*]?\s*\**[^\n:]{0,40}consequence[^\n:]{0,20}\**:)
-      flags: im
-  - id: has-unresolved-question
-    file_matches:
-      path: out/insights.md
-      pattern: ^(#{1,6} [^\n]*(unresolved|open) question|\s*[-*]?\s*\**[^\n:]{0,40}(unresolved|open) question[^\n:]{0,20}\**:)
-      flags: im
   - id: source-unchanged
     unchanged:
       - docs

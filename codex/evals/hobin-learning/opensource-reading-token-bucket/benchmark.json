@@ -35,16 +35,9 @@
       "userInput": "$hobin-learning:opensource-reading I want to learn how this repository's `take()` keeps the promise its README makes. Trace it through the code and tests, and tell me what evidence would prove your reading wrong. Save the study to out/study.md.",
       "successChecklist": [
         "artifact-written",
-        "has-slice",
-        "has-promise",
         "cites-readme",
         "cites-implementation",
         "cites-tests",
-        "labels-direct-evidence",
-        "labels-inference-or-gap",
-        "has-invariant-or-tradeoff",
-        "has-falsifier",
-        "has-next-move",
         "repository-unchanged",
         "meets-output-contract"
       ]

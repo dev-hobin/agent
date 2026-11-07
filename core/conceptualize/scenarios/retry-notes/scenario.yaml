@@ -1,5 +1,5 @@
 # Acceptance scenario for core/conceptualize/SPEC.md §8. Hosts run it with their own eval tools.
-# A section counts when a Markdown heading names it, or a label line ("Term:") does.
+# The result's parts are checked only by the output contract (meets-output-contract); the other checks test what it does not.
 id: retry-notes
 tags: [regression, learning]
 base: base
@@ -7,21 +7,6 @@ request: "Use the conceptualize skill for this.\n\nThe three notes in notes/ com
 expect:
   - id: artifact-written
     file_exists: out/concept.md
-  - id: has-definition
-    file_matches:
-      path: out/concept.md
-      pattern: "^(#{1,6} [^\\n]*definition|\\s*[-*]?\\s*\\**[^\\n:]{0,40}definition[^\\n:]{0,20}\\**:)"
-      flags: im
-  - id: has-mechanism
-    file_matches:
-      path: out/concept.md
-      pattern: "^(#{1,6} [^\\n]*mechanism|\\s*[-*]?\\s*\\**[^\\n:]{0,40}mechanism[^\\n:]{0,20}\\**:)"
-      flags: im
-  - id: has-evidence-section
-    file_matches:
-      path: out/concept.md
-      pattern: "^(#{1,6} [^\\n]*(evidence|provenance)|\\s*[-*]?\\s*\\**[^\\n:]{0,40}(evidence|provenance)[^\\n:]{0,20}\\**:)"
-      flags: im
   - id: cites-order-note
     file_matches:
       path: out/concept.md
@@ -37,21 +22,6 @@ expect:
       path: out/concept.md
       pattern: "(timeouts\\.md|payout)"
       flags: i
-  - id: has-transfer-case
-    file_matches:
-      path: out/concept.md
-      pattern: "^(#{1,6} [^\\n]*transfer|\\s*[-*]?\\s*\\**[^\\n:]{0,40}transfer[^\\n:]{0,20}\\**:)"
-      flags: im
-  - id: has-boundary
-    file_matches:
-      path: out/concept.md
-      pattern: "^(#{1,6} [^\\n]*(counterexample|boundary|near miss)|\\s*[-*]?\\s*\\**[^\\n:]{0,40}(counterexample|boundary|near miss)[^\\n:]{0,20}\\**:)"
-      flags: im
-  - id: has-relations
-    file_matches:
-      path: out/concept.md
-      pattern: "^(#{1,6} [^\\n]*(related|relation|connector)|\\s*[-*]?\\s*\\**[^\\n:]{0,40}(related|relation|connector)[^\\n:]{0,20}\\**:)"
-      flags: im
   - id: notes-unchanged
     unchanged: [notes]
   - id: meets-output-contract
