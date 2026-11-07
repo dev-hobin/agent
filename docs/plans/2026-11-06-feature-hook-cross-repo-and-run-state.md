@@ -1,5 +1,7 @@
 # 2026-11-06 hobin-feature: record tools observed by hooks, and run state
 
+**Superseded before release** by [`2026-11-06-feature-records-carry-their-session.md`](2026-11-06-feature-records-carry-their-session.md): the MCP record tools, the permission hook and the per-session ledger described below were removed. Kept for the observations and the research.
+
 ## What was observed (hobin-feature 0.5.1, one CRM session on Claude Code)
 
 1. **A record outside the hook cwd was never gated.** The Backend record was written with
@@ -55,7 +57,8 @@ the model loaded `…__check` through ToolSearch and called it with no permissio
 (`permission_denials: []`); a second run called `…__init`, said DONE, and the Stop hook sent it back
 with "A record this session registered is not complete…" naming the new record. Live on Codex 0.166 (`codex exec --dangerously-bypass-hook-trust -c approval_policy=never`
 in an isolated `CODEX_HOME` with a copy of the user's auth, removed afterwards; run at the user's
-request): the model called `init` (status completed, so no approval was needed under `never`),
+request; `pnpm check:live -- codex` now uses a dedicated ChatGPT-logged-in home instead and never
+reads `~/.codex`, see the README): the model called `init` (status completed, so no approval was needed under `never`),
 said DONE, and Stop sent it back three times (MAX_BLOCKS) for the new incomplete record. A
 capture hook beside the real one recorded the PostToolUse input: `tool_name`
 `mcp__hobin_feature__init` / `mcp__hobin_feature__decline`, `tool_input` the arguments as an
@@ -167,4 +170,22 @@ run"); the record has no code fingerprint to tell a code change from a record-on
 - `pnpm check`: 189 tests pass, 0 fail. `pnpm check:claude` passes (only the existing icon warnings);
   `pnpm check:install -- claude` and `-- codex` pass. The record
   `docs/plans/acceptance-scenarios-feature-stop-hook-ledger.json` passes `scenarios.mjs run`.
-- Not run: paid host evals; a live model session calling the tools.
+- Claude regression evals (`claude plugin eval … --mocks off --allow-tools Bash Write Edit
+  "mcp__plugin_hobin-feature_hobin_feature__*"`, Sonnet, 3 runs per scenario): job-lookup-cancel,
+  quiet-hours-preferences and refund-approval-revalidate each 3/3 at score 1.00; every run created
+  its record with the `init` tool and had no permission denial.
+- Codex regression evals (plugin-eval): CODEX_EVALS.
+- `pnpm check:live -- claude` 6/6 and `pnpm check:live -- codex` 4/4. Negative control: with the
+  Claude PreToolUse allow removed, `check:live -- claude` fails 4 of 6 on the permission denial.
+
+## How this is tested, and why in three layers
+
+| Layer | What it proves | Why this layer |
+|---|---|---|
+| `pnpm check` (hook and server fed sample JSON, both hosts' input shapes) | registration rules, tool names, PreToolUse decision, Stop messages, state cleanup, server protocol | the hook guide's own advice: "Test it manually by piping sample JSON" (code.claude.com/docs/en/hooks-guide.md) |
+| `pnpm check:live -- claude\|codex` (a real session, small model, opt-in) | no permission prompt in default / dontAsk (Claude) and approval `never` (Codex); a record created with `init` is gated at Stop; the real Codex hook input | eval runners decide permissions themselves, so only a normal session shows the user's path; plugins/create.md: "To check a hook, trigger the event it matches" |
+| `claude plugin eval`, plugin-eval (paid, 3 runs) | the skill leads the model to the right outcome | plugin-evals.md: "Measure how reliably your plugin leads Claude to produce the right outcome"; it removes ungranted tools ("Runs never stop to ask for permission") and a skill's `allowed-tools` "can't widen any of them", so permissions are an operator input there, not a result |
+
+The `claude plugin eval` smoke run without the MCP grant showed exactly that: the `init` call was
+denied in the eval's `dontAsk` session and the model fell back to Write; the same call in
+`claude -p --permission-mode dontAsk` was allowed by the plugin's hook.

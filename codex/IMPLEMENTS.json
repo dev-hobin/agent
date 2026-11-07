@@ -1,6 +1,6 @@
 {
   "review": {
-    "spec": "bdba1d594695e0c3a6ae576d",
+    "spec": "bdba1d594695e0c394a6c181",
     "plugin": "plugins/hobin-review",
     "skill": "plugins/hobin-review/skills/reviewing-code/SKILL.md",
     "copies": {
@@ -19,7 +19,7 @@
     }
   },
   "applying-stances": {
-    "spec": "8f062eca7107a001a6ae576d",
+    "spec": "8f062eca7107a00194a6c181",
     "plugin": "plugins/hobin-stances",
     "skill": "plugins/hobin-stances/skills/applying-stances/SKILL.md",
     "copies": {
@@ -40,7 +40,7 @@
     }
   },
   "enforcing-conventions": {
-    "spec": "3fdafe47004c7a01a6ae576d",
+    "spec": "3fdafe47004c7a0194a6c181",
     "plugin": "plugins/hobin-stances",
     "skill": "plugins/hobin-stances/skills/enforcing-conventions/SKILL.md",
     "copies": {
@@ -57,7 +57,7 @@
     }
   },
   "technical-reading": {
-    "spec": "bac5d3f56e350621a6ae576d",
+    "spec": "bac5d3f56e35062194a6c181",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/technical-reading/SKILL.md",
     "copies": {
@@ -78,7 +78,7 @@
     }
   },
   "opensource-reading": {
-    "spec": "827483f0293558f1a6ae576d",
+    "spec": "827483f0293558f194a6c181",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/opensource-reading/SKILL.md",
     "copies": {
@@ -99,7 +99,7 @@
     }
   },
   "conceptualize": {
-    "spec": "6df616555198bcdfa6ae576d",
+    "spec": "6df616555198bcdf94a6c181",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/conceptualize/SKILL.md",
     "copies": {
@@ -119,7 +119,7 @@
     }
   },
   "patternize": {
-    "spec": "91f734632c595e47a6ae576d",
+    "spec": "91f734632c595e4794a6c181",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/patternize/SKILL.md",
     "copies": {
@@ -140,7 +140,7 @@
     }
   },
   "exercise": {
-    "spec": "2342e46a5e4fa062a6ae576d",
+    "spec": "2342e46a5e4fa06294a6c181",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/exercise/SKILL.md",
     "copies": {
@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "7bcbfc2a3deb44dda6ae576d",
+    "spec": "8a92148f9aa3595994a6c181",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {
@@ -174,21 +174,21 @@
       "scripts/records.mjs": "plugins/hobin-feature/skills/developing-features/scripts/records.mjs",
       "scripts/compile-control-model.mjs": "plugins/hobin-feature/skills/developing-features/scripts/compile-control-model.mjs",
       "scripts/check-control-model.mjs": "plugins/hobin-feature/skills/developing-features/scripts/check-control-model.mjs",
-      "scripts/record-tools.mjs": "plugins/hobin-feature/skills/developing-features/scripts/record-tools.mjs"
+      "../shared/scripts/session-registry.mjs": "plugins/hobin-feature/skills/developing-features/scripts/session-registry.mjs"
     },
     "evals": "evals/hobin-feature/{scenario}/benchmark.json",
     "triggers": "unsupported: plugin-eval has no skill-selection verifier",
     "guarantees": {
-      "G2": "instructed: step 1 (the records tool init, or decline with a reason) and the report form; enforced in part once the user trusts the plugin hooks (/hooks): a $developing-features prompt (UserPromptSubmit) or reading this plugin's SKILL.md (PostToolUse) starts the obligation, and Stop sends Codex back while no record is registered and no decline was called, naming the init, register and decline tools; checked by the scenarios-recorded scenario check",
+      "G2": "instructed: step 1 (scenarios.mjs init, or scenarios.mjs decline with a reason, which writes and registers a declined record) and the report form; enforced in part, and only while the user has trusted the plugin hooks (/hooks; again after each plugin update): a $developing-features prompt (UserPromptSubmit) or reading this plugin's SKILL.md (PostToolUse) starts the obligation, and Stop sends Codex back while the session registry lists no record, naming the exact node <plugin scripts>/scenarios.mjs init, register and decline commands and the start directory; without trusted hooks there is no registry, so scenarios.mjs stops and says the hooks are not active (the model can pass --no-gate, which leaves the record ungated); plugin-eval never installs the plugin, so its runs measure the skill only; checked by the scenarios-recorded scenario check",
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
       "G5": "instructed: steps 5 to 7; the verifier subagent is instructed not to edit (no per-agent sandbox); checked by the hidden and visible tests and by scenario-record-complete (existing tests run and recorded by scenarios.mjs)",
-      "G6": "enforced: once the user trusts the plugin hooks (/hooks), the plugin's stdio MCP server (.codex-plugin/plugin.json mcpServers ./.mcp.json, server hobin_feature, cwd the plugin root, explicit startup and tool timeouts, annotations that Codex's auto approval accepts) exposes init, register, check and decline; a successful call of mcp__hobin_feature__init|register|check (PostToolUse, structured tool_input.path) registers the record in a per-session ledger in the plugin data directory, as do apply_patch edits of a record; on Stop the hook sends Codex back while a ledger record fails scenarios.mjs check or still holds verification.run, up to three times in a row; the server config sets default_tools_approval_mode approve, so the tools never ask; SessionEnd removes the session's state; no shell text, command output, environment variable, shared temp directory or file tree is used; the skill also runs it before finishing",
-      "G7": "enforced: once the user trusts the plugin hooks (/hooks), compile-control-model.mjs --baseline|--changes|--gate <record> register the control decision record in the same ledger, as do apply_patch edits; the Stop hook runs the gate on each against the record's project root and sends Codex back while it fails (up to three times in a row); the skill also runs it before finishing"
+      "G6": "enforced: only while the user has trusted the plugin hooks (/hooks; again after each plugin update). SessionStart creates the session registry <start dir>/.hobin-feature/sessions/<session_id>.jsonl (with an ignore-all .gitignore) and remembers the start dir in the plugin data directory (UserPromptSubmit creates it in the event cwd if SessionStart was missed); scenarios.mjs init, register, run and decline find it from their cwd upward with CODEX_SESSION_ID (equal to the hook session_id) and append the record's absolute path; apply_patch Add/Update/Move to of a record file appends it too (PostToolUse); on Stop the hook sends Codex back while a registry record is missing, fails scenarios.mjs check or still holds verification.run, up to three times in a row; without trusted hooks the scripts find no registry and stop with exit 2, saying the hooks are not active, so the gap is never silent (--no-gate proceeds ungated); no directory search, MCP server, shell text, command output or transcript is used; SessionEnd deletes the registry and the session's state, Stop prunes week-old registries; the skill also runs scenarios.mjs check before finishing",
+      "G7": "enforced: only while the user has trusted the plugin hooks (/hooks; again after each update): a control-decisions*.json registered with scenarios.mjs register or written with apply_patch is in the registry; the Stop hook runs the gate on it against the record's repository and sends Codex back while it fails (up to three times in a row); the skill also runs the gate before finishing"
     }
   },
   "evaluating-skills": {
-    "spec": "5e2c52fbc19d199aa6ae576d",
+    "spec": "5e2c52fbc19d199a94a6c181",
     "plugin": "plugins/hobin-skill-eval",
     "skill": "plugins/hobin-skill-eval/skills/evaluating-skills/SKILL.md",
     "copies": {

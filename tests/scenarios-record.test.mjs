@@ -20,7 +20,7 @@ test("a scenario command may not name a home path or an existing file outside th
 });
 
 const SCENARIOS = join(repositoryRoot, "core/developing-features/scripts/scenarios.mjs");
-const { NODE_TEST_CONTEXT: _, ...env } = process.env;
+const { NODE_TEST_CONTEXT: _, CLAUDE_CODE_SESSION_ID: _c, CODEX_SESSION_ID: _x, ...env } = process.env;
 const RUN_WORDING = /^a scenarios\.mjs run started at (\S+) \(last progress (\S+)\) has not finished; if it is still running wait for it, do not start another; if it stopped, run it again\.$/;
 // A complete record whose results all passed in an earlier run; `slow` makes S1's check take a while.
 function passedRecord(project, { slow = false } = {}) {

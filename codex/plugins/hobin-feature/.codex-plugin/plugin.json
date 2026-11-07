@@ -15,7 +15,6 @@
   ],
   "skills": "./skills/",
   "hooks": "./hooks/hooks.json",
-  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Hobin Feature",
     "shortDescription": "Build a feature through verified acceptance scenarios",

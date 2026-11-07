@@ -1,6 +1,6 @@
 {
   "review": {
-    "spec": "bdba1d594695e0c3a6ae576d",
+    "spec": "bdba1d594695e0c394a6c181",
     "plugin": "plugins/hobin-review",
     "skill": "plugins/hobin-review/skills/reviewing-code/SKILL.md",
     "copies": {
@@ -19,7 +19,7 @@
     }
   },
   "applying-stances": {
-    "spec": "8f062eca7107a001a6ae576d",
+    "spec": "8f062eca7107a00194a6c181",
     "plugin": "plugins/hobin-stances",
     "skill": "plugins/hobin-stances/skills/applying-stances/SKILL.md",
     "copies": {
@@ -40,7 +40,7 @@
     }
   },
   "enforcing-conventions": {
-    "spec": "3fdafe47004c7a01a6ae576d",
+    "spec": "3fdafe47004c7a0194a6c181",
     "plugin": "plugins/hobin-stances",
     "skill": "plugins/hobin-stances/skills/enforcing-conventions/SKILL.md",
     "copies": {
@@ -57,7 +57,7 @@
     }
   },
   "technical-reading": {
-    "spec": "bac5d3f56e350621a6ae576d",
+    "spec": "bac5d3f56e35062194a6c181",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/technical-reading/SKILL.md",
     "copies": {
@@ -78,7 +78,7 @@
     }
   },
   "opensource-reading": {
-    "spec": "827483f0293558f1a6ae576d",
+    "spec": "827483f0293558f194a6c181",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/opensource-reading/SKILL.md",
     "copies": {
@@ -99,7 +99,7 @@
     }
   },
   "conceptualize": {
-    "spec": "6df616555198bcdfa6ae576d",
+    "spec": "6df616555198bcdf94a6c181",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/conceptualize/SKILL.md",
     "copies": {
@@ -119,7 +119,7 @@
     }
   },
   "patternize": {
-    "spec": "91f734632c595e47a6ae576d",
+    "spec": "91f734632c595e4794a6c181",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/patternize/SKILL.md",
     "copies": {
@@ -140,7 +140,7 @@
     }
   },
   "exercise": {
-    "spec": "2342e46a5e4fa062a6ae576d",
+    "spec": "2342e46a5e4fa06294a6c181",
     "plugin": "plugins/hobin-learning",
     "skill": "plugins/hobin-learning/skills/exercise/SKILL.md",
     "copies": {
@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "7bcbfc2a3deb44dda6ae576d",
+    "spec": "8a92148f9aa3595994a6c181",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {
@@ -174,21 +174,21 @@
       "scripts/records.mjs": "plugins/hobin-feature/skills/developing-features/scripts/records.mjs",
       "scripts/compile-control-model.mjs": "plugins/hobin-feature/skills/developing-features/scripts/compile-control-model.mjs",
       "scripts/check-control-model.mjs": "plugins/hobin-feature/skills/developing-features/scripts/check-control-model.mjs",
-      "scripts/record-tools.mjs": "plugins/hobin-feature/skills/developing-features/scripts/record-tools.mjs"
+      "../shared/scripts/session-registry.mjs": "plugins/hobin-feature/skills/developing-features/scripts/session-registry.mjs"
     },
     "evals": "plugins/hobin-feature/evals/{scenario}/prompt.md",
     "triggers": "plugins/hobin-feature/evals/triggers/developing-features-{trigger}/prompt.md",
     "guarantees": {
-      "G2": "instructed: step 1 (the records tool init, or decline with a reason) and the report form; enforced in part: once developing-features starts (Skill tool or the /developing-features prompt, recorded by UserPromptSubmit and PostToolUse hooks) the Stop hook sends Claude back while no record is registered and no decline was called, naming the init, register and decline tools; checked by the scenarios-recorded scenario check",
+      "G2": "instructed: step 1 (scenarios.mjs init, or scenarios.mjs decline with a reason, which writes and registers a declined record) and the report form; enforced in part: once developing-features starts (Skill tool or the /developing-features prompt, seen by the PostToolUse and UserPromptSubmit hooks) the Stop hook sends Claude back while the session registry lists no record, naming the exact node <plugin scripts>/scenarios.mjs init, register and decline commands and the start directory to run them from; checked by the scenarios-recorded scenario check",
       "G3": "instructed: step 2 and the report form; checked by the decisions-with-revert scenario check",
       "G4": "instructed: step 2 conservative defaults and the Gotchas; checked by the hidden tests",
       "G5": "instructed: steps 5 to 7; the independent-verifier agent is enforced read-only by its tools; checked by the hidden and visible tests and by scenario-record-complete (existing tests run and recorded by scenarios.mjs)",
-      "G6": "enforced: the plugin's stdio MCP server (.mcp.json, server hobin_feature) exposes init, register, check and decline; a successful call of mcp__plugin_hobin-feature_hobin_feature__init|register|check (PostToolUse, structured tool_input.path) registers the record in a per-session ledger in ${CLAUDE_PLUGIN_DATA}, as do Write/Edit/MultiEdit of a record; on Stop the hook (hooks/hooks.json) sends Claude back while a ledger record fails scenarios.mjs check or still holds verification.run (and says when background_tasks are still running), up to three times in a row, then the report must say so; the plugin's PreToolUse hook allows exactly the four records tools without a permission prompt (deny and ask rules still apply); SessionEnd removes the session's state; no shell text, command output, environment variable, shared temp directory or file tree is used; graded by scenario-record-complete through the eval verify plugin",
-      "G7": "enforced: compile-control-model.mjs --baseline|--changes|--gate <record> register the control decision record in the same ledger, as do edit tools; the Stop hook runs the gate on each against the record's project root and sends Claude back while it fails (up to three times in a row); graded by control-model-gate through the eval verify plugin"
+      "G6": "enforced: SessionStart creates the session registry <start dir>/.hobin-feature/sessions/<session_id>.jsonl (with an ignore-all .gitignore) and remembers the start dir in ${CLAUDE_PLUGIN_DATA} (UserPromptSubmit creates it in CLAUDE_PROJECT_DIR if SessionStart was missed); scenarios.mjs init, register, run and decline find it from their cwd upward with CLAUDE_CODE_SESSION_ID (equal to the hook session_id) and append the record's absolute path, and stop with exit 2 when a session id has no registry; Write/Edit/MultiEdit of a record file appends it too (PostToolUse); on Stop the hook (hooks/hooks.json) sends Claude back while a registry record is missing, fails scenarios.mjs check or still holds verification.run (and says when background_tasks are still running), up to three times in a row, then the report must say so; no directory search, MCP server, permission hook, shell text, command output or transcript is used; SessionEnd deletes the registry and the session's state, Stop prunes week-old registries; graded by scenario-record-complete through the eval verify plugin",
+      "G7": "enforced: a control-decisions*.json registered with scenarios.mjs register or written with an edit tool is in the registry; the Stop hook runs the gate on it against the record's repository and sends Claude back while it fails (up to three times in a row); graded by control-model-gate through the eval verify plugin"
     }
   },
   "evaluating-skills": {
-    "spec": "5e2c52fbc19d199aa6ae576d",
+    "spec": "5e2c52fbc19d199a94a6c181",
     "plugin": "plugins/hobin-skill-eval",
     "skill": "plugins/hobin-skill-eval/skills/evaluating-skills/SKILL.md",
     "copies": {

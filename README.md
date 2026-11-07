@@ -47,8 +47,11 @@ codex plugin add hobin-review@hobin
 
 Start a new session after installing. Agents pick a skill when the request fits it;
 start one yourself with `/hobin-review:reviewing-code` in Claude Code or
-`$hobin-review:reviewing-code` in Codex. In Codex, trust the bundled hooks once with `/hooks` so the result checks run
-automatically. See [installation](./docs/installation.md).
+`$hobin-review:reviewing-code` in Codex. In Codex, trust the bundled hooks with `/hooks` so the
+result checks run automatically, and trust them again after each plugin update: Codex runs no
+untrusted hook. Without them hobin-feature has no session registry, so its `scenarios.mjs` stops
+and says the hooks are not active. See
+[installation](./docs/installation.md).
 
 ## Changing a capability
 
@@ -71,6 +74,36 @@ pnpm check:install -- claude    # isolated install, no credentials, no models
 pnpm check:install -- codex
 ```
 
+Live host checks call a small model and are opt-in. They check hobin-feature's Stop gate with the
+plugin's hooks really running, the same way on both hosts: a session runs `scenarios.mjs init`
+(also for a record in another directory, by absolute path), which registers the record in the
+session registry the hooks created, and Stop must send it back; a session that registers a complete
+record must be let through; `init` run after `cd` away from the start directory must stop with the
+"no registry" message. Codex plugin-eval never installs the plugin, so this is the gate's only check
+on Codex.
+
+```sh
+pnpm check:live -- claude                                         # claude -p --plugin-dir; ~/.claude is not changed
+pnpm check:live -- codex --codex-home ~/.cache/hobin-live-codex   # codex plugin add, then codex exec (workspace-write, approval never)
+```
+
+The Codex check never reads or copies `~/.codex`. It needs a dedicated Codex home that you log in
+to with ChatGPT once (subscription billing; `CODEX_API_KEY` and `OPENAI_API_KEY` are removed from
+its environment):
+
+```sh
+mkdir -m 700 ~/.cache/hobin-live-codex
+touch ~/.cache/hobin-live-codex/.hobin-live-codex-home   # marks it as dedicated: each run clears it except auth.json
+printf 'cli_auth_credentials_store = "file"\n' > ~/.cache/hobin-live-codex/config.toml
+CODEX_HOME=~/.cache/hobin-live-codex codex login      # add --device-auth without a browser
+```
+
+That directory holds a credential as sensitive as a password: keep it out of any repository and do
+not share it. Each run uses it in place (Codex writes refreshed tokens back to its `auth.json`), one
+run at a time (a lock file), after clearing everything but `auth.json` and the credentials-store
+line of `config.toml`. When the home is missing, is `~/.codex`, has no marker file, has loose
+permissions, lacks that line, or is not a ChatGPT login, the check prints these steps and exits 2 as skipped, not passed.
+
 Host evaluations call models and cost money:
 
 ```sh
@@ -78,12 +111,17 @@ claude plugin eval claude/plugins/<plugin> --tag regression --ablation none --sc
   --allow-tools Bash Write Edit --model sonnet --runs 3 --trust-plugin --no-publish --keep-temp
 ```
 
+hobin-feature needs no extra flags: its records are made with `scenarios.mjs` in the shell
+(`Bash` is granted above), and the eval runs its hooks, which create the session registry.
+
 `--keep-temp` keeps what a failed run needs for diagnosis. The JSON result names each run's
 `tracePath`. The run's workspace is `../sealed/home/cwd` next to that trace; `chmod u+rx` the
 `sealed` directory to read it. Rerun the failed check there, such as the hidden tests.
 
 Codex benchmarks use OpenAI's `plugin-eval`; see
-`.agents/skills/implementing-core/references/codex.md`.
+`.agents/skills/implementing-core/references/codex.md`. plugin-eval never installs the plugin
+(it is listed as available only), so no plugin hook runs there: a run measures the skill alone,
+and hobin-feature's Stop gate is checked by `pnpm check:live -- codex`.
 
 ## License
 

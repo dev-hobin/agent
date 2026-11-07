@@ -28,6 +28,7 @@
     "check:portable": "pnpm check:standard && pnpm check:core && node --test tests/*.test.mjs",
     "check:claude": "claude plugin validate claude/plugins/hobin-feature --strict && claude plugin validate claude/plugins/hobin-learning --strict && claude plugin validate claude/plugins/hobin-review --strict && claude plugin validate claude/plugins/hobin-skill-eval --strict && claude plugin validate claude/plugins/hobin-stances --strict && claude plugin validate .claude-plugin/marketplace.json --strict",
     "check:install": "node scripts/check-plugin-installation.mjs",
+    "check:live": "node scripts/check-live.mjs",
     "check": "pnpm check:portable"
   },
   "devDependencies": {

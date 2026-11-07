@@ -45,7 +45,7 @@ codex plugin add hobin-review@hobin
 
 설치 후 새 세션을 시작하세요. 요청이 맞으면 에이전트가 skill을 스스로 고릅니다. 직접 시작하려면
 Claude Code에서 `/hobin-review:reviewing-code`, Codex에서 `$hobin-review:reviewing-code`를 씁니다.
-Codex에서는 `/hooks`에서 함께 설치된 hook을 한 번 신뢰해야 결과 검사가 자동으로 실행됩니다.
+Codex에서는 `/hooks`에서 함께 설치된 hook을 신뢰해야 결과 검사가 자동으로 실행되고, 플러그인을 업데이트할 때마다 다시 신뢰해야 합니다. 신뢰하지 않으면 hobin-feature의 `scenarios.mjs`가 hook이 꺼져 있다고 알리고 멈춥니다.
 자세한 내용은 [설치](./docs/installation.md)에 있습니다.
 
 ## 역량 바꾸기
