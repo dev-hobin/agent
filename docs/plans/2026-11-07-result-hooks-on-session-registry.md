@@ -35,6 +35,14 @@ The skills already have scripts that make or check a result:
 5. Removed from `hook-input.mjs`: shell-text parsing, the PreToolUse stamp, mtimes, the transcript
    time, `git log` dating, the `os.tmpdir()` ledger. PreToolUse and PostToolUseFailure hooks go.
 
+**Where the hook-side lifecycle lives (2026-11-07).** The rules hobin-feature's hook and
+`hook-input.mjs` both carried (start directory remembered at SessionStart with the
+`CLAUDE_PROJECT_DIR` / event-cwd fallback; Claude Write/Edit/MultiEdit and Codex `apply_patch` paths;
+SessionStart/UserPromptSubmit ensure, SessionEnd removal, Stop pruning; session state and the Stop
+block counter in the plugin data directory) are one plugin-neutral API, `hookSession` in
+`core/shared/scripts/session-registry.mjs`. `hook-input.mjs` keeps what is the result hooks' own:
+running the plugin's `check`, its messages and its three-block limit.
+
 ## Decision: shell-only results
 
 A result the model writes only through shell redirection, without the skill's script and without
