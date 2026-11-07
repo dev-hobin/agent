@@ -142,8 +142,8 @@ the full change against the base. "
 | Scenario check | Grader |
 | --- | --- |
 | `file_exists: P` | `type: file_exists`, `path: "P"` |
-| `file_matches: {path, pattern, flags}` | `type: regex`, `target: { source: file, path: P }`, `pattern`, `flags` |
-| `file_lacks` | same as above plus `match: not_contains` |
+| `file_matches: {path, pattern, flags}` | `type: regex`, `target: { source: file, path: P }`, `pattern`, `flags` (written by `check.mjs --sync`) |
+| `file_lacks` | same as above plus `match: not_contains` (written by `check.mjs --sync`) |
 | `unchanged_except: [P…]` | `<check>.md`: `type: tool_used`, `tool: Edit`, `min: 0`, `max: 0`, `arm: both`; and `<check>-write.md`: `type: tool_used`, `tool: Write`, `input_match` matching a `file_path` that does not end in an allowed path, `min: 0`, `max: 0`, `arm: both` |
 | `unchanged: [P…]` | `tool_used` on `Edit` and on `Write` with `input_match` on a `file_path` under P, `min: 0`, `max: 0`, `arm: both` (one grader each) |
 | `command_passes`, `script_passes`, `output_contract` | `type: regex`, `target: { source: file, path: SCENARIO_CHECK.txt }`, `pattern: "^pass <check>$"`, `flags: m` (written by the verify plugin) |

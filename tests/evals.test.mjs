@@ -146,10 +146,11 @@ test("every Claude regression case loads the verify plugin and grades each code-
 	assert.ok(regression.length >= 13);
 });
 
-// A Claude case grades the checks its core scenario has, with each regex check's pattern and
-// flags repeated exactly: a grader for a removed or changed check keeps grading an old standard.
-// (A Codex benchmark's successChecklist is written from scenario.yaml by check.mjs --sync.)
-test("every Claude regression case grades only its scenario's checks, with their exact patterns", async () => {
+// A Claude case grades only the checks its core scenario has: a hand-written grader (tool_used,
+// file_exists, the SCENARIO_CHECK.txt regexes) for a removed check keeps grading an old standard.
+// check.mjs --sync writes the regex graders of file_matches / file_lacks checks and each Codex
+// benchmark's successChecklist from scenario.yaml.
+test("every Claude regression case grades only its scenario's checks", async () => {
 	for (const dir of await cases()) {
 		const scenario = frontmatter(await readFile(join(dir, "prompt.md"), "utf8"), dir).data.env?.EVAL_SCENARIO;
 		if (!scenario) continue;
@@ -157,13 +158,6 @@ test("every Claude regression case grades only its scenario's checks, with their
 		const ids = checks.flatMap((c) => ("unchanged" in c || "unchanged_except" in c ? [c.id, `${c.id}-write`, `${c.id}-edit`] : [c.id]));
 		for (const file of (await readdir(join(dir, "graders"))).filter((f) => f.endsWith(".md"))) {
 			assert.ok(ids.includes(file.slice(0, -3)), `${dir}/graders/${file}: ${scenario} has no check ${file.slice(0, -3)}; remove the grader`);
-		}
-		for (const check of checks) {
-			const regex = check.file_matches ?? check.file_lacks;
-			if (!regex) continue;
-			const { data } = frontmatter(await readFile(join(dir, "graders", `${check.id}.md`), "utf8"), `${dir}/${check.id}`);
-			assert.equal(data.pattern, regex.pattern, `${dir}/graders/${check.id}.md: repeat the scenario's pattern exactly`);
-			assert.equal(data.flags ?? "", regex.flags ?? "", `${dir}/graders/${check.id}.md: repeat the scenario's flags exactly`);
 		}
 	}
 });
