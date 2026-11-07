@@ -215,8 +215,9 @@ Not verified:     <관찰하지 못한 것>
 - `scripts/scenarios.mjs` — 시나리오 기록을 만들고(`init`), 이 작업에 등록하고(`register`), 실행해 적고(`run`),
   완결을 검사하고(`check`, 읽기만), 거절 기록을 남긴다(`decline --reason`). `check` 말고는 기록을 작업 등록부에
   덧붙이고, 등록부가 없으면 멈춘다(`--no-gate`는 등록하지 않는다).
-- `scripts/records.mjs` — 기록 찾기와 실행 환경 hook의 작업 상태.
-- `../shared/scripts/session-registry.mjs` — 작업 등록부(만들기, 찾기, 덧붙이기, 읽기, 지우기). 다른 역량과 함께 쓰므로
+- `scripts/records.mjs` — 기록 찾기.
+- `../shared/scripts/session-registry.mjs` — 작업 등록부(만들기, 찾기, 덧붙이기, 읽기, 지우기)와 hook 쪽 작업 수명
+  (시작 디렉터리, 편집 도구가 쓴 경로, 작업 상태와 정리). 다른 역량과 함께 쓰므로
   이 역량의 내용을 담지 않는다. 스크립트와 hook은 이것만 부른다.
 - `scripts/compile-control-model.mjs` — 결정 기록을 상태머신 정의로 컴파일하고, `--gate`로 통과/실패를 판정한다.
 - `scripts/check-control-model.mjs` — 상태머신 정의를 검사하고, 정규형(`--canonical`), 비교(`--compare`),

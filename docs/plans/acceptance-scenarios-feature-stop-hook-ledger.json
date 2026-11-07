@@ -356,7 +356,7 @@
       "owner": "team",
       "decision": "Files per session_id in the host's plugin data directory (CLAUDE_PLUGIN_DATA; Codex PLUGIN_DATA or CLAUDE_PLUGIN_DATA), OS temp only when neither is set; SessionEnd removes them and Stop/SessionEnd prune files older than seven days",
       "reason": "Persistent, per plugin, given to hooks by both hosts; cleanup keeps it bounded; losing it only stops enforcement for that session",
-      "revert": "Point stateDir in records.mjs back at the OS temp directory and drop the SessionEnd hooks"
+      "revert": "Point the state directory in hookSession (core/shared/scripts/session-registry.mjs) back at the OS temp directory and drop the SessionEnd hooks"
     },
     {
       "id": "D-run-state",

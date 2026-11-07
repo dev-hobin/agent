@@ -83,6 +83,16 @@ A probe plugin (hooks log their input and the environment; SessionStart creates 
    registry files older than 7 days in the start directory.
 8. **Run state** (`verification.run`) stays as is.
 
+**Where the hook-side lifecycle lives (2026-11-07).** Steps 1, 3 and 7 (the start directory remembered
+at SessionStart with the `CLAUDE_PROJECT_DIR` / event-cwd fallback, edit-tool paths on both hosts,
+registry creation at SessionStart/UserPromptSubmit, SessionEnd removal, week-old pruning, and the
+session state in the plugin data directory with the Stop block counter) are now `hookSession` in the
+shared module `core/shared/scripts/session-registry.mjs`, the same code the result hooks use
+(`2026-11-07-result-hooks-on-session-registry.md`). `scenarios-stop-hook.mjs` keeps only what is
+hobin-feature's: what Stop gates (records via `scenarios.mjs` / `compile-control-model.mjs`), the
+obligation (kept as one more state file), its messages and its three-block limit; `records.mjs` no
+longer holds hook state.
+
 ## What remains host-specific, stated
 
 - **Codex hooks run only after the user trusts them, and again after each update** (official
