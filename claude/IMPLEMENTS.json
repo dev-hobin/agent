@@ -1,6 +1,6 @@
 {
   "review": {
-    "spec": "0db4447782fcef376d8b43e6",
+    "spec": "965c76e395e0ae846d8b43e6",
     "plugin": "plugins/hobin-review",
     "skill": "plugins/hobin-review/skills/reviewing-code/SKILL.md",
     "copies": {

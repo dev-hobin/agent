@@ -146,30 +146,24 @@ test("every Claude regression case loads the verify plugin and grades each code-
 	assert.ok(regression.length >= 13);
 });
 
-// A host case grades the checks its core scenario has: a grader or checklist entry for a check
-// the scenario no longer has would keep grading a removed standard.
-test("every host eval case names only checks its core scenario has", async () => {
-	const checkIds = async (scenario) => parse(await readFile(join(repositoryRoot, scenario), "utf8")).expect
-		.flatMap((c) => ("unchanged" in c || "unchanged_except" in c ? [c.id, `${c.id}-write`, `${c.id}-edit`] : [c.id]));
+// A Claude case grades the checks its core scenario has, with each regex check's pattern and
+// flags repeated exactly: a grader for a removed or changed check keeps grading an old standard.
+// (A Codex benchmark's successChecklist is written from scenario.yaml by check.mjs --sync.)
+test("every Claude regression case grades only its scenario's checks, with their exact patterns", async () => {
 	for (const dir of await cases()) {
 		const scenario = frontmatter(await readFile(join(dir, "prompt.md"), "utf8"), dir).data.env?.EVAL_SCENARIO;
 		if (!scenario) continue;
-		const ids = await checkIds(scenario);
+		const checks = parse(await readFile(join(repositoryRoot, scenario), "utf8")).expect;
+		const ids = checks.flatMap((c) => ("unchanged" in c || "unchanged_except" in c ? [c.id, `${c.id}-write`, `${c.id}-edit`] : [c.id]));
 		for (const file of (await readdir(join(dir, "graders"))).filter((f) => f.endsWith(".md"))) {
 			assert.ok(ids.includes(file.slice(0, -3)), `${dir}/graders/${file}: ${scenario} has no check ${file.slice(0, -3)}; remove the grader`);
 		}
-	}
-	const root = join(repositoryRoot, "codex/evals");
-	for (const plugin of await readdir(root, { withFileTypes: true })) {
-		if (!plugin.isDirectory()) continue;
-		for (const name of await readdir(join(root, plugin.name))) {
-			const where = `codex/evals/${plugin.name}/${name}/benchmark.json`;
-			const config = JSON.parse(await readFile(join(repositoryRoot, where), "utf8"));
-			const scenario = /\$HOBIN_AGENT_ROOT\/(core\/[^"]+\/scenario\.yaml)/.exec(config.verifiers.commands[0])?.[1];
-			const ids = await checkIds(scenario);
-			for (const id of config.scenarios.flatMap((s) => s.successChecklist ?? [])) {
-				assert.ok(ids.includes(id), `${where}: ${scenario} has no check ${id}; remove it from successChecklist`);
-			}
+		for (const check of checks) {
+			const regex = check.file_matches ?? check.file_lacks;
+			if (!regex) continue;
+			const { data } = frontmatter(await readFile(join(dir, "graders", `${check.id}.md`), "utf8"), `${dir}/${check.id}`);
+			assert.equal(data.pattern, regex.pattern, `${dir}/graders/${check.id}.md: repeat the scenario's pattern exactly`);
+			assert.equal(data.flags ?? "", regex.flags ?? "", `${dir}/graders/${check.id}.md: repeat the scenario's flags exactly`);
 		}
 	}
 });

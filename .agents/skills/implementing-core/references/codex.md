@@ -95,7 +95,8 @@ codex/evals/<plugin>/<scenario>/
                     workspace { sourcePath "codex/evals/<plugin>/<scenario>/workspace", setupMode "copy" },
                     targetProvisioning { mode "workspace-plugin-marketplace" },
                     verifiers { commands: [ scenario check command ] },
-                    scenarios [ { id, title, purpose, userInput "$<plugin>:<skill> " + presentation + request } ]
+                    scenarios [ { id, title, purpose, userInput "$<plugin>:<skill> " + presentation + request,
+                                  successChecklist (written by check.mjs --sync: the scenario's check ids) } ]
   base/, change.patch   copies of the scenario fixture
 ```
 

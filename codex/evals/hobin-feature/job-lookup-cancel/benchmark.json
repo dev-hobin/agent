@@ -38,6 +38,7 @@
         "visible-tests",
         "scenarios-recorded",
         "decisions-with-revert",
+        "scenario-record-complete",
         "control-model-gate"
       ]
     }

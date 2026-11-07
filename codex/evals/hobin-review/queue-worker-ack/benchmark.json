@@ -38,7 +38,8 @@
         "finds-early-ack",
         "finds-retry-double-credit",
         "no-flag-pending-count",
-        "no-other-changes"
+        "no-other-changes",
+        "report-format"
       ]
     }
   ]

@@ -2,9 +2,11 @@
 // Deterministic checks between core specs and their host implementations. No model calls.
 //   node check.mjs          fail when an implementation is stale, a copy differs from core,
 //                           a scenario has no eval case or its case does not carry the
-//                           scenario's request, a skill's description differs from its
+//                           scenario's request or a Codex benchmark's successChecklist is not the
+//                           scenario's check ids, a skill's description differs from its
 //                           spec, or a scenario's golden result does not prove its checks
-//   node check.mjs --sync   copy core resources into implementations and record spec hashes
+//   node check.mjs --sync   copy core resources into implementations, write each Codex
+//                           benchmark's successChecklist and record spec hashes
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -132,8 +134,21 @@ for (const id of capabilities) {
 		for (const s of scenarios) {
 			const evalDir = join(root, host, entry.evals.replaceAll("{scenario}", s));
 			if (!existsSync(evalDir)) { problems.push(`${host}: no eval case for core/${id} scenario ${s}`); continue; }
-			const request = parse(readFileSync(join(core, "scenarios", s, "scenario.yaml"), "utf8")).request.replace(/\s+/g, " ").trim();
+			const scenario = parse(readFileSync(join(core, "scenarios", s, "scenario.yaml"), "utf8"));
+			const request = scenario.request.replace(/\s+/g, " ").trim();
 			if (!caseText(evalDir).includes(request)) problems.push(`${host}: ${relative(root, evalDir)} does not carry the request of core/${id} scenario ${s} word for word`);
+			// A plugin-eval benchmark lists the scenario's check ids, in order, as its successChecklist;
+			// --sync writes them from scenario.yaml, so they are never copied by hand.
+			if (evalDir.endsWith("benchmark.json")) {
+				const ids = scenario.expect.map((check) => check.id);
+				const config = JSON.parse(readFileSync(evalDir, "utf8"));
+				if (config.scenarios.some((x) => JSON.stringify(x.successChecklist) !== JSON.stringify(ids))) {
+					if (sync) {
+						for (const x of config.scenarios) x.successChecklist = ids;
+						writeFileSync(evalDir, JSON.stringify(config, null, 2) + "\n");
+					} else problems.push(`${host}: ${relative(root, evalDir)} successChecklist differs from the check ids of core/${id} scenario ${s}; run check.mjs --sync`);
+				}
+			}
 		}
 		const triggersFile = join(core, "triggers.yaml");
 		if (existsSync(triggersFile)) {

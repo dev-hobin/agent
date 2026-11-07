@@ -1,4 +1,5 @@
 # Acceptance scenario for core/review/SPEC.md §8. Hosts run it with their own eval tools.
+# A finding runs from its `[P…]` line to the next `[P` line or the end, as in scripts/check-report.mjs.
 id: queue-worker-ack
 tags: [regression]
 base: base
@@ -10,13 +11,13 @@ expect:
   - id: finds-early-ack
     file_matches:
       path: REVIEW.md
-      pattern: "\\[P[01]\\](?:(?!\\n\\s*\\n|\\n\\[P)[\\s\\S])*?\\b(ack|acknowledg)"
-      flags: i
+      pattern: "^\\[P[01]\\](?:(?!\\n\\[P\\d\\])[\\s\\S])*?\\b(ack|acknowledg)"
+      flags: im
   - id: finds-retry-double-credit
     file_matches:
       path: REVIEW.md
-      pattern: "\\[P[01]\\](?:(?!\\n\\s*\\n|\\n\\[P)[\\s\\S])*?(idempot|double|twice|duplicate)"
-      flags: i
+      pattern: "^\\[P[01]\\](?:(?!\\n\\[P\\d\\])[\\s\\S])*?(idempot|double|twice|duplicate)"
+      flags: im
   - id: no-flag-pending-count
     file_lacks:
       path: REVIEW.md

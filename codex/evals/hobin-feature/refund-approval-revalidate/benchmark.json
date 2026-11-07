@@ -37,7 +37,8 @@
         "hidden-tests",
         "visible-tests",
         "scenarios-recorded",
-        "decisions-with-revert"
+        "decisions-with-revert",
+        "scenario-record-complete"
       ]
     }
   ]

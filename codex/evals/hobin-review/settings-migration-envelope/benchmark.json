@@ -38,7 +38,8 @@
         "finds-stored-footer-scrub",
         "finds-missing-envelope-as-empty",
         "no-flag-placeholder-constant",
-        "no-other-changes"
+        "no-other-changes",
+        "report-format"
       ]
     }
   ]
