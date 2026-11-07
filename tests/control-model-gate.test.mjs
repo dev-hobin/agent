@@ -1,22 +1,22 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
 import { gateRecord } from "../core/developing-features/scripts/compile-control-model.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 const exec = promisify(execFile);
 const scenario = join(repositoryRoot, "core/developing-features/scenarios/job-lookup-cancel");
 const compiler = join(repositoryRoot, "core/developing-features/scripts/compile-control-model.mjs");
 
 // The scenario's golden workspace: base with the golden result on top.
 function workspace(t) {
-	const dir = mkdtempSync(join(tmpdir(), "control-gate-"));
-	t.after(() => rmSync(dir, { recursive: true, force: true }));
+	const dir = temp.dir("control-gate");
 	cpSync(join(scenario, "base"), dir, { recursive: true });
 	cpSync(join(scenario, "golden"), dir, { recursive: true });
 	return dir;
@@ -132,8 +132,7 @@ test("without a baseline every cell is new, and covers must name real cells", (t
 });
 
 test("a baseline is taken only from a record that passes the gate", async (t) => {
-	const dir = mkdtempSync(join(tmpdir(), "control-baseline-"));
-	t.after(() => rmSync(dir, { recursive: true, force: true }));
+	const dir = temp.dir("control-baseline");
 	cpSync(join(scenario, "base"), dir, { recursive: true });
 	const record = JSON.parse(readFileSync(join(scenario, "golden/control-decisions.json"), "utf8"));
 	writeFileSync(join(dir, "control-decisions.json"), JSON.stringify(record));
@@ -141,8 +140,7 @@ test("a baseline is taken only from a record that passes the gate", async (t) =>
 });
 
 test("the command passes without a record unless --require, and on the golden record", async (t) => {
-	const empty = mkdtempSync(join(tmpdir(), "control-gate-empty-"));
-	t.after(() => rmSync(empty, { recursive: true, force: true }));
+	const empty = temp.dir("control-gate-empty");
 	await exec(process.execPath, [compiler, "--gate"], { cwd: empty });
 	await assert.rejects(exec(process.execPath, [compiler, "--gate", "--require"], { cwd: empty }), (error) => error.code === 1);
 	const dir = workspace(t);

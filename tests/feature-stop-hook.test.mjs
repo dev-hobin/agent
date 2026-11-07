@@ -10,13 +10,14 @@
 // (docs/plans/acceptance-scenarios-feature-stop-hook-ledger.json) and runs on both hosts' inputs.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 const HOSTS = ["claude", "codex"];
 const SESSION_VAR = { claude: "CLAUDE_CODE_SESSION_ID", codex: "CODEX_SESSION_ID" };
 const pluginRoot = (host) => join(repositoryRoot, host === "claude" ? "claude/plugins" : "codex/plugins", "hobin-feature");
@@ -28,12 +29,11 @@ const CONTROL = join(repositoryRoot, "core/developing-features/scenarios/job-loo
 const NO_REGISTRY = /^No hobin-feature registry for this agent session above (\S+)\. Run scenarios\.mjs from the directory the session started in and pass the record's absolute path\. If the hobin-feature hooks are not active in this session \(Codex: trust them in \/hooks; evaluations that do not install the plugin\), pass --no-gate: nothing will stop the session for this record\.$/m;
 
 // Real paths: a command's cwd is resolved through links (/var is /private/var on macOS).
-const workspace = () => realpathSync(mkdtempSync(join(tmpdir(), "feature-hook-")));
+const workspace = () => temp.dir("feature-hook");
 // A git work tree (only .git is needed for its top level to be found).
 const repository = () => { const dir = workspace(); mkdirSync(join(dir, ".git")); return dir; };
 // The hook's state lives in the host's plugin data directory; each test file gets its own.
 const DATA = workspace();
-test.after(() => rmSync(DATA, { recursive: true, force: true }));
 const stateDir = join(DATA, "hobin-feature-sessions");
 let counter = 0;
 const newSession = (tag) => `${tag}-${process.pid}-${Date.now()}-${counter++}`;

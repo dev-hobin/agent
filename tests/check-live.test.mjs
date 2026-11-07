@@ -1,15 +1,17 @@
 // The live check's Codex preconditions, home reset and lock, without calling Codex or a model.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
 import { CREDENTIALS_STORE_LINE, LOCK, MARKER, codexEnv, codexHomeProblems, lockCodexHome, loginKind, resetCodexHome } from "../scripts/check-live.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
-const scratch = () => realpathSync(mkdtempSync(join(tmpdir(), "live-check-")));
+const temp = tempRoot(import.meta.url);
+const scratch = () => temp.dir("live-check");
 // A prepared dedicated home with a fake credential (never a real one).
 function preparedHome(t) {
 	const dir = join(scratch(), "codex-home");
@@ -19,7 +21,6 @@ function preparedHome(t) {
 	chmodSync(join(dir, "auth.json"), 0o600);
 	writeFileSync(join(dir, "config.toml"), `${CREDENTIALS_STORE_LINE}\n`);
 	writeFileSync(join(dir, MARKER), "");
-	t.after(() => rmSync(join(dir, ".."), { recursive: true, force: true }));
 	return dir;
 }
 
@@ -30,7 +31,6 @@ test("live codex: a prepared dedicated home passes the static checks", (t) => {
 test("live codex: no home, ~/.codex (directly or through a link), a missing directory, loose modes and a missing store line fail closed", (t) => {
 	assert.match(codexHomeProblems(undefined)[0], /no dedicated Codex home given/);
 	const fakeHome = scratch();
-	t.after(() => rmSync(fakeHome, { recursive: true, force: true }));
 	mkdirSync(join(fakeHome, ".codex"));
 	assert.match(codexHomeProblems(join(fakeHome, ".codex"), fakeHome)[0], /is your everyday ~\/\.codex/);
 	symlinkSync(join(fakeHome, ".codex"), join(fakeHome, "alias"));

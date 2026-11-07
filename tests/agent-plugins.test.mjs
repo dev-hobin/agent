@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { cp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -15,14 +14,14 @@ import {
 	readJson,
 	repositoryRoot,
 } from "../scripts/check-agent-plugins.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 const minimal = { $schema: pluginSchemaId, name: "fixture" };
 const upstreamRoot = join(repositoryRoot, "schemas/upstream/agent-plugins/1.0.0");
 
 async function temporaryDirectory(t) {
-	const directory = await mkdtemp(join(tmpdir(), "agent-plugins-"));
-	t.after(() => rm(directory, { recursive: true, force: true }));
-	return realpath(directory);
+	return temp.dir("agent-plugins");
 }
 
 async function pluginFixture(t) {

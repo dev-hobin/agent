@@ -2,8 +2,7 @@
 // `plugin-eval` only spend money on well-formed cases. Core scenarios are proven by check.mjs.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { access, constants, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { access, constants, readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
@@ -11,7 +10,9 @@ import { promisify } from "node:util";
 import { parse } from "yaml";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 const exec = promisify(execFile);
 // Field and option names from the Claude Code "Test plugins with evals" reference.
 const promptFields = new Set(["schema_version", "name", "description", "tags", "plugins", "runs", "expected_outcome",
@@ -69,8 +70,7 @@ test("scaffolded Claude eval cases build their workspace", async (t) => {
 		if (!data.context?.scaffold_script) continue;
 		const script = join(dir, data.context.scaffold_script);
 		await access(script, constants.X_OK);
-		const workspace = await mkdtemp(join(tmpdir(), "claude-eval-"));
-		t.after(() => rm(workspace, { recursive: true, force: true }));
+		const workspace = temp.dir("claude-eval");
 		await exec("bash", [script], { cwd: workspace });
 		assert.ok((await readdir(workspace)).length > 0, `${dir}: scaffold produced files`);
 	}

@@ -3,8 +3,7 @@
 // contract mention again is a second, different standard: it can reject a result the contract
 // accepts (lease-spec rejected `**Example or contrast — illustrative interpretation:**`).
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 
@@ -13,7 +12,9 @@ import { parse } from "yaml";
 import { checkScenario } from "../.agents/skills/implementing-core/scripts/scenario-check.mjs";
 import { checkText } from "../core/shared/scripts/output-contract.mjs";
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 const scenarios = readdirSync(join(repositoryRoot, "core"), { withFileTypes: true })
 	.filter((d) => d.isDirectory())
 	.flatMap((d) => {
@@ -75,8 +76,7 @@ test("the captured lease-spec result meets its contract and every remaining scen
 	const contract = JSON.parse(readFileSync(join(repositoryRoot, "core/technical-reading/assets/output-contract.json"), "utf8"));
 	assert.deepEqual(checkText(contract, captured), []);
 	const scenario = join(repositoryRoot, "core/technical-reading/scenarios/lease-spec");
-	const dir = mkdtempSync(join(tmpdir(), "scenario-contract-"));
-	t.after(() => rmSync(dir, { recursive: true, force: true }));
+	const dir = temp.dir("scenario-contract");
 	const [baseline, workspace] = [join(dir, "baseline"), join(dir, "workspace")];
 	cpSync(join(scenario, "base"), baseline, { recursive: true });
 	cpSync(join(scenario, "base"), workspace, { recursive: true });

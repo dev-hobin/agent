@@ -3,14 +3,15 @@
 // accepts must not fail a finds-* check because the defect is named after a blank line.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
 import { checkScenario } from "../.agents/skills/implementing-core/scripts/scenario-check.mjs";
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 // The reviewed tree: base with change.patch applied (as check.mjs builds it).
 function changedTree(scenario, dir) {
 	cpSync(join(scenario, "base"), dir, { recursive: true });
@@ -22,8 +23,7 @@ function changedTree(scenario, dir) {
 
 test("a valid review whose findings name the defect after a blank line passes report-format and finds-*", (t) => {
 	const scenario = join(repositoryRoot, "core/review/scenarios/queue-worker-ack");
-	const dir = mkdtempSync(join(tmpdir(), "review-scenario-"));
-	t.after(() => rmSync(dir, { recursive: true, force: true }));
+	const dir = temp.dir("review-scenario");
 	const [baseline, workspace] = [join(dir, "baseline"), join(dir, "workspace")];
 	changedTree(scenario, baseline);
 	cpSync(baseline, workspace, { recursive: true });

@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 
 import { repositoryRoot } from "../scripts/check-agent-plugins.mjs";
 import { checkModel, compareModels, deriveScenarios, parseExpression } from "../core/developing-features/scripts/check-control-model.mjs";
+import { tempRoot } from "./temp-root.mjs";
 
+const temp = tempRoot(import.meta.url);
 const exec = promisify(execFile);
 const skill = join(repositoryRoot, "core/developing-features");
 const script = join(skill, "scripts/check-control-model.mjs");
@@ -366,7 +367,7 @@ test("a state left only by a person or a lifecycle event is resting, not waiting
 
 test("the command exits 1 only on errors, and with --strict also on findings", async () => {
 	const clean = resolved(await lookup());
-	const dir = await mkdtemp(join(tmpdir(), "control-model-"));
+	const dir = temp.dir("control-model");
 	const broken = { ...clean, cells: { ...clean.cells, failed: { ...clean.cells.failed, RESET: undefined } } };
 	await writeFile(join(dir, "clean.json"), JSON.stringify(clean));
 	await writeFile(join(dir, "broken.json"), JSON.stringify(broken));
