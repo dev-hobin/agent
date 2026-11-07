@@ -39,7 +39,8 @@
         "finds-untested-sibling",
         "finds-csv-column-split",
         "no-flag-destructuring",
-        "no-other-changes"
+        "no-other-changes",
+        "report-format"
       ]
     }
   ]

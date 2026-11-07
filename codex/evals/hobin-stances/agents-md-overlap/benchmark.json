@@ -39,7 +39,8 @@
         "shows-diff",
         "asks-approval",
         "no-duplicate-verification-stance",
-        "no-other-changes"
+        "no-other-changes",
+        "block-valid"
       ]
     }
   ]
