@@ -162,7 +162,7 @@
     }
   },
   "developing-features": {
-    "spec": "8a92148f9aa3595994a6c181",
+    "spec": "d24725682542365794a6c181",
     "plugin": "plugins/hobin-feature",
     "skill": "plugins/hobin-feature/skills/developing-features/SKILL.md",
     "copies": {

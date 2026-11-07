@@ -119,9 +119,15 @@ const save = (path, record) => writeFileSync(path, JSON.stringify(record, null, 
 // { none: why } (nothing to register, the command proceeds), or { status } (it must stop).
 function registration(flags) {
 	const sessions = sessionIds();
+	const registry = sessions.map((session) => registryFor({ name: REGISTRY, sessionId: session })).find(Boolean);
+	// --no-gate is for sessions whose hooks are not active. A registry of this session means they
+	// are, so the flag cannot take a record out of the gate.
+	if (flags.noGate && registry) {
+		console.error("--no-gate refused: this session's hobin-feature hooks are active (its registry is here). Run the command without --no-gate; the record is registered for the Stop gate.");
+		return { status: 2 };
+	}
 	if (flags.noGate) return { none: "--no-gate: no Stop gate covers this record." };
 	if (!sessions.length) return { none: "" };
-	const registry = sessions.map((session) => registryFor({ name: REGISTRY, sessionId: session })).find(Boolean);
 	if (registry) return { registry };
 	console.error(`No hobin-feature registry for this agent session above ${process.cwd()}. Run scenarios.mjs from the directory the session started in and pass the record's absolute path. If the hobin-feature hooks are not active in this session (Codex: trust them in /hooks; evaluations that do not install the plugin), pass --no-gate: nothing will stop the session for this record.`);
 	return { status: 2 };

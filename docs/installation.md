@@ -42,7 +42,7 @@ learning results, the stances block, the acceptance-scenario record). Codex runs
 hooks only after you trust them: open `/hooks` in a session, review the hobin hooks, and
 trust them, and do it again after each plugin update (an update needs a new trust). Until then
 the skills still run the same checks themselves, but nothing sends the model back; hobin-feature's
-`scenarios.mjs` stops and says its hooks are not active (`--no-gate` proceeds without the gate).
+`scenarios.mjs` stops and says its hooks are not active (`--no-gate` proceeds without the gate, and is refused while the hooks are active).
 
 ## Model-free installation check
 
