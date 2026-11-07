@@ -16,6 +16,15 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
 import { checkText } from "../../../../core/shared/scripts/output-contract.mjs";
+import { SESSION_ENV } from "../../../../core/shared/scripts/session-registry.mjs";
+
+// Checks grade the workspace; they are not the agent session's own commands, so a capability
+// script they run never registers in (or is refused for want of) a session registry.
+function checkEnv() {
+	const { NODE_TEST_CONTEXT: _, ...env } = process.env;
+	for (const name of SESSION_ENV) delete env[name];
+	return env;
+}
 
 function files(root, dir = root) {
 	return readdirSync(dir).flatMap((name) => {
@@ -61,13 +70,11 @@ export function checkScenario(casePath, workspace, original, ignore = [], kinds 
 		} else if (kind === "command_passes") {
 			// Hidden files come from the scenario directory and are added only after the run.
 			if (value.files) cpSync(join(dirname(casePath), value.files), join(workspace, value.files), { recursive: true });
-			const { NODE_TEST_CONTEXT: _, ...env } = process.env;
-			try { execSync(value.command, { cwd: workspace, env, stdio: "pipe" }); passed = true; } catch { passed = false; }
+			try { execSync(value.command, { cwd: workspace, env: checkEnv(), stdio: "pipe" }); passed = true; } catch { passed = false; }
 		} else if (kind === "script_passes") {
 			// A capability script (resolved from core/<id>/) run in the workspace; exit 0 passes.
 			const capability = resolve(dirname(casePath), "../..");
-			const { NODE_TEST_CONTEXT: _, ...env } = process.env;
-			try { execFileSync(process.execPath, [join(capability, value.script), ...(value.args ?? [])], { cwd: workspace, env, stdio: "pipe" }); passed = true; } catch { passed = false; }
+			try { execFileSync(process.execPath, [join(capability, value.script), ...(value.args ?? [])], { cwd: workspace, env: checkEnv(), stdio: "pipe" }); passed = true; } catch { passed = false; }
 		} else if (kind === "output_contract") {
 			// The capability's own contract checker, the same one the skill runs on its result.
 			const capability = resolve(dirname(casePath), "../..");

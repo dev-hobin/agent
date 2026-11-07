@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Results that start with an output-contract marker must meet the contract with that id
-// (skills/*/assets/output-contract.json).
+// Results must meet the output contract their first line names (skills/*/assets/output-contract.json):
+// a file this session registered (output-contract.mjs new or check), or a written file that starts
+// with an output-contract marker.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,10 +20,13 @@ for (const skill of readdirSync(skills)) {
 	contracts.set(contract.id, { contract, checker });
 }
 
-await runHook("output-contract", async (file, text) => {
+await runHook("learning", async (file, text, registered) => {
 	const id = /^<!-- output-contract: (\S+) -->/.exec(text)?.[1];
 	const entry = id && contracts.get(id);
-	if (!entry) return null;
+	if (!entry) {
+		if (!registered) return null;
+		return [`this session registered it as a result, but its first line is not an output-contract marker of this plugin (<!-- output-contract: <id> --> with one of: ${[...contracts.keys()].join(", ")}); keep the marker line of the skeleton output-contract.mjs new wrote.`];
+	}
 	const { checkText } = await import(entry.checker);
 	const problems = checkText(entry.contract, text);
 	return problems.length ? [`does not meet the ${id} output contract:`, ...problems] : [];

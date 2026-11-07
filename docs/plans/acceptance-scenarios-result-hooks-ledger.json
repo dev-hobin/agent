@@ -1,215 +1,168 @@
 {
-  "feature": "hobin result hooks (review, stances, learning): session ledger and safe walk",
-  "request": "Fix the result hooks that share hook-input.mjs the same way the hobin-feature hook was fixed. Q1: Stop treats every Markdown file changed since the session started as this session's result, so a git checkout or worktree created in the session, or another session's writes, are checked and block the model (observed: untouched eval fixtures core/review/scenarios/*/golden/REVIEW.md and core/applying-stances/SPEC.md after git worktree add). Q2: the Stop walk calls statSync on every Markdown entry, so one dangling link or unreadable directory throws and the hook exits 0 silently, turning the check off. Q3: Stop walks the whole tree on every stop.",
+  "feature": "hobin result hooks (review, stances, learning): the session registry",
+  "request": "Move the result hooks that share hook-input.mjs onto the shared session registry, as hobin-feature did (docs/plans/2026-11-07-result-hooks-on-session-registry.md, option (a)). Q1: the hooks decide this session's results from shell command text, PreToolUse stamps, file mtimes, the transcript's birth time and git log dates, each an inference with known misses or false claims. Q2: the ledger and stamps live in os.tmpdir(). Q3: a result written by a shell command needs that inference; the procedures should start every result from a script or an edit tool instead.",
   "condition_table": {
-    "note": "Per plugin hook (review, stances, learning), same rules as the hobin-feature ledger. A result is a file the hook's check recognizes (check returns non-null). Stamp = PreToolUse time of the same call, keyed by tool_use_id; only a positive time no later than now counts. Session start = transcript creation time.",
+    "note": "Which results Stop checks, and when the scripts refuse. Per plugin: review (.hobin-review, check-report.mjs new|check), stances (.hobin-stances, stances.mjs check), learning (.hobin-learning, output-contract.mjs new|check).",
     "rows": [
-      "PostToolUse of an edit tool (Write/Edit/MultiEdit, apply_patch Add/Update/Move to) -> check the file now (exit 2 on problems); if it is a result, ledger += path (R3, R12)",
-      "PostToolUse/PostToolUseFailure of a shell command that names no .md file -> nothing, no walk (R6)",
-      "shell command naming a .md file, stamp usable -> the .md files it names, found by name under its cwd too, changed since stamp - 1s: check now; results -> ledger (R4, R5, R7, R15); unnamed files under the cwd never count (R18)",
-      "shell command naming a .md file, no usable stamp (no PreToolUse, no tool_use_id, unreadable) -> only named .md files changed since session start (R10)",
-      "a shell command's candidate that git tracks, still holds as committed, and last committed before the call (or, without a stamp, before the session) -> written by a checkout, a worktree, a pull: not the command's (R17); git words in the command text change nothing (R19); a new or changed file written in the same command as a checkout counts (R20); a file the command wrote and committed counts (R21); a file in a git-ignored folder counts (R22)",
-      "Stop -> check only ledger results that still exist (R1, R2, R11); three blocks in a row at most (R9)",
-      "a check that throws -> the hook's own error: exit 1, never 2 (R13)",
-      "no session_id -> PostToolUse still checks the written file; nothing enters a ledger; Stop exits 0 (R14)"
+      "SessionStart -> registry in the event cwd, start dir remembered; missed -> UserPromptSubmit creates it (Claude CLAUDE_PROJECT_DIR, Codex event cwd) (R1); a later hook cwd never moves it (R2)",
+      "script with a session id: registry found from cwd upward -> registers the absolute path (R3); none -> exit 2, nothing written or checked (R4); no session id -> proceeds unregistered (R5); --no-gate -> proceeds only where no registry is found, refused (exit 2) where one is (R5)",
+      "edit tools (Claude Write/Edit/MultiEdit, Codex apply_patch Add/Update/Move to) -> checked at once; results registered, other files not (R6)",
+      "Stop -> exactly the registry's files (R3, R7); missing -> reported (R8); three blocks in a row at most (R9); a registered file is judged as a result even when it no longer looks like one",
+      "shell-only writes and stances.mjs block -> nothing registered, nothing inferred (R13, R14)",
+      "check throws -> exit 1, never 2 (R10); no session_id -> PostToolUse still checks, Stop exits 0 (R11); SessionEnd and week-old pruning (R12)"
     ]
   },
   "scenarios": [
     {
       "id": "R1",
-      "given": "Invalid results (a review report citing missing files, a stances block that fails, a bare output-contract skeleton) that appear under the project after the session started without any tool call of the session (a git checkout or worktree created then)",
-      "when": "Each plugin's Stop hook runs",
-      "then": "All exit 0",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R1 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A directory where each plugin's session starts, and a project where SessionStart was missed",
+      "when": "SessionStart, or UserPromptSubmit when it was missed (Claude: from another cwd)",
+      "then": "SessionStart creates each plugin's registry in the start directory; UserPromptSubmit creates it when SessionStart was missed",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R1 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R2",
-      "given": "This session wrote a valid report; another session writes an invalid report under the same folder",
-      "when": "The Stop hook runs",
-      "then": "It exits 0",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R2 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A started session that made an unfinished result in its start directory",
+      "when": "Stop runs with the hook cwd in a subdirectory",
+      "then": "The start directory is remembered; a later hook cwd (after cd) never moves the registry",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R2 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R3",
-      "given": "An invalid result written by an edit tool (Claude Write, Edit, MultiEdit; Codex apply_patch Add, Update, Move to)",
-      "when": "PostToolUse, then Stop",
-      "then": "PostToolUse exits 2 with the problems; Stop exits 2 for the same file",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R3 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A started session, a subdirectory of its start directory, and a result in another directory",
+      "when": "The plugin's starter (or stances check) runs from the subdirectory for both, then Stop, then the results are fixed and Stop runs",
+      "then": "The scripts register the result they make or check (from a subdirectory, in another directory too) and Stop blocks until it passes",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R3 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R4",
-      "given": "An invalid result written by a shell command (cat > REVIEW.md with a here-document), for each plugin",
-      "when": "PreToolUse, the command, PostToolUse, then Stop",
-      "then": "PostToolUse exits 2 and Stop exits 2 for that file",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R4 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A session id whose session never started (no registry), and a started session run from outside its start directory",
+      "when": "The starter and the check run",
+      "then": "With a session id and no registry the scripts stop (exit 2), write and register nothing, and say why",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R4 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R5",
-      "given": "A shell command that cds into a subfolder and writes an invalid report there by a relative name",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "The report is found (walk of the cwd since the stamp) and Stop exits 2",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R5 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A started session with a valid result, a session without a registry, and a shell carrying two session variables",
+      "when": "check runs as a person, with --no-gate in the started session, with --no-gate without a registry, and with both variables",
+      "then": "A person proceeds unregistered; --no-gate proceeds only where no registry is found and is refused where one is",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R5 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R6",
-      "given": "A shell command that names no .md file (ls) while an invalid report appears under the cwd",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Nothing is checked or recorded; both exit 0",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R6 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "Results and other files written by edit tools in a started session (Claude Write/Edit/MultiEdit, Codex apply_patch Add/Update/Move to)",
+      "when": "PostToolUse for each",
+      "then": "Edit tools register the results they write, check them at once, and leave other files out",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R6 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R7",
-      "given": "An old invalid report that a shell command only reads (cat REVIEW.md)",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Both exit 0: reading is not writing",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R7 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "Invalid results in the project the session never registered (a checkout), and another session's registered invalid result",
+      "when": "This session's Stop runs",
+      "then": "Stop checks only this session's registry: unregistered results and another session's registry never gate",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R7 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R8",
-      "given": "A project containing a dangling symbolic link named x.md and an unreadable directory; the session writes an invalid report by a shell command naming it",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Stop exits 2 for the report: a bad entry no longer turns the check off",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R8 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A result this session registered, then deleted",
+      "when": "Stop runs",
+      "then": "A registered result that no longer exists is reported",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R8 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R9",
-      "given": "An invalid report in the ledger",
-      "when": "Stop runs four times, then the report is fixed and Stop runs, then broken again",
-      "then": "Exit 2, 2, 2, 0; after the fix 0; broken again 2 (the count started over)",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R9 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A registered invalid review report",
+      "when": "Stop runs four times, the report is fixed, Stop runs, it is broken again, Stop runs",
+      "then": "At most three blocks in a row; a fixed result passes and the count starts over",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R9 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R10",
-      "given": "Shell calls with no PreToolUse, with an empty stamp file, and without tool_use_id, each naming an old invalid report and a new one, while another session writes an invalid report under the cwd",
-      "when": "PostToolUse, then Stop",
-      "then": "Only the named report changed since the session started is checked and recorded; the old one and the other session's are not",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R10 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A hook whose check throws",
+      "when": "PostToolUse",
+      "then": "A check that throws exits 1, never 2",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R10 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R11",
-      "given": "An invalid report in the ledger that was later deleted",
-      "when": "Stop runs",
-      "then": "It exits 0",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R11 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "An invalid report written by an edit tool without a session id",
+      "when": "PostToolUse, then Stop",
+      "then": "Without a session id a written result is still checked, nothing is registered, and Stop exits 0",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R11 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R12",
-      "given": "The session writes a Markdown file that is not a result (notes.md), then a shell command later turns it into an invalid report",
-      "when": "PostToolUse for each, then Stop",
-      "then": "The first write records nothing; after the second, Stop exits 2 for it",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R12 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A session that registered a result, then a week-old and a fresh registry in the start directory",
+      "when": "Stop, SessionEnd; then another session's Stop",
+      "then": "SessionEnd removes the registry and state; Stop prunes week-old registries and keeps fresh ones",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R12 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R13",
-      "given": "A hook built on hook-input.mjs whose check throws (a test hook, since no shipped checker can be made to throw from a file's content)",
-      "when": "PostToolUse and Stop",
-      "then": "Exit 1 with an internal-error message, never 2",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R13 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "An invalid report written only by a shell redirection",
+      "when": "PostToolUse of the shell command, then Stop",
+      "then": "A result written only by a shell command, without the skill's script or an edit tool, is not inferred",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R13 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R14",
-      "given": "Hook inputs without session_id",
-      "when": "An edit tool writes an invalid report, then Stop",
-      "then": "PostToolUse still exits 2; Stop exits 0",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R14 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A started stances session and an AGENTS.md without the block",
+      "when": "stances.mjs block AGENTS.md, then Stop",
+      "then": "Stances.mjs block writes and registers nothing; the target is checked once step 5 runs check",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R14 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R15",
-      "given": "A shell command that writes an invalid report and exits 1 (Claude: PostToolUseFailure)",
-      "when": "The failure event, then Stop",
-      "then": "The report is recorded and Stop exits 2",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R15 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "The three plugins' hooks.json, hook-input.mjs and registry module copies on both hosts",
+      "when": "They are read",
+      "then": "Hooks: every result plugin registers SessionStart, UserPromptSubmit, PostToolUse, Stop and SessionEnd with its own script and host; hook-input.mjs is one file; each plugin ships the registry module",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R15 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R16",
-      "given": "The review, stances, and learning plugins on both hosts",
-      "when": "Their hooks.json files are read",
-      "then": "Claude: PreToolUse Bash, PostToolUse Write|Edit|MultiEdit|Bash, PostToolUseFailure Bash, Stop; Codex: PreToolUse, PostToolUse (no matcher), Stop; every command runs the plugin's own hook script, and hook-input.mjs is byte-identical in all six plugins",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R16 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "The review, stances and learning SKILL.md files on both hosts",
+      "when": "They are read",
+      "then": "Skills: the procedures start results from the scripts and never mention --no-gate",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R16 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     },
     {
       "id": "R17",
-      "given": "A git repository whose committed tree holds an invalid review fixture; the session's own shell command creates a worktree or checks out a branch and names a .md file",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Both exit 0: files the checkout wrote are tracked and unchanged from the commit, so they are not the session's results (the observed Q1 case)",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R17 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
-      "status": "pass",
-      "covers": []
-    },
-    {
-      "id": "R18",
-      "given": "A command that names only notes.md (unchanged) while another session writes an invalid report under the same cwd",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Both exit 0: unnamed files under the cwd are not the command's",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R18 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
-      "status": "pass",
-      "covers": []
-    },
-    {
-      "id": "R19",
-      "given": "An invalid report written by a here-document whose body says 'git reset', and one written after a git commit whose message contains 'am'",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Both exit 2: git words in a command's text exempt nothing",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R19 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
-      "status": "pass",
-      "covers": []
-    },
-    {
-      "id": "R20",
-      "given": "A git repository; one command switches branches and writes a new invalid report, another switches and overwrites a tracked fixture with different invalid content",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Both exit 2: what the command wrote is new or differs from the commit, so it is checked",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R20 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
-      "status": "pass",
-      "covers": []
-    },
-    {
-      "id": "R21",
-      "given": "An invalid report that one shell command writes, adds, and commits",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Both exit 2: a commit made during the call is the session's write",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R21 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
-      "status": "pass",
-      "covers": []
-    },
-    {
-      "id": "R22",
-      "given": "A git repository that ignores out/; a shell command writes an invalid report to out/REVIEW.md",
-      "when": "Pre/PostToolUse, then Stop",
-      "then": "Both exit 2: an ignored file is not git's write, so it counts (E6)",
-      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R22 ' tests/result-hooks-ledger.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]'",
+      "given": "A scenario check (script_passes check-report.mjs) run where a session id is set and no registry exists",
+      "when": "scenario-check.mjs runs",
+      "then": "Scenario checks run the capability scripts without the agent session, so they never register or need a registry",
+      "check": "out=$(node --test --test-reporter=tap --test-name-pattern '^R17 ' tests/result-hooks-registry.test.mjs) && echo \"$out\" | grep -q '^# pass [1-9]' && ! echo \"$out\" | grep -q '^# fail [1-9]'",
       "status": "pass",
       "covers": []
     }
@@ -219,49 +172,57 @@
       "id": "E1",
       "question": "How do the result hooks decide which files are this session's results?",
       "owner": "user",
-      "decision": "The hobin-feature ledger approach: tool calls of the session record the results they wrote; Stop checks only those",
-      "reason": "mtime attribution blocked sessions on checked-out fixtures and other sessions' files",
-      "revert": "Restore sessionFiles in hook-input.mjs and drop the PreToolUse/PostToolUseFailure entries from the three plugins' hooks.json"
+      "decision": "Only the session registry (core/shared/scripts/session-registry.mjs), filled by the skills' scripts and by edit tools; Stop checks exactly its files",
+      "reason": "Shell-text parsing, stamps, mtimes, transcript times and git dating are inference with known misses or false claims (design 2026-11-07)",
+      "revert": "Restore hook-input.mjs and hooks.json from 0.5.1"
     },
     {
       "id": "E2",
-      "question": "Which shell commands can write a result?",
-      "owner": "team",
-      "decision": "Only commands whose text names a .md file; others are not inspected",
-      "reason": "Results are Markdown and a shell write names its target; inspecting every command would walk the tree on every call",
-      "revert": "Widen MENTIONS in hook-input.mjs and update R6"
+      "question": "How is a result written only through shell redirection covered?",
+      "owner": "user",
+      "decision": "Option (a): in the procedure. Review gets a starter (check-report.mjs new); learning and stances already start from or check with a script. No hook inference",
+      "reason": "An obligation (option b) does not fit skills that write a file only when asked",
+      "revert": "Add an obligation as in hobin-feature"
     },
     {
       "id": "E3",
-      "question": "Which files enter the ledger?",
+      "question": "Does stances.mjs block register its target?",
       "owner": "team",
-      "decision": "Only files the hook's check recognizes as its results (check returns non-null); a later write that makes a file a result records it then",
-      "reason": "Keeps each plugin's ledger to its own results; non-results are never checked on Stop",
-      "revert": "Record every written .md file in runHook and update R12"
+      "decision": "No: block writes no file, and the target may change only after approval; registering it would make Stop demand a file a non-interactive run must not create, or block on an outdated block the user has not approved replacing. check registers the proposal and, in step 5, the target",
+      "reason": "The procedure says write nothing until approval",
+      "revert": "Register the target in stances.mjs block and accept those blocks"
     },
     {
       "id": "E4",
-      "question": "Does the hobin-feature hook move onto hook-input.mjs in this change?",
-      "owner": "team",
-      "decision": "No; the two ledgers stay separate here and can be merged later as a structural change",
-      "reason": "Keep the behavior change for the result hooks apart from restructuring code reviewed in the previous change",
-      "revert": "Not applicable"
+      "question": "Is --no-gate allowed where the registry is found?",
+      "owner": "user",
+      "decision": "No: refused with exit 2 (the hooks are active). SKILL.md files never mention --no-gate; only the no-registry message explains it",
+      "reason": "A model passed --no-gate preemptively in a Claude eval because SKILL.md mentioned it",
+      "revert": "Accept --no-gate in registration() of the three scripts and update R5"
     },
     {
       "id": "E5",
       "question": "What does a check that throws do?",
       "owner": "team",
-      "decision": "Exit 1 with an internal-error message, never 2 (same as D4 of the hobin-feature change); before, any error exited 0 silently",
-      "reason": "The model must not be sent back for the hook's own failure, and a silent exit hides that the check is off",
-      "revert": "Exit 0 in runHook and update R13"
+      "decision": "Exit 1 with an internal-error message, never 2 (unchanged)",
+      "reason": "The model must not be sent back for the hook's own failure",
+      "revert": "Exit 0 in runHook and update R10"
     },
     {
       "id": "E6",
-      "question": "Which files a shell command touched are not its writes, and which unnamed files under the cwd count?",
+      "question": "Where does the review starter mark a report, and how does the hook recognize it?",
       "owner": "team",
-      "decision": "A candidate that git tracks, still holds as committed, and last committed before the call (before the session when there is no stamp) was written by git, not the session, and does not count; untracked, ignored, changed, and newly committed files count; outside a repository everything counts. A shell command's cwd walk keeps only files matching a name the command contains. The hobin-feature hook gets the same git rule (F23-F25) but keeps its unnamed-record walk, which scenarios.mjs run without a path needs (F9)",
-      "reason": "Checkouts and other sessions write files the session did not write (round 1). Matching git commands in the command text exempted the session's own results whenever a here-document or a commit message mentioned a git word, and exempted a result written in the same command as a checkout (round 2); the file's own state against the commit decides it without reading the text. A session that writes and commits in one command leaves its result tracked and unchanged, so the commit's time decides it as well (round 3)",
-      "revert": "Drop checkedOut and the name filter in hook-input.mjs (and checkedOut in scenarios-stop-hook.mjs); update R17-R21, F23-F25"
+      "decision": "No marker in the report: the skeleton fails check-report.mjs (TODO: lines, no finding or No findings) and the registry, not the content, makes it a result; edit-tool writes are still recognized by a first line that is a finding or No findings",
+      "reason": "A marker line would change the report format the scenarios and users read",
+      "revert": "Add a marker line to SKELETON and to the report hook's recognition"
+    },
+    {
+      "id": "E7",
+      "question": "Do scenario checks run the capability scripts as the session?",
+      "owner": "team",
+      "decision": "No: scenario-check.mjs removes the session variables from command_passes and script_passes, as scenarios.mjs run does",
+      "reason": "A grader is not the session; inside a session without the plugin it would be refused",
+      "revert": "Pass process.env through in scenario-check.mjs and update R17"
     }
   ],
   "verification": {
@@ -295,6 +256,11 @@
           "E6 says ignored files count, but no scenario put a result in a git-ignored path (the code already counted it)"
         ],
         "resolution": "Review after the 0.5.1 release; it found no defect in the round-3 commit-time rule. R22 added here and F26 in the hobin-feature record"
+      },
+      {
+        "round": 5,
+        "must_fix": [],
+        "resolution": "Redesigned to the session registry (design 2026-11-07, option (a)); PreToolUse/PostToolUseFailure hooks, shell-text parsing, stamps, mtime/transcript/git dating and the tmpdir ledger removed; scenarios renumbered to tests/result-hooks-registry.test.mjs. Mutation checks: Stop ignoring the registry fails R2, R3, R7, R8, R9; Stop reading the hook cwd fails R2; scripts proceeding without a registry fail R4; --no-gate accepted where a registry is found fails R5. Not reviewed by an independent verifier yet."
       }
     ],
     "existing_tests_status": "pass"

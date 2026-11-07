@@ -27,7 +27,7 @@ function frontmatter(path) {
 function runHook(plugin, script, input, host = "claude") {
 	const root = join(host === "claude" ? plugins : codexPlugins, plugin);
 	const { CLAUDE_PROJECT_DIR: _, ...env } = process.env;
-	const result = spawnSync("node", [join(root, "scripts", script)], {
+	const result = spawnSync("node", [join(root, "scripts", script), host], {
 		input: JSON.stringify(input), encoding: "utf8", env: { ...env, CLAUDE_PLUGIN_ROOT: root, PLUGIN_ROOT: root },
 	});
 	return { status: result.status, stderr: result.stderr };
@@ -54,8 +54,8 @@ test("every Claude plugin hook runs a script the plugin ships, and no skill regi
 			count++;
 		}
 	}
-	// hobin-feature: SessionStart, UserPromptSubmit, PostToolUse, Stop, SessionEnd.
-	assert.equal(count, 17);
+	// hobin-feature and the three result plugins: SessionStart, UserPromptSubmit, PostToolUse, Stop, SessionEnd.
+	assert.equal(count, 20);
 });
 
 test("every Codex plugin hook runs a script the plugin ships", () => {
@@ -73,8 +73,8 @@ test("every Codex plugin hook runs a script the plugin ships", () => {
 			count++;
 		}
 	}
-	// hobin-feature: SessionStart, UserPromptSubmit, PostToolUse, Stop, SessionEnd.
-	assert.equal(count, 14);
+	// hobin-feature and the three result plugins: SessionStart, UserPromptSubmit, PostToolUse, Stop, SessionEnd.
+	assert.equal(count, 20);
 });
 
 for (const [host, wrote] of hosts) test(`${host} review report hook: a valid report passes, a wrong one goes back to the model`, () => {
@@ -129,5 +129,5 @@ test("result hooks are the same scripts on both hosts", () => {
 	}
 });
 
-// Which results are the session's (edit tools, shell commands, Stop) is proven scenario by scenario
-// in result-hooks-ledger.test.mjs.
+// Which results are the session's (the session registry: scripts, edit tools, Stop) is proven
+// scenario by scenario in result-hooks-registry.test.mjs.

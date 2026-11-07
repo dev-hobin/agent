@@ -104,7 +104,11 @@ node <this skill's directory>/scripts/output-contract.mjs check <this skill's di
 ```
 
 Keep the skeleton's marker line and headings. If a part has nothing to report, keep it and
-write "none" with the reason. The check is deterministic and says what to fix.
+write "none" with the reason. The check is deterministic and says what to fix. Run both
+from the directory this session started in or below it: they register the result for this
+session, and a plugin hook checks it again when the session stops. If a command stops with
+"No hobin-learning registry for this agent session", `cd` back there and run it again, and
+follow the message if it says more.
 
 ## Every result must
 

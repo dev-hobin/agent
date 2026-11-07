@@ -16,6 +16,8 @@
 // another directory (absolute paths) is sent back by Stop for those incomplete records; a session
 // that registers a complete record with `register` may finish; a session that runs `init` after
 // `cd` away from its start directory is refused with the "no registry" message and creates nothing.
+// For the result hooks, one check per host with hobin-learning (they share hook-input.mjs): a session
+// that runs `output-contract.mjs new` is sent back by Stop for the unfilled result it registered.
 //
 // Preparing the dedicated Codex home (once; ChatGPT login keeps subscription billing):
 //   mkdir -m 700 ~/.cache/hobin-live-codex
@@ -157,6 +159,9 @@ function main(argv) {
 		const tail = "Then reply DONE. If you are then told a record is not complete, reply only BLOCKED SEEN and do not edit or create any file.";
 		const initPrompt = (scripts) => `Run exactly these two shell commands, one after the other: node ${scripts}/scenarios.mjs init ${fresh}\nnode ${scripts}/scenarios.mjs init ${other}\n${tail}`;
 		const registerPrompt = (scripts) => `Run exactly this shell command once: node ${scripts}/scenarios.mjs register ${complete}\n${tail}`;
+		const learningResult = join(project, "out/concept.md");
+		const LEARNING_STOPPED = "does not meet the conceptualize-concept output contract"; // the hook's message, not in the prompt
+		const learningPrompt = (script, contract) => `Run exactly this shell command once: node ${script} new ${contract} ${learningResult}\n${tail.replace("a record is not complete", "the result does not meet its output contract")}`;
 		const awayPrompt = (scripts) => `Run exactly this shell command once, even if it fails: cd ${away} && node ${scripts}/scenarios.mjs init ${refusedRecord}\nThen reply DONE and do nothing else.`;
 
 		if (host === "claude") {
@@ -166,14 +171,14 @@ function main(argv) {
 			if (process.env.ANTHROPIC_API_KEY) console.log("warning: ANTHROPIC_API_KEY is set; this run may be billed to that API key");
 			const plugin = join(repositoryRoot, "claude/plugins/hobin-feature");
 			const scripts = join(plugin, "skills/developing-features/scripts");
-			const claude = (prompt) => {
-				const result = spawnSync("claude", ["-p", "--model", "haiku", "--plugin-dir", plugin,
-					"--settings", JSON.stringify({ enabledPlugins: { "hobin-feature@hobin": false } }),
+			const claude = (prompt, { dir = plugin, name = "hobin-feature", allowed = [`Bash(node ${scripts}/scenarios.mjs *)`, "Bash(cd *)"] } = {}) => {
+				const result = spawnSync("claude", ["-p", "--model", "haiku", "--plugin-dir", dir,
+					"--settings", JSON.stringify({ enabledPlugins: { [`${name}@hobin`]: false } }),
 					// Claude Code refuses `cd` outside the session's working directories, so the other
 					// directory is added the way a user would (--add-dir); the script must still refuse
 					// there, because the registry lives where the session started.
 					"--add-dir", away,
-					"--allowedTools", `Bash(node ${scripts}/scenarios.mjs *)`, "Bash(cd *)",
+					"--allowedTools", ...allowed,
 					"--output-format", "stream-json", "--verbose", "--max-turns", "8", prompt],
 				{ cwd: project, encoding: "utf8", input: "", timeout: 240_000, maxBuffer: 64 * 1024 * 1024 });
 				return result.stdout ?? "";
@@ -185,6 +190,11 @@ function main(argv) {
 			check("claude: Stop lets the session with a registered complete record finish", registered.includes("DONE") && !registered.includes(STOPPED) && !registered.includes("BLOCKED SEEN"));
 			const refused = claude(awayPrompt(scripts));
 			check("claude: init after cd away from the start directory is refused and creates nothing", refused.includes(REFUSED) && !existsSync(refusedRecord));
+			const learning = join(repositoryRoot, "claude/plugins/hobin-learning");
+			const learningScript = join(learning, "scripts/output-contract.mjs");
+			const started = claude(learningPrompt(learningScript, join(learning, "skills/conceptualize/assets/output-contract.json")),
+				{ dir: learning, name: "hobin-learning", allowed: [`Bash(node ${learningScript} *)`] });
+			check("claude: learning: output-contract.mjs new writes and registers the result; Stop sends the model back for it", existsSync(learningResult) && started.includes(LEARNING_STOPPED));
 		} else {
 			const env = codexEnv(codexHome, temporary);
 			mkdirSync(env.HOME, { recursive: true });
@@ -196,16 +206,17 @@ function main(argv) {
 			if (kind !== "ChatGPT") return skip([`CODEX_HOME=${codexHome} codex login status reports ${kind}, not a ChatGPT login`]);
 			resetCodexHome(codexHome);
 
-			// Install the plugin the normal way, from a marketplace copy of this repository that lists
-			// only hobin-feature.
+			// Install the plugins the normal way, from a marketplace copy of this repository that lists
+			// only hobin-feature and hobin-learning.
 			const market = join(temporary, "market");
 			cpSync(join(repositoryRoot, ".agents"), join(market, ".agents"), { recursive: true });
-			cpSync(join(repositoryRoot, "codex/plugins/hobin-feature"), join(market, "codex/plugins/hobin-feature"), { recursive: true });
+			for (const name of ["hobin-feature", "hobin-learning"]) cpSync(join(repositoryRoot, "codex/plugins", name), join(market, "codex/plugins", name), { recursive: true });
 			const catalog = join(market, ".agents/plugins/marketplace.json");
 			const listing = JSON.parse(readFileSync(catalog, "utf8"));
-			writeFileSync(catalog, JSON.stringify({ ...listing, plugins: listing.plugins.filter((p) => p.name === "hobin-feature") }));
+			writeFileSync(catalog, JSON.stringify({ ...listing, plugins: listing.plugins.filter((p) => ["hobin-feature", "hobin-learning"].includes(p.name)) }));
 			run(["plugin", "marketplace", "add", market, "--json"]);
 			run(["plugin", "add", "hobin-feature@hobin", "--json"]);
+			run(["plugin", "add", "hobin-learning@hobin", "--json"]);
 			const installed = spawnSync("find", [codexHome, "-path", "*/skills/developing-features/scripts/scenarios.mjs"], { encoding: "utf8" }).stdout.trim().split("\n").filter(Boolean);
 			check("codex: the plugin is installed in the dedicated home", installed.length > 0, installed.join(", "));
 			const scripts = installed.length ? dirname(installed[0]) : join(market, "codex/plugins/hobin-feature/skills/developing-features/scripts");
@@ -227,6 +238,12 @@ function main(argv) {
 			check("codex: Stop lets the session with a registered complete record finish", registered.done >= 0 && !registered.blocked);
 			const refused = codex(awayPrompt(scripts));
 			check("codex: init after cd away from the start directory is refused and creates nothing", refused.text.includes(REFUSED) && !existsSync(refusedRecord));
+			const learningScript = spawnSync("find", [codexHome, "-path", "*/skills/conceptualize/scripts/output-contract.mjs"], { encoding: "utf8" }).stdout.trim().split("\n").find(Boolean);
+			check("codex: hobin-learning is installed in the dedicated home", Boolean(learningScript));
+			if (learningScript) {
+				const started = codex(learningPrompt(learningScript, join(dirname(learningScript), "../assets/output-contract.json")));
+				check("codex: learning: output-contract.mjs new writes and registers the result; Stop sends the model back for it", existsSync(learningResult) && started.blocked);
+			}
 		}
 	} finally {
 		rmSync(temporary, { recursive: true, force: true });

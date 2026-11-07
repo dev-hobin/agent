@@ -1,12 +1,23 @@
 {
   "hooks": {
-    "PreToolUse": [
+    "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
             "timeout": 30,
-            "command": "node \"$PLUGIN_ROOT/scripts/report-hook.mjs\""
+            "command": "node \"$PLUGIN_ROOT/scripts/report-hook.mjs\" codex"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "node \"$PLUGIN_ROOT/scripts/report-hook.mjs\" codex"
           }
         ]
       }
@@ -17,7 +28,7 @@
           {
             "type": "command",
             "timeout": 60,
-            "command": "node \"$PLUGIN_ROOT/scripts/report-hook.mjs\""
+            "command": "node \"$PLUGIN_ROOT/scripts/report-hook.mjs\" codex"
           }
         ]
       }
@@ -28,7 +39,18 @@
           {
             "type": "command",
             "timeout": 60,
-            "command": "node \"$PLUGIN_ROOT/scripts/report-hook.mjs\""
+            "command": "node \"$PLUGIN_ROOT/scripts/report-hook.mjs\" codex"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 3,
+            "command": "node \"$PLUGIN_ROOT/scripts/report-hook.mjs\" codex"
           }
         ]
       }

@@ -43,10 +43,10 @@ exact diff.
 4. **Write the proposal.** Generate the exact diff with
    `node ${CLAUDE_SKILL_DIR}/scripts/stances.mjs block <target> [--skip <numbers of dropped stances>] [--learning]`
    (numbers as listed in `assets/stances.md`); it replaces an existing block in place or
-   appends one. Do not write the block text by hand. Run `node ${CLAUDE_SKILL_DIR}/scripts/stances.mjs check <proposal file>`
-   and fix what it reports. Write the proposal to
-   the file the request names, or in the reply if it names none, in this form, then ask
-   for approval. In a non-interactive run, stop here.
+   appends one. Do not write the block text by hand. Write the proposal to the file the
+   request names, or in the reply if it names none, in this form; for a proposal file, run
+   `node ${CLAUDE_SKILL_DIR}/scripts/stances.mjs check <proposal file>` and fix what it reports.
+   Then ask for approval. In a non-interactive run, stop here.
 
    ```text
    Target: <file to write> and why that file (does the host read it, is an import needed)
@@ -60,6 +60,11 @@ exact diff.
 5. **Write and report** only after approval, then run `node ${CLAUDE_SKILL_DIR}/scripts/stances.mjs check <target>`: the files changed, stances skipped as
    duplicates or conflicts, and stances without a check. Until then change no file other
    than the proposal file the request names.
+
+Run `stances.mjs check` from the directory this session started in or below it: it registers
+the checked file for this session, and a plugin hook checks it again when the session stops.
+If it stops with "No hobin-stances registry for this agent session", `cd` back there and run
+it again, and follow the message if it says more.
 
 ## Assets
 

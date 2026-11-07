@@ -54,9 +54,14 @@ Do not change the reviewed code; write only the report.
    behavior on a realistic path. Report P2 and below only when asked.
 7. **Report** in the file the request names, or in the reply. In scope diagnosis, end
    with a plan ordered now, next, later, and leave alone, each with the reason. For a
-   report file, run `node <this skill's directory>/scripts/check-report.mjs <file>` from the repository root and fix
-   every problem it prints (format, cited file:line that does not exist, missing
-   `Scenario:` or `Evidence:` line) before finishing.
+   report file, start it from the repository root with `node <this skill's directory>/scripts/check-report.mjs new <file>`
+   (it writes a skeleton and registers the file for this session), replace the skeleton
+   with the report, then run `node <this skill's directory>/scripts/check-report.mjs <file>` and fix every problem it prints
+   (format, cited file:line that does not exist, missing `Scenario:` or `Evidence:` line)
+   before finishing. A plugin hook checks the registered report again when the session
+   stops. Run both from the directory this session started in or below it; if a command
+   stops with "No hobin-review registry for this agent session", `cd` back there and run it
+   again, and follow the message if it says more.
 
 ```text
 [P0|P1] <one-line defect> — <file>:<line>
