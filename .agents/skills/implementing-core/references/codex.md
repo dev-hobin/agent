@@ -36,8 +36,8 @@ codex/
 ### Output contracts
 
 For a capability with `assets/output-contract.json`, copy
-`core/shared/scripts/output-contract.mjs` into each such skill's `scripts/` and the contract
-into its `assets/`. The skill procedure starts the result with
+`core/shared/scripts/output-contract.mjs` and `core/shared/scripts/session-registry.mjs` (which
+it imports) into each such skill's `scripts/` and the contract into its `assets/`. The skill procedure starts the result with
 `node <this skill's directory>/scripts/output-contract.mjs new <this skill's directory>/assets/output-contract.json <file>`
 and ends only when `… check …` passes. The plugin's `scripts/output-contract-hook.mjs`
 enforces it as described below. The `output_contract` scenario check runs in the
@@ -55,25 +55,22 @@ and must act only on the skill's own results. Every guarantee the spec backs wit
 (an output contract or a `script_passes` check) gets one, and the guarantee is
 **enforced once the user trusts the plugin hooks**:
 
-- For a result file, register `node "$PLUGIN_ROOT/scripts/<name>-hook.mjs"` on `PreToolUse`,
-  `PostToolUse`, and `Stop`, without a matcher: file edits arrive as `apply_patch`, Codex
-  often writes files with a shell command, and a missing matcher keeps the hooks working if
+- For a result file, register `node "$PLUGIN_ROOT/scripts/<name>-hook.mjs" codex` on
+  `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop` and `SessionEnd`, without a
+  matcher: file edits arrive as `apply_patch`, and a missing matcher keeps the hooks working if
   a tool is renamed; the script decides by the input's shape. The shared
-  `scripts/hook-input.mjs` reads both hosts' inputs: it checks what an apply_patch wrote and
-  what a shell command naming a `.md` file named (found by name under its cwd too) and
-  changed since its `PreToolUse` stamp, records the results in the session's ledger, and on
-  Stop checks only the ledger; a file git tracks and still holds as committed from before
-  the call was written by git, not the session (file times would claim a checkout's or
-  another session's files). The scripts are the Claude plugin's, unchanged.
-- `Stop` for "finish only when the check passes": act only on records the session wrote,
-  exit 2 while the check fails, and let Codex stop after three blocks in a row. A gate over
-  records (hobin-feature) cannot decide "the session wrote it" from mtimes: another session
-  under the same folder writes records too, and the check would then block on work that is
-  not this session's. It keeps a per-session ledger instead: `PreToolUse` stamps a shell
-  command that names a record or record script, `PostToolUse` adds the records an
-  apply_patch wrote and the records that command named or changed under its cwd since the
-  stamp, and `Stop` checks only the ledger. Register both without a matcher; the script
-  decides by the input's shape. A checker that throws exits 1, never 2.
+  `scripts/hook-input.mjs` keeps the session registry
+  (`core/shared/scripts/session-registry.mjs`, copied next to the skill's scripts):
+  SessionStart creates `<start dir>/.hobin-<name>/sessions/<session_id>.jsonl` (UserPromptSubmit
+  in the event `cwd` if missed); the skill's scripts register what they make or check with
+  `CODEX_SESSION_ID`, stop with exit 2 without a registry (so untrusted hooks are never silent),
+  and refuse `--no-gate` with one; PostToolUse checks and registers the results an apply_patch
+  wrote (Add File, Update File, Move to). Nothing is inferred from shell text, command output,
+  file times or transcripts. The scripts are the Claude plugin's, unchanged.
+- `Stop` for "finish only when the check passes": check exactly the registry's files, exit 2
+  while one fails or is missing, and let Codex stop after three blocks in a row. hobin-feature's
+  record gate uses the same registry with its own hook. A checker that throws exits 1, never 2.
+  SessionEnd deletes the registry and state; Stop prunes week-old ones.
 - Hook input, observed in Codex 0.166 (2026-11-05): the model runs shell commands through
   the code-mode `exec` tool (`tools.exec_command({cmd})`), but hooks receive them as
   `tool_name: "Bash"` with `tool_input.command`. `apply_patch` arrives as `apply_patch` with
@@ -82,7 +79,8 @@ and must act only on the skill's own results. Every guarantee the spec backs wit
   `--dangerously-bypass-hook-trust`; trust stored through `/hooks` (and shown as `trusted` by
   the app-server's `hooks/list`) did not make it run them.
 - `tests/hooks.test.mjs` proves each hook with an apply_patch input;
-  `tests/feature-stop-hook.test.mjs` proves the ledger hook scenario by scenario.
+  `tests/result-hooks-registry.test.mjs` and `tests/feature-stop-hook.test.mjs` prove the
+  registry hooks scenario by scenario on both hosts' inputs.
 
 The skill still runs the check itself at the step the spec names. Copy each spec script
 into the skill's `scripts/` with any assets it reads.

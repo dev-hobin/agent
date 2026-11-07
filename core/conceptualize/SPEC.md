@@ -2,7 +2,7 @@
 id: conceptualize
 plugin: hobin-learning
 skill: conceptualize
-version: 0.3.0
+version: 0.7.0
 ---
 
 # conceptualize — 여러 근거에서 하나의 개념 만들기
@@ -77,6 +77,20 @@ Handoff:
 **산출물 계약.** 결과를 파일로 쓸 때의 필수 부분은 `assets/output-contract.json`에 데이터로
 정해 둔다. `../shared/scripts/output-contract.mjs new <계약> <파일>`로 뼈대를 만들어 채우고,
 `check`가 통과할 때까지 고친다. 검사기는 빠진 부분과 고칠 방법을 알려 준다.
+
+**작업 등록부.** 실행 환경은 에이전트 작업(세션)이 시작한 디렉터리에 그 작업의 등록부
+`.hobin-learning/sessions/<세션 ID>.jsonl`을 만든다(`.hobin-learning/.gitignore`는 `*`). 등록부 코드는 다른 역량과 함께 쓰는
+`../shared/scripts/session-registry.mjs`다.
+- `../shared/scripts/output-contract.mjs new`와 `check`는 실행 환경이 셸 명령에 넘기는 에이전트 세션 ID로 작업 디렉터리와 그 위에서 등록부를 찾아
+  결과 파일의 절대 경로를 한 줄 덧붙인다.
+- 세션 ID가 있는데 등록부가 없거나 쓸 수 없으면 아무것도 쓰거나 검사하지 않고 종료 코드 2로 멈추며, 시작
+  디렉터리에서 다시 실행하라고, 실행 환경의 hook이 돌지 않는 곳이면 `--no-gate`를 주라고 알린다. 등록부를 찾았는데
+  `--no-gate`를 주면 거절한다(종료 코드 2). 세션 ID가 없으면(사람이 터미널에서 실행) 등록하지 않고 진행한다.
+  절차 문서는 `--no-gate`를 말하지 않는다. 멈춤 메시지만 알린다.
+- 이 작업이 편집 도구로 쓴 결과 파일도 실행 환경이 등록부에 덧붙인다.
+- 실행 환경의 관문은 등록부에 있는 파일을 모두 검사하고, 사라진 파일은 사라졌다고 알린다. 디렉터리를 뒤지지
+  않고, 셸 텍스트, 명령 출력, 파일 시각, 대화 기록에서 추론하지 않는다. 작업이 끝나면 그 등록부를 지우고, 7일이
+  지난 등록부는 정리한다.
 
 ## 4. 보장 (관찰 가능한 결과만)
 

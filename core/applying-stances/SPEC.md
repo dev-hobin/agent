@@ -2,7 +2,7 @@
 id: applying-stances
 plugin: hobin-stances
 skill: applying-stances
-version: 0.5.0
+version: 0.7.0
 ---
 
 # applying-stances — 엔지니어링 입장 반영
@@ -62,7 +62,22 @@ Without a check: <연결할 검사가 없는 입장들(enforcing-conventions 후
 
 **블록은 스크립트로.** 블록의 정확한 텍스트와 diff는 `scripts/stances.mjs block <대상> [--skip 번호] [--learning]`이
 만든다. 어떤 입장을 뺄지(중복·충돌)는 판단이고, 텍스트는 손으로 쓰지 않는다. 쓴 뒤에는
-`scripts/stances.mjs check <파일>`이 통과해야 한다.
+`scripts/stances.mjs check <파일>`이 통과해야 한다. `block`은 파일을 쓰지 않으므로(승인받을 diff를 출력할 뿐)
+등록하지 않는다. 대상은 승인 뒤에만 바뀌고, 그때 5단계가 검사한다.
+
+**작업 등록부.** 실행 환경은 에이전트 작업(세션)이 시작한 디렉터리에 그 작업의 등록부
+`.hobin-stances/sessions/<세션 ID>.jsonl`을 만든다(`.hobin-stances/.gitignore`는 `*`). 등록부 코드는 다른 역량과 함께 쓰는
+`../shared/scripts/session-registry.mjs`다.
+- `scripts/stances.mjs check <파일>`(제안 파일과, 승인 뒤 쓴 대상)는 실행 환경이 셸 명령에 넘기는 에이전트 세션 ID로 작업 디렉터리와 그 위에서 등록부를 찾아
+  검사한 파일의 절대 경로를 한 줄 덧붙인다.
+- 세션 ID가 있는데 등록부가 없거나 쓸 수 없으면 아무것도 쓰거나 검사하지 않고 종료 코드 2로 멈추며, 시작
+  디렉터리에서 다시 실행하라고, 실행 환경의 hook이 돌지 않는 곳이면 `--no-gate`를 주라고 알린다. 등록부를 찾았는데
+  `--no-gate`를 주면 거절한다(종료 코드 2). 세션 ID가 없으면(사람이 터미널에서 실행) 등록하지 않고 진행한다.
+  절차 문서는 `--no-gate`를 말하지 않는다. 멈춤 메시지만 알린다.
+- 이 작업이 편집 도구로 쓴 검사한 파일도 실행 환경이 등록부에 덧붙인다.
+- 실행 환경의 관문은 등록부에 있는 파일을 모두 검사하고, 사라진 파일은 사라졌다고 알린다. 디렉터리를 뒤지지
+  않고, 셸 텍스트, 명령 출력, 파일 시각, 대화 기록에서 추론하지 않는다. 작업이 끝나면 그 등록부를 지우고, 7일이
+  지난 등록부는 정리한다.
 
 ## 4. 보장 (관찰 가능한 결과만)
 
@@ -111,7 +126,7 @@ Without a check: <연결할 검사가 없는 입장들(enforcing-conventions 후
 4. **diff 보이기.** `<!-- hobin-stances:v1 -->` 블록이 있으면 그 자리에서 바꾸고, 없으면 블록을
    덧붙인다. 정확한 diff와 변경 후 크기를 보이고 승인을 기다린다. 비대화형 실행에서는 여기서
    멈춘다.
-5. **쓰고 보고하기.** 바꾼 파일, 중복이나 충돌로 건너뛴 입장, 검사가 없는 입장을 보고한다.
+5. **쓰고 보고하기.** 승인 뒤 대상을 쓰고 `scripts/stances.mjs check <대상>`을 실행한다. 바꾼 파일, 중복이나 충돌로 건너뛴 입장, 검사가 없는 입장을 보고한다.
 
 ## 6. 권장 전략
 
@@ -119,7 +134,7 @@ Without a check: <연결할 검사가 없는 입장들(enforcing-conventions 후
 
 ## 7. 지식
 
-지식 파일과 스크립트는 없다. `assets/`는 구현체에 그대로 복사된다(내용 동일).
+지식 파일은 없다. `assets/`, `scripts/`, `../shared/scripts/session-registry.mjs`는 구현체에 그대로 복사된다(내용 동일).
 
 | 파일 | 쓰임 | 언제 |
 | --- | --- | --- |

@@ -1,162 +1,146 @@
-// Shared by the hobin result hooks (review, stances, learning) on Claude Code and Codex. A hook
-// checks the results its skill writes; `check(file, text)` returns null for a file that is not
-// one of the skill's results, otherwise its problems (an empty list when it passes).
+// Shared by the hobin result hooks (review, stances, learning) on Claude Code and Codex; hooks.json
+// names the host as the first argument. A hook checks the results its skill writes with
+// `check(file, text, registered)`: its problems (an empty list when the result passes), or null
+// for a file that is not one of the skill's results. A registered file is a result: it is judged,
+// never null.
 //
-// Which results are this session's comes from a ledger the session's own tool calls fill, never
-// from file times: a checkout, a worktree, or another session's writes under the same folder are
-// not this session's results.
-// - PostToolUse of an edit tool (Write/Edit/MultiEdit, a Codex apply_patch) checks the files it
-//   wrote and records the results among them.
-// - A shell command that names a Markdown file (results are Markdown) is checked the same way on
-//   PostToolUse (or PostToolUseFailure, Claude's event for a command that exited non-zero): the
-//   .md files it names, found by name under its cwd too, changed since PreToolUse stamped the same
-//   call (by tool_use_id). Without a usable stamp, only the files it names that changed after the
-//   session started. A file git tracks and still holds as committed from before the call was
-//   written by git (a checkout, a worktree, a pull), not by the session, and does not count.
-// - Stop checks only the ledger's results. Problems go back to the model with exit 2; Stop lets
-//   the model finish after three blocks in a row, so a check that cannot pass never traps the
-//   session. A check that throws is the hook's own failure: exit 1, shown to the user, never sent
-//   to the model. Any other unexpected error exits 0: a hook never fails the user's work because
-//   of itself.
-import { appendFileSync, existsSync, lstatSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+// Which results are this session's comes only from the session registry (session-registry.mjs),
+// <start dir>/.hobin-<name>/sessions/<session_id>.jsonl:
+// - SessionStart creates it in the event's cwd and remembers that start directory in the plugin
+//   data directory. If SessionStart was missed (the plugin enabled mid-session), UserPromptSubmit
+//   creates it in the project directory (Claude: CLAUDE_PROJECT_DIR; Codex: the event cwd). Later
+//   events never locate it from their own cwd: on Claude Code the hook cwd follows the model's `cd`.
+// - The skill's scripts register the result they make or check, and stop when the session has no
+//   registry, so a session whose hooks do not run is told so at once.
+// - PostToolUse of an edit tool (Claude Write/Edit/MultiEdit tool_input.file_path; Codex
+//   apply_patch `*** Add File:`, `*** Update File:`, `*** Move to:`) checks the files it wrote and
+//   registers the results among them; problems go back at once.
+// - Stop checks exactly the files the registry lists; a listed file that no longer exists is
+//   reported. Nothing searches directories, and nothing is inferred from shell text, command
+//   output, file times or transcripts.
+// - SessionEnd deletes the session's registry and state. Stop prunes week-old registries in the
+//   start directory and week-old state.
+// Problems go back to the model with exit 2; Stop lets the model finish after three blocks in a
+// row, so a check that cannot pass never traps the session. A check that throws is the hook's own
+// failure: exit 1, shown to the user, never sent to the model. Any other unexpected error exits 0:
+// a hook never fails the user's work because of itself.
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const MAX_BLOCKS = 3;
-// File systems with one-second mtimes round a write in the stamp's second down below the stamp.
-const SLACK_MS = 1000;
-const MENTIONS = /\.md\b/i;
-const NAMED = /[^\s"'`;|&<>()=]+\.md\b/gi;
-const MARKDOWN = /\.md$/i;
-
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const EDIT_TOOLS = new Set(["Write", "Edit", "MultiEdit"]);
+const PATCHED = /^\*\*\* (?:Add File|Update File|Move to): (.+)$/gm;
+const here = dirname(fileURLToPath(import.meta.url));
+const host = process.argv[2] === "codex" ? "codex" : "claude";
 const safe = (value) => String(value ?? "").replace(/[^\w-]/g, "");
-const mtime = (path) => { try { return statSync(path).mtimeMs; } catch { return -Infinity; } };
 
-function sessionStart(input) {
-	try { const t = statSync(input.transcript_path); return t.birthtimeMs || t.ctimeMs; } catch { return undefined; }
+// The shared session registry (core/shared/scripts/session-registry.mjs), copied next to this file
+// or next to the scripts of a skill that registers results.
+function registryModule() {
+	let skills = [];
+	try { skills = readdirSync(join(here, "../skills")).sort(); } catch {}
+	const path = [join(here, "session-registry.mjs"), ...skills.map((skill) => join(here, "../skills", skill, "scripts/session-registry.mjs"))].find(existsSync);
+	return import(pathToFileURL(path).href);
 }
 
-// Codex sends file edits as apply_patch text in tool_input.command; any other command is a shell
-// command. Claude's edit tools carry tool_input.file_path.
-function commandText(input) {
-	const command = input?.tool_input?.command;
-	return Array.isArray(command) ? command.join(" ") : typeof command === "string" ? command : "";
-}
-const isPatch = (input, text) => input?.tool_name === "apply_patch" || text.trimStart().startsWith("*** Begin Patch");
-const isShell = (input) => {
-	const text = commandText(input);
-	return typeof input?.tool_input?.file_path !== "string" && Boolean(text) && !isPatch(input, text);
-};
-
-// Files an edit tool wrote: Claude's tool_input.file_path, or the paths in a Codex apply_patch
-// (`*** Add File:`, `*** Update File:`, `*** Move to:`).
-export function writtenFiles(input, root) {
-	const direct = input?.tool_input?.file_path;
-	if (typeof direct === "string") return [resolve(root, direct)];
-	return [...commandText(input).matchAll(/^\*\*\* (?:Add File|Update File|Move to): (.+)$/gm)].map((m) => resolve(input?.cwd ?? root, m[1].trim()));
-}
-
-// Markdown files under dir. Symbolic links are not followed and an entry that cannot be read is
-// skipped, so one dangling link or locked folder never stops the walk.
-export function markdownFiles(dir) {
-	let entries;
-	try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return []; }
-	return entries.flatMap((entry) => {
-		if (entry.name === "node_modules" || entry.name.startsWith(".git") || entry.isSymbolicLink()) return [];
-		const path = join(dir, entry.name);
-		if (entry.isDirectory()) return markdownFiles(path);
-		if (!MARKDOWN.test(entry.name)) return [];
-		if (entry.isFile()) return [path];
-		try { return lstatSync(path).isFile() ? [path] : []; } catch { return []; }
-	});
+// The session's state (start directory, Stop block counter) in the host's plugin data directory
+// (CLAUDE_PLUGIN_DATA on Claude Code; PLUGIN_DATA or CLAUDE_PLUGIN_DATA on Codex), or the OS temp
+// directory when the host gives none.
+function sessionState(name, session) {
+	const dir = join(process.env.CLAUDE_PLUGIN_DATA || process.env.PLUGIN_DATA || tmpdir(), `hobin-${name}-sessions`);
+	mkdirSync(dir, { recursive: true });
+	const path = (kind) => join(dir, `${kind}-${safe(session)}`);
+	return {
+		path,
+		start: () => { try { return readFileSync(path("start"), "utf8").trim() || undefined; } catch { return undefined; } },
+		remember: (start) => writeFileSync(path("start"), start),
+		clear: () => { for (const kind of ["start", "stop"]) rmSync(path(kind), { force: true }); },
+		prune: (now = Date.now()) => {
+			for (const file of readdirSync(dir)) {
+				try { if (now - statSync(join(dir, file)).mtimeMs > WEEK_MS) rmSync(join(dir, file), { force: true }); } catch {}
+			}
+		},
+	};
 }
 
-// A file git tracks, still holds as committed, and last committed before `since` was written by
-// git (a checkout, a worktree, a pull), not by the session. A commit made since then may be the
-// session's own (a write and a commit in one command), so its files count. Outside a git
-// repository, or when git cannot tell, a file counts.
-export function checkedOut(path, since) {
-	const git = (...args) => spawnSync("git", ["-C", dirname(path), ...args], { encoding: "utf8" });
-	const status = git("status", "--porcelain", "--ignored=matching", "--untracked-files=all", "--", basename(path));
-	if (status.status !== 0 || status.stdout !== "") return false;
-	const committed = Number(git("log", "-1", "--format=%ct", "--", basename(path)).stdout.trim());
-	return committed > 0 && committed * 1000 < since;
-}
-
-// Markdown files a shell command wrote, judged by the stamp of the same call: the files it names,
-// found by name under its cwd too (so `cd docs && cat > REVIEW.md` counts), changed since the
-// stamp. Unnamed files under the cwd are never the command's: another session may be writing them.
-export function shellFiles(input, root, stamp) {
-	const text = commandText(input);
-	if (!MENTIONS.test(text)) return [];
-	const cwd = input?.cwd ?? root;
-	const tokens = [...text.matchAll(NAMED)].map((m) => m[0].replace(/^~(?=\/)/, process.env.HOME ?? "~"));
-	const named = tokens.map((token) => resolve(cwd, token));
-	if (stamp === undefined) {
-		const start = sessionStart(input);
-		return start === undefined ? [] : named.filter((path) => mtime(path) >= start - SLACK_MS && !checkedOut(path, start - SLACK_MS));
+// The files an edit tool wrote, from its structured input only.
+function editedFiles(input, cwd) {
+	if (EDIT_TOOLS.has(input?.tool_name)) {
+		const path = input?.tool_input?.file_path;
+		return typeof path === "string" && path ? [resolve(cwd, path)] : [];
 	}
-	const suffixes = tokens.filter((token) => !isAbsolute(token)).map((token) => `/${token.replace(/^(?:\.\.?\/)+/, "")}`);
-	const found = suffixes.length ? markdownFiles(cwd).filter((path) => suffixes.some((suffix) => path.endsWith(suffix))) : [];
-	return [...new Set([...named, ...found])].filter((path) => mtime(path) >= stamp - SLACK_MS && !checkedOut(path, stamp - SLACK_MS));
-}
-
-// A stamp needs the call's id: without one, calls would share a stamp and a stale one would date
-// a later call. Anything but a positive time not in the future is no stamp at all.
-function readStamp(file) {
-	let text;
-	try { text = readFileSync(file, "utf8").trim(); } catch { return undefined; }
-	const stamp = /^\d+$/.test(text) ? Number(text) : NaN;
-	return stamp > 0 && stamp <= Date.now() ? stamp : undefined;
+	if (input?.tool_name !== "apply_patch") return [];
+	const command = input?.tool_input?.command;
+	const text = Array.isArray(command) ? command.join(" ") : typeof command === "string" ? command : "";
+	return [...new Set([...text.matchAll(PATCHED)].map((m) => resolve(cwd, m[1].trim())))];
 }
 
 export async function runHook(name, check) {
 	try {
 		const input = JSON.parse(readFileSync(0, "utf8"));
-		// The project root: on Claude Code, input.cwd follows the model's `cd` in Bash.
-		const root = process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd();
-		process.chdir(root);
 		const event = input.hook_event_name;
-		const session = input.session_id ? safe(input.session_id) : undefined;
-		const temp = (kind, ...parts) => join(tmpdir(), `hobin-${name}-${kind}-${[session, ...parts].map(safe).join("-")}`);
-		const useId = typeof input.tool_use_id === "string" && input.tool_use_id ? input.tool_use_id : undefined;
-		const stampFile = session && useId ? temp("pre", useId) : undefined;
-		const ledger = session ? temp("ledger") : undefined;
+		const session = typeof input.session_id === "string" && input.session_id ? input.session_id : undefined;
+		const cwd = resolve(typeof input.cwd === "string" && input.cwd ? input.cwd : process.cwd());
+		const edited = event === "PostToolUse" ? editedFiles(input, cwd) : [];
+		if (!["SessionStart", "UserPromptSubmit", "Stop", "SessionEnd"].includes(event) && !edited.length) process.exit(0);
+		if (!session && event !== "PostToolUse") process.exit(0);
 
-		if (event === "PreToolUse") {
-			if (stampFile && isShell(input) && MENTIONS.test(commandText(input))) writeFileSync(stampFile, String(Date.now()));
+		const { ensureRegistry, pruneRegistries, register, registered, registryPath, removeRegistry } = await registryModule();
+		const state = session && sessionState(name, session);
+		const registry = (startDir) => ({ name: `.hobin-${name}`, sessionId: session, startDir });
+		if (event === "SessionEnd") {
+			const start = state.start();
+			if (start) removeRegistry(registry(start));
+			state.clear();
 			process.exit(0);
 		}
-		let files;
-		if (event === "Stop") {
-			if (!ledger) process.exit(0);
-			try { files = readFileSync(ledger, "utf8").split("\n").filter(Boolean); } catch { files = []; }
-		} else if (isShell(input)) {
-			const stamp = stampFile ? readStamp(stampFile) : undefined;
-			if (stampFile) rmSync(stampFile, { force: true });
-			files = shellFiles(input, root, stamp);
-		} else {
-			files = writtenFiles(input, root);
+		if (event === "SessionStart") {
+			state.remember(cwd);
+			ensureRegistry(registry(cwd));
+			process.exit(0);
+		}
+		// The start directory: remembered at SessionStart; otherwise the project directory, remembered
+		// from then on. Results are checked from there (a review cites files from the project root).
+		const project = host === "claude" && process.env.CLAUDE_PROJECT_DIR ? resolve(process.env.CLAUDE_PROJECT_DIR) : cwd;
+		const remembered = state ? state.start() : undefined;
+		const start = remembered ?? project;
+		if (state && !remembered) state.remember(start);
+		process.chdir(start);
+		if (event === "UserPromptSubmit") {
+			ensureRegistry(registry(start));
+			process.exit(0);
 		}
 
+		const listed = session ? registered(registryPath(registry(start))) : [];
+		if (event === "Stop") { state.prune(); pruneRegistries({ name: `.hobin-${name}`, startDir: start }); }
+		const files = event === "Stop" ? listed : edited;
 		const problems = [];
 		const errors = [];
 		const results = [];
-		for (const file of [...new Set(files)]) {
+		for (const file of files) {
 			let text;
-			try { text = readFileSync(file, "utf8"); } catch { continue; }
+			try { text = readFileSync(file, "utf8"); } catch {
+				if (event === "Stop") problems.push(`${file}:\n- this session registered it as a result, but it no longer exists. Restore it, or write the result again from the skill's starter script.`);
+				continue;
+			}
 			let found;
-			try { found = await check(file, text); } catch (error) { errors.push(`${file}: ${error?.stack ?? error}`); continue; }
+			try { found = await check(file, text, listed.includes(file)); } catch (error) { errors.push(`${file}: ${error?.stack ?? error}`); continue; }
 			if (found == null) continue;
 			results.push(file);
 			if (found.length) problems.push(`${file}:\n${found.map((p) => `- ${p}`).join("\n")}`);
 		}
-		if (ledger && event !== "Stop" && results.length) appendFileSync(ledger, results.map((file) => `${file}\n`).join(""));
+		const added = results.filter((file) => !listed.includes(file));
+		if (session && added.length) {
+			const path = ensureRegistry(registry(start));
+			for (const file of added) register(path, file);
+		}
 
-		const counter = session && temp("stop");
+		const counter = session && state.path("stop");
 		if (!problems.length) {
-			if (event === "Stop" && counter) rmSync(counter, { force: true });
+			if (event === "Stop") rmSync(counter, { force: true });
 			if (!errors.length) process.exit(0);
 			console.error(`hobin-${name} hook internal error (not a problem in the result; the model was not sent back):\n${errors.join("\n")}`);
 			process.exit(1);

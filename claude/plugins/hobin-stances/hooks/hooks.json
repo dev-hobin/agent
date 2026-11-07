@@ -1,37 +1,35 @@
 {
   "hooks": {
-    "PreToolUse": [
+    "SessionStart": [
       {
-        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
             "timeout": 30,
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\" claude"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\" claude"
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit|Bash",
+        "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
             "type": "command",
             "timeout": 60,
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\""
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 60,
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\" claude"
           }
         ]
       }
@@ -42,7 +40,18 @@
           {
             "type": "command",
             "timeout": 60,
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\" claude"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stances-hook.mjs\" claude"
           }
         ]
       }

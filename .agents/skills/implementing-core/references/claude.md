@@ -43,40 +43,36 @@ plugin's `hooks/hooks.json`, not in the skill's `hooks` frontmatter. A frontmatt
 registered only once the skill is invoked, so a result written without invoking it goes
 unchecked; a plugin hook runs in every session, however the skill started (2026-11-02,
 when the entry skills became model-selectable). The scripts therefore check only results
-written in the session and leave other
-sessions alone, as the Codex plugin hooks always have. "Written in the session" means
-written by the session's own tool calls, kept in a per-session ledger: file times cannot tell,
-since a checkout, a worktree, or another session under the same folder writes files too
-(2026-11-05). Every guarantee the spec backs with a
-script (an output contract or a `script_passes` check) gets one, and the guarantee is
+of the session and leave other sessions alone. "Of the session" means listed in the session
+registry (`core/shared/scripts/session-registry.mjs`, copied into each plugin): file times,
+shell text and transcripts cannot tell, since a checkout, a worktree, or another session under
+the same folder writes files too (2026-11-05, 2026-11-07). Every guarantee the spec backs with
+a script (an output contract or a `script_passes` check) gets one, and the guarantee is
 **enforced**:
 
-- For a result file Claude writes, register the same script on `PreToolUse` (matcher
-  `Bash`), `PostToolUse` (matcher `Write|Edit|MultiEdit|Bash`, quick feedback),
-  `PostToolUseFailure` (matcher `Bash`: a command that exited non-zero arrives there), and
-  `Stop` (the gate). The script calls `runHook` from the shared `scripts/hook-input.mjs`
-  with a `check(file, text)` that recognizes the skill's results by content (an
-  output-contract marker, a report whose first line is `[P0]`/`[P1]` or `No findings`, a
-  block marker). `runHook` checks what an edit tool wrote, and what a shell command naming a
-  `.md` file named (found by name under its cwd too) and changed since its `PreToolUse`
-  stamp; it records the results in the session's ledger, and on Stop checks only the ledger.
-  A file git tracks and still holds as committed from before the call was written by a
-  checkout or a pull, not the session, and does not count. Problems go back with exit 2; a
-  check that throws exits 1. The hook scripts are byte-identical to the Codex plugin's.
-- `Stop` for "finish only when the check passes": exit 2 while the check fails sends Claude
-  back to work. Let Claude stop after three blocks in a row (count per `session_id` in the
-  temp directory) so a check that cannot pass never traps the session. A gate over records
-  (hobin-feature) keeps a per-session ledger of the records the session's own tool calls
-  wrote instead of comparing mtimes, which would claim other sessions' records: `PreToolUse`
-  (matcher `Bash`) stamps a command that names a record or record script, `PostToolUse`
-  (matcher `Write|Edit|MultiEdit|Bash`) adds what an edit tool wrote and what that command
-  named or changed under its cwd since the stamp, `PostToolUseFailure` (matcher `Bash`) does
-  the same for a command that exited non-zero, and `Stop` checks only the ledger. A
-  checker that throws is the hook's own failure: exit 1 (shown to the user), never 2.
+- Register the same script on `SessionStart`, `UserPromptSubmit`, `PostToolUse` (matcher
+  `Write|Edit|MultiEdit`), `Stop` and `SessionEnd`, with the host as its first argument
+  (`node "${CLAUDE_PLUGIN_ROOT}/scripts/<name>-hook.mjs" claude`). The result hooks call
+  `runHook` from the shared `scripts/hook-input.mjs` with a `check(file, text, registered)`
+  that recognizes the skill's results by content (an output-contract marker, a report whose
+  first line is `[P0]`/`[P1]` or `No findings`, the line that opens a block) and judges every
+  registered file. SessionStart creates `<start dir>/.hobin-<name>/sessions/<session_id>.jsonl`
+  and remembers the start dir in `${CLAUDE_PLUGIN_DATA}` (Claude's hook `cwd` follows `cd`);
+  UserPromptSubmit creates it in `CLAUDE_PROJECT_DIR` if SessionStart was missed. The skill's
+  scripts register what they make or check (with `CLAUDE_CODE_SESSION_ID`), stop with exit 2
+  when the session has no registry, and refuse `--no-gate` when it has one; SKILL.md never
+  mentions `--no-gate`. PostToolUse checks and registers what an edit tool wrote. Problems go
+  back with exit 2; a check that throws exits 1. The hook scripts are byte-identical to the
+  Codex plugin's.
+- `Stop` for "finish only when the check passes": check exactly the registry's files (a
+  missing one is reported); exit 2 sends Claude back to work. Let Claude stop after three
+  blocks in a row (count per `session_id` in the plugin data directory) so a check that cannot
+  pass never traps the session. hobin-feature's record gate uses the same registry with its
+  own hook. SessionEnd deletes the registry and state; Stop prunes week-old ones.
 - Use `${CLAUDE_PLUGIN_ROOT}` in hook commands; `${CLAUDE_SKILL_DIR}` is not set for hooks.
-- Keep the events and timeouts the same as the Codex plugin's `hooks/hooks.json`, except
-  `PostToolUseFailure`, which Codex does not document; only the plugin-root variable and the
-  matchers differ otherwise (Claude `Bash` and `Write|Edit|MultiEdit|Bash`; Codex none).
+- Keep the events the same as the Codex plugin's `hooks/hooks.json`; only the plugin-root
+  variable, the host argument, the SessionEnd timeout and the PostToolUse matcher differ
+  (Claude `Write|Edit|MultiEdit`; Codex none).
 - `tests/hooks.test.mjs` proves each hook with a passing and a failing result, and fails if a
   skill registers a hook in its frontmatter.
 
@@ -88,7 +84,8 @@ result before the hook has to send it back.
 For a capability with `assets/output-contract.json`:
 
 - Copy `core/shared/scripts/output-contract.mjs` to `scripts/output-contract.mjs` at the
-  plugin root, and the contract into the skill's `assets/`.
+  plugin root, `core/shared/scripts/session-registry.mjs` next to it (the script imports it),
+  and the contract into the skill's `assets/`.
 - The skill tells Claude to start the result with
   `node ${CLAUDE_PLUGIN_ROOT}/scripts/output-contract.mjs new ${CLAUDE_SKILL_DIR}/assets/output-contract.json <file>`
   and to finish only when `… check …` passes; pre-approve that script in `allowed-tools`.

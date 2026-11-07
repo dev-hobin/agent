@@ -41,8 +41,13 @@ The plugins bundle hooks that check results which must always hold (review repor
 learning results, the stances block, the acceptance-scenario record). Codex runs plugin
 hooks only after you trust them: open `/hooks` in a session, review the hobin hooks, and
 trust them, and do it again after each plugin update (an update needs a new trust). Until then
-the skills still run the same checks themselves, but nothing sends the model back; hobin-feature's
-`scenarios.mjs` stops and says its hooks are not active (`--no-gate` proceeds without the gate, and is refused while the hooks are active).
+there is no session registry: the scripts that start or check a result (`scenarios.mjs`,
+`check-report.mjs`, `stances.mjs check`, `output-contract.mjs`) stop and say the hooks are not
+active, and their message names the flag that proceeds without a gate (refused while the
+hooks are active). Once trusted, each
+plugin's hooks create the registry (`.hobin-<plugin>/`, ignored by git) in the directory the
+session started in, and Stop checks exactly the files the scripts and edit tools registered
+there; run the scripts from that directory or below it.
 
 ## Model-free installation check
 

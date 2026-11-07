@@ -49,8 +49,11 @@ Start a new session after installing. Agents pick a skill when the request fits 
 start one yourself with `/hobin-review:reviewing-code` in Claude Code or
 `$hobin-review:reviewing-code` in Codex. In Codex, trust the bundled hooks with `/hooks` so the
 result checks run automatically, and trust them again after each plugin update: Codex runs no
-untrusted hook. Without them hobin-feature has no session registry, so its `scenarios.mjs` stops
-and says the hooks are not active. See
+untrusted hook. Without them there is no session registry, so the scripts that start or check a
+result (`scenarios.mjs`, `check-report.mjs`, `stances.mjs check`, `output-contract.mjs`) stop and
+say the hooks are not active. Run those scripts from the directory the session started in, or
+below it: each plugin's hooks create the registry there (`.hobin-<plugin>/`, ignored by git), and
+Stop checks exactly the files registered in it. See
 [installation](./docs/installation.md).
 
 ## Changing a capability
@@ -79,8 +82,9 @@ plugin's hooks really running, the same way on both hosts: a session runs `scena
 (also for a record in another directory, by absolute path), which registers the record in the
 session registry the hooks created, and Stop must send it back; a session that registers a complete
 record must be let through; `init` run after `cd` away from the start directory must stop with the
-"no registry" message. Codex plugin-eval never installs the plugin, so this is the gate's only check
-on Codex.
+"no registry" message. For the result hooks, one learning check per host: a session that runs
+`output-contract.mjs new` must be sent back by Stop for the unfilled result. Codex plugin-eval never
+installs the plugin, so this is the gates' only check on Codex.
 
 ```sh
 pnpm check:live -- claude                                         # claude -p --plugin-dir; ~/.claude is not changed
@@ -111,8 +115,9 @@ claude plugin eval claude/plugins/<plugin> --tag regression --ablation none --sc
   --allow-tools Bash Write Edit --model sonnet --runs 3 --trust-plugin --no-publish --keep-temp
 ```
 
-hobin-feature needs no extra flags: its records are made with `scenarios.mjs` in the shell
-(`Bash` is granted above), and the eval runs its hooks, which create the session registry.
+No plugin needs extra flags: records and results are started and checked with the skills'
+scripts in the shell (`Bash` is granted above), and the eval runs the plugins' hooks, which
+create the session registries.
 
 `--keep-temp` keeps what a failed run needs for diagnosis. The JSON result names each run's
 `tracePath`. The run's workspace is `../sealed/home/cwd` next to that trace; `chmod u+rx` the
@@ -121,7 +126,7 @@ hobin-feature needs no extra flags: its records are made with `scenarios.mjs` in
 Codex benchmarks use OpenAI's `plugin-eval`; see
 `.agents/skills/implementing-core/references/codex.md`. plugin-eval never installs the plugin
 (it is listed as available only), so no plugin hook runs there: a run measures the skill alone,
-and hobin-feature's Stop gate is checked by `pnpm check:live -- codex`.
+and the Stop gates are checked by `pnpm check:live -- codex`.
 
 ## License
 
